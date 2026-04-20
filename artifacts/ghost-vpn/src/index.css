@@ -104,10 +104,10 @@
   --chart-4: 0 100% 50%;
   --chart-5: 240 100% 50%;
 
-  --app-font-sans: 'Space Mono', 'Courier New', Courier, monospace;
+  --app-font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   --app-font-serif: Georgia, serif;
   --app-font-mono: 'Space Mono', 'Courier New', Courier, monospace;
-  --radius: 0rem;
+  --radius: 0.625rem;
   
   --button-outline: rgba(0,255,0, .20);
   --badge-outline: rgba(0,255,0, .15);
@@ -135,7 +135,7 @@
   }
 
   body {
-    @apply font-mono antialiased bg-background text-foreground;
+    @apply font-sans antialiased bg-background text-foreground;
   }
 }
 

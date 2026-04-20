@@ -122,7 +122,7 @@ export function Layout({ children }: LayoutProps) {
   return (
     <div className="min-h-screen bg-black text-primary flex selection:bg-primary selection:text-black">
       {/* Sidebar */}
-      <aside className="w-56 border-r border-primary/15 flex flex-col shrink-0">
+      <aside className="w-56 border-r border-primary/10 flex flex-col shrink-0 bg-gradient-to-b from-black via-[#020d05] to-black">
 
         {/* Logo */}
         <div className="p-4 border-b border-primary/15">
@@ -211,7 +211,6 @@ export function Layout({ children }: LayoutProps) {
 
         {/* Content */}
         <div className="flex-1 overflow-auto p-6 relative min-h-0">
-          <div className="pointer-events-none fixed inset-0 z-50 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_4px,3px_100%] opacity-10" />
           <div className="relative z-10 h-full">
             {children}
           </div>
