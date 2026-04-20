@@ -736,9 +736,21 @@ function NewTabPage({
       icon: <Layers className="w-5 h-5 text-cyan-400" />,
       layers: ["Your Device", "GhostNet ×3", "Tor Entry", "Tor Middle", "Tor Exit", "Destination"],
     },
+    "custom-proxy": {
+      color: "text-orange-400",
+      description:
+        "Routes through your custom SOCKS4, SOCKS5, or HTTP proxy server. Configure host and port below.",
+      icon: <Settings className="w-5 h-5 text-orange-400" />,
+      layers: ["Your Device", "Custom Proxy", "Destination"],
+    },
   };
 
-  const info = modeInfo[mode];
+  const info = modeInfo[mode] ?? {
+    color: "text-primary",
+    description: "Select a proxy mode to get started.",
+    icon: <Shield className="w-5 h-5 text-primary" />,
+    layers: ["Your Device", "Destination"],
+  };
 
   return (
     <div className="h-full bg-black flex flex-col items-center justify-center p-8 gap-8">
