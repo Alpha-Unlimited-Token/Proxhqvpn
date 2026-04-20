@@ -16,11 +16,23 @@ GhostNet is an advanced VPN orchestration and security platform with 60-node mes
 - **API codegen**: Orval (from OpenAPI spec)
 - **Build**: esbuild (CJS bundle)
 
+## Authentication
+
+Clerk-based auth (app_3CcwHo66ohArVtaIa0XTcv88i4Y). Env vars: `VITE_CLERK_PUBLISHABLE_KEY`, `CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`.
+- `/` — Public landing page (GhostNet OS marketing). Signed-in users redirect to `/dashboard`.
+- `/sign-in`, `/sign-up` — Branded Clerk auth pages with GhostNet dark/green terminal theme.
+- All `/dashboard/*` routes — Protected. Unauthenticated users redirect to `/sign-in`.
+- API proxy: `CLERK_PROXY_PATH = /api/__clerk` (only active in production, dev uses Clerk dev instance directly).
+- Sign-out available via Layout sidebar footer.
+
+**STRICT RULE: No mock/simulated data anywhere.** All pages use real APIs or real DB. `useSilkWebEngine.ts` was deleted.
+
 ## Pages
 
 | Route | Page | Description |
 |-------|------|-------------|
-| / | Dashboard | Live stats, node feed, intrusion alerts |
+| / | Home | Public landing page — GhostNet OS marketing + CTA |
+| /dashboard | Dashboard | Live stats, node feed, intrusion alerts (auth required) |
 | /nodes | NodeManager | Swarm grid with 3s rotation + lifecycle animations |
 | /beacons | BeaconAlerts | Spider/worm/beacon alert table |
 | /silkweb | SilkWeb | SVG chord topology map + trapped entity list |

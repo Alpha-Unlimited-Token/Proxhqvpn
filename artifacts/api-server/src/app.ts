@@ -3,6 +3,8 @@ import cors from "cors";
 import pinoHttp from "pino-http";
 import helmet from "helmet";
 import { rateLimit } from "express-rate-limit";
+import { clerkMiddleware } from "@clerk/express";
+import { CLERK_PROXY_PATH, clerkProxyMiddleware } from "./middlewares/clerkProxyMiddleware";
 import router from "./routes";
 import { logger } from "./lib/logger";
 
@@ -35,16 +37,19 @@ app.use(
   }),
 );
 
+// Clerk proxy must be mounted before body parsers (proxies raw bytes)
+app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
+
 app.use(
   helmet({
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "https://clerk.accounts.dev", "https://*.clerk.accounts.dev"],
         styleSrc: ["'self'", "'unsafe-inline'"],
-        imgSrc: ["'self'", "data:"],
-        connectSrc: ["'self'"],
-        fontSrc: ["'self'"],
+        imgSrc: ["'self'", "data:", "https://img.clerk.com", "https://*.clerk.com"],
+        connectSrc: ["'self'", "https://clerk.accounts.dev", "https://*.clerk.accounts.dev", "https://api.clerk.com"],
+        fontSrc: ["'self'", "https://fonts.gstatic.com"],
         objectSrc: ["'none'"],
         frameSrc: ["'none'"],
         frameAncestors: ["'none'"],
@@ -110,6 +115,7 @@ app.use(globalLimiter);
 
 app.use(express.json({ limit: "64kb", strict: true }));
 app.use(express.urlencoded({ extended: false, limit: "16kb" }));
+app.use(clerkMiddleware());
 
 app.use((_req: Request, res: Response, next: NextFunction) => {
   res.removeHeader("X-Powered-By");

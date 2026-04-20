@@ -1,9 +1,10 @@
 import React, { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
+import { useUser, useClerk } from "@clerk/react";
 import {
   Activity, ShieldAlert, Network, Terminal, Database, Server,
   Settings2, Shield, Globe, Layers,
-  Power, Search, AlertTriangle, GitBranch, EyeOff, ShieldCheck, SplitSquareHorizontal
+  Power, Search, AlertTriangle, GitBranch, EyeOff, ShieldCheck, SplitSquareHorizontal, LogOut
 } from "lucide-react";
 
 interface LayoutProps {
@@ -12,12 +13,14 @@ interface LayoutProps {
 
 export function Layout({ children }: LayoutProps) {
   const [location] = useLocation();
+  const { user } = useUser();
+  const { signOut } = useClerk();
 
   const navGroups = [
     {
       label: "CORE",
       items: [
-        { href: "/",             label: "DASHBOARD",     icon: Activity },
+        { href: "/dashboard",    label: "DASHBOARD",     icon: Activity },
         { href: "/nodes",        label: "NODE MGR",       icon: Server },
         { href: "/vpngate",      label: "VPN GATE",       icon: Globe },
         { href: "/beacons",      label: "BEACONS",        icon: ShieldAlert },
@@ -95,6 +98,22 @@ export function Layout({ children }: LayoutProps) {
             </div>
           ))}
         </nav>
+
+        {/* User / sign-out */}
+        {user && (
+          <div className="p-3 border-t border-primary/20">
+            <div className="text-[9px] font-mono text-primary/40 uppercase tracking-widest mb-1 truncate">
+              {user.primaryEmailAddress?.emailAddress ?? user.username ?? "Operator"}
+            </div>
+            <button
+              onClick={() => signOut()}
+              className="flex items-center gap-2 w-full text-[10px] font-mono uppercase tracking-widest text-primary/50 hover:text-primary border border-transparent hover:border-primary/30 px-2 py-1.5 transition-colors"
+            >
+              <LogOut className="w-3 h-3" />
+              SIGN OUT
+            </button>
+          </div>
+        )}
       </aside>
 
       {/* Main Content */}
@@ -103,6 +122,11 @@ export function Layout({ children }: LayoutProps) {
           <div className="text-xs text-primary/50 tracking-widest">
             {location} // {new Date().toISOString()}
           </div>
+          {user && (
+            <div className="text-[10px] font-mono text-primary/30 uppercase tracking-widest">
+              {user.username ?? user.firstName ?? "OP"}
+            </div>
+          )}
         </header>
         <div className="flex-1 overflow-auto p-6 relative min-h-0">
           {/* Scanline effect */}
