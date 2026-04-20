@@ -259,6 +259,17 @@ async function main() {
       if (fs.existsSync(installTxt)) fs.copyFileSync(installTxt, path.join(stageDir, "INSTALL.txt"));
       const userGuide = path.join(__dirname, "USER-GUIDE.txt");
       if (fs.existsSync(userGuide)) fs.copyFileSync(userGuide, path.join(stageDir, "USER-GUIDE.txt"));
+      // Bundle daemon + installer scripts
+      const ghostd = path.join(__dirname, "ghostd.py");
+      if (fs.existsSync(ghostd)) fs.copyFileSync(ghostd, path.join(stageDir, "ghostd.py"));
+      const scriptsDir = path.join(__dirname, "scripts");
+      if (fs.existsSync(scriptsDir)) {
+        const scriptsDest = path.join(stageDir, "scripts");
+        ensureDir(scriptsDest);
+        for (const sf of fs.readdirSync(scriptsDir)) {
+          fs.copyFileSync(path.join(scriptsDir, sf), path.join(scriptsDest, sf));
+        }
+      }
 
       const zipPath = path.join(DIST, `${name}.zip`);
       await zipDir(stageDir, zipPath, name);
@@ -301,6 +312,17 @@ async function main() {
   if (fs.existsSync(installTxtUniv)) fs.copyFileSync(installTxtUniv, path.join(univDir, "INSTALL.txt"));
   const userGuideUniv = path.join(__dirname, "USER-GUIDE.txt");
   if (fs.existsSync(userGuideUniv)) fs.copyFileSync(userGuideUniv, path.join(univDir, "USER-GUIDE.txt"));
+  // Bundle daemon + installer scripts
+  const ghostdUniv = path.join(__dirname, "ghostd.py");
+  if (fs.existsSync(ghostdUniv)) fs.copyFileSync(ghostdUniv, path.join(univDir, "ghostd.py"));
+  const scriptsDirUniv = path.join(__dirname, "scripts");
+  if (fs.existsSync(scriptsDirUniv)) {
+    const scriptsDestUniv = path.join(univDir, "scripts");
+    ensureDir(scriptsDestUniv);
+    for (const sf of fs.readdirSync(scriptsDirUniv)) {
+      fs.copyFileSync(path.join(scriptsDirUniv, sf), path.join(scriptsDestUniv, sf));
+    }
+  }
 
   const univZip = path.join(DIST, "GhostNet-Universal-NodeJS.zip");
   await zipDir(univDir, univZip, "GhostNet-Universal-NodeJS");
