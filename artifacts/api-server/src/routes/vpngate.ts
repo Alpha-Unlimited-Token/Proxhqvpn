@@ -159,6 +159,63 @@ async function getServers(): Promise<VpnGateServer[]> {
   }
 }
 
+router.get("/veil", async (req, res) => {
+  try {
+    const servers = await getServers();
+    const { limit } = req.query as Record<string, string>;
+    const limitN = Math.min(parseInt(limit) || 2000, 6000);
+
+    // Only servers with a valid OpenVPN config and reasonable ping
+    const eligible = servers.filter((s) => s.hasOvpn && s.ping < 350);
+
+    // Group by country, sort each group by score descending
+    const byCountry: Record<string, VpnGateServer[]> = {};
+    for (const s of eligible) {
+      if (!byCountry[s.countryCode]) byCountry[s.countryCode] = [];
+      byCountry[s.countryCode].push(s);
+    }
+    for (const cc of Object.keys(byCountry)) {
+      byCountry[cc].sort((a, b) => b.score - a.score);
+    }
+
+    // Round-robin across countries for maximum geographic diversity
+    const veilNodes: VpnGateServer[] = [];
+    const countries = Object.keys(byCountry).sort();
+    let round = 0;
+    while (veilNodes.length < limitN) {
+      let added = 0;
+      for (const cc of countries) {
+        if (veilNodes.length >= limitN) break;
+        if (round < byCountry[cc].length) {
+          veilNodes.push(byCountry[cc][round]);
+          added++;
+        }
+      }
+      round++;
+      if (added === 0) break;
+    }
+
+    const countryCount = [...new Set(veilNodes.map((s) => s.countryCode))].length;
+    const avgPing = veilNodes.length
+      ? Math.round(veilNodes.reduce((acc, s) => acc + s.ping, 0) / veilNodes.length)
+      : 0;
+    const avgSpeed = veilNodes.length
+      ? Math.round((veilNodes.reduce((acc, s) => acc + s.speedMbps, 0) / veilNodes.length) * 10) / 10
+      : 0;
+
+    res.json({
+      servers: veilNodes,
+      total: veilNodes.length,
+      countries: countryCount,
+      avgPingMs: avgPing,
+      avgSpeedMbps: avgSpeed,
+      cacheAgeSeconds: cache ? Math.round((Date.now() - cache.ts) / 1000) : 0,
+    });
+  } catch (e: any) {
+    res.status(502).json({ error: "Failed to fetch veil servers", detail: e.message });
+  }
+});
+
 router.get("/servers", async (req, res) => {
   try {
     let servers = await getServers();

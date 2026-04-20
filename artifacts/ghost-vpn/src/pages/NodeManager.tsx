@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNodeLifecycle } from "@/hooks/useNodeLifecycle";
+import { useVpnGateInner } from "@/hooks/useVpnGateInner";
 import { NodeCard } from "@/components/nodes/NodeCard";
 import { useCreateNode, getListNodesQueryKey } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
@@ -7,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Network, Plus, RefreshCw, Radio, Activity, Globe, Download } from "lucide-react";
+import { Network, Plus, RefreshCw, Radio, Activity, Globe, Download, Layers } from "lucide-react";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -48,11 +49,10 @@ function speedColor(mbps: number) {
   return "text-red-400/70";
 }
 
-function VpnGateSwarmCard({ server, onDownload }: { server: VpnGateServer; onDownload: (s: VpnGateServer) => void }) {
+function VpnGateOuterCard({ server, onDownload }: { server: VpnGateServer; onDownload: (s: VpnGateServer) => void }) {
   return (
     <div className="relative bg-black border border-cyan-400/15 hover:border-cyan-400/40 rounded-none p-3 flex flex-col gap-2 overflow-hidden transition-all duration-200 group">
       <div className="node-scan-bar opacity-0 group-hover:opacity-100" />
-
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1.5 min-w-0">
           <span className="text-[9px] border border-cyan-400/30 px-1 py-0.5 uppercase tracking-wider shrink-0 text-cyan-400">VPG</span>
@@ -61,19 +61,16 @@ function VpnGateSwarmCard({ server, onDownload }: { server: VpnGateServer; onDow
         </div>
         <span className={`text-[9px] font-mono ${pingColor(server.ping)}`}>{server.ping}ms</span>
       </div>
-
       <div className="flex items-center justify-between">
         <span className="font-mono text-xs text-primary">{server.ip}</span>
         <span className={`text-[10px] font-mono font-bold ${speedColor(server.speedMbps)}`}>
           {server.speedMbps >= 1000 ? `${(server.speedMbps / 1000).toFixed(1)}G` : `${server.speedMbps}M`}
         </span>
       </div>
-
       <div className="flex items-center justify-between text-[10px] font-mono">
         <span className="text-primary/40 truncate max-w-[90px]">{server.operator || "anon"}</span>
         <span className="text-[9px] font-mono text-primary/30">{server.sessions > 0 ? `${server.sessions}s` : "—"}</span>
       </div>
-
       <div className="border-t border-primary/10 pt-1.5 flex items-center justify-between gap-1">
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1">
@@ -102,7 +99,9 @@ const LAYER_FILTER_OPTIONS = ["all", "outer", "inner", "vpngate"] as const;
 type LayerFilter = (typeof LAYER_FILTER_OPTIONS)[number];
 
 export default function NodeManager() {
-  const { nodes, lifecycleMap, currentRotatingId, rotationLog } = useNodeLifecycle();
+  const { nodes: outerNodes, lifecycleMap: outerLifecycle, currentRotatingId: outerRotatingId, rotationLog: outerLog } = useNodeLifecycle();
+  const { nodes: innerNodes, lifecycleMap: innerLifecycle, currentRotatingId: innerRotatingId, rotationLog: innerLog, isReady: innerReady, poolSize } = useVpnGateInner();
+
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const createNode = useCreateNode();
@@ -116,25 +115,36 @@ export default function NodeManager() {
     total: number;
   }>({
     queryKey: ["vpngate-swarm-nodes"],
-    queryFn: () =>
-      fetch(`${BASE}/api/vpngate/servers?limit=60`)
-        .then((r) => r.json()),
+    queryFn: () => fetch(`${BASE}/api/vpngate/servers?limit=60`).then((r) => r.json()),
     enabled: layerFilter === "vpngate",
     refetchInterval: 5 * 60 * 1000,
     staleTime: 4 * 60 * 1000,
   });
 
-  const vpnGateNodes = vpnGateData?.servers ?? [];
+  const vpnGateOuterNodes = vpnGateData?.servers ?? [];
+  const dbOuterNodes = outerNodes.filter((n) => n.layer === "outer");
 
-  const filteredNodes =
-    layerFilter === "all" ? nodes :
-    layerFilter === "vpngate" ? [] :
-    nodes.filter((n) => n.layer === layerFilter);
+  const displayNodes = layerFilter === "all"
+    ? [...dbOuterNodes, ...innerNodes]
+    : layerFilter === "outer"
+    ? dbOuterNodes
+    : [];
 
-  const outerCount = nodes.filter((n) => n.layer === "outer").length;
-  const innerCount = nodes.filter((n) => n.layer === "inner").length;
-  const activeCount = nodes.filter((n) => n.status === "active").length;
-  const rotatingCount = Object.values(lifecycleMap).filter((s) => s !== "stable").length;
+  const displayLifecycle = layerFilter === "inner"
+    ? innerLifecycle
+    : { ...outerLifecycle, ...innerLifecycle };
+
+  const displayRotatingId = layerFilter === "inner"
+    ? innerRotatingId
+    : (outerRotatingId ?? innerRotatingId);
+
+  const activeRotationLog = layerFilter === "inner" ? innerLog : outerLog;
+
+  const outerCount = dbOuterNodes.length;
+  const activeCount = outerNodes.filter((n) => n.status === "active").length + innerNodes.filter((n) => n.status === "active").length;
+  const outerRotating = Object.values(outerLifecycle).filter((s) => s !== "stable").length;
+  const innerRotating = Object.values(innerLifecycle).filter((s) => s !== "stable").length;
+  const totalRotating = outerRotating + innerRotating;
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
@@ -168,24 +178,27 @@ export default function NodeManager() {
               <Network className="w-5 h-5" />
               Node Swarm
             </h2>
-            <div className="flex items-center gap-1.5 text-[10px] font-mono">
+            <div className="flex items-center gap-1.5 text-[10px] font-mono flex-wrap">
               <span className="text-primary/50">OUTER:</span>
               <span className="text-primary">{outerCount}</span>
               <span className="text-primary/30 mx-1">|</span>
               <span className="text-primary/50">INNER:</span>
-              <span className="text-cyan-400">{innerCount}</span>
+              <span className="text-cyan-400 flex items-center gap-1">
+                {innerReady ? "10" : "…"}
+                {innerReady && <span className="text-primary/30 text-[8px]">VPG</span>}
+              </span>
               <span className="text-primary/30 mx-1">|</span>
               <span className="text-primary/50">LIVE:</span>
               <span className="text-primary">{activeCount}</span>
               <span className="text-primary/30 mx-1">|</span>
-              <span className="text-primary/50">VPG:</span>
-              <span className="text-cyan-400">{vpnGateData?.total ?? "6k+"}</span>
-              {rotatingCount > 0 && (
+              <span className="text-primary/50">POOL:</span>
+              <span className="text-cyan-400">{poolSize > 0 ? poolSize : "6k+"}</span>
+              {totalRotating > 0 && (
                 <>
                   <span className="text-primary/30 mx-1">|</span>
                   <span className="text-yellow-400 flex items-center gap-1">
                     <RefreshCw className="w-2.5 h-2.5 animate-spin" />
-                    {rotatingCount} CYCLING
+                    {totalRotating} CYCLING
                   </span>
                 </>
               )}
@@ -199,13 +212,14 @@ export default function NodeManager() {
                   className={`px-3 py-1.5 uppercase transition-colors flex items-center gap-1 ${
                     layerFilter === f ? "bg-primary text-black" : "text-primary/60 hover:text-primary hover:bg-primary/10"
                   }`}>
+                  {f === "inner" && <Layers className="w-2.5 h-2.5" />}
                   {f === "vpngate" && <Globe className="w-2.5 h-2.5" />}
                   {f}
                 </button>
               ))}
             </div>
 
-            {layerFilter !== "vpngate" && (
+            {layerFilter === "outer" && (
               <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
                 <DialogTrigger asChild>
                   <Button variant="outline" size="sm" className="border-primary/30 text-primary hover:bg-primary/10 text-xs">
@@ -215,17 +229,13 @@ export default function NodeManager() {
                 </DialogTrigger>
                 <DialogContent className="bg-black border border-primary/40 text-primary font-mono">
                   <DialogHeader>
-                    <DialogTitle className="uppercase tracking-widest text-sm text-primary/70">
-                      Spawn New Node
-                    </DialogTitle>
+                    <DialogTitle className="uppercase tracking-widest text-sm text-primary/70">Spawn Outer Node</DialogTitle>
                   </DialogHeader>
                   <form onSubmit={handleCreate} className="space-y-4 pt-2">
                     <div className="space-y-1.5">
                       <Label className="text-[10px] uppercase text-primary/50">Node Name</Label>
-                      <Input required
-                        className="border-primary/20 bg-black/50 text-primary focus-visible:ring-primary/30 text-xs"
-                        value={newNodeForm.name}
-                        onChange={(e) => setNewNodeForm({ ...newNodeForm, name: e.target.value })}
+                      <Input required className="border-primary/20 bg-black/50 text-primary focus-visible:ring-primary/30 text-xs"
+                        value={newNodeForm.name} onChange={(e) => setNewNodeForm({ ...newNodeForm, name: e.target.value })}
                         placeholder="GhostNode-OUT-XX" />
                     </div>
                     <div className="space-y-1.5">
@@ -234,16 +244,13 @@ export default function NodeManager() {
                         <SelectTrigger className="border-primary/20 bg-black/50 text-primary text-xs"><SelectValue /></SelectTrigger>
                         <SelectContent className="bg-black border-primary/30 text-primary font-mono">
                           <SelectItem value="outer" className="text-xs">OUTER (relay)</SelectItem>
-                          <SelectItem value="inner" className="text-xs">INNER (core)</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
                     <div className="space-y-1.5">
                       <Label className="text-[10px] uppercase text-primary/50">Region</Label>
-                      <Input required
-                        className="border-primary/20 bg-black/50 text-primary focus-visible:ring-primary/30 text-xs"
-                        value={newNodeForm.region}
-                        onChange={(e) => setNewNodeForm({ ...newNodeForm, region: e.target.value })}
+                      <Input required className="border-primary/20 bg-black/50 text-primary focus-visible:ring-primary/30 text-xs"
+                        value={newNodeForm.region} onChange={(e) => setNewNodeForm({ ...newNodeForm, region: e.target.value })}
                         placeholder="EU-West" />
                     </div>
                     <Button type="submit" disabled={createNode.isPending} className="w-full text-xs uppercase">
@@ -257,51 +264,81 @@ export default function NodeManager() {
         </div>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-4">
+      {layerFilter === "inner" && (
+        <div className="border border-cyan-400/20 bg-black/20 rounded-sm px-3 py-2 shrink-0 flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2">
+            <Layers className="w-3.5 h-3.5 text-cyan-400" />
+            <span className="text-[10px] font-mono text-cyan-400/80 uppercase tracking-widest">VPN Gate Inner Layer</span>
+          </div>
+          <span className="text-[9px] font-mono text-primary/40">
+            10 real VPN Gate nodes acting as the inner swarm — rotating from a pool of {poolSize > 0 ? poolSize : "…"} candidates every 3s
+          </span>
+          <div className="ml-auto flex items-center gap-3 text-[9px] font-mono">
+            <span className="text-primary/40">CYCLING: <span className="text-yellow-400">{innerRotating > 0 ? innerRotating : "0"}</span></span>
+            <span className="text-primary/40">POOL: <span className="text-cyan-400">{poolSize > 0 ? poolSize : "…"}</span></span>
+          </div>
+        </div>
+      )}
+
+      <div className="flex flex-col lg:flex-row gap-4 flex-1 min-h-0">
         <div className="flex-1 overflow-y-auto rounded-sm border border-primary/10 bg-black/20 p-2"
-          style={{ maxHeight: "calc(100vh - 220px)" }}>
+          style={{ maxHeight: "calc(100vh - 240px)" }}>
 
           {layerFilter === "vpngate" ? (
-            vpnGateFetching && vpnGateNodes.length === 0 ? (
+            vpnGateFetching && vpnGateOuterNodes.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-48 text-primary/30 font-mono text-xs gap-3">
                 <Globe className="w-8 h-8 opacity-30 animate-pulse" />
-                <span className="uppercase tracking-widest">Loading VPN Gate nodes…</span>
+                <span className="uppercase tracking-widest">Loading VPN Gate outer nodes…</span>
               </div>
             ) : (
               <div>
                 <div className="flex items-center gap-2 mb-2 px-1">
                   <Globe className="w-3 h-3 text-cyan-400" />
                   <span className="text-[10px] font-mono text-cyan-400/70 uppercase">
-                    VPN Gate Outer Shield Layer — {vpnGateNodes.length} nodes shown
+                    Outer VPN Gate Shield — {vpnGateOuterNodes.length} nodes shown
                   </span>
                   <Link href="/vpngate" className="ml-auto text-[9px] font-mono text-primary/40 hover:text-primary border border-primary/20 hover:border-primary/40 px-2 py-0.5 uppercase transition-colors">
                     FULL VIEW →
                   </Link>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-2">
-                  {vpnGateNodes.map((server, idx) => (
-                    <VpnGateSwarmCard
-                      key={`${server.ip}-${idx}`}
-                      server={server}
-                      onDownload={handleVpnGateDownload}
-                    />
+                  {vpnGateOuterNodes.map((server, idx) => (
+                    <VpnGateOuterCard key={`${server.ip}-${idx}`} server={server} onDownload={handleVpnGateDownload} />
                   ))}
                 </div>
               </div>
             )
-          ) : nodes.length === 0 ? (
+          ) : layerFilter === "inner" ? (
+            !innerReady ? (
+              <div className="flex flex-col items-center justify-center h-48 text-cyan-400/30 font-mono text-xs gap-3">
+                <Layers className="w-8 h-8 opacity-30 animate-pulse" />
+                <span className="uppercase tracking-widest">Selecting inner layer nodes from VPN Gate…</span>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-2">
+                {innerNodes.map((node) => (
+                  <NodeCard
+                    key={node.id}
+                    node={node}
+                    lifecycle={innerLifecycle[node.id] ?? "stable"}
+                    isActive={node.id === innerRotatingId}
+                  />
+                ))}
+              </div>
+            )
+          ) : displayNodes.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-48 text-primary/30 font-mono text-xs uppercase tracking-widest gap-3">
               <Network className="w-8 h-8 opacity-30" />
               <span>Initializing swarm...</span>
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-2">
-              {filteredNodes.map((node) => (
+              {displayNodes.map((node) => (
                 <NodeCard
                   key={node.id}
                   node={node}
-                  lifecycle={lifecycleMap[node.id] ?? "stable"}
-                  isActive={node.id === currentRotatingId}
+                  lifecycle={displayLifecycle[node.id] ?? "stable"}
+                  isActive={node.id === displayRotatingId}
                 />
               ))}
             </div>
@@ -309,89 +346,103 @@ export default function NodeManager() {
         </div>
 
         <div className="w-full lg:w-72 shrink-0 flex flex-col gap-3">
-          {layerFilter !== "vpngate" && (
-            <>
-              <div className="border border-primary/20 bg-black flex flex-col">
-                <div className="px-3 py-2 border-b border-primary/20 flex items-center gap-2">
-                  <Activity className="w-3.5 h-3.5 text-primary" />
-                  <span className="text-[10px] font-mono uppercase tracking-widest text-primary/70">Rotation Feed</span>
-                  <span className="ml-auto text-[9px] text-primary/30 font-mono">3s cycle</span>
-                </div>
-                <div className="overflow-y-auto max-h-72">
-                  {rotationLog.length === 0 ? (
-                    <div className="px-3 py-6 text-center text-[10px] text-primary/30 font-mono">
-                      AWAITING FIRST ROTATION...
-                    </div>
-                  ) : (
-                    rotationLog.map((entry, i) => (
-                      <div key={entry.ts}
-                        className={`px-3 py-2 border-b border-primary/10 text-[9px] font-mono ${i === 0 ? "bg-primary/5" : ""}`}>
-                        <div className="flex items-center justify-between mb-0.5">
-                          <span className="text-primary/60 truncate max-w-[140px]">{entry.name}</span>
-                          <span className="text-primary/30 shrink-0">{format(entry.ts, "HH:mm:ss")}</span>
-                        </div>
-                        <div className="flex items-center gap-1 text-primary/40">
-                          <span className="text-red-400/70 line-through">{entry.oldIp}</span>
-                          <span className="text-primary/25">→</span>
-                          <span className="text-primary">{entry.newIp}</span>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-
-              <div className="border border-primary/20 bg-black p-3 space-y-2">
-                <div className="text-[10px] font-mono uppercase tracking-widest text-primary/50 flex items-center gap-2">
-                  <Radio className="w-3 h-3" />
-                  Swarm Health
-                </div>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[10px] font-mono">
-                  {([
-                    ["TOTAL", nodes.length],
-                    ["ACTIVE", activeCount],
-                    ["OUTER", outerCount],
-                    ["INNER", innerCount],
-                    ["VPG POOL", "6,000+"],
-                    ["INTERVAL", "3s"],
-                  ] as [string, string | number][]).map(([label, value]) => (
-                    <div key={label} className="flex justify-between">
-                      <span className="text-primary/40">{label}</span>
-                      <span className={label === "VPG POOL" ? "text-cyan-400" : label === "CYCLING" && Number(value) > 0 ? "text-yellow-400" : "text-primary"}>
-                        {value}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </>
-          )}
-
-          {layerFilter === "vpngate" && (
-            <div className="border border-cyan-400/20 bg-black p-3 space-y-2">
-              <div className="text-[10px] font-mono uppercase tracking-widest text-cyan-400/50 flex items-center gap-2">
-                <Globe className="w-3 h-3" />
-                VPN Gate Layer
-              </div>
-              <p className="text-[9px] font-mono text-primary/40 leading-relaxed">
-                These are real volunteer-run VPN nodes from the University of Tsukuba academic project.
-                They form your outer shield layer — 6,000+ relays across 60+ countries, all free.
-              </p>
-              <div className="border border-primary/10 p-2 space-y-1">
-                {[["NODES", vpnGateData?.total ?? "6,000+"], ["COST", "FREE"], ["PROTOCOL", "OpenVPN"], ["CREDS", "vpn / vpn"]].map(([k, v]) => (
-                  <div key={k} className="flex justify-between text-[9px] font-mono">
-                    <span className="text-primary/40">{k}</span>
-                    <span className={k === "COST" ? "text-cyan-400" : "text-primary"}>{v}</span>
-                  </div>
-                ))}
-              </div>
-              <Link href="/vpngate">
-                <Button size="sm" variant="outline" className="w-full text-xs border-cyan-400/30 text-cyan-400 hover:bg-cyan-400/10 uppercase font-mono">
-                  Open Full VPN Gate Dashboard →
-                </Button>
-              </Link>
+          <div className="border border-primary/20 bg-black flex flex-col">
+            <div className="px-3 py-2 border-b border-primary/20 flex items-center gap-2">
+              <Activity className="w-3.5 h-3.5 text-primary" />
+              <span className="text-[10px] font-mono uppercase tracking-widest text-primary/70">
+                {layerFilter === "inner" ? "Inner VPG Rotation" : "Outer Rotation Feed"}
+              </span>
+              <span className="ml-auto text-[9px] text-primary/30 font-mono">3s cycle</span>
             </div>
-          )}
+            <div className="overflow-y-auto max-h-64">
+              {activeRotationLog.length === 0 ? (
+                <div className="px-3 py-6 text-center text-[10px] text-primary/30 font-mono uppercase tracking-widest">
+                  Awaiting first rotation…
+                </div>
+              ) : (
+                activeRotationLog.map((entry, i) => (
+                  <div key={entry.ts}
+                    className={`px-3 py-2 border-b border-primary/10 text-[9px] font-mono ${i === 0 ? "bg-primary/5" : ""}`}>
+                    <div className="flex items-center justify-between mb-0.5">
+                      <span className={`truncate max-w-[140px] ${layerFilter === "inner" ? "text-cyan-400/70" : "text-primary/60"}`}>
+                        {entry.name}
+                      </span>
+                      <span className="text-primary/30 shrink-0">{format(entry.ts, "HH:mm:ss")}</span>
+                    </div>
+                    <div className="flex items-center gap-1 text-primary/40">
+                      <span className="text-red-400/70 line-through">{entry.oldIp}</span>
+                      <span className="text-primary/25">→</span>
+                      <span className="text-primary">{entry.newIp}</span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          <div className="border border-primary/20 bg-black p-3 space-y-2">
+            <div className="text-[10px] font-mono uppercase tracking-widest text-primary/50 flex items-center gap-2">
+              <Radio className="w-3 h-3" />
+              Swarm Architecture
+            </div>
+            <div className="space-y-2">
+              <div className="border border-primary/10 p-2">
+                <div className="flex justify-between text-[9px] font-mono mb-1">
+                  <span className="text-primary/50 uppercase">Outer Layer</span>
+                  <span className="text-primary">{outerCount} nodes</span>
+                </div>
+                <div className="text-[8px] font-mono text-primary/30">Your VPS relay servers</div>
+              </div>
+              <div className="flex items-center justify-center text-[9px] font-mono text-primary/20">↓ shields ↓</div>
+              <div className="border border-cyan-400/20 p-2 bg-cyan-400/5">
+                <div className="flex justify-between text-[9px] font-mono mb-1">
+                  <span className="text-cyan-400/70 uppercase flex items-center gap-1">
+                    <Layers className="w-2.5 h-2.5" />
+                    Inner Layer
+                  </span>
+                  <span className="text-cyan-400">10 VPG nodes</span>
+                </div>
+                <div className="text-[8px] font-mono text-cyan-400/30">
+                  Real VPN Gate servers • pool of {poolSize > 0 ? poolSize : "…"}
+                </div>
+              </div>
+              <div className="flex items-center justify-center text-[9px] font-mono text-primary/20">↓ routes through ↓</div>
+              <div className="border border-cyan-400/10 p-2">
+                <div className="flex justify-between text-[9px] font-mono mb-1">
+                  <span className="text-cyan-400/50 uppercase flex items-center gap-1">
+                    <Globe className="w-2.5 h-2.5" />
+                    VPN Gate Swarm
+                  </span>
+                  <span className="text-cyan-400/70">6,000+ nodes</span>
+                </div>
+                <div className="text-[8px] font-mono text-primary/20">University of Tsukuba network</div>
+              </div>
+              <div className="flex items-center justify-center text-[9px] font-mono text-primary/20">↓ exits to ↓</div>
+              <div className="border border-primary/10 p-2">
+                <div className="text-[9px] font-mono text-primary/40 text-center uppercase">Internet</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="border border-primary/20 bg-black p-3 space-y-1.5">
+            <div className="text-[10px] font-mono uppercase tracking-widest text-primary/50 mb-2 flex items-center gap-2">
+              <Radio className="w-3 h-3" />
+              Live Stats
+            </div>
+            {([
+              ["OUTER NODES", outerCount, "text-primary"],
+              ["INNER VPG", "10", "text-cyan-400"],
+              ["VPG POOL", poolSize > 0 ? poolSize : "…", "text-cyan-400"],
+              ["LIVE", activeCount, "text-primary"],
+              ["CYCLING", totalRotating, totalRotating > 0 ? "text-yellow-400" : "text-primary"],
+              ["INTERVAL", "3s", "text-primary"],
+            ] as [string, string | number, string][]).map(([label, value, cls]) => (
+              <div key={label} className="flex justify-between text-[9px] font-mono">
+                <span className="text-primary/40">{label}</span>
+                <span className={cls}>{value}</span>
+              </div>
+            ))}
+          </div>
 
           <div className="border border-primary/20 bg-black p-3">
             <div className="text-[10px] font-mono uppercase tracking-widest text-primary/50 mb-2">
@@ -411,8 +462,8 @@ export default function NodeManager() {
                 <span className="text-yellow-400/50">Worm — latency suppressor</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-[9px] border border-cyan-400/30 px-1 text-cyan-400">VPG</span>
-                <span className="text-cyan-400/50">VPN Gate — outer shield node</span>
+                <span className="text-[9px] border border-cyan-400/30 px-1 text-cyan-400">IN</span>
+                <span className="text-cyan-400/50">VPN Gate inner node (live)</span>
               </div>
             </div>
           </div>
