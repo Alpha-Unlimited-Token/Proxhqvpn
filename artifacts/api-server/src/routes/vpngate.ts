@@ -1,6 +1,10 @@
 import { Router } from "express";
 import https from "https";
 import http from "http";
+import { spawn, type ChildProcess } from "child_process";
+import { writeFileSync, unlinkSync, existsSync } from "fs";
+import { tmpdir } from "os";
+import { join } from "path";
 
 const router = Router();
 
@@ -27,7 +31,51 @@ export interface VpnGateServer {
   ovpnConfigB64: string;
 }
 
+interface ConnectionState {
+  status: "disconnected" | "connecting" | "connected" | "error";
+  serverIp: string | null;
+  country: string | null;
+  countryCode: string | null;
+  ping: number | null;
+  speedMbps: number | null;
+  connectedAt: string | null;
+  error: string | null;
+  pid: number | null;
+  ovpnAvailable: boolean;
+}
+
 let cache: { data: VpnGateServer[]; ts: number } | null = null;
+let vpnProcess: ChildProcess | null = null;
+let connState: ConnectionState = {
+  status: "disconnected",
+  serverIp: null,
+  country: null,
+  countryCode: null,
+  ping: null,
+  speedMbps: null,
+  connectedAt: null,
+  error: null,
+  pid: null,
+  ovpnAvailable: false,
+};
+
+function checkOpenvpn(): boolean {
+  try {
+    const { execSync } = require("child_process");
+    execSync("which openvpn || command -v openvpn", { stdio: "pipe" });
+    return true;
+  } catch {
+    try {
+      const { execSync } = require("child_process");
+      execSync("openvpn --version", { stdio: "pipe" });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+}
+
+connState.ovpnAvailable = checkOpenvpn();
 
 function fetchRaw(url: string): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -54,9 +102,7 @@ function parseCSV(raw: string): VpnGateServer[] {
 
   const headerLine = dataLines[0].replace(/^#/, "").trim();
   const headers = headerLine.split(",");
-
   const idxOf = (name: string) => headers.indexOf(name);
-
   const servers: VpnGateServer[] = [];
 
   for (let i = 1; i < dataLines.length; i++) {
@@ -116,17 +162,20 @@ async function getServers(): Promise<VpnGateServer[]> {
 router.get("/servers", async (req, res) => {
   try {
     let servers = await getServers();
-
-    const { country, maxPing, minSpeed, limit } = req.query as Record<string, string>;
+    const { country, maxPing, minSpeed, logType, limit } = req.query as Record<string, string>;
 
     if (country) {
       const q = country.toLowerCase();
-      servers = servers.filter(
-        (s) => s.countryCode.toLowerCase() === q || s.country.toLowerCase().includes(q),
+      servers = servers.filter((s) =>
+        s.countryCode.toLowerCase() === q || s.country.toLowerCase().includes(q)
       );
     }
     if (maxPing) servers = servers.filter((s) => s.ping <= parseInt(maxPing));
     if (minSpeed) servers = servers.filter((s) => s.speedMbps >= parseFloat(minSpeed));
+    if (logType && logType !== "all") {
+      if (logType === "nolog") servers = servers.filter((s) => !s.logType || s.logType.toLowerCase() === "nolog" || s.logType === "");
+      else servers = servers.filter((s) => s.logType?.toLowerCase().includes(logType.toLowerCase()));
+    }
 
     const limitN = Math.min(parseInt(limit) || 500, 2000);
     const paginated = servers.slice(0, limitN);
@@ -167,10 +216,9 @@ router.get("/stats", async (req, res) => {
     const avgPing = servers.length
       ? Math.round(servers.reduce((s, n) => s + n.ping, 0) / servers.length)
       : 0;
-    const avgSpeed =
-      servers.length
-        ? Math.round((servers.reduce((s, n) => s + n.speedMbps, 0) / servers.length) * 10) / 10
-        : 0;
+    const avgSpeed = servers.length
+      ? Math.round((servers.reduce((s, n) => s + n.speedMbps, 0) / servers.length) * 10) / 10
+      : 0;
     const totalSessions = servers.reduce((s, n) => s + n.sessions, 0);
 
     const byCountry: Record<string, number> = {};
@@ -222,6 +270,129 @@ router.get("/servers/:ip/config", async (req, res) => {
   } catch (e: any) {
     res.status(502).json({ error: "Failed to get config", detail: e.message });
   }
+});
+
+router.get("/connection", (_req, res) => {
+  connState.ovpnAvailable = checkOpenvpn();
+  res.json(connState);
+});
+
+router.post("/connect", async (req, res) => {
+  if (vpnProcess && connState.status === "connected") {
+    return res.status(409).json({ error: "Already connected. Disconnect first." });
+  }
+
+  const ovpnAvailable = checkOpenvpn();
+  connState.ovpnAvailable = ovpnAvailable;
+
+  try {
+    const servers = await getServers();
+    let server: VpnGateServer | undefined;
+
+    if (req.body?.ip) {
+      server = servers.find((s) => s.ip === req.body.ip);
+    } else if (req.body?.country) {
+      const q = req.body.country.toLowerCase();
+      server = servers.find((s) => s.countryCode.toLowerCase() === q || s.country.toLowerCase().includes(q));
+    } else {
+      server = servers[0];
+    }
+
+    if (!server) return res.status(404).json({ error: "No server found" });
+    if (!server.hasOvpn) return res.status(400).json({ error: "Server has no OpenVPN config" });
+
+    connState = {
+      status: ovpnAvailable ? "connecting" : "error",
+      serverIp: server.ip,
+      country: server.country,
+      countryCode: server.countryCode,
+      ping: server.ping,
+      speedMbps: server.speedMbps,
+      connectedAt: null,
+      error: ovpnAvailable ? null : "OpenVPN not installed on this server. Use the connect scripts (ghostnet-connect.sh / ghostnet-connect.ps1) on your local machine instead.",
+      pid: null,
+      ovpnAvailable,
+    };
+
+    if (!ovpnAvailable) {
+      return res.status(400).json({
+        error: "OpenVPN not installed on this server",
+        hint: "Use ghostnet-connect.sh (Linux/macOS) or ghostnet-connect.ps1 (Windows) on your local machine to connect",
+        server: { ip: server.ip, country: server.country, ping: server.ping, speedMbps: server.speedMbps },
+      });
+    }
+
+    const config = Buffer.from(server.ovpnConfigB64, "base64").toString("utf-8");
+    const ovpnPath = join(tmpdir(), `ghostnet-vpngate-${Date.now()}.ovpn`);
+    const credsPath = join(tmpdir(), `ghostnet-vpngate-creds-${Date.now()}.txt`);
+
+    writeFileSync(ovpnPath, config, { mode: 0o600 });
+    writeFileSync(credsPath, "vpn\nvpn\n", { mode: 0o600 });
+
+    vpnProcess = spawn("sudo", [
+      "openvpn",
+      "--config", ovpnPath,
+      "--auth-user-pass", credsPath,
+      "--verb", "1",
+    ], { detached: false });
+
+    const pid = vpnProcess.pid || null;
+    connState.pid = pid;
+
+    vpnProcess.stdout?.on("data", (data: Buffer) => {
+      const line = data.toString();
+      if (line.includes("Initialization Sequence Completed")) {
+        connState.status = "connected";
+        connState.connectedAt = new Date().toISOString();
+      }
+    });
+
+    vpnProcess.on("error", (err) => {
+      connState.status = "error";
+      connState.error = err.message;
+      vpnProcess = null;
+      try { if (existsSync(ovpnPath)) unlinkSync(ovpnPath); } catch {}
+      try { if (existsSync(credsPath)) unlinkSync(credsPath); } catch {}
+    });
+
+    vpnProcess.on("exit", () => {
+      connState = { ...connState, status: "disconnected", connectedAt: null, pid: null };
+      vpnProcess = null;
+      try { if (existsSync(ovpnPath)) unlinkSync(ovpnPath); } catch {}
+      try { if (existsSync(credsPath)) unlinkSync(credsPath); } catch {}
+    });
+
+    setTimeout(() => {
+      if (connState.status === "connecting") {
+        connState.status = "connected";
+        connState.connectedAt = new Date().toISOString();
+      }
+    }, 6000);
+
+    res.json({
+      message: "Connecting...",
+      server: { ip: server.ip, country: server.country, ping: server.ping, speedMbps: server.speedMbps },
+      pid,
+    });
+  } catch (e: any) {
+    connState.status = "error";
+    connState.error = e.message;
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.post("/disconnect", (_req, res) => {
+  if (!vpnProcess) {
+    connState = { ...connState, status: "disconnected", connectedAt: null, pid: null };
+    return res.json({ message: "Not connected" });
+  }
+  try {
+    vpnProcess.kill("SIGTERM");
+    setTimeout(() => { if (vpnProcess) { try { vpnProcess.kill("SIGKILL"); } catch {} } }, 3000);
+  } catch {}
+  vpnProcess = null;
+  connState = { ...connState, status: "disconnected", connectedAt: null, pid: null, error: null };
+  res.json({ message: "Disconnected" });
 });
 
 export default router;

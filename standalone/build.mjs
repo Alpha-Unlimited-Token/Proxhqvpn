@@ -279,6 +279,11 @@ async function main() {
       if (fs.existsSync(setupBat)) { fs.copyFileSync(setupBat, path.join(stageDir, "ghostnet-setup.bat")); }
       if (fs.existsSync(installSh))  { fs.copyFileSync(installSh,  path.join(stageDir, "ghostnet-install.sh"));  try { fs.chmodSync(path.join(stageDir, "ghostnet-install.sh"), 0o755); } catch {} }
       if (fs.existsSync(installPs1)) { fs.copyFileSync(installPs1, path.join(stageDir, "ghostnet-install.ps1")); }
+      // Bundle VPN Gate connect scripts
+      const connectSh  = path.join(__dirname, "ghostnet-connect.sh");
+      const connectPs1 = path.join(__dirname, "ghostnet-connect.ps1");
+      if (fs.existsSync(connectSh))  { fs.copyFileSync(connectSh,  path.join(stageDir, "ghostnet-connect.sh"));  try { fs.chmodSync(path.join(stageDir, "ghostnet-connect.sh"), 0o755); } catch {} }
+      if (fs.existsSync(connectPs1)) { fs.copyFileSync(connectPs1, path.join(stageDir, "ghostnet-connect.ps1")); }
 
       const zipPath = path.join(DIST, `${name}.zip`);
       await zipDir(stageDir, zipPath, name);
@@ -332,6 +337,11 @@ async function main() {
       fs.copyFileSync(path.join(scriptsDirUniv, sf), path.join(scriptsDestUniv, sf));
     }
   }
+  // Bundle VPN Gate connect scripts
+  const connectShUniv  = path.join(__dirname, "ghostnet-connect.sh");
+  const connectPs1Univ = path.join(__dirname, "ghostnet-connect.ps1");
+  if (fs.existsSync(connectShUniv))  { fs.copyFileSync(connectShUniv,  path.join(univDir, "ghostnet-connect.sh"));  try { fs.chmodSync(path.join(univDir, "ghostnet-connect.sh"), 0o755); } catch {} }
+  if (fs.existsSync(connectPs1Univ)) { fs.copyFileSync(connectPs1Univ, path.join(univDir, "ghostnet-connect.ps1")); }
 
   const univZip = path.join(DIST, "GhostNet-Universal-NodeJS.zip");
   await zipDir(univDir, univZip, "GhostNet-Universal-NodeJS");
