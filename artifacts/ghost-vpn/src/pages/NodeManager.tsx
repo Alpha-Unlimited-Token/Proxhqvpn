@@ -100,7 +100,7 @@ type LayerFilter = (typeof LAYER_FILTER_OPTIONS)[number];
 
 export default function NodeManager() {
   const { nodes: outerNodes, lifecycleMap: outerLifecycle, currentRotatingId: outerRotatingId, rotationLog: outerLog } = useNodeLifecycle();
-  const { nodes: innerNodes, lifecycleMap: innerLifecycle, currentRotatingId: innerRotatingId, rotationLog: innerLog, isReady: innerReady, poolSize } = useVpnGateInner();
+  const { nodes: innerNodes, lifecycleMap: innerLifecycle, currentRotatingId: innerRotatingId, rotationLog: innerLog, isReady: innerReady, poolSize, activeCount: innerActiveCount } = useVpnGateInner();
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -109,6 +109,7 @@ export default function NodeManager() {
   const [layerFilter, setLayerFilter] = useState<LayerFilter>("all");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [newNodeForm, setNewNodeForm] = useState({ name: "", layer: "outer", region: "" });
+  const [innerDisplayLimit, setInnerDisplayLimit] = useState(200);
 
   const { data: vpnGateData, isFetching: vpnGateFetching } = useQuery<{
     servers: VpnGateServer[];
@@ -184,7 +185,7 @@ export default function NodeManager() {
               <span className="text-primary/30 mx-1">|</span>
               <span className="text-primary/50">INNER:</span>
               <span className="text-cyan-400 flex items-center gap-1">
-                {innerReady ? "10" : "…"}
+                {innerReady ? innerActiveCount.toLocaleString() : "…"}
                 {innerReady && <span className="text-primary/30 text-[8px]">VPG</span>}
               </span>
               <span className="text-primary/30 mx-1">|</span>
@@ -271,7 +272,7 @@ export default function NodeManager() {
             <span className="text-[10px] font-mono text-cyan-400/80 uppercase tracking-widest">VPN Gate Inner Layer</span>
           </div>
           <span className="text-[9px] font-mono text-primary/40">
-            10 real VPN Gate nodes acting as the inner swarm — rotating from a pool of {poolSize > 0 ? poolSize : "…"} candidates every 3s
+            {innerReady ? innerActiveCount.toLocaleString() : "…"} real VPN Gate nodes active as the inner swarm — all rotating from a live pool of {poolSize > 0 ? poolSize.toLocaleString() : "…"} candidates every 3s
           </span>
           <div className="ml-auto flex items-center gap-3 text-[9px] font-mono">
             <span className="text-primary/40">CYCLING: <span className="text-yellow-400">{innerRotating > 0 ? innerRotating : "0"}</span></span>
@@ -312,18 +313,51 @@ export default function NodeManager() {
             !innerReady ? (
               <div className="flex flex-col items-center justify-center h-48 text-cyan-400/30 font-mono text-xs gap-3">
                 <Layers className="w-8 h-8 opacity-30 animate-pulse" />
-                <span className="uppercase tracking-widest">Selecting inner layer nodes from VPN Gate…</span>
+                <span className="uppercase tracking-widest">Loading inner layer nodes from VPN Gate pool…</span>
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-2">
-                {innerNodes.map((node) => (
-                  <NodeCard
-                    key={node.id}
-                    node={node}
-                    lifecycle={innerLifecycle[node.id] ?? "stable"}
-                    isActive={node.id === innerRotatingId}
-                  />
-                ))}
+              <div>
+                <div className="mb-2 px-1 flex items-center justify-between">
+                  <span className="text-[9px] font-mono text-cyan-400/60 uppercase">
+                    Showing {Math.min(innerDisplayLimit, innerNodes.length).toLocaleString()} of {innerNodes.length.toLocaleString()} inner nodes
+                  </span>
+                  <div className="flex items-center gap-2">
+                    {innerDisplayLimit < innerNodes.length && (
+                      <button
+                        onClick={() => setInnerDisplayLimit((prev) => Math.min(prev + 500, innerNodes.length))}
+                        className="text-[8px] font-mono uppercase border border-primary/20 px-2 py-0.5 text-primary/50 hover:text-primary hover:border-primary/40 transition-colors"
+                      >
+                        +500 more
+                      </button>
+                    )}
+                    {innerDisplayLimit < innerNodes.length && (
+                      <button
+                        onClick={() => setInnerDisplayLimit(innerNodes.length)}
+                        className="text-[8px] font-mono uppercase border border-cyan-400/20 px-2 py-0.5 text-cyan-400/50 hover:text-cyan-400 hover:border-cyan-400/40 transition-colors"
+                      >
+                        show all {innerNodes.length.toLocaleString()}
+                      </button>
+                    )}
+                    {innerDisplayLimit > 200 && (
+                      <button
+                        onClick={() => setInnerDisplayLimit(200)}
+                        className="text-[8px] font-mono uppercase border border-primary/15 px-2 py-0.5 text-primary/30 hover:text-primary/50 transition-colors"
+                      >
+                        collapse
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-2">
+                  {innerNodes.slice(0, innerDisplayLimit).map((node) => (
+                    <NodeCard
+                      key={node.id}
+                      node={node}
+                      lifecycle={innerLifecycle[node.id] ?? "stable"}
+                      isActive={node.id === innerRotatingId}
+                    />
+                  ))}
+                </div>
               </div>
             )
           ) : displayNodes.length === 0 ? (
@@ -400,10 +434,10 @@ export default function NodeManager() {
                     <Layers className="w-2.5 h-2.5" />
                     Inner Layer
                   </span>
-                  <span className="text-cyan-400">10 VPG nodes</span>
+                  <span className="text-cyan-400">{innerReady ? innerActiveCount.toLocaleString() : "…"} VPG nodes</span>
                 </div>
                 <div className="text-[8px] font-mono text-cyan-400/30">
-                  Real VPN Gate servers • pool of {poolSize > 0 ? poolSize : "…"}
+                  Adaptive — rotates from pool of {poolSize > 0 ? poolSize.toLocaleString() : "…"}
                 </div>
               </div>
               <div className="flex items-center justify-center text-[9px] font-mono text-primary/20">↓ routes through ↓</div>
@@ -431,7 +465,7 @@ export default function NodeManager() {
             </div>
             {([
               ["OUTER NODES", outerCount, "text-primary"],
-              ["INNER VPG", "10", "text-cyan-400"],
+              ["INNER VPG", innerReady ? innerActiveCount.toLocaleString() : "…", "text-cyan-400"],
               ["VPG POOL", poolSize > 0 ? poolSize : "…", "text-cyan-400"],
               ["LIVE", activeCount, "text-primary"],
               ["CYCLING", totalRotating, totalRotating > 0 ? "text-yellow-400" : "text-primary"],

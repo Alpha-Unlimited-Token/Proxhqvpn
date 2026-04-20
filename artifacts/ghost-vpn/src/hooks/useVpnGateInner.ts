@@ -5,7 +5,6 @@ const BASE = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
 const DECAY_MS = 850;
 const GROW_MS = 650;
 const INTERVAL_MS = 3200;
-const INNER_COUNT = 10;
 
 interface VpgServer {
   ip: string;
@@ -50,68 +49,101 @@ export interface VpnGateInnerState {
   rotationLog: Array<{ id: number; oldIp: string; newIp: string; name: string; ts: number }>;
   isReady: boolean;
   poolSize: number;
+  activeCount: number;
 }
 
 export function useVpnGateInner(): VpnGateInnerState {
   const [nodes, setNodes] = useState<LiveNode[]>([]);
   const [lifecycleMap, setLifecycleMap] = useState<Record<number, LifecycleState>>({});
   const [currentRotatingId, setCurrentRotatingId] = useState<number | null>(null);
-  const [rotationLog, setRotationLog] = useState<Array<{ id: number; oldIp: string; newIp: string; name: string; ts: number }>>([]);
+  const [rotationLog, setRotationLog] = useState<
+    Array<{ id: number; oldIp: string; newIp: string; name: string; ts: number }>
+  >([]);
   const [isReady, setIsReady] = useState(false);
   const [poolSize, setPoolSize] = useState(0);
 
   const poolRef = useRef<VpgServer[]>([]);
   const nodesRef = useRef<LiveNode[]>([]);
-  const cursorRef = useRef(INNER_COUNT);
+  const replacementCursorRef = useRef(0);
   const inProgressRef = useRef(false);
   const initializedRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
+
     async function loadPool() {
       try {
-        const res = await fetch(`${BASE}/api/vpngate/veil?limit=200`);
+        const res = await fetch(`${BASE}/api/vpngate/veil?limit=2000`);
         if (!res.ok || cancelled) return;
         const data = await res.json();
-        const pool: VpgServer[] = data.servers ?? [];
-        if (pool.length === 0 || cancelled) return;
-        poolRef.current = pool;
-        setPoolSize(pool.length);
+        const incoming: VpgServer[] = data.servers ?? [];
+        if (incoming.length === 0 || cancelled) return;
+
+        poolRef.current = incoming;
+        setPoolSize(incoming.length);
+
         if (!initializedRef.current) {
-          const initial = pool.slice(0, INNER_COUNT).map((s, i) => serverToNode(s, i + 1));
-          nodesRef.current = initial;
-          setNodes(initial);
-          setLifecycleMap(Object.fromEntries(initial.map((n) => [n.id, "stable" as LifecycleState])));
-          cursorRef.current = INNER_COUNT;
+          // Activate ALL pool nodes as inner nodes
+          const active = incoming.map((s, i) => serverToNode(s, i + 1));
+          nodesRef.current = active;
+          replacementCursorRef.current = 0;
+          setNodes(active);
+          setLifecycleMap(
+            Object.fromEntries(active.map((n) => [n.id, "stable" as LifecycleState]))
+          );
           initializedRef.current = true;
           setIsReady(true);
+        } else {
+          // On re-fetch: diff incoming vs current — rotate in any new IPs
+          const currentIps = new Set(nodesRef.current.map((n) => n.ipAddress));
+          const freshServers = incoming.filter((s) => !currentIps.has(s.ip));
+          if (freshServers.length > 0) {
+            // Queue fresh IPs at the front of the replacement pool
+            poolRef.current = [...freshServers, ...incoming.filter((s) => currentIps.has(s.ip))];
+            replacementCursorRef.current = 0;
+          }
         }
       } catch {}
     }
+
     loadPool();
     const refresh = setInterval(loadPool, 5 * 60 * 1000);
-    return () => { cancelled = true; clearInterval(refresh); };
+    return () => {
+      cancelled = true;
+      clearInterval(refresh);
+    };
   }, []);
 
   const rotateNext = useCallback(async () => {
     if (inProgressRef.current || nodesRef.current.length === 0 || poolRef.current.length === 0) return;
     inProgressRef.current = true;
 
-    const pool = poolRef.current;
-    const currentNodes = nodesRef.current;
-    const targetIdx = Math.floor(Math.random() * currentNodes.length);
-    const target = currentNodes[targetIdx];
+    const current = nodesRef.current;
+    // Pick a random active node to rotate out
+    const targetIdx = Math.floor(Math.random() * current.length);
+    const target = current[targetIdx];
 
     setCurrentRotatingId(target.id);
     setLifecycleMap((prev) => ({ ...prev, [target.id]: "decaying" }));
     await new Promise((r) => setTimeout(r, DECAY_MS));
 
-    const cursor = cursorRef.current % pool.length;
-    cursorRef.current = (cursorRef.current + 1) % pool.length;
+    // Pull next replacement from pool, cycling through
+    const pool = poolRef.current;
+    const cursor = replacementCursorRef.current % pool.length;
+    replacementCursorRef.current = (replacementCursorRef.current + 1) % pool.length;
     const replacement = pool[cursor];
-    const newNode = serverToNode(replacement, target.hopIndex, (target.generation ?? 1) + 1);
 
-    const updatedNodes = currentNodes.map((n) => (n.id === target.id ? newNode : n));
+    // Skip if replacement IP is already active (avoid duplicates)
+    const activeIps = new Set(nodesRef.current.map((n) => n.ipAddress));
+    let finalReplacement = replacement;
+    let searchOffset = 1;
+    while (activeIps.has(finalReplacement.ip) && searchOffset < pool.length) {
+      finalReplacement = pool[(cursor + searchOffset) % pool.length];
+      searchOffset++;
+    }
+
+    const newNode = serverToNode(finalReplacement, target.hopIndex, (target.generation ?? 1) + 1);
+    const updatedNodes = current.map((n) => (n.id === target.id ? newNode : n));
     nodesRef.current = updatedNodes;
 
     setNodes(updatedNodes);
@@ -121,13 +153,21 @@ export function useVpnGateInner(): VpnGateInnerState {
       next[newNode.id] = "growing";
       return next;
     });
-    setRotationLog((prev) => [
-      { id: newNode.id, oldIp: target.ipAddress, newIp: newNode.ipAddress, name: newNode.name, ts: Date.now() },
-      ...prev.slice(0, 19),
-    ]);
+
+    if (target.ipAddress !== newNode.ipAddress) {
+      setRotationLog((prev) => [
+        {
+          id: newNode.id,
+          oldIp: target.ipAddress,
+          newIp: newNode.ipAddress,
+          name: newNode.name,
+          ts: Date.now(),
+        },
+        ...prev.slice(0, 49),
+      ]);
+    }
 
     await new Promise((r) => setTimeout(r, GROW_MS));
-
     setCurrentRotatingId(null);
     setLifecycleMap((prev) => ({ ...prev, [newNode.id]: "stable" }));
     inProgressRef.current = false;
@@ -139,5 +179,13 @@ export function useVpnGateInner(): VpnGateInnerState {
     return () => clearInterval(timer);
   }, [isReady, rotateNext]);
 
-  return { nodes, lifecycleMap, currentRotatingId, rotationLog, isReady, poolSize };
+  return {
+    nodes,
+    lifecycleMap,
+    currentRotatingId,
+    rotationLog,
+    isReady,
+    poolSize,
+    activeCount: nodes.length,
+  };
 }
