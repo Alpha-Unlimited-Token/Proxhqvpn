@@ -19,7 +19,8 @@ TABLE OF CONTENTS
   10. Data Storage & Backup
   11. Security Notes
   12. Troubleshooting
-  13. Uninstalling
+  13. VPN Coexistence Setup
+  14. Uninstalling
 
 
 ══════════════════════════════════════════════════════════════════════════════
@@ -518,7 +519,168 @@ TABLE OF CONTENTS
 
 
 ══════════════════════════════════════════════════════════════════════════════
-  13. UNINSTALLING
+  13. VPN COEXISTENCE SETUP
+══════════════════════════════════════════════════════════════════════════════
+
+  GhostNet can run alongside NordVPN, ExpressVPN, ProtonVPN, Mullvad,
+  Surfshark, or any WireGuard/OpenVPN-based VPN at the same time without
+  conflicts.
+
+  The VPN Coexistence page (Tunnel → VPN Coexist in the sidebar) handles
+  detection, exception rules, MTU calculation, and script generation.
+
+  For a complete walkthrough, see Section E7 of the User Guide.
+  Below is the quick-start for each platform.
+
+  ──────────────────────────────────────────────────────────────────────────
+  LINUX — FWMARK POLICY ROUTING (Recommended)
+  ──────────────────────────────────────────────────────────────────────────
+
+  Requirements: Linux kernel 3.x+, iproute2, iptables, root access.
+
+  Quick steps:
+  1. Start GhostNet and your commercial VPN.
+  2. Open http://localhost:7474 → Tunnel → VPN Coexist.
+  3. Select your VPN profile (NordVPN, ProtonVPN, etc.).
+  4. Set "Native VPN Interface" to your VPN's interface (nordlynx, tun0, etc.).
+  5. Choose mode: "fwmark Routing" (default, recommended).
+  6. Click GENERATE COEXISTENCE SCRIPTS → download the Enable script.
+  7. Run: sudo ./ghostnet-coexist-enable.sh
+  8. Verify: ip rule list | grep fwmark
+
+  To disable:
+    sudo ./ghostnet-coexist-disable.sh
+
+  Verify both VPNs are independently active:
+    ip route show table 200       <- GhostNet routing table
+    ip route show table main      <- Native VPN routing table
+
+  ──────────────────────────────────────────────────────────────────────────
+  LINUX — DOUBLE-HOP (Maximum Anonymity)
+  ──────────────────────────────────────────────────────────────────────────
+
+  Double-hop routes your traffic through GhostNet first, then through the
+  native VPN as the outer tunnel. Neither your ISP nor the VPN provider
+  can see your application traffic.
+
+  1. In VPN Coexist, select mode: "Double-Hop".
+  2. Run the MTU Optimizer with hop count 2 → apply result to ghostnet0:
+       ip link set ghostnet0 mtu 1380
+  3. Generate and run the Enable script as root.
+
+  NOTE: Double-hop slightly reduces speed due to double encryption.
+  If you notice large file transfers stalling, recheck MTU.
+
+  ──────────────────────────────────────────────────────────────────────────
+  LINUX — NETWORK NAMESPACE (Maximum Isolation)
+  ──────────────────────────────────────────────────────────────────────────
+
+  Runs GhostNet in a completely separate Linux network namespace.
+  The native VPN and GhostNet cannot interfere with each other at all.
+
+  1. In VPN Coexist, select mode: "Namespace Isolation".
+  2. Generate and run the Enable script. It creates a "ghostnet-ns" namespace.
+  3. Start ghostd.py inside the namespace:
+       sudo ip netns exec ghostnet-ns python3 ghostd.py --mode server
+
+  To run a specific application through GhostNet (namespace mode):
+       sudo ip netns exec ghostnet-ns curl ifconfig.me
+
+  ──────────────────────────────────────────────────────────────────────────
+  MACOS — ROUTING TABLE
+  ──────────────────────────────────────────────────────────────────────────
+
+  Requirements: macOS 12+, sudo access.
+  macOS does not support fwmark. GhostNet uses route add and interface
+  metrics instead.
+
+  1. Connect your commercial VPN (it will typically claim utun0 or utun2).
+  2. Open GhostNet → Tunnel → VPN Coexist.
+  3. Select your VPN profile.
+  4. Set Target OS to "macOS".
+  5. Generate and run the Enable script:
+       chmod +x ghostnet-coexist-enable.sh
+       sudo ./ghostnet-coexist-enable.sh
+  6. Verify: netstat -rn | grep -E 'utun|10.99'
+
+  ──────────────────────────────────────────────────────────────────────────
+  WINDOWS — ROUTING TABLE
+  ──────────────────────────────────────────────────────────────────────────
+
+  Requirements: Windows 10/11, Administrator account.
+  GhostNet uses interface metrics and static routes to separate traffic.
+
+  1. Connect your commercial VPN.
+  2. Open GhostNet → Tunnel → VPN Coexist.
+  3. Select your VPN profile.
+  4. Set Target OS to "Windows".
+  5. Generate and download the Enable script (.bat).
+  6. Right-click the .bat file → "Run as Administrator".
+  7. Verify: route print | findstr "10.99"
+
+  MTU on Windows (if needed):
+    Run in an Administrator command prompt:
+    netsh interface ipv4 set subinterface "GhostNet" mtu=1420 store=persistent
+
+  ──────────────────────────────────────────────────────────────────────────
+  INTERFACE NAMES REFERENCE
+  ──────────────────────────────────────────────────────────────────────────
+
+  Commercial VPN        Linux interface     macOS interface    Windows adapter
+  ─────────────────────────────────────────────────────────────────────────
+  NordVPN               nordlynx            utun0              NordLynx
+  ExpressVPN            tun0                utun0              ExpressVPN
+  ProtonVPN             proton0             utun1              ProtonVPN
+  Mullvad               wg0 / wg-mullvad    utun0              Mullvad
+  Surfshark             wg0 / tun0          utun2              Surfshark
+  WireGuard (generic)   wg0                 utun5              WireGuard Tunnel
+  OpenVPN (generic)     tun0                utun0              OpenVPN TAP
+
+  GhostNet default:     ghostnet0           utun10             GhostNet
+
+  ──────────────────────────────────────────────────────────────────────────
+  EXCEPTION RULES QUICK-ADD
+  ──────────────────────────────────────────────────────────────────────────
+
+  GhostNet pre-loads three private-range bypass exceptions automatically:
+    • 10.0.0.0/8        RFC 1918 — LAN traffic
+    • 172.16.0.0/12     RFC 1918 — LAN traffic
+    • 192.168.0.0/16    RFC 1918 — LAN traffic
+
+  To add the VPN provider's server IP ranges as bypass exceptions,
+  open Exception Rules → click "ADD ALL" next to your provider's name.
+  This prevents GhostNet from intercepting your VPN's tunnel keepalive.
+
+  ──────────────────────────────────────────────────────────────────────────
+  COEXISTENCE TROUBLESHOOTING
+  ──────────────────────────────────────────────────────────────────────────
+
+  Both VPNs use the same interface name (e.g., both claim tun0)
+    → Rename GhostNet's TUN interface by editing TUN_IFACE in ghostd.py
+      to "ghostnet0". Regenerate scripts.
+
+  After rebooting, coexistence rules are gone
+    → The enable script does not persist across reboots by default.
+      To persist: add the script to /etc/rc.local (Linux) or a Login Item
+      (macOS) or Task Scheduler (Windows).
+
+  DNS is leaking from one VPN to the other
+    → Go to GhostNet → Leak Detection and run TEST ALL LEAKS.
+      Add the leaking DNS server IP as a BYPASS exception rule.
+      Most common fix: add the native VPN's DNS server (e.g., 10.64.0.1
+      for Mullvad, 103.86.96.100 for NordVPN) as a bypass exception.
+
+  VPN speed dropped after enabling coexistence
+    → Check MTU. Run the MTU Optimizer for your mode and apply the result.
+      Most common: ip link set ghostnet0 mtu 1420
+
+  Script fails: "RTNETLINK answers: File exists"
+    → Rules already exist from a previous run. Run the disable script first,
+      then re-run the enable script.
+
+
+══════════════════════════════════════════════════════════════════════════════
+  14. UNINSTALLING
 ══════════════════════════════════════════════════════════════════════════════
 
   GhostNet is fully self-contained. Nothing is written to your system

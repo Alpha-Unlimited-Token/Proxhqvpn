@@ -30,6 +30,7 @@ TABLE OF CONTENTS
     C3. Obfuscation
     C4. Proxy / Tor
     C5. Onion Browser
+    C6. VPN Coexistence
 
   SECTION D — SYSTEM
     D1. Terminal
@@ -42,6 +43,7 @@ TABLE OF CONTENTS
     E4. Running a security audit
     E5. Querying external databases
     E6. Running custom outbound commands
+    E7. Running GhostNet alongside a commercial VPN
 
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -905,6 +907,178 @@ LIMITATIONS
     as a SOCKS5 proxy instead (see Proxy/Tor page for instructions).
 
 
+──────────────────────────────────────────────────────────────────────────────
+C6. VPN COEXISTENCE
+──────────────────────────────────────────────────────────────────────────────
+
+The VPN Coexistence page lets you run GhostNet simultaneously with any
+commercial VPN — NordVPN, ExpressVPN, ProtonVPN, Mullvad, Surfshark, or any
+WireGuard/OpenVPN-based VPN — without routing conflicts, DNS leaks, or either
+VPN overriding the other.
+
+WHY TWO VPNS CONFLICT
+  When two VPN clients run at the same time, both try to capture all outgoing
+  traffic by setting themselves as the default gateway. The most recently
+  started VPN typically wins, and the other stops routing traffic correctly.
+  In the worst case, DNS requests leak outside both tunnels.
+
+  GhostNet solves this with policy-based routing, which directs traffic to
+  the correct tunnel based on packet marks, routing tables, and exception rules
+  — rather than letting both VPNs fight over the default route.
+
+──────────────────────────────────────────────────────────────────────────────
+  COEXISTENCE MODES
+──────────────────────────────────────────────────────────────────────────────
+
+  fwmark Routing (Linux — Recommended)
+  ─────────────────────────────────────
+  Packets that GhostNet should handle are marked with an fwmark value (default
+  100). A separate routing table (ID 200) handles only these marked packets and
+  directs them through GhostNet's interface (ghostnet0). All unmarked traffic
+  continues through the native VPN's interface unchanged.
+
+  Result: GhostNet and native VPN operate on completely separate routing paths.
+  No packets can accidentally cross between them.
+
+  Best for: Linux servers and desktops. Requires root. Zero performance cost.
+
+  Double-Hop (Maximum Anonymity)
+  ───────────────────────────────
+  GhostNet's tunnel is established first. GhostNet's encrypted packets then
+  exit through the native VPN as the outer tunnel.
+
+  Traffic path: Device → GhostNet (inner tunnel) → Native VPN (outer tunnel)
+                → Internet
+
+  Your ISP sees only the native VPN connection. The native VPN provider sees
+  only encrypted GhostNet packets and cannot read your traffic. Neither
+  party has the full picture.
+
+  Important: MTU must be reduced (typically to 1380 bytes) to prevent silent
+  packet fragmentation. Use the MTU Optimizer tab to calculate the exact value.
+
+  Best for: maximum privacy. Slightly slower due to double encryption.
+
+  Namespace Isolation (Linux — Advanced)
+  ───────────────────────────────────────
+  GhostNet runs inside a dedicated Linux network namespace — a completely
+  separate networking stack with its own interfaces, routes, and firewall rules.
+  The native VPN owns the main namespace. It is physically impossible for either
+  VPN to affect the other's routing.
+
+  Best for: power users who want the cleanest possible isolation. Requires
+  more configuration but offers zero cross-VPN interference risk.
+
+  Routing Table (Windows and macOS)
+  ────────────────────────────────────
+  Interface metrics and static route additions direct GhostNet-mesh traffic
+  (10.99.0.0/24) through GhostNet's adapter, while the native VPN retains
+  default route ownership at a lower metric. Windows and macOS do not support
+  fwmark, so this is the default method on those platforms.
+
+  Best for: Windows 10/11 and macOS. Simpler but less granular than fwmark.
+
+──────────────────────────────────────────────────────────────────────────────
+  AUTO-DETECTION
+──────────────────────────────────────────────────────────────────────────────
+
+  When you open the VPN Coexistence page, GhostNet automatically scans for
+  running VPN processes and active tunnel interfaces.
+
+  Detected processes include:
+    NordVPN:      nordvpnd, nordvpn (interface: nordlynx)
+    ExpressVPN:   expressvpnd, lightway_helper (interface: tun0)
+    ProtonVPN:    protonvpn, protonvpnd (interface: proton0)
+    Mullvad:      mullvad-daemon (interface: wg0 or wg-mullvad)
+    Surfshark:    surfshark, surfshark-vpn (interface: wg0)
+    WireGuard:    wg-quick (interface: wg0, wg1)
+    OpenVPN:      openvpn (interface: tun0, tun1)
+
+  If your VPN is not detected automatically (e.g., it uses a non-standard
+  process name or interface), select it manually from the profile list.
+
+──────────────────────────────────────────────────────────────────────────────
+  EXCEPTION RULES
+──────────────────────────────────────────────────────────────────────────────
+
+  Exception rules define how specific IP ranges are routed. Three rule types:
+
+  BYPASS GHOSTNET
+    Traffic to this CIDR exits through the native VPN (or direct), bypassing
+    GhostNet entirely. Use for: commercial VPN server IPs (so GhostNet does
+    not intercept tunnel setup traffic), local LAN, corporate subnets.
+    Default rules cover 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16 (all RFC
+    1918 private ranges).
+
+  FORCE GHOSTNET
+    Traffic to this CIDR is always routed through GhostNet regardless of the
+    native VPN's configuration. Use for: specific sensitive destinations that
+    you always want to go through GhostNet's mesh.
+
+  BLOCK
+    Traffic to this CIDR is dropped entirely. Use for: known malicious ranges
+    or ranges you never want to reach from this machine.
+
+  QUICK-ADD PROFILES
+    The Exception Rules tab provides one-click import of known server IP ranges
+    for each commercial VPN (NordVPN, ProtonVPN, Mullvad, ExpressVPN, Surfshark).
+    Adding these as BYPASS exceptions prevents GhostNet from intercepting the
+    native VPN's tunnel keepalive and server connection traffic.
+
+──────────────────────────────────────────────────────────────────────────────
+  MTU OPTIMIZER
+──────────────────────────────────────────────────────────────────────────────
+
+  Each VPN tunnel wraps packets in its own header, reducing the usable MTU.
+  If MTU is too high, packets fragment silently and cause:
+    • Slow file transfers (but browsing works fine)
+    • Intermittent TCP connection drops
+    • SSH hangs after a few seconds
+    • Large downloads failing while small ones succeed
+
+  GhostNet's MTU Optimizer calculates the correct MTU for any hop count:
+
+  Standard Ethernet MTU     1500 bytes
+  Single WireGuard hop      1420 bytes  (60 B WireGuard header)
+  Single OpenVPN hop        1420 bytes  (80 B OpenVPN header)
+  GhostNet + native VPN     1380 bytes  (two hops × 60 B)
+  Triple-hop chain          1280 bytes  (safe minimum for IPv6 compatibility)
+
+  After calculating, the Optimizer provides ready-to-run commands for Linux,
+  macOS, and Windows to apply the new MTU to your GhostNet interface.
+
+──────────────────────────────────────────────────────────────────────────────
+  SCRIPT GENERATOR
+──────────────────────────────────────────────────────────────────────────────
+
+  The Overview tab generates two scripts for your OS:
+
+  ENABLE SCRIPT
+    Applies all coexistence routing rules. Run as root (Linux/macOS) or
+    Administrator (Windows). Each script includes:
+      • Routing table / fwmark setup
+      • GhostNet server endpoint exception route
+      • Commercial VPN server IP bypass rules
+      • MTU setting for GhostNet interface
+      • iptables / pf / netsh rules as appropriate
+
+  DISABLE / REVERT SCRIPT
+    Cleanly removes all GhostNet coexistence rules and restores your system
+    to its original state. Always save this script before applying the enable
+    script, especially on production systems.
+
+  HOW TO USE
+    1. Open the VPN Coexistence page
+    2. Let auto-detection run (or select your VPN manually)
+    3. Choose a coexistence mode
+    4. Set the native VPN interface name (e.g., nordlynx, tun0, proton0)
+    5. Set the GhostNet interface name (default: ghostnet0)
+    6. Click GENERATE COEXISTENCE SCRIPTS
+    7. Download or copy the Enable script
+    8. Run it as root/Administrator on your system
+    9. Verify with: ip rule list (Linux) or route print (Windows)
+
+
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   SECTION D — SYSTEM
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1408,6 +1582,7 @@ Step 5 — Export results
 E6. RUNNING CUSTOM OUTBOUND COMMANDS
 ──────────────────────────────────────────────────────────────────────────────
 
+
 Goal: use the Terminal in Ghost Mode to run network tools or scripts
 that are not in the default allowed command list.
 
@@ -1438,6 +1613,131 @@ Step 3 — Check the audit log
 Step 4 — Disable Ghost Mode when done
   Click the GHOST MODE toggle to return to RESTRICTED mode.
   Ghost Mode does not persist across page reloads — it resets automatically.
+
+
+──────────────────────────────────────────────────────────────────────────────
+E7. RUNNING GHOSTNET ALONGSIDE A COMMERCIAL VPN
+──────────────────────────────────────────────────────────────────────────────
+
+Goal: run NordVPN (or any commercial VPN) at the same time as GhostNet
+on a Linux machine using fwmark policy routing, with no conflicts and no
+DNS leaks.
+
+BEFORE YOU START
+  • GhostNet must be running: ghostd.py serves on 127.0.0.1:7475
+  • Your commercial VPN must be connected (nordlynx, tun0, etc.)
+  • You need root or sudo access
+  • Save your work before making routing changes
+
+Step 1 — Open VPN Coexistence
+  Navigate to: Tunnel → VPN Coexist (left sidebar)
+  Wait for auto-detection to complete.
+  If your VPN is detected, its name and interface appear in the detection panel.
+  If not detected, proceed to Step 2 manually.
+
+Step 2 — Select your VPN profile
+  In the Overview tab, click the card for your VPN (e.g., NordVPN).
+  If your VPN is not listed, select "WireGuard (Generic)" or
+  "OpenVPN (Generic)" depending on the protocol your VPN uses.
+
+  Verify the interface fields are correct:
+    Native VPN Interface: nordlynx  (or tun0 / proton0 / wg0 / etc.)
+    GhostNet Interface:   ghostnet0  (the TUN interface ghostd.py creates)
+    fwmark Value:         100  (leave at default unless you have a conflict)
+
+Step 3 — Add exception rules
+  Go to the Exception Rules tab.
+  Click "ADD ALL" next to your commercial VPN's server IP ranges.
+  This adds those CIDRs as BYPASS rules, ensuring GhostNet does not intercept
+  your VPN's keepalive and endpoint traffic.
+
+  The three default private-range exceptions (10.0.0.0/8, 172.16.0.0/12,
+  192.168.0.0/16) are already added automatically.
+
+Step 4 — Check the MTU
+  Go to the MTU Optimizer tab.
+  Set:
+    Base MTU:   1500  (standard Ethernet)
+    Hop count:  1  (fwmark mode — each VPN uses its own path, not double-hop)
+    Protocol:   WireGuard  (or OpenVPN for ExpressVPN/Surfshark on OpenVPN)
+  Click CALCULATE.
+
+  Copy the Linux command and run it on your system:
+    ip link set ghostnet0 mtu 1420
+
+  If you chose Double-Hop mode instead, set hop count to 2 (result: 1380).
+
+Step 5 — Generate the scripts
+  Return to the Overview tab.
+  Confirm Mode is set to "fwmark Routing".
+  Confirm Target OS is "Linux".
+  Click GENERATE COEXISTENCE SCRIPTS.
+  The Scripts tab opens automatically.
+
+Step 6 — Apply the enable script
+  Click DOWNLOAD next to the Enable Script.
+  Save it as ghostnet-coexist-enable.sh.
+  On your machine:
+
+    chmod +x ghostnet-coexist-enable.sh
+    sudo ./ghostnet-coexist-enable.sh
+
+  Expected output:
+    [+] Setting up GhostNet coexistence routing (fwmark mode)...
+    [+] Active routing rules:
+      100: from all fwmark 0x64 lookup 200
+    [+] GhostNet coexistence table:
+      default dev ghostnet0 ...
+    [+] Done. GhostNet runs alongside nordlynx.
+
+Step 7 — Verify coexistence is working
+  a) Check routing rules:
+       ip rule list
+     You should see a line with "fwmark 0x64 lookup 200"
+
+  b) Check GhostNet is routing:
+       ip route show table 200
+     Should show: default dev ghostnet0
+
+  c) Test connectivity:
+       curl ifconfig.me              <- exits through native VPN IP
+       curl --interface ghostnet0 ifconfig.me  <- exits through GhostNet IP
+     Both should return different IPs confirming both VPNs are active.
+
+  d) Back in GhostNet, go to Leak Detection and click TEST ALL LEAKS.
+     Both DNS and WebRTC tests should show no leaks.
+
+Step 8 — Reverting (if needed)
+  Run the Disable script:
+    sudo ./ghostnet-coexist-disable.sh
+
+  Or manually:
+    ip rule del fwmark 100 table 200
+    ip route flush table 200
+    iptables -t mangle -F GHOSTNET_COEXIST
+
+TROUBLESHOOTING COEXISTENCE
+
+  "Both VPNs use tun0" — interface naming conflict
+    Rename GhostNet's interface. In ghostd.py, change TUN_IFACE from "tun0"
+    to "ghostnet0". Regenerate scripts.
+
+  "ip rule" shows no fwmark rule after running script
+    The script requires root. Re-run with sudo.
+    Check that your kernel supports ip rule: uname -r (need 3.x+).
+
+  Traffic not going through GhostNet
+    Verify ghostd.py is running: curl 127.0.0.1:7475/status
+    Check the GhostNet interface is up: ip link show ghostnet0
+    Verify iptables mangle rule: iptables -t mangle -L GHOSTNET_COEXIST -v
+
+  Double-hop mode: everything is slow
+    Run the MTU Optimizer with hop count 2. Apply the result to ghostnet0.
+    Common fix: ip link set ghostnet0 mtu 1380
+
+  NordVPN's nordlynx disappears after reconnect
+    nordlynx is recreated each time you connect. Re-run the enable script
+    after each NordVPN reconnect, or add it to a NetworkManager hook.
 
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

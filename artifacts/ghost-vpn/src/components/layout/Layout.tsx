@@ -3,7 +3,7 @@ import { Link, useLocation } from "wouter";
 import {
   Activity, ShieldAlert, Network, Terminal, Database, Server,
   Settings2, Shield, Globe, Layers,
-  Power, Search, AlertTriangle, GitBranch, EyeOff, ShieldCheck
+  Power, Search, AlertTriangle, GitBranch, EyeOff, ShieldCheck, SplitSquareHorizontal
 } from "lucide-react";
 
 interface LayoutProps {
@@ -42,6 +42,7 @@ export function Layout({ children }: LayoutProps) {
         { href: "/obfuscation",  label: "OBFUSCATION",    icon: EyeOff },
         { href: "/proxy",        label: "PROXY/TOR",      icon: Globe },
         { href: "/onion-browser",label: "ONION BROWSER",  icon: Layers },
+        { href: "/vpn-coexist", label: "VPN COEXIST",    icon: SplitSquareHorizontal },
       ],
     },
     {

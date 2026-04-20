@@ -15,6 +15,7 @@ import splittunnelRouter from "./splittunnel";
 import obfuscationRouter from "./obfuscation";
 import securityauditRouter from "./securityaudit";
 import daemonRouter from "./daemon";
+import vpnCoexistRouter from "./vpncoexist";
 
 const router: IRouter = Router();
 
@@ -34,5 +35,6 @@ router.use("/split-tunnel",  splittunnelRouter);
 router.use("/obfuscation",    obfuscationRouter);
 router.use("/security-audit", securityauditRouter);
 router.use("/daemon",        daemonRouter);
+router.use("/vpn-coexist",   vpnCoexistRouter);
 
 export default router;

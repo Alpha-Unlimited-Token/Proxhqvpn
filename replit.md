@@ -37,6 +37,7 @@ GhostNet is an advanced VPN orchestration and security platform with 60-node mes
 | /terminal | Terminal | 4-tab shell (SHELL/HTTP CLIENT/PORT SCAN/AUDIT LOG), Ghost Mode toggle for full outbound |
 | /sql | SqlInterface | 3-mode SQL interface (LOCAL DB/EXTERNAL DB/HTTP API), external PostgreSQL connection manager + schema explorer |
 | /security-audit | SecurityAudit | Self-audit findings (Critical/High/Medium/Low), TLS cert inspector, HTTP security-headers grader (A–F), WHOIS/RDAP lookup |
+| /vpn-coexist | VpnCoexist | Run GhostNet alongside NordVPN/ExpressVPN/ProtonVPN/Mullvad/Surfshark — 4 coexistence modes (fwmark, double-hop, namespace, routing-table), auto-detect running VPNs, exception rules, MTU optimizer, script generator |
 
 ## API Routes (api-server)
 
@@ -56,6 +57,7 @@ GhostNet is an advanced VPN orchestration and security platform with 60-node mes
 | /api/threatintel | threatintel.ts | IP reputation, blocklist, Tor exit feed, intelligence feeds |
 | /api/split-tunnel | splittunnel.ts | Split tunneling rules, Linux/Windows route script gen |
 | /api/obfuscation | obfuscation.ts | obfs4/Shadowsocks/V2Ray config, DPI test guide |
+| /api/vpn-coexist | vpncoexist.ts | VPN coexistence: detect running VPNs, commercial profiles, exception rules, script generation (fwmark/double-hop/namespace/routing-table), MTU optimizer |
 
 ## Standalone Build
 
