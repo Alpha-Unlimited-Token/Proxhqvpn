@@ -1,11 +1,14 @@
-import React, { ReactNode } from "react";
+import React, { ReactNode, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useUser, useClerk } from "@clerk/react";
 import {
-  Activity, ShieldAlert, Network, Terminal, Database, Server,
-  Settings2, Shield, Globe, Layers,
-  Power, Search, AlertTriangle, GitBranch, EyeOff, ShieldCheck, SplitSquareHorizontal, LogOut,
-  Tv, Smartphone, Router, Wifi, ShieldPlus, User, Crown, Key, CreditCard
+  Wifi, CreditCard, Smartphone, BookOpen,
+  Power, Search, ShieldPlus, EyeOff,
+  Globe, GitBranch, Globe2,
+  LayoutDashboard, Server, ShieldAlert, Network,
+  Activity, Shield, Terminal, Database,
+  LogOut, User, ChevronDown, ChevronRight,
+  Settings, Zap
 } from "lucide-react";
 import { useAdmin } from "@/hooks/useAdmin";
 
@@ -13,158 +16,202 @@ interface LayoutProps {
   children: ReactNode;
 }
 
+const PAGE_NAMES: Record<string, string> = {
+  "/my-vpn": "Connect",
+  "/pricing": "Subscription Plans",
+  "/devices": "My Devices",
+  "/platforms": "Setup Guide",
+  "/kill-switch": "Kill Switch",
+  "/leaks": "Leak Test",
+  "/dns-shield": "DNS Protection",
+  "/obfuscation": "Obfuscation",
+  "/vpngate": "VPN Gate",
+  "/split-tunnel": "Split Tunneling",
+  "/proxy": "Proxy & Tor",
+  "/onion-browser": "Onion Browser",
+  "/vpn-coexist": "VPN Coexistence",
+  "/wireguard": "WireGuard Config",
+  "/router-config": "Router Setup",
+  "/smart-dns": "Smart DNS",
+  "/dashboard": "Dashboard",
+  "/nodes": "VPN Servers",
+  "/beacons": "Threat Monitor",
+  "/silkweb": "Decoy Network",
+  "/monitor": "Performance",
+  "/firewall": "Firewall",
+  "/security-audit": "Security Audit",
+  "/threat-intel": "Threat Intelligence",
+  "/terminal": "Terminal",
+  "/sql": "Database",
+  "/account": "My Account",
+};
+
 export function Layout({ children }: LayoutProps) {
   const [location] = useLocation();
   const { user } = useUser();
   const { signOut } = useClerk();
   const { isAdmin } = useAdmin();
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
-  const navGroups = [
-    {
-      label: "MY VPN",
-      items: [
-        { href: "/my-vpn",       label: "CONNECT",        icon: Wifi },
-        { href: "/pricing",      label: "PLANS",          icon: CreditCard },
-      ],
-    },
-    {
-      label: "CORE",
-      items: [
-        { href: "/dashboard",    label: "DASHBOARD",     icon: Activity },
-        { href: "/nodes",        label: "NODE MGR",       icon: Server },
-        { href: "/vpngate",      label: "VPN GATE",       icon: Globe },
-        { href: "/platforms",    label: "PLATFORMS",      icon: Tv },
-        { href: "/devices",      label: "DEVICES",        icon: Smartphone },
-        { href: "/beacons",      label: "BEACONS",        icon: ShieldAlert },
-        { href: "/silkweb",      label: "SILK WEB",       icon: Network },
-        { href: "/monitor",      label: "MONITOR",        icon: Activity },
-      ],
-    },
-    {
-      label: "SECURITY",
-      items: [
-        { href: "/firewall",     label: "FIREWALL",       icon: Shield },
-        { href: "/kill-switch",  label: "KILL SWITCH",    icon: Power },
-        { href: "/dns-shield",   label: "DNS SHIELD",     icon: ShieldPlus },
-        { href: "/leaks",        label: "LEAK DETECT",    icon: Search },
-        { href: "/threat-intel",   label: "THREAT INTEL",   icon: AlertTriangle },
-        { href: "/security-audit", label: "SEC AUDIT",       icon: ShieldCheck },
-      ],
-    },
-    {
-      label: "TUNNEL",
-      items: [
-        { href: "/wireguard",    label: "WG CONFIG",      icon: Settings2 },
-        { href: "/router-config",label: "ROUTER CFG",     icon: Router },
-        { href: "/smart-dns",    label: "SMART DNS",      icon: Wifi },
-        { href: "/split-tunnel", label: "SPLIT TUNNEL",   icon: GitBranch },
-        { href: "/obfuscation",  label: "OBFUSCATION",    icon: EyeOff },
-        { href: "/proxy",        label: "PROXY/TOR",      icon: Globe },
-        { href: "/onion-browser",label: "ONION BROWSER",  icon: Layers },
-        { href: "/vpn-coexist",  label: "VPN COEXIST",    icon: SplitSquareHorizontal },
-      ],
-    },
-    {
-      label: "SYSTEM",
-      items: [
-        { href: "/terminal",     label: "TERMINAL",       icon: Terminal },
-        { href: "/sql",          label: "SQL INTF",       icon: Database },
-      ],
-    },
+  const pageName = PAGE_NAMES[location] ?? "ProxhqVPN";
+
+  const userNav = [
+    { href: "/my-vpn",       label: "Connect",         icon: Wifi },
+    { href: "/pricing",      label: "Subscription",    icon: CreditCard },
+    { href: "/devices",      label: "My Devices",      icon: Smartphone },
+    { href: "/platforms",    label: "Setup Guide",     icon: BookOpen },
   ];
+
+  const protectionNav = [
+    { href: "/kill-switch",  label: "Kill Switch",     icon: Power },
+    { href: "/leaks",        label: "Leak Test",       icon: Search },
+    { href: "/dns-shield",   label: "DNS Protection",  icon: ShieldPlus },
+    { href: "/obfuscation",  label: "Obfuscation",     icon: EyeOff },
+  ];
+
+  const networkNav = [
+    { href: "/vpngate",      label: "VPN Gate",        icon: Globe },
+    { href: "/split-tunnel", label: "Split Tunneling", icon: GitBranch },
+    { href: "/proxy",        label: "Proxy & Tor",     icon: Globe2 },
+  ];
+
+  const adminNav = [
+    { href: "/dashboard",    label: "Dashboard",       icon: LayoutDashboard },
+    { href: "/nodes",        label: "VPN Servers",     icon: Server },
+    { href: "/beacons",      label: "Threat Monitor",  icon: ShieldAlert },
+    { href: "/silkweb",      label: "Decoy Network",   icon: Network },
+    { href: "/monitor",      label: "Performance",     icon: Activity },
+    { href: "/firewall",     label: "Firewall",        icon: Shield },
+    { href: "/terminal",     label: "Terminal",        icon: Terminal },
+    { href: "/sql",          label: "Database",        icon: Database },
+  ];
+
+  const advancedNav = [
+    { href: "/wireguard",    label: "WireGuard",       icon: Settings },
+    { href: "/router-config",label: "Router Setup",    icon: Settings },
+    { href: "/smart-dns",    label: "Smart DNS",       icon: Zap },
+    { href: "/vpn-coexist",  label: "VPN Coexistence", icon: GitBranch },
+  ];
+
+  const NavItem = ({ href, label, icon: Icon }: { href: string; label: string; icon: any }) => {
+    const isActive = location === href;
+    return (
+      <Link
+        href={href}
+        className={`flex items-center gap-2.5 px-3 py-2 rounded-sm transition-colors text-sm ${
+          isActive
+            ? "bg-primary/15 border border-primary/40 text-primary font-medium"
+            : "text-primary/60 hover:bg-primary/5 hover:text-primary border border-transparent"
+        }`}
+      >
+        <Icon className="w-4 h-4 flex-shrink-0" />
+        <span>{label}</span>
+      </Link>
+    );
+  };
+
+  const NavGroup = ({ label, items }: { label: string; items: typeof userNav }) => (
+    <div className="space-y-0.5">
+      <div className="text-[10px] font-semibold tracking-widest text-primary/30 uppercase px-3 pt-3 pb-1">
+        {label}
+      </div>
+      {items.map((item) => <NavItem key={item.href} {...item} />)}
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-black text-primary flex selection:bg-primary selection:text-black">
       {/* Sidebar */}
-      <aside className="w-52 border-r border-primary/20 flex flex-col shrink-0">
-        <div className="p-4 border-b border-primary/20">
+      <aside className="w-56 border-r border-primary/15 flex flex-col shrink-0">
+
+        {/* Logo */}
+        <div className="p-4 border-b border-primary/15">
           <div className="flex items-center gap-2.5">
             <img src="/icon-final2.png" alt="ProxhqVPN" className="w-8 h-8 shrink-0" />
             <div>
-              <h1 className="text-lg font-bold tracking-tighter leading-none">ProxhqVPN</h1>
-              <div className="text-xs text-primary/60 mt-1 flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-                SYS_ONLINE
+              <div className="font-bold text-base tracking-tight leading-none text-primary">ProxhqVPN</div>
+              <div className="text-[10px] text-primary/50 mt-1 flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block animate-pulse" />
+                System Active
               </div>
             </div>
           </div>
         </div>
-        <nav className="flex-1 p-3 overflow-y-auto space-y-3">
-          {navGroups.map((group) => (
-            <div key={group.label}>
-              <div className="text-[9px] font-mono tracking-[0.2em] text-primary/25 px-2 pb-1 uppercase">
-                {group.label}
-              </div>
+
+        {/* Nav */}
+        <nav className="flex-1 px-2 py-3 overflow-y-auto space-y-1">
+
+          <NavGroup label="My VPN" items={userNav} />
+          <NavGroup label="Protection" items={protectionNav} />
+          <NavGroup label="Network" items={networkNav} />
+
+          {/* Advanced (collapsible) */}
+          <div>
+            <button
+              onClick={() => setAdvancedOpen((v) => !v)}
+              className="flex items-center gap-2 w-full px-3 pt-3 pb-1 text-[10px] font-semibold tracking-widest text-primary/30 uppercase hover:text-primary/50 transition-colors"
+            >
+              {advancedOpen ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+              Advanced
+            </button>
+            {advancedOpen && (
               <div className="space-y-0.5">
-                {group.items.map((item) => {
-                  const Icon = item.icon;
-                  const isActive = location === item.href;
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      className={`flex items-center gap-2.5 px-2 py-1.5 border ${
-                        isActive
-                          ? "bg-primary/10 border-primary text-primary"
-                          : "border-transparent text-primary/60 hover:bg-primary/5 hover:text-primary hover:border-primary/40"
-                      } transition-colors`}
-                    >
-                      <Icon className="w-3.5 h-3.5 flex-shrink-0" />
-                      <span className="text-[10px] font-bold tracking-wider">{item.label}</span>
-                    </Link>
-                  );
-                })}
+                {advancedNav.map((item) => <NavItem key={item.href} {...item} />)}
               </div>
-            </div>
-          ))}
+            )}
+          </div>
+
+          {/* Admin-only section */}
+          {isAdmin && (
+            <NavGroup label="Admin" items={adminNav} />
+          )}
         </nav>
 
-        {/* User / sign-out */}
+        {/* User footer */}
         {user && (
-          <div className="p-3 border-t border-primary/20">
-            <div className="flex items-center gap-1.5 mb-1">
-              <div className="text-[9px] font-mono text-primary/40 uppercase tracking-widest truncate flex-1">
-                {user.primaryEmailAddress?.emailAddress ?? user.username ?? "Operator"}
+          <div className="p-3 border-t border-primary/15 space-y-1">
+            <div className="px-3 py-1.5">
+              <div className="text-[11px] text-primary/70 font-medium truncate">
+                {user.firstName ?? user.username ?? "User"}
               </div>
-              {isAdmin && (
-                <div className="flex items-center gap-0.5 bg-primary/10 border border-primary/40 px-1 py-0.5 shrink-0" title="Administrator">
-                  <Crown className="w-2.5 h-2.5 text-primary" />
-                  <span className="text-[8px] font-mono text-primary tracking-widest">ADMIN</span>
-                </div>
-              )}
+              <div className="text-[10px] text-primary/35 truncate">
+                {user.primaryEmailAddress?.emailAddress ?? ""}
+              </div>
             </div>
-            <Link href="/account"
-              className="flex items-center gap-2 w-full text-[10px] font-mono uppercase tracking-widest text-primary/50 hover:text-primary border border-transparent hover:border-primary/30 px-2 py-1.5 transition-colors mb-0.5"
+            <Link
+              href="/account"
+              className="flex items-center gap-2 w-full text-sm text-primary/55 hover:text-primary px-3 py-2 rounded-sm hover:bg-primary/5 border border-transparent hover:border-primary/20 transition-colors"
             >
-              <User className="w-3 h-3" />
-              MY ACCOUNT
+              <User className="w-3.5 h-3.5" />
+              Account Settings
             </Link>
             <button
               onClick={() => signOut()}
-              className="flex items-center gap-2 w-full text-[10px] font-mono uppercase tracking-widest text-primary/50 hover:text-primary border border-transparent hover:border-primary/30 px-2 py-1.5 transition-colors"
+              className="flex items-center gap-2 w-full text-sm text-primary/55 hover:text-primary px-3 py-2 rounded-sm hover:bg-primary/5 border border-transparent hover:border-primary/20 transition-colors"
             >
-              <LogOut className="w-3 h-3" />
-              SIGN OUT
+              <LogOut className="w-3.5 h-3.5" />
+              Sign Out
             </button>
           </div>
         )}
       </aside>
 
-      {/* Main Content */}
+      {/* Main */}
       <main className="flex-1 flex flex-col h-screen overflow-hidden">
-        <header className="h-12 border-b border-primary/20 flex items-center justify-between px-6 shrink-0">
-          <div className="text-xs text-primary/50 tracking-widest">
-            {location} // {new Date().toISOString()}
+
+        {/* Header */}
+        <header className="h-12 border-b border-primary/15 flex items-center justify-between px-6 shrink-0">
+          <div className="text-sm font-medium text-primary/80">
+            {pageName}
           </div>
-          {user && (
-            <div className="text-[10px] font-mono text-primary/30 uppercase tracking-widest">
-              {user.username ?? user.firstName ?? "OP"}
-            </div>
-          )}
+          <div className="text-[10px] text-primary/30 font-mono">
+            {new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+          </div>
         </header>
+
+        {/* Content */}
         <div className="flex-1 overflow-auto p-6 relative min-h-0">
-          {/* Scanline effect */}
-          <div className="pointer-events-none fixed inset-0 z-50 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_4px,3px_100%] opacity-20" />
+          <div className="pointer-events-none fixed inset-0 z-50 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_4px,3px_100%] opacity-10" />
           <div className="relative z-10 h-full">
             {children}
           </div>

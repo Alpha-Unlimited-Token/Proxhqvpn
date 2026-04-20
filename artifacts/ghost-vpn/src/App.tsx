@@ -107,7 +107,8 @@ function SignInPage() {
       <div className="w-full max-w-sm relative z-10">
         <div className="text-center mb-6">
           <img src={`${basePath}/icon-final2.png`} alt="ProxhqVPN" className="w-16 h-16 mx-auto mb-3" />
-          <div className="text-[9px] font-mono tracking-[0.4em] text-primary/40 uppercase">OPERATOR AUTHENTICATION REQUIRED</div>
+          <h1 className="text-lg font-bold tracking-tight text-primary">ProxhqVPN</h1>
+          <div className="text-xs text-primary/40 mt-1">Sign in to your account</div>
         </div>
         <SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} />
       </div>
@@ -124,7 +125,8 @@ function SignUpPage() {
       <div className="w-full max-w-sm relative z-10">
         <div className="text-center mb-6">
           <img src={`${basePath}/icon-final2.png`} alt="ProxhqVPN" className="w-16 h-16 mx-auto mb-3" />
-          <div className="text-[9px] font-mono tracking-[0.4em] text-primary/40 uppercase">REQUEST OPERATOR ACCESS</div>
+          <h1 className="text-lg font-bold tracking-tight text-primary">ProxhqVPN</h1>
+          <div className="text-xs text-primary/40 mt-1">Create your account</div>
         </div>
         <SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} />
       </div>
@@ -293,14 +295,14 @@ function ClerkProviderWithRoutes() {
       localization={{
         signIn: {
           start: {
-            title: "Operator Login",
-            subtitle: "Authenticate to access ProxhqVPN OS",
+            title: "Welcome Back",
+            subtitle: "Sign in to your ProxhqVPN account",
           },
         },
         signUp: {
           start: {
-            title: "Request Access",
-            subtitle: "Create your ProxhqVPN operator account",
+            title: "Get Started",
+            subtitle: "Create your ProxhqVPN account",
           },
         },
       }}
