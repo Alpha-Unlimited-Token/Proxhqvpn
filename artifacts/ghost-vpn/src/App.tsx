@@ -21,6 +21,7 @@ import LeakDetection from "@/pages/LeakDetection";
 import ThreatIntel from "@/pages/ThreatIntel";
 import SplitTunnel from "@/pages/SplitTunnel";
 import Obfuscation from "@/pages/Obfuscation";
+import SecurityAudit from "@/pages/SecurityAudit";
 
 const queryClient = new QueryClient();
 
@@ -44,6 +45,7 @@ function Router() {
         <Route path="/threat-intel" component={ThreatIntel} />
         <Route path="/split-tunnel" component={SplitTunnel} />
         <Route path="/obfuscation" component={Obfuscation} />
+        <Route path="/security-audit" component={SecurityAudit} />
         <Route component={NotFound} />
       </Switch>
     </Layout>

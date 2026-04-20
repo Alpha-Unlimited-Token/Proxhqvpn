@@ -1,25 +1,41 @@
 import { Router } from "express";
-import { db, pool } from "@workspace/db";
+import { pool } from "@workspace/db";
 import { z } from "zod";
+import { Pool as PgPool, type PoolConfig } from "pg";
 
 const router = Router();
 
-// Read-only: only SELECT statements allowed
-const READONLY_RE = /^\s*(select|with|explain|show)\s/i;
-const BLOCKED_RE = /\b(insert|update|delete|drop|truncate|alter|create|grant|revoke|exec|execute|call|pg_read_file|pg_ls_dir|lo_import|lo_export|copy)\b/i;
+// ─── Local DB: SELECT-only safeguards ────────────────────────────────────────
+const READONLY_RE   = /^\s*(select|with|explain|show|describe|\\\w)/i;
+const BLOCKED_LOCAL = /\b(insert|update|delete|drop|truncate|alter|create|grant|revoke|exec|execute|call|pg_read_file|pg_ls_dir|lo_import|lo_export|copy)\b/i;
 
 function stripSqlComments(q: string): string {
-  return q
-    .replace(/--[^\n]*/g, " ")
-    .replace(/\/\*[\s\S]*?\*\//g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  return q.replace(/--[^\n]*/g, " ").replace(/\/\*[\s\S]*?\*\//g, " ").replace(/\s+/g, " ").trim();
 }
 
+// ─── External connection pool store ──────────────────────────────────────────
+interface ExtConn {
+  id: string;
+  label: string;
+  pgPool: PgPool;
+  connString: string;
+  dbType: string;
+  connectedAt: string;
+  queryCount: number;
+  lastUsed: string;
+}
+
+const extConns = new Map<string, ExtConn>();
+
+function maskConnString(s: string): string {
+  return s.replace(/\/\/([^:@]+):([^@]+)@/, "//$1:****@");
+}
+
+// ─── LOCAL DB QUERY ───────────────────────────────────────────────────────────
 router.post("/query", async (req, res) => {
   const body = z.object({
-    query: z.string().max(2000),
-    limit: z.number().max(500).optional().default(100),
+    query: z.string().max(4000),
+    limit: z.number().max(1000).optional().default(100),
   }).parse(req.body);
 
   const query = stripSqlComments(body.query.trim());
@@ -27,49 +43,241 @@ router.post("/query", async (req, res) => {
 
   if (!READONLY_RE.test(query)) {
     return res.json({
-      query,
-      rows: [],
-      columns: [],
-      rowCount: 0,
-      executionTimeMs: 0,
-      error: "Only SELECT queries are permitted in the SQL interface.",
+      query, rows: [], columns: [], rowCount: 0, executionTimeMs: 0,
+      error: "Only SELECT queries are permitted on the local database. Use an external connection for write operations.",
     });
   }
 
-  if (BLOCKED_RE.test(query)) {
+  if (BLOCKED_LOCAL.test(query)) {
     return res.json({
-      query,
-      rows: [],
-      columns: [],
-      rowCount: 0,
-      executionTimeMs: 0,
-      error: "Blocked keyword detected. Only read-only SELECT queries are allowed.",
+      query, rows: [], columns: [], rowCount: 0, executionTimeMs: 0,
+      error: "Blocked keyword detected in local-DB query.",
     });
   }
 
-  // Inject LIMIT if not present
   const limitedQuery = /\blimit\b/i.test(query) ? query : `${query} LIMIT ${body.limit}`;
 
   try {
     const result = await pool.query(limitedQuery);
-    const columns = result.fields.map((f) => f.name);
-    const rows = result.rows;
+    res.json({ query: limitedQuery, rows: result.rows, columns: result.fields.map(f => f.name), rowCount: result.rows.length, executionTimeMs: Date.now() - start });
+  } catch (err: any) {
+    res.json({ query: limitedQuery, rows: [], columns: [], rowCount: 0, executionTimeMs: Date.now() - start, error: err.message });
+  }
+});
+
+// ─── CONNECT to external PostgreSQL ──────────────────────────────────────────
+router.post("/connect", async (req, res) => {
+  const body = z.object({
+    connectionString: z.string().min(10).max(1000),
+    label: z.string().max(80).optional().default("External DB"),
+    dbType: z.enum(["postgresql", "mysql", "sqlite"]).optional().default("postgresql"),
+    ssl: z.boolean().optional().default(false),
+  }).parse(req.body);
+
+  const id = Math.random().toString(36).slice(2, 10);
+
+  // Enforce connection limit
+  if (extConns.size >= 10) {
+    return res.status(429).json({ error: "Max 10 external connections. Disconnect one first." });
+  }
+
+  if (body.dbType !== "postgresql") {
+    return res.status(400).json({ error: `${body.dbType} connections are not yet supported. Only PostgreSQL connection strings are supported (postgresql://user:pass@host:5432/db).` });
+  }
+
+  let pgPool: PgPool;
+  try {
+    const cfg: PoolConfig = {
+      connectionString: body.connectionString,
+      max: 3,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 10000,
+    };
+    if (body.ssl) {
+      (cfg as any).ssl = { rejectUnauthorized: false };
+    }
+    pgPool = new PgPool(cfg);
+
+    // Test the connection
+    const client = await pgPool.connect();
+    await client.query("SELECT 1");
+    client.release();
+  } catch (err: any) {
+    return res.status(400).json({ error: `Connection failed: ${err.message}` });
+  }
+
+  const conn: ExtConn = {
+    id,
+    label: body.label ?? "External DB",
+    pgPool,
+    connString: maskConnString(body.connectionString),
+    dbType: body.dbType,
+    connectedAt: new Date().toISOString(),
+    queryCount: 0,
+    lastUsed: new Date().toISOString(),
+  };
+  extConns.set(id, conn);
+
+  res.status(201).json({
+    id,
+    label: conn.label,
+    connString: conn.connString,
+    dbType: conn.dbType,
+    connectedAt: conn.connectedAt,
+    status: "connected",
+  });
+});
+
+// ─── LIST external connections ────────────────────────────────────────────────
+router.get("/connections", (_req, res) => {
+  const list = [...extConns.values()].map(c => ({
+    id: c.id, label: c.label, connString: c.connString, dbType: c.dbType,
+    connectedAt: c.connectedAt, queryCount: c.queryCount, lastUsed: c.lastUsed,
+  }));
+  res.json({ connections: list, count: list.length });
+});
+
+// ─── DISCONNECT external connection ─────────────────────────────────────────
+router.delete("/connections/:id", async (req, res) => {
+  const conn = extConns.get(req.params.id);
+  if (!conn) return res.status(404).json({ error: "Connection not found" });
+  await conn.pgPool.end().catch(() => {});
+  extConns.delete(req.params.id);
+  res.json({ disconnected: req.params.id });
+});
+
+// ─── EXTERNAL QUERY (full SQL, all statements allowed) ───────────────────────
+router.post("/external-query", async (req, res) => {
+  const body = z.object({
+    connectionId: z.string(),
+    query: z.string().min(1).max(10000),
+    limit: z.number().max(5000).optional().default(500),
+  }).parse(req.body);
+
+  const conn = extConns.get(body.connectionId);
+  if (!conn) return res.status(404).json({ error: "Connection not found. Create one via POST /api/sql/connect." });
+
+  const start = Date.now();
+  const rawQuery = body.query.trim();
+
+  // Auto-inject LIMIT for SELECT queries without one
+  const autoLimited =
+    /^\s*select\b/i.test(rawQuery) && !/\blimit\b/i.test(rawQuery)
+      ? `${rawQuery} LIMIT ${body.limit}`
+      : rawQuery;
+
+  try {
+    conn.lastUsed = new Date().toISOString();
+    conn.queryCount += 1;
+
+    const result = await conn.pgPool.query(autoLimited);
+    const isSelect = Array.isArray(result.rows);
+
     res.json({
-      query: limitedQuery,
-      rows,
-      columns,
-      rowCount: rows.length,
+      query:          autoLimited,
+      rows:           result.rows ?? [],
+      columns:        result.fields?.map(f => f.name) ?? [],
+      rowCount:       result.rowCount ?? result.rows?.length ?? 0,
       executionTimeMs: Date.now() - start,
-      error: undefined,
+      command:        result.command,
+      connectionId:   body.connectionId,
+      connectionLabel: conn.label,
     });
   } catch (err: any) {
     res.json({
-      query: limitedQuery,
-      rows: [],
-      columns: [],
-      rowCount: 0,
+      query: autoLimited, rows: [], columns: [], rowCount: 0,
       executionTimeMs: Date.now() - start,
-      error: err.message ?? "Query failed",
+      error: err.message,
+      connectionId: body.connectionId,
+    });
+  }
+});
+
+// ─── SCHEMA EXPLORER ─────────────────────────────────────────────────────────
+router.get("/schema/:connectionId", async (req, res) => {
+  const conn = extConns.get(req.params.connectionId);
+  if (!conn) return res.status(404).json({ error: "Connection not found" });
+
+  try {
+    const tables = await conn.pgPool.query(`
+      SELECT table_schema, table_name, table_type
+      FROM information_schema.tables
+      WHERE table_schema NOT IN ('pg_catalog','information_schema')
+      ORDER BY table_schema, table_name
+    `);
+
+    const columns = await conn.pgPool.query(`
+      SELECT table_name, column_name, data_type, is_nullable, column_default
+      FROM information_schema.columns
+      WHERE table_schema NOT IN ('pg_catalog','information_schema')
+      ORDER BY table_name, ordinal_position
+    `);
+
+    res.json({
+      tables: tables.rows,
+      columns: columns.rows,
+      connectionId: req.params.connectionId,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── QUICK HTTP QUERY via URL (SQL over HTTP API endpoints) ──────────────────
+router.post("/http-query", async (req, res) => {
+  const body = z.object({
+    url: z.string().url(),
+    method: z.enum(["GET","POST","PUT","PATCH","DELETE"]).default("GET"),
+    headers: z.record(z.string()).optional().default({}),
+    payload: z.any().optional(),
+    timeout: z.number().min(500).max(30000).optional().default(10000),
+  }).parse(req.body);
+
+  const startMs = Date.now();
+  try {
+    const nodeFetch = (await import("node-fetch")).default;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), body.timeout);
+
+    const resp = await nodeFetch(body.url, {
+      method: body.method,
+      headers: {
+        "Content-Type": "application/json",
+        "User-Agent": "GhostNet-SQL/3.0",
+        ...body.headers,
+      },
+      body: body.payload ? JSON.stringify(body.payload) : undefined,
+      signal: controller.signal as any,
+    });
+    clearTimeout(timer);
+
+    let data: any;
+    const ct = resp.headers.get("content-type") ?? "";
+    const text = await resp.text();
+    try { data = JSON.parse(text); } catch { data = text; }
+
+    const cols = Array.isArray(data)
+      ? (data.length > 0 ? Object.keys(data[0]) : [])
+      : (typeof data === "object" && data ? Object.keys(data) : ["response"]);
+
+    const rows = Array.isArray(data) ? data : [{ response: typeof data === "string" ? data : JSON.stringify(data) }];
+
+    res.json({
+      url: body.url,
+      status: resp.status,
+      statusText: resp.statusText,
+      rows,
+      columns: cols,
+      rowCount: rows.length,
+      executionTimeMs: Date.now() - startMs,
+      raw: text.slice(0, 5000),
+    });
+  } catch (err: any) {
+    res.json({
+      url: body.url, status: 0, statusText: "Failed",
+      rows: [], columns: [], rowCount: 0,
+      executionTimeMs: Date.now() - startMs,
+      error: err.message,
     });
   }
 });

@@ -2,7 +2,7 @@
 
 ## Overview
 
-GhostNet is an advanced VPN orchestration and security platform with 60-node mesh (50 outer + 10 inner), silk web trap network, port knocking, mTLS, beacons/spiders/worms, firewall, WireGuard config generation, SQL interface, terminal emulator, system monitor, Tor/SOCKS5 integration, kill switch, leak detection, threat intelligence, split tunneling, and DPI obfuscation. React + Vite frontend; Express/PostgreSQL backend.
+GhostNet is an advanced VPN orchestration and security platform with 60-node mesh (50 outer + 10 inner), silk web trap network, port knocking, mTLS, beacons/spiders/worms, firewall, WireGuard config generation, SQL interface (local + external PostgreSQL + HTTP API mode), terminal emulator (Ghost Mode with full outbound), security audit suite, system monitor, Tor/SOCKS5 integration, kill switch, leak detection, threat intelligence, split tunneling, and DPI obfuscation. React + Vite frontend; Express/PostgreSQL backend.
 
 ## Stack
 
@@ -34,8 +34,9 @@ GhostNet is an advanced VPN orchestration and security platform with 60-node mes
 | /monitor | SystemMonitor | CPU, RAM, network metrics |
 | /proxy | ProxyConfig | Tor Browser, SOCKS5, multi-OS, port knocking docs |
 | /onion-browser | OnionBrowser | Proxied browser (Direct/GhostNet/Tor/Double/Custom SOCKS4/5/HTTP) |
-| /terminal | Terminal | Shell emulator with arrow-key command history |
-| /sql | SqlInterface | SELECT-only SQL query interface |
+| /terminal | Terminal | 4-tab shell (SHELL/HTTP CLIENT/PORT SCAN/AUDIT LOG), Ghost Mode toggle for full outbound |
+| /sql | SqlInterface | 3-mode SQL interface (LOCAL DB/EXTERNAL DB/HTTP API), external PostgreSQL connection manager + schema explorer |
+| /security-audit | SecurityAudit | Self-audit findings (Critical/High/Medium/Low), TLS cert inspector, HTTP security-headers grader (A–F), WHOIS/RDAP lookup |
 
 ## API Routes (api-server)
 
@@ -46,8 +47,9 @@ GhostNet is an advanced VPN orchestration and security platform with 60-node mes
 | /api/silkweb | silkweb.ts | Silk web topology, trapped entities |
 | /api/firewall | firewall.ts | Firewall rules, blacklist, iptables export |
 | /api/monitor | monitor.ts | CPU/RAM/network/connections |
-| /api/terminal | terminal.ts | Shell command execution |
-| /api/sql | sqlquery.ts | SQL SELECT query interface |
+| /api/terminal | terminal.ts | Shell exec (allowlist + Ghost Mode), /http-request outbound client, /port-scan TCP scanner, /audit-log viewer |
+| /api/sql | sqlquery.ts | Local SELECT-only + external PostgreSQL full CRUD + /http-query REST→table mode, /connections manager, /schema explorer |
+| /api/security-audit | securityaudit.ts | TLS cert check, HTTP header grader, WHOIS/RDAP, self-audit findings |
 | /api/proxy-browser | proxybrowser.ts | Proxy/Tor browsing + custom proxy |
 | /api/killswitch | killswitch.ts | Kill switch state, OS firewall rule generation |
 | /api/leaks | leaks.ts | DNS/IPv6/WebRTC leak detection |
@@ -65,11 +67,14 @@ GhostNet is an advanced VPN orchestration and security platform with 60-node mes
 ## Security Hardening
 
 - Helmet (CSP, HSTS, noSniff, XSS filter)
-- express-rate-limit (global 300/min, terminal 20/min, SQL 30/min, mutate 60/min)
+- express-rate-limit (global 500/min, terminal 30/min, SQL 60/min, mutate 100/min)
 - Strict CORS with Replit regex allowlist
 - 64kb body limits
-- Shell metacharacter stripping in terminal route
-- SELECT-only enforcement in SQL route
+- Shell allowlist enforcement + HARD_BLOCKED destructive pattern list in terminal route
+- Ghost Mode: bypasses allowlist while still enforcing HARD_BLOCKED patterns; all Ghost Mode commands logged to audit log
+- SELECT-only enforcement in local SQL mode; full CRUD/DDL permitted on external connections
+- External PostgreSQL connections: in-memory pool map with 10-connection cap, masked display of connection strings
+- Terminal audit log: timestamped record of every executed command + Ghost Mode status
 
 ## Key Commands
 

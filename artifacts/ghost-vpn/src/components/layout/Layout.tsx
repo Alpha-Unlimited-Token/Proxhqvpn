@@ -2,8 +2,8 @@ import React, { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import {
   Activity, ShieldAlert, Network, Terminal, Database, Server,
-  Settings2, Code, Shield, Globe, Layers,
-  Power, Search, AlertTriangle, GitBranch, EyeOff
+  Settings2, Shield, Globe, Layers,
+  Power, Search, AlertTriangle, GitBranch, EyeOff, ShieldCheck
 } from "lucide-react";
 
 interface LayoutProps {
@@ -30,7 +30,8 @@ export function Layout({ children }: LayoutProps) {
         { href: "/firewall",     label: "FIREWALL",       icon: Shield },
         { href: "/kill-switch",  label: "KILL SWITCH",    icon: Power },
         { href: "/leaks",        label: "LEAK DETECT",    icon: Search },
-        { href: "/threat-intel", label: "THREAT INTEL",   icon: AlertTriangle },
+        { href: "/threat-intel",   label: "THREAT INTEL",   icon: AlertTriangle },
+        { href: "/security-audit", label: "SEC AUDIT",       icon: ShieldCheck },
       ],
     },
     {

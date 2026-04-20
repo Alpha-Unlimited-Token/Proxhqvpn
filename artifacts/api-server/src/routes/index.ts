@@ -13,6 +13,7 @@ import leaksRouter from "./leaks";
 import threatintelRouter from "./threatintel";
 import splittunnelRouter from "./splittunnel";
 import obfuscationRouter from "./obfuscation";
+import securityauditRouter from "./securityaudit";
 
 const router: IRouter = Router();
 
@@ -29,6 +30,7 @@ router.use("/killswitch",    killswitchRouter);
 router.use("/leaks",         leaksRouter);
 router.use("/threatintel",   threatintelRouter);
 router.use("/split-tunnel",  splittunnelRouter);
-router.use("/obfuscation",   obfuscationRouter);
+router.use("/obfuscation",    obfuscationRouter);
+router.use("/security-audit", securityauditRouter);
 
 export default router;

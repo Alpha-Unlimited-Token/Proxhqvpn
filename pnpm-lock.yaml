@@ -166,6 +166,9 @@ importers:
 
   artifacts/api-server:
     dependencies:
+      '@types/pg':
+        specifier: ^8.18.0
+        version: 8.18.0
       '@workspace/api-zod':
         specifier: workspace:*
         version: link:../../lib/api-zod
@@ -196,6 +199,9 @@ importers:
       node-fetch:
         specifier: ^3.3.2
         version: 3.3.2
+      pg:
+        specifier: ^8.20.0
+        version: 8.20.0
       pino:
         specifier: ^9
         version: 9.14.0
@@ -5083,7 +5089,7 @@ snapshots:
 
   '@types/pg@8.18.0':
     dependencies:
-      '@types/node': 25.3.5
+      '@types/node': 22.19.17
       pg-protocol: 1.13.0
       pg-types: 2.2.0
 
