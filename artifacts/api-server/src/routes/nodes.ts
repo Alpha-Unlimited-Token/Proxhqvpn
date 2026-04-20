@@ -232,4 +232,20 @@ router.post("/bulk-replace", async (req, res) => {
   res.json({ replaced: results.length, nodes: results });
 });
 
+router.post("/shuffle-all", async (_req, res) => {
+  const allNodes = await db.select().from(nodesTable);
+  const now = new Date();
+  const updates = allNodes.map((node) => {
+    const newIp = randomIp(node.layer, node.hopIndex);
+    return db
+      .update(nodesTable)
+      .set({ ipAddress: newIp, status: "active", lastSeen: now })
+      .where(eq(nodesTable.id, node.id))
+      .returning();
+  });
+  const results = await Promise.all(updates);
+  const updated = results.map((r) => r[0]).filter(Boolean);
+  res.json({ shuffled: updated.length, timestamp: now.toISOString() });
+});
+
 export default router;

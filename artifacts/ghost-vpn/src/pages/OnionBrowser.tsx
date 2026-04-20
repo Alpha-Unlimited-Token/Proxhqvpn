@@ -31,6 +31,9 @@ import {
   Home,
   Bookmark,
   AlertTriangle,
+  Power,
+  PowerOff,
+  Shuffle,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -127,6 +130,8 @@ export default function OnionBrowser() {
   const [socks5Host, setSocks5Host] = useState("127.0.0.1");
   const [socks5Port, setSocks5Port] = useState("9050");
   const [showBookmarks, setShowBookmarks] = useState(false);
+  const [connected, setConnected] = useState(true);
+  const [isShuffle, setIsShuffle] = useState(false);
 
   const { data: config } = useGetProxyBrowserConfig({ query: { refetchInterval: 30000 } as any });
   const saveConfig = useSaveProxyBrowserConfig();
@@ -153,8 +158,40 @@ export default function OnionBrowser() {
     return () => window.removeEventListener("message", handler);
   }, [mode]);
 
+  const handleDisconnect = useCallback(() => {
+    setConnected(false);
+    setIsLoading(false);
+    setIframeContent("");
+    setCurrentLayers([]);
+    setCurrentTitle("");
+    toast({ title: "Proxy Disconnected", description: "Session terminated — all connections dropped.", variant: "destructive" });
+  }, [toast]);
+
+  const handleConnect = useCallback(() => {
+    setConnected(true);
+    toast({ title: "Proxy Connected", description: `${MODE_LABELS[mode]} active.` });
+  }, [mode, toast]);
+
+  const handleForceShuffle = useCallback(async () => {
+    setIsShuffle(true);
+    try {
+      const base = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
+      const res = await fetch(`${base}/api/nodes/shuffle-all`, { method: "POST" });
+      const data = await res.json() as { shuffled?: number };
+      toast({ title: "Force IP Shuffle Complete", description: `${data.shuffled ?? 60} node IPs rotated instantly.` });
+    } catch {
+      toast({ title: "Shuffle failed", description: "Could not reach API.", variant: "destructive" });
+    } finally {
+      setTimeout(() => setIsShuffle(false), 1200);
+    }
+  }, [toast]);
+
   const navigateTo = useCallback(
     async (targetUrl: string, fromHistory = false) => {
+      if (!connected) {
+        toast({ title: "Proxy Offline", description: "Connect the proxy first.", variant: "destructive" });
+        return;
+      }
       setIsLoading(true);
       setCurrentLayers([]);
 
@@ -265,27 +302,66 @@ export default function OnionBrowser() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-120px)] gap-0">
-      <div className="flex items-center gap-2 px-1 pb-2">
-        <Layers className="w-5 h-5 text-primary" />
-        <h2 className="text-xl font-bold tracking-tighter uppercase">
-          GhostNet Onion Browser
-        </h2>
-        <Badge
-          variant="outline"
-          className={`ml-2 font-mono text-xs ${modeColor} border-current`}
-        >
-          {MODE_LABELS[mode]}
-        </Badge>
-        {torActive && (
-          <Badge variant="outline" className="text-purple-400 border-purple-400/50 text-xs">
-            TOR
+      <div className="flex items-center justify-between px-1 pb-2">
+        <div className="flex items-center gap-2">
+          <Layers className="w-5 h-5 text-primary" />
+          <h2 className="text-xl font-bold tracking-tighter uppercase">
+            GhostNet Onion Browser
+          </h2>
+          <Badge
+            variant="outline"
+            className={`ml-1 font-mono text-xs ${connected ? modeColor : "text-red-500"} border-current`}
+          >
+            {connected ? MODE_LABELS[mode] : "OFFLINE"}
           </Badge>
-        )}
-        {ghostActive && (
-          <Badge variant="outline" className="text-primary border-primary/50 text-xs">
-            GHOST
-          </Badge>
-        )}
+          {connected && torActive && (
+            <Badge variant="outline" className="text-purple-400 border-purple-400/50 text-xs">
+              TOR
+            </Badge>
+          )}
+          {connected && ghostActive && (
+            <Badge variant="outline" className="text-primary border-primary/50 text-xs">
+              GHOST
+            </Badge>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            onClick={handleForceShuffle}
+            disabled={isShuffle || !connected}
+            className={`h-8 text-xs px-3 font-mono border ${
+              isShuffle
+                ? "border-yellow-400/60 bg-yellow-400/10 text-yellow-400 animate-pulse"
+                : "border-yellow-500/40 bg-yellow-500/5 text-yellow-400 hover:bg-yellow-500/15"
+            }`}
+            variant="outline"
+          >
+            <Shuffle className={`w-3 h-3 mr-1.5 ${isShuffle ? "animate-spin" : ""}`} />
+            {isShuffle ? "SHUFFLING..." : "FORCE SHUFFLE"}
+          </Button>
+          {connected ? (
+            <Button
+              size="sm"
+              onClick={handleDisconnect}
+              className="h-8 text-xs px-3 font-mono bg-red-900/20 border border-red-500/50 text-red-400 hover:bg-red-900/40"
+              variant="outline"
+            >
+              <PowerOff className="w-3 h-3 mr-1.5" />
+              DISCONNECT
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              onClick={handleConnect}
+              className="h-8 text-xs px-3 font-mono bg-primary/10 border border-primary/50 text-primary hover:bg-primary/20"
+              variant="outline"
+            >
+              <Power className="w-3 h-3 mr-1.5" />
+              CONNECT
+            </Button>
+          )}
+        </div>
       </div>
 
       <Card className="bg-black border-primary/20 flex flex-col flex-1 overflow-hidden">
@@ -437,7 +513,46 @@ export default function OnionBrowser() {
         )}
 
         <CardContent className="flex-1 p-0 relative overflow-hidden">
-          {!iframeContent && !isLoading && (
+          {!connected && (
+            <div className="absolute inset-0 bg-black z-20 flex flex-col items-center justify-center gap-6">
+              <div className="relative">
+                {[40, 70, 100].map((size, i) => (
+                  <div
+                    key={i}
+                    className="absolute rounded-full border border-red-500/20"
+                    style={{
+                      width: `${size}px`,
+                      height: `${size}px`,
+                      top: `${-(size - 24) / 2}px`,
+                      left: `${-(size - 24) / 2}px`,
+                    }}
+                  />
+                ))}
+                <PowerOff className="w-6 h-6 text-red-500 relative z-10" />
+              </div>
+              <div className="text-center">
+                <p className="text-red-500 font-bold font-mono tracking-widest text-lg mb-1">
+                  SESSION TERMINATED
+                </p>
+                <p className="text-red-400/60 font-mono text-xs mb-1">
+                  ALL PROXY CONNECTIONS DROPPED
+                </p>
+                <p className="text-primary/30 font-mono text-xs">
+                  Press CONNECT to re-establish the {MODE_LABELS[mode]} tunnel
+                </p>
+              </div>
+              <Button
+                onClick={handleConnect}
+                className="mt-2 px-6 py-2 font-mono text-sm bg-primary/10 border border-primary/50 text-primary hover:bg-primary/20"
+                variant="outline"
+              >
+                <Power className="w-4 h-4 mr-2" />
+                RECONNECT
+              </Button>
+            </div>
+          )}
+
+          {!iframeContent && !isLoading && connected && (
             <NewTabPage onNavigate={navigateTo} mode={mode} />
           )}
 

@@ -153,8 +153,11 @@ export default function NodeManager() {
         </div>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-4 flex-1 min-h-0">
-        <div className="flex-1 min-h-0 overflow-y-auto">
+      <div className="flex flex-col lg:flex-row gap-4">
+        <div
+          className="flex-1 overflow-y-auto rounded-sm border border-primary/10 bg-black/20 p-2"
+          style={{ maxHeight: "calc(100vh - 220px)" }}
+        >
           {nodes.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-48 text-primary/30 font-mono text-xs uppercase tracking-widest gap-3">
               <Network className="w-8 h-8 opacity-30" />
