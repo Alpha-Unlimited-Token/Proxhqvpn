@@ -15,8 +15,7 @@ router.get("/", async (req, res) => {
   const { userId } = getAuth(req);
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-  const client = await clerkClient();
-  const clerkUser = await client.users.getUser(userId);
+  const clerkUser = await clerkClient.users.getUser(userId);
   const email =
     clerkUser.emailAddresses.find((e) => e.id === clerkUser.primaryEmailAddressId)
       ?.emailAddress ?? null;
