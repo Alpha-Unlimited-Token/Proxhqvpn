@@ -77,3 +77,9 @@ id = "Or5n7dm_7WNWA6WGMHhth"
 uri = "file://standalone/dist/GHOSTNET-INSTALLATION-MANUAL.md"
 type = "text"
 title = "GhostNet Installation Manual"
+
+[[outputs]]
+id = "FGaymWjJPEo5J0KR2HR-S"
+uri = "file://artifacts/ghost-vpn/public/icon-final2.png"
+type = "image"
+title = "ProxhqVPN Logo — icon-final2.png"

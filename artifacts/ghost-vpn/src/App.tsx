@@ -107,7 +107,7 @@ function SignInPage() {
       <div className="pointer-events-none fixed inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_4px,3px_100%] opacity-20 z-50" />
       <div className="w-full max-w-sm relative z-10">
         <div className="text-center mb-6">
-          <img src={`${basePath}/logo.svg`} alt="ProxhqVPN" className="w-16 h-16 mx-auto mb-3" />
+          <img src={`${basePath}/icon-final2.png`} alt="ProxhqVPN" className="w-16 h-16 mx-auto mb-3" />
           <div className="text-[9px] font-mono tracking-[0.4em] text-primary/40 uppercase">OPERATOR AUTHENTICATION REQUIRED</div>
         </div>
         <SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} />
@@ -124,7 +124,7 @@ function SignUpPage() {
       <div className="pointer-events-none fixed inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_4px,3px_100%] opacity-20 z-50" />
       <div className="w-full max-w-sm relative z-10">
         <div className="text-center mb-6">
-          <img src={`${basePath}/logo.svg`} alt="ProxhqVPN" className="w-16 h-16 mx-auto mb-3" />
+          <img src={`${basePath}/icon-final2.png`} alt="ProxhqVPN" className="w-16 h-16 mx-auto mb-3" />
           <div className="text-[9px] font-mono tracking-[0.4em] text-primary/40 uppercase">REQUEST OPERATOR ACCESS</div>
         </div>
         <SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} />

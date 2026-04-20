@@ -74,10 +74,15 @@ export function Layout({ children }: LayoutProps) {
       {/* Sidebar */}
       <aside className="w-52 border-r border-primary/20 flex flex-col shrink-0">
         <div className="p-4 border-b border-primary/20">
-          <h1 className="text-lg font-bold tracking-tighter">ProxhqVPN</h1>
-          <div className="text-xs text-primary/60 mt-1 flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-            SYS_ONLINE
+          <div className="flex items-center gap-2.5">
+            <img src="/icon-final2.png" alt="ProxhqVPN" className="w-8 h-8 shrink-0" />
+            <div>
+              <h1 className="text-lg font-bold tracking-tighter leading-none">ProxhqVPN</h1>
+              <div className="text-xs text-primary/60 mt-1 flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                SYS_ONLINE
+              </div>
+            </div>
           </div>
         </div>
         <nav className="flex-1 p-3 overflow-y-auto space-y-3">
