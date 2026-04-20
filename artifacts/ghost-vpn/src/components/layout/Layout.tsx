@@ -23,7 +23,7 @@ export function Layout({ children }: LayoutProps) {
     {
       label: "MY VPN",
       items: [
-        { href: "/my-vpn",       label: "MY CONFIGS",     icon: Key },
+        { href: "/my-vpn",       label: "CONNECT",        icon: Wifi },
         { href: "/pricing",      label: "PLANS",          icon: CreditCard },
       ],
     },
