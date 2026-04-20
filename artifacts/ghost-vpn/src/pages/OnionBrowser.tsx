@@ -37,7 +37,8 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-type ProxyMode = "direct" | "ghostnet-onion" | "tor-gateway" | "double-layer";
+type ProxyMode = "direct" | "ghostnet-onion" | "tor-gateway" | "double-layer" | "custom-proxy";
+type CustomProxyType = "http" | "https" | "socks4" | "socks5";
 
 interface HistoryEntry {
   url: string;
@@ -49,6 +50,7 @@ const MODE_LABELS: Record<ProxyMode, string> = {
   "ghostnet-onion": "GhostNet Onion",
   "tor-gateway": "Tor Gateway",
   "double-layer": "Double Layer",
+  "custom-proxy": "Custom Proxy",
 };
 
 const MODE_COLORS: Record<ProxyMode, string> = {
@@ -56,6 +58,7 @@ const MODE_COLORS: Record<ProxyMode, string> = {
   "ghostnet-onion": "text-primary",
   "tor-gateway": "text-purple-400",
   "double-layer": "text-cyan-400",
+  "custom-proxy": "text-orange-400",
 };
 
 const DEFAULT_BOOKMARKS = [
@@ -132,6 +135,8 @@ export default function OnionBrowser() {
   const [showBookmarks, setShowBookmarks] = useState(false);
   const [connected, setConnected] = useState(true);
   const [isShuffle, setIsShuffle] = useState(false);
+  const [customProxyUrl, setCustomProxyUrl] = useState("");
+  const [customProxyType, setCustomProxyType] = useState<CustomProxyType>("socks5");
 
   const { data: config } = useGetProxyBrowserConfig({ query: { refetchInterval: 30000 } as any });
   const saveConfig = useSaveProxyBrowserConfig();
@@ -142,6 +147,8 @@ export default function OnionBrowser() {
       setMode(config.mode as ProxyMode);
       setSocks5Host(config.socks5Host);
       setSocks5Port(String(config.socks5Port));
+      if ((config as any).customProxyUrl !== undefined) setCustomProxyUrl((config as any).customProxyUrl);
+      if ((config as any).customProxyType !== undefined) setCustomProxyType((config as any).customProxyType);
     }
   }, [config]);
 
@@ -279,7 +286,9 @@ export default function OnionBrowser() {
           mode,
           socks5Host,
           socks5Port: Number(socks5Port),
-        },
+          customProxyUrl,
+          customProxyType,
+        } as any,
       },
       {
         onSuccess: () => {
@@ -299,6 +308,7 @@ export default function OnionBrowser() {
   const modeColor = MODE_COLORS[mode];
   const torActive = mode === "tor-gateway" || mode === "double-layer";
   const ghostActive = mode === "ghostnet-onion" || mode === "double-layer";
+  const customActive = mode === "custom-proxy";
 
   return (
     <div className="flex flex-col h-[calc(100vh-120px)] gap-0">
@@ -322,6 +332,11 @@ export default function OnionBrowser() {
           {connected && ghostActive && (
             <Badge variant="outline" className="text-primary border-primary/50 text-xs">
               GHOST
+            </Badge>
+          )}
+          {connected && customActive && (
+            <Badge variant="outline" className="text-orange-400 border-orange-400/50 text-xs">
+              {customProxyType.toUpperCase()}
             </Badge>
           )}
         </div>
@@ -443,6 +458,7 @@ export default function OnionBrowser() {
               <SelectItem value="ghostnet-onion" className="text-xs font-mono text-primary">GhostNet Onion</SelectItem>
               <SelectItem value="tor-gateway" className="text-xs font-mono text-purple-400">Tor Gateway</SelectItem>
               <SelectItem value="double-layer" className="text-xs font-mono text-cyan-400">Double Layer</SelectItem>
+              <SelectItem value="custom-proxy" className="text-xs font-mono text-orange-400">Custom Proxy</SelectItem>
             </SelectContent>
           </Select>
 
@@ -471,29 +487,63 @@ export default function OnionBrowser() {
         )}
 
         {showSettings && (
-          <div className="flex items-center gap-4 px-3 py-2 border-b border-primary/10 bg-black/60 text-xs font-mono">
-            <span className="text-primary/50">SOCKS5 HOST:</span>
-            <Input
-              value={socks5Host}
-              onChange={(e) => setSocks5Host(e.target.value)}
-              className="h-6 w-32 text-xs border-primary/20 bg-black text-primary font-mono"
-            />
-            <span className="text-primary/50">PORT:</span>
-            <Input
-              value={socks5Port}
-              onChange={(e) => setSocks5Port(e.target.value)}
-              className="h-6 w-20 text-xs border-primary/20 bg-black text-primary font-mono"
-            />
-            <Button
-              size="sm"
-              className="h-6 text-xs px-2 bg-primary/10 border border-primary/30 text-primary hover:bg-primary/20"
-              onClick={handleSaveConfig}
-            >
-              SAVE
-            </Button>
-            <span className="text-primary/40 ml-2">
-              Tor default: 127.0.0.1:9050 · Tor Browser: 127.0.0.1:9150
-            </span>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-3 py-2 border-b border-primary/10 bg-black/60 text-xs font-mono">
+            {mode === "custom-proxy" ? (
+              <>
+                <span className="text-orange-400/70">PROXY TYPE:</span>
+                <Select value={customProxyType} onValueChange={(v) => setCustomProxyType(v as CustomProxyType)}>
+                  <SelectTrigger className="h-6 w-24 text-xs border-orange-500/30 bg-black text-orange-400 font-mono">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-black border-primary/30">
+                    <SelectItem value="socks5" className="text-xs font-mono">SOCKS5</SelectItem>
+                    <SelectItem value="socks4" className="text-xs font-mono">SOCKS4</SelectItem>
+                    <SelectItem value="http" className="text-xs font-mono">HTTP</SelectItem>
+                    <SelectItem value="https" className="text-xs font-mono">HTTPS</SelectItem>
+                  </SelectContent>
+                </Select>
+                <span className="text-orange-400/70">PROXY URL:</span>
+                <Input
+                  value={customProxyUrl}
+                  onChange={(e) => setCustomProxyUrl(e.target.value)}
+                  className="h-6 w-52 text-xs border-orange-500/30 bg-black text-orange-400 font-mono"
+                  placeholder="host:port or full URL"
+                />
+                <Button
+                  size="sm"
+                  className="h-6 text-xs px-2 bg-orange-500/10 border border-orange-500/30 text-orange-400 hover:bg-orange-500/20"
+                  onClick={handleSaveConfig}
+                >
+                  SAVE
+                </Button>
+                <span className="text-primary/40">e.g. 192.168.1.1:1080 or socks5://host:port</span>
+              </>
+            ) : (mode === "tor-gateway" || mode === "double-layer") ? (
+              <>
+                <span className="text-purple-400/70">TOR SOCKS5 HOST:</span>
+                <Input
+                  value={socks5Host}
+                  onChange={(e) => setSocks5Host(e.target.value)}
+                  className="h-6 w-32 text-xs border-purple-500/30 bg-black text-purple-400 font-mono"
+                />
+                <span className="text-purple-400/70">PORT:</span>
+                <Input
+                  value={socks5Port}
+                  onChange={(e) => setSocks5Port(e.target.value)}
+                  className="h-6 w-20 text-xs border-purple-500/30 bg-black text-purple-400 font-mono"
+                />
+                <Button
+                  size="sm"
+                  className="h-6 text-xs px-2 bg-primary/10 border border-primary/30 text-primary hover:bg-primary/20"
+                  onClick={handleSaveConfig}
+                >
+                  SAVE
+                </Button>
+                <span className="text-primary/40 ml-2">Default: 127.0.0.1:9050 · Tor Browser: 9150</span>
+              </>
+            ) : (
+              <span className="text-primary/40">No proxy settings for this mode.</span>
+            )}
           </div>
         )}
 
@@ -593,7 +643,12 @@ export default function OnionBrowser() {
 
         <div className="flex items-center justify-between px-3 py-1 border-t border-primary/10 bg-black/60 text-xs font-mono">
           <div className="flex items-center gap-3">
-            {torActive ? (
+            {mode === "custom-proxy" ? (
+              <span className="flex items-center gap-1 text-orange-400">
+                <Shield className="w-3 h-3" />
+                {customProxyType.toUpperCase()} {customProxyUrl || "— configure proxy ↗"}
+              </span>
+            ) : torActive ? (
               <span className="flex items-center gap-1 text-purple-400">
                 <Wifi className="w-3 h-3" /> Tor SOCKS5 {socks5Host}:{socks5Port}
               </span>

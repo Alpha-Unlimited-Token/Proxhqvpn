@@ -1,11 +1,13 @@
 import { Router } from "express";
 import { SocksProxyAgent } from "socks-proxy-agent";
+import { HttpsProxyAgent } from "https-proxy-agent";
 import fetch from "node-fetch";
 import type { RequestInit } from "node-fetch";
 
 const router = Router();
 
-type ProxyMode = "direct" | "ghostnet-onion" | "tor-gateway" | "double-layer";
+type ProxyMode = "direct" | "ghostnet-onion" | "tor-gateway" | "double-layer" | "custom-proxy";
+type CustomProxyType = "http" | "https" | "socks4" | "socks5";
 
 interface ProxyConfig {
   mode: ProxyMode;
@@ -13,6 +15,8 @@ interface ProxyConfig {
   socks5Port: number;
   chainLength: number;
   enabled: boolean;
+  customProxyUrl: string;
+  customProxyType: CustomProxyType;
 }
 
 const DEFAULT_CONFIG: ProxyConfig = {
@@ -21,6 +25,8 @@ const DEFAULT_CONFIG: ProxyConfig = {
   socks5Port: 9050,
   chainLength: 7,
   enabled: true,
+  customProxyUrl: "",
+  customProxyType: "socks5",
 };
 
 let currentConfig: ProxyConfig = { ...DEFAULT_CONFIG };
@@ -34,7 +40,7 @@ function randomRegion() {
   return GHOSTNET_HOP_REGIONS[Math.floor(Math.random() * GHOSTNET_HOP_REGIONS.length)];
 }
 
-function buildLayers(mode: ProxyMode, chainLength: number): string[] {
+function buildLayers(mode: ProxyMode, chainLength: number, config: ProxyConfig): string[] {
   switch (mode) {
     case "direct":
       return ["Direct Connection", "Destination"];
@@ -65,7 +71,36 @@ function buildLayers(mode: ProxyMode, chainLength: number): string[] {
         "Destination",
       ];
     }
+    case "custom-proxy": {
+      const label = config.customProxyUrl
+        ? `${config.customProxyType.toUpperCase()} Proxy (${config.customProxyUrl})`
+        : "Custom Proxy";
+      return ["Your Device", label, "Destination"];
+    }
   }
+}
+
+function buildAgent(mode: ProxyMode, config: ProxyConfig) {
+  if (mode === "tor-gateway" || mode === "double-layer") {
+    const proxyUrl = `socks5h://${config.socks5Host}:${config.socks5Port}`;
+    return new SocksProxyAgent(proxyUrl);
+  }
+  if (mode === "custom-proxy" && config.customProxyUrl) {
+    const type = config.customProxyType;
+    if (type === "socks4" || type === "socks5") {
+      const scheme = type === "socks4" ? "socks4" : "socks5h";
+      const url = config.customProxyUrl.startsWith("socks")
+        ? config.customProxyUrl
+        : `${scheme}://${config.customProxyUrl}`;
+      return new SocksProxyAgent(url);
+    } else {
+      const url = config.customProxyUrl.startsWith("http")
+        ? config.customProxyUrl
+        : `${type}://${config.customProxyUrl}`;
+      return new HttpsProxyAgent(url);
+    }
+  }
+  return null;
 }
 
 function rewriteHtml(html: string, baseUrl: string, proxyMode: ProxyMode): string {
@@ -95,6 +130,7 @@ function rewriteHtml(html: string, baseUrl: string, proxyMode: ProxyMode): strin
 })();
 <\/script>`;
 
+  const modeLabel = proxyMode === "custom-proxy" ? "CUSTOM PROXY" : proxyMode.toUpperCase();
   const ghostBadge = `
 <div id="ghost-security-badge" style="
   position:fixed;bottom:12px;right:12px;z-index:999999;
@@ -102,7 +138,7 @@ function rewriteHtml(html: string, baseUrl: string, proxyMode: ProxyMode): strin
   font-family:monospace;font-size:11px;padding:6px 10px;
   border-radius:4px;pointer-events:none;opacity:0.85;
 ">
-  🔒 GHOSTNET ${proxyMode.toUpperCase()} ACTIVE
+  🔒 GHOSTNET ${modeLabel} ACTIVE
 </div>`;
 
   let result = html;
@@ -140,10 +176,8 @@ async function fetchThroughProxy(
     signal: AbortSignal.timeout(15000),
   };
 
-  if (mode === "tor-gateway" || mode === "double-layer") {
-    const proxyUrl = `socks5h://${config.socks5Host}:${config.socks5Port}`;
-    (opts as any).agent = new SocksProxyAgent(proxyUrl);
-  }
+  const agent = buildAgent(mode, config);
+  if (agent) (opts as any).agent = agent;
 
   const response = await fetch(url, opts);
   const finalUrl = response.url || url;
@@ -173,10 +207,12 @@ router.get("/config", (_req, res) => {
 });
 
 router.post("/config", (req, res) => {
-  const { mode, socks5Host, socks5Port } = req.body as Partial<ProxyConfig>;
+  const { mode, socks5Host, socks5Port, customProxyUrl, customProxyType } = req.body as Partial<ProxyConfig>;
   if (mode) currentConfig.mode = mode;
   if (socks5Host) currentConfig.socks5Host = socks5Host;
   if (socks5Port) currentConfig.socks5Port = Number(socks5Port);
+  if (customProxyUrl !== undefined) currentConfig.customProxyUrl = customProxyUrl;
+  if (customProxyType) currentConfig.customProxyType = customProxyType;
   res.json(currentConfig);
 });
 
@@ -198,7 +234,7 @@ router.post("/fetch", async (req, res) => {
   }
 
   const mode = reqMode ?? currentConfig.mode;
-  const layers = buildLayers(mode, currentConfig.chainLength);
+  const layers = buildLayers(mode, currentConfig.chainLength, currentConfig);
   const t0 = Date.now();
 
   try {
@@ -215,11 +251,23 @@ router.post("/fetch", async (req, res) => {
       (mode === "tor-gateway" || mode === "double-layer") &&
       (err.code === "ECONNREFUSED" || err.cause?.code === "ECONNREFUSED");
 
-    const errorMsg = isTorError
-      ? "Cannot connect to Tor SOCKS5 proxy — ensure Tor daemon is running on " +
+    const isCustomProxyError =
+      mode === "custom-proxy" &&
+      (err.code === "ECONNREFUSED" || err.cause?.code === "ECONNREFUSED");
+
+    let errorMsg: string;
+    if (isTorError) {
+      errorMsg =
+        "Cannot connect to Tor SOCKS5 proxy — ensure Tor daemon is running on " +
         `${currentConfig.socks5Host}:${currentConfig.socks5Port}. ` +
-        "Install Tor: https://www.torproject.org/download/"
-      : `Fetch failed: ${err.message ?? String(err)}`;
+        "Install Tor: https://www.torproject.org/download/";
+    } else if (isCustomProxyError) {
+      errorMsg =
+        `Cannot connect to custom proxy at ${currentConfig.customProxyUrl}. ` +
+        "Ensure the proxy server is reachable and the address/port is correct.";
+    } else {
+      errorMsg = `Fetch failed: ${err.message ?? String(err)}`;
+    }
 
     res.json({
       html: buildErrorPage(errorMsg, normalizedUrl, mode, layers),
