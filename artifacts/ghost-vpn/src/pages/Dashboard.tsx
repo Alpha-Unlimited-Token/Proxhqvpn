@@ -1,202 +1,202 @@
 import { useGetSystemStats, useGetNodeStats, useGetBeaconStats, useGetFirewallStatus, useListBeaconAlerts, useListNodes } from "@workspace/api-client-react";
-import { Shield, Server, AlertTriangle, CheckCircle, Clock, Zap, Wifi, ChevronRight } from "lucide-react";
+import { Shield, Server, AlertTriangle, CheckCircle, Zap, Wifi, ChevronRight, Activity } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Link } from "wouter";
 import { useUser } from "@clerk/react";
 
 const SEVERITY_STYLES: Record<string, string> = {
-  critical: "text-red-400 bg-red-900/15 border-red-500/30",
-  high:     "text-orange-400 bg-orange-900/15 border-orange-500/30",
-  medium:   "text-yellow-400 bg-yellow-900/15 border-yellow-500/30",
-  low:      "text-primary/60 bg-primary/5 border-primary/20",
-};
-
-const SEVERITY_LABEL: Record<string, string> = {
-  critical: "Critical",
-  high:     "High",
-  medium:   "Medium",
-  low:      "Low",
+  critical: "text-red-400 bg-red-500/10 border-red-500/20",
+  high:     "text-orange-400 bg-orange-500/10 border-orange-500/20",
+  medium:   "text-yellow-400 bg-yellow-500/10 border-yellow-500/20",
+  low:      "text-white/50 bg-white/5 border-white/10",
 };
 
 function StatCard({ label, value, sub, icon: Icon, accent }: {
-  label: string;
-  value: string | number;
-  sub?: string;
-  icon: any;
-  accent?: "green" | "red" | "yellow";
+  label: string; value: string | number; sub?: string; icon: any;
+  accent?: "green" | "red" | "yellow" | "neutral";
 }) {
-  const iconColor = accent === "green" ? "text-green-400" : accent === "red" ? "text-red-400" : accent === "yellow" ? "text-yellow-400" : "text-primary";
-  const glowColor = accent === "green" ? "shadow-green-900/20" : accent === "red" ? "shadow-red-900/20" : "shadow-primary/5";
+  const colors = {
+    green:   { bg: "bg-primary/10",   border: "border-primary/15",   icon: "text-primary",    value: "text-primary" },
+    red:     { bg: "bg-red-500/10",   border: "border-red-500/15",   icon: "text-red-400",    value: "text-red-400" },
+    yellow:  { bg: "bg-yellow-500/10",border: "border-yellow-500/15",icon: "text-yellow-400", value: "text-yellow-400" },
+    neutral: { bg: "bg-white/[0.04]", border: "border-white/[0.06]", icon: "text-white/40",   value: "text-white/70" },
+  };
+  const c = colors[accent ?? "neutral"];
   return (
-    <div className={`border border-primary/10 bg-gradient-to-br from-primary/[0.04] to-transparent rounded-xl p-5 space-y-3 shadow-md ${glowColor}`}>
+    <div className={`bg-[#0d1610] ${c.border} border rounded-2xl p-5 space-y-4`}>
       <div className="flex items-center justify-between">
-        <span className="text-xs text-primary/50 font-medium">{label}</span>
-        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${accent === "green" ? "bg-green-900/30" : accent === "red" ? "bg-red-900/30" : accent === "yellow" ? "bg-yellow-900/30" : "bg-primary/10"}`}>
-          <Icon className={`w-4 h-4 ${iconColor}`} />
+        <span className="text-sm text-white/50 font-medium">{label}</span>
+        <div className={`w-9 h-9 rounded-xl ${c.bg} flex items-center justify-center`}>
+          <Icon className={`w-[18px] h-[18px] ${c.icon}`} />
         </div>
       </div>
-      <div className={`text-2xl font-bold font-mono ${iconColor}`}>{value}</div>
-      {sub && <div className="text-xs text-primary/40">{sub}</div>}
+      <div>
+        <div className={`text-3xl font-bold tracking-tight ${c.value}`}>{value}</div>
+        {sub && <div className="text-xs text-white/35 mt-1.5">{sub}</div>}
+      </div>
     </div>
   );
 }
 
 export default function Dashboard() {
   const { user } = useUser();
-  const { data: sysStats }    = useGetSystemStats({ query: { refetchInterval: 5000 } as any });
-  const { data: nodeStats }   = useGetNodeStats({ query: { refetchInterval: 8000 } as any });
-  const { data: beaconStats } = useGetBeaconStats({ query: { refetchInterval: 6000 } as any });
-  const { data: fwStatus }    = useGetFirewallStatus({ query: { refetchInterval: 10000 } as any });
+  const { data: sysStats }     = useGetSystemStats({ query: { refetchInterval: 5000 } as any });
+  const { data: nodeStats }    = useGetNodeStats({ query: { refetchInterval: 8000 } as any });
+  const { data: beaconStats }  = useGetBeaconStats({ query: { refetchInterval: 6000 } as any });
+  const { data: fwStatus }     = useGetFirewallStatus({ query: { refetchInterval: 10000 } as any });
   const { data: recentAlerts } = useListBeaconAlerts({ status: "active" }, { query: { refetchInterval: 5000 } as any });
-  const { data: nodesData }   = useListNodes(undefined, { query: { refetchInterval: 10000 } as any });
+  const { data: nodesData }    = useListNodes(undefined, { query: { refetchInterval: 10000 } as any });
 
-  const firstName = user?.firstName ?? user?.username ?? "there";
-  const criticalCount = beaconStats?.criticalAlerts ?? 0;
-  const activeAlerts  = beaconStats?.activeAlerts ?? 0;
-  const activeNodes   = nodeStats?.activeNodes ?? 0;
-  const totalNodes    = nodeStats?.totalNodes ?? 0;
-  const fwActive      = fwStatus?.enabled ?? false;
+  const firstName      = user?.firstName ?? user?.username ?? "there";
+  const criticalCount  = beaconStats?.criticalAlerts ?? 0;
+  const activeAlerts   = beaconStats?.activeAlerts ?? 0;
+  const activeNodes    = nodeStats?.activeNodes ?? 0;
+  const totalNodes     = nodeStats?.totalNodes ?? 0;
+  const fwActive       = fwStatus?.enabled ?? false;
+  const allHealthy     = criticalCount === 0 && fwActive && activeNodes > 0;
+
+  function getGreeting() {
+    const h = new Date().getHours();
+    return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
+  }
 
   return (
-    <div className="space-y-8 pb-8 max-w-5xl">
+    <div className="space-y-7 pb-8 max-w-5xl">
 
-      {/* Welcome */}
-      <div className="space-y-1">
-        <h1 className="text-xl font-bold text-primary">Good {getGreeting()}, {firstName}</h1>
-        <p className="text-sm text-primary/50">
-          {activeNodes > 0
-            ? `${activeNodes} of ${totalNodes} VPN server${totalNodes !== 1 ? "s" : ""} online · ${activeAlerts === 0 ? "No threats detected" : `${activeAlerts} active alert${activeAlerts !== 1 ? "s" : ""}`}`
-            : "No VPN servers online. Head to VPN Servers to add one."
-          }
+      {/* Welcome + status banner */}
+      <div>
+        <h1 className="text-2xl font-bold text-white tracking-tight">
+          {getGreeting()}, {firstName}
+        </h1>
+        <p className="text-white/40 mt-1 text-sm">
+          {totalNodes > 0
+            ? `${activeNodes} of ${totalNodes} server${totalNodes !== 1 ? "s" : ""} online`
+            : "No servers configured yet"}
+          {activeAlerts > 0 ? ` · ${activeAlerts} active alert${activeAlerts !== 1 ? "s" : ""}` : " · No threats detected"}
         </p>
       </div>
 
-      {/* Quick action if no alerts and firewall active */}
-      {criticalCount === 0 && fwActive && (
-        <div className="flex items-start gap-3 border border-green-500/20 bg-green-900/5 rounded-xl p-4">
-          <CheckCircle className="w-5 h-5 text-green-400 shrink-0 mt-0.5" />
-          <div>
-            <div className="text-sm font-medium text-green-400">All systems secure</div>
-            <div className="text-xs text-green-400/60 mt-0.5">Firewall active, no critical threats detected right now.</div>
-          </div>
-          <Link href="/my-vpn" className="ml-auto shrink-0 flex items-center gap-1 text-xs text-primary/50 hover:text-primary border border-primary/15 hover:border-primary/40 rounded-lg px-3 py-1.5 transition-colors">
-            Get Connected <ChevronRight className="w-3 h-3" />
+      {/* Status pill */}
+      {allHealthy && (
+        <div className="inline-flex items-center gap-2.5 bg-primary/10 border border-primary/20 rounded-full px-5 py-2.5">
+          <CheckCircle className="w-4 h-4 text-primary" />
+          <span className="text-sm font-medium text-primary">All systems secure</span>
+          <Link href="/my-vpn" className="text-xs text-primary/60 hover:text-primary underline-offset-2 hover:underline ml-1">
+            Get Connected →
           </Link>
         </div>
       )}
-
       {criticalCount > 0 && (
-        <div className="flex items-start gap-3 border border-red-500/30 bg-red-900/5 rounded-xl p-4">
-          <AlertTriangle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
-          <div>
-            <div className="text-sm font-medium text-red-400">{criticalCount} Critical Threat{criticalCount !== 1 ? "s" : ""} Detected</div>
-            <div className="text-xs text-red-400/60 mt-0.5">Review the alerts below and take action.</div>
-          </div>
-          <Link href="/beacons" className="ml-auto shrink-0 flex items-center gap-1 text-xs text-red-400/70 hover:text-red-400 border border-red-500/20 hover:border-red-500/50 rounded-lg px-3 py-1.5 transition-colors">
-            View All <ChevronRight className="w-3 h-3" />
+        <div className="inline-flex items-center gap-2.5 bg-red-500/10 border border-red-500/20 rounded-full px-5 py-2.5">
+          <AlertTriangle className="w-4 h-4 text-red-400" />
+          <span className="text-sm font-medium text-red-400">{criticalCount} critical threat{criticalCount !== 1 ? "s" : ""} detected</span>
+          <Link href="/beacons" className="text-xs text-red-400/60 hover:text-red-400 underline-offset-2 hover:underline ml-1">
+            View alerts →
           </Link>
         </div>
       )}
 
-      {/* Stat cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      {/* Stat grid */}
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
         <StatCard
           label="Servers Online"
-          value={totalNodes > 0 ? `${activeNodes}/${totalNodes}` : "--"}
-          sub={activeNodes === totalNodes && totalNodes > 0 ? "All servers healthy" : totalNodes > 0 ? `${totalNodes - activeNodes} offline` : "No servers added"}
+          value={totalNodes > 0 ? `${activeNodes}/${totalNodes}` : "—"}
+          sub={activeNodes === totalNodes && totalNodes > 0 ? "All servers healthy" : totalNodes > 0 ? `${totalNodes - activeNodes} offline` : "Add a server to start"}
           icon={Server}
-          accent={activeNodes === totalNodes && totalNodes > 0 ? "green" : activeNodes === 0 ? "red" : "yellow"}
+          accent={activeNodes === totalNodes && totalNodes > 0 ? "green" : activeNodes === 0 && totalNodes > 0 ? "red" : "neutral"}
         />
         <StatCard
           label="Firewall"
-          value={fwStatus ? (fwActive ? "Active" : "Off") : "--"}
+          value={fwStatus ? (fwActive ? "Active" : "Off") : "—"}
           sub={fwActive ? `${fwStatus?.blockedIps ?? 0} IPs blocked` : "Enable for protection"}
           icon={Shield}
-          accent={fwActive ? "green" : "red"}
+          accent={fwActive ? "green" : fwStatus ? "red" : "neutral"}
         />
         <StatCard
           label="Security Alerts"
-          value={beaconStats ? activeAlerts : "--"}
+          value={beaconStats ? activeAlerts : "—"}
           sub={criticalCount > 0 ? `${criticalCount} critical` : "No critical threats"}
           icon={AlertTriangle}
           accent={criticalCount > 0 ? "red" : activeAlerts > 0 ? "yellow" : "green"}
         />
         <StatCard
-          label="System Load"
-          value={sysStats ? `${sysStats.cpuPercent}%` : "--"}
-          sub={sysStats ? `${sysStats.memoryPercent}% memory used` : "Loading..."}
+          label="CPU Load"
+          value={sysStats ? `${sysStats.cpuPercent}%` : "—"}
+          sub={sysStats ? `${sysStats.memoryPercent}% RAM used` : "Loading..."}
           icon={Zap}
-          accent={sysStats && sysStats.cpuPercent > 80 ? "red" : sysStats && sysStats.cpuPercent > 50 ? "yellow" : "green"}
+          accent={sysStats ? (sysStats.cpuPercent > 80 ? "red" : sysStats.cpuPercent > 50 ? "yellow" : "green") : "neutral"}
         />
       </div>
 
-      {/* Two-column lower section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Two column */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
 
-        {/* Servers table */}
-        <div className="border border-primary/10 rounded-xl overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-primary/10">
-            <div className="flex items-center gap-2 text-sm font-medium text-primary">
-              <Wifi className="w-4 h-4" />
-              VPN Servers
+        {/* Server list */}
+        <div className="bg-[#0d1610] border border-white/[0.07] rounded-2xl overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
+            <div className="flex items-center gap-2.5">
+              <Wifi className="w-4 h-4 text-white/40" />
+              <span className="text-sm font-semibold text-white/80">VPN Servers</span>
             </div>
-            <Link href="/nodes" className="text-[10px] text-primary/40 hover:text-primary uppercase tracking-widest transition-colors flex items-center gap-1">
+            <Link href="/nodes" className="text-xs text-white/30 hover:text-primary flex items-center gap-1 transition-colors">
               Manage <ChevronRight className="w-3 h-3" />
             </Link>
           </div>
-          <div className="divide-y divide-primary/10">
+          <div className="divide-y divide-white/[0.04]">
             {nodesData?.nodes?.slice(0, 6).map((node) => (
-              <div key={node.id} className="flex items-center gap-3 px-4 py-3">
-                <div className={`w-2 h-2 rounded-full shrink-0 ${node.status === "active" ? "bg-green-400" : "bg-primary/20"}`} />
+              <div key={node.id} className="flex items-center gap-3.5 px-5 py-3.5 hover:bg-white/[0.02] transition-colors">
+                <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${node.status === "active" ? "bg-primary shadow-[0_0_8px_rgba(0,255,136,0.5)]" : "bg-white/15"}`} />
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm text-primary truncate">{node.name}</div>
-                  <div className="text-xs text-primary/40">{node.region}</div>
+                  <div className="text-sm font-medium text-white/80 truncate">{node.name}</div>
+                  <div className="text-xs text-white/35">{node.region}</div>
                 </div>
-                <div className="text-xs text-primary/50 font-mono shrink-0">
+                <div className="text-xs text-white/30 font-mono shrink-0">
                   {node.latencyMs != null && node.latencyMs > 0 ? `${node.latencyMs}ms` : "—"}
                 </div>
               </div>
             ))}
             {!nodesData?.nodes?.length && (
-              <div className="px-4 py-8 text-center">
-                <p className="text-sm text-primary/30">No servers added yet.</p>
-                <Link href="/nodes" className="text-xs text-primary/50 hover:text-primary mt-1 inline-block underline">Add your first server</Link>
+              <div className="px-5 py-10 text-center">
+                <Activity className="w-8 h-8 text-white/10 mx-auto mb-3" />
+                <p className="text-sm text-white/30">No servers configured</p>
+                <Link href="/nodes" className="text-xs text-primary/60 hover:text-primary mt-1 inline-block">
+                  Add your first server →
+                </Link>
               </div>
             )}
           </div>
         </div>
 
-        {/* Alerts table */}
-        <div className="border border-primary/10 rounded-xl overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-primary/10">
-            <div className="flex items-center gap-2 text-sm font-medium text-primary">
-              <AlertTriangle className="w-4 h-4" />
-              Recent Threats
+        {/* Alerts */}
+        <div className="bg-[#0d1610] border border-white/[0.07] rounded-2xl overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
+            <div className="flex items-center gap-2.5">
+              <AlertTriangle className="w-4 h-4 text-white/40" />
+              <span className="text-sm font-semibold text-white/80">Recent Threats</span>
             </div>
-            <Link href="/beacons" className="text-[10px] text-primary/40 hover:text-primary uppercase tracking-widest transition-colors flex items-center gap-1">
-              View All <ChevronRight className="w-3 h-3" />
+            <Link href="/beacons" className="text-xs text-white/30 hover:text-primary flex items-center gap-1 transition-colors">
+              View all <ChevronRight className="w-3 h-3" />
             </Link>
           </div>
-          <div className="divide-y divide-primary/10">
+          <div className="divide-y divide-white/[0.04]">
             {recentAlerts?.alerts?.slice(0, 6).map((alert) => (
-              <div key={alert.id} className="flex items-start gap-3 px-4 py-3">
-                <span className={`text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 border shrink-0 mt-0.5 ${SEVERITY_STYLES[alert.severity] ?? SEVERITY_STYLES.low}`}>
-                  {SEVERITY_LABEL[alert.severity] ?? alert.severity}
+              <div key={alert.id} className="flex items-center gap-3.5 px-5 py-3.5 hover:bg-white/[0.02] transition-colors">
+                <span className={`text-[10px] font-semibold px-2 py-1 rounded-lg border shrink-0 ${SEVERITY_STYLES[alert.severity] ?? SEVERITY_STYLES.low}`}>
+                  {alert.severity.toUpperCase()}
                 </span>
                 <div className="flex-1 min-w-0">
-                  <div className="text-xs text-primary/70 truncate">From {alert.attackerIp}</div>
-                  <div className="text-[10px] text-primary/40">on {alert.nodeName}</div>
+                  <div className="text-sm text-white/70 truncate font-mono text-xs">{alert.attackerIp}</div>
+                  <div className="text-xs text-white/35">{alert.nodeName}</div>
                 </div>
-                <div className="text-[10px] text-primary/30 shrink-0 flex items-center gap-1">
-                  <Clock className="w-2.5 h-2.5" />
+                <div className="text-xs text-white/25 shrink-0">
                   {formatDistanceToNow(new Date(alert.detectedAt), { addSuffix: true })}
                 </div>
               </div>
             ))}
             {!recentAlerts?.alerts?.length && (
-              <div className="px-4 py-8 text-center">
-                <CheckCircle className="w-6 h-6 text-green-400/50 mx-auto mb-2" />
-                <p className="text-sm text-primary/30">No threats detected.</p>
+              <div className="px-5 py-10 text-center">
+                <CheckCircle className="w-8 h-8 text-primary/20 mx-auto mb-3" />
+                <p className="text-sm text-white/30">No threats detected</p>
               </div>
             )}
           </div>
@@ -204,11 +204,4 @@ export default function Dashboard() {
       </div>
     </div>
   );
-}
-
-function getGreeting() {
-  const h = new Date().getHours();
-  if (h < 12) return "morning";
-  if (h < 17) return "afternoon";
-  return "evening";
 }

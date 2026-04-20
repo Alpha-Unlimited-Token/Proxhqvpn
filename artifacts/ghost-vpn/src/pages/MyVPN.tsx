@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useUser } from "@clerk/react";
-import { Download, Shield, CheckCircle, ChevronDown, ChevronUp, RefreshCw, Wifi, WifiOff } from "lucide-react";
+import { Download, Shield, CheckCircle, ChevronDown, ChevronUp, RefreshCw, Smartphone, Apple, Monitor } from "lucide-react";
 import { useListNodes } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -67,28 +67,11 @@ function downloadConf(cfg: WgConfig) {
   URL.revokeObjectURL(url);
 }
 
-const STEPS = [
-  {
-    num: "1",
-    title: "Install WireGuard",
-    desc: "Download the free WireGuard app for your device.",
-    links: [
-      { label: "iOS", url: "https://apps.apple.com/app/wireguard/id1441195209" },
-      { label: "Android", url: "https://play.google.com/store/apps/details?id=com.wireguard.android" },
-      { label: "Windows", url: "https://download.wireguard.com/windows-client/wireguard-installer.exe" },
-      { label: "macOS", url: "https://apps.apple.com/app/wireguard/id1451685025" },
-    ],
-  },
-  {
-    num: "2",
-    title: "Download your config",
-    desc: "Click the button above to download your personal VPN config file.",
-  },
-  {
-    num: "3",
-    title: "Import & connect",
-    desc: 'In WireGuard, tap "+" → "Import from file" and select your .conf file. Toggle the switch to connect.',
-  },
+const PLATFORMS = [
+  { label: "iOS", icon: Smartphone, url: "https://apps.apple.com/app/wireguard/id1441195209" },
+  { label: "Android", icon: Smartphone, url: "https://play.google.com/store/apps/details?id=com.wireguard.android" },
+  { label: "macOS", icon: Apple, url: "https://apps.apple.com/app/wireguard/id1451685025" },
+  { label: "Windows", icon: Monitor, url: "https://download.wireguard.com/windows-client/wireguard-installer.exe" },
 ];
 
 export default function Connect() {
@@ -106,8 +89,14 @@ export default function Connect() {
 
   const { data: nodesData } = useListNodes();
   const activeNodes = (nodesData?.nodes ?? []).filter((n: any) => n.status === "active");
-
   const activeConfig = (myConfigs?.configs ?? []).find((c) => !c.revokedAt) ?? null;
+  const hasConfig = !!activeConfig;
+
+  const bestNode = activeNodes[0] as any;
+  const targetNodeId = selectedNodeId ?? bestNode?.id ?? null;
+  const targetNode = (activeNodes.find((n: any) => n.id === targetNodeId) ?? bestNode) as any;
+  const configNode = activeConfig?.node;
+  const displayNode = configNode ?? targetNode;
 
   const generateMutation = useMutation({
     mutationFn: (nodeId: number) =>
@@ -125,14 +114,11 @@ export default function Connect() {
     mutationFn: (id: number) => apiFetch(`/api/wireguard/my-config/${id}`, { method: "DELETE" }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["my-wg-configs"] });
-      toast({ title: "Config revoked", description: "Generating a new one now..." });
     },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
-  const bestNode = activeNodes[0] as any;
-  const targetNodeId = selectedNodeId ?? bestNode?.id ?? null;
-  const targetNode = activeNodes.find((n: any) => n.id === targetNodeId) as any ?? bestNode;
+  const isWorking = generateMutation.isPending || revokeMutation.isPending;
 
   const handleConnect = () => {
     if (!targetNodeId) {
@@ -148,82 +134,96 @@ export default function Connect() {
 
   const handleSwitch = async () => {
     if (!targetNodeId) return;
-    if (activeConfig) {
-      await revokeMutation.mutateAsync(activeConfig.id);
-    }
+    if (activeConfig) await revokeMutation.mutateAsync(activeConfig.id);
     generateMutation.mutate(targetNodeId);
   };
 
-  const isWorking = generateMutation.isPending || revokeMutation.isPending;
-  const hasConfig = !!activeConfig;
-  const configNode = activeConfig?.node;
-
   return (
-    <div className="max-w-xl mx-auto space-y-8 font-mono py-4">
+    <div className="max-w-lg mx-auto space-y-6 py-2">
 
-      {/* Header */}
-      <div className="text-center space-y-1">
-        <div className="flex justify-center mb-3">
-          <div className={`w-16 h-16 border-2 flex items-center justify-center transition-colors ${
-            hasConfig ? "border-green-500/60 bg-green-900/10" : "border-primary/30 bg-primary/5"
-          }`}>
+      {/* Main connection card — ExpressVPN-style */}
+      <div className="bg-[#0d1610] border border-white/[0.07] rounded-2xl overflow-hidden">
+
+        {/* Status header */}
+        <div className={`px-8 pt-10 pb-8 flex flex-col items-center text-center transition-colors ${
+          hasConfig ? "bg-gradient-to-b from-primary/[0.08] to-transparent" : "bg-gradient-to-b from-white/[0.02] to-transparent"
+        }`}>
+          {/* Big status ring */}
+          <div className={`relative w-28 h-28 mb-6 ${isWorking ? "animate-pulse" : ""}`}>
+            {/* Outer glow ring */}
+            <div className={`absolute inset-0 rounded-full transition-all duration-700 ${
+              hasConfig
+                ? "shadow-[0_0_40px_rgba(0,255,136,0.25)] bg-primary/10 border-2 border-primary/40"
+                : "border-2 border-white/10 bg-white/[0.03]"
+            }`} />
+            {/* Icon */}
+            <div className="absolute inset-0 flex items-center justify-center">
+              {isWorking ? (
+                <RefreshCw className="w-10 h-10 text-primary animate-spin" />
+              ) : hasConfig ? (
+                <Shield className="w-12 h-12 text-primary drop-shadow-[0_0_12px_rgba(0,255,136,0.6)]" />
+              ) : (
+                <Shield className="w-12 h-12 text-white/20" />
+              )}
+            </div>
+          </div>
+
+          {/* Status text */}
+          <div className={`text-2xl font-bold tracking-tight mb-1 ${hasConfig ? "text-primary" : "text-white/40"}`}>
+            {isLoading ? "Checking..." : hasConfig ? "Protected" : "Not Protected"}
+          </div>
+          <div className="text-sm text-white/40">
             {hasConfig
-              ? <Wifi className="w-8 h-8 text-green-400" />
-              : <WifiOff className="w-8 h-8 text-primary/40" />
+              ? `Connected via ${configNode?.name ?? "your server"} · ${configNode?.region ?? ""}`
+              : activeNodes.length > 0
+                ? "Click below to set up your VPN"
+                : "No active servers — contact admin"
             }
           </div>
         </div>
-        <h1 className="text-sm font-bold tracking-[0.3em] uppercase text-primary">
-          {hasConfig ? "You're Connected" : "Get Connected"}
-        </h1>
-        <p className="text-[9px] text-primary/40 tracking-widest">
-          {hasConfig
-            ? `Active on ${configNode?.name ?? "server"} · ${configNode?.region ?? ""}`
-            : "One click to download your personal VPN config"
-          }
-        </p>
-      </div>
 
-      {/* Main action */}
-      {isLoading ? (
-        <div className="border border-primary/15 p-8 text-center">
-          <div className="text-[9px] text-primary/30 animate-pulse tracking-widest">LOADING...</div>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {/* Server selector (simple) */}
-          {activeNodes.length > 1 && (
-            <div className="flex items-center gap-2">
-              <span className="text-[8px] text-primary/30 uppercase tracking-widest shrink-0">Server</span>
+        {/* Server picker */}
+        {activeNodes.length > 1 && !isLoading && (
+          <div className="px-6 pb-2">
+            <div className="flex items-center gap-3 bg-white/[0.04] rounded-xl px-4 py-3 border border-white/[0.06]">
+              <div className="w-2 h-2 rounded-full bg-primary shrink-0" />
               <select
                 value={targetNodeId ?? ""}
                 onChange={(e) => setSelectedNodeId(Number(e.target.value))}
-                className="flex-1 bg-black border border-primary/20 text-primary/70 text-[9px] font-mono px-2 py-1.5 focus:outline-none focus:border-primary/50"
+                className="flex-1 bg-transparent text-sm text-white/80 focus:outline-none cursor-pointer"
               >
                 {activeNodes.map((n: any) => (
-                  <option key={n.id} value={n.id}>
+                  <option key={n.id} value={n.id} className="bg-[#0d1610]">
                     {n.name} — {n.region}
-                    {n === bestNode ? " (Recommended)" : ""}
                   </option>
                 ))}
               </select>
             </div>
-          )}
+          </div>
+        )}
 
-          {activeNodes.length === 0 && (
-            <div className="border border-yellow-500/20 bg-yellow-900/10 p-4 text-center">
-              <p className="text-[9px] text-yellow-400 tracking-widest">No active VPN servers available right now.</p>
+        {activeNodes.length === 1 && !isLoading && (
+          <div className="px-6 pb-2">
+            <div className="flex items-center gap-3 bg-white/[0.04] rounded-xl px-4 py-3 border border-white/[0.06]">
+              <div className="w-2 h-2 rounded-full bg-primary shrink-0" />
+              <span className="text-sm text-white/70">{activeNodes[0]?.name} — {(activeNodes[0] as any)?.region}</span>
             </div>
-          )}
+          </div>
+        )}
 
-          {/* Big connect button */}
+        {/* Action button */}
+        <div className="px-6 pb-6 pt-3">
           <button
             onClick={handleConnect}
-            disabled={isWorking || activeNodes.length === 0}
-            className="w-full py-4 bg-primary text-black font-bold text-sm rounded-xl hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 disabled:opacity-40 flex items-center justify-center gap-2"
+            disabled={isWorking || activeNodes.length === 0 || isLoading}
+            className={`w-full py-4 rounded-2xl font-semibold text-[15px] flex items-center justify-center gap-2.5 transition-all duration-200 disabled:opacity-40 ${
+              hasConfig
+                ? "bg-primary/15 border border-primary/30 text-primary hover:bg-primary/25"
+                : "bg-primary text-black hover:brightness-110 shadow-[0_0_30px_rgba(0,255,136,0.25)]"
+            }`}
           >
             {isWorking ? (
-              <><RefreshCw className="w-4 h-4 animate-spin" /> Generating...</>
+              <><RefreshCw className="w-4 h-4 animate-spin" /> Setting up...</>
             ) : hasConfig ? (
               <><Download className="w-4 h-4" /> Download Config</>
             ) : (
@@ -231,79 +231,80 @@ export default function Connect() {
             )}
           </button>
 
-          {hasConfig && targetNodeId !== activeConfig?.nodeId && (
+          {hasConfig && targetNodeId && targetNodeId !== activeConfig?.nodeId && (
             <button
               onClick={handleSwitch}
               disabled={isWorking}
-              className="w-full py-2 border border-primary/20 text-primary/50 text-sm rounded-lg hover:border-primary/50 hover:text-primary/80 transition-colors disabled:opacity-40"
+              className="w-full mt-2 py-2.5 rounded-xl text-sm text-white/40 hover:text-white/70 hover:bg-white/5 transition-all"
             >
-              Switch to {targetNode?.name ?? "this server"} & Download New Config
+              Switch to {targetNode?.name} and get new config
             </button>
           )}
-
-          {hasConfig && (
-            <div className="flex items-center gap-2 border border-green-500/20 bg-green-900/5 rounded-xl p-3">
-              <CheckCircle className="w-4 h-4 text-green-400 shrink-0" />
-              <span className="text-sm text-green-400">
-                Config active — re-download anytime to set up a new device.
-              </span>
-            </div>
-          )}
         </div>
-      )}
-
-      {/* Setup steps */}
-      <div className="border border-primary/10 rounded-xl overflow-hidden divide-y divide-primary/10">
-        <div className="px-4 py-2.5 text-xs font-semibold text-primary/40 tracking-wider">Setup Guide</div>
-        {STEPS.map((step) => (
-          <div key={step.num} className="flex gap-3 px-4 py-3">
-            <div className="w-5 h-5 border border-primary/30 flex items-center justify-center shrink-0 mt-0.5">
-              <span className="text-[8px] text-primary/50">{step.num}</span>
-            </div>
-            <div className="space-y-1">
-              <div className="text-[9px] font-bold text-primary uppercase tracking-widest">{step.title}</div>
-              <div className="text-[8px] text-primary/50 leading-relaxed">{step.desc}</div>
-              {step.links && (
-                <div className="flex flex-wrap gap-2 pt-0.5">
-                  {step.links.map((l) => (
-                    <a
-                      key={l.label}
-                      href={l.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-[8px] text-primary/60 border border-primary/20 hover:border-primary/50 hover:text-primary px-2 py-0.5 transition-colors"
-                    >
-                      {l.label}
-                    </a>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        ))}
       </div>
 
-      {/* Advanced — revoke */}
+      {/* Download apps */}
+      <div className="bg-[#0d1610] border border-white/[0.07] rounded-2xl p-6">
+        <div className="text-sm font-semibold text-white/60 mb-4">Get the WireGuard App</div>
+        <div className="grid grid-cols-4 gap-2">
+          {PLATFORMS.map(({ label, icon: Icon, url }) => (
+            <a
+              key={label}
+              href={url}
+              target="_blank"
+              rel="noreferrer"
+              className="flex flex-col items-center gap-2 py-3 px-2 rounded-xl bg-white/[0.03] border border-white/[0.06] hover:bg-white/[0.07] hover:border-primary/20 transition-all group"
+            >
+              <Icon className="w-5 h-5 text-white/40 group-hover:text-primary/70 transition-colors" />
+              <span className="text-[11px] text-white/40 group-hover:text-white/70 font-medium">{label}</span>
+            </a>
+          ))}
+        </div>
+      </div>
+
+      {/* How to connect */}
+      <div className="bg-[#0d1610] border border-white/[0.07] rounded-2xl p-6">
+        <div className="text-sm font-semibold text-white/60 mb-4">How to Connect</div>
+        <div className="space-y-4">
+          {[
+            { n: "1", title: "Install WireGuard", body: "Download the free WireGuard app from the links above for your device." },
+            { n: "2", title: "Download your config", body: "Click Connect Now above. Your unique VPN config file will download automatically." },
+            { n: "3", title: "Import & connect", body: 'In WireGuard, tap "+" → "Import from file". Select your .conf file, then toggle the switch to connect.' },
+          ].map((step) => (
+            <div key={step.n} className="flex gap-4">
+              <div className="w-7 h-7 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+                <span className="text-xs font-bold text-primary">{step.n}</span>
+              </div>
+              <div className="pt-0.5">
+                <div className="text-sm font-medium text-white/80 mb-0.5">{step.title}</div>
+                <div className="text-sm text-white/40 leading-relaxed">{step.body}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Advanced */}
       {hasConfig && (
         <div>
           <button
-            onClick={() => setShowAdvanced((v) => !v)}
-            className="flex items-center gap-1.5 text-[8px] text-primary/30 hover:text-primary/60 uppercase tracking-widest transition-colors"
+            onClick={() => setShowAdvanced(v => !v)}
+            className="flex items-center gap-2 text-sm text-white/30 hover:text-white/50 transition-colors"
           >
-            {showAdvanced ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+            {showAdvanced ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
             Advanced options
           </button>
           {showAdvanced && (
-            <div className="mt-3 border border-primary/10 p-4 space-y-2">
-              <p className="text-[8px] text-primary/40">
-                If your device is lost or compromised, revoke your current config. A new one can be generated on your next visit.
+            <div className="mt-3 bg-[#0d1610] border border-white/[0.07] rounded-2xl p-5 space-y-3">
+              <p className="text-sm text-white/40 leading-relaxed">
+                If your device is lost or you suspect your config is compromised, revoke it here. You can generate a new one on your next visit.
               </p>
               <button
                 onClick={() => revokeMutation.mutate(activeConfig!.id)}
                 disabled={revokeMutation.isPending}
-                className="text-[8px] uppercase tracking-widest text-red-400/60 hover:text-red-400 border border-red-500/15 hover:border-red-500/40 px-3 py-1.5 transition-colors"
+                className="text-sm text-red-400/60 hover:text-red-400 border border-red-500/20 hover:border-red-500/50 rounded-xl px-4 py-2 transition-all"
               >
-                Revoke Config (Invalidates Current Key)
+                Revoke Config (invalidates current key)
               </button>
             </div>
           )}

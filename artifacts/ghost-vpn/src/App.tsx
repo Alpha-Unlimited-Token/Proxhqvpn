@@ -102,33 +102,65 @@ function SignInPage() {
   // To update login providers, app branding, or OAuth settings use the Auth
   // pane in the workspace toolbar. More information can be found in the Replit docs.
   return (
-    <div className="flex min-h-[100dvh] items-center justify-center bg-black px-4 relative">
-      <div className="pointer-events-none fixed inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_4px,3px_100%] opacity-20 z-50" />
-      <div className="w-full max-w-sm relative z-10">
-        <div className="text-center mb-6">
-          <img src={`${basePath}/icon-final2.png`} alt="ProxhqVPN" className="w-16 h-16 mx-auto mb-3" />
-          <h1 className="text-lg font-bold tracking-tight text-primary">ProxhqVPN</h1>
-          <div className="text-xs text-primary/40 mt-1">Sign in to your account</div>
+    <div className="flex min-h-[100dvh] bg-[#080d09]">
+      {/* Left branding panel */}
+      <div className="hidden lg:flex flex-col justify-between w-96 bg-gradient-to-b from-[#0d1610] to-[#080d09] border-r border-white/[0.06] p-10">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-primary/15 border border-primary/30 flex items-center justify-center">
+            <img src={`${basePath}/icon-final2.png`} alt="" className="w-7 h-7" />
+          </div>
+          <span className="text-lg font-bold text-white">ProxhqVPN</span>
         </div>
-        <SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} />
+        <div className="space-y-6">
+          {["Military-grade WireGuard encryption", "Zero-logs privacy policy", "Double-hop anonymity", "Instant kill switch protection"].map(f => (
+            <div key={f} className="flex items-center gap-3">
+              <div className="w-5 h-5 rounded-full bg-primary/15 border border-primary/30 flex items-center justify-center shrink-0">
+                <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+              </div>
+              <span className="text-sm text-white/60">{f}</span>
+            </div>
+          ))}
+        </div>
+        <div className="text-xs text-white/20">© 2026 ALPHA UNLIMITED TECHNOLOGIES LLC</div>
+      </div>
+      {/* Sign in form */}
+      <div className="flex-1 flex items-center justify-center px-6 py-10">
+        <div className="w-full max-w-sm space-y-6">
+          <div className="text-center lg:hidden mb-2">
+            <img src={`${basePath}/icon-final2.png`} alt="ProxhqVPN" className="w-12 h-12 mx-auto mb-3" />
+            <div className="text-xl font-bold text-white">ProxhqVPN</div>
+          </div>
+          <SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} />
+        </div>
       </div>
     </div>
   );
 }
 
 function SignUpPage() {
-  // To update login providers, app branding, or OAuth settings use the Auth
-  // pane in the workspace toolbar. More information can be found in the Replit docs.
   return (
-    <div className="flex min-h-[100dvh] items-center justify-center bg-black px-4 relative">
-      <div className="pointer-events-none fixed inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_4px,3px_100%] opacity-20 z-50" />
-      <div className="w-full max-w-sm relative z-10">
-        <div className="text-center mb-6">
-          <img src={`${basePath}/icon-final2.png`} alt="ProxhqVPN" className="w-16 h-16 mx-auto mb-3" />
-          <h1 className="text-lg font-bold tracking-tight text-primary">ProxhqVPN</h1>
-          <div className="text-xs text-primary/40 mt-1">Create your account</div>
+    <div className="flex min-h-[100dvh] bg-[#080d09]">
+      <div className="hidden lg:flex flex-col justify-between w-96 bg-gradient-to-b from-[#0d1610] to-[#080d09] border-r border-white/[0.06] p-10">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-primary/15 border border-primary/30 flex items-center justify-center">
+            <img src={`${basePath}/icon-final2.png`} alt="" className="w-7 h-7" />
+          </div>
+          <span className="text-lg font-bold text-white">ProxhqVPN</span>
         </div>
-        <SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} />
+        <div className="space-y-4">
+          <div className="text-2xl font-bold text-white leading-tight">Privacy that works from day one.</div>
+          <div className="text-sm text-white/45 leading-relaxed">Create your account and download your personal VPN config in under 60 seconds.</div>
+        </div>
+        <div className="text-xs text-white/20">© 2026 ALPHA UNLIMITED TECHNOLOGIES LLC</div>
+      </div>
+      <div className="flex-1 flex items-center justify-center px-6 py-10">
+        <div className="w-full max-w-sm space-y-6">
+          <div className="text-center lg:hidden mb-2">
+            <img src={`${basePath}/icon-final2.png`} alt="ProxhqVPN" className="w-12 h-12 mx-auto mb-3" />
+            <div className="text-xl font-bold text-white">ProxhqVPN</div>
+          </div>
+          <SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} />
+        </div>
       </div>
     </div>
   );
