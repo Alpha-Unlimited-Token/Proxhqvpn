@@ -1,8 +1,10 @@
-# GhostNet VPN — Workspace
+# PROXHQ — Workspace
+
+**Brand:** PROXHQ | **Copyright:** © ALPHA UNLIMITED TECHNOLOGIES LLC
 
 ## Overview
 
-GhostNet is an advanced VPN orchestration and security platform with 60-node mesh (50 outer + 10 inner), silk web trap network, port knocking, mTLS, beacons/spiders/worms, firewall, WireGuard config generation, SQL interface (local + external PostgreSQL + HTTP API mode), terminal emulator (Ghost Mode with full outbound), security audit suite, system monitor, Tor/SOCKS5 integration, kill switch, leak detection, threat intelligence, split tunneling, and DPI obfuscation. React + Vite frontend; Express/PostgreSQL backend.
+PROXHQ is an advanced VPN orchestration and security platform with 60-node mesh (50 outer + 10 inner), silk web trap network, port knocking, mTLS, beacons/spiders/worms, firewall, WireGuard config generation, SQL interface (local + external PostgreSQL + HTTP API mode), terminal emulator (Ghost Mode with full outbound), security audit suite, system monitor, Tor/SOCKS5 integration, kill switch, leak detection, threat intelligence, split tunneling, and DPI obfuscation. React + Vite frontend; Express/PostgreSQL backend.
 
 ## Stack
 

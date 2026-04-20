@@ -146,7 +146,7 @@ export default function Terminal() {
       <div className="border border-primary/10 bg-black/20 rounded-sm px-3 py-2 flex items-center justify-between flex-wrap gap-2 shrink-0">
         <div className="flex items-center gap-3">
           <h2 className="text-xl font-bold tracking-tighter uppercase flex items-center gap-2">
-            <TerminalIcon className="w-5 h-5" /> GhostNet Terminal
+            <TerminalIcon className="w-5 h-5" /> PROXHQ Terminal
           </h2>
           <Badge variant="outline" className={`font-mono text-xs ${ghostMode ? "text-yellow-400 border-yellow-400/50" : "text-primary/50 border-primary/20"}`}>
             {ghostMode ? "GHOST MODE" : "RESTRICTED"}
@@ -187,13 +187,13 @@ export default function Terminal() {
         <div className="flex-1 bg-black border border-primary/20 rounded flex flex-col overflow-hidden font-mono text-sm min-h-0">
           <div className="flex-1 overflow-auto p-4 space-y-3">
             <div className="text-primary/40 text-xs">
-              GhostNet OS v3.0.0 — Management Shell<br />
+              PROXHQ OS v3.0.0 — Management Shell<br />
               <span className="text-primary/30">Try: curl https://httpbin.org/ip | nmap -p 80,443 example.com | dig google.com | openssl s_client -connect example.com:443</span>
             </div>
             {history.map((item, i) => (
               <div key={i} className="space-y-0.5">
                 <div className="flex items-center gap-2 text-primary/60 text-xs">
-                  <span className="text-red-400">root@ghostnet:~#</span>
+                  <span className="text-red-400">root@proxhq:~#</span>
                   <span>{item.cmd}</span>
                   {item.ghostMode && <Badge variant="outline" className="text-[8px] text-yellow-400 border-yellow-400/30 px-1">GHOST</Badge>}
                   {item.durationMs && <span className="text-primary/30">{item.durationMs}ms</span>}
@@ -207,7 +207,7 @@ export default function Terminal() {
             <div ref={bottomRef} />
           </div>
           <div className="p-2 border-t border-primary/20 bg-black/50 flex items-center gap-2 shrink-0">
-            <span className="text-red-400 font-mono text-sm ml-2 shrink-0">root@ghostnet:~#</span>
+            <span className="text-red-400 font-mono text-sm ml-2 shrink-0">root@proxhq:~#</span>
             <Input
               className="border-0 bg-transparent shadow-none focus-visible:ring-0 text-primary font-mono text-sm rounded-none h-8 px-2"
               value={input}

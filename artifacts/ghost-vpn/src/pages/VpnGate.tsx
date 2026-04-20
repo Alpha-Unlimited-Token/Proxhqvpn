@@ -426,11 +426,11 @@ export default function VpnGate() {
               <div className="space-y-1">
                 {[
                   "# Auto-connect to best server",
-                  "./ghostnet-connect.sh",
+                  "./proxhq-connect.sh",
                   "# Connect to specific country",
-                  "./ghostnet-connect.sh JP",
+                  "./proxhq-connect.sh JP",
                   "# List top 10 servers",
-                  "./ghostnet-connect.sh --list",
+                  "./proxhq-connect.sh --list",
                 ].map((line, i) => (
                   <div key={i} className={`text-[9px] font-mono ${line.startsWith("#") ? "text-primary/30" : "text-primary"}`}>
                     {line}
@@ -443,11 +443,11 @@ export default function VpnGate() {
               <div className="space-y-1">
                 {[
                   "# Auto-connect to best server",
-                  ".\\ghostnet-connect.ps1",
+                  ".\\proxhq-connect.ps1",
                   "# Connect to Japan",
-                  ".\\ghostnet-connect.ps1 -Country JP",
+                  ".\\proxhq-connect.ps1 -Country JP",
                   "# List top 10 servers",
-                  ".\\ghostnet-connect.ps1 -List",
+                  ".\\proxhq-connect.ps1 -List",
                 ].map((line, i) => (
                   <div key={i} className={`text-[9px] font-mono ${line.startsWith("#") ? "text-primary/30" : "text-primary"}`}>
                     {line}
@@ -457,7 +457,7 @@ export default function VpnGate() {
             </div>
             <div className="sm:col-span-2 text-[9px] font-mono text-cyan-400/60 border border-cyan-400/20 p-2">
               ↑ These scripts auto-install OpenVPN if needed, fetch the best server, and connect in one command.
-              Both are included in every GhostNet download package.
+              Both are included in every PROXHQ download package.
             </div>
           </div>
         )}

@@ -104,12 +104,12 @@ export default function SecurityAudit() {
         </Button>
       </div>
 
-      {/* GhostNet Self-Audit */}
+      {/* PROXHQ Self-Audit */}
       {report && (
         <Card className="bg-black border-primary/20">
           <CardContent className="p-4 space-y-3">
             <div className="flex items-center justify-between pb-2 border-b border-primary/10">
-              <span className="text-[10px] font-mono uppercase tracking-widest text-primary/50">GhostNet Self-Audit — {report.version}</span>
+              <span className="text-[10px] font-mono uppercase tracking-widest text-primary/50">PROXHQ Self-Audit — {report.version}</span>
               <div className="flex items-center gap-2">
                 <Badge variant="outline" className={`font-mono text-xs ${report.overallRisk === "LOW" ? "text-green-400 border-green-400/50" : report.overallRisk === "MEDIUM" ? "text-yellow-400 border-yellow-400/50" : "text-red-400 border-red-400/50"}`}>
                   {report.overallRisk} RISK

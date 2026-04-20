@@ -79,11 +79,11 @@ export default function ProxyConfig() {
 
       <div className="space-y-3">
 
-        <Section title="Tor Browser — Route All Traffic Through GhostNet" defaultOpen>
+        <Section title="Tor Browser — Route All Traffic Through PROXHQ" defaultOpen>
           <p className="text-xs text-primary/60 font-mono">
-            Tor Browser uses SOCKS5 by default on port 9150 (browser bundle) or 9050 (Tor daemon). Chain GhostNet with Tor for double-layer anonymity.
+            Tor Browser uses SOCKS5 by default on port 9150 (browser bundle) or 9050 (Tor daemon). Chain PROXHQ with Tor for double-layer anonymity.
           </p>
-          <CodeBlock label="torrc — append to /etc/tor/torrc or ~/.torrc" code={`# GhostNet + Tor chaining
+          <CodeBlock label="torrc — append to /etc/tor/torrc or ~/.torrc" code={`# PROXHQ + Tor chaining
 # Tor exits through your local SOCKS5 tunnel on port 1080
 Socks5Proxy 127.0.0.1:1080
 
@@ -99,10 +99,10 @@ IsolateDestPort 1`} />
   Host      : 127.0.0.1
   Port      : 1080
   Proxy DNS : YES (check "Use proxy for DNS")`} />
-          <p className="text-[10px] text-primary/40 font-mono">Traffic path: Your app → GhostNet SOCKS5 :1080 → 60-node mesh → Tor exit → destination</p>
+          <p className="text-[10px] text-primary/40 font-mono">Traffic path: Your app → PROXHQ SOCKS5 :1080 → 60-node mesh → Tor exit → destination</p>
         </Section>
 
-        <Section title="Firefox — Proxy via GhostNet SOCKS5">
+        <Section title="Firefox — Proxy via PROXHQ SOCKS5">
           <CodeBlock label="Firefox about:config (network.proxy.*)" code={`network.proxy.type              = 1    (manual)
 network.proxy.socks             = 127.0.0.1
 network.proxy.socks_port        = 1080
@@ -138,12 +138,12 @@ export NO_PROXY=localhost,127.0.0.1`} />
         </Section>
 
         <Section title="Linux — System-Wide via proxychains-ng">
-          <CodeBlock label="/etc/proxychains4.conf" code={`# GhostNet → Tor double-hop
+          <CodeBlock label="/etc/proxychains4.conf" code={`# PROXHQ → Tor double-hop
 strict_chain
 proxy_dns
 
 [ProxyList]
-socks5  127.0.0.1  1080    # GhostNet entry
+socks5  127.0.0.1  1080    # PROXHQ entry
 socks5  127.0.0.1  9050    # Tor (optional second hop)`} />
           <CodeBlock label="Run any app through the chain" code={`proxychains4 -f /etc/proxychains4.conf curl https://check.torproject.org/api/ip
 proxychains4 -f /etc/proxychains4.conf nmap -sT -Pn scanme.nmap.org
@@ -174,11 +174,11 @@ netsh winhttp reset proxy`} />
         <Section title="Android — WireGuard App (All Traffic)">
           <CodeBlock code={`# Install: F-Droid → WireGuard  or  Play Store → WireGuard
 # Import the .conf file generated in WG CONFIG tab
-# App → Import from file → ghostnet-android.conf
+# App → Import from file → proxhq-android.conf
 # Toggle: Excluded Applications (choose which bypass the tunnel)
 
 # Enable: Apps → WireGuard → toggle the tunnel ON
-# All TCP/UDP traffic now routes through GhostNet mesh`} />
+# All TCP/UDP traffic now routes through PROXHQ mesh`} />
         </Section>
 
         <Section title="iOS — WireGuard App">
@@ -190,7 +190,7 @@ netsh winhttp reset proxy`} />
 
         <Section title="Port Knocking — Secfense Ghost-Mode Invisibility">
           <p className="text-xs text-primary/60 font-mono">
-            GhostNet nodes use port knocking to remain invisible. Scan a node's IP and all ports appear CLOSED — the service only opens after the correct knock sequence.
+            PROXHQ nodes use port knocking to remain invisible. Scan a node's IP and all ports appear CLOSED — the service only opens after the correct knock sequence.
           </p>
           <CodeBlock label="knockd config — /etc/knockd.conf on each node" code={`[options]
     logfile = /var/log/knockd.log
@@ -247,7 +247,7 @@ curl --socks5-hostname 127.0.0.1:1080 https://dnsleaktest.com/`} />
         </Section>
 
         <Section title="Verify Your Anonymity">
-          <CodeBlock code={`# Check exit IP through GhostNet
+          <CodeBlock code={`# Check exit IP through PROXHQ
 curl --socks5-hostname 127.0.0.1:1080 https://api.ipify.org?format=json
 
 # Check Tor detection

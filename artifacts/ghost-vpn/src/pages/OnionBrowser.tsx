@@ -38,7 +38,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-type ProxyMode = "direct" | "ghostnet-onion" | "tor-gateway" | "double-layer" | "custom-proxy";
+type ProxyMode = "direct" | "proxhq-onion" | "tor-gateway" | "double-layer" | "custom-proxy";
 type CustomProxyType = "http" | "https" | "socks4" | "socks5";
 
 interface HistoryEntry {
@@ -48,7 +48,7 @@ interface HistoryEntry {
 
 const MODE_LABELS: Record<ProxyMode, string> = {
   direct: "Direct",
-  "ghostnet-onion": "GhostNet Onion",
+  "proxhq-onion": "PROXHQ Onion",
   "tor-gateway": "Tor Gateway",
   "double-layer": "Double Layer",
   "custom-proxy": "Custom Proxy",
@@ -56,7 +56,7 @@ const MODE_LABELS: Record<ProxyMode, string> = {
 
 const MODE_COLORS: Record<ProxyMode, string> = {
   direct: "text-yellow-500",
-  "ghostnet-onion": "text-primary",
+  "proxhq-onion": "text-primary",
   "tor-gateway": "text-purple-400",
   "double-layer": "text-cyan-400",
   "custom-proxy": "text-orange-400",
@@ -121,7 +121,7 @@ export default function OnionBrowser() {
 
   const [url, setUrl] = useState("https://duckduckgo.com");
   const [inputUrl, setInputUrl] = useState("https://duckduckgo.com");
-  const [mode, setMode] = useState<ProxyMode>("ghostnet-onion");
+  const [mode, setMode] = useState<ProxyMode>("proxhq-onion");
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [iframeContent, setIframeContent] = useState<string>("");
@@ -310,7 +310,7 @@ export default function OnionBrowser() {
 
   const modeColor = MODE_COLORS[mode];
   const torActive = mode === "tor-gateway" || mode === "double-layer";
-  const ghostActive = mode === "ghostnet-onion" || mode === "double-layer";
+  const ghostActive = mode === "proxhq-onion" || mode === "double-layer";
   const customActive = mode === "custom-proxy";
 
   return (
@@ -319,7 +319,7 @@ export default function OnionBrowser() {
         <div className="flex items-center gap-2">
           <Layers className="w-5 h-5 text-primary" />
           <h2 className="text-xl font-bold tracking-tighter uppercase">
-            GhostNet Onion Browser
+            PROXHQ Onion Browser
           </h2>
           <Badge
             variant="outline"
@@ -458,7 +458,7 @@ export default function OnionBrowser() {
             </SelectTrigger>
             <SelectContent className="bg-black border-primary/30">
               <SelectItem value="direct" className="text-xs font-mono text-yellow-500">Direct</SelectItem>
-              <SelectItem value="ghostnet-onion" className="text-xs font-mono text-primary">GhostNet Onion</SelectItem>
+              <SelectItem value="proxhq-onion" className="text-xs font-mono text-primary">PROXHQ Onion</SelectItem>
               <SelectItem value="tor-gateway" className="text-xs font-mono text-purple-400">Tor Gateway</SelectItem>
               <SelectItem value="double-layer" className="text-xs font-mono text-cyan-400">Double Layer</SelectItem>
               <SelectItem value="custom-proxy" className="text-xs font-mono text-orange-400">Custom Proxy</SelectItem>
@@ -639,7 +639,7 @@ export default function OnionBrowser() {
               srcDoc={iframeContent}
               className="w-full h-full border-0"
               sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-              title="GhostNet Onion Browser"
+              title="PROXHQ Onion Browser"
             />
           )}
         </CardContent>
@@ -657,7 +657,7 @@ export default function OnionBrowser() {
               </span>
             ) : ghostActive ? (
               <span className="flex items-center gap-1 text-primary">
-                <Shield className="w-3 h-3" /> GhostNet Multi-hop Active
+                <Shield className="w-3 h-3" /> PROXHQ Multi-hop Active
               </span>
             ) : (
               <span className="flex items-center gap-1 text-yellow-500">
@@ -718,12 +718,12 @@ function NewTabPage({
       icon: <WifiOff className="w-5 h-5 text-yellow-500" />,
       layers: ["Your Device", "Destination"],
     },
-    "ghostnet-onion": {
+    "proxhq-onion": {
       color: "text-primary",
       description:
-        "Routes through GhostNet's multi-hop relay network with IP rotation and encryption.",
+        "Routes through PROXHQ's multi-hop relay network with IP rotation and encryption.",
       icon: <Shield className="w-5 h-5 text-primary" />,
-      layers: ["Your Device", "GhostNet Relay ×7", "Destination"],
+      layers: ["Your Device", "PROXHQ Relay ×7", "Destination"],
     },
     "tor-gateway": {
       color: "text-purple-400",
@@ -735,9 +735,9 @@ function NewTabPage({
     "double-layer": {
       color: "text-cyan-400",
       description:
-        "Maximum protection: GhostNet multi-hop → Tor network. Slowest but most anonymous.",
+        "Maximum protection: PROXHQ multi-hop → Tor network. Slowest but most anonymous.",
       icon: <Layers className="w-5 h-5 text-cyan-400" />,
-      layers: ["Your Device", "GhostNet ×3", "Tor Entry", "Tor Middle", "Tor Exit", "Destination"],
+      layers: ["Your Device", "PROXHQ ×3", "Tor Entry", "Tor Middle", "Tor Exit", "Destination"],
     },
     "custom-proxy": {
       color: "text-orange-400",
@@ -775,7 +775,7 @@ function NewTabPage({
         </div>
         <div className="mt-16">
           <p className="text-primary font-bold font-mono tracking-widest text-lg mb-1">
-            GHOSTNET ONION BROWSER
+            PROXHQ ONION BROWSER
           </p>
           <p className={`text-xs font-mono ${info.color} mb-2`}>
             MODE: {mode.toUpperCase().replace(/-/g, " ")}

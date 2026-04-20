@@ -19,9 +19,9 @@ export default function Home() {
       {/* Top bar */}
       <header className="border-b border-primary/20 px-8 py-4 flex items-center justify-between shrink-0 relative z-10">
         <div className="flex items-center gap-3">
-          <img src={`${import.meta.env.BASE_URL}logo.svg`} alt="GhostNet" className="w-8 h-8" />
+          <img src={`${import.meta.env.BASE_URL}logo.svg`} alt="PROXHQ" className="w-8 h-8" />
           <div>
-            <div className="text-lg font-bold tracking-tighter">GHOSTNET_OS</div>
+            <div className="text-lg font-bold tracking-tighter">PROXHQ_OS</div>
             <div className="text-[9px] text-primary/40 font-mono tracking-widest">SELF-HOSTED VPN PLATFORM</div>
           </div>
         </div>
@@ -48,7 +48,7 @@ export default function Home() {
           ADVANCED THREAT EVASION PLATFORM
         </div>
         <h1 className="text-5xl md:text-6xl font-bold tracking-tighter uppercase mb-6 leading-none">
-          GHOST<span className="text-primary">NET</span>
+          PROX<span className="text-primary">HQ</span>
         </h1>
         <p className="text-primary/60 font-mono text-sm max-w-xl mb-10 leading-relaxed">
           A self-hosted VPN platform with WireGuard, AES-256-GCM, a 6,000+ node adaptive inner swarm,
@@ -105,7 +105,7 @@ export default function Home() {
 
       <footer className="border-t border-primary/10 px-8 py-4 text-center relative z-10">
         <span className="text-[9px] font-mono text-primary/20 uppercase tracking-widest">
-          GHOSTNET_OS — SELF-HOSTED VPN INFRASTRUCTURE — ALL RIGHTS RESERVED
+          © {new Date().getFullYear()} ALPHA UNLIMITED TECHNOLOGIES LLC — PROXHQ — ALL RIGHTS RESERVED
         </span>
       </footer>
     </div>
