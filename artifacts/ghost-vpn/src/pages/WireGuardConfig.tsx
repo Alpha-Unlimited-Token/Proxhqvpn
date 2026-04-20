@@ -8,7 +8,7 @@ export default function WireGuardConfig() {
   const [selectedNode, setSelectedNode] = useState<string>("");
   
   const { data: config, isLoading } = useGetNodeWireguardConfig(Number(selectedNode), {
-    query: { enabled: !!selectedNode }
+    query: { enabled: !!selectedNode } as any
   });
 
   return (

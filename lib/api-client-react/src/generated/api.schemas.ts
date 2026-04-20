@@ -310,6 +310,7 @@ export interface SystemStats {
   platform: string;
   activeUsers: number;
   wireguardTunnels: number;
+  externalIp?: string;
 }
 
 export type FirewallRuleDirection =

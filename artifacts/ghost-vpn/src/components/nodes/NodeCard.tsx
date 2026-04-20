@@ -79,6 +79,7 @@ export function NodeCard({ node, lifecycle, isActive }: Props) {
       return () => clearTimeout(t);
     }
     prevLifecycle.current = lifecycle;
+    return;
   }, [lifecycle]);
 
   const isOuter = node.layer === "outer";

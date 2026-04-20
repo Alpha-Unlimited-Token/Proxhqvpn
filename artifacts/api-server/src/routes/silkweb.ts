@@ -24,6 +24,7 @@ async function ensureWeb() {
     createdAt: new Date(),
   }).returning();
 
+  let actualRouteCount = 0;
   if (nodes.length >= 2) {
     const routeValues = [];
     for (let i = 0; i < Math.min(totalRoutes, 50); i++) {
@@ -42,7 +43,13 @@ async function ensureWeb() {
     }
     if (routeValues.length > 0) {
       await db.insert(silkRoutesTable).values(routeValues);
+      actualRouteCount = routeValues.length;
     }
+  }
+
+  if (actualRouteCount !== totalRoutes) {
+    await db.update(silkWebTable).set({ totalRoutes: actualRouteCount }).where(eq(silkWebTable.id, web.id));
+    web.totalRoutes = actualRouteCount;
   }
 
   return web;
@@ -73,6 +80,7 @@ router.post("/collapse", async (req, res) => {
     createdAt: new Date(),
   }).returning();
 
+  let collapseRouteCount = 0;
   if (nodes.length >= 2) {
     const routeValues = [];
     for (let i = 0; i < Math.min(totalRoutes, 50); i++) {
@@ -90,7 +98,13 @@ router.post("/collapse", async (req, res) => {
     }
     if (routeValues.length > 0) {
       await db.insert(silkRoutesTable).values(routeValues);
+      collapseRouteCount = routeValues.length;
     }
+  }
+
+  if (collapseRouteCount !== web.totalRoutes) {
+    await db.update(silkWebTable).set({ totalRoutes: collapseRouteCount }).where(eq(silkWebTable.id, web.id));
+    web.totalRoutes = collapseRouteCount;
   }
 
   const routes = await db.select().from(silkRoutesTable).where(eq(silkRoutesTable.webId, web.id));

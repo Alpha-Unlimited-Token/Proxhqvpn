@@ -4,8 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Activity, Cpu, HardDrive, Wifi } from "lucide-react";
 
 export default function SystemMonitor() {
-  const { data: sysStats } = useGetSystemStats();
-  const { data: connections } = useGetActiveConnections();
+  const { data: sysStats } = useGetSystemStats({ query: { refetchInterval: 5000 } as any });
+  const { data: connections } = useGetActiveConnections({ query: { refetchInterval: 5000 } as any });
 
   return (
     <div className="space-y-6">

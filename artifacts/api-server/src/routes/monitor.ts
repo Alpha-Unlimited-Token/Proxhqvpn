@@ -36,6 +36,8 @@ router.get("/connections", async (req, res) => {
   res.json({ connections, total: connections.length });
 });
 
+const SIMULATED_EXTERNAL_IP = `${Math.floor(Math.random() * 80) + 100}.${Math.floor(Math.random() * 254)}.${Math.floor(Math.random() * 254)}.${Math.floor(Math.random() * 254) + 1}`;
+
 router.get("/stats", async (req, res) => {
   const cpus = os.cpus();
   const totalMem = os.totalmem();
@@ -64,6 +66,7 @@ router.get("/stats", async (req, res) => {
     platform: `${os.platform()} ${os.arch()}`,
     activeUsers: Math.floor(Math.random() * 4) + 1,
     wireguardTunnels: Math.floor(Math.random() * 50) + 10,
+    externalIp: SIMULATED_EXTERNAL_IP,
   });
 });
 

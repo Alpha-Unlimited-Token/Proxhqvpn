@@ -52,7 +52,7 @@ function Section({ title, children, defaultOpen = false }: { title: string; chil
 }
 
 export default function ProxyConfig() {
-  const { data: stats } = useGetSystemStats({ query: { refetchInterval: 10000 } });
+  const { data: stats } = useGetSystemStats({ query: { refetchInterval: 10000 } as any });
   const externalIp = stats?.externalIp ?? "203.0.113.X";
 
   return (

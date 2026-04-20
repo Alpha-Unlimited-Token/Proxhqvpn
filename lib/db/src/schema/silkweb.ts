@@ -1,6 +1,4 @@
 import { pgTable, serial, text, integer, boolean, timestamp } from "drizzle-orm/pg-core";
-import { createInsertSchema } from "drizzle-zod";
-import { z } from "zod";
 import { nodesTable } from "./nodes";
 
 export const silkWebTable = pgTable("silk_web", {
@@ -33,8 +31,7 @@ export const trappedAttackersTable = pgTable("trapped_attackers", {
   dataCollected: text("data_collected").notNull().default(""),
 });
 
-export const insertSilkWebSchema = createInsertSchema(silkWebTable).omit({ id: true });
-export type InsertSilkWeb = z.infer<typeof insertSilkWebSchema>;
+export type InsertSilkWeb = typeof silkWebTable.$inferInsert;
 export type SilkWeb = typeof silkWebTable.$inferSelect;
 export type SilkRoute = typeof silkRoutesTable.$inferSelect;
 export type TrappedAttacker = typeof trappedAttackersTable.$inferSelect;

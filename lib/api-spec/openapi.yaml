@@ -929,6 +929,8 @@ components:
           type: integer
         wireguardTunnels:
           type: integer
+        externalIp:
+          type: string
       required: [cpuPercent, memoryPercent, memoryUsedMb, memoryTotalMb, networkInMbps, networkOutMbps, uptime, platform, activeUsers, wireguardTunnels]
 
     FirewallRule:

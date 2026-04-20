@@ -11,8 +11,8 @@ import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 
 export default function BeaconAlerts() {
-  const { data } = useListBeaconAlerts();
-  const { data: nodesData } = useListNodes();
+  const { data } = useListBeaconAlerts(undefined, { query: { refetchInterval: 5000 } as any });
+  const { data: nodesData } = useListNodes(undefined, { query: { refetchInterval: 30000 } as any });
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const dismissAlert = useDismissBeaconAlert();

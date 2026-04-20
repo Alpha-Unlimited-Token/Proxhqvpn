@@ -17,4 +17,5 @@ export interface SystemStats {
   platform: string;
   activeUsers: number;
   wireguardTunnels: number;
+  externalIp?: string;
 }

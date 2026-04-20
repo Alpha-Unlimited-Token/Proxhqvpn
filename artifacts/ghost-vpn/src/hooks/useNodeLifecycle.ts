@@ -32,7 +32,7 @@ const GROW_MS = 650;
 const INTERVAL_MS = 3000;
 
 export function useNodeLifecycle() {
-  const { data: apiData, refetch } = useListNodes(undefined, { refetchInterval: 30_000 });
+  const { data: apiData, refetch } = useListNodes(undefined, { query: { refetchInterval: 30_000 } as any });
 
   const [state, setState] = useState<NodeLifecycleState>({
     nodes: [],

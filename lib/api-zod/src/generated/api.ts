@@ -422,6 +422,7 @@ export const GetSystemStatsResponse = zod.object({
   platform: zod.string(),
   activeUsers: zod.number(),
   wireguardTunnels: zod.number(),
+  externalIp: zod.string().optional(),
 });
 
 /**

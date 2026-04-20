@@ -143,8 +143,8 @@ function SilkWebTopology({ routes, trappedIds }: { routes: Route[]; trappedIds: 
 }
 
 export default function SilkWeb() {
-  const { data: web } = useGetSilkWeb({ query: { refetchInterval: 15000 } });
-  const { data: attackers } = useListTrappedAttackers({ query: { refetchInterval: 8000 } });
+  const { data: web } = useGetSilkWeb({ query: { refetchInterval: 15000 } as any });
+  const { data: attackers } = useListTrappedAttackers({ query: { refetchInterval: 8000 } as any });
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const collapse = useCollapseSilkWeb();

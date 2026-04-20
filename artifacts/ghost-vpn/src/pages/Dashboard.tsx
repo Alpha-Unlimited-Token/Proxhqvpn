@@ -6,13 +6,13 @@ import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 
 export default function Dashboard() {
-  const { data: sysStats } = useGetSystemStats({ query: { refetchInterval: 5000 } });
-  const { data: nodeStats } = useGetNodeStats({ query: { refetchInterval: 8000 } });
-  const { data: beaconStats } = useGetBeaconStats({ query: { refetchInterval: 6000 } });
-  const { data: fwStatus } = useGetFirewallStatus({ query: { refetchInterval: 10000 } });
+  const { data: sysStats } = useGetSystemStats({ query: { refetchInterval: 5000 } as any });
+  const { data: nodeStats } = useGetNodeStats({ query: { refetchInterval: 8000 } as any });
+  const { data: beaconStats } = useGetBeaconStats({ query: { refetchInterval: 6000 } as any });
+  const { data: fwStatus } = useGetFirewallStatus({ query: { refetchInterval: 10000 } as any });
 
-  const { data: recentAlerts } = useListBeaconAlerts({ status: 'active' }, { query: { refetchInterval: 5000 } });
-  const { data: nodesData } = useListNodes(undefined, { query: { refetchInterval: 10000 } });
+  const { data: recentAlerts } = useListBeaconAlerts({ status: 'active' }, { query: { refetchInterval: 5000 } as any });
+  const { data: nodesData } = useListNodes(undefined, { query: { refetchInterval: 10000 } as any });
 
   const getSeverityColor = (severity: string) => {
     switch (severity) {

@@ -18,9 +18,9 @@ import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 
 export default function Firewall() {
-  const { data: status } = useGetFirewallStatus();
-  const { data: rulesData } = useListFirewallRules();
-  const { data: blockedData } = useListBlockedIps();
+  const { data: status } = useGetFirewallStatus({ query: { refetchInterval: 10000 } as any });
+  const { data: rulesData } = useListFirewallRules({ query: { refetchInterval: 30000 } as any });
+  const { data: blockedData } = useListBlockedIps({ query: { refetchInterval: 8000 } as any });
   const queryClient = useQueryClient();
   const { toast } = useToast();
   

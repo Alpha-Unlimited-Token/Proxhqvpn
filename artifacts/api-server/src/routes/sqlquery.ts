@@ -6,7 +6,15 @@ const router = Router();
 
 // Read-only: only SELECT statements allowed
 const READONLY_RE = /^\s*(select|with|explain|show)\s/i;
-const BLOCKED_RE = /\b(insert|update|delete|drop|truncate|alter|create|grant|revoke|exec|execute|call)\b/i;
+const BLOCKED_RE = /\b(insert|update|delete|drop|truncate|alter|create|grant|revoke|exec|execute|call|pg_read_file|pg_ls_dir|lo_import|lo_export|copy)\b/i;
+
+function stripSqlComments(q: string): string {
+  return q
+    .replace(/--[^\n]*/g, " ")
+    .replace(/\/\*[\s\S]*?\*\//g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
 router.post("/query", async (req, res) => {
   const body = z.object({
@@ -14,7 +22,7 @@ router.post("/query", async (req, res) => {
     limit: z.number().max(500).optional().default(100),
   }).parse(req.body);
 
-  const query = body.query.trim();
+  const query = stripSqlComments(body.query.trim());
   const start = Date.now();
 
   if (!READONLY_RE.test(query)) {

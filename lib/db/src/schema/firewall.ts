@@ -1,6 +1,4 @@
 import { pgTable, serial, text, integer, boolean, timestamp, pgEnum } from "drizzle-orm/pg-core";
-import { createInsertSchema } from "drizzle-zod";
-import { z } from "zod";
 
 export const firewallDirectionEnum = pgEnum("firewall_direction", ["inbound", "outbound", "both"]);
 export const firewallActionEnum = pgEnum("firewall_action", ["allow", "deny", "drop", "reject", "masquerade", "log"]);
@@ -47,8 +45,7 @@ export const blockedIpsTable = pgTable("blocked_ips", {
   expiresAt: timestamp("expires_at"),
 });
 
-export const insertFirewallRuleSchema = createInsertSchema(firewallRulesTable).omit({ id: true, createdAt: true, hitCount: true });
-export type InsertFirewallRule = z.infer<typeof insertFirewallRuleSchema>;
+export type InsertFirewallRule = typeof firewallRulesTable.$inferInsert;
 export type FirewallRule = typeof firewallRulesTable.$inferSelect;
 export type FirewallStatus = typeof firewallStatusTable.$inferSelect;
 export type BlockedIp = typeof blockedIpsTable.$inferSelect;
