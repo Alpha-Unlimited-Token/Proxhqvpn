@@ -1,0 +1,20 @@
+version = 1
+revision = 3
+requires-python = ">=3.11"
+
+[[package]]
+name = "repl-nix-workspace"
+version = "0.1.0"
+source = { virtual = "." }
+dependencies = [
+    { name = "sqlmap" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "sqlmap", specifier = ">=1.10.3" }]
+
+[[package]]
+name = "sqlmap"
+version = "1.10.3"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/7f/fa/2490937c75ef0bd2406ab4202739cd338db7f9c4303fb1433fce7c73d450/sqlmap-1.10.3.tar.gz", hash = "sha256:3d166f0e2772bf08c9ee85d4f4cbba78e6c79b4f305828e31f1e813e33ff0e58", size = 7227808, upload-time = "2026-03-10T13:43:04.772Z" }
