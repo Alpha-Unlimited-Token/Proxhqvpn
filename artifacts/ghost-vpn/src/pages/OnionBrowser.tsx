@@ -3,6 +3,7 @@ import {
   useGetProxyBrowserConfig,
   useSaveProxyBrowserConfig,
   useProxyFetch,
+  ProxyFetchBodyMode,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -203,8 +204,10 @@ export default function OnionBrowser() {
       setCurrentLayers([]);
 
       try {
+        const apiMode: ProxyFetchBodyMode =
+          mode === "custom-proxy" ? ProxyFetchBodyMode.direct : (mode as ProxyFetchBodyMode);
         const result = await fetchUrl.mutateAsync({
-          data: { url: targetUrl, mode },
+          data: { url: targetUrl, mode: apiMode },
         });
 
         setIframeContent(result.html ?? "");

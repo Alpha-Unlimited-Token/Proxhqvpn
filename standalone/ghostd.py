@@ -394,6 +394,22 @@ class TunInterface:
         if ret != 0 and not silent:
             log.warning(f"Command returned {ret}: {cmd}")
 
+# ─── Input validation helpers ─────────────────────────────────────────────────
+def _validate_ip(ip: str) -> str:
+    """Validate and return a canonical IP address string; raise ValueError on bad input."""
+    return str(ipaddress.ip_address(ip.strip()))
+
+def _validate_cidr(cidr: str) -> str:
+    """Validate and return a canonical CIDR string; raise ValueError on bad input."""
+    return str(ipaddress.ip_network(cidr.strip(), strict=False))
+
+def _validate_iface(iface: str) -> str:
+    """Allow only safe interface name chars (letters, digits, hyphens, dots, underscores)."""
+    import re as _re
+    if not _re.fullmatch(r'[A-Za-z0-9._-]{1,15}', iface.strip()):
+        raise ValueError(f"Invalid interface name: {iface!r}")
+    return iface.strip()
+
 # ─── Routing helpers ──────────────────────────────────────────────────────────
 def detect_default_route() -> Tuple[Optional[str], Optional[str]]:
     """Return (real_interface, gateway_ip) of the default route."""
@@ -428,6 +444,13 @@ def detect_default_route() -> Tuple[Optional[str], Optional[str]]:
 
 def add_host_route(host_ip: str, gw: str, iface: str) -> None:
     """Route VPN server traffic via real interface (bypass TUN)."""
+    try:
+        host_ip = _validate_ip(host_ip)
+        gw      = _validate_ip(gw)
+        iface   = _validate_iface(iface)
+    except ValueError as e:
+        log.error(f"add_host_route: invalid input — {e}")
+        return
     sys_name = platform.system()
     if sys_name == "Linux":
         os.system(f"ip route add {host_ip}/32 via {gw} dev {iface} 2>/dev/null")
@@ -438,6 +461,11 @@ def add_host_route(host_ip: str, gw: str, iface: str) -> None:
     audit("route.add_host", f"{host_ip} via {gw} ({iface})")
 
 def del_host_route(host_ip: str) -> None:
+    try:
+        host_ip = _validate_ip(host_ip)
+    except ValueError as e:
+        log.error(f"del_host_route: invalid input — {e}")
+        return
     sys_name = platform.system()
     if sys_name == "Linux":
         os.system(f"ip route del {host_ip}/32 2>/dev/null")
@@ -448,6 +476,12 @@ def del_host_route(host_ip: str) -> None:
 
 def set_default_route_via_tun(tun_name: str, peer_addr: str) -> None:
     """Route all traffic through TUN (client mode)."""
+    try:
+        tun_name  = _validate_iface(tun_name)
+        peer_addr = _validate_ip(peer_addr)
+    except ValueError as e:
+        log.error(f"set_default_route_via_tun: invalid input — {e}")
+        return
     sys_name = platform.system()
     if sys_name == "Linux":
         os.system(f"ip route add 0.0.0.0/1 dev {tun_name} 2>/dev/null")
@@ -656,6 +690,11 @@ def add_split_route(cidr: str, bypass: bool = True) -> None:
     bypass=True  → route this CIDR through real interface (exclude from VPN)
     bypass=False → force this CIDR through TUN (include in VPN)
     """
+    try:
+        cidr = _validate_cidr(cidr)
+    except ValueError as e:
+        log.error(f"add_split_route: invalid CIDR — {e}")
+        return
     sys_name = platform.system()
     gw   = state["real_gw"] or "192.168.1.1"
     dev  = state["real_iface"] or "eth0"
@@ -673,7 +712,7 @@ def add_split_route(cidr: str, bypass: bool = True) -> None:
         else:
             os.system(f"route add -net {cidr} -interface {tun} 2>/dev/null")
     elif sys_name == "Windows":
-        net = str(ipaddress.ip_network(cidr, strict=False).network_address)
+        net  = str(ipaddress.ip_network(cidr, strict=False).network_address)
         mask = str(ipaddress.ip_network(cidr, strict=False).netmask)
         dest = gw if bypass else TUN_PEER_ADDR
         os.system(f"route add {net} mask {mask} {dest} 2>nul")
@@ -681,6 +720,11 @@ def add_split_route(cidr: str, bypass: bool = True) -> None:
         state["split_routes"].append(entry)
 
 def remove_split_route(cidr: str) -> None:
+    try:
+        cidr = _validate_cidr(cidr)
+    except ValueError as e:
+        log.error(f"remove_split_route: invalid CIDR — {e}")
+        return
     sys_name = platform.system()
     audit("splittunnel.remove", f"cidr={cidr}")
     if sys_name == "Linux":
@@ -688,7 +732,7 @@ def remove_split_route(cidr: str) -> None:
     elif sys_name == "Darwin":
         os.system(f"route delete -net {cidr} 2>/dev/null")
     elif sys_name == "Windows":
-        net = str(ipaddress.ip_network(cidr, strict=False).network_address)
+        net  = str(ipaddress.ip_network(cidr, strict=False).network_address)
         mask = str(ipaddress.ip_network(cidr, strict=False).netmask)
         os.system(f"route delete {net} mask {mask} 2>nul")
     with _lock:

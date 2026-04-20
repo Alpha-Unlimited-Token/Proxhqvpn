@@ -12,7 +12,7 @@ interface LeakResult {
   durationMs: number;
   overallStatus: "secure" | "warning" | "leaked";
   publicIp: { ip: string; country: string; isp: string };
-  dns: { leakDetected: boolean; servers: { ip: string; provider: string; isVpnDns: boolean; isPrivate: boolean }[] };
+  dns: { leakDetected: boolean; recommendation: string; servers: { ip: string; provider: string; isVpnDns: boolean; isPrivate: boolean }[] };
   ipv6: { leakDetected: boolean; address: string | null; recommendation: string };
   webrtc: { leakDetected: boolean; note: string; browserTestUrl: string };
   fingerprint: { dnssec: boolean; doh: boolean; dot: boolean; recommendation: string };
