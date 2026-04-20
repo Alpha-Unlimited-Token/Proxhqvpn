@@ -5,8 +5,9 @@ import {
   Activity, ShieldAlert, Network, Terminal, Database, Server,
   Settings2, Shield, Globe, Layers,
   Power, Search, AlertTriangle, GitBranch, EyeOff, ShieldCheck, SplitSquareHorizontal, LogOut,
-  Tv, Smartphone, Router, Wifi, ShieldPlus, User
+  Tv, Smartphone, Router, Wifi, ShieldPlus, User, Crown
 } from "lucide-react";
+import { useAdmin } from "@/hooks/useAdmin";
 
 interface LayoutProps {
   children: ReactNode;
@@ -16,6 +17,7 @@ export function Layout({ children }: LayoutProps) {
   const [location] = useLocation();
   const { user } = useUser();
   const { signOut } = useClerk();
+  const { isAdmin } = useAdmin();
 
   const navGroups = [
     {
@@ -113,8 +115,16 @@ export function Layout({ children }: LayoutProps) {
         {/* User / sign-out */}
         {user && (
           <div className="p-3 border-t border-primary/20">
-            <div className="text-[9px] font-mono text-primary/40 uppercase tracking-widest mb-1 truncate">
-              {user.primaryEmailAddress?.emailAddress ?? user.username ?? "Operator"}
+            <div className="flex items-center gap-1.5 mb-1">
+              <div className="text-[9px] font-mono text-primary/40 uppercase tracking-widest truncate flex-1">
+                {user.primaryEmailAddress?.emailAddress ?? user.username ?? "Operator"}
+              </div>
+              {isAdmin && (
+                <div className="flex items-center gap-0.5 bg-primary/10 border border-primary/40 px-1 py-0.5 shrink-0" title="Administrator">
+                  <Crown className="w-2.5 h-2.5 text-primary" />
+                  <span className="text-[8px] font-mono text-primary tracking-widest">ADMIN</span>
+                </div>
+              )}
             </div>
             <Link href="/account"
               className="flex items-center gap-2 w-full text-[10px] font-mono uppercase tracking-widest text-primary/50 hover:text-primary border border-transparent hover:border-primary/30 px-2 py-1.5 transition-colors mb-0.5"

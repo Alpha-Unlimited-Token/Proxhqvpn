@@ -1,6 +1,10 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
 import { getAuth } from "@clerk/express";
+import { db } from "@workspace/db";
+import { usersTable } from "@workspace/db/schema";
+import { eq } from "drizzle-orm";
 import healthRouter from "./health";
+import meRouter from "./me";
 import nodesRouter from "./nodes";
 import beaconsRouter from "./beacons";
 import silkwebRouter from "./silkweb";
@@ -37,6 +41,16 @@ const requireAuth = (req: Request, res: Response, next: NextFunction) => {
 };
 router.use(requireAuth);
 
+// Admin guard — checks is_admin flag in DB
+export const requireAdmin = async (req: Request, res: Response, next: NextFunction) => {
+  const { userId } = getAuth(req);
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+  if (!user?.isAdmin) return res.status(403).json({ error: "Forbidden: admin only" });
+  next();
+};
+
+router.use("/me",             meRouter);
 router.use("/nodes",          nodesRouter);
 router.use("/beacons",        beaconsRouter);
 router.use("/silkweb",        silkwebRouter);
