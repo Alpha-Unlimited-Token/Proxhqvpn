@@ -6,6 +6,24 @@ uri = "file://artifacts/ghost-vpn/public/icon.png"
 type = "image"
 title = "ProxhqVPN ghost shield icon"
 
+[[generated]]
+id = "OOJDU__lIWEGhZofJuH0E"
+uri = "file://artifacts/ghost-vpn/public/icon-v2.png"
+type = "image"
+title = "ProxhqVPN hexagon mesh ghost icon"
+
+[[generated]]
+id = "R_UTh7e2Hawjrm9K5ia2P"
+uri = "file://artifacts/ghost-vpn/public/icon-v3.png"
+type = "image"
+title = "ProxhqVPN eye lock icon"
+
+[[generated]]
+id = "gGC3BTLhzBy1pMOZQ1buJ"
+uri = "file://artifacts/ghost-vpn/public/icon-v4.png"
+type = "image"
+title = "ProxhqVPN shield ghost face icon"
+
 [[outputs]]
 id = "IJDFyPELKQJakMkMUDhlS"
 uri = "file://standalone/dist/GhostNet-ALL-PLATFORMS.zip"
