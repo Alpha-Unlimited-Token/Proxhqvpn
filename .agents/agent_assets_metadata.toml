@@ -24,6 +24,12 @@ uri = "file://artifacts/ghost-vpn/public/icon-v4.png"
 type = "image"
 title = "ProxhqVPN shield ghost face icon"
 
+[[generated]]
+id = "YEQ58zj3ghDGGR6eCJYh3"
+uri = "file://artifacts/ghost-vpn/public/icon-final.png"
+type = "image"
+title = "ProxhqVPN wireframe ghost scanner ring icon"
+
 [[outputs]]
 id = "IJDFyPELKQJakMkMUDhlS"
 uri = "file://standalone/dist/GhostNet-ALL-PLATFORMS.zip"
