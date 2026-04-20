@@ -31,6 +31,8 @@ import SmartDns from "@/pages/SmartDns";
 import DnsShield from "@/pages/DnsShield";
 import RouterConfig from "@/pages/RouterConfig";
 import Account from "@/pages/Account";
+import MyVPN from "@/pages/MyVPN";
+import Pricing from "@/pages/Pricing";
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
@@ -259,6 +261,12 @@ function AppRoutes() {
           </Route>
           <Route path="/account">
             <ProtectedLayout><Account /></ProtectedLayout>
+          </Route>
+          <Route path="/my-vpn">
+            <ProtectedLayout><MyVPN /></ProtectedLayout>
+          </Route>
+          <Route path="/pricing">
+            <ProtectedLayout><Pricing /></ProtectedLayout>
           </Route>
           <Route>
             <ProtectedLayout>

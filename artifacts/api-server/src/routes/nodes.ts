@@ -63,7 +63,7 @@ router.post("/", async (req, res) => {
     name: z.string(),
     layer: z.enum(["outer", "inner"]),
     region: z.string(),
-    publicIp: z.string().optional(),
+    publicIp: z.string().ip().optional(),
     hasBeacon: z.boolean().optional().default(true),
     hasSpider: z.boolean().optional().default(true),
     hasWorm: z.boolean().optional().default(true),
@@ -135,6 +135,7 @@ router.put("/:id", async (req, res) => {
     hasSpider: z.boolean().optional(),
     hasWorm: z.boolean().optional(),
     region: z.string().optional(),
+    publicIp: z.string().ip().optional().nullable(),
     latencyMs: z.number().optional(),
   }).parse(req.body);
 

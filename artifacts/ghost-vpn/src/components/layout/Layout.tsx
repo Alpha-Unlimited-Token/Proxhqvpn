@@ -5,7 +5,7 @@ import {
   Activity, ShieldAlert, Network, Terminal, Database, Server,
   Settings2, Shield, Globe, Layers,
   Power, Search, AlertTriangle, GitBranch, EyeOff, ShieldCheck, SplitSquareHorizontal, LogOut,
-  Tv, Smartphone, Router, Wifi, ShieldPlus, User, Crown
+  Tv, Smartphone, Router, Wifi, ShieldPlus, User, Crown, Key, CreditCard
 } from "lucide-react";
 import { useAdmin } from "@/hooks/useAdmin";
 
@@ -20,6 +20,13 @@ export function Layout({ children }: LayoutProps) {
   const { isAdmin } = useAdmin();
 
   const navGroups = [
+    {
+      label: "MY VPN",
+      items: [
+        { href: "/my-vpn",       label: "MY CONFIGS",     icon: Key },
+        { href: "/pricing",      label: "PLANS",          icon: CreditCard },
+      ],
+    },
     {
       label: "CORE",
       items: [

@@ -1,0 +1,232 @@
+#!/usr/bin/env python3
+"""
+ProxhqVPN Daemon (proxhqd)
+Runs on each Vultr VPN node. Reports WireGuard peer stats and beacon
+detections to the ProxhqVPN API server.
+
+Deploy:
+  scp tools/proxhqd.py root@YOUR_SERVER_IP:/usr/local/bin/proxhqd.py
+  chmod +x /usr/local/bin/proxhqd.py
+  python3 /usr/local/bin/proxhqd.py --api https://YOUR_REPLIT_DOMAIN/api --node-id 61
+
+Autostart:
+  cat > /etc/systemd/system/proxhqd.service << EOF
+  [Unit]
+  Description=ProxhqVPN Daemon
+  After=network.target wg-quick@wg0.service
+
+  [Service]
+  ExecStart=/usr/bin/python3 /usr/local/bin/proxhqd.py --api https://YOUR_DOMAIN/api --node-id 61
+  Restart=always
+  RestartSec=30
+
+  [Install]
+  WantedBy=multi-user.target
+  EOF
+  systemctl enable --now proxhqd
+"""
+
+import argparse
+import json
+import re
+import subprocess
+import sys
+import time
+import urllib.request
+import urllib.error
+from datetime import datetime, timezone
+
+
+def run(cmd: list[str]) -> str:
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        return result.stdout.strip()
+    except Exception:
+        return ""
+
+
+def get_wg_peers() -> list[dict]:
+    """Parse `wg show all dump` to get real peer stats."""
+    output = run(["wg", "show", "all", "dump"])
+    peers = []
+    for line in output.splitlines():
+        parts = line.split("\t")
+        if len(parts) < 8:
+            continue
+        # interface lines have fewer fields; peer lines have 9
+        if len(parts) == 9:
+            pub_key, preshared, endpoint, allowed_ips, latest_handshake, rx, tx, keepalive = parts[1:]
+            peers.append({
+                "publicKey": pub_key,
+                "endpoint": endpoint if endpoint != "(none)" else None,
+                "allowedIps": allowed_ips,
+                "latestHandshake": int(latest_handshake) if latest_handshake.isdigit() else 0,
+                "rxBytes": int(rx) if rx.isdigit() else 0,
+                "txBytes": int(tx) if tx.isdigit() else 0,
+            })
+    return peers
+
+
+def get_wg_interface_stats() -> dict:
+    """Get WireGuard interface status."""
+    output = run(["wg", "show", "wg0"])
+    stats = {"interface": "wg0", "peers": 0, "publicKey": ""}
+    for line in output.splitlines():
+        if "public key:" in line:
+            stats["publicKey"] = line.split(":", 1)[1].strip()
+        if "listening port:" in line:
+            stats["listenPort"] = line.split(":", 1)[1].strip()
+    stats["peers"] = len(get_wg_peers())
+    return stats
+
+
+def get_system_stats() -> dict:
+    """Collect real system metrics."""
+    cpu = ""
+    mem_total = mem_used = 0
+
+    # CPU via /proc/stat
+    try:
+        with open("/proc/stat") as f:
+            first = f.readline().split()
+        idle = int(first[4])
+        total = sum(int(x) for x in first[1:])
+        cpu = round((1 - idle / total) * 100, 1) if total else 0
+    except Exception:
+        cpu = 0
+
+    # Memory via /proc/meminfo
+    try:
+        with open("/proc/meminfo") as f:
+            info = {}
+            for line in f:
+                k, v = line.split(":")
+                info[k.strip()] = int(v.split()[0])
+        mem_total = info.get("MemTotal", 0) // 1024
+        mem_available = info.get("MemAvailable", 0) // 1024
+        mem_used = mem_total - mem_available
+    except Exception:
+        pass
+
+    # Uptime
+    try:
+        with open("/proc/uptime") as f:
+            uptime_seconds = float(f.read().split()[0])
+    except Exception:
+        uptime_seconds = 0
+
+    # Network stats from /proc/net/dev for eth0
+    net_rx = net_tx = 0
+    try:
+        with open("/proc/net/dev") as f:
+            for line in f:
+                if "eth0:" in line:
+                    parts = line.split()
+                    net_rx = int(parts[1]) // (1024 * 1024)
+                    net_tx = int(parts[9]) // (1024 * 1024)
+    except Exception:
+        pass
+
+    return {
+        "cpuPercent": cpu,
+        "memoryUsedMb": mem_used,
+        "memoryTotalMb": mem_total,
+        "memoryPercent": round(mem_used / mem_total * 100, 1) if mem_total else 0,
+        "uptimeSeconds": int(uptime_seconds),
+        "networkInMb": net_rx,
+        "networkOutMb": net_tx,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+def detect_beacon_probes(log_path: str = "/var/log/wg-beacon.log") -> list[dict]:
+    """
+    Read any new lines from the WireGuard beacon log.
+    The log is written by an iptables LOG rule on suspicious ports.
+    Set up with: iptables -A INPUT -p tcp --dport 22 -j LOG --log-prefix "BEACON:"
+    """
+    probes = []
+    try:
+        with open(log_path) as f:
+            for line in f:
+                if "BEACON:" not in line:
+                    continue
+                src_match = re.search(r"SRC=(\S+)", line)
+                dpt_match = re.search(r"DPT=(\d+)", line)
+                proto_match = re.search(r"PROTO=(\w+)", line)
+                if src_match:
+                    probes.append({
+                        "sourceIp": src_match.group(1),
+                        "destPort": int(dpt_match.group(1)) if dpt_match else 0,
+                        "protocol": proto_match.group(1).lower() if proto_match else "unknown",
+                        "raw": line.strip(),
+                    })
+    except FileNotFoundError:
+        pass
+    return probes
+
+
+def post_to_api(api_base: str, path: str, payload: dict, psk: str, timeout: int = 10) -> bool:
+    url = f"{api_base}{path}"
+    data = json.dumps(payload).encode()
+    req = urllib.request.Request(
+        url, data=data,
+        headers={"Content-Type": "application/json", "X-Daemon-PSK": psk},
+        method="POST"
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return resp.status < 300
+    except urllib.error.URLError as e:
+        print(f"[proxhqd] API error {path}: {e}", file=sys.stderr)
+        return False
+
+
+def main():
+    parser = argparse.ArgumentParser(description="ProxhqVPN Node Daemon")
+    parser.add_argument("--api", required=True, help="API base URL (e.g. https://yourapp.replit.app/api)")
+    parser.add_argument("--node-id", required=True, type=int, help="Node ID in ProxhqVPN database")
+    parser.add_argument("--psk", required=True, help="Daemon PSK — must match DAEMON_PSK env var on API server")
+    parser.add_argument("--interval", default=30, type=int, help="Report interval in seconds (default: 30)")
+    parser.add_argument("--beacon-log", default="/var/log/wg-beacon.log", help="Beacon probe log path")
+    args = parser.parse_args()
+
+    print(f"[proxhqd] Starting — node_id={args.node_id} api={args.api} interval={args.interval}s")
+
+    while True:
+        try:
+            sys_stats = get_system_stats()
+            wg_stats = get_wg_interface_stats()
+            peers = get_wg_peers()
+
+            report = {
+                "nodeId": args.node_id,
+                "system": sys_stats,
+                "wireguard": {**wg_stats, "activePeers": len(peers)},
+            }
+
+            ok = post_to_api(args.api, "/daemon-inbound/report", report, args.psk)
+            ts = datetime.now().strftime("%H:%M:%S")
+            status = "OK" if ok else "FAIL"
+            print(f"[proxhqd] {ts} report={status} peers={len(peers)} cpu={sys_stats['cpuPercent']}%")
+
+            probes = detect_beacon_probes(args.beacon_log)
+            for probe in probes:
+                beacon_payload = {
+                    "nodeId": args.node_id,
+                    "attackerIp": probe["sourceIp"],
+                    "probeType": "port_scan" if probe["destPort"] in [22, 80, 443] else "tunnel_probe",
+                    "fingerprint": f"IP:{probe['sourceIp']}|PORT:{probe['destPort']}|PROTO:{probe['protocol']}",
+                    "raw": probe["raw"],
+                }
+                post_to_api(args.api, "/daemon-inbound/beacon", beacon_payload, args.psk)
+                print(f"[proxhqd] BEACON detected from {probe['sourceIp']}:{probe['destPort']}")
+
+        except Exception as e:
+            print(f"[proxhqd] ERROR: {e}", file=sys.stderr)
+
+        time.sleep(args.interval)
+
+
+if __name__ == "__main__":
+    main()

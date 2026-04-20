@@ -17,6 +17,7 @@ export const nodesTable = pgTable("nodes", {
   hasBeacon: boolean("has_beacon").notNull().default(true),
   hasSpider: boolean("has_spider").notNull().default(true),
   hasWorm: boolean("has_worm").notNull().default(true),
+  publicIp: text("public_ip"),
   latencyMs: real("latency_ms").notNull().default(0),
   lastSeen: timestamp("last_seen").defaultNow(),
   createdAt: timestamp("created_at").defaultNow().notNull(),

@@ -27,11 +27,16 @@ import dnsShieldRouter from "./dnsshield";
 import smartDnsRouter from "./smartdns";
 import routerConfigRouter from "./routerconfig";
 import stripeRouter from "./stripe";
+import wireguardRouter from "./wireguard";
+import daemonInboundRouter from "./daemon-inbound";
 
 const router: IRouter = Router();
 
 // Public routes
 router.use(healthRouter);
+
+// Daemon inbound — authenticated via PSK header (not Clerk), public route
+router.use("/daemon-inbound", daemonInboundRouter);
 
 // Auth guard — all routes below require a valid Clerk session
 const requireAuth = (req: Request, res: Response, next: NextFunction) => {
@@ -75,5 +80,6 @@ router.use("/router-config",  routerConfigRouter);
 
 // Stripe routes — require auth (enforced above)
 router.use("/stripe",         stripeRouter);
+router.use("/wireguard",      wireguardRouter);
 
 export default router;
