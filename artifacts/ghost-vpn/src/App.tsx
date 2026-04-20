@@ -31,6 +31,9 @@ import DeviceManager from "@/pages/DeviceManager";
 import SmartDns from "@/pages/SmartDns";
 import DnsShield from "@/pages/DnsShield";
 import RouterConfig from "@/pages/RouterConfig";
+import Account from "@/pages/Account";
+import CheckoutSuccess from "@/pages/CheckoutSuccess";
+import CheckoutCancel from "@/pages/CheckoutCancel";
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
@@ -256,6 +259,15 @@ function AppRoutes() {
           </Route>
           <Route path="/router-config">
             <ProtectedLayout><RouterConfig /></ProtectedLayout>
+          </Route>
+          <Route path="/account">
+            <ProtectedLayout><Account /></ProtectedLayout>
+          </Route>
+          <Route path="/checkout/success">
+            <ProtectedLayout><CheckoutSuccess /></ProtectedLayout>
+          </Route>
+          <Route path="/checkout/cancel">
+            <ProtectedLayout><CheckoutCancel /></ProtectedLayout>
           </Route>
 
           <Route>

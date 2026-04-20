@@ -22,6 +22,7 @@ import devicesRouter from "./devices";
 import dnsShieldRouter from "./dnsshield";
 import smartDnsRouter from "./smartdns";
 import routerConfigRouter from "./routerconfig";
+import stripeRouter from "./stripe";
 
 const router: IRouter = Router();
 
@@ -57,5 +58,8 @@ router.use("/devices",        devicesRouter);
 router.use("/dns-shield",     dnsShieldRouter);
 router.use("/smart-dns",      smartDnsRouter);
 router.use("/router-config",  routerConfigRouter);
+
+// Stripe routes — require auth (enforced above)
+router.use("/stripe",         stripeRouter);
 
 export default router;

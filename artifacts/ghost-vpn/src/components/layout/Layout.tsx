@@ -1,12 +1,14 @@
-import React, { ReactNode } from "react";
+import React, { ReactNode, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useUser, useClerk } from "@clerk/react";
 import {
   Activity, ShieldAlert, Network, Terminal, Database, Server,
   Settings2, Shield, Globe, Layers,
   Power, Search, AlertTriangle, GitBranch, EyeOff, ShieldCheck, SplitSquareHorizontal, LogOut,
-  Tv, Smartphone, Router, Wifi, ShieldPlus
+  Tv, Smartphone, Router, Wifi, ShieldPlus, Zap, User
 } from "lucide-react";
+import WireGuardModal from "@/components/WireGuardModal";
+import { useWireGuardSubscription } from "@/hooks/useWireGuardSubscription";
 
 interface LayoutProps {
   children: ReactNode;
@@ -16,6 +18,8 @@ export function Layout({ children }: LayoutProps) {
   const [location] = useLocation();
   const { user } = useUser();
   const { signOut } = useClerk();
+  const [wgModalOpen, setWgModalOpen] = useState(false);
+  const { hasWireGuard, loading: wgLoading } = useWireGuardSubscription();
 
   const navGroups = [
     {
@@ -105,12 +109,43 @@ export function Layout({ children }: LayoutProps) {
           ))}
         </nav>
 
+        {/* WireGuard add-on CTA / status */}
+        {!wgLoading && !hasWireGuard && (
+          <div className="mx-3 mb-2">
+            <button
+              onClick={() => setWgModalOpen(true)}
+              className="w-full flex items-center gap-1.5 border border-primary/30 bg-primary/5 hover:bg-primary/10 px-2 py-2 transition-colors text-left"
+            >
+              <Zap className="w-3 h-3 text-primary shrink-0" />
+              <div>
+                <div className="text-[8px] font-bold text-primary uppercase tracking-wide">Add WireGuard</div>
+                <div className="text-[7px] text-primary/40">From $5/mo</div>
+              </div>
+            </button>
+          </div>
+        )}
+        {!wgLoading && hasWireGuard && (
+          <div className="mx-3 mb-2">
+            <Link href="/account"
+              className="w-full flex items-center gap-1.5 border border-primary/20 hover:border-primary/40 px-2 py-1.5 transition-colors">
+              <Zap className="w-3 h-3 text-primary shrink-0" />
+              <div className="text-[8px] font-bold text-primary uppercase tracking-wide">WireGuard Active</div>
+            </Link>
+          </div>
+        )}
+
         {/* User / sign-out */}
         {user && (
           <div className="p-3 border-t border-primary/20">
             <div className="text-[9px] font-mono text-primary/40 uppercase tracking-widest mb-1 truncate">
               {user.primaryEmailAddress?.emailAddress ?? user.username ?? "Operator"}
             </div>
+            <Link href="/account"
+              className="flex items-center gap-2 w-full text-[10px] font-mono uppercase tracking-widest text-primary/50 hover:text-primary border border-transparent hover:border-primary/30 px-2 py-1.5 transition-colors mb-0.5"
+            >
+              <User className="w-3 h-3" />
+              MY ACCOUNT
+            </Link>
             <button
               onClick={() => signOut()}
               className="flex items-center gap-2 w-full text-[10px] font-mono uppercase tracking-widest text-primary/50 hover:text-primary border border-transparent hover:border-primary/30 px-2 py-1.5 transition-colors"
@@ -120,6 +155,7 @@ export function Layout({ children }: LayoutProps) {
             </button>
           </div>
         )}
+        <WireGuardModal open={wgModalOpen} onClose={() => setWgModalOpen(false)} />
       </aside>
 
       {/* Main Content */}

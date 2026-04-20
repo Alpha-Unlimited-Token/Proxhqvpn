@@ -4,3 +4,4 @@ export * from "./silkweb";
 export * from "./firewall";
 export * from "./devices";
 export * from "./dnsshield";
+export * from "./users";
