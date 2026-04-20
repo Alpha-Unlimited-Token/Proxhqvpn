@@ -19,6 +19,7 @@ export function Layout({ children }: LayoutProps) {
       items: [
         { href: "/",             label: "DASHBOARD",     icon: Activity },
         { href: "/nodes",        label: "NODE MGR",       icon: Server },
+        { href: "/vpngate",      label: "VPN GATE",       icon: Globe },
         { href: "/beacons",      label: "BEACONS",        icon: ShieldAlert },
         { href: "/silkweb",      label: "SILK WEB",       icon: Network },
         { href: "/monitor",      label: "MONITOR",        icon: Activity },

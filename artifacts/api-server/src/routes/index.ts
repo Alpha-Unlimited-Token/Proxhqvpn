@@ -16,6 +16,7 @@ import obfuscationRouter from "./obfuscation";
 import securityauditRouter from "./securityaudit";
 import daemonRouter from "./daemon";
 import vpnCoexistRouter from "./vpncoexist";
+import vpnGateRouter from "./vpngate";
 
 const router: IRouter = Router();
 
@@ -36,5 +37,6 @@ router.use("/obfuscation",    obfuscationRouter);
 router.use("/security-audit", securityauditRouter);
 router.use("/daemon",        daemonRouter);
 router.use("/vpn-coexist",   vpnCoexistRouter);
+router.use("/vpngate",       vpnGateRouter);
 
 export default router;

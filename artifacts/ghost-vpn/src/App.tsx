@@ -23,6 +23,7 @@ import SplitTunnel from "@/pages/SplitTunnel";
 import Obfuscation from "@/pages/Obfuscation";
 import SecurityAudit from "@/pages/SecurityAudit";
 import VpnCoexist from "@/pages/VpnCoexist";
+import VpnGate from "@/pages/VpnGate";
 
 const queryClient = new QueryClient();
 
@@ -48,6 +49,7 @@ function Router() {
         <Route path="/obfuscation" component={Obfuscation} />
         <Route path="/security-audit" component={SecurityAudit} />
         <Route path="/vpn-coexist" component={VpnCoexist} />
+        <Route path="/vpngate" component={VpnGate} />
         <Route component={NotFound} />
       </Switch>
     </Layout>
