@@ -149,7 +149,7 @@ router.get("/instructions/:platform", async (req, res) => {
         `Set Primary DNS to: ${ip}`,
         "Set Secondary DNS to: 1.1.1.1",
         "Save and reboot your router",
-        "All devices on your network will automatically use PROXHQ DNS",
+        "All devices on your network will automatically use ProxhqVPN DNS",
       ],
     },
   };

@@ -69,7 +69,7 @@ const ALLOWED_STARTS: string[] = [
   // Crypto/keys
   "wg genkey", "wg pubkey", "openssl genrsa", "openssl rsa",
   "openssl x509", "openssl s_client", "openssl verify",
-  // PROXHQ specific
+  // ProxhqVPN specific
   "ghostnet", "python3 tun_daemon",
   // Security tools
   "nikto", "sqlmap --level=1", "hydra -I",
@@ -118,7 +118,7 @@ router.post("/exec", async (req, res) => {
     return res.json({ command: cmd, stdout: "", stderr: blockReason, exitCode: 1, executedAt, blocked: true });
   }
 
-  // PROXHQ mode bypasses allowlist (full shell access)
+  // ProxhqVPN mode bypasses allowlist (full shell access)
   if (!body.ghostMode && !isAllowed(cmd)) {
     const allowed = ALLOWED_STARTS.slice(0, 20).join(", ") + "...";
     return res.json({
@@ -173,7 +173,7 @@ router.post("/http-request", async (req, res) => {
 
     const resp = await nodeFetch(body.url, {
       method: body.method,
-      headers: { "User-Agent": "PROXHQ/3.0 curl/8.0", ...body.headers },
+      headers: { "User-Agent": "ProxhqVPN/3.0 curl/8.0", ...body.headers },
       body: body.data,
       redirect: body.followRedirects ? "follow" : "manual",
       signal: controller.signal as any,

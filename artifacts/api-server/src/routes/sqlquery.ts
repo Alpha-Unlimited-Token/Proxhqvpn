@@ -243,7 +243,7 @@ router.post("/http-query", async (req, res) => {
       method: body.method,
       headers: {
         "Content-Type": "application/json",
-        "User-Agent": "PROXHQ-SQL/3.0",
+        "User-Agent": "ProxhqVPN-SQL/3.0",
         ...body.headers,
       },
       body: body.payload ? JSON.stringify(body.payload) : undefined,

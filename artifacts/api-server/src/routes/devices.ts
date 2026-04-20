@@ -50,7 +50,7 @@ router.get("/:id/config", async (req, res) => {
   const [device] = await db.select().from(devicesTable).where(eq(devicesTable.id, id));
   if (!device) return res.status(404).json({ error: "Device not found" });
 
-  let serverPublicKey = "PROXHQ_SERVER_PUBLIC_KEY";
+  let serverPublicKey = "ProxhqVPN_SERVER_PUBLIC_KEY";
   let serverEndpoint = "YOUR_SERVER_IP:51820";
   let serverDns = "1.1.1.1";
 
@@ -70,7 +70,7 @@ Address = ${device.assignedIp}/24
 DNS = ${serverDns}
 
 [Peer]
-# PROXHQ Server
+# ProxhqVPN Server
 PublicKey = ${serverPublicKey}
 AllowedIPs = ${device.allowedIps}
 Endpoint = ${serverEndpoint}

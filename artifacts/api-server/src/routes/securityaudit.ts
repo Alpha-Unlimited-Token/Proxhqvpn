@@ -85,7 +85,7 @@ router.post("/headers-inspect", async (req, res) => {
       method: "HEAD",
       redirect: "follow",
       signal: AbortSignal.timeout(10000),
-      headers: { "User-Agent": "PROXHQ-SecurityAudit/3.0" },
+      headers: { "User-Agent": "ProxhqVPN-SecurityAudit/3.0" },
     });
 
     const headers: Record<string, string> = {};
@@ -164,7 +164,7 @@ router.post("/headers-inspect", async (req, res) => {
   }
 });
 
-// ─── PROXHQ self-audit ──────────────────────────────────────────────────────
+// ─── ProxhqVPN self-audit ──────────────────────────────────────────────────────
 router.get("/self-audit", (_req, res) => {
   const findings: { category: string; severity: "critical"|"high"|"medium"|"low"|"info"; title: string; description: string; remediation: string }[] = [
     {
@@ -179,7 +179,7 @@ router.get("/self-audit", (_req, res) => {
       severity: "medium",
       title: "Terminal route allows OS command execution",
       description: "The /api/terminal/exec endpoint executes shell commands. GhostMode bypasses the allowlist. This is a privileged feature.",
-      remediation: "Enable API_KEY auth. Only expose PROXHQ on a private network. The terminal is designed for trusted admin use only.",
+      remediation: "Enable API_KEY auth. Only expose ProxhqVPN on a private network. The terminal is designed for trusted admin use only.",
     },
     {
       category: "Data Protection",
@@ -192,7 +192,7 @@ router.get("/self-audit", (_req, res) => {
       category: "Transport",
       severity: "medium",
       title: "HTTP-only (no TLS) in standalone mode",
-      description: "The standalone server listens on plain HTTP by default. Traffic between client browser and PROXHQ server is unencrypted.",
+      description: "The standalone server listens on plain HTTP by default. Traffic between client browser and ProxhqVPN server is unencrypted.",
       remediation: "Use HTTPS by placing a reverse proxy (nginx/caddy) with TLS in front, or use the WireGuard tunnel to access the management UI.",
     },
     {
@@ -239,7 +239,7 @@ router.get("/self-audit", (_req, res) => {
     },
     overallRisk: "MEDIUM",
     auditedAt: new Date().toISOString(),
-    version: "PROXHQ v3.0",
+    version: "ProxhqVPN v3.0",
     note: "This is a self-hosted security research platform. It is intended to be deployed on a private network or accessed only via VPN.",
   });
 });

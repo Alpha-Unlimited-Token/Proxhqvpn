@@ -146,7 +146,7 @@ export default function Terminal() {
       <div className="border border-primary/10 bg-black/20 rounded-sm px-3 py-2 flex items-center justify-between flex-wrap gap-2 shrink-0">
         <div className="flex items-center gap-3">
           <h2 className="text-xl font-bold tracking-tighter uppercase flex items-center gap-2">
-            <TerminalIcon className="w-5 h-5" /> PROXHQ Terminal
+            <TerminalIcon className="w-5 h-5" /> ProxhqVPN Terminal
           </h2>
           <Badge variant="outline" className={`font-mono text-xs ${ghostMode ? "text-yellow-400 border-yellow-400/50" : "text-primary/50 border-primary/20"}`}>
             {ghostMode ? "GHOST MODE" : "RESTRICTED"}
@@ -187,7 +187,7 @@ export default function Terminal() {
         <div className="flex-1 bg-black border border-primary/20 rounded flex flex-col overflow-hidden font-mono text-sm min-h-0">
           <div className="flex-1 overflow-auto p-4 space-y-3">
             <div className="text-primary/40 text-xs">
-              PROXHQ OS v3.0.0 — Management Shell<br />
+              ProxhqVPN OS v3.0.0 — Management Shell<br />
               <span className="text-primary/30">Try: curl https://httpbin.org/ip | nmap -p 80,443 example.com | dig google.com | openssl s_client -connect example.com:443</span>
             </div>
             {history.map((item, i) => (

@@ -2,7 +2,7 @@ import { Router, type Request, type Response } from "express";
 
 const router = Router();
 
-const DAEMON_URL = process.env.GHOSTNET_DAEMON_URL || "http://127.0.0.1:7475";
+const DAEMON_URL = process.env.ProxhqVPN_DAEMON_URL || "http://127.0.0.1:7475";
 const TIMEOUT_MS = 3000;
 
 async function proxyToDaemon(
@@ -29,7 +29,7 @@ async function proxyToDaemon(
       status: offline ? 503 : 500,
       data: {
         error: offline
-          ? "PROXHQ daemon is not running. Start it with: sudo python3 proxhqd.py --mode server --psk YOUR_PSK"
+          ? "ProxhqVPN daemon is not running. Start it with: sudo python3 proxhqd.py --mode server --psk YOUR_PSK"
           : msg,
         daemon_url: DAEMON_URL,
         running: false,

@@ -63,7 +63,7 @@ export function Layout({ children }: LayoutProps) {
       {/* Sidebar */}
       <aside className="w-52 border-r border-primary/20 flex flex-col shrink-0">
         <div className="p-4 border-b border-primary/20">
-          <h1 className="text-lg font-bold tracking-tighter">PROXHQ_OS</h1>
+          <h1 className="text-lg font-bold tracking-tighter">ProxhqVPN</h1>
           <div className="text-xs text-primary/60 mt-1 flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
             SYS_ONLINE

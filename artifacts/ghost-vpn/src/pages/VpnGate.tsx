@@ -457,7 +457,7 @@ export default function VpnGate() {
             </div>
             <div className="sm:col-span-2 text-[9px] font-mono text-cyan-400/60 border border-cyan-400/20 p-2">
               ↑ These scripts auto-install OpenVPN if needed, fetch the best server, and connect in one command.
-              Both are included in every PROXHQ download package.
+              Both are included in every ProxhqVPN download package.
             </div>
           </div>
         )}

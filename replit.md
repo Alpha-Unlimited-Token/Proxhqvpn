@@ -1,10 +1,10 @@
-# PROXHQ — Workspace
+# ProxhqVPN — Workspace
 
-**Brand:** PROXHQ | **Copyright:** © ALPHA UNLIMITED TECHNOLOGIES LLC
+**Brand:** ProxhqVPN | **Copyright:** © ALPHA UNLIMITED TECHNOLOGIES LLC
 
 ## Overview
 
-PROXHQ is an advanced VPN orchestration and security platform with 60-node mesh (50 outer + 10 inner), silk web trap network, port knocking, mTLS, beacons/spiders/worms, firewall, WireGuard config generation, SQL interface (local + external PostgreSQL + HTTP API mode), terminal emulator (PROXHQ Mode with full outbound), security audit suite, system monitor, Tor/SOCKS5 integration, kill switch, leak detection, threat intelligence, split tunneling, and DPI obfuscation. React + Vite frontend; Express/PostgreSQL backend.
+ProxhqVPN is an advanced VPN orchestration and security platform with 60-node mesh (50 outer + 10 inner), silk web trap network, port knocking, mTLS, beacons/spiders/worms, firewall, WireGuard config generation, SQL interface (local + external PostgreSQL + HTTP API mode), terminal emulator (ProxhqVPN Mode with full outbound), security audit suite, system monitor, Tor/SOCKS5 integration, kill switch, leak detection, threat intelligence, split tunneling, and DPI obfuscation. React + Vite frontend; Express/PostgreSQL backend.
 
 ## Stack
 
@@ -21,8 +21,8 @@ PROXHQ is an advanced VPN orchestration and security platform with 60-node mesh 
 ## Authentication
 
 Clerk-based auth (app_3CcwHo66ohArVtaIa0XTcv88i4Y). Env vars: `VITE_CLERK_PUBLISHABLE_KEY`, `CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`.
-- `/` — Public landing page (PROXHQ marketing). Signed-in users redirect to `/dashboard`.
-- `/sign-in`, `/sign-up` — Branded Clerk auth pages with PROXHQ dark/green terminal theme.
+- `/` — Public landing page (ProxhqVPN marketing). Signed-in users redirect to `/dashboard`.
+- `/sign-in`, `/sign-up` — Branded Clerk auth pages with ProxhqVPN dark/green terminal theme.
 - All `/dashboard/*` routes — Protected. Unauthenticated users redirect to `/sign-in`.
 - API proxy: `CLERK_PROXY_PATH = /api/__clerk` (only active in production, dev uses Clerk dev instance directly).
 - Sign-out available via Layout sidebar footer.
@@ -34,7 +34,7 @@ Clerk-based auth (app_3CcwHo66ohArVtaIa0XTcv88i4Y). Env vars: `VITE_CLERK_PUBLIS
 
 | Route | Page | Description |
 |-------|------|-------------|
-| / | Home | Public landing page — PROXHQ OS marketing + CTA |
+| / | Home | Public landing page — ProxhqVPN OS marketing + CTA |
 | /dashboard | Dashboard | Live stats, node feed, intrusion alerts (auth required) |
 | /nodes | NodeManager | Swarm grid with 3s rotation + lifecycle animations |
 | /beacons | BeaconAlerts | Spider/worm/beacon alert table |
@@ -48,11 +48,11 @@ Clerk-based auth (app_3CcwHo66ohArVtaIa0XTcv88i4Y). Env vars: `VITE_CLERK_PUBLIS
 | /obfuscation | Obfuscation | obfs4/Shadowsocks/V2Ray-WS/Meek/Snowflake/XOR DPI bypass config |
 | /monitor | SystemMonitor | CPU, RAM, network metrics (all real: `/proc/net/dev`, `ss`, `wg show`, `api.ipify.org`) |
 | /proxy | ProxyConfig | Tor Browser, SOCKS5, multi-OS, port knocking docs |
-| /onion-browser | OnionBrowser | Proxied browser (Direct/PROXHQ Onion/Tor/Double/Custom SOCKS4/5/HTTP) |
-| /terminal | Terminal | 4-tab shell (SHELL/HTTP CLIENT/PORT SCAN/AUDIT LOG), PROXHQ Mode toggle for full outbound |
+| /onion-browser | OnionBrowser | Proxied browser (Direct/ProxhqVPN Onion/Tor/Double/Custom SOCKS4/5/HTTP) |
+| /terminal | Terminal | 4-tab shell (SHELL/HTTP CLIENT/PORT SCAN/AUDIT LOG), ProxhqVPN Mode toggle for full outbound |
 | /sql | SqlInterface | 3-mode SQL interface (LOCAL DB/EXTERNAL DB/HTTP API), external PostgreSQL connection manager + schema explorer |
 | /security-audit | SecurityAudit | Self-audit findings (Critical/High/Medium/Low), TLS cert inspector, HTTP security-headers grader (A–F), WHOIS/RDAP lookup |
-| /vpn-coexist | VpnCoexist | Run PROXHQ alongside NordVPN/ExpressVPN/ProtonVPN/Mullvad/Surfshark — 4 coexistence modes (fwmark, double-hop, namespace, routing-table), auto-detect running VPNs, exception rules (bypass-proxhq/force-proxhq/block), MTU optimizer, script generator |
+| /vpn-coexist | VpnCoexist | Run ProxhqVPN alongside NordVPN/ExpressVPN/ProtonVPN/Mullvad/Surfshark — 4 coexistence modes (fwmark, double-hop, namespace, routing-table), auto-detect running VPNs, exception rules (bypass-proxhq/force-proxhq/block), MTU optimizer, script generator |
 
 ## API Routes (api-server)
 
@@ -64,7 +64,7 @@ Clerk-based auth (app_3CcwHo66ohArVtaIa0XTcv88i4Y). Env vars: `VITE_CLERK_PUBLIS
 | /api/silkweb | silkweb.ts | Silk web topology, trapped entities |
 | /api/firewall | firewall.ts | Firewall rules, blacklist, iptables export |
 | /api/monitor | monitor.ts | Real CPU/RAM (`os.*`), real network I/O (`/proc/net/dev`), real connections (`ss`), real WG tunnels (`wg show`), real external IP (`api.ipify.org`) |
-| /api/terminal | terminal.ts | Shell exec (allowlist + PROXHQ Mode), /http-request outbound client, /port-scan TCP scanner, /audit-log viewer |
+| /api/terminal | terminal.ts | Shell exec (allowlist + ProxhqVPN Mode), /http-request outbound client, /port-scan TCP scanner, /audit-log viewer |
 | /api/sql | sqlquery.ts | Local SELECT-only + external PostgreSQL full CRUD + /http-query REST→table mode, /connections manager, /schema explorer |
 | /api/security-audit | securityaudit.ts | TLS cert check, HTTP header grader, WHOIS/RDAP, self-audit findings |
 | /api/proxy-browser | proxybrowser.ts | Proxy/Tor browsing + custom proxy |
@@ -78,7 +78,7 @@ Clerk-based auth (app_3CcwHo66ohArVtaIa0XTcv88i4Y). Env vars: `VITE_CLERK_PUBLIS
 
 ## Standalone Build
 
-- `standalone/src/server.ts` — embedded Node.js server with full PROXHQ API
+- `standalone/src/server.ts` — embedded Node.js server with full ProxhqVPN API
 - `standalone/tun_daemon.py` — Python TUN/TAP daemon (Linux utun0, macOS utun, Windows WinTun)
 - `standalone/docker-compose.yml` — wg-easy + proxhq + tor services
 - `standalone/build.mjs` — multi-platform build (Windows/macOS-arm64/macOS-x64/Linux + All-Platforms zip)
@@ -91,10 +91,10 @@ Clerk-based auth (app_3CcwHo66ohArVtaIa0XTcv88i4Y). Env vars: `VITE_CLERK_PUBLIS
 - 64kb body limits
 - **Clerk `requireAuth` on all API routes** (except `/api/healthz`) — `getAuth(req).userId` check
 - Shell allowlist enforcement + HARD_BLOCKED destructive pattern list in terminal route
-- PROXHQ Mode: bypasses allowlist while still enforcing HARD_BLOCKED patterns; all commands logged to audit log
+- ProxhqVPN Mode: bypasses allowlist while still enforcing HARD_BLOCKED patterns; all commands logged to audit log
 - SELECT-only enforcement in local SQL mode; full CRUD/DDL permitted on external connections
 - External PostgreSQL connections: in-memory pool map with 10-connection cap, masked display of connection strings
-- Terminal audit log: timestamped record of every executed command + PROXHQ Mode status
+- Terminal audit log: timestamped record of every executed command + ProxhqVPN Mode status
 - Zod validation on all POST body parameters in all routes
 
 ## Key Commands

@@ -31,13 +31,13 @@ const DEFAULT_CONFIG: ProxyConfig = {
 
 let currentConfig: ProxyConfig = { ...DEFAULT_CONFIG };
 
-const PROXHQ_HOP_REGIONS = [
+const ProxhqVPN_HOP_REGIONS = [
   "EU-North", "EU-Central", "AP-Tokyo", "AP-Singapore", "US-East",
   "US-West", "SA-Brazil", "AF-Lagos", "ME-Dubai", "AP-Sydney",
 ];
 
 function randomRegion() {
-  return PROXHQ_HOP_REGIONS[Math.floor(Math.random() * PROXHQ_HOP_REGIONS.length)];
+  return ProxhqVPN_HOP_REGIONS[Math.floor(Math.random() * ProxhqVPN_HOP_REGIONS.length)];
 }
 
 function buildLayers(mode: ProxyMode, chainLength: number, config: ProxyConfig): string[] {
@@ -46,7 +46,7 @@ function buildLayers(mode: ProxyMode, chainLength: number, config: ProxyConfig):
       return ["Direct Connection", "Destination"];
     case "proxhq-onion": {
       const hops = Array.from({ length: Math.min(chainLength, 7) }, (_, i) =>
-        `PROXHQ Relay #${i + 1} (${randomRegion()})`
+        `ProxhqVPN Relay #${i + 1} (${randomRegion()})`
       );
       return ["Your Device", ...hops, "Destination"];
     }
@@ -60,7 +60,7 @@ function buildLayers(mode: ProxyMode, chainLength: number, config: ProxyConfig):
       ];
     case "double-layer": {
       const ghostHops = Array.from({ length: 3 }, (_, i) =>
-        `PROXHQ Relay #${i + 1} (${randomRegion()})`
+        `ProxhqVPN Relay #${i + 1} (${randomRegion()})`
       );
       return [
         "Your Device",
@@ -138,7 +138,7 @@ function rewriteHtml(html: string, baseUrl: string, proxyMode: ProxyMode): strin
   font-family:monospace;font-size:11px;padding:6px 10px;
   border-radius:4px;pointer-events:none;opacity:0.85;
 ">
-  🔒 GHOSTNET ${modeLabel} ACTIVE
+  🔒 ProxhqVPN ${modeLabel} ACTIVE
 </div>`;
 
   let result = html;
@@ -190,7 +190,7 @@ async function fetchThroughProxy(
   } else {
     html = `<html><body style="background:#000;color:#00ff41;font-family:monospace;padding:20px;">
       <p>Content-Type: ${contentType}</p>
-      <p>Cannot render this content type in the PROXHQ browser.</p>
+      <p>Cannot render this content type in the ProxhqVPN browser.</p>
       <p>URL: <a href="${finalUrl}" style="color:#00ff41">${finalUrl}</a></p>
     </body></html>`;
   }
@@ -289,7 +289,7 @@ function buildErrorPage(
 ): string {
   return `<!DOCTYPE html>
 <html>
-<head><meta charset="utf-8"><title>PROXHQ Connection Error</title></head>
+<head><meta charset="utf-8"><title>ProxhqVPN Connection Error</title></head>
 <body style="background:#000;color:#00ff41;font-family:'Courier New',monospace;padding:32px;max-width:640px;">
   <h2 style="color:#ff4141;margin-bottom:16px;">⚠ CONNECTION FAILED</h2>
   <p style="color:#aaa;margin-bottom:8px;">URL: <span style="color:#00ff41">${url}</span></p>

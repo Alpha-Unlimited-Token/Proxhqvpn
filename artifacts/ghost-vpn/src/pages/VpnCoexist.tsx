@@ -33,9 +33,9 @@ interface DetectedVpn extends VpnProfile {
 }
 
 const MODE_LABELS: Record<string, { label: string; description: string; badge: string }> = {
-  fwmark:        { label: "fwmark Routing",    description: "Packet marking routes PROXHQ traffic through its own table. Native VPN handles everything else. Zero conflicts.", badge: "RECOMMENDED" },
-  "double-hop":  { label: "Double-Hop",        description: "Traffic flows Device → PROXHQ → Native VPN → Internet. Maximum anonymity. Neither provider sees plaintext traffic.", badge: "MAX PRIVACY" },
-  namespace:     { label: "Namespace Isolation",description: "PROXHQ runs in its own Linux network namespace. Completely isolated — no routing conflicts possible.", badge: "ADVANCED" },
+  fwmark:        { label: "fwmark Routing",    description: "Packet marking routes ProxhqVPN traffic through its own table. Native VPN handles everything else. Zero conflicts.", badge: "RECOMMENDED" },
+  "double-hop":  { label: "Double-Hop",        description: "Traffic flows Device → ProxhqVPN → Native VPN → Internet. Maximum anonymity. Neither provider sees plaintext traffic.", badge: "MAX PRIVACY" },
+  namespace:     { label: "Namespace Isolation",description: "ProxhqVPN runs in its own Linux network namespace. Completely isolated — no routing conflicts possible.", badge: "ADVANCED" },
   "routing-table": { label: "Routing Table",   description: "Separate routing tables by interface metric. Simpler than fwmark — works on Windows and macOS without extra tools.", badge: "COMPATIBLE" },
 };
 
@@ -162,7 +162,7 @@ export default function VpnCoexist() {
             <div>
               <h1 className="text-lg font-bold tracking-wider text-primary">VPN COEXISTENCE</h1>
               <p className="text-xs text-primary/50 mt-0.5">
-                Run PROXHQ alongside NordVPN, ExpressVPN, ProtonVPN, Mullvad, and others
+                Run ProxhqVPN alongside NordVPN, ExpressVPN, ProtonVPN, Mullvad, and others
               </p>
             </div>
           </div>
@@ -320,7 +320,7 @@ export default function VpnCoexist() {
                 />
               </div>
               <div>
-                <label className="text-[9px] text-primary/40 block mb-1">PROXHQ INTERFACE</label>
+                <label className="text-[9px] text-primary/40 block mb-1">ProxhqVPN INTERFACE</label>
                 <input
                   value={proxhqIface}
                   onChange={e => setProxhqIface(e.target.value)}
@@ -368,13 +368,13 @@ export default function VpnCoexist() {
               <p>
                 When two VPNs run simultaneously, they both try to capture all system traffic — causing
                 routing conflicts, DNS leaks, or one VPN overriding the other's routes.
-                PROXHQ avoids this with <span className="text-primary">policy-based routing</span>.
+                ProxhqVPN avoids this with <span className="text-primary">policy-based routing</span>.
               </p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div className="border border-primary/10 p-3">
                   <div className="text-primary text-[10px] font-bold mb-1">fwmark METHOD (Linux)</div>
                   <p className="text-[10px] text-primary/50">
-                    Each packet that should go through PROXHQ is marked with an fwmark value.
+                    Each packet that should go through ProxhqVPN is marked with an fwmark value.
                     A separate routing table handles only marked packets. The native VPN
                     continues to handle all unmarked traffic via the main table. No conflicts.
                   </p>
@@ -382,15 +382,15 @@ export default function VpnCoexist() {
                 <div className="border border-primary/10 p-3">
                   <div className="text-primary text-[10px] font-bold mb-1">DOUBLE-HOP METHOD</div>
                   <p className="text-[10px] text-primary/50">
-                    PROXHQ tunnel is established first. Its packets exit through the native
+                    ProxhqVPN tunnel is established first. Its packets exit through the native
                     VPN as outer tunnel. Your ISP sees only native VPN traffic. The native VPN
-                    provider sees only encrypted PROXHQ packets. Neither sees your data.
+                    provider sees only encrypted ProxhqVPN packets. Neither sees your data.
                   </p>
                 </div>
                 <div className="border border-primary/10 p-3">
                   <div className="text-primary text-[10px] font-bold mb-1">NAMESPACE METHOD (Linux)</div>
                   <p className="text-[10px] text-primary/50">
-                    PROXHQ runs in a dedicated Linux network namespace — a completely
+                    ProxhqVPN runs in a dedicated Linux network namespace — a completely
                     isolated networking stack. The native VPN owns the main namespace.
                     Completely impossible for either VPN to affect the other's routing.
                   </p>
@@ -398,8 +398,8 @@ export default function VpnCoexist() {
                 <div className="border border-primary/10 p-3">
                   <div className="text-primary text-[10px] font-bold mb-1">ROUTING TABLE (Windows/macOS)</div>
                   <p className="text-[10px] text-primary/50">
-                    Interface metrics and static routes direct specific traffic (PROXHQ
-                    mesh CIDRs) through PROXHQ's interface, while the native VPN retains
+                    Interface metrics and static routes direct specific traffic (ProxhqVPN
+                    mesh CIDRs) through ProxhqVPN's interface, while the native VPN retains
                     default route ownership. MTU is adjusted to prevent fragmentation.
                   </p>
                 </div>
@@ -415,7 +415,7 @@ export default function VpnCoexist() {
           <div className="border border-primary/20 p-4">
             <div className="text-[10px] text-primary/50 tracking-widest mb-3">EXCEPTION RULES</div>
             <p className="text-[11px] text-primary/50 mb-4">
-              Exception rules define which IP ranges bypass PROXHQ, are forced through PROXHQ,
+              Exception rules define which IP ranges bypass ProxhqVPN, are forced through ProxhqVPN,
               or are blocked entirely. These rules are automatically included in generated coexistence scripts.
             </p>
 
@@ -440,8 +440,8 @@ export default function VpnCoexist() {
                   onChange={e => setNewAction(e.target.value as any)}
                   className="bg-black border border-primary/30 text-primary text-xs px-2 py-1.5 font-mono focus:outline-none focus:border-primary"
                 >
-                  <option value="bypass-proxhq">Bypass PROXHQ → Native VPN</option>
-                  <option value="force-proxhq">Force through PROXHQ</option>
+                  <option value="bypass-proxhq">Bypass ProxhqVPN → Native VPN</option>
+                  <option value="force-proxhq">Force through ProxhqVPN</option>
                   <option value="block">Block entirely</option>
                 </select>
                 <button
@@ -501,7 +501,7 @@ export default function VpnCoexist() {
             <div className="text-[10px] text-primary/50 tracking-widest mb-3">QUICK-ADD: VPN SERVER RANGES</div>
             <p className="text-[11px] text-primary/50 mb-3">
               Add known server IP ranges for a commercial VPN as bypass exceptions. This prevents
-              PROXHQ from intercepting traffic to those VPN endpoints.
+              ProxhqVPN from intercepting traffic to those VPN endpoints.
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
               {profiles?.profiles.filter(p => p.serverCidrs.length > 0).map(p => (
@@ -634,8 +634,8 @@ export default function VpnCoexist() {
               {[
                 ["Single VPN (WireGuard)", "1500", "1420", "Standard WireGuard MTU"],
                 ["Single VPN (OpenVPN)", "1500", "1400", "OpenVPN adds ~100B header"],
-                ["PROXHQ + Native VPN", "1500", "1380", "Double-hop: 2× overhead"],
-                ["PROXHQ + Tor hidden svc", "1500", "1280", "Tor cells are 512B, limits MTU"],
+                ["ProxhqVPN + Native VPN", "1500", "1380", "Double-hop: 2× overhead"],
+                ["ProxhqVPN + Tor hidden svc", "1500", "1280", "Tor cells are 512B, limits MTU"],
                 ["3-hop chain", "1500", "1280", "Maximum safe for triple VPN"],
               ].map(([s, b, r, n]) => (
                 <div key={s} className="grid grid-cols-4 gap-2 p-2 border-b border-primary/10 text-[10px]">
@@ -734,7 +734,7 @@ export default function VpnCoexist() {
                   </pre>
                 )}
                 <p className="text-[10px] text-red-400/50 mt-2">
-                  Keep this script safe. Run it to cleanly remove all PROXHQ coexistence rules and restore your system to its original routing configuration.
+                  Keep this script safe. Run it to cleanly remove all ProxhqVPN coexistence rules and restore your system to its original routing configuration.
                 </p>
               </div>
             </>

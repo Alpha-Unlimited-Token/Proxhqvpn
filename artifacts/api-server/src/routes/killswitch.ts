@@ -30,7 +30,7 @@ let state: KillSwitchState = {
 
 function generateIptablesRules(ifaces: string[]): string[] {
   const rules: string[] = [
-    "# PROXHQ Kill Switch — iptables rules",
+    "# ProxhqVPN Kill Switch — iptables rules",
     "# Apply with: sudo bash kill_switch.sh",
     "",
     "#!/usr/bin/env bash",
@@ -80,7 +80,7 @@ function generateIptablesRules(ifaces: string[]): string[] {
 function generateDisableScript(): string[] {
   return [
     "#!/usr/bin/env bash",
-    "# PROXHQ Kill Switch — DISABLE (restore normal traffic)",
+    "# ProxhqVPN Kill Switch — DISABLE (restore normal traffic)",
     "iptables -P OUTPUT ACCEPT",
     "iptables -P INPUT  ACCEPT",
     "iptables -P FORWARD ACCEPT",
@@ -91,7 +91,7 @@ function generateDisableScript(): string[] {
 
 function generatePfRules(ifaces: string[]): string[] {
   const rules = [
-    "# PROXHQ Kill Switch — macOS pf rules",
+    "# ProxhqVPN Kill Switch — macOS pf rules",
     "# Apply with: sudo pfctl -f /etc/pf.anchors/proxhq_killswitch",
     "",
     "# Block all by default",
@@ -161,14 +161,14 @@ router.get("/generate-rules", (req, res) => {
       platform: "Windows",
       type: "netsh/wfp",
       enable: [
-        "# PROXHQ Kill Switch — Windows Firewall (PowerShell)",
+        "# ProxhqVPN Kill Switch — Windows Firewall (PowerShell)",
         '# Run as Administrator',
         "",
         "# Block all outbound except VPN",
         'netsh advfirewall set allprofiles firewallpolicy blockinbound,blockoutbound',
         ...ifaces.map(i => `# Allow interface: ${i}`),
-        'netsh advfirewall firewall add rule name="PROXHQ VPN" protocol=UDP dir=out action=allow localport=51820',
-        'netsh advfirewall firewall add rule name="PROXHQ Loopback" protocol=any dir=out action=allow localip=127.0.0.0/8',
+        'netsh advfirewall firewall add rule name="ProxhqVPN VPN" protocol=UDP dir=out action=allow localport=51820',
+        'netsh advfirewall firewall add rule name="ProxhqVPN Loopback" protocol=any dir=out action=allow localip=127.0.0.0/8',
       ].join("\n"),
       disable: 'netsh advfirewall set allprofiles firewallpolicy blockinbound,allowoutbound',
     });

@@ -146,7 +146,7 @@ export default function SqlInterface() {
           ))}
         </div>
         {mode === "local" && (
-          <span className="text-[10px] font-mono text-primary/30 flex items-center">SELECT queries only on local PROXHQ database</span>
+          <span className="text-[10px] font-mono text-primary/30 flex items-center">SELECT queries only on local ProxhqVPN database</span>
         )}
         {mode === "external" && (
           <div className="flex items-center gap-2 flex-wrap">
