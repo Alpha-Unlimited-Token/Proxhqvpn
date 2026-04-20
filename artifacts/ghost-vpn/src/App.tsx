@@ -16,6 +16,11 @@ import Terminal from "@/pages/Terminal";
 import SqlInterface from "@/pages/SqlInterface";
 import ProxyConfig from "@/pages/ProxyConfig";
 import OnionBrowser from "@/pages/OnionBrowser";
+import KillSwitch from "@/pages/KillSwitch";
+import LeakDetection from "@/pages/LeakDetection";
+import ThreatIntel from "@/pages/ThreatIntel";
+import SplitTunnel from "@/pages/SplitTunnel";
+import Obfuscation from "@/pages/Obfuscation";
 
 const queryClient = new QueryClient();
 
@@ -34,6 +39,11 @@ function Router() {
         <Route path="/sql" component={SqlInterface} />
         <Route path="/proxy" component={ProxyConfig} />
         <Route path="/onion-browser" component={OnionBrowser} />
+        <Route path="/kill-switch" component={KillSwitch} />
+        <Route path="/leaks" component={LeakDetection} />
+        <Route path="/threat-intel" component={ThreatIntel} />
+        <Route path="/split-tunnel" component={SplitTunnel} />
+        <Route path="/obfuscation" component={Obfuscation} />
         <Route component={NotFound} />
       </Switch>
     </Layout>

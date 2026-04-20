@@ -1,0 +1,92 @@
+version: "3.8"
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  GhostNet VPN — Docker Services
+#  Run with: docker compose up -d
+#  Requires: Docker Engine 24+ with Compose v2
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  # ── WireGuard Easy — web-managed WireGuard VPN ───────────────────────────
+  wg-easy:
+    image: ghcr.io/wg-easy/wg-easy:latest
+    container_name: ghostnet-wg-easy
+    restart: unless-stopped
+    environment:
+      # REQUIRED: Set to your server's public IP or domain
+      - WG_HOST=${WG_HOST:-YOUR_SERVER_IP}
+      # REQUIRED: Change this password before deploying
+      - PASSWORD=${WG_PASSWORD:-GhostNetSecure2024!}
+      # WireGuard listen port (UDP)
+      - WG_PORT=${WG_PORT:-51820}
+      # Web UI port (TCP)
+      - WG_WEBUI_PORT=${WG_WEBUI_PORT:-51821}
+      # Default DNS for VPN clients
+      - WG_DEFAULT_DNS=1.1.1.1,8.8.8.8
+      # Maximum number of peer configs
+      - WG_MAX_AGE=0
+      # Allow clients to see each other (false = isolated)
+      - WG_ALLOWED_IPS=0.0.0.0/0,::/0
+    volumes:
+      - ./data/wireguard:/etc/wireguard
+    ports:
+      - "${WG_PORT:-51820}:51820/udp"
+      - "${WG_WEBUI_PORT:-51821}:51821/tcp"
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    sysctls:
+      - net.ipv4.ip_forward=1
+      - net.ipv4.conf.all.src_valid_mark=1
+      - net.ipv6.conf.all.forwarding=1
+    healthcheck:
+      test: ["CMD", "wg", "show"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ── GhostNet Standalone API + Frontend ───────────────────────────────────
+  ghostnet:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ghostnet-app
+    restart: unless-stopped
+    environment:
+      - PORT=7474
+      - GHOSTNET_DATA=/data
+      - NODE_ENV=production
+    volumes:
+      - ./data/ghostnet:/data
+    ports:
+      - "${GHOSTNET_PORT:-7474}:7474"
+    depends_on:
+      - wg-easy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:7474/api/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+  # ── Optional: Tor SOCKS5 proxy for Onion Browser ─────────────────────────
+  tor:
+    image: peterdavehello/tor-socks-proxy:latest
+    container_name: ghostnet-tor
+    restart: unless-stopped
+    ports:
+      - "9050:9050"
+    profiles:
+      - tor
+
+volumes:
+  wireguard_data:
+  ghostnet_data:
+
+networks:
+  default:
+    name: ghostnet_network
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

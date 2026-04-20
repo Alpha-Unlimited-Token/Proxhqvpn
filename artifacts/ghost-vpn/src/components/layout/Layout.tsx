@@ -1,6 +1,10 @@
 import React, { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
-import { Activity, ShieldAlert, Network, Terminal, Database, Server, Settings2, Code, Shield, Globe, Layers } from "lucide-react";
+import {
+  Activity, ShieldAlert, Network, Terminal, Database, Server,
+  Settings2, Code, Shield, Globe, Layers,
+  Power, Search, AlertTriangle, GitBranch, EyeOff
+} from "lucide-react";
 
 interface LayoutProps {
   children: ReactNode;
@@ -9,42 +13,84 @@ interface LayoutProps {
 export function Layout({ children }: LayoutProps) {
   const [location] = useLocation();
 
-  const navItems = [
-    { href: "/", label: "DASHBOARD", icon: Activity },
-    { href: "/nodes", label: "NODE MGR", icon: Server },
-    { href: "/beacons", label: "BEACONS", icon: ShieldAlert },
-    { href: "/silkweb", label: "SILK WEB", icon: Network },
-    { href: "/firewall", label: "FIREWALL", icon: Shield },
-    { href: "/wireguard", label: "WG CONFIG", icon: Settings2 },
-    { href: "/monitor", label: "MONITOR", icon: Activity },
-    { href: "/terminal", label: "TERMINAL", icon: Terminal },
-    { href: "/sql", label: "SQL INTF", icon: Database },
-    { href: "/proxy", label: "PROXY/TOR", icon: Globe },
-    { href: "/onion-browser", label: "ONION BROWSER", icon: Layers },
+  const navGroups = [
+    {
+      label: "CORE",
+      items: [
+        { href: "/",             label: "DASHBOARD",     icon: Activity },
+        { href: "/nodes",        label: "NODE MGR",       icon: Server },
+        { href: "/beacons",      label: "BEACONS",        icon: ShieldAlert },
+        { href: "/silkweb",      label: "SILK WEB",       icon: Network },
+        { href: "/monitor",      label: "MONITOR",        icon: Activity },
+      ],
+    },
+    {
+      label: "SECURITY",
+      items: [
+        { href: "/firewall",     label: "FIREWALL",       icon: Shield },
+        { href: "/kill-switch",  label: "KILL SWITCH",    icon: Power },
+        { href: "/leaks",        label: "LEAK DETECT",    icon: Search },
+        { href: "/threat-intel", label: "THREAT INTEL",   icon: AlertTriangle },
+      ],
+    },
+    {
+      label: "TUNNEL",
+      items: [
+        { href: "/wireguard",    label: "WG CONFIG",      icon: Settings2 },
+        { href: "/split-tunnel", label: "SPLIT TUNNEL",   icon: GitBranch },
+        { href: "/obfuscation",  label: "OBFUSCATION",    icon: EyeOff },
+        { href: "/proxy",        label: "PROXY/TOR",      icon: Globe },
+        { href: "/onion-browser",label: "ONION BROWSER",  icon: Layers },
+      ],
+    },
+    {
+      label: "SYSTEM",
+      items: [
+        { href: "/terminal",     label: "TERMINAL",       icon: Terminal },
+        { href: "/sql",          label: "SQL INTF",       icon: Database },
+      ],
+    },
   ];
 
   return (
     <div className="min-h-screen bg-black text-primary flex selection:bg-primary selection:text-black">
       {/* Sidebar */}
-      <aside className="w-64 border-r border-primary/20 flex flex-col">
+      <aside className="w-52 border-r border-primary/20 flex flex-col shrink-0">
         <div className="p-4 border-b border-primary/20">
-          <h1 className="text-xl font-bold tracking-tighter">GHOSTNET_OS</h1>
+          <h1 className="text-lg font-bold tracking-tighter">GHOSTNET_OS</h1>
           <div className="text-xs text-primary/60 mt-1 flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
             SYS_ONLINE
           </div>
         </div>
-        <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = location === item.href;
-            return (
-              <Link key={item.href} href={item.href} className={`flex items-center gap-3 px-3 py-2 border ${isActive ? 'bg-primary/10 border-primary text-primary' : 'border-transparent text-primary/70 hover:bg-primary/5 hover:text-primary hover:border-primary/50'} transition-colors`}>
-                <Icon className="w-4 h-4" />
-                <span className="text-sm font-bold tracking-wider">{item.label}</span>
-              </Link>
-            );
-          })}
+        <nav className="flex-1 p-3 overflow-y-auto space-y-3">
+          {navGroups.map((group) => (
+            <div key={group.label}>
+              <div className="text-[9px] font-mono tracking-[0.2em] text-primary/25 px-2 pb-1 uppercase">
+                {group.label}
+              </div>
+              <div className="space-y-0.5">
+                {group.items.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = location === item.href;
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={`flex items-center gap-2.5 px-2 py-1.5 border ${
+                        isActive
+                          ? "bg-primary/10 border-primary text-primary"
+                          : "border-transparent text-primary/60 hover:bg-primary/5 hover:text-primary hover:border-primary/40"
+                      } transition-colors`}
+                    >
+                      <Icon className="w-3.5 h-3.5 flex-shrink-0" />
+                      <span className="text-[10px] font-bold tracking-wider">{item.label}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </nav>
       </aside>
 
