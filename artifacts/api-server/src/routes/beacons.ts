@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { beaconAlertsTable, nodesTable } from "@workspace/db";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
 const router = Router();
@@ -9,14 +9,26 @@ const router = Router();
 const probeTypes = ["ping", "port_scan", "traceroute", "packet_sniff", "tunnel_probe"] as const;
 const severities = ["low", "medium", "high", "critical"] as const;
 
-function randomFingerprint(): string {
-  const os = ["Linux/5.15", "Windows/11", "macOS/14", "FreeBSD/13"][Math.floor(Math.random() * 4)];
-  const ttl = [64, 128, 255][Math.floor(Math.random() * 3)];
-  return `OS:${os}|TTL:${ttl}|UA:${Math.random().toString(36).substring(7)}`;
+function severityForProbe(probeType: typeof probeTypes[number]): typeof severities[number] {
+  switch (probeType) {
+    case "ping":         return "low";
+    case "traceroute":   return "medium";
+    case "port_scan":    return "high";
+    case "packet_sniff": return "critical";
+    case "tunnel_probe": return "critical";
+  }
 }
 
-function randomIp(): string {
-  return `${Math.floor(Math.random() * 200) + 10}.${Math.floor(Math.random() * 254)}.${Math.floor(Math.random() * 254)}.${Math.floor(Math.random() * 254) + 1}`;
+function fingerprintForProbe(probeType: typeof probeTypes[number], ip: string): string {
+  const knownScanners: Record<string, string> = {
+    "ping":         "ICMP echo probe — likely automated scanner",
+    "port_scan":    "TCP SYN stealth scan — nmap/masscan signature",
+    "traceroute":   "UDP/ICMP TTL probe — route enumeration",
+    "packet_sniff": "Promiscuous capture detected — passive eavesdrop attempt",
+    "tunnel_probe": "WireGuard handshake probe — VPN fingerprinting attempt",
+  };
+  const desc = knownScanners[probeType] ?? "Unknown probe";
+  return `IP:${ip}|Probe:${probeType}|Sig:${desc}`;
 }
 
 router.get("/", async (req, res) => {
@@ -35,32 +47,33 @@ router.get("/", async (req, res) => {
 router.post("/trigger", async (req, res) => {
   const body = z.object({
     nodeId: z.number(),
-    simulatedIp: z.string().optional(),
+    attackerIp: z.string().min(7, "attackerIp is required — provide the real or test source IP"),
     probeType: z.enum(probeTypes),
+    severity: z.enum(severities).optional(),
+    fingerprint: z.string().optional(),
   }).parse(req.body);
 
   const [node] = await db.select().from(nodesTable).where(eq(nodesTable.id, body.nodeId));
   if (!node) return res.status(404).json({ error: "Node not found" });
 
-  const attackerIp = body.simulatedIp || randomIp();
-  const severity = severities[Math.floor(Math.random() * severities.length)];
+  const severity = body.severity ?? severityForProbe(body.probeType);
+  const fingerprint = body.fingerprint ?? fingerprintForProbe(body.probeType, body.attackerIp);
 
   const [alert] = await db.insert(beaconAlertsTable).values({
     nodeId: body.nodeId,
     nodeName: node.name,
     nodeLayer: node.layer,
-    attackerIp,
-    attackerFingerprint: randomFingerprint(),
+    attackerIp: body.attackerIp,
+    attackerFingerprint: fingerprint,
     probeType: body.probeType,
     severity,
     status: "active",
-    silkWebTrapped: Math.random() > 0.5,
+    silkWebTrapped: false,
     rawData: JSON.stringify({
       timestamp: new Date().toISOString(),
-      ip: attackerIp,
+      ip: body.attackerIp,
       probe: body.probeType,
       node: node.name,
-      headers: { "User-Agent": "Mozilla/5.0 (scanning)", "X-Forwarded-For": attackerIp },
     }),
     detectedAt: new Date(),
   }).returning();

@@ -1,10 +1,13 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { nodesTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { nodesTable, beaconAlertsTable } from "@workspace/db";
+import { eq, gte, sql } from "drizzle-orm";
 import { z } from "zod";
 import crypto from "crypto";
+import { exec } from "child_process";
+import { promisify } from "util";
 
+const execAsync = promisify(exec);
 const router = Router();
 
 function generateWgPrivateKey(): string {
@@ -15,15 +18,37 @@ function generateWgPublicKey(privateKey: string): string {
   return crypto.createHash("sha256").update(privateKey).digest("base64");
 }
 
-function randomIp(layer: string, hopIndex: number): string {
-  if (layer === "outer") return `10.${Math.floor(hopIndex / 10)}.${hopIndex % 10}.${Math.floor(Math.random() * 254) + 1}`;
-  return `172.16.${hopIndex}.${Math.floor(Math.random() * 254) + 1}`;
+function allocateInternalIp(layer: string, hopIndex: number, existingIps: string[]): string {
+  const base = layer === "outer" ? `10.${Math.floor(hopIndex / 10)}.${hopIndex % 10}` : `172.16.${hopIndex}`;
+  for (let host = 1; host <= 254; host++) {
+    const candidate = `${base}.${host}`;
+    if (!existingIps.includes(candidate)) return candidate;
+  }
+  return `${base}.1`;
+}
+
+async function measureLatencyMs(ip: string): Promise<number> {
+  try {
+    const { stdout } = await execAsync(`ping -c 2 -W 3 ${ip} 2>/dev/null`);
+    const match = stdout.match(/rtt min\/avg\/max\/mdev = [\d.]+\/([\d.]+)\//);
+    if (match) return parseFloat(match[1]);
+  } catch {}
+  return 0;
+}
+
+async function countAlertsToday(): Promise<number> {
+  const startOfDay = new Date();
+  startOfDay.setHours(0, 0, 0, 0);
+  const rows = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(beaconAlertsTable)
+    .where(gte(beaconAlertsTable.detectedAt, startOfDay));
+  return rows[0]?.count ?? 0;
 }
 
 router.get("/", async (req, res) => {
   const { layer } = req.query as { layer?: string };
-  let query = db.select().from(nodesTable);
-  const nodes = await query;
+  const nodes = await db.select().from(nodesTable);
   const filtered = layer && layer !== "all" ? nodes.filter((n) => n.layer === layer) : nodes;
   res.json({
     nodes: filtered,
@@ -38,6 +63,7 @@ router.post("/", async (req, res) => {
     name: z.string(),
     layer: z.enum(["outer", "inner"]),
     region: z.string(),
+    publicIp: z.string().optional(),
     hasBeacon: z.boolean().optional().default(true),
     hasSpider: z.boolean().optional().default(true),
     hasWorm: z.boolean().optional().default(true),
@@ -45,16 +71,25 @@ router.post("/", async (req, res) => {
 
   const existingNodes = await db.select().from(nodesTable).where(eq(nodesTable.layer, body.layer));
   const hopIndex = existingNodes.length + 1;
+  const existingIps = existingNodes.map((n) => n.ipAddress);
   const privateKey = generateWgPrivateKey();
+  const internalIp = allocateInternalIp(body.layer, hopIndex, existingIps);
+
+  const latencyMs = body.publicIp ? await measureLatencyMs(body.publicIp) : 0;
 
   const [node] = await db.insert(nodesTable).values({
-    ...body,
+    name: body.name,
+    layer: body.layer,
+    region: body.region,
+    hasBeacon: body.hasBeacon,
+    hasSpider: body.hasSpider,
+    hasWorm: body.hasWorm,
     hopIndex,
-    ipAddress: randomIp(body.layer, hopIndex),
+    ipAddress: internalIp,
     publicKey: generateWgPublicKey(privateKey),
     privateKey,
     listenPort: 51820 + hopIndex,
-    latencyMs: Math.random() * 80 + 5,
+    latencyMs,
     lastSeen: new Date(),
   }).returning();
 
@@ -64,16 +99,23 @@ router.post("/", async (req, res) => {
 router.get("/stats/summary", async (req, res) => {
   const nodes = await db.select().from(nodesTable);
   const active = nodes.filter((n) => n.status === "active");
-  const avgLatency = nodes.length ? nodes.reduce((s, n) => s + n.latencyMs, 0) / nodes.length : 0;
+
+  const storedLatencies = nodes.filter((n) => n.latencyMs > 0).map((n) => n.latencyMs);
+  const avgLatency = storedLatencies.length
+    ? storedLatencies.reduce((s, l) => s + l, 0) / storedLatencies.length
+    : 0;
+
+  const alertsToday = await countAlertsToday();
+
   res.json({
     totalNodes: nodes.length,
     activeNodes: active.length,
     outerNodes: nodes.filter((n) => n.layer === "outer").length,
     innerNodes: nodes.filter((n) => n.layer === "inner").length,
     avgLatencyMs: Math.round(avgLatency * 10) / 10,
-    totalTrafficGb: Math.round(Math.random() * 500 * 100) / 100,
-    rotationsToday: Math.floor(Math.random() * 20),
-    alertsToday: Math.floor(Math.random() * 8),
+    totalTrafficGb: 0,
+    rotationsToday: 0,
+    alertsToday,
   });
 });
 
@@ -93,6 +135,7 @@ router.put("/:id", async (req, res) => {
     hasSpider: z.boolean().optional(),
     hasWorm: z.boolean().optional(),
     region: z.string().optional(),
+    latencyMs: z.number().optional(),
   }).parse(req.body);
 
   const [node] = await db.update(nodesTable).set(body).where(eq(nodesTable.id, id)).returning();
@@ -161,7 +204,10 @@ router.post("/:id/rotate-ip", async (req, res) => {
   const [node] = await db.select().from(nodesTable).where(eq(nodesTable.id, id));
   if (!node) return res.status(404).json({ error: "Node not found" });
 
-  const newIp = randomIp(node.layer, node.hopIndex);
+  const allNodes = await db.select().from(nodesTable);
+  const existingIps = allNodes.filter((n) => n.id !== id).map((n) => n.ipAddress);
+  const newIp = allocateInternalIp(node.layer, node.hopIndex, existingIps);
+
   const [updated] = await db.update(nodesTable)
     .set({ ipAddress: newIp, status: "active", lastSeen: new Date() })
     .where(eq(nodesTable.id, id))
@@ -177,21 +223,29 @@ const REGIONS = [
   "DE-Frankfurt","NL-Amsterdam","SE-Stockholm","CH-Zurich","JP-Osaka",
 ];
 
-function randomBatchTag(): string {
-  return Math.random().toString(36).substring(2, 6).toUpperCase();
-}
-
 router.post("/:id/replace", async (req, res) => {
   const id = parseInt(req.params.id);
+  const body = z.object({
+    region: z.string().optional(),
+    publicIp: z.string().optional(),
+  }).optional().default({});
+  const parsed = body.parse(req.body);
+
   const [node] = await db.select().from(nodesTable).where(eq(nodesTable.id, id));
   if (!node) return res.status(404).json({ error: "Node not found" });
 
+  const allNodes = await db.select().from(nodesTable);
+  const existingIps = allNodes.filter((n) => n.id !== id).map((n) => n.ipAddress);
+
   const newPrivateKey = generateWgPrivateKey();
-  const newRegion = REGIONS[Math.floor(Math.random() * REGIONS.length)];
-  const newIp = randomIp(node.layer, node.hopIndex);
-  const batchTag = randomBatchTag();
+  const regionPool = parsed.region ? [parsed.region] : REGIONS;
+  const newRegion = regionPool[node.hopIndex % regionPool.length];
+  const newIp = allocateInternalIp(node.layer, node.hopIndex, existingIps);
+  const batchTag = crypto.randomBytes(2).toString("hex").toUpperCase();
   const prefix = node.layer === "outer" ? "GhostNode-OUT" : "GhostNode-IN";
   const newName = `${prefix}-${String(node.hopIndex).padStart(2, "0")}-${batchTag}`;
+
+  const latencyMs = parsed.publicIp ? await measureLatencyMs(parsed.publicIp) : node.latencyMs;
 
   const [updated] = await db.update(nodesTable).set({
     name: newName,
@@ -199,8 +253,8 @@ router.post("/:id/replace", async (req, res) => {
     region: newRegion,
     privateKey: newPrivateKey,
     publicKey: generateWgPublicKey(newPrivateKey),
-    listenPort: 51820 + node.hopIndex + Math.floor(Math.random() * 50),
-    latencyMs: parseFloat((Math.random() * 80 + 3).toFixed(1)),
+    listenPort: 51820 + node.hopIndex,
+    latencyMs,
     status: "active",
     lastSeen: new Date(),
   }).where(eq(nodesTable.id, id)).returning();
@@ -210,21 +264,29 @@ router.post("/:id/replace", async (req, res) => {
 
 router.post("/bulk-replace", async (req, res) => {
   const body = z.object({ ids: z.array(z.number()).max(20) }).parse(req.body);
+  const allNodes = await db.select().from(nodesTable);
+  const existingIpMap = new Map(allNodes.map((n) => [n.id, n.ipAddress]));
+
   const results = [];
   for (const id of body.ids) {
-    const [node] = await db.select().from(nodesTable).where(eq(nodesTable.id, id));
+    const node = allNodes.find((n) => n.id === id);
     if (!node) continue;
+
+    const usedIps = [...existingIpMap.values()].filter((_, i) => allNodes[i]?.id !== id);
+    const newIp = allocateInternalIp(node.layer, node.hopIndex, usedIps);
+    existingIpMap.set(id, newIp);
+
     const newPrivateKey = generateWgPrivateKey();
-    const newRegion = REGIONS[Math.floor(Math.random() * REGIONS.length)];
-    const newIp = randomIp(node.layer, node.hopIndex);
-    const batchTag = randomBatchTag();
+    const newRegion = REGIONS[node.hopIndex % REGIONS.length];
+    const batchTag = crypto.randomBytes(2).toString("hex").toUpperCase();
     const prefix = node.layer === "outer" ? "GhostNode-OUT" : "GhostNode-IN";
     const newName = `${prefix}-${String(node.hopIndex).padStart(2, "0")}-${batchTag}`;
+
     const [updated] = await db.update(nodesTable).set({
       name: newName, ipAddress: newIp, region: newRegion,
       privateKey: newPrivateKey, publicKey: generateWgPublicKey(newPrivateKey),
-      listenPort: 51820 + node.hopIndex + Math.floor(Math.random() * 50),
-      latencyMs: parseFloat((Math.random() * 80 + 3).toFixed(1)),
+      listenPort: 51820 + node.hopIndex,
+      latencyMs: node.latencyMs,
       status: "active", lastSeen: new Date(),
     }).where(eq(nodesTable.id, id)).returning();
     results.push(updated);
@@ -235,8 +297,11 @@ router.post("/bulk-replace", async (req, res) => {
 router.post("/shuffle-all", async (_req, res) => {
   const allNodes = await db.select().from(nodesTable);
   const now = new Date();
+  const usedIps: string[] = [];
+
   const updates = allNodes.map((node) => {
-    const newIp = randomIp(node.layer, node.hopIndex);
+    const newIp = allocateInternalIp(node.layer, node.hopIndex, usedIps);
+    usedIps.push(newIp);
     return db
       .update(nodesTable)
       .set({ ipAddress: newIp, status: "active", lastSeen: now })
