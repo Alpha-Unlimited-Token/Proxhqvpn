@@ -1,0 +1,38 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "IJDFyPELKQJakMkMUDhlS"
+uri = "file://standalone/dist/GhostNet-ALL-PLATFORMS.zip"
+type = "unspecified"
+title = "GhostNet — All Platforms Bundle (78.8 MB)"
+
+[[outputs]]
+id = "DBWveX0PQlMF4FXcZY-xH"
+uri = "file://standalone/dist/GhostNet-Windows-x64.zip"
+type = "unspecified"
+title = "GhostNet — Windows x64 (16.2 MB)"
+
+[[outputs]]
+id = "nDf3mC94dpQgogQdEwTlF"
+uri = "file://standalone/dist/GhostNet-macOS-arm64.zip"
+type = "unspecified"
+title = "GhostNet — macOS Apple Silicon (17.6 MB)"
+
+[[outputs]]
+id = "pn5NOxAaQoyYAB2nN7GGq"
+uri = "file://standalone/dist/GhostNet-macOS-x64.zip"
+type = "unspecified"
+title = "GhostNet — macOS Intel (20.0 MB)"
+
+[[outputs]]
+id = "Cm1szj_yCb26vEMxKd_qI"
+uri = "file://standalone/dist/GhostNet-Linux-x64.zip"
+type = "unspecified"
+title = "GhostNet — Linux x64 (20.4 MB)"
+
+[[outputs]]
+id = "7qSkwMHb-7OfuHkkLbe-0"
+uri = "file://standalone/dist/GhostNet-Universal-NodeJS.zip"
+type = "unspecified"
+title = "GhostNet — Universal / Node.js 20+ (5.1 MB)"

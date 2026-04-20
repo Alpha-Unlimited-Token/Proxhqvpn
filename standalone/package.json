@@ -1,0 +1,44 @@
+{
+  "name": "ghostnet-standalone",
+  "version": "1.0.0",
+  "private": true,
+  "description": "GhostNet VPN Orchestration Platform — Standalone Build",
+  "main": "server.bundle.cjs",
+  "bin": {
+    "ghostnet": "server.bundle.cjs"
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "start": "node server.bundle.cjs"
+  },
+  "dependencies": {
+    "sql.js": "^1.12.0",
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "helmet": "^8.0.0",
+    "pino": "^9.6.0",
+    "pino-http": "^10.4.0",
+    "node-fetch": "^3.3.2",
+    "socks-proxy-agent": "^8.0.4",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/archiver": "^6.0.3",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.1",
+    "@types/node": "^22.14.1",
+    "@yao-pkg/pkg": "^5.16.1",
+    "archiver": "^7.0.1",
+    "esbuild": "^0.25.1",
+    "typescript": "^5.8.3"
+  },
+  "pkg": {
+    "targets": ["node20-win-x64", "node20-macos-arm64", "node20-linux-x64"],
+    "assets": [
+      "frontend/**/*",
+      "node_modules/sql.js/dist/sql-wasm.wasm"
+    ],
+    "scripts": ["server.bundle.cjs"]
+  }
+}
