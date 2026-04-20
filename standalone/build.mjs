@@ -255,6 +255,10 @@ async function main() {
       fs.writeFileSync(path.join(stageDir, scriptName), script);
       if (scriptName.endsWith(".sh")) try { fs.chmodSync(path.join(stageDir, scriptName), 0o755); } catch {}
       fs.writeFileSync(path.join(stageDir, "README.txt"), readmeText(platform, scriptName.endsWith(".sh") ? `./${scriptName}` : scriptName));
+      const installTxt = path.join(__dirname, "INSTALL.txt");
+      if (fs.existsSync(installTxt)) fs.copyFileSync(installTxt, path.join(stageDir, "INSTALL.txt"));
+      const userGuide = path.join(__dirname, "USER-GUIDE.txt");
+      if (fs.existsSync(userGuide)) fs.copyFileSync(userGuide, path.join(stageDir, "USER-GUIDE.txt"));
 
       const zipPath = path.join(DIST, `${name}.zip`);
       await zipDir(stageDir, zipPath, name);
@@ -293,6 +297,10 @@ async function main() {
     "./start.sh  (Linux/macOS)  or  start.bat  (Windows)",
     "Requires Node.js 20+ from https://nodejs.org"
   ));
+  const installTxtUniv = path.join(__dirname, "INSTALL.txt");
+  if (fs.existsSync(installTxtUniv)) fs.copyFileSync(installTxtUniv, path.join(univDir, "INSTALL.txt"));
+  const userGuideUniv = path.join(__dirname, "USER-GUIDE.txt");
+  if (fs.existsSync(userGuideUniv)) fs.copyFileSync(userGuideUniv, path.join(univDir, "USER-GUIDE.txt"));
 
   const univZip = path.join(DIST, "GhostNet-Universal-NodeJS.zip");
   await zipDir(univDir, univZip, "GhostNet-Universal-NodeJS");

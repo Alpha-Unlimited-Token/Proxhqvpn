@@ -1,0 +1,1477 @@
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║              GHOSTNET VPN — COMPLETE USER GUIDE                            ║
+║              Version 3.0 — April 2026                                      ║
+║              All Features Documented                                       ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+This guide covers every screen, button, and feature in GhostNet.
+Open http://localhost:7474 after launching to follow along.
+
+TABLE OF CONTENTS
+─────────────────
+  SECTION A — CORE
+    A1. Dashboard
+    A2. Node Manager
+    A3. Beacons
+    A4. Silk Web
+    A5. Monitor
+
+  SECTION B — SECURITY
+    B1. Firewall
+    B2. Kill Switch
+    B3. Leak Detection
+    B4. Threat Intelligence
+    B5. Security Audit
+
+  SECTION C — TUNNEL
+    C1. WireGuard Config
+    C2. Split Tunnel
+    C3. Obfuscation
+    C4. Proxy / Tor
+    C5. Onion Browser
+
+  SECTION D — SYSTEM
+    D1. Terminal
+    D2. SQL Interface
+
+  SECTION E — TIPS & WORKFLOWS
+    E1. Setting up a new VPN node farm
+    E2. Detecting and trapping attackers
+    E3. Hiding your traffic with obfuscation
+    E4. Running a security audit
+    E5. Querying external databases
+    E6. Running custom outbound commands
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  SECTION A — CORE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+──────────────────────────────────────────────────────────────────────────────
+A1. DASHBOARD
+──────────────────────────────────────────────────────────────────────────────
+
+The Dashboard is the first screen you see. It gives you a live, real-time
+summary of the entire GhostNet system at a glance.
+
+WHAT YOU SEE
+  • Status bar (top)
+    Shows GHOSTNET_OS and a green SYS_ONLINE indicator confirming the
+    backend server is reachable.
+
+  • Stat cards (top row)
+    - ACTIVE NODES    — How many of your 60 nodes are currently online
+    - BLOCKED THREATS — Total IPs blocked by the firewall across all nodes
+    - ALERTS          — Number of unacknowledged beacon/spider/worm events
+    - UPTIME          — How long GhostNet has been running continuously
+
+  • Live activity feed (center)
+    A scrolling log of recent system events — node IP rotations, firewall
+    blocks, beacon triggers, worm detections, and silk web trap activations.
+    Newest events appear at the top. Each entry shows a timestamp, event
+    type, and the relevant node or IP address.
+
+  • Network topology mini-map (if shown)
+    A condensed view of the outer and inner node rings. Green nodes are
+    healthy. Yellow nodes are degraded. Red nodes are offline.
+
+HOW TO USE IT
+  • Use the Dashboard as a quick health check when you first open GhostNet.
+  • If the ALERTS counter is non-zero, click it or navigate to Beacons to
+    review what triggered.
+  • The activity feed auto-refreshes every 3 seconds. You do not need to
+    reload the page.
+  • All numbers are live — no manual refresh needed.
+
+
+──────────────────────────────────────────────────────────────────────────────
+A2. NODE MANAGER
+──────────────────────────────────────────────────────────────────────────────
+
+The Node Manager is where you view, create, and control all 60 nodes in
+your GhostNet mesh. Nodes are the building blocks of the network.
+
+UNDERSTANDING THE NODE ARCHITECTURE
+  GhostNet uses a two-ring architecture:
+    • Outer ring — 50 nodes. These are the public-facing nodes that handle
+      incoming and outgoing traffic. Each has its own IP address.
+    • Inner ring — 10 nodes. These are the core routing nodes hidden behind
+      the outer ring. They handle inter-node communication and act as the
+      secure backbone.
+
+  Each node runs three background agents automatically:
+    • Beacon  — sends periodic liveness pings and detects intrusions
+    • Spider  — crawls connected nodes and maps the topology
+    • Worm    — propagates security rules and blocklists across all nodes
+
+WHAT YOU SEE
+  • Node grid — a visual card-based grid showing all 60 nodes. Each card
+    shows:
+      - Node ID and name
+      - Current IP address
+      - Node type (OUTER or INNER)
+      - Status indicator (ONLINE / DEGRADED / OFFLINE)
+      - Last rotation timestamp
+      - Active agents (beacon / spider / worm icons)
+
+  • Filter bar — filter nodes by type (all / outer / inner), status, or
+    search by IP address or node ID.
+
+  • Toolbar buttons:
+      - ROTATE ALL IPs    — instantly assigns new random IPs to all nodes
+      - ADD NODE          — create a new node manually
+      - EXPORT            — download node list as JSON or CSV
+
+ACTIONS ON INDIVIDUAL NODES
+  Click a node card to expand its detail panel:
+    • ROTATE IP       — give just this node a new IP address immediately
+    • EDIT            — change the node name or manually set its IP
+    • DELETE          — remove this node from the mesh
+    • VIEW WIREGUARD  — jump directly to this node's WireGuard config
+
+IP ROTATION
+  GhostNet supports two rotation modes:
+    • Manual — click "Rotate All IPs" or the Rotate button on a single node.
+    • Automatic — scheduled rotation runs every 3 seconds in the background
+      when enabled. The live feed on the Dashboard will show each rotation
+      as it happens.
+
+ADDING A NEW NODE
+  1. Click ADD NODE.
+  2. Choose type: OUTER or INNER.
+  3. Enter an optional name (auto-generated if left blank).
+  4. Optionally specify a starting IP. Leave blank for a random assignment.
+  5. Click SAVE.
+  The new node immediately appears in the grid and begins running its
+  beacon, spider, and worm agents.
+
+INITIALIZING THE DEFAULT SWARM
+  If this is a fresh installation and the grid is empty, click
+  "Initialize Swarm" to automatically seed all 60 default nodes
+  (50 outer + 10 inner) with randomized IPs.
+
+
+──────────────────────────────────────────────────────────────────────────────
+A3. BEACONS
+──────────────────────────────────────────────────────────────────────────────
+
+The Beacons page shows alerts generated by the three types of agents
+(beacons, spiders, worms) running across all nodes.
+
+AGENT TYPES EXPLAINED
+  • Beacon  — Monitors a node for unexpected traffic, missed heartbeats,
+              and intrusion patterns. Generates HIGH alerts for anomalies.
+  • Spider  — Scans the network graph for unexpected connections or nodes
+              that should not exist. Generates MEDIUM alerts for topology
+              anomalies.
+  • Worm    — Propagates and validates security rule consistency across
+              nodes. Generates LOW alerts when rule drift is detected.
+
+WHAT YOU SEE
+  • Alert table with columns:
+      - Timestamp    — when the alert was generated
+      - Type         — BEACON / SPIDER / WORM
+      - Severity     — HIGH / MEDIUM / LOW / INFO
+      - Node         — which node generated the alert
+      - Source IP    — the external IP that triggered it (if applicable)
+      - Message      — human-readable description of what happened
+      - Status       — NEW / ACKNOWLEDGED / RESOLVED
+
+  • Filter controls — filter by type, severity, status, or date range.
+
+  • Summary counters at the top — total alerts broken down by severity.
+
+ACTIONS
+  • Click any alert row to expand its full detail.
+  • ACKNOWLEDGE — marks the alert as seen. It stays in the list but is
+    no longer counted in the Dashboard's ALERTS counter.
+  • RESOLVE — marks the alert as handled and removes it from the active
+    view (still accessible via the "Show Resolved" filter toggle).
+  • BLOCK IP — if the alert has a source IP, this button immediately adds
+    it to the firewall blocklist. Useful for responding to intrusion alerts.
+  • EXPORT — download the current alert list as CSV for external analysis.
+
+READING AN ALERT
+  Example alert message:
+    [BEACON][HIGH] Node OUT-12 — Unexpected SYN flood from 203.0.113.44
+    detected on port 443. 847 packets in 2.1 seconds. Auto-blocked.
+
+  This tells you:
+    • The beacon agent on outer node 12 detected a SYN flood.
+    • The source IP (203.0.113.44) has already been auto-blocked.
+    • You should ACKNOWLEDGE this alert and optionally investigate the IP
+      in the Threat Intelligence page.
+
+
+──────────────────────────────────────────────────────────────────────────────
+A4. SILK WEB
+──────────────────────────────────────────────────────────────────────────────
+
+The Silk Web is GhostNet's attacker trap and fingerprinting system.
+It deploys decoy services across your nodes to lure, detect, and
+fingerprint hostile actors before they can reach real resources.
+
+HOW IT WORKS
+  Silk Web nodes present fake but convincing services (SSH banners, HTTP
+  endpoints, database prompts) that look attractive to attackers. Any
+  entity that connects to a silk web trap is logged, fingerprinted, and
+  flagged — because no legitimate traffic should ever reach these endpoints.
+
+WHAT YOU SEE
+  • SVG Topology Map (center)
+    A chord diagram showing all nodes connected by lines. Silk web trap
+    nodes are highlighted in amber. Active trap connections pulse with a
+    red glow. Hover over a node to see its name, IP, and trap type.
+
+  • Trapped Entity Table (below the map)
+    A list of every actor that has touched a silk web node, with:
+      - First seen / Last seen timestamps
+      - Source IP and geolocation (country, ASN)
+      - Which trap was triggered (SSH / HTTP / SQL / Telnet)
+      - Fingerprint data (User-Agent, TLS version, cipher suite, OS guess)
+      - Threat score (0–100)
+      - Actions: BLOCK / EXPORT PROFILE / VIEW FULL TRACE
+
+  • Trap Status Panel (right side)
+    Shows which trap types are active and how many connections each has
+    received in the current session.
+
+TRAP TYPES
+  • SSH Trap     — presents a fake SSH banner and logs credentials attempted
+  • HTTP Trap    — serves a fake web admin panel and logs all requests
+  • SQL Trap     — simulates a PostgreSQL prompt and logs queries attempted
+  • Telnet Trap  — simulates a router CLI and logs all input
+
+MANAGING TRAPS
+  • ENABLE / DISABLE TRAP — toggle individual trap types on/off.
+  • SET TRAP PORT — assign a custom port to any trap type. Default ports
+    are chosen to be realistic (22 for SSH, 80/443 for HTTP, 5432 for SQL).
+  • EXPORT ALL PROFILES — download a full JSON dump of every trapped entity
+    including complete fingerprint data.
+
+BLOCKING TRAPPED ENTITIES
+  • Select one or more rows in the Trapped Entity Table.
+  • Click BLOCK SELECTED — this sends all their IPs directly to the firewall
+    blocklist in one action.
+  • Alternatively click BLOCK on a single row for that entity only.
+
+
+──────────────────────────────────────────────────────────────────────────────
+A5. MONITOR
+──────────────────────────────────────────────────────────────────────────────
+
+The Monitor page shows live system performance metrics for the machine
+running GhostNet.
+
+WHAT YOU SEE
+  • CPU Usage          — percentage utilization, updated every 2 seconds.
+                         Shows a rolling sparkline graph of the last 60s.
+  • Memory Usage       — total, used, and free RAM in MB/GB.
+  • Network I/O        — bytes sent and received per second across all
+                         interfaces. Shows separate upload and download lines.
+  • Active Connections — total number of open TCP/UDP connections on the
+                         host machine at this moment.
+  • Process Info       — GhostNet server PID, Node.js version, uptime.
+
+HOW TO USE IT
+  • Use the Monitor during heavy IP rotation or silk web activity to check
+    that GhostNet is not over-consuming resources.
+  • All graphs update automatically — no manual refresh needed.
+  • If CPU stays above 80% consistently, consider reducing the number of
+    active silk web traps or increasing the rotation interval.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  SECTION B — SECURITY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+──────────────────────────────────────────────────────────────────────────────
+B1. FIREWALL
+──────────────────────────────────────────────────────────────────────────────
+
+The Firewall page manages GhostNet's stateful packet filtering layer.
+It maintains a blocklist of IPs and a set of rules governing what traffic
+is permitted through the mesh.
+
+WHAT YOU SEE
+  • Rules Table — the ordered list of active firewall rules, each showing:
+      - Priority       — lower numbers are evaluated first
+      - Direction      — INBOUND / OUTBOUND / BOTH
+      - Protocol       — TCP / UDP / ICMP / ANY
+      - Source IP/CIDR — the address this rule applies to
+      - Destination    — port or IP this rule matches on
+      - Action         — ALLOW / BLOCK / LOG
+      - Status         — ACTIVE / DISABLED
+
+  • Blocked IPs panel — a searchable list of all currently blocked IP
+    addresses with the reason they were blocked and the blocking timestamp.
+
+  • ISP Masking toggle — when enabled, GhostNet spoofs traffic to appear
+    as if it originates from a generic ISP rather than a VPN provider.
+
+  • Localhost Masking toggle — hides the local machine's real IP from all
+    outbound traffic metadata.
+
+ADDING A FIREWALL RULE
+  1. Click ADD RULE.
+  2. Set the priority (1 = highest). Rules are evaluated top-to-bottom.
+  3. Choose direction: INBOUND, OUTBOUND, or BOTH.
+  4. Choose protocol: TCP, UDP, ICMP, or ANY.
+  5. Enter the source IP or CIDR block (e.g. 10.0.0.0/8 or 203.0.113.55).
+  6. Enter the destination port or IP (optional — leave blank for any).
+  7. Choose the action: ALLOW, BLOCK, or LOG (log only, do not block).
+  8. Click SAVE.
+
+BLOCKING AN IP MANUALLY
+  1. Click ADD TO BLOCKLIST.
+  2. Enter the IP address (IPv4 or IPv6).
+  3. Optionally enter a note (e.g. "Attempted brute force 2026-04-20").
+  4. Click BLOCK.
+  The IP is immediately added and all future traffic from/to it is dropped.
+
+REMOVING A BLOCK
+  Find the IP in the Blocked IPs panel, click UNBLOCK next to it.
+
+EXPORTING AS IPTABLES RULES
+  Click EXPORT IPTABLES to download a complete shell script containing
+  iptables (Linux) commands for all current rules and blocked IPs.
+  You can run this script on any Linux machine to mirror the same firewall
+  rules outside of GhostNet.
+
+  Example of what the export looks like:
+    #!/bin/bash
+    iptables -A INPUT -s 203.0.113.55 -j DROP
+    iptables -A OUTPUT -d 198.51.100.0/24 -j DROP
+    ...
+
+DISABLING A RULE (WITHOUT DELETING)
+  Click the toggle on any rule row to disable it temporarily. Disabled
+  rules remain in the list but are not evaluated. Re-enable at any time.
+
+
+──────────────────────────────────────────────────────────────────────────────
+B2. KILL SWITCH
+──────────────────────────────────────────────────────────────────────────────
+
+The Kill Switch is an emergency network lockdown feature. When armed,
+if GhostNet detects a tunnel failure, DNS leak, or forced disconnect,
+it immediately cuts all network traffic to prevent your real IP from
+being exposed.
+
+KILL SWITCH MODES
+  • SOFT — blocks all non-VPN internet traffic but permits LAN traffic.
+           Use this to stay connected to local devices while cutting
+           outside exposure.
+  • HARD — blocks ALL traffic including LAN. Total isolation. Use only
+           if maximum security is needed and you accept losing access to
+           everything until the switch is disarmed.
+  • CUSTOM — you define which interfaces or IP ranges to preserve and
+             which to cut. Advanced users only.
+
+ARMING THE KILL SWITCH
+  1. Select a mode (SOFT, HARD, or CUSTOM).
+  2. For CUSTOM mode: enter the interfaces or IP ranges to preserve
+     (one per line, e.g. "192.168.1.0/24" to keep LAN access).
+  3. Click ARM KILL SWITCH.
+  4. A large red "ARMED" indicator appears at the top of the screen.
+  5. GhostNet now monitors tunnel continuity and will trigger automatically.
+
+MANUALLY TRIGGERING THE KILL SWITCH
+  Click TRIGGER NOW to immediately cut network traffic as if a tunnel
+  failure had been detected. Use this to test that the switch works or
+  to perform a manual emergency lockdown.
+
+DISARMING THE KILL SWITCH
+  Click DISARM. Traffic is restored. You do not need to reboot.
+
+GENERATING OS FIREWALL LOCKDOWN SCRIPTS
+  The Kill Switch page can export ready-to-use network lockdown scripts
+  for each operating system:
+
+  • Linux (iptables)
+    Downloads a bash script that uses iptables to cut all non-tunnel
+    traffic. Run it directly:
+      chmod +x ghostnet-killswitch.sh && ./ghostnet-killswitch.sh
+
+  • macOS (pf)
+    Downloads a pf.conf snippet and a loader script for macOS's
+    Packet Filter firewall.
+      sudo ./ghostnet-killswitch-macos.sh
+
+  • Windows (netsh + WFP)
+    Downloads a PowerShell script that uses Windows Filtering Platform
+    to block all non-tunnel traffic.
+      Run as Administrator: .\ghostnet-killswitch.ps1
+
+  These scripts work independently of GhostNet — you can run them on
+  any machine even without GhostNet installed.
+
+
+──────────────────────────────────────────────────────────────────────────────
+B3. LEAK DETECTION
+──────────────────────────────────────────────────────────────────────────────
+
+The Leak Detection page tests your system for three types of privacy
+leaks that can expose your real identity even when using a VPN.
+
+LEAK TYPES EXPLAINED
+  • DNS Leak  — occurs when DNS queries (the "phone book" lookups that
+                translate domain names to IPs) bypass the VPN tunnel and
+                go directly to your ISP's DNS servers, revealing what
+                sites you visit.
+  • IPv6 Leak — occurs when your system has an IPv6 address that bypasses
+                the VPN (which may only tunnel IPv4), revealing your real
+                IPv6 address to visited sites.
+  • WebRTC Leak — occurs in web browsers when the WebRTC protocol (used
+                for video/audio calls) reveals your real IP even behind
+                a VPN. This is a browser-level leak.
+
+RUNNING THE TESTS
+  Click RUN LEAK TEST to run all three simultaneously. Each test runs
+  independently and reports results within a few seconds.
+
+  RESULT INDICATORS
+    Green  PASS  — no leak detected for this type
+    Red    FAIL  — leak detected; your real information is exposed
+    Yellow WARN  — partial or uncertain result; investigate manually
+
+DNS LEAK TEST
+  Sends DNS queries through multiple paths and checks whether responses
+  come from your VPN provider's DNS or your ISP's DNS.
+  • If FAIL: set your system DNS to your VPN's DNS server addresses.
+    Most VPN providers list these in their documentation.
+  • Quick fix on Linux: edit /etc/resolv.conf
+    Quick fix on Windows: Control Panel -> Network -> DNS settings
+    Quick fix on macOS: System Settings -> Network -> DNS
+
+IPv6 LEAK TEST
+  Checks whether your machine has an exposed IPv6 address by querying
+  several IPv6-only detection endpoints.
+  • If FAIL: disable IPv6 on your network interface.
+    Linux:   sudo sysctl -w net.ipv6.conf.all.disable_ipv6=1
+    Windows: Control Panel -> Network Adapter -> TCP/IPv6 -> Uncheck
+    macOS:   Network preferences -> Advanced -> TCP/IP -> Configure IPv6 -> Off
+
+WEBRTC LEAK TEST
+  Provides a JavaScript snippet you can paste into your browser's
+  Developer Console (F12 -> Console tab) to check if WebRTC is leaking
+  your local or public IP.
+  • Copy the snippet, paste it into your browser console, press Enter.
+  • If your real IP appears in the output, you have a WebRTC leak.
+  • Fix: use a browser extension that disables WebRTC, or use Firefox
+    (set media.peerconnection.enabled to false in about:config).
+
+EXPORTING RESULTS
+  After running the tests, click EXPORT REPORT to download a text file
+  with all test results, timestamps, and remediation steps.
+
+
+──────────────────────────────────────────────────────────────────────────────
+B4. THREAT INTELLIGENCE
+──────────────────────────────────────────────────────────────────────────────
+
+The Threat Intelligence page lets you check whether any IP address is
+known to be malicious, look up Tor exit nodes, and manage a local
+blocklist fed by multiple threat intelligence feeds.
+
+SECTIONS
+
+  IP REPUTATION CHECKER
+    Enter any IPv4 or IPv6 address in the search box and click CHECK.
+    GhostNet queries multiple sources and returns:
+      - Threat score (0–100; above 70 is considered high risk)
+      - Categories: Spam, Botnet C2, Tor exit, Proxy, Scanner, Malware
+      - Country and ASN (network owner)
+      - First seen / Last seen in threat databases
+      - Recommended action: ALLOW / MONITOR / BLOCK
+
+    To immediately block a checked IP: click BLOCK THIS IP after results
+    appear. This adds it directly to the firewall blocklist.
+
+  TOR EXIT NODE FEED
+    Shows the current list of active Tor exit nodes pulled from the
+    official Tor Project directory (updated every few hours).
+    • Toggle BLOCK ALL TOR EXITS to automatically add all current exit
+      node IPs to your firewall blocklist.
+    • Search the list by IP or country.
+    • Click REFRESH to pull the latest list immediately.
+
+  LOCAL BLOCKLIST
+    A custom list of IPs you have manually blocked or imported.
+    • ADD ENTRY — manually add an IP with a note and category.
+    • IMPORT — paste a list of IPs (one per line) or upload a file
+      in standard blocklist format (.txt, .csv).
+    • EXPORT — download your local blocklist for use elsewhere.
+    • CLEAR ALL — wipe the local blocklist entirely.
+
+  INTELLIGENCE FEEDS
+    GhostNet monitors 6 external threat intelligence feeds and
+    automatically adds newly listed IPs to your local blocklist:
+      1. Emerging Threats — known attack infrastructure
+      2. Spamhaus DROP   — spammer networks
+      3. Feodo Tracker   — botnet command-and-control IPs
+      4. Abuse.ch        — malware delivery networks
+      5. CI Army         — continuously updated scanner/attacker list
+      6. Blocklist.de    — hosts launching brute-force attacks
+
+    Each feed shows:
+      - Last update timestamp
+      - Number of IPs currently listed
+      - ENABLE / DISABLE toggle (enabled feeds update the local blocklist)
+      - REFRESH NOW — force a manual update of that feed
+
+
+──────────────────────────────────────────────────────────────────────────────
+B5. SECURITY AUDIT
+──────────────────────────────────────────────────────────────────────────────
+
+The Security Audit page performs a complete security assessment of
+GhostNet itself and of any external host you specify.
+
+SELF-AUDIT PANEL
+  Click REFRESH AUDIT to run a full self-assessment of this GhostNet
+  instance. Results appear as findings categorized by severity:
+
+    CRITICAL — immediate action required; serious vulnerability present
+    HIGH     — significant risk; should be addressed soon
+    MEDIUM   — moderate risk; plan remediation
+    LOW      — minor hardening improvement available
+    INFO     — informational only; no action required
+
+  Each finding shows:
+    • Severity badge
+    • Category tag (Authentication / Transport / Data Protection / etc.)
+    • Title — brief name of the finding
+    • Description — what the problem is and why it matters
+    • Remediation — specific steps to fix it
+
+  Example findings you may see:
+    [HIGH] Authentication — No authentication on API endpoints
+    Remediation: Set the API_KEY environment variable and deploy behind
+    a WireGuard or SSH tunnel.
+
+    [MEDIUM] Transport — HTTP-only in standalone mode
+    Remediation: Place nginx or Caddy in front with a TLS certificate.
+
+    [LOW] Data Protection — WireGuard private keys stored in plaintext
+    Remediation: Encrypt ghostnet.db at rest using SQLCipher.
+
+TLS CERTIFICATE INSPECTOR
+  Enter any hostname (e.g. example.com) and click CHECK CERTIFICATE.
+  GhostNet connects to that host on port 443 and returns:
+    • Certificate subject and issuer
+    • Validity dates (not before / not after)
+    • Days until expiry (highlighted red if under 30 days)
+    • Certificate chain length
+    • SANs (Subject Alternative Names — the domains it covers)
+    • Signature algorithm (SHA-256 = good; SHA-1 = bad)
+    • Key size (RSA 2048+ = acceptable; 4096 = strong; EC 256+ = excellent)
+    • Grade: A (strong) through F (broken)
+
+HTTP SECURITY HEADERS GRADER
+  Enter any URL (e.g. https://example.com) and click GRADE HEADERS.
+  GhostNet fetches that URL and inspects its HTTP response headers:
+
+    Header checked               What it protects
+    ──────────────────────────────────────────────────────────────────
+    Strict-Transport-Security    Forces HTTPS for future visits
+    Content-Security-Policy      Prevents XSS and code injection
+    X-Frame-Options              Prevents clickjacking
+    X-Content-Type-Options       Prevents MIME sniffing
+    Referrer-Policy              Controls what referrer data is sent
+    Permissions-Policy           Restricts browser feature access
+
+  Overall grade: A+ (all present, strong values) down to F (none present).
+  Each missing or weak header is listed with a recommendation.
+
+WHOIS / RDAP LOOKUP
+  Enter any IP address or domain name and click LOOKUP.
+  GhostNet returns:
+    • Registrant organization and country
+    • Registrar name and IANA ID
+    • Registration and expiry dates (for domains)
+    • Name servers (for domains)
+    • Network range and ASN (for IPs)
+    • Abuse contact email (useful for reporting)
+
+  Data is fetched first via RDAP (the modern standard), with a fallback
+  to traditional WHOIS shell query if RDAP is unavailable.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  SECTION C — TUNNEL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+──────────────────────────────────────────────────────────────────────────────
+C1. WIREGUARD CONFIG
+──────────────────────────────────────────────────────────────────────────────
+
+The WireGuard Config page generates valid WireGuard configuration files
+for any node in your mesh, ready to be deployed to real WireGuard servers.
+
+BACKGROUND: WHAT IS WIREGUARD?
+  WireGuard is a modern, fast, and secure VPN protocol. GhostNet generates
+  WireGuard config files that you can deploy on any Linux server, router,
+  or cloud instance to create a real encrypted tunnel.
+
+GENERATING A CONFIG
+  1. Select a node from the dropdown (any of the 60 nodes).
+  2. Choose the role:
+       SERVER — generates a config for the node acting as a VPN server
+       CLIENT — generates a config for a device connecting to this node
+  3. Set the listen port (default: 51820). Useful to change if 51820 is
+     blocked by your network.
+  4. Click GENERATE CONFIG.
+
+WHAT THE CONFIG CONTAINS
+  [Interface] section:
+    • PrivateKey  — the node's private key (auto-generated and stored in db)
+    • Address     — the tunnel IP assigned to this node
+    • ListenPort  — the UDP port WireGuard listens on (server only)
+    • DNS         — optional DNS server for the tunnel
+
+  [Peer] section (one per connected node):
+    • PublicKey   — the peer node's public key
+    • AllowedIPs  — which traffic to route through this peer
+    • Endpoint    — the peer's public IP and port
+    • PersistentKeepalive — interval to keep NAT holes open
+
+DEPLOYING THE CONFIG
+  1. Click COPY to clipboard or DOWNLOAD as .conf file.
+  2. On your Linux server:
+       sudo apt install wireguard  (or equivalent for your distro)
+       sudo nano /etc/wireguard/wg0.conf
+       Paste the config, save.
+       sudo wg-quick up wg0
+  3. Verify it is running:
+       sudo wg show
+
+GENERATING CONFIGS FOR ALL NODES AT ONCE
+  Click GENERATE ALL — GhostNet generates configs for all 60 nodes and
+  packages them into a zip file for download. Each file is named after
+  its node (e.g. outer-node-01.conf, inner-node-05.conf).
+
+
+──────────────────────────────────────────────────────────────────────────────
+C2. SPLIT TUNNEL
+──────────────────────────────────────────────────────────────────────────────
+
+Split tunneling lets you route some traffic through the GhostNet VPN
+and send other traffic directly — without going through the tunnel.
+This is useful when you want VPN protection for specific apps or
+destinations but want normal speed for everything else.
+
+RULE TYPES
+  • By IP / CIDR   — route traffic to a specific IP or subnet through
+                     (or around) the tunnel.
+  • By Port        — route all traffic on a specific port through the tunnel.
+  • By Application — route traffic from a specific application through
+                     the tunnel (uses process name matching on Linux/Windows).
+
+ADDING A SPLIT TUNNEL RULE
+  1. Click ADD RULE.
+  2. Choose the rule type (IP/CIDR, Port, or Application).
+  3. Enter the value:
+       IP/CIDR:     e.g.  10.0.0.0/8   or   203.0.113.55
+       Port:        e.g.  443   or   8080
+       Application: e.g.  firefox   or   chrome.exe
+  4. Choose the action:
+       VIA TUNNEL   — this traffic goes through the VPN
+       DIRECT       — this traffic bypasses the VPN and goes directly
+  5. Click SAVE.
+
+EXAMPLE USE CASES
+  • Route only your browser through the VPN, let other apps go direct:
+    Add rule: Application = firefox / chrome, Action = VIA TUNNEL
+    Add rule: Application = *, Action = DIRECT  (catch-all)
+
+  • Route all traffic through VPN except your local file server:
+    Add rule: IP = 192.168.1.50, Action = DIRECT
+    Add rule: IP = 0.0.0.0/0, Action = VIA TUNNEL  (catch-all)
+
+EXPORTING AS ROUTING SCRIPTS
+  Click EXPORT LINUX ROUTES to download a bash script using `ip route`
+  commands that applies your split tunnel rules on any Linux machine.
+
+  Click EXPORT WINDOWS ROUTES to download a PowerShell script using
+  `route add` commands that applies the same rules on Windows.
+
+  Run the script after bringing up your WireGuard tunnel to activate
+  split tunneling on the real system.
+
+
+──────────────────────────────────────────────────────────────────────────────
+C3. OBFUSCATION
+──────────────────────────────────────────────────────────────────────────────
+
+Obfuscation disguises VPN traffic so it looks like regular web traffic.
+This is critical in countries or networks that use Deep Packet Inspection
+(DPI) to detect and block VPN protocols.
+
+WHAT DPI BLOCKING MEANS
+  Standard VPN traffic (WireGuard, OpenVPN) has distinctive fingerprints
+  that DPI firewalls can detect and block. Obfuscation wraps your VPN
+  traffic inside other protocols that look like regular HTTPS browsing,
+  making it undetectable.
+
+AVAILABLE OBFUSCATION METHODS
+
+  obfs4
+  ─────
+  The most widely deployed obfuscation protocol. Used by Tor Browser.
+  Wraps traffic in random-looking byte streams with no recognizable header.
+  Best for: general purpose DPI bypass.
+  How to use: generate the config, copy the bridge line to your Tor or
+  obfs4proxy configuration.
+
+  Shadowsocks
+  ───────────
+  A lightweight SOCKS5-based proxy with encryption. Very common in regions
+  with heavy VPN censorship. Extremely fast.
+  Best for: high-speed obfuscated proxy access.
+  How to use: GhostNet generates a Shadowsocks server and client config.
+  Run the server on a VPS. Connect with any Shadowsocks client app.
+
+  V2Ray-WS (WebSocket + TLS)
+  ──────────────────────────
+  Wraps traffic in WebSocket frames over HTTPS on port 443, making it
+  look completely indistinguishable from ordinary HTTPS web traffic.
+  Even if inspected at the application layer it appears as a legitimate
+  WebSocket connection to a web server.
+  Best for: networks with very aggressive DPI (corporate, government).
+  How to use: requires a VPS with nginx. GhostNet generates a complete
+  nginx + V2Ray server config.
+
+  Meek (Domain Fronting)
+  ──────────────────────
+  Routes traffic through major cloud providers (Cloudflare, AWS, Azure)
+  using domain fronting. Traffic appears to go to a legitimate CDN.
+  Even if the destination IP is blocked, the traffic reaches the VPS
+  because it fronts a cloud provider's infrastructure.
+  Best for: defeating IP-based blocking when VPS is blocked.
+  Note: Meek is slow due to the extra CDN hop. Use only when other
+  methods are blocked.
+
+  Snowflake
+  ─────────
+  Uses volunteers' browsers as temporary proxies via WebRTC. Traffic
+  hops through thousands of different exit points. No single point can
+  be blocked.
+  Best for: absolute censorship resistance.
+  How to use: copy the generated bridge line to Tor Browser's bridge
+  configuration.
+
+  XOR Obfuscation
+  ────────────────
+  A simple XOR cipher applied to all traffic bytes with a shared key.
+  Very fast but less robust against sophisticated DPI.
+  Best for: basic traffic scrambling on restricted networks.
+  How to use: both ends (client and server) must use the same XOR key.
+  GhostNet generates the key automatically.
+
+GENERATING AN OBFUSCATION CONFIG
+  1. Select an obfuscation method from the list.
+  2. Enter the server IP or hostname (the VPS you want to use).
+  3. Set the port (GhostNet suggests a port appropriate for each method).
+  4. For methods that need a shared secret or key, GhostNet auto-generates
+     one — or you can enter your own.
+  5. Click GENERATE CONFIG.
+  6. Two config blocks appear: SERVER (deploy on your VPS) and CLIENT
+     (use on this machine or distribute to users).
+  7. Click COPY or DOWNLOAD for each block.
+
+RUNNING A DPI BYPASS TEST
+  Click TEST DPI BYPASS after generating a config. GhostNet will attempt
+  to connect through the selected obfuscation method to a test endpoint
+  and report whether traffic passed through undetected.
+
+
+──────────────────────────────────────────────────────────────────────────────
+C4. PROXY / TOR
+──────────────────────────────────────────────────────────────────────────────
+
+The Proxy / Tor page documents how to configure GhostNet alongside
+Tor and SOCKS5 proxies, and covers the advanced port knocking feature.
+
+SOCKS5 PROXY SETUP
+  GhostNet can act as a SOCKS5 proxy gateway for other applications.
+  Configure your application to use SOCKS5 proxy at:
+    Host: 127.0.0.1
+    Port: 1080 (or the port shown on this page)
+
+  Per-OS setup instructions are shown for:
+    • Linux command line (curl, wget, git, etc.)
+    • macOS (System Settings -> Proxies)
+    • Windows (Internet Options -> LAN Settings)
+    • Firefox browser
+    • Chrome / Edge browser
+
+TOR INTEGRATION
+  GhostNet can route traffic through the Tor network for additional
+  anonymity. This adds a second layer of anonymization on top of
+  GhostNet's own mesh.
+
+  Requirements:
+    Tor must be installed and running on your machine.
+    Install: sudo apt install tor  (Linux)
+             brew install tor      (macOS)
+             Download from https://torproject.org  (Windows)
+
+  Once Tor is running, GhostNet can chain its own SOCKS5 proxy through
+  Tor's SOCKS5 listener (127.0.0.1:9050).
+
+PORT KNOCKING
+  Port knocking is a security technique where a hidden port only opens
+  after a specific sequence of connection attempts to other ports.
+  This makes the GhostNet management interface invisible to port scanners.
+
+  HOW TO SET IT UP
+  1. Choose a knock sequence (e.g., knock on port 7000, then 8000, then 9000)
+     within 5 seconds.
+  2. GhostNet shows you the iptables commands to configure port knocking on
+     your Linux server (requires knockd daemon).
+  3. Install knockd: sudo apt install knockd
+  4. Apply the generated knockd.conf and iptables rules.
+
+  HOW TO KNOCK (open the port)
+  Linux/macOS:
+    nmap -Pn --host-timeout 201 -p 7000 <server-ip>
+    nmap -Pn --host-timeout 201 -p 8000 <server-ip>
+    nmap -Pn --host-timeout 201 -p 9000 <server-ip>
+  Or use the knock utility: knock <server-ip> 7000 8000 9000
+
+  After the correct sequence, port 7474 opens for 30 seconds for your IP.
+
+
+──────────────────────────────────────────────────────────────────────────────
+C5. ONION BROWSER
+──────────────────────────────────────────────────────────────────────────────
+
+The Onion Browser is a built-in proxied web browser. It routes all
+browsing through GhostNet's proxy stack so you can test anonymity or
+visit sites without exposing your real IP.
+
+PROXY MODES
+  Select a proxy mode from the dropdown before loading any page:
+
+  DIRECT
+    No proxy. Traffic goes directly from this machine. Useful for testing
+    and comparing — you can see your real IP before enabling any proxy.
+
+  GHOSTNET
+    Routes all browsing through the GhostNet mesh proxy. Traffic exits
+    from whichever outer node is currently active. Your real IP is hidden
+    behind the rotating GhostNet IP pool.
+
+  TOR
+    Routes all browsing through the Tor network (requires Tor to be
+    installed and running). Provides three hops of anonymization.
+    Slower, but very high anonymity.
+
+  DOUBLE (GhostNet + Tor)
+    Chains GhostNet and Tor together: traffic first goes through the
+    GhostNet mesh, then through Tor. This is the maximum anonymity mode.
+    Traffic appears to exit from a Tor exit node, but Tor itself only
+    sees the GhostNet relay — not your real machine.
+
+  CUSTOM SOCKS4
+    Enter any SOCKS4 proxy server (host:port) and use it for browsing.
+
+  CUSTOM SOCKS5
+    Enter any SOCKS5 proxy server (host:port) and optionally a username
+    and password if the proxy requires authentication.
+
+  CUSTOM HTTP PROXY
+    Enter any HTTP CONNECT proxy server (host:port) for HTTPS traffic.
+
+USING THE BROWSER
+  1. Select a proxy mode.
+  2. Type a URL into the address bar and press Enter or click GO.
+  3. The page loads in the embedded browser frame.
+  4. The status bar shows:
+       • Current proxy mode
+       • Exit IP (the IP that the destination server sees)
+       • Response time
+  5. Use the BACK and FORWARD buttons for navigation.
+  6. Click CHECK IP to load a plain-text IP detection endpoint and confirm
+     that your exit IP matches the expected proxy output.
+
+LIMITATIONS
+  • JavaScript-heavy single-page apps may not render perfectly in the
+    embedded browser frame.
+  • File downloads are not supported in the embedded browser.
+  • For full browsing use, configure your real browser to use GhostNet
+    as a SOCKS5 proxy instead (see Proxy/Tor page for instructions).
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  SECTION D — SYSTEM
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+──────────────────────────────────────────────────────────────────────────────
+D1. TERMINAL
+──────────────────────────────────────────────────────────────────────────────
+
+The Terminal page gives you a command-line interface directly inside
+GhostNet. It has four tabs, each for a different type of operation.
+
+─── TAB 1: SHELL ───────────────────────────────────────────────────────────
+
+A sandboxed shell that runs commands on the machine hosting GhostNet.
+
+HOW TO USE
+  1. Click in the input bar at the bottom (shows "root@ghostnet:~#").
+  2. Type a command and press Enter.
+  3. Output appears above.
+  4. Use the Up/Down arrow keys to navigate your command history.
+
+ALLOWED COMMANDS (default mode)
+  The following commands are permitted without Ghost Mode:
+    ls, pwd, whoami, id, uname, hostname, uptime, date, ps, top,
+    df, du, free, env, cat (safe paths only), curl, wget, nmap,
+    dig, nslookup, host, traceroute, ping, nc, netstat, ss, ip,
+    arp, route, ifconfig, openssl, ssh, python3, node, whois
+
+HARD-BLOCKED COMMANDS (always blocked, even in Ghost Mode)
+  These are permanently blocked regardless of mode:
+    rm, rmdir, mkfs, dd, shred, wipefs, fdisk, format, del,
+    shutdown, reboot, halt, poweroff, init, kill (PID 1), and
+    any command containing shell pipes to destructive operations.
+
+GHOST MODE
+  The toggle in the top-right labeled GHOST MODE unlocks the command
+  allowlist restriction, allowing you to run almost any command.
+
+  TO ENABLE:
+    Click the GHOST MODE toggle. It turns green and the status badge
+    changes from RESTRICTED to GHOST MODE.
+
+  IMPORTANT NOTES:
+    • Even in Ghost Mode, hard-blocked destructive commands are still
+      blocked (rm -rf, shutdown, etc.).
+    • Every command you run in Ghost Mode is automatically logged to
+      the Audit Log (Tab 4). This is permanent and cannot be cleared.
+    • Use Ghost Mode only on machines you fully trust.
+    • Ghost Mode is not persistent — it resets when you reload the page.
+
+EXAMPLE COMMANDS (safe mode):
+  Check your public exit IP:
+    curl https://httpbin.org/ip
+
+  Scan ports on a target:
+    nmap -p 80,443,8080 example.com
+
+  DNS lookup with full trace:
+    dig +trace google.com
+
+  Check SSL certificate:
+    openssl s_client -connect example.com:443 -brief
+
+  Test if a host is up:
+    ping -c 4 8.8.8.8
+
+─── TAB 2: HTTP CLIENT ─────────────────────────────────────────────────────
+
+A full HTTP request tool — like a built-in version of curl or Postman.
+Lets you send requests to any URL and see the complete response.
+
+HOW TO USE
+  1. Select the method: GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS.
+  2. Enter the full URL (e.g. https://api.example.com/users).
+  3. Add headers if needed (click ADD HEADER):
+       Key: Content-Type      Value: application/json
+       Key: Authorization     Value: Bearer your-token-here
+  4. For POST/PUT/PATCH: enter the request body in the body field.
+     Select the body format: JSON, Form, or Raw text.
+  5. Click SEND.
+
+RESPONSE PANEL
+  • Status code and status text (e.g. 200 OK, 404 Not Found, 401 Unauthorized)
+  • Response headers (expand to see all)
+  • Response body — auto-formatted if JSON, shown as-is for other types
+  • Response time in milliseconds
+
+EXAMPLE: Check if a site is up
+  Method: GET
+  URL: https://example.com/health
+  Headers: (none)
+  Click SEND -> Should return 200 OK
+
+EXAMPLE: Authenticate to an API
+  Method: POST
+  URL: https://api.example.com/auth/login
+  Headers: Content-Type: application/json
+  Body: {"username": "admin", "password": "secret"}
+  Click SEND -> Returns JWT token
+
+EXAMPLE: Query a JSON API
+  Method: GET
+  URL: https://jsonplaceholder.typicode.com/posts/1
+  Click SEND -> Returns a JSON object
+
+─── TAB 3: PORT SCAN ───────────────────────────────────────────────────────
+
+A TCP port scanner that checks which ports are open on a target host.
+
+HOW TO USE
+  1. Enter the target hostname or IP address.
+  2. Enter the ports to scan. You can enter:
+       • A single port:        443
+       • A comma-separated list: 22,80,443,8080
+       • A range:              1-1024
+       • Mixed:                22,80,443,8000-9000
+  3. Set the timeout per port in milliseconds (default: 1000ms).
+     Lower = faster scan, but may miss slow-responding ports.
+     Higher = more accurate on slow networks.
+  4. Click SCAN.
+
+READING RESULTS
+  Each port in the scan shows one of:
+    OPEN    — the port accepted a TCP connection (service is running)
+    CLOSED  — the port refused the connection (host reachable, port closed)
+    FILTERED — no response within timeout (firewall may be blocking)
+
+  The scan runs all ports in parallel and results populate in real time.
+
+EXAMPLE: Check common web ports on a server
+  Host: example.com
+  Ports: 80,443,8080,8443
+  Timeout: 2000ms
+
+EXAMPLE: Scan a full range for open services
+  Host: 192.168.1.1
+  Ports: 1-65535
+  Timeout: 500ms
+  (Note: large ranges take longer — 65535 ports at 500ms could take
+  several minutes even in parallel)
+
+─── TAB 4: AUDIT LOG ───────────────────────────────────────────────────────
+
+A permanent log of every command executed through the Terminal,
+specifically recording all Ghost Mode commands for accountability.
+
+WHAT IS LOGGED
+  • Timestamp — exact date and time the command was run
+  • Mode — RESTRICTED or GHOST MODE (shown as a badge)
+  • Command — the full command string that was executed
+  • Exit code — 0 = success, non-zero = error
+  • Duration — how long the command took to complete
+
+HOW TO USE
+  • Review this log to audit what has been run on the GhostNet host.
+  • Use the search box to find specific commands by keyword.
+  • Filter by mode: ALL / RESTRICTED ONLY / GHOST MODE ONLY.
+  • Filter by date range.
+  • Click EXPORT LOG to download the full audit log as a plain-text file.
+
+NOTE: The audit log cannot be cleared or edited from the UI. It is a
+permanent record. If you need to remove entries, you would need to
+directly edit the database (ghostnet.db), which is not recommended.
+
+
+──────────────────────────────────────────────────────────────────────────────
+D2. SQL INTERFACE
+──────────────────────────────────────────────────────────────────────────────
+
+The SQL Interface gives you direct database access in three modes.
+You can query GhostNet's own internal database, connect to any external
+PostgreSQL server, or turn a REST API into a queryable table.
+
+─── TAB 1: LOCAL DB ────────────────────────────────────────────────────────
+
+Query the GhostNet database directly. SELECT queries only — this mode
+is read-only to protect your configuration data from accidental changes.
+
+HOW TO USE
+  1. Type a SQL query in the editor.
+  2. Click EXECUTE (or press Ctrl + Enter).
+  3. Results appear in a table below the editor.
+
+AVAILABLE TABLES
+  • nodes          — all 60 nodes and their configuration
+  • beacons        — beacon/spider/worm alert history
+  • silkweb_traps  — silk web trap configuration and hit log
+  • firewall_rules — firewall rules
+  • firewall_blocklist — blocked IP list
+  • wireguard_keys — node public/private keys
+  • audit_log      — terminal command history
+  • proxy_sessions — onion browser session log
+  • settings       — GhostNet system settings
+
+EXAMPLE QUERIES
+  List all outer nodes currently showing as online:
+    SELECT id, name, ip_address, status
+    FROM nodes
+    WHERE type = 'OUTER' AND status = 'ONLINE';
+
+  Show the 10 most recent beacon alerts:
+    SELECT timestamp, type, severity, source_ip, message
+    FROM beacons
+    ORDER BY timestamp DESC
+    LIMIT 10;
+
+  Count blocked IPs added in the last 24 hours:
+    SELECT COUNT(*) as recent_blocks
+    FROM firewall_blocklist
+    WHERE created_at > NOW() - INTERVAL '24 hours';
+
+  Find all silk web trap hits from a specific country:
+    SELECT source_ip, country, trap_type, first_seen
+    FROM silkweb_traps
+    WHERE country = 'CN'
+    ORDER BY first_seen DESC;
+
+─── TAB 2: EXTERNAL DB ─────────────────────────────────────────────────────
+
+Connect to any PostgreSQL database outside of GhostNet and run any SQL
+including INSERT, UPDATE, DELETE, and DDL (CREATE TABLE, etc.).
+
+ADDING A CONNECTION
+  1. Click MANAGE CONNECTIONS.
+  2. Click ADD CONNECTION.
+  3. Fill in the connection details:
+       Name:     A friendly label for this connection (e.g. "Production DB")
+       Host:     The PostgreSQL server hostname or IP
+       Port:     Usually 5432 (default PostgreSQL port)
+       Database: The database name to connect to
+       Username: Your PostgreSQL username
+       Password: Your password (stored in memory only, never written to disk)
+       SSL:      Enable if the server requires SSL/TLS (recommended)
+  4. Click TEST CONNECTION — GhostNet verifies it can reach the server.
+  5. Click SAVE.
+
+  You can store up to 10 connections. Connection strings are always
+  displayed with the password masked (shown as ****).
+
+RUNNING A QUERY ON AN EXTERNAL CONNECTION
+  1. Select a connection from the CONNECTION dropdown at the top.
+  2. Type your SQL in the editor.
+  3. Click EXECUTE.
+  4. Results appear in the table below.
+
+  Since external connections are not restricted to SELECT-only, you can:
+    • INSERT new records
+    • UPDATE existing records
+    • DELETE records
+    • CREATE or ALTER tables
+    • CALL stored procedures
+
+  Use this with care — queries run directly against your production
+  database with no undo mechanism.
+
+SCHEMA EXPLORER
+  With a connection selected, click SCHEMA to browse the database
+  structure without writing any SQL:
+    • Lists all tables and views
+    • For each table: column names, data types, nullable, primary keys
+    • Click a table name to auto-populate "SELECT * FROM table LIMIT 50"
+      in the editor
+
+─── TAB 3: HTTP API ─────────────────────────────────────────────────────────
+
+Fetch data from any REST API and display the results as a table,
+as if you had run a SQL query against it.
+
+HOW TO USE
+  1. Enter the API endpoint URL.
+     Example: https://jsonplaceholder.typicode.com/users
+  2. Add any required headers (e.g. Authorization, API keys).
+  3. Select the response format:
+       JSON array   — the API returns a top-level JSON array
+       JSON object  — the API returns a JSON object with a data/items key
+       Custom path  — you specify the JSON path to the array of records
+                      (e.g.  data.results  or  response.items)
+  4. Click FETCH & DISPLAY.
+
+WHAT HAPPENS
+  GhostNet sends a GET request to the URL, parses the JSON response,
+  and automatically maps the fields into a table with sortable columns.
+
+  If the API returns paginated results (with a "next" URL or page token),
+  you can click LOAD MORE to append the next page to the table.
+
+EXAMPLE: Fetch GitHub repos for a user
+  URL: https://api.github.com/users/torvalds/repos
+  Format: JSON array
+  Result: a table with columns (id, name, description, stargazers_count...)
+
+EXAMPLE: Query an internal microservice
+  URL: http://192.168.1.100:8080/api/v1/metrics
+  Headers: X-API-Key: internal-key-12345
+  Format: JSON object -> path: data
+  Result: a table of metric records
+
+EXPORTING RESULTS
+  After any query (all three modes), click EXPORT to download the result
+  as a CSV file.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  SECTION E — TIPS & WORKFLOWS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+──────────────────────────────────────────────────────────────────────────────
+E1. SETTING UP A NEW VPN NODE FARM
+──────────────────────────────────────────────────────────────────────────────
+
+Goal: deploy GhostNet's 60-node mesh on a real set of VPS servers.
+
+Step 1 — Launch GhostNet
+  Follow the installation instructions for your OS (see INSTALL.txt).
+  Open http://localhost:7474.
+
+Step 2 — Initialize the node swarm
+  Go to Node Manager -> click Initialize Swarm.
+  60 nodes (50 outer, 10 inner) are created with random IPs.
+
+Step 3 — Assign real IPs to outer nodes
+  For each of your VPS servers:
+  1. In Node Manager, click a node card.
+  2. Click EDIT.
+  3. Set the IP address to your VPS's public IP.
+  4. Save.
+  Repeat for all outer nodes you have VPS servers for.
+
+Step 4 — Generate WireGuard configs
+  Go to WireGuard Config.
+  Click GENERATE ALL to download a zip of configs for all 60 nodes.
+  Deploy each .conf file to its corresponding VPS:
+    sudo cp outer-node-01.conf /etc/wireguard/wg0.conf
+    sudo wg-quick up wg0
+
+Step 5 — Enable obfuscation (optional)
+  If your network uses DPI to block VPN traffic:
+  Go to Obfuscation -> select V2Ray-WS or Shadowsocks.
+  Generate server and client configs.
+  Deploy the server config to your VPS.
+  Use the client config on your devices.
+
+Step 6 — Arm the kill switch
+  Go to Kill Switch -> select SOFT mode -> click ARM.
+  This ensures your real IP is never exposed if a tunnel drops.
+
+Step 7 — Enable IP rotation
+  Go to Node Manager -> click ROTATE ALL IPs to rotate on demand.
+  For automatic rotation every 3 seconds, enable the rotation timer.
+
+
+──────────────────────────────────────────────────────────────────────────────
+E2. DETECTING AND TRAPPING ATTACKERS
+──────────────────────────────────────────────────────────────────────────────
+
+Goal: use Silk Web to lure, identify, and block hostile actors.
+
+Step 1 — Enable silk web traps
+  Go to Silk Web.
+  Enable at least SSH Trap and HTTP Trap using the toggle in the
+  Trap Status Panel on the right.
+
+Step 2 — Assign traps to outer nodes
+  Click the node dots on the topology map.
+  Enable trap types per node based on what services you want to simulate.
+
+Step 3 — Wait and watch
+  The Trapped Entity Table will populate as actors interact with the traps.
+  Check the Dashboard live feed for real-time trap hit notifications.
+
+Step 4 — Analyze trapped entities
+  Click any row in the Trapped Entity Table to see the full fingerprint:
+  browser fingerprint, TLS cipher suite, OS guess, all attempted credentials.
+  This data helps identify the attacker's toolkit and origin.
+
+Step 5 — Block them
+  Select all trapped entities with high threat scores.
+  Click BLOCK SELECTED.
+  All their IPs are immediately added to the firewall blocklist.
+
+Step 6 — Export profiles for further analysis
+  Click EXPORT ALL PROFILES to download a JSON file with complete data
+  on every trapped entity. Use this for threat reporting or feeding
+  external security tools.
+
+
+──────────────────────────────────────────────────────────────────────────────
+E3. HIDING YOUR TRAFFIC WITH OBFUSCATION
+──────────────────────────────────────────────────────────────────────────────
+
+Goal: bypass a DPI firewall that blocks VPN traffic.
+
+Step 1 — Identify the obfuscation method to use
+  • Basic network restriction:      try Shadowsocks first (fastest)
+  • Moderate DPI (corporate):       try V2Ray-WS (port 443, looks like HTTPS)
+  • Heavy censorship:               try obfs4 or Snowflake
+  • IP-based blocking of your VPS:  try Meek (domain fronting via CDN)
+
+Step 2 — Generate the config
+  Go to Obfuscation.
+  Select your method.
+  Enter your VPS server IP and preferred port.
+  Click GENERATE CONFIG.
+
+Step 3 — Deploy the server config
+  Copy the SERVER config block.
+  SSH into your VPS and follow the deployment instructions shown on screen.
+  For V2Ray-WS, GhostNet provides a complete nginx config — copy it to
+  /etc/nginx/conf.d/ghostnet.conf and run: sudo nginx -s reload
+
+Step 4 — Configure the client
+  Copy the CLIENT config block.
+  Install the appropriate client app:
+    Shadowsocks: shadowsocks-libev or any Shadowsocks client
+    V2Ray:       V2Ray or Xray client
+    obfs4:       obfs4proxy
+    Snowflake:   built into Tor Browser
+  Paste the client config into the app.
+
+Step 5 — Test
+  Back in GhostNet, click TEST DPI BYPASS.
+  GhostNet will try to reach a test endpoint through the obfuscation layer
+  and report success or failure.
+  Also use the Onion Browser (set to GHOSTNET mode) to verify your exit IP.
+
+
+──────────────────────────────────────────────────────────────────────────────
+E4. RUNNING A SECURITY AUDIT
+──────────────────────────────────────────────────────────────────────────────
+
+Goal: assess the security posture of this GhostNet instance and any
+external infrastructure.
+
+Step 1 — Self-audit
+  Go to Security Audit.
+  Click REFRESH AUDIT.
+  Review all findings sorted by severity.
+  Work through HIGH and CRITICAL findings first:
+    • "No authentication on API endpoints" -> set API_KEY env var
+    • "HTTP-only in standalone mode" -> put nginx + Let's Encrypt in front
+    • "WireGuard keys stored in plaintext" -> encrypt ghostnet.db
+
+Step 2 — Audit your VPS
+  In the TLS Certificate Inspector:
+    Enter your VPS hostname -> click CHECK CERTIFICATE.
+    Verify the cert is valid, not expired, and scores an A grade.
+
+  In the HTTP Headers Grader:
+    Enter https://your-vps-ip-or-domain -> click GRADE HEADERS.
+    For an A+ score, your server must send:
+      Strict-Transport-Security, Content-Security-Policy,
+      X-Frame-Options, X-Content-Type-Options, Referrer-Policy
+
+Step 3 — Check suspicious IPs
+  Use the WHOIS / RDAP Lookup to investigate any IPs that appear in your
+  beacon alerts or silk web trap logs.
+  Enter the IP -> click LOOKUP.
+  Note the registrant country and ASN.
+  If it looks malicious, switch to Threat Intelligence and click CHECK IP
+  to get a formal threat score.
+
+Step 4 — Remediate and re-audit
+  Make changes to your GhostNet config or VPS setup based on findings.
+  Return to Security Audit and click REFRESH AUDIT again.
+  Continue until no CRITICAL or HIGH findings remain.
+
+
+──────────────────────────────────────────────────────────────────────────────
+E5. QUERYING EXTERNAL DATABASES
+──────────────────────────────────────────────────────────────────────────────
+
+Goal: connect GhostNet's SQL Interface to an external PostgreSQL database.
+
+Step 1 — Get your connection details
+  You need: hostname, port (usually 5432), database name, username, password.
+  Ensure the PostgreSQL server allows connections from this machine
+  (check pg_hba.conf and the server's firewall).
+
+Step 2 — Add the connection in GhostNet
+  Go to SQL Interface -> External DB tab.
+  Click MANAGE CONNECTIONS -> ADD CONNECTION.
+  Fill in all fields. Click TEST CONNECTION.
+  If the test passes, click SAVE.
+
+Step 3 — Browse the schema
+  With your connection selected, click SCHEMA.
+  Browse the tables and columns.
+  Click any table name to load a preview query automatically.
+
+Step 4 — Run queries
+  Write any SQL in the editor.
+  External DB mode allows full CRUD and DDL:
+    SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, DROP
+
+Step 5 — Export results
+  After running a query, click EXPORT CSV.
+  Results download as a CSV file.
+
+
+──────────────────────────────────────────────────────────────────────────────
+E6. RUNNING CUSTOM OUTBOUND COMMANDS
+──────────────────────────────────────────────────────────────────────────────
+
+Goal: use the Terminal in Ghost Mode to run network tools or scripts
+that are not in the default allowed command list.
+
+Step 1 — Enable Ghost Mode
+  Go to Terminal.
+  Click the GHOST MODE toggle in the top-right corner.
+  Confirm the status badge changes to GHOST MODE (green).
+
+Step 2 — Run your commands
+  Example: install a Python package and run a script:
+    python3 -m pip install requests
+    python3 -c "import requests; print(requests.get('https://httpbin.org/ip').json())"
+
+  Example: use netcat to test a connection:
+    nc -zv 8.8.8.8 53
+
+  Example: run an SSH command against a remote server:
+    ssh user@192.168.1.100 'df -h && free -m'
+
+  Example: advanced nmap scan:
+    nmap -sV -O --script vuln 192.168.1.1
+
+Step 3 — Check the audit log
+  Go to the AUDIT LOG tab.
+  Verify your commands appear with the GHOST MODE badge.
+  Export the log if you need a record for compliance purposes.
+
+Step 4 — Disable Ghost Mode when done
+  Click the GHOST MODE toggle to return to RESTRICTED mode.
+  Ghost Mode does not persist across page reloads — it resets automatically.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  KEYBOARD SHORTCUTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Terminal
+    Up / Down arrows      Navigate command history
+    Ctrl + L              Clear terminal output
+    Ctrl + C              Cancel current command
+
+  SQL Interface
+    Ctrl + Enter          Execute current query
+    Ctrl + /              Toggle comment on selected line
+
+  General
+    Escape                Close any open modal or dialog
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  DEFAULT PORTS REFERENCE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  GhostNet Web UI          7474   (change with PORT= env var)
+  GhostNet SOCKS5 Proxy    1080
+  WireGuard (per node)     51820  (change in WG Config page)
+  Tor SOCKS5               9050   (Tor must be installed separately)
+  SSH Trap (Silk Web)      2222
+  HTTP Trap (Silk Web)     8888
+  SQL Trap (Silk Web)      5433
+  Telnet Trap (Silk Web)   2323
+
+
+─────────────────────────────────────────────────────────────────────────────
+  GhostNet v3.0 — For personal use only. All rights reserved.
+  (c) 2026 GhostNet Project
+─────────────────────────────────────────────────────────────────────────────
