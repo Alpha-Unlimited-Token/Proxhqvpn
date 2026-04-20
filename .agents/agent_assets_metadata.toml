@@ -36,3 +36,9 @@ id = "7qSkwMHb-7OfuHkkLbe-0"
 uri = "file://standalone/dist/GhostNet-Universal-NodeJS.zip"
 type = "unspecified"
 title = "GhostNet — Universal / Node.js 20+ (5.1 MB)"
+
+[[outputs]]
+id = "Or5n7dm_7WNWA6WGMHhth"
+uri = "file://standalone/dist/GHOSTNET-INSTALLATION-MANUAL.md"
+type = "text"
+title = "GhostNet Installation Manual"
