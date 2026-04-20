@@ -14,6 +14,7 @@ import WireGuardConfig from "@/pages/WireGuardConfig";
 import SystemMonitor from "@/pages/SystemMonitor";
 import Terminal from "@/pages/Terminal";
 import SqlInterface from "@/pages/SqlInterface";
+import ProxyConfig from "@/pages/ProxyConfig";
 
 const queryClient = new QueryClient();
 
@@ -30,6 +31,7 @@ function Router() {
         <Route path="/monitor" component={SystemMonitor} />
         <Route path="/terminal" component={Terminal} />
         <Route path="/sql" component={SqlInterface} />
+        <Route path="/proxy" component={ProxyConfig} />
         <Route component={NotFound} />
       </Switch>
     </Layout>

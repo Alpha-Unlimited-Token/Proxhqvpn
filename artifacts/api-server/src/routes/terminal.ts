@@ -25,13 +25,23 @@ const BLOCKED_PATTERNS = [
   /rm\s+-rf/i, /mkfs/i, /dd\s+if/i, /chmod\s+777/i,
   /passwd/i, /sudo\s+su/i, /curl.*\|\s*bash/i,
   /wget.*\|\s*sh/i, />\s*\/etc/i, /\/etc\/shadow/i,
+  /;\s*rm/i, /&&\s*rm/i, /\|\s*sh/i, /\|\s*bash/i,
+  /`[^`]*`/, /\$\([^)]*\)/, />\s*\/proc/i, /\/dev\/null.*&&/i,
+  /base64\s+--decode/i, /eval\s*\(/i, /exec\s*\(/i,
 ];
+
+const SHELL_META_RE = /[;&|`$()><{}]/;
+
+function stripShellMeta(cmd: string): string {
+  return cmd.replace(/[;&|`$()><{}\\]/g, " ").replace(/\s+/g, " ").trim();
+}
 
 function isAllowed(cmd: string): boolean {
   const trimmed = cmd.trim().toLowerCase();
   for (const pat of BLOCKED_PATTERNS) {
     if (pat.test(trimmed)) return false;
   }
+  if (SHELL_META_RE.test(cmd)) return false;
   return ALLOWED_PREFIXES.some((p) => trimmed.startsWith(p.toLowerCase()));
 }
 

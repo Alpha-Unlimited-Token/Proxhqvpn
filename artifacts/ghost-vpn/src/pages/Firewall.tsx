@@ -71,8 +71,8 @@ export default function Firewall() {
     });
   };
 
-  const handleUnblockIp = (ip: string) => {
-    unblockIp.mutate({ ip }, {
+  const handleUnblockIp = (id: number, ip: string) => {
+    unblockIp.mutate({ id }, {
       onSuccess: () => {
         toast({ title: "IP Unblocked", description: `${ip} removed from blacklist.` });
         queryClient.invalidateQueries({ queryKey: getListBlockedIpsQueryKey() });
@@ -282,7 +282,7 @@ export default function Firewall() {
                       size="sm" 
                       variant="outline" 
                       className="border-primary/50 text-primary hover:bg-primary/20 h-6 px-2 text-[10px]"
-                      onClick={() => handleUnblockIp(b.ip)}
+                      onClick={() => handleUnblockIp(b.id, b.ip)}
                       disabled={unblockIp.isPending}
                     >
                       PARDON

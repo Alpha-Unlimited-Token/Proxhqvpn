@@ -1,6 +1,6 @@
 import React, { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
-import { Activity, ShieldAlert, Network, Terminal, Database, Server, Settings2, Code, Shield } from "lucide-react";
+import { Activity, ShieldAlert, Network, Terminal, Database, Server, Settings2, Code, Shield, Globe } from "lucide-react";
 
 interface LayoutProps {
   children: ReactNode;
@@ -19,6 +19,7 @@ export function Layout({ children }: LayoutProps) {
     { href: "/monitor", label: "MONITOR", icon: Activity },
     { href: "/terminal", label: "TERMINAL", icon: Terminal },
     { href: "/sql", label: "SQL INTF", icon: Database },
+    { href: "/proxy", label: "PROXY/TOR", icon: Globe },
   ];
 
   return (

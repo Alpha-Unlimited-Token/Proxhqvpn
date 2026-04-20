@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 export default function Terminal() {
   const [history, setHistory] = useState<{ cmd: string; out: string; isError: boolean }[]>([]);
   const [input, setInput] = useState("");
+  const [cmdHistory, setCmdHistory] = useState<string[]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
   const execCmd = useExecTerminalCommand();
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -14,8 +16,24 @@ export default function Terminal() {
   }, [history]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "ArrowUp") {
+      e.preventDefault();
+      const newIndex = Math.min(historyIndex + 1, cmdHistory.length - 1);
+      setHistoryIndex(newIndex);
+      if (cmdHistory.length > 0) setInput(cmdHistory[cmdHistory.length - 1 - newIndex] ?? "");
+      return;
+    }
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      const newIndex = Math.max(historyIndex - 1, -1);
+      setHistoryIndex(newIndex);
+      setInput(newIndex === -1 ? "" : (cmdHistory[cmdHistory.length - 1 - newIndex] ?? ""));
+      return;
+    }
     if (e.key === "Enter" && input.trim()) {
       const cmd = input.trim();
+      setCmdHistory((h) => [...h.filter((c) => c !== cmd), cmd].slice(-100));
+      setHistoryIndex(-1);
       setInput("");
       setHistory(h => [...h, { cmd, out: "executing...", isError: false }]);
       
