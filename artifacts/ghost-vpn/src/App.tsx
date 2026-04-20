@@ -5,7 +5,6 @@ import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/reac
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Layout } from "./components/layout/Layout";
-import Home from "@/pages/Home";
 
 import Dashboard from "@/pages/Dashboard";
 import NodeManager from "@/pages/NodeManager";
@@ -32,8 +31,6 @@ import SmartDns from "@/pages/SmartDns";
 import DnsShield from "@/pages/DnsShield";
 import RouterConfig from "@/pages/RouterConfig";
 import Account from "@/pages/Account";
-import CheckoutSuccess from "@/pages/CheckoutSuccess";
-import CheckoutCancel from "@/pages/CheckoutCancel";
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
@@ -263,13 +260,6 @@ function AppRoutes() {
           <Route path="/account">
             <ProtectedLayout><Account /></ProtectedLayout>
           </Route>
-          <Route path="/checkout/success">
-            <ProtectedLayout><CheckoutSuccess /></ProtectedLayout>
-          </Route>
-          <Route path="/checkout/cancel">
-            <ProtectedLayout><CheckoutCancel /></ProtectedLayout>
-          </Route>
-
           <Route>
             <ProtectedLayout>
               <div className="flex items-center justify-center h-64 font-mono text-primary/40 text-sm uppercase tracking-widest">
