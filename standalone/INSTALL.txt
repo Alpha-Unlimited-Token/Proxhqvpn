@@ -5,6 +5,54 @@
 ║              Platforms: Windows, macOS (Apple Silicon + Intel), Linux       ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 
+══════════════════════════════════════════════════════════════════════════════
+  QUICK INSTALL — ONE COMMAND
+══════════════════════════════════════════════════════════════════════════════
+
+  The fastest way to install GhostNet. Copy and paste one line.
+
+  LINUX & MACOS
+  ─────────────
+  Open Terminal and run:
+
+    curl -fsSL https://get.ghostnet.app | bash
+
+  That's it. GhostNet downloads, installs, and opens in your browser.
+
+  OPTIONS (add after the command):
+    Different folder:       | bash -s -- --dir ~/apps/ghostnet
+    Different port:         | bash -s -- --port 8080
+    Install as service:     | bash -s -- --service
+    Folder + port + service:| bash -s -- --dir ~/ghostnet --port 8080 --service
+
+  WINDOWS
+  ───────
+  Open PowerShell as Administrator and run:
+
+    irm https://get.ghostnet.app/win | iex
+
+  GhostNet downloads, extracts to C:\GhostNet, creates a desktop shortcut,
+  and opens in your browser automatically.
+
+  OPTIONS (add before the pipe):
+    $env:GHOSTNET_PORT="8080"; irm https://get.ghostnet.app/win | iex
+
+  ─────────────────────────────────────────────────────────────────────────
+  IF YOU ALREADY DOWNLOADED THE ZIP — use the easy setup scripts inside:
+    Linux/macOS:  bash ghostnet-setup.sh    (in the extracted folder)
+    Windows:      Double-click ghostnet-setup.bat   (in the extracted folder)
+  ─────────────────────────────────────────────────────────────────────────
+
+  NOTE ON THE VPN DAEMON
+  GhostNet's management dashboard (the full web interface) requires no
+  additional software — it runs from the package above.
+  The VPN routing daemon (actual traffic tunnelling) additionally needs:
+    Linux/macOS: Python 3.9+, root access, and the TUN kernel module
+    Windows:     WinTun driver (ghostd.py will guide you through this)
+  Non-technical users can use all dashboard features without the daemon.
+  See Section 5 (Linux) or Section 2 (Windows) for daemon setup.
+
+
 TABLE OF CONTENTS
 ─────────────────
   1.  Choosing the Right Package

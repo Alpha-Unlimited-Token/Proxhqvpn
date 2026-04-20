@@ -270,6 +270,15 @@ async function main() {
           fs.copyFileSync(path.join(scriptsDir, sf), path.join(scriptsDest, sf));
         }
       }
+      // Bundle one-command setup scripts
+      const setupSh  = path.join(__dirname, "ghostnet-setup.sh");
+      const setupBat = path.join(__dirname, "ghostnet-setup.bat");
+      const installSh  = path.join(__dirname, "ghostnet-install.sh");
+      const installPs1 = path.join(__dirname, "ghostnet-install.ps1");
+      if (fs.existsSync(setupSh))  { fs.copyFileSync(setupSh,  path.join(stageDir, "ghostnet-setup.sh"));  try { fs.chmodSync(path.join(stageDir, "ghostnet-setup.sh"), 0o755); } catch {} }
+      if (fs.existsSync(setupBat)) { fs.copyFileSync(setupBat, path.join(stageDir, "ghostnet-setup.bat")); }
+      if (fs.existsSync(installSh))  { fs.copyFileSync(installSh,  path.join(stageDir, "ghostnet-install.sh"));  try { fs.chmodSync(path.join(stageDir, "ghostnet-install.sh"), 0o755); } catch {} }
+      if (fs.existsSync(installPs1)) { fs.copyFileSync(installPs1, path.join(stageDir, "ghostnet-install.ps1")); }
 
       const zipPath = path.join(DIST, `${name}.zip`);
       await zipDir(stageDir, zipPath, name);
