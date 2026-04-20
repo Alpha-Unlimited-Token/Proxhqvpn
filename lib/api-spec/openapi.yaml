@@ -1,22 +1,37 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: GhostNet VPN Management API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: nodes
+    description: VPN node management
+  - name: beacons
+    description: Beacon and intrusion detection
+  - name: silkweb
+    description: Silk web routing and trapping
+  - name: wireguard
+    description: WireGuard configuration
+  - name: terminal
+    description: Terminal execution
+  - name: sql
+    description: SQL query interface
+  - name: monitor
+    description: System monitoring
+  - name: firewall
+    description: Built-in firewall management
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +39,485 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /nodes:
+    get:
+      operationId: listNodes
+      tags: [nodes]
+      summary: List all VPN nodes
+      parameters:
+        - name: layer
+          in: query
+          schema:
+            type: string
+            enum: [outer, inner, all]
+          description: Filter by layer (outer=50 ghost nodes, inner=10 core nodes)
+      responses:
+        "200":
+          description: List of nodes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NodeList"
+    post:
+      operationId: createNode
+      tags: [nodes]
+      summary: Create a new VPN node
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateNodeBody"
+      responses:
+        "201":
+          description: Node created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Node"
+
+  /nodes/{id}:
+    get:
+      operationId: getNode
+      tags: [nodes]
+      summary: Get node by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Node details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Node"
+    put:
+      operationId: updateNode
+      tags: [nodes]
+      summary: Update a node
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateNodeBody"
+      responses:
+        "200":
+          description: Updated node
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Node"
+    delete:
+      operationId: deleteNode
+      tags: [nodes]
+      summary: Delete a node
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /nodes/{id}/config:
+    get:
+      operationId: getNodeWireguardConfig
+      tags: [wireguard]
+      summary: Get WireGuard config for a node
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: WireGuard config
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WireguardConfig"
+
+  /nodes/{id}/rotate-ip:
+    post:
+      operationId: rotateNodeIp
+      tags: [nodes]
+      summary: Rotate the IP address of a node
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: New IP assigned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Node"
+
+  /nodes/stats/summary:
+    get:
+      operationId: getNodeStats
+      tags: [nodes]
+      summary: Get node network summary stats
+      responses:
+        "200":
+          description: Node statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NodeStats"
+
+  /beacons:
+    get:
+      operationId: listBeaconAlerts
+      tags: [beacons]
+      summary: List all beacon intrusion alerts
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, dismissed, all]
+      responses:
+        "200":
+          description: List of alerts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BeaconAlertList"
+
+  /beacons/{id}/dismiss:
+    post:
+      operationId: dismissBeaconAlert
+      tags: [beacons]
+      summary: Dismiss a beacon alert
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Alert dismissed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BeaconAlert"
+
+  /beacons/trigger:
+    post:
+      operationId: triggerBeacon
+      tags: [beacons]
+      summary: Manually trigger a beacon test
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TriggerBeaconBody"
+      responses:
+        "201":
+          description: Beacon triggered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BeaconAlert"
+
+  /beacons/stats:
+    get:
+      operationId: getBeaconStats
+      tags: [beacons]
+      summary: Get beacon detection statistics
+      responses:
+        "200":
+          description: Beacon stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BeaconStats"
+
+  /silkweb:
+    get:
+      operationId: getSilkWeb
+      tags: [silkweb]
+      summary: Get silk web topology and dead-end routes
+      responses:
+        "200":
+          description: Silk web topology
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SilkWeb"
+
+  /silkweb/collapse:
+    post:
+      operationId: collapseSilkWeb
+      tags: [silkweb]
+      summary: Collapse and regenerate silk web routes to trap attackers
+      responses:
+        "200":
+          description: Web collapsed and regenerated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SilkWeb"
+
+  /silkweb/trapped:
+    get:
+      operationId: listTrappedAttackers
+      tags: [silkweb]
+      summary: List attackers currently trapped in the silk web
+      responses:
+        "200":
+          description: Trapped attackers
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TrappedAttackerList"
+
+  /terminal/exec:
+    post:
+      operationId: execTerminalCommand
+      tags: [terminal]
+      summary: Execute a terminal command
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TerminalExecBody"
+      responses:
+        "200":
+          description: Command output
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TerminalResult"
+
+  /sql/query:
+    post:
+      operationId: executeSqlQuery
+      tags: [sql]
+      summary: Execute a SQL query against the VPN database
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SqlQueryBody"
+      responses:
+        "200":
+          description: Query results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SqlQueryResult"
+
+  /monitor/connections:
+    get:
+      operationId: getActiveConnections
+      tags: [monitor]
+      summary: Get all active network connections
+      responses:
+        "200":
+          description: Active connections
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConnectionList"
+
+  /monitor/stats:
+    get:
+      operationId: getSystemStats
+      tags: [monitor]
+      summary: Get system and network statistics
+      responses:
+        "200":
+          description: System stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SystemStats"
+
+  /firewall/rules:
+    get:
+      operationId: listFirewallRules
+      tags: [firewall]
+      summary: List all firewall rules
+      responses:
+        "200":
+          description: List of firewall rules
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FirewallRuleList"
+    post:
+      operationId: createFirewallRule
+      tags: [firewall]
+      summary: Create a new firewall rule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateFirewallRuleBody"
+      responses:
+        "201":
+          description: Rule created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FirewallRule"
+
+  /firewall/rules/{id}:
+    put:
+      operationId: updateFirewallRule
+      tags: [firewall]
+      summary: Update a firewall rule
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateFirewallRuleBody"
+      responses:
+        "200":
+          description: Updated rule
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FirewallRule"
+    delete:
+      operationId: deleteFirewallRule
+      tags: [firewall]
+      summary: Delete a firewall rule
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /firewall/status:
+    get:
+      operationId: getFirewallStatus
+      tags: [firewall]
+      summary: Get firewall status and statistics
+      responses:
+        "200":
+          description: Firewall status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FirewallStatus"
+
+  /firewall/toggle:
+    post:
+      operationId: toggleFirewall
+      tags: [firewall]
+      summary: Enable or disable the firewall
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ToggleFirewallBody"
+      responses:
+        "200":
+          description: Firewall toggled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FirewallStatus"
+
+  /firewall/blocked-ips:
+    get:
+      operationId: listBlockedIps
+      tags: [firewall]
+      summary: List currently blocked IP addresses
+      responses:
+        "200":
+          description: Blocked IPs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BlockedIpList"
+    post:
+      operationId: blockIp
+      tags: [firewall]
+      summary: Manually block an IP address
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BlockIpBody"
+      responses:
+        "201":
+          description: IP blocked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BlockedIp"
+
+  /firewall/blocked-ips/{id}/unblock:
+    post:
+      operationId: unblockIp
+      tags: [firewall]
+      summary: Unblock an IP address
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: IP unblocked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BlockedIp"
+
+  /firewall/generate-iptables:
+    post:
+      operationId: generateIptablesRules
+      tags: [firewall]
+      summary: Generate iptables/nftables ruleset for export
+      responses:
+        "200":
+          description: Generated rules
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IptablesExport"
+
 components:
   schemas:
     HealthStatus:
@@ -31,6 +525,624 @@ components:
       properties:
         status:
           type: string
-      required:
-        - status
+      required: [status]
 
+    Node:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        layer:
+          type: string
+          enum: [outer, inner]
+        hopIndex:
+          type: integer
+          description: Position in the chain (1-50 for outer, 1-10 for inner)
+        region:
+          type: string
+        ipAddress:
+          type: string
+        publicKey:
+          type: string
+        privateKey:
+          type: string
+        listenPort:
+          type: integer
+        status:
+          type: string
+          enum: [active, inactive, rotating, trapped]
+        hasBeacon:
+          type: boolean
+        hasSpider:
+          type: boolean
+        hasWorm:
+          type: boolean
+        latencyMs:
+          type: number
+        lastSeen:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, name, layer, hopIndex, region, ipAddress, publicKey, listenPort, status, hasBeacon, hasSpider, hasWorm, latencyMs, createdAt]
+
+    NodeList:
+      type: object
+      properties:
+        nodes:
+          type: array
+          items:
+            $ref: "#/components/schemas/Node"
+        total:
+          type: integer
+        outerCount:
+          type: integer
+        innerCount:
+          type: integer
+      required: [nodes, total, outerCount, innerCount]
+
+    CreateNodeBody:
+      type: object
+      properties:
+        name:
+          type: string
+        layer:
+          type: string
+          enum: [outer, inner]
+        region:
+          type: string
+        hasBeacon:
+          type: boolean
+        hasSpider:
+          type: boolean
+        hasWorm:
+          type: boolean
+      required: [name, layer, region]
+
+    UpdateNodeBody:
+      type: object
+      properties:
+        name:
+          type: string
+        status:
+          type: string
+          enum: [active, inactive]
+        hasBeacon:
+          type: boolean
+        hasSpider:
+          type: boolean
+        hasWorm:
+          type: boolean
+        region:
+          type: string
+
+    NodeStats:
+      type: object
+      properties:
+        totalNodes:
+          type: integer
+        activeNodes:
+          type: integer
+        outerNodes:
+          type: integer
+        innerNodes:
+          type: integer
+        avgLatencyMs:
+          type: number
+        totalTrafficGb:
+          type: number
+        rotationsToday:
+          type: integer
+        alertsToday:
+          type: integer
+      required: [totalNodes, activeNodes, outerNodes, innerNodes, avgLatencyMs, totalTrafficGb, rotationsToday, alertsToday]
+
+    WireguardConfig:
+      type: object
+      properties:
+        nodeId:
+          type: integer
+        configText:
+          type: string
+          description: Full WireGuard wg0.conf file content
+        peers:
+          type: array
+          items:
+            type: object
+            properties:
+              publicKey:
+                type: string
+              allowedIps:
+                type: string
+              endpoint:
+                type: string
+            required: [publicKey, allowedIps]
+        routingTable:
+          type: string
+          description: ip rule / ip route commands for this hop
+        iptablesRules:
+          type: string
+          description: iptables MASQUERADE rules for this hop
+      required: [nodeId, configText, peers, routingTable, iptablesRules]
+
+    BeaconAlert:
+      type: object
+      properties:
+        id:
+          type: integer
+        nodeId:
+          type: integer
+        nodeName:
+          type: string
+        nodeLayer:
+          type: string
+        attackerIp:
+          type: string
+        attackerFingerprint:
+          type: string
+        probeType:
+          type: string
+          enum: [ping, port_scan, traceroute, packet_sniff, tunnel_probe]
+        severity:
+          type: string
+          enum: [low, medium, high, critical]
+        status:
+          type: string
+          enum: [active, dismissed]
+        silkWebTrapped:
+          type: boolean
+        rawData:
+          type: string
+        detectedAt:
+          type: string
+          format: date-time
+      required: [id, nodeId, nodeName, nodeLayer, attackerIp, attackerFingerprint, probeType, severity, status, silkWebTrapped, detectedAt]
+
+    BeaconAlertList:
+      type: object
+      properties:
+        alerts:
+          type: array
+          items:
+            $ref: "#/components/schemas/BeaconAlert"
+        total:
+          type: integer
+        activeCount:
+          type: integer
+      required: [alerts, total, activeCount]
+
+    TriggerBeaconBody:
+      type: object
+      properties:
+        nodeId:
+          type: integer
+        simulatedIp:
+          type: string
+        probeType:
+          type: string
+          enum: [ping, port_scan, traceroute, packet_sniff, tunnel_probe]
+      required: [nodeId, probeType]
+
+    BeaconStats:
+      type: object
+      properties:
+        totalAlerts:
+          type: integer
+        activeAlerts:
+          type: integer
+        trappedAttackers:
+          type: integer
+        alertsLast24h:
+          type: integer
+        topProbeType:
+          type: string
+        criticalAlerts:
+          type: integer
+      required: [totalAlerts, activeAlerts, trappedAttackers, alertsLast24h, topProbeType, criticalAlerts]
+
+    SilkWeb:
+      type: object
+      properties:
+        id:
+          type: integer
+        totalRoutes:
+          type: integer
+        deadEndRoutes:
+          type: integer
+        activeHighways:
+          type: integer
+        intersections:
+          type: integer
+        generationId:
+          type: string
+        routes:
+          type: array
+          items:
+            $ref: "#/components/schemas/SilkRoute"
+        lastCollapsedAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, totalRoutes, deadEndRoutes, activeHighways, intersections, generationId, routes, createdAt]
+
+    SilkRoute:
+      type: object
+      properties:
+        id:
+          type: integer
+        fromNodeId:
+          type: integer
+        toNodeId:
+          type: integer
+        routeType:
+          type: string
+          enum: [highway, dead_end, decoy, collapse_zone]
+        isActive:
+          type: boolean
+      required: [id, fromNodeId, toNodeId, routeType, isActive]
+
+    TrappedAttacker:
+      type: object
+      properties:
+        id:
+          type: integer
+        ip:
+          type: string
+        fingerprint:
+          type: string
+        entryNodeId:
+          type: integer
+        loopCount:
+          type: integer
+        trappedAt:
+          type: string
+          format: date-time
+        dataCollected:
+          type: string
+      required: [id, ip, fingerprint, entryNodeId, loopCount, trappedAt, dataCollected]
+
+    TrappedAttackerList:
+      type: object
+      properties:
+        attackers:
+          type: array
+          items:
+            $ref: "#/components/schemas/TrappedAttacker"
+        total:
+          type: integer
+      required: [attackers, total]
+
+    TerminalExecBody:
+      type: object
+      properties:
+        command:
+          type: string
+        shell:
+          type: string
+          enum: [bash, sh, cmd, powershell]
+      required: [command]
+
+    TerminalResult:
+      type: object
+      properties:
+        command:
+          type: string
+        stdout:
+          type: string
+        stderr:
+          type: string
+        exitCode:
+          type: integer
+        executedAt:
+          type: string
+          format: date-time
+      required: [command, stdout, stderr, exitCode, executedAt]
+
+    SqlQueryBody:
+      type: object
+      properties:
+        query:
+          type: string
+        limit:
+          type: integer
+      required: [query]
+
+    SqlQueryResult:
+      type: object
+      properties:
+        query:
+          type: string
+        rows:
+          type: array
+          items:
+            type: object
+        columns:
+          type: array
+          items:
+            type: string
+        rowCount:
+          type: integer
+        executionTimeMs:
+          type: number
+        error:
+          type: string
+      required: [query, rows, columns, rowCount, executionTimeMs]
+
+    Connection:
+      type: object
+      properties:
+        id:
+          type: string
+        localAddress:
+          type: string
+        remoteAddress:
+          type: string
+        protocol:
+          type: string
+          enum: [TCP, UDP, WireGuard]
+        state:
+          type: string
+        process:
+          type: string
+        pid:
+          type: integer
+        nodeId:
+          type: integer
+      required: [id, localAddress, remoteAddress, protocol, state, process]
+
+    ConnectionList:
+      type: object
+      properties:
+        connections:
+          type: array
+          items:
+            $ref: "#/components/schemas/Connection"
+        total:
+          type: integer
+      required: [connections, total]
+
+    SystemStats:
+      type: object
+      properties:
+        cpuPercent:
+          type: number
+        memoryPercent:
+          type: number
+        memoryUsedMb:
+          type: number
+        memoryTotalMb:
+          type: number
+        networkInMbps:
+          type: number
+        networkOutMbps:
+          type: number
+        uptime:
+          type: string
+        platform:
+          type: string
+        activeUsers:
+          type: integer
+        wireguardTunnels:
+          type: integer
+      required: [cpuPercent, memoryPercent, memoryUsedMb, memoryTotalMb, networkInMbps, networkOutMbps, uptime, platform, activeUsers, wireguardTunnels]
+
+    FirewallRule:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        direction:
+          type: string
+          enum: [inbound, outbound, both]
+        action:
+          type: string
+          enum: [allow, deny, drop, reject, masquerade, log]
+        protocol:
+          type: string
+          enum: [tcp, udp, icmp, any]
+        sourceIp:
+          type: string
+        sourcePort:
+          type: string
+        destIp:
+          type: string
+        destPort:
+          type: string
+        priority:
+          type: integer
+        enabled:
+          type: boolean
+        hitCount:
+          type: integer
+        description:
+          type: string
+        isIspMasquerade:
+          type: boolean
+          description: Whether this rule helps mask the ISP and local host IP
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, name, direction, action, protocol, priority, enabled, hitCount, isIspMasquerade, createdAt]
+
+    FirewallRuleList:
+      type: object
+      properties:
+        rules:
+          type: array
+          items:
+            $ref: "#/components/schemas/FirewallRule"
+        total:
+          type: integer
+        enabledCount:
+          type: integer
+      required: [rules, total, enabledCount]
+
+    CreateFirewallRuleBody:
+      type: object
+      properties:
+        name:
+          type: string
+        direction:
+          type: string
+          enum: [inbound, outbound, both]
+        action:
+          type: string
+          enum: [allow, deny, drop, reject, masquerade, log]
+        protocol:
+          type: string
+          enum: [tcp, udp, icmp, any]
+        sourceIp:
+          type: string
+        sourcePort:
+          type: string
+        destIp:
+          type: string
+        destPort:
+          type: string
+        priority:
+          type: integer
+        description:
+          type: string
+        isIspMasquerade:
+          type: boolean
+      required: [name, direction, action, protocol]
+
+    UpdateFirewallRuleBody:
+      type: object
+      properties:
+        name:
+          type: string
+        direction:
+          type: string
+          enum: [inbound, outbound, both]
+        action:
+          type: string
+          enum: [allow, deny, drop, reject, masquerade, log]
+        protocol:
+          type: string
+          enum: [tcp, udp, icmp, any]
+        sourceIp:
+          type: string
+        sourcePort:
+          type: string
+        destIp:
+          type: string
+        destPort:
+          type: string
+        priority:
+          type: integer
+        enabled:
+          type: boolean
+        description:
+          type: string
+        isIspMasquerade:
+          type: boolean
+
+    FirewallStatus:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+        mode:
+          type: string
+          enum: [stealth, strict, standard, learning]
+        totalRules:
+          type: integer
+        enabledRules:
+          type: integer
+        blockedIps:
+          type: integer
+        packetsBlocked:
+          type: integer
+        packetsAllowed:
+          type: integer
+        ispMasqueradeActive:
+          type: boolean
+        localhostHidden:
+          type: boolean
+        dnsMasked:
+          type: boolean
+        lastUpdated:
+          type: string
+          format: date-time
+      required: [enabled, mode, totalRules, enabledRules, blockedIps, packetsBlocked, packetsAllowed, ispMasqueradeActive, localhostHidden, dnsMasked, lastUpdated]
+
+    ToggleFirewallBody:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+        mode:
+          type: string
+          enum: [stealth, strict, standard, learning]
+      required: [enabled]
+
+    BlockedIp:
+      type: object
+      properties:
+        id:
+          type: integer
+        ip:
+          type: string
+        reason:
+          type: string
+        autoBlocked:
+          type: boolean
+        blockedAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        hitCount:
+          type: integer
+      required: [id, ip, reason, autoBlocked, blockedAt, hitCount]
+
+    BlockedIpList:
+      type: object
+      properties:
+        blockedIps:
+          type: array
+          items:
+            $ref: "#/components/schemas/BlockedIp"
+        total:
+          type: integer
+      required: [blockedIps, total]
+
+    BlockIpBody:
+      type: object
+      properties:
+        ip:
+          type: string
+        reason:
+          type: string
+        expiresInMinutes:
+          type: integer
+      required: [ip, reason]
+
+    IptablesExport:
+      type: object
+      properties:
+        iptablesRules:
+          type: string
+          description: Full iptables-save format ruleset
+        nftablesRules:
+          type: string
+          description: nftables equivalent ruleset
+        wireguardMasquerade:
+          type: string
+          description: WireGuard-specific MASQUERADE rules for IP/ISP masking
+        portKnockRules:
+          type: string
+          description: Port knocking rules for Secfense Ghost-style invisibility
+        exportedAt:
+          type: string
+          format: date-time
+      required: [iptablesRules, nftablesRules, wireguardMasquerade, portKnockRules, exportedAt]
