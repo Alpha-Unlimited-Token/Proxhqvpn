@@ -29,6 +29,7 @@ import routerConfigRouter from "./routerconfig";
 import stripeRouter from "./stripe";
 import wireguardRouter from "./wireguard";
 import daemonInboundRouter from "./daemon-inbound";
+import sqlmapRouter from "./sqlmap";
 
 const router: IRouter = Router();
 
@@ -81,5 +82,6 @@ router.use("/router-config",  routerConfigRouter);
 // Stripe routes — require auth (enforced above)
 router.use("/stripe",         stripeRouter);
 router.use("/wireguard",      wireguardRouter);
+router.use("/sqlmap",         sqlmapRouter);
 
 export default router;

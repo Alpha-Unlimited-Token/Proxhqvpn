@@ -8,7 +8,7 @@ import {
   LayoutDashboard, Server, ShieldAlert, Network,
   Activity, Shield, Terminal, Database,
   LogOut, User, Menu,
-  Zap, Settings, Cpu, Router
+  Zap, Settings, Cpu, Router, ScanSearch
 } from "lucide-react";
 import { useAdmin } from "@/hooks/useAdmin";
 
@@ -44,6 +44,7 @@ const PAGE_NAMES: Record<string, string> = {
   "/terminal":     "Terminal",
   "/sql":          "Database",
   "/account":      "My Account",
+  "/sqlmap":       "Vulnerability Scanner",
 };
 
 const USER_NAV = [
@@ -68,10 +69,11 @@ const NETWORK_NAV = [
 ];
 
 const ADVANCED_NAV = [
-  { href: "/wireguard",     label: "WireGuard Config",icon: Cpu },
-  { href: "/router-config", label: "Router Setup",    icon: Router },
-  { href: "/smart-dns",     label: "Smart DNS",       icon: Zap },
-  { href: "/vpn-coexist",   label: "VPN Coexistence", icon: Settings },
+  { href: "/wireguard",     label: "WireGuard Config",    icon: Cpu },
+  { href: "/router-config", label: "Router Setup",        icon: Router },
+  { href: "/smart-dns",     label: "Smart DNS",           icon: Zap },
+  { href: "/vpn-coexist",   label: "VPN Coexistence",     icon: Settings },
+  { href: "/sqlmap",        label: "Vulnerability Scanner", icon: ScanSearch },
 ];
 
 const ADMIN_NAV = [

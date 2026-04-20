@@ -5,9 +5,21 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ShieldOff, AlertOctagon, Target } from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { ShieldOff, AlertOctagon, Target, Ban } from "lucide-react";
+import { useQueryClient, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+async function blockIpApi(ip: string, reason: string) {
+  const r = await fetch(`${BASE}/api/firewall/blocked-ips`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ ip, reason }),
+  });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
+}
 import { format } from "date-fns";
 
 export default function BeaconAlerts() {
@@ -17,6 +29,15 @@ export default function BeaconAlerts() {
   const { toast } = useToast();
   const dismissAlert = useDismissBeaconAlert();
   const triggerBeacon = useTriggerBeacon();
+
+  const blockIpMutation = useMutation({
+    mutationFn: ({ ip, reason }: { ip: string; reason: string }) => blockIpApi(ip, reason),
+    onSuccess: (_data, vars) => {
+      toast({ title: "IP Blocked", description: `${vars.ip} has been added to the firewall blacklist.` });
+      queryClient.invalidateQueries({ queryKey: ["firewall-blocked-ips"] });
+    },
+    onError: (e: Error) => toast({ title: "Block failed", description: e.message, variant: "destructive" }),
+  });
 
   const [isTriggerOpen, setIsTriggerOpen] = useState(false);
   const [triggerForm, setTriggerForm] = useState({ nodeId: '', probeType: 'ping' });
@@ -134,18 +155,30 @@ export default function BeaconAlerts() {
                   </Badge>
                 </TableCell>
                 <TableCell>
-                  {alert.status === 'active' && (
-                    <Button 
-                      size="sm" 
-                      variant="outline" 
-                      className="border-primary/50 text-primary hover:bg-primary/20 h-6 px-2 text-xs"
-                      onClick={() => handleDismiss(alert.id)}
-                      disabled={dismissAlert.isPending}
+                  <div className="flex items-center gap-1.5">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-red-500/50 text-red-400 hover:bg-red-500/20 h-6 px-2 text-xs"
+                      onClick={() => blockIpMutation.mutate({ ip: alert.attackerIp, reason: `Auto-blocked: ${alert.probeType} detected by beacon` })}
+                      disabled={blockIpMutation.isPending}
                     >
-                      <ShieldOff className="w-3 h-3 mr-1" />
-                      DISMISS
+                      <Ban className="w-3 h-3 mr-1" />
+                      BLOCK IP
                     </Button>
-                  )}
+                    {alert.status === 'active' && (
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="border-primary/50 text-primary hover:bg-primary/20 h-6 px-2 text-xs"
+                        onClick={() => handleDismiss(alert.id)}
+                        disabled={dismissAlert.isPending}
+                      >
+                        <ShieldOff className="w-3 h-3 mr-1" />
+                        DISMISS
+                      </Button>
+                    )}
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
