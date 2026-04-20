@@ -32,7 +32,7 @@ let idCounter = 100;
 function generateLinuxRoutes(activeRules: SplitRule[], vpnIface = "tun0"): string {
   const lines = [
     "#!/usr/bin/env bash",
-    "# GhostNet Split Tunneling — Linux ip rule/route commands",
+    "# PROXHQ Split Tunneling — Linux ip rule/route commands",
     "# Run as root: sudo bash split_tunnel.sh",
     "",
     "VPN_IFACE=${1:-" + vpnIface + "}",
@@ -71,7 +71,7 @@ function generateLinuxRoutes(activeRules: SplitRule[], vpnIface = "tun0"): strin
 
 function generateWindowsRoutes(activeRules: SplitRule[]): string {
   const lines = [
-    "# GhostNet Split Tunneling — Windows route commands",
+    "# PROXHQ Split Tunneling — Windows route commands",
     "# Run as Administrator in PowerShell",
     "",
     "# Get VPN adapter IP",

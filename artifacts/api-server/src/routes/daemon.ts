@@ -29,7 +29,7 @@ async function proxyToDaemon(
       status: offline ? 503 : 500,
       data: {
         error: offline
-          ? "GhostNet daemon is not running. Start it with: sudo python3 ghostd.py --mode server --psk YOUR_PSK"
+          ? "PROXHQ daemon is not running. Start it with: sudo python3 proxhqd.py --mode server --psk YOUR_PSK"
           : msg,
         daemon_url: DAEMON_URL,
         running: false,

@@ -6,7 +6,7 @@ import type { RequestInit } from "node-fetch";
 
 const router = Router();
 
-type ProxyMode = "direct" | "ghostnet-onion" | "tor-gateway" | "double-layer" | "custom-proxy";
+type ProxyMode = "direct" | "proxhq-onion" | "tor-gateway" | "double-layer" | "custom-proxy";
 type CustomProxyType = "http" | "https" | "socks4" | "socks5";
 
 interface ProxyConfig {
@@ -20,7 +20,7 @@ interface ProxyConfig {
 }
 
 const DEFAULT_CONFIG: ProxyConfig = {
-  mode: "ghostnet-onion",
+  mode: "proxhq-onion",
   socks5Host: "127.0.0.1",
   socks5Port: 9050,
   chainLength: 7,
@@ -31,22 +31,22 @@ const DEFAULT_CONFIG: ProxyConfig = {
 
 let currentConfig: ProxyConfig = { ...DEFAULT_CONFIG };
 
-const GHOSTNET_HOP_REGIONS = [
+const PROXHQ_HOP_REGIONS = [
   "EU-North", "EU-Central", "AP-Tokyo", "AP-Singapore", "US-East",
   "US-West", "SA-Brazil", "AF-Lagos", "ME-Dubai", "AP-Sydney",
 ];
 
 function randomRegion() {
-  return GHOSTNET_HOP_REGIONS[Math.floor(Math.random() * GHOSTNET_HOP_REGIONS.length)];
+  return PROXHQ_HOP_REGIONS[Math.floor(Math.random() * PROXHQ_HOP_REGIONS.length)];
 }
 
 function buildLayers(mode: ProxyMode, chainLength: number, config: ProxyConfig): string[] {
   switch (mode) {
     case "direct":
       return ["Direct Connection", "Destination"];
-    case "ghostnet-onion": {
+    case "proxhq-onion": {
       const hops = Array.from({ length: Math.min(chainLength, 7) }, (_, i) =>
-        `GhostNet Relay #${i + 1} (${randomRegion()})`
+        `PROXHQ Relay #${i + 1} (${randomRegion()})`
       );
       return ["Your Device", ...hops, "Destination"];
     }
@@ -60,7 +60,7 @@ function buildLayers(mode: ProxyMode, chainLength: number, config: ProxyConfig):
       ];
     case "double-layer": {
       const ghostHops = Array.from({ length: 3 }, (_, i) =>
-        `GhostNet Relay #${i + 1} (${randomRegion()})`
+        `PROXHQ Relay #${i + 1} (${randomRegion()})`
       );
       return [
         "Your Device",
@@ -190,7 +190,7 @@ async function fetchThroughProxy(
   } else {
     html = `<html><body style="background:#000;color:#00ff41;font-family:monospace;padding:20px;">
       <p>Content-Type: ${contentType}</p>
-      <p>Cannot render this content type in the GhostNet browser.</p>
+      <p>Cannot render this content type in the PROXHQ browser.</p>
       <p>URL: <a href="${finalUrl}" style="color:#00ff41">${finalUrl}</a></p>
     </body></html>`;
   }
@@ -289,7 +289,7 @@ function buildErrorPage(
 ): string {
   return `<!DOCTYPE html>
 <html>
-<head><meta charset="utf-8"><title>GhostNet Connection Error</title></head>
+<head><meta charset="utf-8"><title>PROXHQ Connection Error</title></head>
 <body style="background:#000;color:#00ff41;font-family:'Courier New',monospace;padding:32px;max-width:640px;">
   <h2 style="color:#ff4141;margin-bottom:16px;">⚠ CONNECTION FAILED</h2>
   <p style="color:#aaa;margin-bottom:8px;">URL: <span style="color:#00ff41">${url}</span></p>

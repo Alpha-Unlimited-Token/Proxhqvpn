@@ -1,4 +1,5 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
+import { getAuth } from "@clerk/express";
 import healthRouter from "./health";
 import nodesRouter from "./nodes";
 import beaconsRouter from "./beacons";
@@ -20,23 +21,33 @@ import vpnGateRouter from "./vpngate";
 
 const router: IRouter = Router();
 
+// Public routes
 router.use(healthRouter);
-router.use("/nodes",         nodesRouter);
-router.use("/beacons",       beaconsRouter);
-router.use("/silkweb",       silkwebRouter);
-router.use("/firewall",      firewallRouter);
-router.use("/monitor",       monitorRouter);
-router.use("/terminal",      terminalRouter);
-router.use("/sql",           sqlRouter);
-router.use("/proxy-browser", proxyBrowserRouter);
-router.use("/killswitch",    killswitchRouter);
-router.use("/leaks",         leaksRouter);
-router.use("/threatintel",   threatintelRouter);
-router.use("/split-tunnel",  splittunnelRouter);
+
+// Auth guard — all routes below require a valid Clerk session
+const requireAuth = (req: Request, res: Response, next: NextFunction) => {
+  const { userId } = getAuth(req);
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+  next();
+};
+router.use(requireAuth);
+
+router.use("/nodes",          nodesRouter);
+router.use("/beacons",        beaconsRouter);
+router.use("/silkweb",        silkwebRouter);
+router.use("/firewall",       firewallRouter);
+router.use("/monitor",        monitorRouter);
+router.use("/terminal",       terminalRouter);
+router.use("/sql",            sqlRouter);
+router.use("/proxy-browser",  proxyBrowserRouter);
+router.use("/killswitch",     killswitchRouter);
+router.use("/leaks",          leaksRouter);
+router.use("/threatintel",    threatintelRouter);
+router.use("/split-tunnel",   splittunnelRouter);
 router.use("/obfuscation",    obfuscationRouter);
 router.use("/security-audit", securityauditRouter);
-router.use("/daemon",        daemonRouter);
-router.use("/vpn-coexist",   vpnCoexistRouter);
-router.use("/vpngate",       vpnGateRouter);
+router.use("/daemon",         daemonRouter);
+router.use("/vpn-coexist",    vpnCoexistRouter);
+router.use("/vpngate",        vpnGateRouter);
 
 export default router;

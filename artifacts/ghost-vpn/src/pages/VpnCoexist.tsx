@@ -26,7 +26,7 @@ interface VpnProfile {
 }
 interface ExceptionRule {
   id: string; cidr: string; description: string;
-  action: "bypass-ghostnet" | "force-ghostnet" | "block"; source: string; addedAt: string;
+  action: "bypass-proxhq" | "force-proxhq" | "block"; source: string; addedAt: string;
 }
 interface DetectedVpn extends VpnProfile {
   active: boolean; detectedIface: string | null; pid: number | null;
@@ -40,8 +40,8 @@ const MODE_LABELS: Record<string, { label: string; description: string; badge: s
 };
 
 const ACTION_COLORS: Record<string, string> = {
-  "bypass-ghostnet": "text-yellow-400 border-yellow-400/30 bg-yellow-400/5",
-  "force-ghostnet":  "text-primary border-primary/30 bg-primary/5",
+  "bypass-proxhq": "text-yellow-400 border-yellow-400/30 bg-yellow-400/5",
+  "force-proxhq":  "text-primary border-primary/30 bg-primary/5",
   "block":           "text-red-400 border-red-400/30 bg-red-400/5",
 };
 
@@ -52,7 +52,7 @@ export default function VpnCoexist() {
   const [selectedMode, setSelectedMode] = useState("fwmark");
   const [targetOs, setTargetOs] = useState<"linux" | "macos" | "windows">("linux");
   const [detectedIface, setDetectedIface] = useState("tun0");
-  const [ghostnetIface, setGhostnetIface] = useState("proxhq0");
+  const [proxhqIface, setProxhqIface] = useState("proxhq0");
   const [fwmark, setFwmark] = useState(100);
   const [generatedScript, setGeneratedScript] = useState("");
   const [disableScript, setDisableScript] = useState("");
@@ -64,7 +64,7 @@ export default function VpnCoexist() {
   // exception form
   const [newCidr, setNewCidr] = useState("");
   const [newDesc, setNewDesc] = useState("");
-  const [newAction, setNewAction] = useState<"bypass-ghostnet" | "force-ghostnet" | "block">("bypass-ghostnet");
+  const [newAction, setNewAction] = useState<"bypass-proxhq" | "force-proxhq" | "block">("bypass-proxhq");
 
   // mtu calc
   const [baseMtu, setBaseMtu] = useState(1500);
@@ -115,7 +115,7 @@ export default function VpnCoexist() {
       method: "POST",
       body: JSON.stringify({
         vpnProfileId: selectedProfile, mode: selectedMode,
-        detectedIface, ghostnetIface, ghostnetFwmark: fwmark, targetOs,
+        detectedIface, proxhqIface, proxhqFwmark: fwmark, targetOs,
       }),
     }),
     onSuccess: (d) => {
@@ -322,8 +322,8 @@ export default function VpnCoexist() {
               <div>
                 <label className="text-[9px] text-primary/40 block mb-1">PROXHQ INTERFACE</label>
                 <input
-                  value={ghostnetIface}
-                  onChange={e => setGhostnetIface(e.target.value)}
+                  value={proxhqIface}
+                  onChange={e => setProxhqIface(e.target.value)}
                   className="w-full bg-black border border-primary/30 text-primary text-xs px-2 py-1.5 font-mono focus:outline-none focus:border-primary"
                   placeholder="proxhq0"
                 />
@@ -440,8 +440,8 @@ export default function VpnCoexist() {
                   onChange={e => setNewAction(e.target.value as any)}
                   className="bg-black border border-primary/30 text-primary text-xs px-2 py-1.5 font-mono focus:outline-none focus:border-primary"
                 >
-                  <option value="bypass-ghostnet">Bypass PROXHQ → Native VPN</option>
-                  <option value="force-ghostnet">Force through PROXHQ</option>
+                  <option value="bypass-proxhq">Bypass PROXHQ → Native VPN</option>
+                  <option value="force-proxhq">Force through PROXHQ</option>
                   <option value="block">Block entirely</option>
                 </select>
                 <button
@@ -474,7 +474,7 @@ export default function VpnCoexist() {
                   <div className="col-span-3 text-[10px] text-primary/60">{rule.description || "—"}</div>
                   <div className="col-span-2">
                     <span className={`text-[9px] px-1.5 py-0.5 border font-bold tracking-wider ${ACTION_COLORS[rule.action]}`}>
-                      {rule.action === "bypass-ghostnet" ? "BYPASS" : rule.action === "force-ghostnet" ? "FORCE" : "BLOCK"}
+                      {rule.action === "bypass-proxhq" ? "BYPASS" : rule.action === "force-proxhq" ? "FORCE" : "BLOCK"}
                     </span>
                   </div>
                   <div className="col-span-2 text-[10px] text-primary/40 uppercase">{rule.source}</div>
@@ -514,7 +514,7 @@ export default function VpnCoexist() {
                           await apiFetch("/vpn-coexist/exceptions", {
                             method: "POST",
                             body: JSON.stringify({
-                              cidr, description: `${p.name} server range`, action: "bypass-ghostnet",
+                              cidr, description: `${p.name} server range`, action: "bypass-proxhq",
                             }),
                           });
                         }

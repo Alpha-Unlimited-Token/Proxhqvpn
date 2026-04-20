@@ -30,7 +30,7 @@ let state: KillSwitchState = {
 
 function generateIptablesRules(ifaces: string[]): string[] {
   const rules: string[] = [
-    "# GhostNet Kill Switch — iptables rules",
+    "# PROXHQ Kill Switch — iptables rules",
     "# Apply with: sudo bash kill_switch.sh",
     "",
     "#!/usr/bin/env bash",
@@ -80,7 +80,7 @@ function generateIptablesRules(ifaces: string[]): string[] {
 function generateDisableScript(): string[] {
   return [
     "#!/usr/bin/env bash",
-    "# GhostNet Kill Switch — DISABLE (restore normal traffic)",
+    "# PROXHQ Kill Switch — DISABLE (restore normal traffic)",
     "iptables -P OUTPUT ACCEPT",
     "iptables -P INPUT  ACCEPT",
     "iptables -P FORWARD ACCEPT",
@@ -91,8 +91,8 @@ function generateDisableScript(): string[] {
 
 function generatePfRules(ifaces: string[]): string[] {
   const rules = [
-    "# GhostNet Kill Switch — macOS pf rules",
-    "# Apply with: sudo pfctl -f /etc/pf.anchors/ghostnet_killswitch",
+    "# PROXHQ Kill Switch — macOS pf rules",
+    "# Apply with: sudo pfctl -f /etc/pf.anchors/proxhq_killswitch",
     "",
     "# Block all by default",
     "block out all",
@@ -161,14 +161,14 @@ router.get("/generate-rules", (req, res) => {
       platform: "Windows",
       type: "netsh/wfp",
       enable: [
-        "# GhostNet Kill Switch — Windows Firewall (PowerShell)",
+        "# PROXHQ Kill Switch — Windows Firewall (PowerShell)",
         '# Run as Administrator',
         "",
         "# Block all outbound except VPN",
         'netsh advfirewall set allprofiles firewallpolicy blockinbound,blockoutbound',
         ...ifaces.map(i => `# Allow interface: ${i}`),
-        'netsh advfirewall firewall add rule name="GhostNet VPN" protocol=UDP dir=out action=allow localport=51820',
-        'netsh advfirewall firewall add rule name="GhostNet Loopback" protocol=any dir=out action=allow localip=127.0.0.0/8',
+        'netsh advfirewall firewall add rule name="PROXHQ VPN" protocol=UDP dir=out action=allow localport=51820',
+        'netsh advfirewall firewall add rule name="PROXHQ Loopback" protocol=any dir=out action=allow localip=127.0.0.0/8',
       ].join("\n"),
       disable: 'netsh advfirewall set allprofiles firewallpolicy blockinbound,allowoutbound',
     });

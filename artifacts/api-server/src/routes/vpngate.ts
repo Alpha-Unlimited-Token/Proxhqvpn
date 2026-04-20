@@ -5,6 +5,7 @@ import { spawn, type ChildProcess } from "child_process";
 import { writeFileSync, unlinkSync, existsSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
+import { z } from "zod";
 
 const router = Router();
 
@@ -343,13 +344,18 @@ router.post("/connect", async (req, res) => {
   connState.ovpnAvailable = ovpnAvailable;
 
   try {
+    const body = z.object({
+      ip: z.string().max(45).optional(),
+      country: z.string().max(100).optional(),
+    }).parse(req.body ?? {});
+
     const servers = await getServers();
     let server: VpnGateServer | undefined;
 
-    if (req.body?.ip) {
-      server = servers.find((s) => s.ip === req.body.ip);
-    } else if (req.body?.country) {
-      const q = req.body.country.toLowerCase();
+    if (body.ip) {
+      server = servers.find((s) => s.ip === body.ip);
+    } else if (body.country) {
+      const q = body.country.toLowerCase();
       server = servers.find((s) => s.countryCode.toLowerCase() === q || s.country.toLowerCase().includes(q));
     } else {
       server = servers[0];
@@ -366,7 +372,7 @@ router.post("/connect", async (req, res) => {
       ping: server.ping,
       speedMbps: server.speedMbps,
       connectedAt: null,
-      error: ovpnAvailable ? null : "OpenVPN not installed on this server. Use the connect scripts (ghostnet-connect.sh / ghostnet-connect.ps1) on your local machine instead.",
+      error: ovpnAvailable ? null : "OpenVPN not installed on this server. Use the connect scripts (proxhq-connect.sh / proxhq-connect.ps1) on your local machine instead.",
       pid: null,
       ovpnAvailable,
     };
@@ -374,14 +380,14 @@ router.post("/connect", async (req, res) => {
     if (!ovpnAvailable) {
       return res.status(400).json({
         error: "OpenVPN not installed on this server",
-        hint: "Use ghostnet-connect.sh (Linux/macOS) or ghostnet-connect.ps1 (Windows) on your local machine to connect",
+        hint: "Use proxhq-connect.sh (Linux/macOS) or proxhq-connect.ps1 (Windows) on your local machine to connect",
         server: { ip: server.ip, country: server.country, ping: server.ping, speedMbps: server.speedMbps },
       });
     }
 
     const config = Buffer.from(server.ovpnConfigB64, "base64").toString("utf-8");
-    const ovpnPath = join(tmpdir(), `ghostnet-vpngate-${Date.now()}.ovpn`);
-    const credsPath = join(tmpdir(), `ghostnet-vpngate-creds-${Date.now()}.txt`);
+    const ovpnPath = join(tmpdir(), `proxhq-vpngate-${Date.now()}.ovpn`);
+    const credsPath = join(tmpdir(), `proxhq-vpngate-creds-${Date.now()}.txt`);
 
     writeFileSync(ovpnPath, config, { mode: 0o600 });
     writeFileSync(credsPath, "vpn\nvpn\n", { mode: 0o600 });

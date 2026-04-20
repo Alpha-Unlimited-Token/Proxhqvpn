@@ -4,7 +4,7 @@
 
 ## Overview
 
-PROXHQ is an advanced VPN orchestration and security platform with 60-node mesh (50 outer + 10 inner), silk web trap network, port knocking, mTLS, beacons/spiders/worms, firewall, WireGuard config generation, SQL interface (local + external PostgreSQL + HTTP API mode), terminal emulator (Ghost Mode with full outbound), security audit suite, system monitor, Tor/SOCKS5 integration, kill switch, leak detection, threat intelligence, split tunneling, and DPI obfuscation. React + Vite frontend; Express/PostgreSQL backend.
+PROXHQ is an advanced VPN orchestration and security platform with 60-node mesh (50 outer + 10 inner), silk web trap network, port knocking, mTLS, beacons/spiders/worms, firewall, WireGuard config generation, SQL interface (local + external PostgreSQL + HTTP API mode), terminal emulator (PROXHQ Mode with full outbound), security audit suite, system monitor, Tor/SOCKS5 integration, kill switch, leak detection, threat intelligence, split tunneling, and DPI obfuscation. React + Vite frontend; Express/PostgreSQL backend.
 
 ## Stack
 
@@ -12,7 +12,7 @@ PROXHQ is an advanced VPN orchestration and security platform with 60-node mesh 
 - **Node.js version**: 24
 - **Package manager**: pnpm
 - **TypeScript version**: 5.9
-- **API framework**: Express 5
+- **API framework**: Express 5 (async errors auto-forwarded to error handler)
 - **Database**: PostgreSQL + Drizzle ORM
 - **Validation**: Zod v3 (always `import from "zod"`, never `"zod/v4"`)
 - **API codegen**: Orval (from OpenAPI spec)
@@ -21,11 +21,12 @@ PROXHQ is an advanced VPN orchestration and security platform with 60-node mesh 
 ## Authentication
 
 Clerk-based auth (app_3CcwHo66ohArVtaIa0XTcv88i4Y). Env vars: `VITE_CLERK_PUBLISHABLE_KEY`, `CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`.
-- `/` — Public landing page (GhostNet OS marketing). Signed-in users redirect to `/dashboard`.
-- `/sign-in`, `/sign-up` — Branded Clerk auth pages with GhostNet dark/green terminal theme.
+- `/` — Public landing page (PROXHQ marketing). Signed-in users redirect to `/dashboard`.
+- `/sign-in`, `/sign-up` — Branded Clerk auth pages with PROXHQ dark/green terminal theme.
 - All `/dashboard/*` routes — Protected. Unauthenticated users redirect to `/sign-in`.
 - API proxy: `CLERK_PROXY_PATH = /api/__clerk` (only active in production, dev uses Clerk dev instance directly).
 - Sign-out available via Layout sidebar footer.
+- **All `/api/*` routes (except `/api/healthz`) require a valid Clerk session** — enforced by `requireAuth` middleware in `routes/index.ts` using `getAuth(req)` from `@clerk/express`.
 
 **STRICT RULE: No mock/simulated data anywhere.** All pages use real APIs or real DB. `useSilkWebEngine.ts` was deleted.
 
@@ -33,7 +34,7 @@ Clerk-based auth (app_3CcwHo66ohArVtaIa0XTcv88i4Y). Env vars: `VITE_CLERK_PUBLIS
 
 | Route | Page | Description |
 |-------|------|-------------|
-| / | Home | Public landing page — GhostNet OS marketing + CTA |
+| / | Home | Public landing page — PROXHQ OS marketing + CTA |
 | /dashboard | Dashboard | Live stats, node feed, intrusion alerts (auth required) |
 | /nodes | NodeManager | Swarm grid with 3s rotation + lifecycle animations |
 | /beacons | BeaconAlerts | Spider/worm/beacon alert table |
@@ -45,24 +46,25 @@ Clerk-based auth (app_3CcwHo66ohArVtaIa0XTcv88i4Y). Env vars: `VITE_CLERK_PUBLIS
 | /wireguard | WireGuardConfig | Per-node WireGuard config generator |
 | /split-tunnel | SplitTunnel | Per-IP/CIDR/port/app routing rules, Linux/Windows script generator |
 | /obfuscation | Obfuscation | obfs4/Shadowsocks/V2Ray-WS/Meek/Snowflake/XOR DPI bypass config |
-| /monitor | SystemMonitor | CPU, RAM, network metrics |
+| /monitor | SystemMonitor | CPU, RAM, network metrics (all real: `/proc/net/dev`, `ss`, `wg show`, `api.ipify.org`) |
 | /proxy | ProxyConfig | Tor Browser, SOCKS5, multi-OS, port knocking docs |
-| /onion-browser | OnionBrowser | Proxied browser (Direct/GhostNet/Tor/Double/Custom SOCKS4/5/HTTP) |
-| /terminal | Terminal | 4-tab shell (SHELL/HTTP CLIENT/PORT SCAN/AUDIT LOG), Ghost Mode toggle for full outbound |
+| /onion-browser | OnionBrowser | Proxied browser (Direct/PROXHQ Onion/Tor/Double/Custom SOCKS4/5/HTTP) |
+| /terminal | Terminal | 4-tab shell (SHELL/HTTP CLIENT/PORT SCAN/AUDIT LOG), PROXHQ Mode toggle for full outbound |
 | /sql | SqlInterface | 3-mode SQL interface (LOCAL DB/EXTERNAL DB/HTTP API), external PostgreSQL connection manager + schema explorer |
 | /security-audit | SecurityAudit | Self-audit findings (Critical/High/Medium/Low), TLS cert inspector, HTTP security-headers grader (A–F), WHOIS/RDAP lookup |
-| /vpn-coexist | VpnCoexist | Run GhostNet alongside NordVPN/ExpressVPN/ProtonVPN/Mullvad/Surfshark — 4 coexistence modes (fwmark, double-hop, namespace, routing-table), auto-detect running VPNs, exception rules, MTU optimizer, script generator |
+| /vpn-coexist | VpnCoexist | Run PROXHQ alongside NordVPN/ExpressVPN/ProtonVPN/Mullvad/Surfshark — 4 coexistence modes (fwmark, double-hop, namespace, routing-table), auto-detect running VPNs, exception rules (bypass-proxhq/force-proxhq/block), MTU optimizer, script generator |
 
 ## API Routes (api-server)
 
 | Prefix | Module | Description |
 |--------|--------|-------------|
+| /api/healthz | health.ts | Public health check |
 | /api/nodes | nodes.ts | Node CRUD, IP rotation |
 | /api/beacons | beacons.ts | Beacon/spider/worm alerts |
 | /api/silkweb | silkweb.ts | Silk web topology, trapped entities |
 | /api/firewall | firewall.ts | Firewall rules, blacklist, iptables export |
-| /api/monitor | monitor.ts | CPU/RAM/network/connections |
-| /api/terminal | terminal.ts | Shell exec (allowlist + Ghost Mode), /http-request outbound client, /port-scan TCP scanner, /audit-log viewer |
+| /api/monitor | monitor.ts | Real CPU/RAM (`os.*`), real network I/O (`/proc/net/dev`), real connections (`ss`), real WG tunnels (`wg show`), real external IP (`api.ipify.org`) |
+| /api/terminal | terminal.ts | Shell exec (allowlist + PROXHQ Mode), /http-request outbound client, /port-scan TCP scanner, /audit-log viewer |
 | /api/sql | sqlquery.ts | Local SELECT-only + external PostgreSQL full CRUD + /http-query REST→table mode, /connections manager, /schema explorer |
 | /api/security-audit | securityaudit.ts | TLS cert check, HTTP header grader, WHOIS/RDAP, self-audit findings |
 | /api/proxy-browser | proxybrowser.ts | Proxy/Tor browsing + custom proxy |
@@ -71,26 +73,29 @@ Clerk-based auth (app_3CcwHo66ohArVtaIa0XTcv88i4Y). Env vars: `VITE_CLERK_PUBLIS
 | /api/threatintel | threatintel.ts | IP reputation, blocklist, Tor exit feed, intelligence feeds |
 | /api/split-tunnel | splittunnel.ts | Split tunneling rules, Linux/Windows route script gen |
 | /api/obfuscation | obfuscation.ts | obfs4/Shadowsocks/V2Ray config, DPI test guide |
-| /api/vpn-coexist | vpncoexist.ts | VPN coexistence: detect running VPNs, commercial profiles, exception rules, script generation (fwmark/double-hop/namespace/routing-table), MTU optimizer |
+| /api/vpn-coexist | vpncoexist.ts | VPN coexistence: detect running VPNs, commercial profiles, exception rules, script generation (fwmark/double-hop/namespace/routing-table), MTU optimizer. Fields: `proxhqIface`, `proxhqFwmark` |
+| /api/vpngate | vpngate.ts | VPN Gate integration (6000+ nodes), veil node selector, connect/disconnect, status, config export. Response key: `servers` |
 
 ## Standalone Build
 
-- `standalone/src/server.ts` — embedded Node.js server with full GhostNet API
+- `standalone/src/server.ts` — embedded Node.js server with full PROXHQ API
 - `standalone/tun_daemon.py` — Python TUN/TAP daemon (Linux utun0, macOS utun, Windows WinTun)
-- `standalone/docker-compose.yml` — wg-easy + ghostnet + tor services
+- `standalone/docker-compose.yml` — wg-easy + proxhq + tor services
 - `standalone/build.mjs` — multi-platform build (Windows/macOS-arm64/macOS-x64/Linux + All-Platforms zip)
 
 ## Security Hardening
 
 - Helmet (CSP, HSTS, noSniff, XSS filter)
-- express-rate-limit (global 500/min, terminal 30/min, SQL 60/min, mutate 100/min)
+- express-rate-limit (global 300/min, terminal 20/min, SQL 30/min, mutate 60/min)
 - Strict CORS with Replit regex allowlist
 - 64kb body limits
+- **Clerk `requireAuth` on all API routes** (except `/api/healthz`) — `getAuth(req).userId` check
 - Shell allowlist enforcement + HARD_BLOCKED destructive pattern list in terminal route
-- Ghost Mode: bypasses allowlist while still enforcing HARD_BLOCKED patterns; all Ghost Mode commands logged to audit log
+- PROXHQ Mode: bypasses allowlist while still enforcing HARD_BLOCKED patterns; all commands logged to audit log
 - SELECT-only enforcement in local SQL mode; full CRUD/DDL permitted on external connections
 - External PostgreSQL connections: in-memory pool map with 10-connection cap, masked display of connection strings
-- Terminal audit log: timestamped record of every executed command + Ghost Mode status
+- Terminal audit log: timestamped record of every executed command + PROXHQ Mode status
+- Zod validation on all POST body parameters in all routes
 
 ## Key Commands
 

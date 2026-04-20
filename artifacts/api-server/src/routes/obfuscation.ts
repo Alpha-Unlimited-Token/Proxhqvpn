@@ -27,7 +27,7 @@ let config: ObfsConfig = {
   upstreamPort:  51820,
   password:      crypto.randomBytes(16).toString("hex"),
   method:        "chacha20-ietf-poly1305",
-  wsPath:        "/ghostnet-ws",
+  wsPath:        "/proxhq-ws",
   cert:          "",
   iatMode:       0,
   updatedAt:     new Date().toISOString(),
