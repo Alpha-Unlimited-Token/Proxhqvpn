@@ -18,6 +18,10 @@ import securityauditRouter from "./securityaudit";
 import daemonRouter from "./daemon";
 import vpnCoexistRouter from "./vpncoexist";
 import vpnGateRouter from "./vpngate";
+import devicesRouter from "./devices";
+import dnsShieldRouter from "./dnsshield";
+import smartDnsRouter from "./smartdns";
+import routerConfigRouter from "./routerconfig";
 
 const router: IRouter = Router();
 
@@ -49,5 +53,9 @@ router.use("/security-audit", securityauditRouter);
 router.use("/daemon",         daemonRouter);
 router.use("/vpn-coexist",    vpnCoexistRouter);
 router.use("/vpngate",        vpnGateRouter);
+router.use("/devices",        devicesRouter);
+router.use("/dns-shield",     dnsShieldRouter);
+router.use("/smart-dns",      smartDnsRouter);
+router.use("/router-config",  routerConfigRouter);
 
 export default router;

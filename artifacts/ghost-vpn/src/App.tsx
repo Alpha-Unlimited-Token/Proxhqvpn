@@ -26,6 +26,11 @@ import Obfuscation from "@/pages/Obfuscation";
 import SecurityAudit from "@/pages/SecurityAudit";
 import VpnCoexist from "@/pages/VpnCoexist";
 import VpnGate from "@/pages/VpnGate";
+import Platforms from "@/pages/Platforms";
+import DeviceManager from "@/pages/DeviceManager";
+import SmartDns from "@/pages/SmartDns";
+import DnsShield from "@/pages/DnsShield";
+import RouterConfig from "@/pages/RouterConfig";
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
@@ -236,6 +241,21 @@ function AppRoutes() {
           </Route>
           <Route path="/vpngate">
             <ProtectedLayout><VpnGate /></ProtectedLayout>
+          </Route>
+          <Route path="/platforms">
+            <ProtectedLayout><Platforms /></ProtectedLayout>
+          </Route>
+          <Route path="/devices">
+            <ProtectedLayout><DeviceManager /></ProtectedLayout>
+          </Route>
+          <Route path="/smart-dns">
+            <ProtectedLayout><SmartDns /></ProtectedLayout>
+          </Route>
+          <Route path="/dns-shield">
+            <ProtectedLayout><DnsShield /></ProtectedLayout>
+          </Route>
+          <Route path="/router-config">
+            <ProtectedLayout><RouterConfig /></ProtectedLayout>
           </Route>
 
           <Route>

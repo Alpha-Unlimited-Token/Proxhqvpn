@@ -4,7 +4,8 @@ import { useUser, useClerk } from "@clerk/react";
 import {
   Activity, ShieldAlert, Network, Terminal, Database, Server,
   Settings2, Shield, Globe, Layers,
-  Power, Search, AlertTriangle, GitBranch, EyeOff, ShieldCheck, SplitSquareHorizontal, LogOut
+  Power, Search, AlertTriangle, GitBranch, EyeOff, ShieldCheck, SplitSquareHorizontal, LogOut,
+  Tv, Smartphone, Router, Wifi, ShieldPlus
 } from "lucide-react";
 
 interface LayoutProps {
@@ -23,6 +24,8 @@ export function Layout({ children }: LayoutProps) {
         { href: "/dashboard",    label: "DASHBOARD",     icon: Activity },
         { href: "/nodes",        label: "NODE MGR",       icon: Server },
         { href: "/vpngate",      label: "VPN GATE",       icon: Globe },
+        { href: "/platforms",    label: "PLATFORMS",      icon: Tv },
+        { href: "/devices",      label: "DEVICES",        icon: Smartphone },
         { href: "/beacons",      label: "BEACONS",        icon: ShieldAlert },
         { href: "/silkweb",      label: "SILK WEB",       icon: Network },
         { href: "/monitor",      label: "MONITOR",        icon: Activity },
@@ -33,6 +36,7 @@ export function Layout({ children }: LayoutProps) {
       items: [
         { href: "/firewall",     label: "FIREWALL",       icon: Shield },
         { href: "/kill-switch",  label: "KILL SWITCH",    icon: Power },
+        { href: "/dns-shield",   label: "DNS SHIELD",     icon: ShieldPlus },
         { href: "/leaks",        label: "LEAK DETECT",    icon: Search },
         { href: "/threat-intel",   label: "THREAT INTEL",   icon: AlertTriangle },
         { href: "/security-audit", label: "SEC AUDIT",       icon: ShieldCheck },
@@ -42,11 +46,13 @@ export function Layout({ children }: LayoutProps) {
       label: "TUNNEL",
       items: [
         { href: "/wireguard",    label: "WG CONFIG",      icon: Settings2 },
+        { href: "/router-config",label: "ROUTER CFG",     icon: Router },
+        { href: "/smart-dns",    label: "SMART DNS",      icon: Wifi },
         { href: "/split-tunnel", label: "SPLIT TUNNEL",   icon: GitBranch },
         { href: "/obfuscation",  label: "OBFUSCATION",    icon: EyeOff },
         { href: "/proxy",        label: "PROXY/TOR",      icon: Globe },
         { href: "/onion-browser",label: "ONION BROWSER",  icon: Layers },
-        { href: "/vpn-coexist", label: "VPN COEXIST",    icon: SplitSquareHorizontal },
+        { href: "/vpn-coexist",  label: "VPN COEXIST",    icon: SplitSquareHorizontal },
       ],
     },
     {

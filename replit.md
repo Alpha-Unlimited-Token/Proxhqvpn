@@ -53,6 +53,11 @@ Clerk-based auth (app_3CcwHo66ohArVtaIa0XTcv88i4Y). Env vars: `VITE_CLERK_PUBLIS
 | /sql | SqlInterface | 3-mode SQL interface (LOCAL DB/EXTERNAL DB/HTTP API), external PostgreSQL connection manager + schema explorer |
 | /security-audit | SecurityAudit | Self-audit findings (Critical/High/Medium/Low), TLS cert inspector, HTTP security-headers grader (A–F), WHOIS/RDAP lookup |
 | /vpn-coexist | VpnCoexist | Run ProxhqVPN alongside NordVPN/ExpressVPN/ProtonVPN/Mullvad/Surfshark — 4 coexistence modes (fwmark, double-hop, namespace, routing-table), auto-detect running VPNs, exception rules (bypass-proxhq/force-proxhq/block), MTU optimizer, script generator |
+| /platforms | Platforms | Device support grid (20+ devices: desktop/mobile/TV/console/router/browser) with expandable setup guides and links to relevant config pages |
+| /devices | DeviceManager | WireGuard device management — add/remove devices, per-device config download + QR code scan (react-qr-code) |
+| /smart-dns | SmartDns | DNS-only routing for TVs/consoles — server IP display, per-platform instructions, DNS reachability test |
+| /dns-shield | DnsShield | DNS-level blocking — ads/trackers/malware/adult toggles, custom allow/block rules, DNS-over-HTTPS, built-in rule lists |
+| /router-config | RouterConfig | Router firmware config generator — OpenWRT/DD-WRT/Merlin/pfSense/GL.iNet/Ubiquiti with downloadable scripts + .conf files |
 
 ## API Routes (api-server)
 
@@ -75,6 +80,10 @@ Clerk-based auth (app_3CcwHo66ohArVtaIa0XTcv88i4Y). Env vars: `VITE_CLERK_PUBLIS
 | /api/obfuscation | obfuscation.ts | obfs4/Shadowsocks/V2Ray config, DPI test guide |
 | /api/vpn-coexist | vpncoexist.ts | VPN coexistence: detect running VPNs, commercial profiles, exception rules, script generation (fwmark/double-hop/namespace/routing-table), MTU optimizer. Fields: `proxhqIface`, `proxhqFwmark` |
 | /api/vpngate | vpngate.ts | VPN Gate integration (6000+ nodes), veil node selector, connect/disconnect, status, config export. Response key: `servers` |
+| /api/devices | devices.ts | WireGuard device registry — add/list/delete devices, IP allocation (10.8.0.x/24), per-device client config + server peer snippet |
+| /api/dns-shield | dnsshield.ts | DNS-level block/allow rules (ads/trackers/malware/adult categories), DoH config, stats, built-in lists loader |
+| /api/smart-dns | smartdns.ts | Smart DNS server IP, per-platform instructions (Samsung TV/LG/Roku/Xbox/PS5/iOS/Android/Windows/macOS/Router), DNS reachability test |
+| /api/router-config | routerconfig.ts | Router config generator for 6 firmwares (OpenWRT/DD-WRT/Merlin/pfSense/GL.iNet/Ubiquiti) — returns commands, steps, .conf |
 
 ## Standalone Build
 
