@@ -36,6 +36,10 @@ import type {
   Node,
   NodeList,
   NodeStats,
+  ProxyBrowserConfig,
+  ProxyFetchBody,
+  ProxyFetchResult,
+  SaveProxyBrowserConfigBody,
   SilkWeb,
   SqlQueryBody,
   SqlQueryResult,
@@ -2519,4 +2523,252 @@ export const useGenerateIptablesRules = <
   TContext
 > => {
   return useMutation(getGenerateIptablesRulesMutationOptions(options));
+};
+
+/**
+ * @summary Get proxy browser configuration
+ */
+export const getGetProxyBrowserConfigUrl = () => {
+  return `/api/proxy-browser/config`;
+};
+
+export const getProxyBrowserConfig = async (
+  options?: RequestInit,
+): Promise<ProxyBrowserConfig> => {
+  return customFetch<ProxyBrowserConfig>(getGetProxyBrowserConfigUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetProxyBrowserConfigQueryKey = () => {
+  return [`/api/proxy-browser/config`] as const;
+};
+
+export const getGetProxyBrowserConfigQueryOptions = <
+  TData = Awaited<ReturnType<typeof getProxyBrowserConfig>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getProxyBrowserConfig>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetProxyBrowserConfigQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getProxyBrowserConfig>>
+  > = ({ signal }) => getProxyBrowserConfig({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getProxyBrowserConfig>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetProxyBrowserConfigQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getProxyBrowserConfig>>
+>;
+export type GetProxyBrowserConfigQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get proxy browser configuration
+ */
+
+export function useGetProxyBrowserConfig<
+  TData = Awaited<ReturnType<typeof getProxyBrowserConfig>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getProxyBrowserConfig>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetProxyBrowserConfigQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Save proxy browser configuration
+ */
+export const getSaveProxyBrowserConfigUrl = () => {
+  return `/api/proxy-browser/config`;
+};
+
+export const saveProxyBrowserConfig = async (
+  saveProxyBrowserConfigBody: SaveProxyBrowserConfigBody,
+  options?: RequestInit,
+): Promise<ProxyBrowserConfig> => {
+  return customFetch<ProxyBrowserConfig>(getSaveProxyBrowserConfigUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(saveProxyBrowserConfigBody),
+  });
+};
+
+export const getSaveProxyBrowserConfigMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof saveProxyBrowserConfig>>,
+    TError,
+    { data: BodyType<SaveProxyBrowserConfigBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof saveProxyBrowserConfig>>,
+  TError,
+  { data: BodyType<SaveProxyBrowserConfigBody> },
+  TContext
+> => {
+  const mutationKey = ["saveProxyBrowserConfig"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof saveProxyBrowserConfig>>,
+    { data: BodyType<SaveProxyBrowserConfigBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return saveProxyBrowserConfig(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SaveProxyBrowserConfigMutationResult = NonNullable<
+  Awaited<ReturnType<typeof saveProxyBrowserConfig>>
+>;
+export type SaveProxyBrowserConfigMutationBody =
+  BodyType<SaveProxyBrowserConfigBody>;
+export type SaveProxyBrowserConfigMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Save proxy browser configuration
+ */
+export const useSaveProxyBrowserConfig = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof saveProxyBrowserConfig>>,
+    TError,
+    { data: BodyType<SaveProxyBrowserConfigBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof saveProxyBrowserConfig>>,
+  TError,
+  { data: BodyType<SaveProxyBrowserConfigBody> },
+  TContext
+> => {
+  return useMutation(getSaveProxyBrowserConfigMutationOptions(options));
+};
+
+/**
+ * @summary Fetch a URL through the configured proxy chain
+ */
+export const getProxyFetchUrl = () => {
+  return `/api/proxy-browser/fetch`;
+};
+
+export const proxyFetch = async (
+  proxyFetchBody: ProxyFetchBody,
+  options?: RequestInit,
+): Promise<ProxyFetchResult> => {
+  return customFetch<ProxyFetchResult>(getProxyFetchUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(proxyFetchBody),
+  });
+};
+
+export const getProxyFetchMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof proxyFetch>>,
+    TError,
+    { data: BodyType<ProxyFetchBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof proxyFetch>>,
+  TError,
+  { data: BodyType<ProxyFetchBody> },
+  TContext
+> => {
+  const mutationKey = ["proxyFetch"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof proxyFetch>>,
+    { data: BodyType<ProxyFetchBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return proxyFetch(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ProxyFetchMutationResult = NonNullable<
+  Awaited<ReturnType<typeof proxyFetch>>
+>;
+export type ProxyFetchMutationBody = BodyType<ProxyFetchBody>;
+export type ProxyFetchMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Fetch a URL through the configured proxy chain
+ */
+export const useProxyFetch = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof proxyFetch>>,
+    TError,
+    { data: BodyType<ProxyFetchBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof proxyFetch>>,
+  TError,
+  { data: BodyType<ProxyFetchBody> },
+  TContext
+> => {
+  return useMutation(getProxyFetchMutationOptions(options));
 };

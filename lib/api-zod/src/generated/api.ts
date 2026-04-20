@@ -626,3 +626,51 @@ export const GenerateIptablesRulesResponse = zod.object({
     .describe("Port knocking rules for Secfense Ghost-style invisibility"),
   exportedAt: zod.coerce.date(),
 });
+
+/**
+ * @summary Get proxy browser configuration
+ */
+export const GetProxyBrowserConfigResponse = zod.object({
+  mode: zod.enum(["direct", "ghostnet-onion", "tor-gateway", "double-layer"]),
+  socks5Host: zod.string(),
+  socks5Port: zod.number(),
+  chainLength: zod.number(),
+  enabled: zod.boolean(),
+});
+
+/**
+ * @summary Save proxy browser configuration
+ */
+export const SaveProxyBrowserConfigBody = zod.object({
+  mode: zod.enum(["direct", "ghostnet-onion", "tor-gateway", "double-layer"]),
+  socks5Host: zod.string().optional(),
+  socks5Port: zod.number().optional(),
+});
+
+export const SaveProxyBrowserConfigResponse = zod.object({
+  mode: zod.enum(["direct", "ghostnet-onion", "tor-gateway", "double-layer"]),
+  socks5Host: zod.string(),
+  socks5Port: zod.number(),
+  chainLength: zod.number(),
+  enabled: zod.boolean(),
+});
+
+/**
+ * @summary Fetch a URL through the configured proxy chain
+ */
+export const ProxyFetchBody = zod.object({
+  url: zod.string(),
+  mode: zod
+    .enum(["direct", "ghostnet-onion", "tor-gateway", "double-layer"])
+    .optional(),
+});
+
+export const ProxyFetchResponse = zod.object({
+  html: zod.string().optional(),
+  finalUrl: zod.string(),
+  statusCode: zod.number().optional(),
+  layers: zod.array(zod.string()),
+  timing: zod.number(),
+  error: zod.string().optional(),
+  title: zod.string().optional(),
+});

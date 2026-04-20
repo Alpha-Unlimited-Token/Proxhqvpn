@@ -532,6 +532,65 @@ export interface IptablesExport {
   exportedAt: string;
 }
 
+export type ProxyBrowserConfigMode =
+  (typeof ProxyBrowserConfigMode)[keyof typeof ProxyBrowserConfigMode];
+
+export const ProxyBrowserConfigMode = {
+  direct: "direct",
+  "ghostnet-onion": "ghostnet-onion",
+  "tor-gateway": "tor-gateway",
+  "double-layer": "double-layer",
+} as const;
+
+export interface ProxyBrowserConfig {
+  mode: ProxyBrowserConfigMode;
+  socks5Host: string;
+  socks5Port: number;
+  chainLength: number;
+  enabled: boolean;
+}
+
+export type SaveProxyBrowserConfigBodyMode =
+  (typeof SaveProxyBrowserConfigBodyMode)[keyof typeof SaveProxyBrowserConfigBodyMode];
+
+export const SaveProxyBrowserConfigBodyMode = {
+  direct: "direct",
+  "ghostnet-onion": "ghostnet-onion",
+  "tor-gateway": "tor-gateway",
+  "double-layer": "double-layer",
+} as const;
+
+export interface SaveProxyBrowserConfigBody {
+  mode: SaveProxyBrowserConfigBodyMode;
+  socks5Host?: string;
+  socks5Port?: number;
+}
+
+export type ProxyFetchBodyMode =
+  (typeof ProxyFetchBodyMode)[keyof typeof ProxyFetchBodyMode];
+
+export const ProxyFetchBodyMode = {
+  direct: "direct",
+  "ghostnet-onion": "ghostnet-onion",
+  "tor-gateway": "tor-gateway",
+  "double-layer": "double-layer",
+} as const;
+
+export interface ProxyFetchBody {
+  url: string;
+  mode?: ProxyFetchBodyMode;
+}
+
+export interface ProxyFetchResult {
+  html?: string;
+  finalUrl: string;
+  statusCode?: number;
+  layers: string[];
+  timing: number;
+  error?: string;
+  title?: string;
+}
+
 export type ListNodesParams = {
   /**
    * Filter by layer (outer=50 ghost nodes, inner=10 core nodes)

@@ -15,6 +15,7 @@ import SystemMonitor from "@/pages/SystemMonitor";
 import Terminal from "@/pages/Terminal";
 import SqlInterface from "@/pages/SqlInterface";
 import ProxyConfig from "@/pages/ProxyConfig";
+import OnionBrowser from "@/pages/OnionBrowser";
 
 const queryClient = new QueryClient();
 
@@ -32,6 +33,7 @@ function Router() {
         <Route path="/terminal" component={Terminal} />
         <Route path="/sql" component={SqlInterface} />
         <Route path="/proxy" component={ProxyConfig} />
+        <Route path="/onion-browser" component={OnionBrowser} />
         <Route component={NotFound} />
       </Switch>
     </Layout>

@@ -518,6 +518,55 @@ paths:
               schema:
                 $ref: "#/components/schemas/IptablesExport"
 
+  /proxy-browser/config:
+    get:
+      operationId: getProxyBrowserConfig
+      tags: [proxy-browser]
+      summary: Get proxy browser configuration
+      responses:
+        "200":
+          description: Current proxy browser config
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProxyBrowserConfig"
+    post:
+      operationId: saveProxyBrowserConfig
+      tags: [proxy-browser]
+      summary: Save proxy browser configuration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SaveProxyBrowserConfigBody"
+      responses:
+        "200":
+          description: Updated config
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProxyBrowserConfig"
+
+  /proxy-browser/fetch:
+    post:
+      operationId: proxyFetch
+      tags: [proxy-browser]
+      summary: Fetch a URL through the configured proxy chain
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProxyFetchBody"
+      responses:
+        "200":
+          description: Fetched content
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProxyFetchResult"
+
 components:
   schemas:
     HealthStatus:
@@ -1148,3 +1197,62 @@ components:
           type: string
           format: date-time
       required: [iptablesRules, nftablesRules, wireguardMasquerade, portKnockRules, exportedAt]
+
+    ProxyBrowserConfig:
+      type: object
+      properties:
+        mode:
+          type: string
+          enum: [direct, ghostnet-onion, tor-gateway, double-layer]
+        socks5Host:
+          type: string
+        socks5Port:
+          type: integer
+        chainLength:
+          type: integer
+        enabled:
+          type: boolean
+      required: [mode, socks5Host, socks5Port, chainLength, enabled]
+
+    SaveProxyBrowserConfigBody:
+      type: object
+      properties:
+        mode:
+          type: string
+          enum: [direct, ghostnet-onion, tor-gateway, double-layer]
+        socks5Host:
+          type: string
+        socks5Port:
+          type: integer
+      required: [mode]
+
+    ProxyFetchBody:
+      type: object
+      properties:
+        url:
+          type: string
+        mode:
+          type: string
+          enum: [direct, ghostnet-onion, tor-gateway, double-layer]
+      required: [url]
+
+    ProxyFetchResult:
+      type: object
+      properties:
+        html:
+          type: string
+        finalUrl:
+          type: string
+        statusCode:
+          type: integer
+        layers:
+          type: array
+          items:
+            type: string
+        timing:
+          type: number
+        error:
+          type: string
+        title:
+          type: string
+      required: [finalUrl, layers, timing]
