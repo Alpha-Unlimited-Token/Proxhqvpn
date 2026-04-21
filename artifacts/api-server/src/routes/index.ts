@@ -3,6 +3,8 @@ import { getAuth } from "@clerk/express";
 import { db } from "@workspace/db";
 import { usersTable } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
+import fs from "fs";
+import path from "path";
 import healthRouter from "./health";
 import meRouter from "./me";
 import nodesRouter from "./nodes";
@@ -38,6 +40,17 @@ router.use(healthRouter);
 
 // Daemon inbound — authenticated via PSK header (not Clerk), public route
 router.use("/daemon-inbound", daemonInboundRouter);
+
+// Public daemon download — serves proxhqd.py for deployment to VPN nodes
+router.get("/daemon-download", (_req: Request, res: Response) => {
+  const filePath = path.resolve(process.cwd(), "../../tools/proxhqd.py");
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ error: "Daemon file not found" });
+  }
+  res.setHeader("Content-Type", "text/plain");
+  res.setHeader("Content-Disposition", "attachment; filename=proxhqd.py");
+  res.send(fs.readFileSync(filePath, "utf-8"));
+});
 
 // Auth guard — all routes below require a valid Clerk session
 const requireAuth = (req: Request, res: Response, next: NextFunction) => {
