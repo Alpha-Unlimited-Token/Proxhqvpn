@@ -1,10 +1,13 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef, useEffect } from "react";
 import {
   useGetSilkWeb, useCollapseSilkWeb, useListTrappedAttackers, getGetSilkWebQueryKey
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { Network, Skull, ShieldAlert, Bug, ChevronDown, ChevronUp, Loader2, CheckCircle, XCircle } from "lucide-react";
+import {
+  Network, Skull, ShieldAlert, Bug, Loader2, XCircle,
+  Copy, Search, ChevronDown, Syringe, Globe, TerminalSquare
+} from "lucide-react";
 import { format } from "date-fns";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -78,9 +81,9 @@ function SilkWebTopology({ routes, trappedIds }: { routes: Route[]; trappedIds: 
         const to = nodePositions[r.toNodeId];
         if (!from || !to) return null;
         return (
-          <line key={r.id}
+          <line key={`${r.id}`}
             x1={from[0]} y1={from[1]} x2={to[0]} y2={to[1]}
-            stroke={ROUTE_COLORS[r.routeType] ?? "#ffffff"}
+            stroke={ROUTE_COLORS[r.routeType] ?? "#00ff88"}
             strokeOpacity={ROUTE_OPACITY[r.routeType] ?? 0.3}
             strokeWidth={r.routeType === "highway" ? 1.2 : 0.6}
           />
@@ -93,10 +96,10 @@ function SilkWebTopology({ routes, trappedIds }: { routes: Route[]; trappedIds: 
         const trapped = trappedIds.has(id);
         return (
           <g key={`inner-${id}`}>
-            <circle cx={pos[0]} cy={pos[1]} r={5}
-              fill={trapped ? "#ef4444" : "#00ff88"} fillOpacity={0.9} filter="url(#glow)" />
+            <circle cx={pos[0]} cy={pos[1]} r={4}
+              fill={trapped ? "#ef4444" : "#00ff88"} fillOpacity={trapped ? 1 : 0.7} />
             {trapped && (
-              <circle cx={pos[0]} cy={pos[1]} r={8} fill="none"
+              <circle cx={pos[0]} cy={pos[1]} r={7} fill="none"
                 stroke="#ef4444" strokeWidth={1.5} strokeOpacity={0.9}>
                 <animate attributeName="r" values="7;11;7" dur="1.2s" repeatCount="indefinite" />
                 <animate attributeName="stroke-opacity" values="0.9;0.3;0.9" dur="1.2s" repeatCount="indefinite" />
@@ -139,13 +142,131 @@ type AttackerRow = {
   sqlmapFinishedAt?: string | null;
 };
 
+type PanelTab = "portscan" | "sqlmap";
+
+// ── IP address dropdown menu ──────────────────────────────────────────────────
+function IpDropdown({
+  attacker,
+  onOpen,
+}: {
+  attacker: AttackerRow;
+  onOpen: (att: AttackerRow, tab: PanelTab) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  const copyIp = () => {
+    navigator.clipboard.writeText(attacker.ip);
+    toast({ title: "Copied", description: `${attacker.ip} copied to clipboard` });
+    setOpen(false);
+  };
+
+  const whois = () => {
+    window.open(`https://search.arin.net/rdap/?query=${attacker.ip}`, "_blank");
+    setOpen(false);
+  };
+
+  const actions = [
+    {
+      icon: <Search className="w-3.5 h-3.5" />,
+      label: "Port Scan (nmap)",
+      sub: "Discover open ports & services",
+      color: "text-primary",
+      onClick: () => { onOpen(attacker, "portscan"); setOpen(false); },
+    },
+    {
+      icon: <Syringe className="w-3.5 h-3.5" />,
+      label: "SQL Injection (SQLmap)",
+      sub: "Test for SQL vulnerabilities & dump data",
+      color: "text-red-400",
+      onClick: () => { onOpen(attacker, "sqlmap"); setOpen(false); },
+    },
+    {
+      icon: <Globe className="w-3.5 h-3.5" />,
+      label: "WHOIS / ARIN Lookup",
+      sub: "Identify owner — evidence for law enforcement",
+      color: "text-blue-400",
+      onClick: whois,
+    },
+    {
+      icon: <Copy className="w-3.5 h-3.5" />,
+      label: "Copy IP Address",
+      sub: attacker.ip,
+      color: "text-primary/60",
+      onClick: copyIp,
+    },
+  ];
+
+  return (
+    <div ref={ref} className="relative inline-block">
+      <button
+        onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
+        className="flex items-center gap-1 text-red-400 font-bold font-mono hover:text-red-300 transition-colors group"
+      >
+        <span className="underline underline-offset-2 decoration-red-500/40">{attacker.ip}</span>
+        <ChevronDown className={`w-3 h-3 text-red-400/60 transition-transform duration-150 ${open ? "rotate-180" : ""}`} />
+      </button>
+
+      {open && (
+        <div className="absolute left-0 top-full mt-1 z-50 w-72 border border-yellow-500/40 bg-[#070c08] shadow-2xl shadow-black/80 rounded overflow-hidden">
+          {/* Header */}
+          <div className="px-3 py-2 border-b border-yellow-500/20 bg-yellow-500/5">
+            <div className="flex items-center gap-2">
+              <TerminalSquare className="w-3.5 h-3.5 text-yellow-400" />
+              <span className="text-[10px] font-mono text-yellow-400 uppercase tracking-widest font-bold">
+                Attacker Actions — {attacker.ip}
+              </span>
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="py-1">
+            {actions.map((a, i) => (
+              <button
+                key={i}
+                onClick={a.onClick}
+                className="w-full flex items-start gap-3 px-3 py-2.5 hover:bg-white/5 transition-colors text-left group"
+              >
+                <span className={`${a.color} mt-0.5 shrink-0`}>{a.icon}</span>
+                <div className="min-w-0">
+                  <div className={`text-xs font-mono font-semibold ${a.color}`}>{a.label}</div>
+                  <div className="text-[10px] text-primary/35 font-mono truncate">{a.sub}</div>
+                </div>
+              </button>
+            ))}
+          </div>
+
+          {/* Footer note */}
+          <div className="px-3 py-2 border-t border-yellow-500/10 bg-black/40">
+            <div className="text-[9px] font-mono text-primary/25 leading-relaxed">
+              Use WHOIS to obtain ISP identity for law enforcement reporting.
+              Port scan & SQLmap for authorized security testing only.
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function SilkWeb() {
   const { data: web }       = useGetSilkWeb({ query: { refetchInterval: 15000 } as any });
   const { data: attackers } = useListTrappedAttackers({ query: { refetchInterval: 8000 } as any });
   const queryClient         = useQueryClient();
   const { toast }           = useToast();
   const collapse            = useCollapseSilkWeb();
-  const [selected, setSelected] = useState<AttackerRow | null>(null);
+  const [selected, setSelected]       = useState<AttackerRow | null>(null);
+  const [activeTab, setActiveTab]     = useState<PanelTab>("portscan");
 
   const routes: Route[] = (web?.routes ?? []) as Route[];
   const trappedIds = useMemo(() => {
@@ -163,6 +284,11 @@ export default function SilkWeb() {
         queryClient.invalidateQueries({ queryKey: getGetSilkWebQueryKey() });
       },
     });
+  };
+
+  const openPanel = (att: AttackerRow, tab: PanelTab) => {
+    setSelected(att);
+    setActiveTab(tab);
   };
 
   const attackerList = (attackers?.attackers ?? []) as AttackerRow[];
@@ -230,7 +356,7 @@ export default function SilkWeb() {
             <div className="p-3 border-b border-primary/20 flex items-center gap-2 text-red-400 font-bold text-xs tracking-widest uppercase shrink-0">
               <ShieldAlert className="w-4 h-4" />
               Trapped Entities ({attackerList.length})
-              <span className="ml-auto text-primary/30 font-normal normal-case text-[10px]">Click IP to open command panel</span>
+              <span className="ml-auto text-primary/30 font-normal normal-case text-[10px]">Click IP for actions</span>
             </div>
             <div className="flex-1 overflow-auto">
               {attackerList.length === 0 && (
@@ -240,27 +366,35 @@ export default function SilkWeb() {
               )}
               {attackerList.map((att) => {
                 const isActive = selected?.id === att.id;
-                const statusColor = att.sqlmapStatus === "complete" ? "text-primary" : att.sqlmapStatus === "running" ? "text-yellow-400" : att.sqlmapStatus === "error" ? "text-red-400" : "text-primary/30";
+                const statusColor =
+                  att.sqlmapStatus === "complete" ? "text-primary" :
+                  att.sqlmapStatus === "running"  ? "text-yellow-400" :
+                  att.sqlmapStatus === "error"    ? "text-red-400"    : "text-primary/30";
                 return (
-                  <button
+                  <div
                     key={att.id}
-                    onClick={() => setSelected(isActive ? null : att)}
-                    className={`w-full text-left border-b border-primary/10 px-3 py-2 text-xs font-mono hover:bg-primary/5 transition-colors flex items-center gap-2 ${isActive ? "bg-primary/10 border-l-2 border-l-primary" : ""}`}
+                    className={`border-b border-primary/10 px-3 py-2.5 text-xs font-mono transition-colors ${isActive ? "bg-primary/10 border-l-2 border-l-primary" : "hover:bg-primary/5"}`}
                   >
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-red-400 font-bold underline underline-offset-2 cursor-pointer">{att.ip}</span>
-                        {att.honeypotPort && (
-                          <span className="text-yellow-400/70 text-[10px] border border-yellow-500/20 px-1 rounded">honeypot:{att.honeypotPort}</span>
-                        )}
-                        <span className="text-primary/40">{format(new Date(att.trappedAt), "HH:mm dd/MM")}</span>
-                        <span className="text-primary/40">loops:{att.loopCount}</span>
-                      </div>
-                      <div className="text-primary/25 text-[10px] truncate">{att.fingerprint}</div>
+                    <div className="flex items-start gap-2 flex-wrap">
+                      {/* Clickable IP with dropdown */}
+                      <IpDropdown attacker={att} onOpen={openPanel} />
+
+                      {att.honeypotPort && (
+                        <span className="text-yellow-400/70 text-[10px] border border-yellow-500/20 px-1 rounded">
+                          honeypot:{att.honeypotPort}
+                        </span>
+                      )}
+                      {att.probeType && (
+                        <span className="text-orange-400/60 text-[10px] border border-orange-500/20 px-1 rounded">
+                          {att.probeType}
+                        </span>
+                      )}
+                      <span className="text-primary/40">{format(new Date(att.trappedAt), "HH:mm dd/MM")}</span>
+                      <span className="text-primary/40">loops:{att.loopCount}</span>
+                      <span className={`ml-auto text-[10px] uppercase ${statusColor}`}>{att.sqlmapStatus ?? "idle"}</span>
                     </div>
-                    <span className={`text-[10px] uppercase ${statusColor}`}>{att.sqlmapStatus ?? "idle"}</span>
-                    <ChevronDown className={`w-3 h-3 text-primary/30 transition-transform ${isActive ? "rotate-180" : ""}`} />
-                  </button>
+                    <div className="text-primary/25 text-[10px] truncate mt-0.5">{att.fingerprint}</div>
+                  </div>
                 );
               })}
             </div>
@@ -272,6 +406,8 @@ export default function SilkWeb() {
           <div className="lg:flex-1 border border-yellow-500/30 rounded bg-black flex flex-col min-h-0 overflow-hidden">
             <AttackerCommandPanel
               attacker={selected}
+              initialTab={activeTab}
+              onTabChange={setActiveTab}
               onClose={() => setSelected(null)}
               onRefresh={() => queryClient.invalidateQueries({ queryKey: ["listTrappedAttackers"] })}
             />
@@ -282,32 +418,37 @@ export default function SilkWeb() {
   );
 }
 
-// ── Full attacker command panel (opens when you click an IP) ──────────────────
+// ── Full attacker command panel ───────────────────────────────────────────────
 function AttackerCommandPanel({
-  attacker, onClose, onRefresh,
+  attacker, initialTab, onTabChange, onClose, onRefresh,
 }: {
   attacker: AttackerRow;
+  initialTab: PanelTab;
+  onTabChange: (t: PanelTab) => void;
   onClose: () => void;
   onRefresh: () => void;
 }) {
   const { toast } = useToast();
+  const [tab, setTab] = useState<PanelTab>(initialTab);
 
-  // ── Port scan state ─────────────────────────────────────────────────────────
+  useEffect(() => { setTab(initialTab); }, [initialTab]);
+
+  // ── Port scan state ──────────────────────────────────────────────────────────
   const [scanPorts, setScanPorts] = useState("1-10000");
   const [scanFlags, setScanFlags] = useState("-sV -T4");
-  const [scanning, setScanning] = useState(false);
+  const [scanning, setScanning]   = useState(false);
   const [scanOutput, setScanOutput] = useState<string | null>(null);
-  const [scanCmd, setScanCmd] = useState<string | null>(null);
+  const [scanCmd, setScanCmd]     = useState<string | null>(null);
 
-  // ── SQLmap state ────────────────────────────────────────────────────────────
+  // ── SQLmap state ─────────────────────────────────────────────────────────────
   const [sqlTarget, setSqlTarget] = useState(`http://${attacker.ip}/`);
-  const [sqlFlags, setSqlFlags] = useState("--dbs --forms");
+  const [sqlFlags, setSqlFlags]   = useState("--dbs --forms");
   const [sqlRunning, setSqlRunning] = useState(false);
-  const [sqlOutput, setSqlOutput] = useState<string | null>(
-    attacker.sqlmapResults ?? null
-  );
-  const [sqlJobId, setSqlJobId] = useState<string | null>(attacker.sqlmapJobId ?? null);
+  const [sqlOutput, setSqlOutput] = useState<string | null>(attacker.sqlmapResults ?? null);
+  const [sqlJobId, setSqlJobId]   = useState<string | null>(attacker.sqlmapJobId ?? null);
   const [sqlStatus, setSqlStatus] = useState(attacker.sqlmapStatus ?? "idle");
+
+  const switchTab = (t: PanelTab) => { setTab(t); onTabChange(t); };
 
   const runPortScan = async () => {
     setScanning(true);
@@ -353,7 +494,6 @@ function AttackerCommandPanel({
       setSqlJobId(data.jobId);
       toast({ title: "SQLmap Launched", description: `Job ${data.jobId} — scanning ${attacker.ip}` });
 
-      // Poll for completion
       const poll = setInterval(async () => {
         try {
           const pr = await fetch(`${BASE}/api/silkweb/trapped/${attacker.id}/sqlmap`, { credentials: "include" });
@@ -365,7 +505,7 @@ function AttackerCommandPanel({
             onRefresh();
             clearInterval(poll);
           }
-        } catch { /* ignore */ }
+        } catch { /* ignore poll error */ }
       }, 4000);
     } catch (e: any) {
       setSqlStatus("error");
@@ -389,145 +529,232 @@ function AttackerCommandPanel({
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center gap-3 p-3 border-b border-yellow-500/30 shrink-0">
-        <Bug className="w-4 h-4 text-yellow-400" />
+      <div className="flex items-center gap-3 p-3 border-b border-yellow-500/30 shrink-0 bg-yellow-500/5">
+        <Bug className="w-4 h-4 text-yellow-400 shrink-0" />
         <div className="flex-1 min-w-0">
           <div className="font-bold text-yellow-400 font-mono text-sm">{attacker.ip}</div>
           <div className="text-[10px] text-primary/40 font-mono truncate">{attacker.fingerprint}</div>
         </div>
         <div className="flex items-center gap-2 text-[10px] text-primary/40 font-mono">
-          {attacker.honeypotPort && <span className="border border-yellow-500/30 text-yellow-400/70 px-1 rounded">honeypot:{attacker.honeypotPort}</span>}
+          {attacker.honeypotPort && (
+            <span className="border border-yellow-500/30 text-yellow-400/70 px-1 rounded">honeypot:{attacker.honeypotPort}</span>
+          )}
           <span>loops:{attacker.loopCount}</span>
           <span>{format(new Date(attacker.trappedAt), "HH:mm dd/MM")}</span>
         </div>
-        <button onClick={onClose} className="text-primary/30 hover:text-white transition-colors ml-2">
+        <button onClick={onClose} className="text-primary/30 hover:text-white transition-colors ml-1 shrink-0">
           <XCircle className="w-4 h-4" />
         </button>
       </div>
 
-      <div className="flex-1 overflow-auto p-4 space-y-6">
-
-        {/* ── PORT SCAN ── */}
-        <section>
-          <div className="flex items-center gap-2 mb-3">
-            <Network className="w-4 h-4 text-primary" />
-            <span className="text-xs font-mono font-bold text-primary uppercase tracking-widest">Port Scan</span>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-2 mb-2">
-            <div className="flex-1">
-              <label className="text-[10px] text-primary/50 font-mono uppercase block mb-1">Port Range</label>
-              <input
-                value={scanPorts}
-                onChange={(e) => setScanPorts(e.target.value)}
-                className="w-full bg-black border border-primary/20 text-primary text-xs font-mono px-2 py-1.5 focus:outline-none focus:border-primary/50"
-                placeholder="1-65535"
-              />
-            </div>
-            <div className="flex-1">
-              <label className="text-[10px] text-primary/50 font-mono uppercase block mb-1">Nmap Flags</label>
-              <input
-                value={scanFlags}
-                onChange={(e) => setScanFlags(e.target.value)}
-                className="w-full bg-black border border-primary/20 text-primary text-xs font-mono px-2 py-1.5 focus:outline-none focus:border-primary/50"
-                placeholder="-sV -T4"
-              />
-            </div>
-          </div>
-
-          <button
-            onClick={runPortScan}
-            disabled={scanning}
-            className="flex items-center gap-2 px-4 py-1.5 border border-primary/40 text-primary text-xs font-mono uppercase hover:bg-primary/10 hover:border-primary transition-colors disabled:opacity-40"
+      {/* Tab bar */}
+      <div className="flex border-b border-yellow-500/20 shrink-0">
+        <button
+          onClick={() => switchTab("portscan")}
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-mono uppercase tracking-widest border-b-2 transition-colors ${
+            tab === "portscan"
+              ? "border-primary text-primary bg-primary/5"
+              : "border-transparent text-primary/40 hover:text-primary/70"
+          }`}
+        >
+          <Search className="w-3.5 h-3.5" />
+          Port Scan
+        </button>
+        <button
+          onClick={() => switchTab("sqlmap")}
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-mono uppercase tracking-widest border-b-2 transition-colors ${
+            tab === "sqlmap"
+              ? "border-red-500 text-red-400 bg-red-500/5"
+              : "border-transparent text-primary/40 hover:text-red-400/60"
+          }`}
+        >
+          <Syringe className="w-3.5 h-3.5" />
+          SQLmap Injection
+          {sqlStatus === "running" && <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse" />}
+          {sqlStatus === "complete" && <span className="w-1.5 h-1.5 rounded-full bg-primary" />}
+        </button>
+        <div className="ml-auto flex items-center px-3">
+          <a
+            href={`https://search.arin.net/rdap/?query=${attacker.ip}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 text-[10px] font-mono text-blue-400/60 hover:text-blue-400 transition-colors border border-blue-500/20 hover:border-blue-500/50 px-2 py-1 rounded"
           >
-            {scanning ? <Loader2 className="w-3 h-3 animate-spin" /> : <Network className="w-3 h-3" />}
-            {scanning ? "Scanning…" : `Run Port Scan — ${attacker.ip}`}
-          </button>
+            <Globe className="w-3 h-3" />
+            WHOIS
+          </a>
+        </div>
+      </div>
 
-          {scanCmd && (
-            <div className="mt-2 text-[10px] font-mono text-primary/30 bg-black border border-primary/10 px-2 py-1">
-              $ {scanCmd}
-            </div>
-          )}
-          {scanOutput && (
-            <div className="mt-2 bg-black border border-primary/10 p-3 text-[11px] font-mono text-primary/70 max-h-64 overflow-auto whitespace-pre-wrap">
-              {scanOutput}
-            </div>
-          )}
-        </section>
+      {/* Tab content */}
+      <div className="flex-1 overflow-auto p-4">
 
-        {/* ── SQLMAP ── */}
-        <section>
-          <div className="flex items-center gap-3 mb-3">
-            <Bug className="w-4 h-4 text-red-400" />
-            <span className="text-xs font-mono font-bold text-red-400 uppercase tracking-widest">SQL Injection (SQLmap)</span>
-            {statusBadge(sqlStatus)}
-            {sqlJobId && <span className="text-[10px] text-primary/30 font-mono">JOB:{sqlJobId}</span>}
+        {/* ── PORT SCAN TAB ── */}
+        {tab === "portscan" && (
+          <div className="space-y-4">
+            <div className="text-[10px] font-mono text-primary/40 border border-primary/10 rounded px-3 py-2 bg-primary/5">
+              Runs <span className="text-primary">nmap</span> against <span className="text-primary">{attacker.ip}</span> to discover open ports, services, and software versions. Results can identify what the attacker is running on their machine.
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="flex-1">
+                <label className="text-[10px] text-primary/50 font-mono uppercase block mb-1">Port Range</label>
+                <input
+                  value={scanPorts}
+                  onChange={(e) => setScanPorts(e.target.value)}
+                  className="w-full bg-black border border-primary/20 text-primary text-xs font-mono px-2 py-1.5 focus:outline-none focus:border-primary/50 rounded"
+                  placeholder="1-65535"
+                />
+              </div>
+              <div className="flex-1">
+                <label className="text-[10px] text-primary/50 font-mono uppercase block mb-1">Nmap Flags</label>
+                <input
+                  value={scanFlags}
+                  onChange={(e) => setScanFlags(e.target.value)}
+                  className="w-full bg-black border border-primary/20 text-primary text-xs font-mono px-2 py-1.5 focus:outline-none focus:border-primary/50 rounded"
+                  placeholder="-sV -T4"
+                />
+              </div>
+            </div>
+
+            {/* Quick flag presets */}
+            <div className="flex flex-wrap gap-2">
+              {[
+                { label: "Fast Top 1000", flags: "-F -T4" },
+                { label: "Service Detect", flags: "-sV -T4 -p 1-10000" },
+                { label: "OS Detect", flags: "-O -sV -T4" },
+                { label: "Full Scan", flags: "-sV -O -T4 -p 1-65535" },
+                { label: "UDP Top 100", flags: "-sU --top-ports 100" },
+                { label: "Stealth SYN", flags: "-sS -T2 -p 1-10000" },
+              ].map(({ label, flags }) => (
+                <button
+                  key={label}
+                  onClick={() => setScanFlags(flags)}
+                  className="px-2 py-1 border border-primary/20 text-primary/60 text-[10px] font-mono hover:border-primary/50 hover:text-primary transition-colors rounded"
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <button
+              onClick={runPortScan}
+              disabled={scanning}
+              className="flex items-center gap-2 px-4 py-2 border border-primary/40 text-primary text-xs font-mono uppercase hover:bg-primary/10 hover:border-primary transition-colors disabled:opacity-40 rounded"
+            >
+              {scanning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
+              {scanning ? `Scanning ${attacker.ip}…` : `Run Port Scan — ${attacker.ip}`}
+            </button>
+
+            {scanCmd && (
+              <div className="text-[10px] font-mono text-primary/30 bg-black border border-primary/10 px-2 py-1.5 rounded">
+                $ {scanCmd}
+              </div>
+            )}
+            {scanOutput && (
+              <div className="bg-black border border-primary/15 p-3 text-[11px] font-mono text-primary/75 max-h-96 overflow-auto whitespace-pre-wrap rounded">
+                {scanOutput}
+              </div>
+            )}
           </div>
+        )}
 
-          <div className="flex flex-col gap-2 mb-2">
-            <div>
-              <label className="text-[10px] text-primary/50 font-mono uppercase block mb-1">Target URL</label>
-              <input
-                value={sqlTarget}
-                onChange={(e) => setSqlTarget(e.target.value)}
-                className="w-full bg-black border border-red-500/20 text-red-300 text-xs font-mono px-2 py-1.5 focus:outline-none focus:border-red-500/50"
-                placeholder={`http://${attacker.ip}/`}
-              />
+        {/* ── SQLMAP TAB ── */}
+        {tab === "sqlmap" && (
+          <div className="space-y-4">
+            <div className="text-[10px] font-mono text-red-400/50 border border-red-500/15 rounded px-3 py-2 bg-red-500/5">
+              Runs <span className="text-red-400">SQLmap</span> against a target URL associated with <span className="text-red-400">{attacker.ip}</span>. Use this to test for SQL injection vulnerabilities — results may expose the attacker's database and help identify them for law enforcement.
             </div>
-            <div>
-              <label className="text-[10px] text-primary/50 font-mono uppercase block mb-1">Extra SQLmap Flags</label>
-              <input
-                value={sqlFlags}
-                onChange={(e) => setSqlFlags(e.target.value)}
-                className="w-full bg-black border border-red-500/20 text-red-300 text-xs font-mono px-2 py-1.5 focus:outline-none focus:border-red-500/50"
-                placeholder="--dbs --forms --tables -D dbname"
-              />
-            </div>
-          </div>
 
-          {/* Preset quick-launch buttons */}
-          <div className="flex flex-wrap gap-2 mb-3">
-            {[
-              { label: "Enumerate DBs", flags: "--dbs" },
-              { label: "Dump Tables", flags: "--tables --dbs" },
-              { label: "Blind SQLi", flags: "--technique=B --level=3 --risk=2" },
-              { label: "Time-Based", flags: "--technique=T --level=3" },
-              { label: "Error-Based", flags: "--technique=E --dbs" },
-              { label: "Full Scan", flags: "--level=5 --risk=3 --dbs --tables --dump-all" },
-            ].map(({ label, flags }) => (
+            <div className="space-y-3">
+              <div>
+                <label className="text-[10px] text-primary/50 font-mono uppercase block mb-1">Target URL</label>
+                <input
+                  value={sqlTarget}
+                  onChange={(e) => setSqlTarget(e.target.value)}
+                  className="w-full bg-black border border-red-500/25 text-red-300 text-xs font-mono px-2 py-1.5 focus:outline-none focus:border-red-500/60 rounded"
+                  placeholder={`http://${attacker.ip}/`}
+                />
+              </div>
+              <div>
+                <label className="text-[10px] text-primary/50 font-mono uppercase block mb-1">SQLmap Flags</label>
+                <input
+                  value={sqlFlags}
+                  onChange={(e) => setSqlFlags(e.target.value)}
+                  className="w-full bg-black border border-red-500/25 text-red-300 text-xs font-mono px-2 py-1.5 focus:outline-none focus:border-red-500/60 rounded"
+                  placeholder="--dbs --forms --tables -D dbname"
+                />
+              </div>
+            </div>
+
+            {/* Preset quick-launch buttons */}
+            <div>
+              <div className="text-[10px] text-primary/40 font-mono uppercase mb-2">Quick Presets</div>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { label: "Enumerate DBs",   flags: "--dbs",                                     desc: "List all databases" },
+                  { label: "Dump Tables",     flags: "--tables --dbs",                             desc: "List all tables" },
+                  { label: "Blind SQLi",      flags: "--technique=B --level=3 --risk=2",           desc: "Boolean-based blind" },
+                  { label: "Time-Based",      flags: "--technique=T --level=3",                    desc: "Time-delay blind" },
+                  { label: "Error-Based",     flags: "--technique=E --dbs",                        desc: "Error extraction" },
+                  { label: "Full Dump",       flags: "--level=5 --risk=3 --dbs --tables --dump-all", desc: "Maximum extraction" },
+                  { label: "Get Users",       flags: "--users --passwords",                        desc: "Extract DB credentials" },
+                  { label: "OS Shell",        flags: "--os-shell",                                 desc: "Attempt OS command shell" },
+                ].map(({ label, flags, desc }) => (
+                  <button
+                    key={label}
+                    onClick={() => setSqlFlags(flags)}
+                    className="flex flex-col items-start px-2.5 py-2 border border-red-500/20 text-left hover:border-red-500/50 hover:bg-red-500/5 transition-colors rounded"
+                  >
+                    <span className="text-red-400/80 text-[10px] font-mono font-semibold">{label}</span>
+                    <span className="text-primary/30 text-[9px] font-mono">{desc}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
               <button
-                key={label}
-                onClick={() => setSqlFlags(flags)}
-                className="px-2 py-1 border border-red-500/20 text-red-400/70 text-[10px] font-mono hover:border-red-500/50 hover:text-red-400 transition-colors"
+                onClick={runSqlmap}
+                disabled={sqlRunning}
+                className="flex items-center gap-2 px-4 py-2 border border-red-500/50 text-red-400 text-xs font-mono uppercase hover:bg-red-500/10 hover:border-red-500 transition-colors disabled:opacity-40 rounded"
               >
-                {label}
+                {sqlRunning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Syringe className="w-3.5 h-3.5" />}
+                {sqlRunning ? `SQLmap Running on ${attacker.ip}…` : `Launch SQLmap — ${attacker.ip}`}
               </button>
-            ))}
+              <div className="flex items-center gap-2">
+                {statusBadge(sqlStatus)}
+                {sqlJobId && <span className="text-[10px] text-primary/30 font-mono">JOB:{sqlJobId}</span>}
+              </div>
+            </div>
+
+            {sqlOutput && (
+              <div className="bg-black border border-red-500/15 p-3 text-[11px] font-mono text-red-300/75 max-h-96 overflow-auto whitespace-pre-wrap rounded">
+                {sqlOutput}
+              </div>
+            )}
+            {sqlStatus === "running" && !sqlOutput && (
+              <div className="flex items-center gap-2 text-yellow-400 text-xs font-mono border border-yellow-500/20 rounded px-3 py-2">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                SQLmap scanning {attacker.ip} — polling every 4s for results…
+              </div>
+            )}
           </div>
+        )}
 
-          <button
-            onClick={runSqlmap}
-            disabled={sqlRunning}
-            className="flex items-center gap-2 px-4 py-1.5 border border-red-500/50 text-red-400 text-xs font-mono uppercase hover:bg-red-500/10 hover:border-red-500 transition-colors disabled:opacity-40"
-          >
-            {sqlRunning ? <Loader2 className="w-3 h-3 animate-spin" /> : <Bug className="w-3 h-3" />}
-            {sqlRunning ? "SQLmap Running…" : `Launch SQLmap — ${attacker.ip}`}
-          </button>
-
-          {sqlOutput && (
-            <div className="mt-3 bg-black border border-red-500/10 p-3 text-[11px] font-mono text-red-300/70 max-h-80 overflow-auto whitespace-pre-wrap">
-              {sqlOutput}
-            </div>
-          )}
-          {sqlStatus === "running" && !sqlOutput && (
-            <div className="mt-3 flex items-center gap-2 text-yellow-400 text-xs font-mono">
-              <Loader2 className="w-3 h-3 animate-spin" />
-              SQLmap scanning {attacker.ip} — results will appear when complete…
-            </div>
-          )}
-        </section>
       </div>
     </div>
+  );
+}
+
+function statusBadge(s: string) {
+  const map: Record<string, string> = {
+    idle: "text-primary/40", running: "text-yellow-400 animate-pulse",
+    complete: "text-primary", error: "text-red-400",
+  };
+  return (
+    <span className={`text-[10px] font-mono uppercase border px-1.5 py-0.5 rounded border-current ${map[s] ?? "text-primary/40"}`}>
+      {s}
+    </span>
   );
 }
