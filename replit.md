@@ -55,7 +55,7 @@ Clerk-based auth (app_3CcwHo66ohArVtaIa0XTcv88i4Y). Env vars: `VITE_CLERK_PUBLIS
 | /obfuscation | Obfuscation | obfs4/Shadowsocks/V2Ray-WS/Meek/Snowflake/XOR DPI bypass config |
 | /monitor | SystemMonitor | CPU, RAM, network metrics (all real: `/proc/net/dev`, `ss`, `wg show`, `api.ipify.org`) |
 | /proxy | ProxyConfig | Tor Browser, SOCKS5, multi-OS, port knocking docs |
-| /onion-browser | OnionBrowser | Proxied browser (Direct/ProxhqVPN Onion/Tor/Double/Custom SOCKS4/5/HTTP) |
+| /onion-browser | OnionBrowser | Proxied browser (Direct/ProxhqVPN Onion/Tor/Double/Custom SOCKS4/5/HTTP) — **VPN Basic tier** (Tor over VPN or standalone) |
 | /terminal | Terminal | 4-tab shell (SHELL/HTTP CLIENT/PORT SCAN/AUDIT LOG), ProxhqVPN Mode toggle for full outbound |
 | /sql | SqlInterface | 3-mode SQL interface (LOCAL DB/EXTERNAL DB/HTTP API), external PostgreSQL connection manager + schema explorer |
 | /security-audit | SecurityAudit | Self-audit findings (Critical/High/Medium/Low), TLS cert inspector, HTTP security-headers grader (A–F), WHOIS/RDAP lookup |

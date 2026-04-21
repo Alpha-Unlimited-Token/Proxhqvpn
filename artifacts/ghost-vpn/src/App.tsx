@@ -349,6 +349,10 @@ function AppRoutes() {
           <Route path="/smart-dns">
             <ToolLayout><SmartDns /></ToolLayout>
           </Route>
+          {/* Onion Browser — Tor over VPN, included in VPN Basic */}
+          <Route path="/onion-browser">
+            <ToolLayout><OnionBrowser /></ToolLayout>
+          </Route>
 
           {/* ── Command Center Pro — requires Pro subscription ── */}
           <Route path="/dashboard">
@@ -356,9 +360,6 @@ function AppRoutes() {
           </Route>
           <Route path="/proxy">
             <CcLayout><ProxyConfig /></CcLayout>
-          </Route>
-          <Route path="/onion-browser">
-            <CcLayout><OnionBrowser /></CcLayout>
           </Route>
           <Route path="/sqlmap">
             <CcLayout><SqlmapScanner /></CcLayout>

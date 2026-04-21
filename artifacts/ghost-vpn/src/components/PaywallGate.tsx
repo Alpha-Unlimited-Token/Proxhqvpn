@@ -98,11 +98,11 @@ function UpgradeScreen() {
         <div className="text-[11px] font-semibold text-yellow-400/80 mb-2">Included in Command Center Pro</div>
         {[
           "Vulnerability Scanner (SQLMap + nmap)",
-          "Onion Browser (Tor integration)",
-          "Proxy & Ghost Chain routing",
+          "Ghost Chain — Tor-veiled proxy routing",
           "Alpha Toolkit — scraper, verifier, tools",
           "Threat Intelligence dashboard",
           "Security Audit suite",
+          "SilkWeb honeypot & Beacon threat monitor",
         ].map((f) => (
           <div key={f} className="flex items-center gap-2 py-1">
             <div className="w-1 h-1 rounded-full bg-yellow-400/50 shrink-0" />

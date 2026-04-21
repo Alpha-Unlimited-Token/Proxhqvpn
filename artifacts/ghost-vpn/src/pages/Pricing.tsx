@@ -37,11 +37,11 @@ const VPN_FEATURES = [
   { icon: Zap, text: "Stealth obfuscation — bypass DPI" },
   { icon: Server, text: "Unlimited simultaneous devices" },
   { icon: Globe2, text: "Split tunneling & Smart DNS" },
+  { icon: Globe2, text: "Onion Browser — Tor over VPN private browsing" },
 ];
 
 const PRO_EXTRAS = [
   { icon: ScanSearch, text: "Vulnerability Scanner (SQLMap + nmap port scan)" },
-  { icon: Globe2, text: "Onion Browser — Tor-integrated private browsing" },
   { icon: Network, text: "Ghost Chain — Tor-veiled proxy routing" },
   { icon: Activity, text: "Threat Intelligence dashboard" },
   { icon: TerminalIcon, text: "Alpha Toolkit — scraper, verifier, validator" },

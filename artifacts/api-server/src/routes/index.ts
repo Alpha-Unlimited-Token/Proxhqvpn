@@ -243,9 +243,10 @@ router.use("/smart-dns",      requireAccess, smartDnsRouter);
 router.use("/router-config",  requireAccess, routerConfigRouter);
 router.use("/wireguard",      requireAccess, wireguardRouter);
 router.use("/threat-protection", requireAccess, threatProtectionRouter);
+// Onion Browser (Tor) — included in VPN Basic; users can Tor over VPN or standalone
+router.use("/proxy-browser",  requireAccess, proxyBrowserRouter);
 
 // ── Command Center Pro routes — requires command_center tier (or admin/employee)
-router.use("/proxy-browser",  requireCommandCenter, proxyBrowserRouter);
 router.use("/threatintel",    requireCommandCenter, threatintelRouter);
 router.use("/security-audit", requireCommandCenter, securityauditRouter);
 router.use("/sqlmap",         requireCommandCenter, sqlmapRouter);
