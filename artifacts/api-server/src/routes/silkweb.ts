@@ -239,6 +239,57 @@ router.get("/trapped/:id/sqlmap", async (req, res) => {
   });
 });
 
+// ── Direct IP scan endpoints (no trapped-attacker record needed) ─────────────
+// Used by the Beacon Alerts page to scan any raw IP directly.
+
+const directSqlmapJobs = new Map<string, { status: string; results: string | null }>();
+
+router.post("/scan/portscan", async (req, res) => {
+  const { ip, ports = "1-10000", flags = "-sV -T4" } = req.body as {
+    ip?: string; ports?: string; flags?: string;
+  };
+  if (!ip) return res.status(400).json({ error: "ip is required" });
+  const safeIp    = ip.replace(/[^0-9a-fA-F.:]/g, "").substring(0, 45);
+  const safePorts = ports.replace(/[^0-9\-,]/g, "").substring(0, 50);
+  const safeFlags = flags.replace(/[^a-zA-Z0-9 \-]/g, "").substring(0, 80);
+  const cmd = `nmap ${safeFlags} -p ${safePorts} ${safeIp}`;
+  exec(cmd, { timeout: 90000 }, (err, stdout, stderr) => {
+    const output = [stdout, stderr].filter(Boolean).join("\n").substring(0, 8000);
+    res.json({ ok: true, ip: safeIp, cmd, output: output || (err ? err.message : "No output") });
+  });
+});
+
+router.post("/scan/sqlmap", async (req, res) => {
+  const { ip, targetUrl, extraFlags = "" } = req.body as {
+    ip?: string; targetUrl?: string; extraFlags?: string;
+  };
+  if (!ip) return res.status(400).json({ error: "ip is required" });
+  const safeIp    = ip.replace(/[^0-9a-fA-F.:]/g, "").substring(0, 45);
+  const safeUrl   = (targetUrl ?? `http://${safeIp}/`).replace(/['"]/g, "");
+  const safeExtra = extraFlags.replace(/[^a-zA-Z0-9 =\-_.\/]/g, "").substring(0, 200);
+  const jobId     = crypto.randomUUID().substring(0, 8).toUpperCase();
+  directSqlmapJobs.set(jobId, { status: "running", results: null });
+  const cmd = [
+    "sqlmap", `-u "${safeUrl}"`, "--batch", "--level=2", "--risk=2",
+    "--timeout=20", "--retries=1", `--output-dir=/tmp/sqlmap-direct-${jobId}`,
+    "--forms", "--dbs", safeExtra,
+  ].filter(Boolean).join(" ");
+  exec(cmd, { timeout: 120000 }, (err, stdout, stderr) => {
+    const output = [stdout, stderr].filter(Boolean).join("\n").substring(0, 8000);
+    directSqlmapJobs.set(jobId, {
+      status: err ? "error" : "complete",
+      results: output || (err ? err.message : "No output"),
+    });
+  });
+  return res.status(202).json({ ok: true, jobId, cmd, message: `SQLmap launched against ${safeIp}` });
+});
+
+router.get("/scan/sqlmap/:jobId", (req, res) => {
+  const job = directSqlmapJobs.get(req.params.jobId);
+  if (!job) return res.status(404).json({ error: "Job not found" });
+  return res.json(job);
+});
+
 // Live stats for homepage
 router.get("/stats", async (req, res) => {
   const [nodeCount] = await db.select({ count: sql<number>`count(*)::int` }).from(nodesTable).where(eq(nodesTable.status, "active"));
