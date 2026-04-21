@@ -4,8 +4,31 @@ import path from "path";
 import fs from "fs";
 import os from "os";
 import crypto from "crypto";
+import multer from "multer";
 
 const router = Router();
+
+// ── Multer config — accept ZIP / tar.gz uploads up to 100 MB ─────────────────
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, os.tmpdir()),
+    filename:    (_req, file, cb) => {
+      const id  = crypto.randomUUID().substring(0, 8).toUpperCase();
+      const ext = path.extname(file.originalname).toLowerCase() || ".zip";
+      cb(null, `alpha-upload-${id}${ext}`);
+    },
+  }),
+  limits: { fileSize: 100 * 1024 * 1024 },  // 100 MB
+  fileFilter: (_req, file, cb) => {
+    const allowed = [".zip", ".tar", ".gz", ".tgz", ".bz2"];
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (allowed.includes(ext) || file.mimetype.includes("zip") || file.mimetype.includes("compressed")) {
+      cb(null, true);
+    } else {
+      cb(new Error("Only ZIP and TAR archives are accepted"));
+    }
+  },
+});
 
 const TOOLS_DIR = path.resolve(process.cwd(), "tools");
 const SCANNER   = path.join(TOOLS_DIR, "alpha_scanner.py");
@@ -215,6 +238,87 @@ router.get("/verify/:jobId", (req, res) => {
   }
 
   return res.json(job);
+});
+
+// ── App Scanner ───────────────────────────────────────────────────────────────
+const APP_SCANNER    = path.join(TOOLS_DIR, "alpha_app_scanner.py");
+const appScanJobs:   Map<string, Job & { htmlOut: string; jsonOut: string; filename: string }> = new Map();
+
+// POST /api/alpha/app-scan  — multipart ZIP upload
+router.post("/app-scan", (req, res, next) => {
+  upload.single("archive")(req, res, (err) => {
+    if (err) return res.status(400).json({ error: err.message });
+
+    const file = (req as any).file;
+    if (!file) return res.status(400).json({ error: "No archive file provided. Send as multipart field 'archive'." });
+
+    const jobId   = crypto.randomUUID().substring(0, 8).toUpperCase();
+    const htmlOut = path.join(os.tmpdir(), `alpha-appscan-${jobId}.html`);
+    const jsonOut = htmlOut + ".json";
+
+    const args = [
+      APP_SCANNER,
+      "--zip",  file.path,
+      "--out",  htmlOut,
+      "--json",
+    ];
+    const cmdStr = `${PYTHON} ${args.join(" ")}`;
+
+    const job: any = { status: "running", output: null, cmd: cmdStr, startedAt: Date.now(), htmlOut, jsonOut, filename: file.originalname };
+    appScanJobs.set(jobId, job);
+
+    exec(cmdStr, { timeout: 300000, maxBuffer: 10 * 1024 * 1024 }, (err, stdout, stderr) => {
+      // Clean up the uploaded zip after scanning
+      try { fs.unlinkSync(file.path); } catch {}
+      if (appScanJobs.get(jobId)?.status === "cancelled") return;
+      const raw = [stdout, stderr].filter(Boolean).join("\n").substring(0, 30000);
+      appScanJobs.set(jobId, {
+        ...job,
+        status:  err && !raw ? "error" : "complete",
+        output:  raw || (err ? err.message : "No output"),
+      });
+    });
+
+    return res.status(202).json({ ok: true, jobId, filename: file.originalname, cmd: cmdStr });
+  });
+});
+
+// GET /api/alpha/app-scan/:jobId — poll job status
+router.get("/app-scan/:jobId", (req, res) => {
+  const job = appScanJobs.get(req.params.jobId);
+  if (!job) return res.status(404).json({ error: "Job not found" });
+  const htmlReady = fs.existsSync(job.htmlOut);
+  const jsonReady = fs.existsSync(job.jsonOut);
+  return res.json({ ...job, htmlReady, jsonReady });
+});
+
+// GET /api/alpha/app-scan/:jobId/html — download HTML report
+router.get("/app-scan/:jobId/html", (req, res) => {
+  const job = appScanJobs.get(req.params.jobId);
+  if (!job || !fs.existsSync(job.htmlOut)) return res.status(404).json({ error: "HTML report not ready" });
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename="app-scan-${req.params.jobId}.html"`);
+  res.send(fs.readFileSync(job.htmlOut, "utf-8"));
+});
+
+// GET /api/alpha/app-scan/:jobId/json — download JSON summary
+router.get("/app-scan/:jobId/json", (req, res) => {
+  const job = appScanJobs.get(req.params.jobId);
+  if (!job || !fs.existsSync(job.jsonOut)) return res.status(404).json({ error: "JSON report not ready" });
+  res.setHeader("Content-Type", "application/json");
+  res.setHeader("Content-Disposition", `attachment; filename="app-scan-${req.params.jobId}.json"`);
+  res.send(fs.readFileSync(job.jsonOut, "utf-8"));
+});
+
+// DELETE /api/alpha/app-scan/:jobId — cancel / delete job
+router.delete("/app-scan/:jobId", (req, res) => {
+  const job = appScanJobs.get(req.params.jobId);
+  if (!job) return res.status(404).json({ error: "Job not found" });
+  // Clean up report files
+  try { if (fs.existsSync(job.htmlOut)) fs.unlinkSync(job.htmlOut); } catch {}
+  try { if (fs.existsSync(job.jsonOut)) fs.unlinkSync(job.jsonOut); } catch {}
+  appScanJobs.set(req.params.jobId, { ...job, status: "cancelled", output: "Cancelled by user." });
+  return res.json({ ok: true });
 });
 
 export default router;
