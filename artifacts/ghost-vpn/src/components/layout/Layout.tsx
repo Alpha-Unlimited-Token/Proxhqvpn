@@ -216,7 +216,7 @@ export function Layout({ children }: LayoutProps) {
             <Zap className="w-3.5 h-3.5 text-primary/70 group-hover:text-primary shrink-0" />
             <div className="min-w-0 flex-1">
               <div className="text-[11px] font-semibold text-primary/80 leading-none">Subscribe to Get Started</div>
-              <div className="text-[10px] text-primary/40 mt-0.5">VPN from $9.99 · Pro from $34.99</div>
+              <div className="text-[10px] text-primary/40 mt-0.5">VPN from $6.99 · Pro from $34.99</div>
             </div>
           </Link>
         </div>

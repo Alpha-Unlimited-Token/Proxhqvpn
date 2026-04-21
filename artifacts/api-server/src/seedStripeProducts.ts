@@ -1,11 +1,12 @@
 /**
- * Seed two Stripe products at server startup if they don't already exist.
+ * Seed & maintain two Stripe products at server startup (idempotent).
  *
- * Tier 1 — VPN Basic      ($9.99/mo · $89.99/yr)
- * Tier 2 — Command Center Pro ($34.99/mo · $299.99/yr)
+ * Tier 1 — VPN Basic          $6.99/mo · $59.99/yr
+ * Tier 2 — Command Center Pro $34.99/mo · $299.99/yr
  *
- * Products are tagged with metadata.tier = "vpn" | "command_center" so
- * the backend can determine which feature set a subscriber gets.
+ * Products are tagged with metadata.tier = "vpn" | "command_center".
+ * If a product already exists, its prices are reconciled to match
+ * the targets above — outdated prices get deactivated automatically.
  */
 
 import { getUncachableStripeClient } from "./stripeClient";
@@ -13,69 +14,96 @@ import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { logger } from "./lib/logger";
 
-async function productExistsByTier(tier: string): Promise<boolean> {
+interface PriceTarget {
+  interval: "month" | "year";
+  amount: number;   // cents
+  nickname: string;
+}
+
+const VPN_TARGETS: PriceTarget[] = [
+  { interval: "month", amount: 699,   nickname: "VPN Basic — Monthly"  },
+  { interval: "year",  amount: 5999,  nickname: "VPN Basic — Annual"   },
+];
+
+const PRO_TARGETS: PriceTarget[] = [
+  { interval: "month", amount: 3499,  nickname: "Command Center Pro — Monthly" },
+  { interval: "year",  amount: 29999, nickname: "Command Center Pro — Annual"  },
+];
+
+async function getProductIdByTier(tier: string): Promise<string | null> {
   const result = await db.execute(
     sql`SELECT id FROM stripe.products WHERE active = true AND metadata->>'tier' = ${tier} LIMIT 1`
   );
-  return result.rows.length > 0;
+  return (result.rows[0] as any)?.id ?? null;
+}
+
+async function reconcilePrices(productId: string, targets: PriceTarget[]) {
+  const stripe = await getUncachableStripeClient();
+
+  // Fetch all active prices for this product from Stripe (not just DB — ensures freshness)
+  const existing = await stripe.prices.list({ product: productId, active: true, limit: 50 });
+
+  for (const target of targets) {
+    const match = existing.data.find(
+      (p) =>
+        p.recurring?.interval === target.interval &&
+        p.unit_amount === target.amount &&
+        p.currency === "usd"
+    );
+
+    if (!match) {
+      // Deactivate any outdated price for this interval
+      for (const old of existing.data) {
+        if (old.recurring?.interval === target.interval && old.unit_amount !== target.amount) {
+          await stripe.prices.update(old.id, { active: false }).catch(() => {});
+          logger.info({ priceId: old.id }, `Deactivated outdated price`);
+        }
+      }
+
+      // Create the new price at the correct amount
+      const created = await stripe.prices.create({
+        product: productId,
+        unit_amount: target.amount,
+        currency: "usd",
+        recurring: { interval: target.interval },
+        nickname: target.nickname,
+      });
+      logger.info({ priceId: created.id, amount: target.amount }, `Created price: ${target.nickname}`);
+    }
+  }
 }
 
 export async function seedStripeProducts() {
   try {
     const stripe = await getUncachableStripeClient();
 
-    // ── VPN Basic ──────────────────────────────────────────────────────────────
-    if (!(await productExistsByTier("vpn"))) {
+    // ── VPN Basic ────────────────────────────────────────────────────────────────
+    let vpnId = await getProductIdByTier("vpn");
+    if (!vpnId) {
       const vpn = await stripe.products.create({
         name: "ProxhqVPN — VPN Basic",
         description: "Dedicated WireGuard VPN with kill switch, DNS protection, leak detection, and unlimited devices.",
         metadata: { tier: "vpn" },
       });
-
-      await stripe.prices.create({
-        product: vpn.id,
-        unit_amount: 999,
-        currency: "usd",
-        recurring: { interval: "month" },
-        nickname: "VPN Basic — Monthly",
-      });
-      await stripe.prices.create({
-        product: vpn.id,
-        unit_amount: 8999,
-        currency: "usd",
-        recurring: { interval: "year" },
-        nickname: "VPN Basic — Annual",
-      });
-
-      logger.info({ productId: vpn.id }, "Seeded Stripe product: VPN Basic");
+      vpnId = vpn.id;
+      logger.info({ productId: vpnId }, "Seeded Stripe product: VPN Basic");
     }
+    await reconcilePrices(vpnId, VPN_TARGETS);
 
-    // ── Command Center Pro ──────────────────────────────────────────────────────
-    if (!(await productExistsByTier("command_center"))) {
+    // ── Command Center Pro ────────────────────────────────────────────────────────
+    let proId = await getProductIdByTier("command_center");
+    if (!proId) {
       const pro = await stripe.products.create({
         name: "ProxhqVPN — Command Center Pro",
         description: "Everything in VPN Basic plus the full developer toolkit: vulnerability scanner, Tor browser, proxy chains, threat intelligence, security audit, Alpha Toolkit, and more.",
         metadata: { tier: "command_center" },
       });
-
-      await stripe.prices.create({
-        product: pro.id,
-        unit_amount: 3499,
-        currency: "usd",
-        recurring: { interval: "month" },
-        nickname: "Command Center Pro — Monthly",
-      });
-      await stripe.prices.create({
-        product: pro.id,
-        unit_amount: 29999,
-        currency: "usd",
-        recurring: { interval: "year" },
-        nickname: "Command Center Pro — Annual",
-      });
-
-      logger.info({ productId: pro.id }, "Seeded Stripe product: Command Center Pro");
+      proId = pro.id;
+      logger.info({ productId: proId }, "Seeded Stripe product: Command Center Pro");
     }
+    await reconcilePrices(proId, PRO_TARGETS);
+
   } catch (err: any) {
-    logger.warn({ err: err.message }, "Stripe product seed failed — run again when Stripe is connected");
+    logger.warn({ err: err.message }, "Stripe product seed failed — will retry on next restart");
   }
 }

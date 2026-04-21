@@ -104,10 +104,10 @@ export default function Pricing() {
   const savings = (monthly: number, annual: number) =>
     Math.round(100 - (annual / 12 / monthly * 100));
 
-  const vpnMonthly  = vpnProduct  ? (getPriceForPeriod(vpnProduct.prices,  "monthly")?.unitAmount ?? 999)  : 999;
-  const proMonthly  = proProduct  ? (getPriceForPeriod(proProduct.prices,  "monthly")?.unitAmount ?? 3499) : 3499;
-  const vpnAnnual   = vpnProduct  ? (getPriceForPeriod(vpnProduct.prices,  "annual")?.unitAmount  ?? 8999) : 8999;
-  const proAnnual   = proProduct  ? (getPriceForPeriod(proProduct.prices,  "annual")?.unitAmount  ?? 29999): 29999;
+  const vpnMonthly  = vpnProduct  ? (getPriceForPeriod(vpnProduct.prices,  "monthly")?.unitAmount ?? 699)   : 699;
+  const proMonthly  = proProduct  ? (getPriceForPeriod(proProduct.prices,  "monthly")?.unitAmount ?? 3499)  : 3499;
+  const vpnAnnual   = vpnProduct  ? (getPriceForPeriod(vpnProduct.prices,  "annual")?.unitAmount  ?? 5999)  : 5999;
+  const proAnnual   = proProduct  ? (getPriceForPeriod(proProduct.prices,  "annual")?.unitAmount  ?? 29999) : 29999;
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 py-2">
@@ -380,7 +380,7 @@ export default function Pricing() {
             { tool: "Burp Suite Pro", price: "$449/yr", tag: "vulnerability scanner only" },
             { tool: "Shodan", price: "$49/mo", tag: "network intelligence only" },
             { tool: "NordVPN", price: "$6.99/mo", tag: "VPN only" },
-            { tool: "ProxhqVPN Pro", price: "$24.99/mo*", tag: "everything combined", highlight: true },
+            { tool: "ProxhqVPN Pro", price: "$24.99/mo*", tag: "all tools + VPN combined", highlight: true },
           ].map((r) => (
             <div key={r.tool} className={`rounded-xl p-3.5 text-center ${
               r.highlight
