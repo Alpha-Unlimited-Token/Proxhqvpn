@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { getAuth } from "@clerk/express";
 import { db } from "@workspace/db";
-import { userWgConfigsTable, nodesTable, usersTable } from "@workspace/db";
+import { userWgConfigsTable, nodesTable, usersTable, wgPeerCommandsTable } from "@workspace/db";
 import { eq, and, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import crypto from "crypto";
@@ -87,6 +87,15 @@ router.post("/my-config", async (req, res) => {
     assignedIp,
   }).returning();
 
+  await db.insert(wgPeerCommandsTable).values({
+    configId: config.id,
+    nodeId: body.nodeId,
+    userId,
+    clientPublicKey: publicKey,
+    assignedIp,
+    status: "pending",
+  });
+
   return res.status(201).json({ ...config, node, alreadyExists: false });
 });
 
@@ -139,6 +148,21 @@ PersistentKeepalive = 25
   res.setHeader("Content-Type", "text/plain");
   res.setHeader("Content-Disposition", `attachment; filename="proxhqvpn-${node.region}-${cfg.assignedIp.replace(/\./g, "-")}.conf"`);
   res.send(configText);
+});
+
+router.get("/peer-status/:configId", async (req, res) => {
+  const { userId } = getAuth(req);
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+  const configId = parseInt(req.params.configId);
+  const [cmd] = await db
+    .select()
+    .from(wgPeerCommandsTable)
+    .where(and(eq(wgPeerCommandsTable.configId, configId), eq(wgPeerCommandsTable.userId, userId)))
+    .orderBy(wgPeerCommandsTable.createdAt);
+
+  if (!cmd) return res.json({ status: "unknown" });
+  return res.json({ status: cmd.status, appliedAt: cmd.appliedAt, errorMessage: cmd.errorMessage });
 });
 
 router.get("/peer-list/:nodeId", async (req, res) => {

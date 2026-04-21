@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { nodesTable, beaconAlertsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { nodesTable, beaconAlertsTable, wgPeerCommandsTable } from "@workspace/db";
+import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 
 const router = Router();
@@ -87,6 +87,34 @@ router.post("/beacon", async (req, res) => {
   }).returning();
 
   return res.status(201).json({ ok: true, alertId: alert.id });
+});
+
+router.get("/pending-peers", async (req, res) => {
+  const nodeId = parseInt(req.query.nodeId as string);
+  if (!nodeId) return res.status(400).json({ error: "nodeId required" });
+
+  const pending = await db
+    .select()
+    .from(wgPeerCommandsTable)
+    .where(and(eq(wgPeerCommandsTable.nodeId, nodeId), eq(wgPeerCommandsTable.status, "pending")));
+
+  return res.json({ peers: pending });
+});
+
+router.post("/peer-ack", async (req, res) => {
+  const body = z.object({
+    commandId: z.number(),
+    success: z.boolean(),
+    errorMessage: z.string().optional(),
+  }).parse(req.body);
+
+  await db.update(wgPeerCommandsTable).set({
+    status: body.success ? "applied" : "failed",
+    appliedAt: body.success ? new Date() : null,
+    errorMessage: body.errorMessage ?? null,
+  }).where(eq(wgPeerCommandsTable.id, body.commandId));
+
+  return res.json({ ok: true });
 });
 
 export default router;

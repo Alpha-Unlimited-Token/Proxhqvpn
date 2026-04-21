@@ -182,6 +182,43 @@ def post_to_api(api_base: str, path: str, payload: dict, psk: str, timeout: int 
         return False
 
 
+def get_pending_peers(api_base: str, node_id: int, psk: str) -> list[dict]:
+    """Poll the API for peer registrations that need to be applied."""
+    url = f"{api_base}/daemon-inbound/pending-peers?nodeId={node_id}"
+    req = urllib.request.Request(url, headers={"X-Daemon-PSK": psk})
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read())
+            return data.get("peers", [])
+    except Exception as e:
+        print(f"[proxhqd] Could not fetch pending peers: {e}", file=sys.stderr)
+        return []
+
+
+def apply_wg_peer(public_key: str, assigned_ip: str) -> tuple[bool, str]:
+    """Add a peer to WireGuard and persist the config."""
+    try:
+        result = subprocess.run(
+            ["wg", "set", "wg0", "peer", public_key, "allowed-ips", f"{assigned_ip}/32"],
+            capture_output=True, text=True, timeout=10
+        )
+        if result.returncode != 0:
+            return False, result.stderr.strip()
+
+        subprocess.run(["wg-quick", "save", "wg0"], capture_output=True, timeout=10)
+        return True, ""
+    except Exception as e:
+        return False, str(e)
+
+
+def ack_peer(api_base: str, command_id: int, success: bool, psk: str, error: str = "") -> None:
+    """Tell the API whether the peer was successfully applied."""
+    payload = {"commandId": command_id, "success": success}
+    if error:
+        payload["errorMessage"] = error
+    post_to_api(api_base, "/daemon-inbound/peer-ack", payload, psk)
+
+
 def main():
     parser = argparse.ArgumentParser(description="ProxhqVPN Node Daemon")
     parser.add_argument("--api", required=True, help="API base URL (e.g. https://yourapp.replit.app/api)")
@@ -209,6 +246,20 @@ def main():
             ts = datetime.now().strftime("%H:%M:%S")
             status = "OK" if ok else "FAIL"
             print(f"[proxhqd] {ts} report={status} peers={len(peers)} cpu={sys_stats['cpuPercent']}%")
+
+            # Auto-register any pending peers from the API
+            pending = get_pending_peers(args.api, args.node_id, args.psk)
+            for cmd in pending:
+                pub_key = cmd["clientPublicKey"]
+                ip = cmd["assignedIp"]
+                cmd_id = cmd["id"]
+                print(f"[proxhqd] Registering peer {pub_key[:16]}... → {ip}")
+                success, error = apply_wg_peer(pub_key, ip)
+                ack_peer(args.api, cmd_id, success, args.psk, error)
+                if success:
+                    print(f"[proxhqd] Peer {ip} registered OK")
+                else:
+                    print(f"[proxhqd] Peer {ip} FAILED: {error}", file=sys.stderr)
 
             probes = detect_beacon_probes(args.beacon_log)
             for probe in probes:

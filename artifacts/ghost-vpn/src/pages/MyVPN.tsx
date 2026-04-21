@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useUser } from "@clerk/react";
-import { Download, Shield, CheckCircle, ChevronDown, ChevronUp, RefreshCw, Smartphone, Apple, Monitor } from "lucide-react";
+import { Download, Shield, CheckCircle, ChevronDown, ChevronUp, RefreshCw, Smartphone, Apple, Monitor, Loader2 } from "lucide-react";
 import { useListNodes } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -39,6 +39,8 @@ type WgConfig = {
     status: string;
   } | null;
 };
+
+type PeerStatus = "pending" | "applied" | "failed" | "unknown";
 
 function buildConfText(cfg: WgConfig): string {
   const node = cfg.node;
@@ -80,6 +82,9 @@ export default function Connect() {
   const { toast } = useToast();
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
+  const [peerStatus, setPeerStatus] = useState<PeerStatus>("unknown");
+  const [justConnected, setJustConnected] = useState(false);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const { data: myConfigs, isLoading } = useQuery<{ configs: WgConfig[]; hasConfig: boolean }>({
     queryKey: ["my-wg-configs"],
@@ -98,12 +103,40 @@ export default function Connect() {
   const configNode = activeConfig?.node;
   const displayNode = configNode ?? targetNode;
 
+  const pollPeerStatus = (configId: number) => {
+    if (pollRef.current) clearInterval(pollRef.current);
+    pollRef.current = setInterval(async () => {
+      try {
+        const data = await apiFetch(`/api/wireguard/peer-status/${configId}`);
+        setPeerStatus(data.status);
+        if (data.status === "applied" || data.status === "failed") {
+          clearInterval(pollRef.current!);
+          if (data.status === "applied") {
+            qc.invalidateQueries({ queryKey: ["my-wg-configs"] });
+          }
+        }
+      } catch {
+        // silent
+      }
+    }, 4000);
+  };
+
+  useEffect(() => {
+    if (activeConfig && justConnected) {
+      setPeerStatus("pending");
+      pollPeerStatus(activeConfig.id);
+    }
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, [activeConfig?.id, justConnected]);
+
   const generateMutation = useMutation({
     mutationFn: (nodeId: number) =>
       apiFetch("/api/wireguard/my-config", { method: "POST", body: JSON.stringify({ nodeId }) }),
     onSuccess: (data: WgConfig) => {
+      setJustConnected(true);
+      setPeerStatus("pending");
       qc.invalidateQueries({ queryKey: ["my-wg-configs"] });
-      downloadConf(data);
+      pollPeerStatus(data.id);
     },
     onError: (e: Error) => {
       toast({ title: "Failed", description: e.message, variant: "destructive" });
@@ -113,12 +146,16 @@ export default function Connect() {
   const revokeMutation = useMutation({
     mutationFn: (id: number) => apiFetch(`/api/wireguard/my-config/${id}`, { method: "DELETE" }),
     onSuccess: () => {
+      setPeerStatus("unknown");
+      setJustConnected(false);
       qc.invalidateQueries({ queryKey: ["my-wg-configs"] });
     },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
   const isWorking = generateMutation.isPending || revokeMutation.isPending;
+  const isRegistering = peerStatus === "pending" && hasConfig;
+  const tunnelReady = peerStatus === "applied" || (hasConfig && !justConnected);
 
   const handleConnect = () => {
     if (!targetNodeId) {
@@ -138,29 +175,48 @@ export default function Connect() {
     generateMutation.mutate(targetNodeId);
   };
 
+  const statusLabel = () => {
+    if (isLoading) return "Checking...";
+    if (isWorking) return "Setting up...";
+    if (isRegistering) return "Registering Tunnel...";
+    if (tunnelReady) return "Protected";
+    return "Not Protected";
+  };
+
+  const statusSub = () => {
+    if (isRegistering) return "Your key is being registered on the server — this takes up to 30 seconds";
+    if (tunnelReady) return `Connected via ${configNode?.name ?? "your server"} · ${configNode?.region ?? ""}`;
+    if (activeNodes.length > 0) return "Click below to set up your VPN";
+    return "No active servers — contact admin";
+  };
+
   return (
     <div className="max-w-lg mx-auto space-y-6 py-2">
 
-      {/* Main connection card — ExpressVPN-style */}
+      {/* Main connection card */}
       <div className="bg-[#0d1610] border border-white/[0.07] rounded-2xl overflow-hidden">
 
         {/* Status header */}
         <div className={`px-8 pt-10 pb-8 flex flex-col items-center text-center transition-colors ${
-          hasConfig ? "bg-gradient-to-b from-primary/[0.08] to-transparent" : "bg-gradient-to-b from-white/[0.02] to-transparent"
+          tunnelReady ? "bg-gradient-to-b from-primary/[0.08] to-transparent" :
+          isRegistering ? "bg-gradient-to-b from-yellow-500/[0.05] to-transparent" :
+          "bg-gradient-to-b from-white/[0.02] to-transparent"
         }`}>
           {/* Big status ring */}
-          <div className={`relative w-28 h-28 mb-6 ${isWorking ? "animate-pulse" : ""}`}>
-            {/* Outer glow ring */}
+          <div className={`relative w-28 h-28 mb-6 ${(isWorking || isRegistering) ? "animate-pulse" : ""}`}>
             <div className={`absolute inset-0 rounded-full transition-all duration-700 ${
-              hasConfig
+              tunnelReady
                 ? "shadow-[0_0_40px_rgba(0,255,136,0.25)] bg-primary/10 border-2 border-primary/40"
-                : "border-2 border-white/10 bg-white/[0.03]"
+                : isRegistering
+                  ? "shadow-[0_0_30px_rgba(255,200,0,0.15)] bg-yellow-500/10 border-2 border-yellow-500/30"
+                  : "border-2 border-white/10 bg-white/[0.03]"
             }`} />
-            {/* Icon */}
             <div className="absolute inset-0 flex items-center justify-center">
               {isWorking ? (
                 <RefreshCw className="w-10 h-10 text-primary animate-spin" />
-              ) : hasConfig ? (
+              ) : isRegistering ? (
+                <Loader2 className="w-10 h-10 text-yellow-400 animate-spin" />
+              ) : tunnelReady ? (
                 <Shield className="w-12 h-12 text-primary drop-shadow-[0_0_12px_rgba(0,255,136,0.6)]" />
               ) : (
                 <Shield className="w-12 h-12 text-white/20" />
@@ -168,18 +224,35 @@ export default function Connect() {
             </div>
           </div>
 
-          {/* Status text */}
-          <div className={`text-2xl font-bold tracking-tight mb-1 ${hasConfig ? "text-primary" : "text-white/40"}`}>
-            {isLoading ? "Checking..." : hasConfig ? "Protected" : "Not Protected"}
+          <div className={`text-2xl font-bold tracking-tight mb-1 ${
+            tunnelReady ? "text-primary" : isRegistering ? "text-yellow-400" : "text-white/40"
+          }`}>
+            {statusLabel()}
           </div>
-          <div className="text-sm text-white/40">
-            {hasConfig
-              ? `Connected via ${configNode?.name ?? "your server"} · ${configNode?.region ?? ""}`
-              : activeNodes.length > 0
-                ? "Click below to set up your VPN"
-                : "No active servers — contact admin"
-            }
+          <div className="text-sm text-white/40 max-w-xs leading-relaxed">
+            {statusSub()}
           </div>
+
+          {/* Registration progress bar */}
+          {isRegistering && (
+            <div className="mt-4 w-full max-w-xs bg-white/[0.06] rounded-full h-1.5 overflow-hidden">
+              <div className="h-full bg-yellow-400/60 rounded-full animate-[pulse_1.5s_ease-in-out_infinite] w-2/3" />
+            </div>
+          )}
+
+          {/* Applied confirmation */}
+          {peerStatus === "applied" && justConnected && (
+            <div className="mt-3 flex items-center gap-2 text-sm text-primary/80">
+              <CheckCircle className="w-4 h-4" />
+              Tunnel registered — download your config below
+            </div>
+          )}
+
+          {peerStatus === "failed" && (
+            <div className="mt-3 text-sm text-red-400/80">
+              Registration failed — please try disconnecting and reconnecting
+            </div>
+          )}
         </div>
 
         {/* Server picker */}
@@ -215,23 +288,27 @@ export default function Connect() {
         <div className="px-6 pb-6 pt-3">
           <button
             onClick={handleConnect}
-            disabled={isWorking || activeNodes.length === 0 || isLoading}
+            disabled={isWorking || isRegistering || activeNodes.length === 0 || isLoading}
             className={`w-full py-4 rounded-2xl font-semibold text-[15px] flex items-center justify-center gap-2.5 transition-all duration-200 disabled:opacity-40 ${
-              hasConfig
+              tunnelReady
                 ? "bg-primary/15 border border-primary/30 text-primary hover:bg-primary/25"
-                : "bg-primary text-black hover:brightness-110 shadow-[0_0_30px_rgba(0,255,136,0.25)]"
+                : isRegistering
+                  ? "bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 cursor-not-allowed"
+                  : "bg-primary text-black hover:brightness-110 shadow-[0_0_30px_rgba(0,255,136,0.25)]"
             }`}
           >
             {isWorking ? (
               <><RefreshCw className="w-4 h-4 animate-spin" /> Setting up...</>
-            ) : hasConfig ? (
+            ) : isRegistering ? (
+              <><Loader2 className="w-4 h-4 animate-spin" /> Registering tunnel...</>
+            ) : tunnelReady ? (
               <><Download className="w-4 h-4" /> Download Config</>
             ) : (
               <><Shield className="w-4 h-4" /> Connect Now</>
             )}
           </button>
 
-          {hasConfig && targetNodeId && targetNodeId !== activeConfig?.nodeId && (
+          {hasConfig && targetNodeId && targetNodeId !== activeConfig?.nodeId && !isRegistering && (
             <button
               onClick={handleSwitch}
               disabled={isWorking}
@@ -268,7 +345,7 @@ export default function Connect() {
         <div className="space-y-4">
           {[
             { n: "1", title: "Install WireGuard", body: "Download the free WireGuard app from the links above for your device." },
-            { n: "2", title: "Download your config", body: "Click Connect Now above. Your unique VPN config file will download automatically." },
+            { n: "2", title: "Click Connect Now", body: "Your unique VPN tunnel is automatically registered on the server. Download your config file when ready." },
             { n: "3", title: "Import & connect", body: 'In WireGuard, tap "+" → "Import from file". Select your .conf file, then toggle the switch to connect.' },
           ].map((step) => (
             <div key={step.n} className="flex gap-4">
