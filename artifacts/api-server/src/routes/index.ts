@@ -206,13 +206,18 @@ router.use(requireAuth);
 export const requireAdmin = _requireAdmin;
 
 router.use("/me",             meRouter);
-router.use("/nodes",          nodesRouter);
-router.use("/beacons",        beaconsRouter);
-router.use("/silkweb",        silkwebRouter);
-router.use("/firewall",       firewallRouter);
-router.use("/monitor",        monitorRouter);
-router.use("/terminal",       terminalRouter);
-router.use("/sql",            sqlRouter);
+
+// ── Admin-only routes ──────────────────────────────────────────────────────
+// Every route below requires an authenticated admin account.
+router.use("/nodes",          requireAdmin, nodesRouter);
+router.use("/beacons",        requireAdmin, beaconsRouter);
+router.use("/silkweb",        requireAdmin, silkwebRouter);
+router.use("/firewall",       requireAdmin, firewallRouter);
+router.use("/monitor",        requireAdmin, monitorRouter);
+router.use("/terminal",       requireAdmin, terminalRouter);
+router.use("/sql",            requireAdmin, sqlRouter);
+
+// ── User-facing routes ─────────────────────────────────────────────────────
 router.use("/proxy-browser",  proxyBrowserRouter);
 router.use("/killswitch",     killswitchRouter);
 router.use("/leaks",          leaksRouter);

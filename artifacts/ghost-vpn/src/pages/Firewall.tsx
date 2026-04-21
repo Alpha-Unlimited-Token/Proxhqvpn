@@ -40,6 +40,7 @@ export default function Firewall() {
   const [ruleForm, setRuleForm] = useState({
     name: '', priority: 100, direction: 'inbound', action: 'drop', protocol: 'tcp', sourceIp: '', destPort: ''
   });
+  const [isModeOpen, setIsModeOpen] = useState(false);
 
   const handleToggle = () => {
     toggleFirewall.mutate({ data: { enabled: !status?.enabled } }, {
@@ -131,11 +132,33 @@ export default function Firewall() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 shrink-0">
           <div className="border border-primary/20 bg-black p-4 rounded flex flex-col gap-1">
               <span className="text-xs text-primary/50 uppercase">Status</span>
-              <span className="font-mono font-bold">{status?.enabled ? "ACTIVE" : "INACTIVE"}</span>
+              <span className={`font-mono font-bold ${status?.enabled ? "text-primary" : "text-destructive"}`}>{status?.enabled ? "ACTIVE" : "INACTIVE"}</span>
           </div>
-          <div className="border border-primary/20 bg-black p-4 rounded flex flex-col gap-1">
-              <span className="text-xs text-primary/50 uppercase">Mode</span>
-              <span className="font-mono font-bold uppercase">{status?.mode ?? "--"}</span>
+          <div className="border border-primary/20 bg-black p-4 rounded flex flex-col gap-1 cursor-pointer group" onClick={() => setIsModeOpen(!isModeOpen)}>
+              <span className="text-xs text-primary/50 uppercase">Mode <span className="text-primary/30 group-hover:text-primary/60">(click to change)</span></span>
+              <Select
+                value={status?.mode ?? "stealth"}
+                open={isModeOpen}
+                onOpenChange={setIsModeOpen}
+                onValueChange={(v) => {
+                  toggleFirewall.mutate({ data: { enabled: status?.enabled ?? true, mode: v as any } }, {
+                    onSuccess: () => {
+                      toast({ title: "Mode Changed", description: `Firewall mode set to ${v.toUpperCase()}.` });
+                      queryClient.invalidateQueries({ queryKey: getGetFirewallStatusQueryKey() });
+                    }
+                  });
+                }}
+              >
+                <SelectTrigger className="border-none p-0 h-auto shadow-none font-mono font-bold uppercase text-sm text-primary bg-transparent focus:ring-0">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-black border-primary/50 text-primary text-xs font-mono">
+                  <SelectItem value="stealth">STEALTH</SelectItem>
+                  <SelectItem value="strict">STRICT</SelectItem>
+                  <SelectItem value="standard">STANDARD</SelectItem>
+                  <SelectItem value="learning">LEARNING</SelectItem>
+                </SelectContent>
+              </Select>
           </div>
           <div className="border border-primary/20 bg-black p-4 rounded flex flex-col gap-1">
               <span className="text-xs text-primary/50 uppercase">ISP Masquerade</span>

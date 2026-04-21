@@ -1,10 +1,17 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { firewallRulesTable, firewallStatusTable, blockedIpsTable } from "@workspace/db";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, lt } from "drizzle-orm";
 import { z } from "zod";
 
 const router = Router();
+
+// ── Expired blocked-IP cleanup — runs every 5 minutes ─────────────────────
+setInterval(async () => {
+  try {
+    await db.delete(blockedIpsTable).where(lt(blockedIpsTable.expiresAt, new Date()));
+  } catch { /* silent — non-critical maintenance task */ }
+}, 5 * 60 * 1000);
 
 async function getOrCreateStatus() {
   const rows = await db.select().from(firewallStatusTable).limit(1);
