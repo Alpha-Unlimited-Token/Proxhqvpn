@@ -45,7 +45,7 @@ router.post("/scan", async (req, res) => {
   if (body.forms)       args.push("--forms");
   if (body.randomAgent) args.push("--random-agent");
   if (body.dumpAll)     args.push("--dump-all");
-  if (body.torEnabled)  args.push("--tor");
+  if (body.torEnabled)  args.push("--tor", "--tor-type=SOCKS5", "--tor-port=9050", "--check-tor");
   if (body.dbms)        args.push("--dbms", body.dbms);
   if (body.crawl > 0)   args.push("--crawl", String(body.crawl));
   args.push("--no-logging");

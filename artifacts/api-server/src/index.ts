@@ -2,6 +2,25 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { runMigrations } from "stripe-replit-sync";
 import { getStripeSync } from "./stripeClient";
+import { exec } from "child_process";
+import fs from "fs";
+
+// ── Ensure Tor daemon is running (port 9050) ─────────────────────────────────
+function ensureTor() {
+  const dataDir = "/tmp/tor-data";
+  fs.mkdirSync(dataDir, { recursive: true });
+  exec(
+    `tor --RunAsDaemon 1 --DataDirectory ${dataDir} --SocksPort 9050 --ControlPort 9051 --Log "warn stderr"`,
+    (err) => {
+      if (err && !err.message?.includes("already")) {
+        logger.warn({ err }, "Tor failed to start — Tor routing unavailable");
+      } else {
+        logger.info("Tor daemon started on 127.0.0.1:9050");
+      }
+    },
+  );
+}
+ensureTor();
 
 const rawPort = process.env["PORT"];
 

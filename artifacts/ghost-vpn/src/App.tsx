@@ -61,6 +61,7 @@ import Account from "@/pages/Account";
 import MyVPN from "@/pages/MyVPN";
 import Pricing from "@/pages/Pricing";
 import SqlmapScanner from "@/pages/SqlmapScanner";
+import AlphaTools from "@/pages/AlphaTools";
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
@@ -331,6 +332,9 @@ function AppRoutes() {
           </Route>
           <Route path="/sqlmap">
             <ProtectedLayout><SqlmapScanner /></ProtectedLayout>
+          </Route>
+          <Route path="/alpha-tools">
+            <ProtectedLayout><AlphaTools /></ProtectedLayout>
           </Route>
           <Route>
             <ProtectedLayout>

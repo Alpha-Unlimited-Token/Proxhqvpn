@@ -157,11 +157,12 @@ router.post("/trapped/:id/portscan", async (req, res) => {
   const [attacker] = await db.select().from(trappedAttackersTable).where(eq(trappedAttackersTable.id, id));
   if (!attacker) return res.status(404).json({ error: "Trapped attacker not found" });
 
-  const { ports = "1-10000", flags = "-sV -T4" } = req.body as { ports?: string; flags?: string };
+  const { ports = "1-10000", flags = "-sV -T4", useTor = false } = req.body as { ports?: string; flags?: string; useTor?: boolean };
   const safePorts = ports.replace(/[^0-9\-,]/g, "").substring(0, 50);
   const safeFlags = flags.replace(/[^a-zA-Z0-9 \-]/g, "").substring(0, 80);
   const jobId = crypto.randomUUID().substring(0, 8).toUpperCase();
-  const cmd = `nmap ${safeFlags} -p ${safePorts} ${attacker.ip}`;
+  const prefix = useTor ? "torsocks " : "";
+  const cmd = `${prefix}nmap ${safeFlags} -p ${safePorts} ${attacker.ip}`;
   trappedPortscanJobs.set(jobId, { status: "running", results: null, cmd, ip: attacker.ip });
 
   exec(cmd, { timeout: 120000 }, (err, stdout, stderr) => {
@@ -173,7 +174,7 @@ router.post("/trapped/:id/portscan", async (req, res) => {
       ip: attacker.ip,
     });
   });
-  return res.status(202).json({ ok: true, jobId, cmd, ip: attacker.ip, message: `nmap launched against ${attacker.ip}` });
+  return res.status(202).json({ ok: true, jobId, cmd, ip: attacker.ip, useTor, message: `nmap launched against ${attacker.ip}` });
 });
 
 router.get("/trapped/:id/portscan/:jobId", (req, res) => {
@@ -206,6 +207,8 @@ router.post("/trapped/:id/sqlmap", async (req, res) => {
     sqlmapFinishedAt: null,
   }).where(eq(trappedAttackersTable.id, id));
 
+  const { useTor = false } = req.body as { useTor?: boolean };
+  const torFlags = useTor ? "--tor --tor-type=SOCKS5 --tor-port=9050" : "";
   const cmd = [
     "sqlmap",
     `-u "${safeUrl}"`,
@@ -217,6 +220,7 @@ router.post("/trapped/:id/sqlmap", async (req, res) => {
     `--output-dir=/tmp/sqlmap-${jobId}`,
     "--forms",
     "--dbs",
+    torFlags,
     safeExtra,
   ].filter(Boolean).join(" ");
 
@@ -253,15 +257,16 @@ const directSqlmapJobs = new Map<string, { status: string; results: string | nul
 const directPortscanJobs = new Map<string, { status: string; results: string | null; cmd: string; ip: string }>();
 
 router.post("/scan/portscan", async (req, res) => {
-  const { ip, ports = "1-10000", flags = "-sV -T4" } = req.body as {
-    ip?: string; ports?: string; flags?: string;
+  const { ip, ports = "1-10000", flags = "-sV -T4", useTor = false } = req.body as {
+    ip?: string; ports?: string; flags?: string; useTor?: boolean;
   };
   if (!ip) return res.status(400).json({ error: "ip is required" });
   const safeIp    = ip.replace(/[^0-9a-fA-F.:]/g, "").substring(0, 45);
   const safePorts = ports.replace(/[^0-9\-,]/g, "").substring(0, 50);
   const safeFlags = flags.replace(/[^a-zA-Z0-9 \-]/g, "").substring(0, 80);
   const jobId     = crypto.randomUUID().substring(0, 8).toUpperCase();
-  const cmd       = `nmap ${safeFlags} -p ${safePorts} ${safeIp}`;
+  const prefix    = useTor ? "torsocks " : "";
+  const cmd       = `${prefix}nmap ${safeFlags} -p ${safePorts} ${safeIp}`;
   directPortscanJobs.set(jobId, { status: "running", results: null, cmd, ip: safeIp });
   exec(cmd, { timeout: 120000 }, (err, stdout, stderr) => {
     const output = [stdout, stderr].filter(Boolean).join("\n").substring(0, 8000);
@@ -272,7 +277,7 @@ router.post("/scan/portscan", async (req, res) => {
       ip: safeIp,
     });
   });
-  return res.status(202).json({ ok: true, jobId, cmd, ip: safeIp, message: `nmap launched against ${safeIp}` });
+  return res.status(202).json({ ok: true, jobId, cmd, ip: safeIp, useTor, message: `nmap launched against ${safeIp}` });
 });
 
 router.get("/scan/portscan/:jobId", (req, res) => {
@@ -282,19 +287,20 @@ router.get("/scan/portscan/:jobId", (req, res) => {
 });
 
 router.post("/scan/sqlmap", async (req, res) => {
-  const { ip, targetUrl, extraFlags = "" } = req.body as {
-    ip?: string; targetUrl?: string; extraFlags?: string;
+  const { ip, targetUrl, extraFlags = "", useTor = false } = req.body as {
+    ip?: string; targetUrl?: string; extraFlags?: string; useTor?: boolean;
   };
   if (!ip) return res.status(400).json({ error: "ip is required" });
   const safeIp    = ip.replace(/[^0-9a-fA-F.:]/g, "").substring(0, 45);
   const safeUrl   = (targetUrl ?? `http://${safeIp}/`).replace(/['"]/g, "");
   const safeExtra = extraFlags.replace(/[^a-zA-Z0-9 =\-_.\/]/g, "").substring(0, 200);
   const jobId     = crypto.randomUUID().substring(0, 8).toUpperCase();
+  const torFlags  = useTor ? "--tor --tor-type=SOCKS5 --tor-port=9050" : "";
   directSqlmapJobs.set(jobId, { status: "running", results: null });
   const cmd = [
     "sqlmap", `-u "${safeUrl}"`, "--batch", "--level=2", "--risk=2",
     "--timeout=20", "--retries=1", `--output-dir=/tmp/sqlmap-direct-${jobId}`,
-    "--forms", "--dbs", safeExtra,
+    "--forms", "--dbs", torFlags, safeExtra,
   ].filter(Boolean).join(" ");
   exec(cmd, { timeout: 120000 }, (err, stdout, stderr) => {
     const output = [stdout, stderr].filter(Boolean).join("\n").substring(0, 8000);
@@ -303,7 +309,7 @@ router.post("/scan/sqlmap", async (req, res) => {
       results: output || (err ? err.message : "No output"),
     });
   });
-  return res.status(202).json({ ok: true, jobId, cmd, message: `SQLmap launched against ${safeIp}` });
+  return res.status(202).json({ ok: true, jobId, cmd, useTor, message: `SQLmap launched against ${safeIp}` });
 });
 
 router.get("/scan/sqlmap/:jobId", (req, res) => {

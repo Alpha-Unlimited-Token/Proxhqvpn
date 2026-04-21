@@ -33,6 +33,7 @@ import wireguardRouter from "./wireguard";
 import daemonInboundRouter from "./daemon-inbound";
 import nodeProvisionRouter from "./node-provision";
 import sqlmapRouter from "./sqlmap";
+import alphaRouter from "./alpha";
 
 const router: IRouter = Router();
 
@@ -235,5 +236,6 @@ router.use("/router-config",  routerConfigRouter);
 router.use("/stripe",         stripeRouter);
 router.use("/wireguard",      wireguardRouter);
 router.use("/sqlmap",         sqlmapRouter);
+router.use("/alpha",          alphaRouter);
 
 export default router;
