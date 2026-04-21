@@ -52,6 +52,48 @@ export class StripeStorage {
     const result = await db.execute(sql`SELECT * FROM stripe.subscriptions WHERE id = ${subscriptionId}`);
     return result.rows[0] ?? null;
   }
+
+  /**
+   * Returns "vpn" | "command_center" | null for the given subscription.
+   * Looks at the product linked to the first subscription item and reads
+   * its metadata.tier field.
+   */
+  async getSubscriptionTier(subscriptionId: string): Promise<"vpn" | "command_center" | null> {
+    try {
+      // Extract product ID from subscription items JSONB
+      const result = await db.execute(sql`
+        SELECT p.metadata->>'tier' AS tier
+        FROM stripe.subscriptions s
+        JOIN stripe.products p
+          ON p.id = (s.items->'data'->0->'price'->>'product')
+        WHERE s.id = ${subscriptionId}
+        LIMIT 1
+      `);
+      const row = result.rows[0] as any;
+      if (row?.tier === "vpn" || row?.tier === "command_center") return row.tier;
+
+      // Fallback: also try plan column (older Stripe format)
+      const fallback = await db.execute(sql`
+        SELECT p.metadata->>'tier' AS tier
+        FROM stripe.subscriptions s
+        JOIN stripe.prices pr ON pr.id = s.plan
+        JOIN stripe.products p ON p.id = pr.product
+        WHERE s.id = ${subscriptionId}
+        LIMIT 1
+      `);
+      const fb = fallback.rows[0] as any;
+      if (fb?.tier === "vpn" || fb?.tier === "command_center") return fb.tier;
+
+      // Last resort: if subscribed but tier unknown, treat as command_center
+      // (covers legacy "ProxhqVPN" all-in-one product from before the split)
+      const sub = await this.getSubscription(subscriptionId);
+      if (sub?.status === "active" || sub?.status === "trialing") return "command_center";
+
+      return null;
+    } catch {
+      return null;
+    }
+  }
 }
 
 export const stripeStorage = new StripeStorage();

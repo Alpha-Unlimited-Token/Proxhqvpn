@@ -1,8 +1,13 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useUser } from "@clerk/react";
-import { Check, Shield, Zap, Infinity, Loader2, Star, AlertCircle } from "lucide-react";
+import {
+  Check, Shield, Zap, Loader2, Star, AlertCircle,
+  Lock, Cpu, Globe, ShieldCheck, Server, Terminal as TerminalIcon,
+  ScanSearch, Globe2, Network, Activity,
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAccess } from "@/hooks/useAccess";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -21,56 +26,52 @@ async function apiFetch(path: string, opts: RequestInit = {}) {
 
 type Price = { id: string; unitAmount: number; currency: string; recurring: any; nickname: string };
 type Product = { id: string; name: string; description: string; metadata: Record<string, string>; prices: Price[] };
+type BillingPeriod = "monthly" | "annual";
 
-type BillingPeriod = "monthly" | "annual" | "lifetime";
-
-const PERIOD_META: Record<BillingPeriod, { label: string; badge?: string; icon: React.ElementType; desc: string }> = {
-  monthly: { label: "Monthly", icon: Zap, desc: "Pay month to month. Cancel any time." },
-  annual: { label: "Annual", badge: "SAVE 42%", icon: Shield, desc: "Billed once per year. Best value for regular users." },
-  lifetime: { label: "Lifetime", badge: "BEST DEAL", icon: Infinity, desc: "One payment. Access forever. No renewals ever." },
-};
-
-const FEATURES = [
-  "Unlimited devices — use on every screen you own",
-  "WireGuard AES-256-GCM encryption",
-  "Stealth Protocol — bypass deep packet inspection",
-  "Threat Protection — malware & phishing DNS blocking",
-  "Kill switch & DNS leak protection",
-  "Beacon threat detection & alerts",
-  "6,000+ VPN Gate relay servers worldwide",
-  "Double-hop anonymity routing",
-  "SilkWeb honeypot decoy network",
-  "Split tunneling & smart DNS",
-  "Alpha Toolkit — scanner, verifier, Tor scraper",
-  "No logs. Ever.",
+const VPN_FEATURES = [
+  { icon: Shield, text: "WireGuard AES-256-GCM encryption" },
+  { icon: Lock, text: "Kill switch & auto-reconnect" },
+  { icon: ShieldCheck, text: "DNS leak protection" },
+  { icon: Globe, text: "6,000+ VPN Gate relay servers" },
+  { icon: Cpu, text: "Double-hop anonymity routing" },
+  { icon: Zap, text: "Stealth obfuscation — bypass DPI" },
+  { icon: Server, text: "Unlimited simultaneous devices" },
+  { icon: Globe2, text: "Split tunneling & Smart DNS" },
 ];
 
-function getPriceForPeriod(prices: Price[], period: BillingPeriod): Price | null {
-  if (period === "monthly") return prices.find(p => p.recurring?.interval === "month" && p.recurring?.interval_count === 1) ?? null;
-  if (period === "annual") return prices.find(p => p.recurring?.interval === "year") ?? null;
-  if (period === "lifetime") return prices.find(p => !p.recurring) ?? null;
-  return null;
+const PRO_EXTRAS = [
+  { icon: ScanSearch, text: "Vulnerability Scanner (SQLMap + nmap port scan)" },
+  { icon: Globe2, text: "Onion Browser — Tor-integrated private browsing" },
+  { icon: Network, text: "Ghost Chain — Tor-veiled proxy routing" },
+  { icon: Activity, text: "Threat Intelligence dashboard" },
+  { icon: TerminalIcon, text: "Alpha Toolkit — scraper, verifier, validator" },
+  { icon: ShieldCheck, text: "Security Audit suite — full site crawl & analysis" },
+  { icon: Server, text: "SilkWeb honeypot decoy network" },
+  { icon: Zap, text: "Beacon threat monitor & intrusion alerts" },
+];
+
+function formatUSD(cents: number) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency", currency: "USD", minimumFractionDigits: 2,
+  }).format(cents / 100);
 }
 
-function formatAmount(unitAmount: number): string {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2 }).format(unitAmount / 100);
+function getPriceForPeriod(prices: Price[], period: BillingPeriod): Price | null {
+  if (period === "monthly") return prices.find(p => p.recurring?.interval === "month") ?? null;
+  if (period === "annual")  return prices.find(p => p.recurring?.interval === "year")  ?? null;
+  return null;
 }
 
 export default function Pricing() {
   const { user } = useUser();
   const { toast } = useToast();
+  const { tier, hasAccess, hasCommandCenter } = useAccess();
   const [period, setPeriod] = useState<BillingPeriod>("annual");
-  const [checkingOut, setCheckingOut] = useState(false);
+  const [checkingOut, setCheckingOut] = useState<string | null>(null);
 
   const { data: products = [], isLoading } = useQuery<Product[]>({
     queryKey: ["stripe-products"],
     queryFn: () => apiFetch("/api/stripe/products"),
-    enabled: !!user,
-  });
-
-  const { data: subData } = useQuery<{ subscription: any; hasWireGuard: boolean }>({
-    queryKey: ["stripe-subscription"],
-    queryFn: () => apiFetch("/api/stripe/subscription"),
     enabled: !!user,
   });
 
@@ -80,7 +81,7 @@ export default function Pricing() {
     onSuccess: (data) => { if (data.url) window.location.href = data.url; },
     onError: (e: Error) => {
       toast({ title: "Checkout failed", description: e.message, variant: "destructive" });
-      setCheckingOut(false);
+      setCheckingOut(null);
     },
   });
 
@@ -90,182 +91,323 @@ export default function Pricing() {
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
-  const mainProduct = products.find(p => p.name === "ProxhqVPN") ?? products[0] ?? null;
-  const selectedPrice = mainProduct ? getPriceForPeriod(mainProduct.prices, period) : null;
-  const meta = PERIOD_META[period];
-  const Icon = meta.icon;
+  const vpnProduct    = products.find(p => p.metadata?.tier === "vpn") ?? null;
+  const proProduct    = products.find(p => p.metadata?.tier === "command_center") ?? null;
+  const vpnPrice      = vpnProduct  ? getPriceForPeriod(vpnProduct.prices,  period) : null;
+  const proPrice      = proProduct  ? getPriceForPeriod(proProduct.prices,  period) : null;
 
-  const handleSubscribe = () => {
-    if (!selectedPrice) return;
-    setCheckingOut(true);
-    checkoutMutation.mutate(selectedPrice.id);
+  const checkout = (priceId: string) => {
+    setCheckingOut(priceId);
+    checkoutMutation.mutate(priceId);
   };
 
-  const monthlyEquiv = () => {
-    if (!selectedPrice) return null;
-    if (period === "monthly") return null;
-    if (period === "annual") return formatAmount(Math.round(selectedPrice.unitAmount / 12)) + "/mo";
-    if (period === "lifetime") return "one-time";
-    return null;
-  };
+  const savings = (monthly: number, annual: number) =>
+    Math.round(100 - (annual / 12 / monthly * 100));
+
+  const vpnMonthly  = vpnProduct  ? (getPriceForPeriod(vpnProduct.prices,  "monthly")?.unitAmount ?? 999)  : 999;
+  const proMonthly  = proProduct  ? (getPriceForPeriod(proProduct.prices,  "monthly")?.unitAmount ?? 3499) : 3499;
+  const vpnAnnual   = vpnProduct  ? (getPriceForPeriod(vpnProduct.prices,  "annual")?.unitAmount  ?? 8999) : 8999;
+  const proAnnual   = proProduct  ? (getPriceForPeriod(proProduct.prices,  "annual")?.unitAmount  ?? 29999): 29999;
 
   return (
-    <div className="max-w-2xl mx-auto space-y-8 py-2">
+    <div className="max-w-4xl mx-auto space-y-8 py-2">
 
       {/* Header */}
-      <div className="text-center space-y-2">
-        <div className="inline-flex items-center gap-1.5 bg-primary/10 border border-primary/20 rounded-full px-3 py-1 mb-2">
+      <div className="text-center space-y-3">
+        <div className="inline-flex items-center gap-1.5 bg-primary/10 border border-primary/20 rounded-full px-3 py-1">
           <Star className="w-3 h-3 text-primary" />
-          <span className="text-xs text-primary font-medium">ProxhqVPN — Full Access</span>
+          <span className="text-xs text-primary font-medium">ProxhqVPN — Pricing</span>
         </div>
-        <h1 className="text-3xl font-bold text-white tracking-tight">One plan. Everything included.</h1>
-        <p className="text-white/40 text-sm">No tiers. No hidden features. Every subscriber gets the full ProxhqVPN experience.</p>
+        <h1 className="text-3xl font-bold text-white tracking-tight">
+          Privacy tools. Developer toolkit. One platform.
+        </h1>
+        <p className="text-white/40 text-sm max-w-xl mx-auto">
+          Start with VPN Basic for personal privacy — or unlock the full Command Center suite for security research, penetration testing, and developer workflows.
+        </p>
       </div>
 
-      {/* Active subscription banner */}
-      {subData?.hasWireGuard && (
-        <div className="flex items-center justify-between bg-primary/10 border border-primary/30 rounded-2xl px-5 py-4">
-          <div className="flex items-center gap-2 text-sm text-primary font-medium">
-            <Check className="w-4 h-4" /> You have an active subscription
+      {/* Active plan banner */}
+      {hasAccess && (
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-primary/8 border border-primary/25 rounded-2xl px-5 py-4">
+          <div className="flex items-center gap-2.5 text-sm text-primary font-medium">
+            <Check className="w-4 h-4 shrink-0" />
+            <span>
+              Active plan: <strong>{tier === "command_center" ? "Command Center Pro" : "VPN Basic"}</strong>
+              {tier === "vpn" && <span className="text-white/35 font-normal ml-1">— upgrade to Pro to unlock developer tools</span>}
+            </span>
           </div>
           <button
             onClick={() => portalMutation.mutate()}
             disabled={portalMutation.isPending}
-            className="text-xs border border-primary/30 text-primary hover:bg-primary/10 rounded-xl px-4 py-2 transition-all"
+            className="text-xs border border-primary/30 text-primary hover:bg-primary/10 rounded-xl px-4 py-2 transition-all shrink-0"
           >
             {portalMutation.isPending ? "Opening..." : "Manage Billing"}
           </button>
         </div>
       )}
 
-      {/* Billing period selector */}
-      <div className="bg-[#0d1610] border border-white/[0.07] rounded-2xl p-1.5 flex gap-1">
-        {(Object.keys(PERIOD_META) as BillingPeriod[]).map((p) => (
-          <button
-            key={p}
-            onClick={() => setPeriod(p)}
-            className={`flex-1 relative py-3 px-4 rounded-xl text-sm font-medium transition-all ${
-              period === p
-                ? "bg-primary text-black shadow-[0_0_20px_rgba(0,255,136,0.2)]"
-                : "text-white/50 hover:text-white/80"
-            }`}
-          >
-            {PERIOD_META[p].label}
-            {PERIOD_META[p].badge && period !== p && (
-              <span className="absolute -top-2 -right-1 bg-yellow-500 text-black text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none">
-                {PERIOD_META[p].badge}
-              </span>
-            )}
-          </button>
-        ))}
+      {/* Billing period toggle */}
+      <div className="flex justify-center">
+        <div className="bg-[#0d1610] border border-white/[0.07] rounded-2xl p-1 flex gap-1">
+          {(["monthly", "annual"] as BillingPeriod[]).map((p) => (
+            <button
+              key={p}
+              onClick={() => setPeriod(p)}
+              className={`relative px-6 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                period === p ? "bg-primary text-black" : "text-white/50 hover:text-white/80"
+              }`}
+            >
+              {p === "monthly" ? "Monthly" : "Annual"}
+              {p === "annual" && period !== "annual" && (
+                <span className="absolute -top-2.5 -right-1 bg-yellow-500 text-black text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none">
+                  SAVE {savings(vpnMonthly, vpnAnnual)}%
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* Main plan card */}
+      {/* Plan cards */}
       {isLoading ? (
         <div className="flex items-center justify-center py-16 text-white/30 gap-2">
           <Loader2 className="w-4 h-4 animate-spin" /> Loading plans...
         </div>
-      ) : !mainProduct ? (
+      ) : (!vpnProduct && !proProduct) ? (
         <div className="flex items-start gap-3 bg-yellow-900/10 border border-yellow-500/20 rounded-2xl p-5">
           <AlertCircle className="w-5 h-5 text-yellow-400 shrink-0 mt-0.5" />
           <div>
             <div className="text-sm font-medium text-yellow-400">Plans are being set up</div>
-            <div className="text-sm text-yellow-400/60 mt-1">Check back in a moment — your subscription plans are being created.</div>
+            <div className="text-sm text-yellow-400/60 mt-1">Check back in a moment — your subscription plans are being created in Stripe.</div>
           </div>
         </div>
       ) : (
-        <div className={`bg-[#0d1610] border rounded-2xl overflow-hidden transition-all ${
-          period === "annual" ? "border-primary/40 shadow-[0_0_40px_rgba(0,255,136,0.08)]" : "border-white/[0.07]"
-        }`}>
-          {period === "annual" && (
-            <div className="bg-primary text-black text-center text-xs font-bold tracking-widest py-2">
-              MOST POPULAR — SAVE 42%
-            </div>
-          )}
-          {period === "lifetime" && (
-            <div className="bg-gradient-to-r from-yellow-500 to-orange-500 text-black text-center text-xs font-bold tracking-widest py-2">
-              BEST DEAL — PAY ONCE, KEEP FOREVER
-            </div>
-          )}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
 
-          <div className="p-8">
-            {/* Price display */}
-            <div className="flex items-end gap-3 mb-2">
-              <div className="flex items-start">
-                <span className="text-white/40 text-lg mt-2 mr-1">$</span>
-                <span className="text-6xl font-bold text-white leading-none">
-                  {selectedPrice ? Math.floor(selectedPrice.unitAmount / 100) : "—"}
-                </span>
-                {selectedPrice && selectedPrice.unitAmount % 100 !== 0 && (
-                  <span className="text-white/60 text-2xl mt-3">.{String(selectedPrice.unitAmount % 100).padStart(2, "0")}</span>
-                )}
-              </div>
-              <div className="pb-2 text-white/40 text-sm">
-                {period === "monthly" && "/month"}
-                {period === "annual" && "/year"}
-                {period === "lifetime" && "one-time"}
-              </div>
-            </div>
-
-            {monthlyEquiv() && (
-              <div className="text-primary text-sm font-medium mb-1">
-                {period === "annual" && `That's just ${monthlyEquiv()} — 42% less than monthly`}
-                {period === "lifetime" && "Pay once, protected forever"}
-              </div>
-            )}
-
-            <p className="text-white/40 text-sm mb-8">{meta.desc}</p>
-
-            {/* Feature list */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8">
-              {FEATURES.map((f) => (
-                <div key={f} className="flex items-center gap-2.5">
-                  <div className="w-5 h-5 rounded-full bg-primary/15 border border-primary/30 flex items-center justify-center shrink-0">
-                    <Check className="w-3 h-3 text-primary" />
-                  </div>
-                  <span className="text-sm text-white/70">{f}</span>
+          {/* ── VPN Basic ── */}
+          <div className={`bg-[#0d1610] border rounded-2xl overflow-hidden flex flex-col ${
+            tier === "vpn" ? "border-primary/40 shadow-[0_0_40px_rgba(0,255,136,0.06)]" : "border-white/[0.07]"
+          }`}>
+            <div className="p-7 flex flex-col flex-1">
+              <div className="flex items-center justify-between mb-5">
+                <div>
+                  <div className="text-[11px] font-bold uppercase tracking-widest text-primary/60 mb-1">VPN Basic</div>
+                  <div className="text-lg font-bold text-white">Personal Privacy Suite</div>
                 </div>
-              ))}
-            </div>
-
-            {/* CTA */}
-            {subData?.hasWireGuard ? (
-              <div className="flex items-center justify-center gap-2 bg-primary/10 border border-primary/20 rounded-2xl py-4 text-primary font-medium">
-                <Check className="w-4 h-4" /> Already subscribed
+                <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+                  <Shield className="w-5 h-5 text-primary/70" />
+                </div>
               </div>
-            ) : (
-              <button
-                onClick={handleSubscribe}
-                disabled={checkingOut || !selectedPrice}
-                className={`w-full py-4 rounded-2xl font-semibold text-[15px] flex items-center justify-center gap-2 transition-all duration-200 disabled:opacity-40 ${
-                  period === "lifetime"
-                    ? "bg-gradient-to-r from-yellow-500 to-orange-500 text-black hover:brightness-110 shadow-[0_0_30px_rgba(255,200,0,0.2)]"
-                    : "bg-primary text-black hover:brightness-110 shadow-[0_0_30px_rgba(0,255,136,0.2)]"
-                }`}
-              >
-                {checkingOut ? (
-                  <><Loader2 className="w-4 h-4 animate-spin" /> Redirecting to checkout...</>
-                ) : period === "lifetime" ? (
-                  <><Infinity className="w-4 h-4" /> Get Lifetime Access</>
-                ) : (
-                  <><Shield className="w-4 h-4" /> Get Protected — {period === "monthly" ? "$9.99/mo" : "$69.99/yr"}</>
-                )}
-              </button>
-            )}
 
-            <p className="text-center text-white/25 text-xs mt-4">
-              30-day money-back guarantee · No logs · Cancel any time
-            </p>
+              {/* Price */}
+              <div className="flex items-end gap-2 mb-1">
+                <div className="flex items-start">
+                  <span className="text-white/40 text-base mt-1.5 mr-0.5">$</span>
+                  <span className="text-5xl font-bold text-white leading-none">
+                    {period === "monthly"
+                      ? Math.floor(vpnMonthly / 100)
+                      : Math.floor(vpnAnnual / 100)}
+                  </span>
+                  {period === "monthly" && vpnMonthly % 100 !== 0 && (
+                    <span className="text-white/60 text-2xl mt-2">.{String(vpnMonthly % 100).padStart(2, "0")}</span>
+                  )}
+                  {period === "annual" && vpnAnnual % 100 !== 0 && (
+                    <span className="text-white/60 text-2xl mt-2">.{String(vpnAnnual % 100).padStart(2, "0")}</span>
+                  )}
+                </div>
+                <span className="text-white/30 text-sm pb-1">/{period === "monthly" ? "month" : "year"}</span>
+              </div>
+              {period === "annual" && (
+                <div className="text-primary/70 text-xs font-medium mb-4">
+                  ${(vpnAnnual / 12 / 100).toFixed(2)}/mo · save {savings(vpnMonthly, vpnAnnual)}% vs monthly
+                </div>
+              )}
+              {period === "monthly" && <div className="mb-4" />}
+
+              <div className="text-white/35 text-xs mb-6 leading-relaxed">
+                Everything you need for personal privacy and secure browsing. Includes all core VPN features with no limitations.
+              </div>
+
+              {/* Features */}
+              <ul className="space-y-2.5 mb-7 flex-1">
+                {VPN_FEATURES.map((f) => (
+                  <li key={f.text} className="flex items-center gap-2.5">
+                    <div className="w-5 h-5 rounded-full bg-primary/12 border border-primary/25 flex items-center justify-center shrink-0">
+                      <Check className="w-2.5 h-2.5 text-primary" />
+                    </div>
+                    <span className="text-[12px] text-white/60">{f.text}</span>
+                  </li>
+                ))}
+              </ul>
+
+              {/* CTA */}
+              {tier === "vpn" ? (
+                <div className="w-full flex items-center justify-center gap-2 bg-primary/10 border border-primary/25 rounded-xl py-3 text-primary text-sm font-medium">
+                  <Check className="w-4 h-4" /> Current Plan
+                </div>
+              ) : tier === "command_center" ? (
+                <div className="w-full flex items-center justify-center gap-2 bg-white/[0.04] border border-white/[0.08] rounded-xl py-3 text-white/30 text-sm">
+                  Included in your Pro plan
+                </div>
+              ) : (
+                <button
+                  onClick={() => vpnPrice && checkout(vpnPrice.id)}
+                  disabled={!!checkingOut || !vpnPrice}
+                  className="w-full py-3 rounded-xl font-semibold text-[13px] flex items-center justify-center gap-2 bg-primary text-black hover:brightness-110 transition-all disabled:opacity-40 shadow-[0_0_20px_rgba(0,255,136,0.15)]"
+                >
+                  {checkingOut === vpnPrice?.id ? (
+                    <><Loader2 className="w-4 h-4 animate-spin" /> Redirecting...</>
+                  ) : (
+                    <><Shield className="w-4 h-4" /> Get VPN Basic</>
+                  )}
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* ── Command Center Pro ── */}
+          <div className="bg-[#0d1610] border border-yellow-500/30 rounded-2xl overflow-hidden flex flex-col shadow-[0_0_50px_rgba(234,179,8,0.06)] relative">
+            <div className="bg-gradient-to-r from-yellow-500/90 to-orange-500/90 text-black text-center text-[11px] font-bold tracking-widest py-2">
+              DEVELOPER TOOLKIT — BEST VALUE
+            </div>
+            <div className="p-7 flex flex-col flex-1">
+              <div className="flex items-center justify-between mb-5">
+                <div>
+                  <div className="text-[11px] font-bold uppercase tracking-widest text-yellow-400/70 mb-1">Command Center Pro</div>
+                  <div className="text-lg font-bold text-white">Full Security Toolkit</div>
+                </div>
+                <div className="w-10 h-10 rounded-xl bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center shrink-0">
+                  <Zap className="w-5 h-5 text-yellow-400/70" />
+                </div>
+              </div>
+
+              {/* Price */}
+              <div className="flex items-end gap-2 mb-1">
+                <div className="flex items-start">
+                  <span className="text-white/40 text-base mt-1.5 mr-0.5">$</span>
+                  <span className="text-5xl font-bold text-white leading-none">
+                    {period === "monthly"
+                      ? Math.floor(proMonthly / 100)
+                      : Math.floor(proAnnual / 100)}
+                  </span>
+                  {period === "monthly" && proMonthly % 100 !== 0 && (
+                    <span className="text-white/60 text-2xl mt-2">.{String(proMonthly % 100).padStart(2, "0")}</span>
+                  )}
+                  {period === "annual" && proAnnual % 100 !== 0 && (
+                    <span className="text-white/60 text-2xl mt-2">.{String(proAnnual % 100).padStart(2, "0")}</span>
+                  )}
+                </div>
+                <span className="text-white/30 text-sm pb-1">/{period === "monthly" ? "month" : "year"}</span>
+              </div>
+              {period === "annual" && (
+                <div className="text-yellow-400/70 text-xs font-medium mb-4">
+                  ${(proAnnual / 12 / 100).toFixed(2)}/mo · save {savings(proMonthly, proAnnual)}% vs monthly
+                </div>
+              )}
+              {period === "monthly" && (
+                <div className="text-yellow-400/50 text-xs mb-4">
+                  Compare: Burp Suite Pro $449/yr · Shodan $49/mo
+                </div>
+              )}
+
+              <div className="text-white/35 text-xs mb-5 leading-relaxed">
+                Everything in VPN Basic <strong className="text-white/50">plus</strong> the complete developer security toolkit — built for pentesters, developers, and security researchers.
+              </div>
+
+              {/* VPN features (condensed) */}
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-5 h-5 rounded-full bg-primary/12 border border-primary/25 flex items-center justify-center shrink-0">
+                  <Check className="w-2.5 h-2.5 text-primary" />
+                </div>
+                <span className="text-[12px] text-white/40">All VPN Basic features included</span>
+              </div>
+
+              {/* Pro extras */}
+              <div className="text-[10px] font-bold uppercase tracking-widest text-yellow-400/50 mb-2.5 mt-1">Command Center tools</div>
+              <ul className="space-y-2 mb-7 flex-1">
+                {PRO_EXTRAS.map((f) => (
+                  <li key={f.text} className="flex items-center gap-2.5">
+                    <div className="w-5 h-5 rounded-full bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center shrink-0">
+                      <Check className="w-2.5 h-2.5 text-yellow-400" />
+                    </div>
+                    <span className="text-[12px] text-white/60">{f.text}</span>
+                  </li>
+                ))}
+              </ul>
+
+              {/* CTA */}
+              {tier === "command_center" ? (
+                <div className="w-full flex items-center justify-center gap-2 bg-yellow-500/10 border border-yellow-500/25 rounded-xl py-3 text-yellow-400 text-sm font-medium">
+                  <Check className="w-4 h-4" /> Current Plan
+                </div>
+              ) : tier === "vpn" ? (
+                <button
+                  onClick={() => proPrice && checkout(proPrice.id)}
+                  disabled={!!checkingOut || !proPrice}
+                  className="w-full py-3 rounded-xl font-semibold text-[13px] flex items-center justify-center gap-2 bg-gradient-to-r from-yellow-500 to-orange-500 text-black hover:brightness-110 transition-all disabled:opacity-40 shadow-[0_0_30px_rgba(234,179,8,0.2)]"
+                >
+                  {checkingOut === proPrice?.id ? (
+                    <><Loader2 className="w-4 h-4 animate-spin" /> Redirecting...</>
+                  ) : (
+                    <><Zap className="w-4 h-4" /> Upgrade to Pro</>
+                  )}
+                </button>
+              ) : (
+                <button
+                  onClick={() => proPrice && checkout(proPrice.id)}
+                  disabled={!!checkingOut || !proPrice}
+                  className="w-full py-3 rounded-xl font-semibold text-[13px] flex items-center justify-center gap-2 bg-gradient-to-r from-yellow-500 to-orange-500 text-black hover:brightness-110 transition-all disabled:opacity-40 shadow-[0_0_30px_rgba(234,179,8,0.2)]"
+                >
+                  {checkingOut === proPrice?.id ? (
+                    <><Loader2 className="w-4 h-4 animate-spin" /> Redirecting...</>
+                  ) : (
+                    <><Zap className="w-4 h-4" /> Get Command Center Pro</>
+                  )}
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}
 
-      {/* Bottom reassurance */}
+      {/* Value comparison */}
+      <div className="bg-[#0d1610] border border-white/[0.06] rounded-2xl p-6">
+        <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-4 text-center">
+          Command Center Pro vs industry tools
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[
+            { tool: "Burp Suite Pro", price: "$449/yr", tag: "vulnerability scanner only" },
+            { tool: "Shodan", price: "$49/mo", tag: "network intelligence only" },
+            { tool: "NordVPN", price: "$6.99/mo", tag: "VPN only" },
+            { tool: "ProxhqVPN Pro", price: "$24.99/mo*", tag: "everything combined", highlight: true },
+          ].map((r) => (
+            <div key={r.tool} className={`rounded-xl p-3.5 text-center ${
+              r.highlight
+                ? "bg-yellow-500/8 border border-yellow-500/20"
+                : "bg-white/[0.02] border border-white/[0.05]"
+            }`}>
+              <div className={`text-sm font-bold mb-0.5 ${r.highlight ? "text-yellow-400" : "text-white/50"}`}>
+                {r.price}
+              </div>
+              <div className={`text-[11px] font-semibold mb-0.5 ${r.highlight ? "text-white/80" : "text-white/40"}`}>
+                {r.tool}
+              </div>
+              <div className={`text-[10px] ${r.highlight ? "text-yellow-400/50" : "text-white/20"}`}>
+                {r.tag}
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="text-center text-[10px] text-white/15 mt-3">* Annual plan equivalent · $299.99/yr</div>
+      </div>
+
+      {/* Guarantees */}
       <div className="grid grid-cols-3 gap-3">
         {[
-          { title: "No Logs", body: "We never record your IP, browsing history, or traffic data." },
-          { title: "30-Day Guarantee", body: "Not satisfied? Get a full refund within 30 days, no questions asked." },
-          { title: "Instant Access", body: "Your VPN tunnel is registered automatically within 30 seconds of subscribing." },
+          { title: "No Logs", body: "We never record your IP, browsing history, or traffic." },
+          { title: "30-Day Guarantee", body: "Not satisfied? Full refund within 30 days." },
+          { title: "Instant Access", body: "Your VPN is live within 30 seconds of subscribing." },
         ].map((item) => (
           <div key={item.title} className="bg-[#0d1610] border border-white/[0.07] rounded-xl p-4 text-center">
             <div className="text-xs font-semibold text-white/70 mb-1">{item.title}</div>

@@ -227,14 +227,32 @@ function ProtectedLayout({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** Pages that require an active subscription (or admin / employee status) */
+/** Pages that require any active subscription — VPN Basic or Command Center Pro */
 function ToolLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
       <Show when="signed-in">
         <Layout>
           <ErrorBoundary>
-            <PaywallGate>{children}</PaywallGate>
+            <PaywallGate requireTier="any">{children}</PaywallGate>
+          </ErrorBoundary>
+        </Layout>
+      </Show>
+      <Show when="signed-out">
+        <Redirect to="/sign-in" />
+      </Show>
+    </>
+  );
+}
+
+/** Pages that require Command Center Pro subscription */
+function CcLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <>
+      <Show when="signed-in">
+        <Layout>
+          <ErrorBoundary>
+            <PaywallGate requireTier="command_center">{children}</PaywallGate>
           </ErrorBoundary>
         </Layout>
       </Show>
@@ -288,42 +306,9 @@ function AppRoutes() {
             <ProtectedLayout><UserGuide /></ProtectedLayout>
           </Route>
 
-          {/* ── Subscription required (PaywallGate applied) ── */}
-          <Route path="/dashboard">
-            <ToolLayout><Dashboard /></ToolLayout>
-          </Route>
+          {/* ── VPN Basic — any active subscription ── */}
           <Route path="/my-vpn">
             <ToolLayout><MyVPN /></ToolLayout>
-          </Route>
-          <Route path="/nodes">
-            <ToolLayout><NodeManager /></ToolLayout>
-          </Route>
-          <Route path="/beacons">
-            <ToolLayout><BeaconAlerts /></ToolLayout>
-          </Route>
-          <Route path="/silkweb">
-            <ToolLayout><SilkWeb /></ToolLayout>
-          </Route>
-          <Route path="/firewall">
-            <ToolLayout><Firewall /></ToolLayout>
-          </Route>
-          <Route path="/wireguard">
-            <ToolLayout><WireGuardConfig /></ToolLayout>
-          </Route>
-          <Route path="/monitor">
-            <ToolLayout><SystemMonitor /></ToolLayout>
-          </Route>
-          <Route path="/terminal">
-            <ToolLayout><Terminal /></ToolLayout>
-          </Route>
-          <Route path="/sql">
-            <ToolLayout><SqlInterface /></ToolLayout>
-          </Route>
-          <Route path="/proxy">
-            <ToolLayout><ProxyConfig /></ToolLayout>
-          </Route>
-          <Route path="/onion-browser">
-            <ToolLayout><OnionBrowser /></ToolLayout>
           </Route>
           <Route path="/kill-switch">
             <ToolLayout><KillSwitch /></ToolLayout>
@@ -331,53 +316,90 @@ function AppRoutes() {
           <Route path="/leaks">
             <ToolLayout><LeakDetection /></ToolLayout>
           </Route>
-          <Route path="/threat-intel">
-            <ToolLayout><ThreatIntel /></ToolLayout>
-          </Route>
-          <Route path="/split-tunnel">
-            <ToolLayout><SplitTunnel /></ToolLayout>
-          </Route>
-          <Route path="/obfuscation">
-            <ToolLayout><Obfuscation /></ToolLayout>
-          </Route>
-          <Route path="/security-audit">
-            <ToolLayout><SecurityAudit /></ToolLayout>
-          </Route>
-          <Route path="/vpn-coexist">
-            <ToolLayout><VpnCoexist /></ToolLayout>
-          </Route>
-          <Route path="/vpngate">
-            <ToolLayout><VpnGate /></ToolLayout>
-          </Route>
-          <Route path="/platforms">
-            <ToolLayout><Platforms /></ToolLayout>
-          </Route>
-          <Route path="/devices">
-            <ToolLayout><DeviceManager /></ToolLayout>
-          </Route>
-          <Route path="/smart-dns">
-            <ToolLayout><SmartDns /></ToolLayout>
-          </Route>
           <Route path="/dns-shield">
             <ToolLayout><DnsShield /></ToolLayout>
-          </Route>
-          <Route path="/router-config">
-            <ToolLayout><RouterConfig /></ToolLayout>
-          </Route>
-          <Route path="/sqlmap">
-            <ToolLayout><SqlmapScanner /></ToolLayout>
-          </Route>
-          <Route path="/alpha-tools">
-            <ToolLayout><AlphaTools /></ToolLayout>
-          </Route>
-          <Route path="/employees">
-            <ToolLayout><Employees /></ToolLayout>
           </Route>
           <Route path="/threat-protection">
             <ToolLayout><ThreatProtection /></ToolLayout>
           </Route>
+          <Route path="/devices">
+            <ToolLayout><DeviceManager /></ToolLayout>
+          </Route>
+          <Route path="/split-tunnel">
+            <ToolLayout><SplitTunnel /></ToolLayout>
+          </Route>
+          <Route path="/vpngate">
+            <ToolLayout><VpnGate /></ToolLayout>
+          </Route>
+          <Route path="/wireguard">
+            <ToolLayout><WireGuardConfig /></ToolLayout>
+          </Route>
+          <Route path="/platforms">
+            <ToolLayout><Platforms /></ToolLayout>
+          </Route>
+          <Route path="/obfuscation">
+            <ToolLayout><Obfuscation /></ToolLayout>
+          </Route>
+          <Route path="/vpn-coexist">
+            <ToolLayout><VpnCoexist /></ToolLayout>
+          </Route>
+          <Route path="/router-config">
+            <ToolLayout><RouterConfig /></ToolLayout>
+          </Route>
+          <Route path="/smart-dns">
+            <ToolLayout><SmartDns /></ToolLayout>
+          </Route>
+
+          {/* ── Command Center Pro — requires Pro subscription ── */}
+          <Route path="/dashboard">
+            <CcLayout><Dashboard /></CcLayout>
+          </Route>
+          <Route path="/proxy">
+            <CcLayout><ProxyConfig /></CcLayout>
+          </Route>
+          <Route path="/onion-browser">
+            <CcLayout><OnionBrowser /></CcLayout>
+          </Route>
+          <Route path="/sqlmap">
+            <CcLayout><SqlmapScanner /></CcLayout>
+          </Route>
+          <Route path="/alpha-tools">
+            <CcLayout><AlphaTools /></CcLayout>
+          </Route>
+          <Route path="/security-audit">
+            <CcLayout><SecurityAudit /></CcLayout>
+          </Route>
+          <Route path="/threat-intel">
+            <CcLayout><ThreatIntel /></CcLayout>
+          </Route>
+
+          {/* ── Admin-only — gated on backend; frontend shows paywall for non-admins ── */}
+          <Route path="/nodes">
+            <CcLayout><NodeManager /></CcLayout>
+          </Route>
+          <Route path="/beacons">
+            <CcLayout><BeaconAlerts /></CcLayout>
+          </Route>
+          <Route path="/silkweb">
+            <CcLayout><SilkWeb /></CcLayout>
+          </Route>
+          <Route path="/firewall">
+            <CcLayout><Firewall /></CcLayout>
+          </Route>
+          <Route path="/monitor">
+            <CcLayout><SystemMonitor /></CcLayout>
+          </Route>
+          <Route path="/terminal">
+            <CcLayout><Terminal /></CcLayout>
+          </Route>
+          <Route path="/sql">
+            <CcLayout><SqlInterface /></CcLayout>
+          </Route>
+          <Route path="/employees">
+            <CcLayout><Employees /></CcLayout>
+          </Route>
           <Route path="/setup">
-            <ToolLayout><Setup /></ToolLayout>
+            <CcLayout><Setup /></CcLayout>
           </Route>
           <Route>
             <ProtectedLayout>

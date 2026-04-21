@@ -1,0 +1,54 @@
+/**
+ * requireCommandCenter middleware
+ *
+ * Grants access if the user has:
+ *   1. Admin status
+ *   2. Employee status (complimentary full access)
+ *   3. An active/trialing Command Center Pro subscription
+ *
+ * VPN Basic subscribers are blocked — they can see VPN features but not
+ * the developer tooling suite.
+ */
+
+import { type Request, type Response, type NextFunction } from "express";
+import { getAuth, clerkClient } from "@clerk/express";
+import { db } from "@workspace/db";
+import { usersTable } from "@workspace/db/schema";
+import { eq } from "drizzle-orm";
+import { isEmployeeEmail } from "../routes/employees";
+import { stripeStorage } from "../stripeStorage";
+
+export const requireCommandCenter = async (req: Request, res: Response, next: NextFunction) => {
+  const { userId } = getAuth(req);
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+  // 1 — Admin always gets everything
+  const [dbUser] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+  if (dbUser?.isAdmin) return next();
+
+  // 2 — Employees get full access (no subscription required)
+  let email: string | null = null;
+  try {
+    const clerkUser = await clerkClient.users.getUser(userId);
+    email = clerkUser.emailAddresses.find((e) => e.id === clerkUser.primaryEmailAddressId)?.emailAddress ?? null;
+  } catch {}
+
+  if (email && await isEmployeeEmail(email)) return next();
+
+  // 3 — Active Command Center Pro subscription
+  const stripeUser = await stripeStorage.getUser(userId);
+  if (stripeUser?.stripeSubscriptionId) {
+    const sub = await stripeStorage.getSubscription(stripeUser.stripeSubscriptionId);
+    if (sub?.status === "active" || sub?.status === "trialing") {
+      const tier = await stripeStorage.getSubscriptionTier(stripeUser.stripeSubscriptionId);
+      if (tier === "command_center") return next();
+    }
+  }
+
+  return res.status(402).json({
+    error: "Command Center Pro required",
+    code: "UPGRADE_REQUIRED",
+    message: "This feature requires a Command Center Pro subscription.",
+    upgradeUrl: "/pricing",
+  });
+};

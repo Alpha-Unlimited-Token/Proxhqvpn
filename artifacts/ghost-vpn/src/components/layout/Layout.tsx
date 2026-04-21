@@ -145,7 +145,7 @@ export function Layout({ children }: LayoutProps) {
   const [location] = useLocation();
   const { user } = useUser();
   const { signOut } = useClerk();
-  const { isAdmin, hasAccess } = useAccess();
+  const { isAdmin, hasAccess, hasCommandCenter, tier } = useAccess();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [pendingUpdate, setPendingUpdate] = useState<UpdateInfo | null>(null);
   const [updateDismissed, setUpdateDismissed] = useState(false);
@@ -193,27 +193,42 @@ export function Layout({ children }: LayoutProps) {
 
       {/* Scrollable nav */}
       <nav className="flex-1 overflow-y-auto px-2 py-1 scrollbar-none" style={{ scrollbarWidth: "none" }}>
-        <NavSection label="My VPN"     items={USER_NAV}       onNav={closeSidebar} />
-        <NavSection label="Protection" items={PROTECTION_NAV} onNav={closeSidebar} />
-        <NavSection label="Network"    items={NETWORK_NAV}    onNav={closeSidebar} />
-        <NavSection label="Advanced"   items={ADVANCED_NAV}   onNav={closeSidebar} />
+        <NavSection label="My VPN" items={USER_NAV} onNav={closeSidebar} />
+        {hasAccess && (
+          <>
+            <NavSection label="Protection" items={PROTECTION_NAV} onNav={closeSidebar} />
+            <NavSection label="Network"    items={NETWORK_NAV}    onNav={closeSidebar} />
+          </>
+        )}
+        {hasCommandCenter && (
+          <NavSection label="Command Center" items={ADVANCED_NAV} onNav={closeSidebar} />
+        )}
         {isAdmin && (
-          <NavSection label="Admin"    items={ADMIN_NAV}      onNav={closeSidebar} />
+          <NavSection label="Admin" items={ADMIN_NAV} onNav={closeSidebar} />
         )}
       </nav>
 
-      {/* Upgrade prompt for unsubscribed users */}
+      {/* Upgrade / subscribe prompt */}
       {user && !hasAccess && (
         <div className="px-3 py-3 shrink-0">
-          <Link
-            href="/pricing"
-            onClick={closeSidebar}
-            className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl bg-primary/10 border border-primary/20 hover:bg-primary/15 transition-all group"
-          >
+          <Link href="/pricing" onClick={closeSidebar}
+            className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl bg-primary/10 border border-primary/20 hover:bg-primary/15 transition-all group">
             <Zap className="w-3.5 h-3.5 text-primary/70 group-hover:text-primary shrink-0" />
             <div className="min-w-0 flex-1">
-              <div className="text-[11px] font-semibold text-primary/80 leading-none">Unlock Full Access</div>
-              <div className="text-[10px] text-primary/40 mt-0.5 leading-snug">Subscribe to use all tools</div>
+              <div className="text-[11px] font-semibold text-primary/80 leading-none">Subscribe to Get Started</div>
+              <div className="text-[10px] text-primary/40 mt-0.5">VPN from $9.99 · Pro from $34.99</div>
+            </div>
+          </Link>
+        </div>
+      )}
+      {user && hasAccess && !hasCommandCenter && (
+        <div className="px-3 py-3 shrink-0">
+          <Link href="/pricing" onClick={closeSidebar}
+            className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl bg-yellow-500/8 border border-yellow-500/20 hover:bg-yellow-500/12 transition-all group">
+            <Zap className="w-3.5 h-3.5 text-yellow-400/70 group-hover:text-yellow-400 shrink-0" />
+            <div className="min-w-0 flex-1">
+              <div className="text-[11px] font-semibold text-yellow-400/80 leading-none">Upgrade to Pro</div>
+              <div className="text-[10px] text-yellow-400/40 mt-0.5">Unlock developer toolkit</div>
             </div>
           </Link>
         </div>
@@ -234,8 +249,16 @@ export function Layout({ children }: LayoutProps) {
                   ? `${user.firstName} ${user.lastName ?? ""}`.trim()
                   : (user.username ?? "User")}
               </div>
-              <div className="text-[10px] text-white/30 truncate mt-0.5">
-                {user.primaryEmailAddress?.emailAddress ?? ""}
+              <div className="flex items-center gap-1.5 mt-0.5">
+                {tier === "command_center" && (
+                  <span className="text-[9px] font-bold uppercase tracking-widest text-yellow-400/80 bg-yellow-500/10 px-1.5 py-0.5 rounded-full leading-none">Pro</span>
+                )}
+                {tier === "vpn" && (
+                  <span className="text-[9px] font-bold uppercase tracking-widest text-primary/70 bg-primary/10 px-1.5 py-0.5 rounded-full leading-none">VPN</span>
+                )}
+                <div className="text-[10px] text-white/30 truncate">
+                  {user.primaryEmailAddress?.emailAddress ?? ""}
+                </div>
               </div>
             </div>
           </div>

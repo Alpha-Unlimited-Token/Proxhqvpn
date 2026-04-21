@@ -3,6 +3,7 @@ import { logger } from "./lib/logger";
 import { runMigrations } from "stripe-replit-sync";
 import { getStripeSync } from "./stripeClient";
 import { seedEmployees } from "./routes/employees";
+import { seedStripeProducts } from "./seedStripeProducts";
 import { exec, execSync } from "child_process";
 import fs from "fs";
 
@@ -100,6 +101,9 @@ await initStripe();
 
 // Seed default employees (idempotent — uses onConflictDoNothing)
 seedEmployees().catch((err) => logger.warn({ err }, "Employee seed failed"));
+
+// Create the two Stripe pricing tiers if they don't exist yet
+seedStripeProducts().catch((err) => logger.warn({ err }, "Stripe product seed failed"));
 
 app.listen(port, (err) => {
   if (err) {

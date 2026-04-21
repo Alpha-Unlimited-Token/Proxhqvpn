@@ -10,6 +10,8 @@ export interface MeResponse {
   isEmployee: boolean;
   hasAccess: boolean;
   hasSubscription: boolean;
+  hasCommandCenter: boolean;
+  tier: "vpn" | "command_center" | null;
 }
 
 export function useAccess() {
@@ -31,6 +33,8 @@ export function useAccess() {
     isEmployee: query.data?.isEmployee ?? false,
     hasAccess: query.data?.hasAccess ?? false,
     hasSubscription: query.data?.hasSubscription ?? false,
+    hasCommandCenter: query.data?.hasCommandCenter ?? false,
+    tier: query.data?.tier ?? null,
     email: query.data?.email ?? null,
     isLoading: query.isLoading || query.isFetching,
   };

@@ -5,6 +5,7 @@ import { usersTable } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
 import { requireAdmin as _requireAdmin } from "../middlewares/requireAdmin";
 import { requireAccess } from "../middlewares/requireAccess";
+import { requireCommandCenter } from "../middlewares/requireCommandCenter";
 import fs from "fs";
 import path from "path";
 import healthRouter from "./health";
@@ -228,15 +229,11 @@ router.use("/sql",            requireAdmin, sqlRouter);
 // Stripe routes — always accessible (needed to purchase a subscription)
 router.use("/stripe",         stripeRouter);
 
-// ── All routes below require an active subscription (or admin / employee) ──
-// ── User-facing tool routes ─────────────────────────────────────────────────
-router.use("/proxy-browser",  requireAccess, proxyBrowserRouter);
+// ── VPN Basic routes — any active subscription (vpn OR command_center) ──────
 router.use("/killswitch",     requireAccess, killswitchRouter);
 router.use("/leaks",          requireAccess, leaksRouter);
-router.use("/threatintel",    requireAccess, threatintelRouter);
 router.use("/split-tunnel",   requireAccess, splittunnelRouter);
 router.use("/obfuscation",    requireAccess, obfuscationRouter);
-router.use("/security-audit", requireAccess, securityauditRouter);
 router.use("/daemon",         requireAccess, daemonRouter);
 router.use("/vpn-coexist",    requireAccess, vpnCoexistRouter);
 router.use("/vpngate",        requireAccess, vpnGateRouter);
@@ -245,11 +242,16 @@ router.use("/dns-shield",     requireAccess, dnsShieldRouter);
 router.use("/smart-dns",      requireAccess, smartDnsRouter);
 router.use("/router-config",  requireAccess, routerConfigRouter);
 router.use("/wireguard",      requireAccess, wireguardRouter);
-router.use("/sqlmap",         requireAccess, sqlmapRouter);
-router.use("/alpha",          requireAccess, alphaRouter);
 router.use("/threat-protection", requireAccess, threatProtectionRouter);
 
-// ── Admin-only routes (admin is a superset of requireAccess) ──────────────
+// ── Command Center Pro routes — requires command_center tier (or admin/employee)
+router.use("/proxy-browser",  requireCommandCenter, proxyBrowserRouter);
+router.use("/threatintel",    requireCommandCenter, threatintelRouter);
+router.use("/security-audit", requireCommandCenter, securityauditRouter);
+router.use("/sqlmap",         requireCommandCenter, sqlmapRouter);
+router.use("/alpha",          requireCommandCenter, alphaRouter);
+
+// ── Admin-only routes ─────────────────────────────────────────────────────
 router.use("/employees",      employeesRouter);
 router.use("/setup",          requireAdmin, setupRouter);
 

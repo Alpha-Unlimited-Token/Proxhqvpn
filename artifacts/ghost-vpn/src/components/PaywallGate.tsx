@@ -1,20 +1,16 @@
 import { Link } from "wouter";
-import { Lock, CreditCard, Zap } from "lucide-react";
+import { Lock, CreditCard, Zap, ArrowUpCircle } from "lucide-react";
 import { useAccess } from "@/hooks/useAccess";
 
 interface PaywallGateProps {
   children: React.ReactNode;
+  /** "any" = any active subscription grants access (VPN Basic or Pro)
+   *  "command_center" = only Command Center Pro (or admin/employee) */
+  requireTier?: "any" | "command_center";
 }
 
-/**
- * PaywallGate wraps any page that requires an active subscription.
- * - Admins and employees pass through with no check.
- * - Active subscribers pass through.
- * - Everyone else sees the paywall screen.
- * - While the access check is loading, a spinner is shown.
- */
-export function PaywallGate({ children }: PaywallGateProps) {
-  const { hasAccess, isLoading } = useAccess();
+export function PaywallGate({ children, requireTier = "any" }: PaywallGateProps) {
+  const { hasAccess, hasCommandCenter, isLoading } = useAccess();
 
   if (isLoading) {
     return (
@@ -24,26 +20,23 @@ export function PaywallGate({ children }: PaywallGateProps) {
     );
   }
 
-  if (!hasAccess) {
-    return <PaywallScreen />;
-  }
+  if (!hasAccess) return <NoSubscriptionScreen />;
+  if (requireTier === "command_center" && !hasCommandCenter) return <UpgradeScreen />;
 
   return <>{children}</>;
 }
 
-function PaywallScreen() {
+function NoSubscriptionScreen() {
   return (
     <div className="flex flex-col items-center justify-center min-h-[70vh] px-6 text-center">
       <div className="w-16 h-16 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center mb-6">
         <Lock className="w-7 h-7 text-primary/60" />
       </div>
-
       <h1 className="text-xl font-bold text-white mb-2">Subscription Required</h1>
       <p className="text-sm text-white/40 max-w-sm leading-relaxed mb-8">
-        This feature is available to ProxhqVPN subscribers only.
-        Choose a plan to unlock full access to all tools, servers, and privacy features.
+        Choose a plan to unlock access. VPN Basic gives you the core privacy suite.
+        Command Center Pro unlocks the full developer toolkit.
       </p>
-
       <div className="flex flex-col sm:flex-row gap-3 w-full max-w-xs">
         <Link
           href="/pricing"
@@ -59,19 +52,61 @@ function PaywallScreen() {
           My Account
         </Link>
       </div>
-
-      <div className="mt-10 grid grid-cols-3 gap-4 max-w-sm w-full text-left">
+      <div className="mt-10 grid grid-cols-2 gap-4 max-w-sm w-full text-left">
         {[
-          { label: "WireGuard VPN", detail: "Military-grade encryption" },
-          { label: "All Tools", detail: "Scanner, Tor, Proxy & more" },
-          { label: "All Platforms", detail: "Desktop, mobile, router" },
+          { label: "VPN Basic", detail: "WireGuard, kill switch, DNS, devices", tag: "$9.99/mo" },
+          { label: "Command Center Pro", detail: "VPN + full developer toolkit", tag: "$34.99/mo" },
         ].map((f) => (
-          <div key={f.label} className="flex flex-col gap-1.5">
-            <div className="w-6 h-6 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center">
-              <Zap className="w-3 h-3 text-primary/50" />
-            </div>
-            <div className="text-[11px] font-semibold text-white/60">{f.label}</div>
+          <div key={f.label} className="flex flex-col gap-1.5 bg-white/[0.03] border border-white/[0.06] rounded-xl p-3">
+            <div className="text-[10px] font-bold text-primary/60 uppercase tracking-widest">{f.tag}</div>
+            <div className="text-[11px] font-semibold text-white/70">{f.label}</div>
             <div className="text-[10px] text-white/25 leading-snug">{f.detail}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function UpgradeScreen() {
+  return (
+    <div className="flex flex-col items-center justify-center min-h-[70vh] px-6 text-center">
+      <div className="w-16 h-16 rounded-2xl bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center mb-6">
+        <ArrowUpCircle className="w-7 h-7 text-yellow-400/70" />
+      </div>
+      <h1 className="text-xl font-bold text-white mb-2">Command Center Pro Required</h1>
+      <p className="text-sm text-white/40 max-w-sm leading-relaxed mb-8">
+        This feature is part of the developer toolkit and requires a Command Center Pro subscription.
+        Upgrade from VPN Basic at any time — your billing is prorated automatically.
+      </p>
+      <div className="flex flex-col sm:flex-row gap-3 w-full max-w-xs">
+        <Link
+          href="/pricing"
+          className="flex-1 flex items-center justify-center gap-2 bg-yellow-500 text-black font-semibold text-[13px] py-2.5 px-5 rounded-xl hover:bg-yellow-400 transition-colors"
+        >
+          <Zap className="w-4 h-4" />
+          Upgrade to Pro
+        </Link>
+        <Link
+          href="/account"
+          className="flex-1 flex items-center justify-center gap-2 border border-white/10 text-white/50 font-medium text-[13px] py-2.5 px-5 rounded-xl hover:border-white/20 hover:text-white/80 transition-colors"
+        >
+          My Account
+        </Link>
+      </div>
+      <div className="mt-8 bg-yellow-500/5 border border-yellow-500/15 rounded-xl px-5 py-4 max-w-sm w-full text-left">
+        <div className="text-[11px] font-semibold text-yellow-400/80 mb-2">Included in Command Center Pro</div>
+        {[
+          "Vulnerability Scanner (SQLMap + nmap)",
+          "Onion Browser (Tor integration)",
+          "Proxy & Ghost Chain routing",
+          "Alpha Toolkit — scraper, verifier, tools",
+          "Threat Intelligence dashboard",
+          "Security Audit suite",
+        ].map((f) => (
+          <div key={f} className="flex items-center gap-2 py-1">
+            <div className="w-1 h-1 rounded-full bg-yellow-400/50 shrink-0" />
+            <span className="text-[11px] text-white/40">{f}</span>
           </div>
         ))}
       </div>

@@ -72,12 +72,19 @@ router.get("/subscription", async (req, res) => {
   }
 
   const user = await stripeStorage.getUser(userId);
-  if (!user?.stripeSubscriptionId) return res.json({ subscription: null, hasWireGuard: false, unlimitedDevices: false });
+  if (!user?.stripeSubscriptionId) return res.json({ subscription: null, hasWireGuard: false, unlimitedDevices: false, tier: null });
 
   const subscription = await stripeStorage.getSubscription(user.stripeSubscriptionId);
-  const hasWireGuard = subscription?.status === "active" || subscription?.status === "trialing";
-  // All active ProxhqVPN subscriptions include unlimited device support
-  res.json({ subscription, hasWireGuard: !!hasWireGuard, unlimitedDevices: !!hasWireGuard, isEmployee: false });
+  const isActive = subscription?.status === "active" || subscription?.status === "trialing";
+  const tier = isActive ? await stripeStorage.getSubscriptionTier(user.stripeSubscriptionId) : null;
+  res.json({
+    subscription,
+    hasWireGuard: !!isActive,
+    unlimitedDevices: !!isActive,
+    isEmployee: false,
+    tier,
+    hasCommandCenter: tier === "command_center",
+  });
 });
 
 router.post("/checkout", async (req, res) => {

@@ -36,20 +36,26 @@ router.get("/", async (req, res) => {
   const isAdmin = dbUser?.isAdmin ?? isAdminByEmail;
   const isEmployee = email ? await isEmployeeEmail(email) : false;
 
-  // Determine whether this user has full access:
-  // admin → yes | employee → yes | active/trialing Stripe subscription → yes | free account → no
-  let hasSubscription = false;
+  // Determine subscription tier
+  let tier: "vpn" | "command_center" | null = null;
   if (!isAdmin && !isEmployee) {
     try {
       const stripeUser = await stripeStorage.getUser(userId);
       if (stripeUser?.stripeSubscriptionId) {
         const sub = await stripeStorage.getSubscription(stripeUser.stripeSubscriptionId);
-        hasSubscription = sub?.status === "active" || sub?.status === "trialing";
+        if (sub?.status === "active" || sub?.status === "trialing") {
+          tier = await stripeStorage.getSubscriptionTier(stripeUser.stripeSubscriptionId);
+        }
       }
     } catch {}
   }
 
+  // Access flags:
+  // hasAccess        = can use VPN features (admin | employee | any active sub)
+  // hasCommandCenter = can use developer tools (admin | employee | command_center sub)
+  const hasSubscription = tier !== null;
   const hasAccess = isAdmin || isEmployee || hasSubscription;
+  const hasCommandCenter = isAdmin || isEmployee || tier === "command_center";
 
   return res.json({
     userId,
@@ -58,6 +64,8 @@ router.get("/", async (req, res) => {
     isEmployee,
     hasAccess,
     hasSubscription,
+    hasCommandCenter,
+    tier: isAdmin || isEmployee ? "command_center" : tier,
   });
 });
 
