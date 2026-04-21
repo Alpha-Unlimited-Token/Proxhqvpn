@@ -49,6 +49,7 @@ const PAGE_NAMES: Record<string, string> = {
   "/downloads":    "Download ProxhqVPN",
   "/guide":        "User Guide",
   "/employees":    "Employee Access",
+  "/setup":        "Server Setup",
 };
 
 const USER_NAV = [
@@ -92,6 +93,7 @@ const ADMIN_NAV = [
   { href: "/monitor",       label: "Performance",     icon: Activity },
   { href: "/firewall",      label: "Firewall",        icon: Shield },
   { href: "/employees",     label: "Employee Access", icon: Users },
+  { href: "/setup",         label: "Server Setup",    icon: Settings },
   { href: "/terminal",      label: "Terminal",        icon: Terminal },
   { href: "/sql",           label: "Database",        icon: Database },
 ];

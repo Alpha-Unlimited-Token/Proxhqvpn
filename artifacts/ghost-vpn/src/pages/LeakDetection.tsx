@@ -2,7 +2,7 @@ import { useState, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Shield, ShieldAlert, Globe, Wifi, Search, Copy, CheckCheck, RefreshCw } from "lucide-react";
+import { Shield, ShieldAlert, Globe, Wifi, Search, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
@@ -19,7 +19,6 @@ interface LeakResult {
   fixes: Record<string, string>;
 }
 
-interface WebRtcScript { script: string; description: string }
 
 const STATUS_COLORS = {
   secure:  "text-green-400 border-green-400/50",
@@ -36,19 +35,13 @@ const STATUS_BG = {
 export default function LeakDetection() {
   const { toast } = useToast();
   const [result, setResult] = useState<LeakResult | null>(null);
-  const [webrtcScript, setWebrtcScript] = useState<WebRtcScript | null>(null);
   const [running, setRunning] = useState(false);
-  const [copied, setCopied] = useState(false);
 
   const runTest = useCallback(async () => {
     setRunning(true);
     try {
-      const [leakR, wrtcR] = await Promise.all([
-        fetch(`${BASE}/api/leaks/check`).then(r => r.json()),
-        fetch(`${BASE}/api/leaks/webrtc-script`).then(r => r.json()),
-      ]);
+      const leakR = await fetch(`${BASE}/api/leaks/check`).then(r => r.json());
       setResult(leakR);
-      setWebrtcScript(wrtcR);
       toast({
         title: leakR.overallStatus === "secure" ? "No leaks detected" : "Leak detected!",
         description: leakR.overallStatus === "secure" ? "All tests passed." : "Check results for details.",
@@ -58,13 +51,6 @@ export default function LeakDetection() {
       toast({ title: "Test failed", description: e.message, variant: "destructive" });
     } finally { setRunning(false); }
   }, [toast]);
-
-  const copyScript = async () => {
-    if (!webrtcScript?.script) return;
-    await navigator.clipboard.writeText(webrtcScript.script);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
 
   return (
     <div className="flex flex-col gap-4 pb-8">
@@ -195,19 +181,6 @@ export default function LeakDetection() {
                   <Badge variant="outline" className="text-[9px] font-mono text-primary/50 border-primary/30">BROWSER-SIDE</Badge>
                 </div>
                 <p className="text-xs font-mono text-primary/70">{result.webrtc.note}</p>
-                {webrtcScript && (
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-[10px] font-mono text-primary/40">Paste in browser console:</span>
-                      <button onClick={copyScript} className="text-[10px] font-mono text-primary/50 hover:text-primary flex items-center gap-1">
-                        {copied ? <><CheckCheck className="w-3 h-3" /> Copied</> : <><Copy className="w-3 h-3" /> Copy</>}
-                      </button>
-                    </div>
-                    <pre className="text-[9px] font-mono text-primary/60 bg-black/60 border border-primary/10 rounded p-2 overflow-x-auto max-h-32 whitespace-pre-wrap">
-                      {webrtcScript.script}
-                    </pre>
-                  </div>
-                )}
                 <a href={result.webrtc.browserTestUrl} target="_blank" rel="noopener noreferrer"
                   className="text-[10px] font-mono text-primary/60 hover:text-primary underline">
                   {result.webrtc.browserTestUrl}

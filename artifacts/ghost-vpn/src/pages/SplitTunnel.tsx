@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { GitBranch, Trash2, Plus, Copy, CheckCheck, RotateCcw } from "lucide-react";
+import { GitBranch, Trash2, Plus, RotateCcw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
@@ -34,10 +34,6 @@ const MODE_BG: Record<TunnelMode, string> = {
 export default function SplitTunnel() {
   const { toast } = useToast();
   const [rules, setRules]   = useState<SplitRule[]>([]);
-  const [script, setScript] = useState("");
-  const [copied, setCopied] = useState(false);
-  const [platform, setPlatform] = useState("linux");
-  const [iface, setIface]   = useState("tun0");
   const [form, setForm]     = useState<Partial<SplitRule>>({ type: "cidr", mode: "vpn", priority: 100, name: "", value: "" });
   const [totals, setTotals] = useState({ total: 0, vpnCount: 0, directCount: 0, blockCount: 0, enabled: 0 });
 
@@ -48,14 +44,7 @@ export default function SplitTunnel() {
     setTotals({ total: d.total, vpnCount: d.vpnCount, directCount: d.directCount, blockCount: d.blockCount, enabled: d.enabled });
   }, []);
 
-  const loadScript = useCallback(async () => {
-    const r = await fetch(`${BASE}/api/split-tunnel/generate?platform=${platform}&iface=${iface}`);
-    const d = await r.json();
-    setScript(d.script ?? "");
-  }, [platform, iface]);
-
   useEffect(() => { load(); }, [load]);
-  useEffect(() => { loadScript(); }, [loadScript]);
 
   const addRule = async () => {
     if (!form.name || !form.value || !form.type || !form.mode) return;
@@ -78,20 +67,14 @@ export default function SplitTunnel() {
 
   const deleteRule = async (id: string) => {
     await fetch(`${BASE}/api/split-tunnel/rules/${id}`, { method: "DELETE" });
-    load(); loadScript();
+    load();
     toast({ title: "Rule removed" });
   };
 
   const resetRules = async () => {
     await fetch(`${BASE}/api/split-tunnel/rules/reset`, { method: "POST" });
-    load(); loadScript();
+    load();
     toast({ title: "Rules reset to defaults" });
-  };
-
-  const copyScript = async () => {
-    await navigator.clipboard.writeText(script);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
@@ -184,25 +167,25 @@ export default function SplitTunnel() {
 
         <Card className="bg-black border-primary/20 h-fit">
           <CardContent className="p-4 space-y-3">
-            <div className="flex items-center justify-between pb-2 border-b border-primary/10">
-              <span className="text-[10px] font-mono uppercase tracking-widest text-primary/50">Generated Script</span>
-              <button onClick={copyScript} className="text-[10px] font-mono text-primary/50 hover:text-primary flex items-center gap-1">
-                {copied ? <><CheckCheck className="w-3 h-3" /> Copied</> : <><Copy className="w-3 h-3" /> Copy</>}
-              </button>
+            <div className="pb-2 border-b border-primary/10">
+              <span className="text-[10px] font-mono uppercase tracking-widest text-primary/50">How Rules Are Applied</span>
             </div>
-            <div className="flex gap-2">
-              <div className="flex border border-primary/20 text-[9px] font-mono">
-                {[["linux","Linux"],["win32","Win"]].map(([v,l]) => (
-                  <button key={v} onClick={() => setPlatform(v)}
-                    className={`px-2 py-1 ${platform===v?"bg-primary text-black":"text-primary/60 hover:text-primary"}`}>{l}</button>
+            <div className="space-y-2 text-[10px] font-mono text-primary/50 leading-relaxed">
+              <p>Rules are applied automatically on the server the moment you add or remove them. No scripts, no manual steps.</p>
+              <div className="space-y-1.5 pt-1">
+                {[
+                  ["VPN", "Traffic forced through VPN tunnel", "text-primary"],
+                  ["DIRECT", "Traffic bypasses VPN — goes direct to internet", "text-yellow-400/70"],
+                  ["BLOCK", "Traffic completely dropped — never reaches internet", "text-red-400/70"],
+                ].map(([mode, desc, color]) => (
+                  <div key={mode} className="flex gap-2 items-start">
+                    <span className={`${color} w-12 shrink-0 font-bold`}>{mode}</span>
+                    <span className="text-primary/30">{desc}</span>
+                  </div>
                 ))}
               </div>
-              <Input value={iface} onChange={e => setIface(e.target.value)}
-                placeholder="Interface" className="border-primary/20 bg-black/50 text-primary font-mono text-[9px] h-6 w-20" />
+              <p className="text-primary/30 pt-1">Rules with higher priority numbers run first. Drag to reorder, or set priority manually.</p>
             </div>
-            <pre className="text-[8.5px] font-mono text-primary/70 bg-black/60 border border-primary/10 rounded p-2 overflow-x-auto max-h-[500px] whitespace-pre-wrap">
-              {script || "Loading..."}
-            </pre>
           </CardContent>
         </Card>
       </div>

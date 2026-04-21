@@ -3,8 +3,47 @@ import { logger } from "./lib/logger";
 import { runMigrations } from "stripe-replit-sync";
 import { getStripeSync } from "./stripeClient";
 import { seedEmployees } from "./routes/employees";
-import { exec } from "child_process";
+import { exec, execSync } from "child_process";
 import fs from "fs";
+
+// ── Auto-install all required dependencies on server startup ─────────────────
+// Users never see install instructions — the server handles everything itself.
+function autoInstallDependencies() {
+  const hasApt = (() => { try { execSync("which apt-get 2>/dev/null", { timeout: 2000 }); return true; } catch { return false; } })();
+  if (!hasApt) return; // Only auto-install on Debian/Ubuntu servers
+
+  const checkBin = (bin: string) => { try { execSync(`which ${bin} 2>/dev/null`, { timeout: 1000 }); return true; } catch { return false; } };
+
+  const missing: string[] = [];
+  if (!checkBin("openvpn"))     missing.push("openvpn");
+  if (!checkBin("proxychains4") && !checkBin("proxychains")) missing.push("proxychains4");
+  if (!checkBin("wg"))          missing.push("wireguard", "wireguard-tools");
+
+  if (missing.length === 0) {
+    logger.info("All VPN dependencies already installed");
+    return;
+  }
+
+  logger.info({ packages: missing }, "Auto-installing VPN dependencies...");
+  exec(
+    `DEBIAN_FRONTEND=noninteractive apt-get install -y ${missing.join(" ")} 2>&1`,
+    { timeout: 180000 },
+    (err, stdout) => {
+      if (err) {
+        logger.warn({ err }, "Auto-install encountered errors — some features may be limited");
+      } else {
+        logger.info("VPN dependencies installed successfully");
+      }
+    }
+  );
+
+  // Write global proxychains config for Ghost Chain routing
+  const proxychainsConf = `strict_chain\nproxy_dns\ntcp_read_time_out 15000\ntcp_connect_time_out 8000\n[ProxyList]\nsocks5 127.0.0.1 9050\n`;
+  try {
+    fs.writeFileSync("/etc/proxychains4.conf", proxychainsConf);
+  } catch { /* non-fatal */ }
+}
+autoInstallDependencies();
 
 // ── Ensure Tor daemon is running (port 9050) ─────────────────────────────────
 function ensureTor() {

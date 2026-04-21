@@ -3,7 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Shield, ShieldOff, Power, AlertTriangle, Zap, Copy, CheckCheck } from "lucide-react";
+import { Shield, ShieldOff, Power, AlertTriangle, Zap } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
@@ -19,21 +19,12 @@ interface KsState {
   platform: string;
 }
 
-interface GeneratedRules {
-  platform: string;
-  type: string;
-  enable: string;
-  disable: string;
-}
 
 export default function KillSwitch() {
   const { toast } = useToast();
   const [state, setState] = useState<KsState | null>(null);
-  const [rules, setRules] = useState<GeneratedRules | null>(null);
   const [loading, setLoading] = useState(true);
   const [toggling, setToggling] = useState(false);
-  const [copied, setCopied] = useState<"enable" | "disable" | null>(null);
-  const [selectedPlatform, setSelectedPlatform] = useState("linux");
 
   const fetchState = useCallback(async () => {
     try {
@@ -44,16 +35,7 @@ export default function KillSwitch() {
     finally { setLoading(false); }
   }, []);
 
-  const fetchRules = useCallback(async (platform: string) => {
-    try {
-      const r = await fetch(`${BASE}/api/killswitch/generate-rules?platform=${platform}`);
-      const d = await r.json();
-      setRules(d);
-    } catch { }
-  }, []);
-
   useEffect(() => { fetchState(); }, [fetchState]);
-  useEffect(() => { fetchRules(selectedPlatform); }, [fetchRules, selectedPlatform]);
 
   const toggle = async () => {
     if (!state) return;
@@ -75,14 +57,6 @@ export default function KillSwitch() {
         variant: d.enabled ? "default" : "destructive",
       });
     } finally { setToggling(false); }
-  };
-
-  const copyScript = async (which: "enable" | "disable") => {
-    const text = which === "enable" ? rules?.enable : rules?.disable;
-    if (!text) return;
-    await navigator.clipboard.writeText(text);
-    setCopied(which);
-    setTimeout(() => setCopied(null), 2000);
   };
 
   const patchConfig = async (field: Partial<KsState>) => {
@@ -220,47 +194,26 @@ export default function KillSwitch() {
 
         <Card className="bg-black border-primary/20">
           <CardContent className="p-4 space-y-3">
-            <div className="flex items-center justify-between pb-2 border-b border-primary/10">
-              <span className="text-xs font-mono uppercase tracking-widest text-primary/50">OS Firewall Rules</span>
-              <div className="flex border border-primary/20 text-[10px] font-mono">
-                {[["linux", "Linux"], ["darwin", "macOS"], ["win32", "Windows"]].map(([val, label]) => (
-                  <button
-                    key={val}
-                    onClick={() => setSelectedPlatform(val)}
-                    className={`px-2 py-1 ${selectedPlatform === val ? "bg-primary text-black" : "text-primary/60 hover:text-primary"}`}
-                  >
-                    {label}
-                  </button>
+            <div className="pb-2 border-b border-primary/10">
+              <span className="text-xs font-mono uppercase tracking-widest text-primary/50">How It Works</span>
+            </div>
+            <div className="space-y-2 text-[10px] font-mono text-primary/50 leading-relaxed">
+              <p>When the kill switch is armed, the server automatically applies iptables/nftables firewall rules that block all non-VPN traffic at the OS level.</p>
+              <p>Rules are applied instantly when you toggle the switch above. No scripts, no manual steps, no user action required.</p>
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                {[
+                  ["ARMED", "All traffic blocked unless it goes through the VPN tunnel"],
+                  ["DISARMED", "Normal routing — VPN protection still active"],
+                  ["AUTO-TRIGGER", "Fires automatically if the WireGuard interface drops"],
+                  ["HARD MODE", "Drops all packets — LAN/DHCP also blocked"],
+                ].map(([label, desc]) => (
+                  <div key={label} className="border border-primary/10 p-2 space-y-0.5">
+                    <div className="text-primary/70 uppercase">{label}</div>
+                    <div className="text-primary/30">{desc}</div>
+                  </div>
                 ))}
               </div>
             </div>
-
-            {rules && (
-              <>
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-[10px] font-mono text-green-400 uppercase">Enable Script ({rules.type})</span>
-                    <button onClick={() => copyScript("enable")} className="text-[10px] font-mono text-primary/50 hover:text-primary flex items-center gap-1">
-                      {copied === "enable" ? <><CheckCheck className="w-3 h-3" /> Copied</> : <><Copy className="w-3 h-3" /> Copy</>}
-                    </button>
-                  </div>
-                  <pre className="text-[9px] font-mono text-primary/70 bg-black/60 border border-primary/10 rounded p-2 overflow-x-auto max-h-48 whitespace-pre-wrap">
-                    {rules.enable}
-                  </pre>
-                </div>
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-[10px] font-mono text-red-400 uppercase">Disable Script</span>
-                    <button onClick={() => copyScript("disable")} className="text-[10px] font-mono text-primary/50 hover:text-primary flex items-center gap-1">
-                      {copied === "disable" ? <><CheckCheck className="w-3 h-3" /> Copied</> : <><Copy className="w-3 h-3" /> Copy</>}
-                    </button>
-                  </div>
-                  <pre className="text-[9px] font-mono text-primary/70 bg-black/60 border border-primary/10 rounded p-2 overflow-x-auto max-h-24 whitespace-pre-wrap">
-                    {rules.disable}
-                  </pre>
-                </div>
-              </>
-            )}
           </CardContent>
         </Card>
       </div>

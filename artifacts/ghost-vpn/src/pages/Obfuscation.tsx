@@ -232,11 +232,6 @@ export default function Obfuscation() {
                 <pre className="text-[8.5px] font-mono text-primary/70 bg-black/60 border border-primary/10 rounded p-2 overflow-x-auto max-h-48 whitespace-pre-wrap">
                   {JSON.stringify(genConfig.serverConfig?.content ?? genConfig.serverConfig, null, 2)}
                 </pre>
-                {genConfig.serverConfig?.install && (
-                  <p className="text-[9px] font-mono text-primary/40">
-                    Run: <code className="text-primary/60">{genConfig.serverConfig.install}</code>
-                  </p>
-                )}
               </CardContent>
             </Card>
           )}

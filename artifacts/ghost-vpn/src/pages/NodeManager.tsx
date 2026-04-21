@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Network, Plus, RefreshCw, Radio, Activity, Globe, Download, Layers } from "lucide-react";
+import { Network, Plus, RefreshCw, Radio, Activity, Globe, Layers } from "lucide-react";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -49,7 +49,7 @@ function speedColor(mbps: number) {
   return "text-red-400/70";
 }
 
-function VpnGateOuterCard({ server, onDownload }: { server: VpnGateServer; onDownload: (s: VpnGateServer) => void }) {
+function VpnGateOuterCard({ server }: { server: VpnGateServer }) {
   return (
     <div className="relative bg-black border border-cyan-400/15 hover:border-cyan-400/40 rounded-none p-3 flex flex-col gap-2 overflow-hidden transition-all duration-200 group">
       <div className="node-scan-bar opacity-0 group-hover:opacity-100" />
@@ -82,13 +82,6 @@ function VpnGateOuterCard({ server, onDownload }: { server: VpnGateServer; onDow
             <span className="text-[8px] text-primary/50 uppercase">SPD</span>
           </div>
         </div>
-        {server.hasOvpn && (
-          <button onClick={() => onDownload(server)}
-            className="flex items-center gap-0.5 text-primary/40 hover:text-primary border border-primary/15 hover:border-primary/40 px-1.5 py-0.5 transition-colors">
-            <Download className="w-2.5 h-2.5" />
-            <span className="text-[8px] uppercase font-mono">OVPN</span>
-          </button>
-        )}
       </div>
       <div className="text-[9px] font-mono text-primary/20">#{server.score.toLocaleString()}</div>
     </div>
@@ -160,14 +153,6 @@ export default function NodeManager() {
         },
       },
     );
-  };
-
-  const handleVpnGateDownload = (server: VpnGateServer) => {
-    const url = `${BASE}/api/vpngate/servers/${server.ip}/config`;
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `vpngate-${server.countryCode}-${server.ip}.ovpn`;
-    a.click();
   };
 
   return (
@@ -304,7 +289,7 @@ export default function NodeManager() {
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-2">
                   {vpnGateOuterNodes.map((server, idx) => (
-                    <VpnGateOuterCard key={`${server.ip}-${idx}`} server={server} onDownload={handleVpnGateDownload} />
+                    <VpnGateOuterCard key={`${server.ip}-${idx}`} server={server} />
                   ))}
                 </div>
               </div>

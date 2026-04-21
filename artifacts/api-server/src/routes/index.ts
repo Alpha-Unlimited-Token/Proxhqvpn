@@ -37,6 +37,7 @@ import sqlmapRouter from "./sqlmap";
 import alphaRouter from "./alpha";
 import employeesRouter from "./employees";
 import threatProtectionRouter from "./threatprotection";
+import setupRouter from "./setup";
 
 const router: IRouter = Router();
 
@@ -241,5 +242,6 @@ router.use("/sqlmap",         sqlmapRouter);
 router.use("/alpha",          alphaRouter);
 router.use("/employees",      employeesRouter);
 router.use("/threat-protection", threatProtectionRouter);
+router.use("/setup",          requireAdmin, setupRouter);
 
 export default router;

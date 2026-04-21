@@ -1,10 +1,10 @@
 import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  Globe, RefreshCw, Download, Zap, Users, Clock,
+  Globe, RefreshCw, Zap, Users, Clock,
   Radio, Activity, Shield, Filter, Star, Wifi,
   Play, Square, AlertCircle, CheckCircle, Loader,
-  Terminal, ChevronDown, Layers, Ghost, Lock, Eye,
+  ChevronDown, Layers, Ghost, Lock, Eye,
   ArrowDown, ArrowRight, Cpu
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -90,13 +90,11 @@ function logBadgeColor(logType: string): string {
 function VpnGateNodeCard({
   server,
   onConnect,
-  onDownload,
   isBest,
   isConnected,
 }: {
   server: VpnGateServer;
   onConnect: (server: VpnGateServer) => void;
-  onDownload: (server: VpnGateServer) => void;
   isBest?: boolean;
   isConnected?: boolean;
 }) {
@@ -178,15 +176,6 @@ function VpnGateNodeCard({
           <Play className="w-2.5 h-2.5" />
           <span className="text-[8px] uppercase font-mono">CONNECT</span>
         </button>
-        {server.hasOvpn && (
-          <button
-            onClick={() => onDownload(server)}
-            className="flex items-center gap-0.5 text-primary/40 hover:text-primary border border-primary/15 hover:border-primary/40 px-1.5 py-0.5 transition-colors"
-          >
-            <Download className="w-2.5 h-2.5" />
-            <span className="text-[8px] uppercase font-mono">OVPN</span>
-          </button>
-        )}
       </div>
 
       <div className="text-[9px] font-mono text-primary/20">#{server.score.toLocaleString()}</div>
@@ -213,7 +202,6 @@ export default function VpnGate() {
   const [showCountryPicker, setShowCountryPicker] = useState(false);
   const [showLogPicker, setShowLogPicker] = useState(false);
   const [bestIp, setBestIp] = useState<string | null>(null);
-  const [showScripts, setShowScripts] = useState(false);
 
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -266,8 +254,8 @@ export default function VpnGate() {
     },
     onError: (e: any) => {
       let msg = e.message;
-      try { const j = JSON.parse(e.message); msg = j.hint || j.error || msg; } catch {}
-      toast({ title: "Connect via Script", description: msg, variant: "destructive" });
+      try { const j = JSON.parse(e.message); msg = j.error || msg; } catch {}
+      toast({ title: "Connection Error", description: msg, variant: "destructive" });
       qc.invalidateQueries({ queryKey: ["vpngate-connection"] });
     },
   });
@@ -296,14 +284,6 @@ export default function VpnGate() {
   const handleConnect = (server: VpnGateServer) => {
     setBestIp(server.ip);
     connectMutation.mutate({ ip: server.ip });
-  };
-
-  const handleDownload = (server: VpnGateServer) => {
-    const url = `${BASE}/api/vpngate/servers/${server.ip}/config`;
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `vpngate-${server.countryCode}-${server.ip}.ovpn`;
-    a.click();
   };
 
   const handleClearRefresh = async () => {
@@ -409,59 +389,8 @@ export default function VpnGate() {
               </Button>
             ) : null}
 
-            <button
-              onClick={() => setShowScripts(!showScripts)}
-              className="flex items-center gap-1 text-[10px] font-mono text-primary/50 hover:text-primary border border-primary/20 hover:border-primary/40 px-2 py-1.5 transition-colors uppercase"
-            >
-              <Terminal className="w-3 h-3" />
-              SCRIPTS
-              <ChevronDown className={`w-3 h-3 transition-transform ${showScripts ? "rotate-180" : ""}`} />
-            </button>
           </div>
         </div>
-
-        {showScripts && (
-          <div className="mt-3 border-t border-primary/10 pt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="border border-primary/15 bg-black/40 p-3">
-              <div className="text-[10px] font-mono text-primary/50 uppercase mb-2">Linux / macOS</div>
-              <div className="space-y-1">
-                {[
-                  "# Auto-connect to best server",
-                  "./proxhq-connect.sh",
-                  "# Connect to specific country",
-                  "./proxhq-connect.sh JP",
-                  "# List top 10 servers",
-                  "./proxhq-connect.sh --list",
-                ].map((line, i) => (
-                  <div key={i} className={`text-[9px] font-mono ${line.startsWith("#") ? "text-primary/30" : "text-primary"}`}>
-                    {line}
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="border border-primary/15 bg-black/40 p-3">
-              <div className="text-[10px] font-mono text-primary/50 uppercase mb-2">Windows PowerShell</div>
-              <div className="space-y-1">
-                {[
-                  "# Auto-connect to best server",
-                  ".\\proxhq-connect.ps1",
-                  "# Connect to Japan",
-                  ".\\proxhq-connect.ps1 -Country JP",
-                  "# List top 10 servers",
-                  ".\\proxhq-connect.ps1 -List",
-                ].map((line, i) => (
-                  <div key={i} className={`text-[9px] font-mono ${line.startsWith("#") ? "text-primary/30" : "text-primary"}`}>
-                    {line}
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="sm:col-span-2 text-[9px] font-mono text-cyan-400/60 border border-cyan-400/20 p-2">
-              ↑ These scripts auto-install OpenVPN if needed, fetch the best server, and connect in one command.
-              Both are included in every ProxhqVPN download package.
-            </div>
-          </div>
-        )}
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 shrink-0">
@@ -589,7 +518,6 @@ export default function VpnGate() {
                   key={`${server.ip}-${idx}`}
                   server={server}
                   onConnect={handleConnect}
-                  onDownload={handleDownload}
                   isBest={server.ip === (bestIp ?? servers[0]?.ip)}
                   isConnected={connData?.serverIp === server.ip && connStatus === "connected"}
                 />
@@ -709,17 +637,6 @@ interface GhostChainData {
   };
 }
 
-function downloadB64(b64: string, filename: string) {
-  const bytes = atob(b64);
-  const blob = new Blob([bytes], { type: "application/octet-stream" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
 function GhostChainPanel() {
   const [expanded, setExpanded] = useState(false);
   const [chain, setChain] = useState<GhostChainData | null>(null);
@@ -728,6 +645,20 @@ function GhostChainPanel() {
   const { toast } = useToast();
 
   const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+  async function activateGhostChain(c: GhostChainData) {
+    try {
+      const r = await fetch(`${BASE}/api/vpngate/connect`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ip: c.relay.ip, torVeil: true }),
+      });
+      if (!r.ok) throw new Error(await r.text());
+      toast({ title: "Ghost Chain Activated", description: "Server-side relay + Tor veil enabled." });
+    } catch (e: any) {
+      toast({ title: "Activation Failed", description: e.message, variant: "destructive" });
+    }
+  }
 
   async function generate() {
     setLoading(true);
@@ -741,7 +672,7 @@ function GhostChainPanel() {
       const data = await r.json();
       setChain(data.ghostChain);
       setExpanded(true);
-      toast({ title: "Ghost Chain Generated", description: `${data.ghostChain.hops}-hop chain ready. Download your scripts below.` });
+      toast({ title: "Ghost Chain Ready", description: `${data.ghostChain.hops}-hop chain built. Press ACTIVATE to enable server-side.` });
     } catch (e: any) {
       setError(e.message);
       toast({ title: "Ghost Chain Error", description: e.message, variant: "destructive" });
@@ -863,44 +794,17 @@ function GhostChainPanel() {
             ))}
           </div>
 
-          {/* Download buttons */}
+          {/* Activate button */}
           <div className="space-y-1 pt-1">
-            <div className="text-[8px] font-mono text-primary/40 uppercase">Download Chain Scripts</div>
+            <div className="text-[8px] font-mono text-yellow-400/50 uppercase pb-0.5">Server-Side Activation</div>
             <button
-              onClick={() => downloadB64(chain.configs.linuxScript, "ghost-chain.sh")}
-              className="w-full flex items-center gap-1.5 text-[9px] font-mono py-1.5 px-2 border border-primary/20 text-primary/60 hover:border-primary/40 hover:text-primary transition-colors"
+              onClick={() => activateGhostChain(chain)}
+              className="w-full flex items-center justify-center gap-1.5 text-[9px] font-mono py-2 px-2 border border-yellow-400/40 text-yellow-400 hover:bg-yellow-400/10 uppercase font-bold transition-colors"
             >
-              <Terminal className="w-2.5 h-2.5" />
-              ghost-chain.sh (Linux/macOS)
+              <Zap className="w-3 h-3" />
+              ACTIVATE GHOST CHAIN
             </button>
-            <button
-              onClick={() => downloadB64(chain.configs.windowsScript, "ghost-chain.ps1")}
-              className="w-full flex items-center gap-1.5 text-[9px] font-mono py-1.5 px-2 border border-primary/20 text-primary/60 hover:border-primary/40 hover:text-primary transition-colors"
-            >
-              <Download className="w-2.5 h-2.5" />
-              ghost-chain.ps1 (Windows)
-            </button>
-            <button
-              onClick={() => downloadB64(chain.configs.proxychainsConf, "ghost-proxychains.conf")}
-              className="w-full flex items-center gap-1.5 text-[9px] font-mono py-1.5 px-2 border border-primary/20 text-primary/60 hover:border-primary/40 hover:text-primary transition-colors"
-            >
-              <Download className="w-2.5 h-2.5" />
-              proxychains.conf (advanced)
-            </button>
-            <button
-              onClick={() => downloadB64(chain.configs.torVeiledOvpn, "ghost-relay-torveil.ovpn")}
-              className="w-full flex items-center gap-1.5 text-[9px] font-mono py-1.5 px-2 border border-primary/20 text-primary/60 hover:border-primary/40 hover:text-primary transition-colors"
-            >
-              <Shield className="w-2.5 h-2.5" />
-              relay.ovpn (Tor-veiled)
-            </button>
-            <button
-              onClick={() => downloadB64(chain.configs.exitOvpn, "ghost-exit.ovpn")}
-              className="w-full flex items-center gap-1.5 text-[9px] font-mono py-1.5 px-2 border border-primary/20 text-primary/60 hover:border-primary/40 hover:text-primary transition-colors"
-            >
-              <Globe className="w-2.5 h-2.5" />
-              exit.ovpn
-            </button>
+            <p className="text-[8px] font-mono text-primary/20 text-center">Chain activates server-side instantly — no downloads</p>
           </div>
 
           <button
