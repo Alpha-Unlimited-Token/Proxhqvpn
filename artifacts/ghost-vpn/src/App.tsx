@@ -218,6 +218,41 @@ function HomeRedirect() {
   return <Home />;
 }
 
+/** Pages accessible to anyone — no login required */
+function PublicLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <>
+      <Show when="signed-in">
+        <Layout>
+          <ErrorBoundary>{children}</ErrorBoundary>
+        </Layout>
+      </Show>
+      <Show when="signed-out">
+        {/* Minimal public header so non-logged-in users can still navigate */}
+        <div className="min-h-screen bg-[#080d09] text-white">
+          <header className="border-b border-white/[0.06] px-6 py-4 flex items-center justify-between">
+            <a href={basePath || "/"} className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-primary/15 border border-primary/25 flex items-center justify-center">
+                <img src={`${basePath}/icon-final2.png`} alt="" className="w-5 h-5" />
+              </div>
+              <span className="font-bold text-white text-sm">ProxhqVPN</span>
+            </a>
+            <div className="flex items-center gap-3">
+              <a href={`${basePath}/sign-in`} className="text-xs text-white/50 hover:text-white transition-colors">Sign in</a>
+              <a href={`${basePath}/sign-up`} className="text-xs bg-primary text-black font-semibold px-4 py-2 rounded-lg hover:brightness-110 transition-all">
+                Get Started
+              </a>
+            </div>
+          </header>
+          <div className="max-w-5xl mx-auto px-6 py-10">
+            <ErrorBoundary>{children}</ErrorBoundary>
+          </div>
+        </div>
+      </Show>
+    </>
+  );
+}
+
 /** Pages accessible to any signed-in user (no subscription required) */
 function ProtectedLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -313,7 +348,7 @@ function AppRoutes() {
             <ProtectedLayout><UserGuide /></ProtectedLayout>
           </Route>
           <Route path="/ambassadors">
-            <ProtectedLayout><Ambassadors /></ProtectedLayout>
+            <PublicLayout><Ambassadors /></PublicLayout>
           </Route>
           <Route path="/ambassador/apply">
             <ProtectedLayout><AmbassadorApply /></ProtectedLayout>

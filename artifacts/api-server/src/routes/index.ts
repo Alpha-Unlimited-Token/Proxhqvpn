@@ -207,6 +207,10 @@ echo ""
   res.send(script);
 });
 
+// Ambassador routes — public (browse list + promo lookup require no auth)
+// Individual protected endpoints inside check auth themselves via getAuth()
+router.use("/ambassadors",    ambassadorsRouter);
+
 // Auth guard — all routes below require a valid Clerk session
 const requireAuth = (req: Request, res: Response, next: NextFunction) => {
   const { userId } = getAuth(req);
@@ -232,9 +236,6 @@ router.use("/sql",            requireAdmin, sqlRouter);
 
 // Stripe routes — always accessible (needed to purchase a subscription)
 router.use("/stripe",         stripeRouter);
-
-// Ambassador routes — public list + browse is accessible to all authed users
-router.use("/ambassadors",    ambassadorsRouter);
 
 // ── VPN Basic routes — any active subscription (vpn OR command_center) ──────
 router.use("/killswitch",     requireAccess, killswitchRouter);

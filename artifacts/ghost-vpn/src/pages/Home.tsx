@@ -143,6 +143,130 @@ const FAQS = [
   },
 ];
 
+// ── Ambassador section (public, no auth required) ─────────────────────────────
+interface AmbHit { id: number; name: string; bio: string | null; promoCode: string; avatarUrl: string | null; videos: { title: string; embedUrl: string | null }[] }
+
+function AmbassadorsSection() {
+  const [ambs, setAmbs] = useState<AmbHit[]>([]);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    fetch(`${BASE_API}/ambassadors`)
+      .then(r => r.json())
+      .then(d => setAmbs(Array.isArray(d) ? d.slice(0, 4) : []))
+      .catch(() => {})
+      .finally(() => setLoaded(true));
+  }, []);
+
+  return (
+    <section className="py-24 px-6 border-t border-white/[0.05] bg-[#080d09]">
+      <div className="max-w-6xl mx-auto">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
+          <div>
+            <div className="text-xs font-semibold text-primary/60 uppercase tracking-widest mb-3">Ambassador Community</div>
+            <h2 className="text-4xl font-bold tracking-tight mb-3">Learn from real users</h2>
+            <p className="text-white/40 text-base leading-relaxed max-w-xl">
+              Our ambassadors create free YouTube tutorials for every platform. Watch a setup guide, use their promo code at checkout, and they earn 10% — no extra cost to you.
+            </p>
+          </div>
+          <div className="flex items-center gap-3 shrink-0">
+            <Link href="/ambassadors"
+              className="px-5 py-2.5 text-sm font-semibold border border-white/[0.12] text-white/70 hover:border-white/25 hover:text-white rounded-xl transition-all">
+              Browse All
+            </Link>
+            <Link href="/sign-up"
+              className="px-5 py-2.5 text-sm font-semibold bg-primary text-black rounded-xl hover:brightness-110 transition-all">
+              Become an Ambassador →
+            </Link>
+          </div>
+        </div>
+
+        {loaded && ambs.length === 0 ? (
+          /* No ambassadors yet — show the program pitch */
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {[
+              { step: "01", title: "Upload to YouTube", body: "Record a setup tutorial for any platform — Windows, Fire Stick, Android, router. Upload to your YouTube channel." },
+              { step: "02", title: "Add Your Link", body: "Paste your YouTube video URL into your ambassador profile. It embeds directly on our website for all visitors to watch." },
+              { step: "03", title: "Earn 10% Forever", body: "Every subscriber who uses your promo code at checkout earns you 10% recurring commission for the life of their subscription." },
+            ].map(({ step, title, body }) => (
+              <div key={step} className="bg-[#0d1610] border border-white/[0.07] rounded-2xl p-6 hover:border-primary/20 transition-all">
+                <div className="text-3xl font-black text-primary/15 mb-4 font-mono">{step}</div>
+                <div className="font-semibold text-white mb-2">{title}</div>
+                <p className="text-sm text-white/40 leading-relaxed">{body}</p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          /* Featured ambassadors with YouTube thumbnails */
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            {ambs.map(a => {
+              const vid = a.videos[0];
+              const ytId = vid?.embedUrl?.match(/embed\/([^?]+)/)?.[1];
+              const thumb = ytId ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg` : null;
+              return (
+                <Link key={a.id} href="/ambassadors"
+                  className="group bg-[#0d1610] border border-white/[0.07] rounded-2xl overflow-hidden hover:border-primary/25 transition-all">
+                  {/* Video thumbnail */}
+                  <div className="relative aspect-video bg-black/60 overflow-hidden">
+                    {thumb ? (
+                      <img src={thumb} alt={vid?.title} className="w-full h-full object-cover opacity-70 group-hover:opacity-90 transition-opacity" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center">
+                          <svg className="w-3.5 h-3.5 text-primary/40 ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+                        </div>
+                      </div>
+                    )}
+                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="w-10 h-10 rounded-full bg-primary/90 flex items-center justify-center">
+                        <svg className="w-4 h-4 text-black ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+                      </div>
+                    </div>
+                  </div>
+                  {/* Card body */}
+                  <div className="p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      {a.avatarUrl ? (
+                        <img src={a.avatarUrl} alt={a.name} className="w-6 h-6 rounded-full object-cover" />
+                      ) : (
+                        <div className="w-6 h-6 rounded-full bg-primary/15 border border-primary/25 flex items-center justify-center text-[9px] font-bold text-primary">
+                          {a.name.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <span className="text-sm font-semibold text-white">{a.name}</span>
+                    </div>
+                    {a.bio && <p className="text-xs text-white/40 leading-relaxed line-clamp-2 mb-3">{a.bio}</p>}
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-mono text-primary/60 bg-primary/10 border border-primary/20 px-2 py-0.5 rounded">{a.promoCode}</span>
+                      <span className="text-[10px] text-white/30">{a.videos.length} tutorial{a.videos.length !== 1 ? "s" : ""}</span>
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Commission badge */}
+        <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4 text-center">
+          <div className="flex items-center gap-3 border border-primary/15 rounded-2xl px-6 py-4 bg-primary/5">
+            <div className="text-3xl font-black text-primary">10%</div>
+            <div className="text-left">
+              <div className="text-sm font-semibold text-white">Commission on every referral</div>
+              <div className="text-xs text-white/40">Recurring — paid every billing cycle</div>
+            </div>
+          </div>
+          <div className="text-white/25 text-sm">+</div>
+          <div className="border border-white/[0.07] rounded-2xl px-6 py-4 bg-[#0d1610]">
+            <div className="text-sm font-semibold text-white mb-0.5">Free to join</div>
+            <div className="text-xs text-white/40">No fees. No minimums. Just sign up and start.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function NavBar({ mobileOpen, setMobileOpen }: { mobileOpen: boolean; setMobileOpen: (v: boolean) => void }) {
   const [scrolled, setScrolled] = useState(false);
 
@@ -555,6 +679,9 @@ export default function Home() {
         </div>
       </section>
 
+      {/* ── AMBASSADORS ── */}
+      <AmbassadorsSection />
+
       {/* ── FAQ ── */}
       <section id="faq" className="py-24 px-6 border-t border-white/[0.05]">
         <div className="max-w-3xl mx-auto">
@@ -598,7 +725,7 @@ export default function Home() {
               <span className="text-sm font-bold text-white">ProxhqVPN</span>
               <span className="text-white/20 text-xs ml-1">by ALPHA UNLIMITED TECHNOLOGIES LLC</span>
             </div>
-            <div className="flex items-center gap-6">
+            <div className="flex items-center gap-6 flex-wrap justify-center">
               {NAV_LINKS.map(({ label, href }) => (
                 <button
                   key={label}
@@ -608,6 +735,9 @@ export default function Home() {
                   {label}
                 </button>
               ))}
+              <Link href="/ambassadors" className="text-xs text-white/30 hover:text-white/60 transition-colors">
+                Ambassadors
+              </Link>
             </div>
             <div className="text-xs text-white/20">
               © {new Date().getFullYear()} All rights reserved.

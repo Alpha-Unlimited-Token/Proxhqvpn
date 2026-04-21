@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
+import { useUser } from "@clerk/react";
 import { useToast } from "@/hooks/use-toast";
 import {
   Star, Play, Copy, Check, Users, ChevronRight,
   Youtube, Globe, Twitter, Instagram, ExternalLink,
-  Search, Award, TrendingUp,
+  Search, Award, TrendingUp, LogIn,
 } from "lucide-react";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -183,6 +184,7 @@ export default function Ambassadors() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [, setLocation] = useLocation();
+  const { isSignedIn } = useUser();
 
   useEffect(() => {
     fetch(`${BASE}/api/ambassadors`, { credentials: "include" })
@@ -228,15 +230,22 @@ export default function Ambassadors() {
       </div>
 
       {/* Become an ambassador CTA */}
-      <div className="flex items-center justify-between border border-primary/20 rounded-lg px-5 py-4 bg-primary/5">
+      <div className="flex items-center justify-between border border-primary/20 rounded-lg px-5 py-4 bg-primary/5 gap-4 flex-wrap">
         <div>
           <div className="font-semibold text-primary text-sm">Want to become an ambassador?</div>
-          <div className="text-[11px] text-primary/40 mt-0.5">Get your own promo code, upload tutorials, earn 10% on every subscriber you bring in.</div>
+          <div className="text-[11px] text-primary/40 mt-0.5">Get your own promo code, upload YouTube tutorials, earn 10% on every subscriber you bring in.</div>
         </div>
-        <button onClick={() => setLocation("/ambassador/apply")}
-          className="flex items-center gap-2 px-4 py-2 bg-primary text-black text-[11px] font-mono font-bold uppercase tracking-widest hover:bg-primary/80 rounded transition-colors shrink-0">
-          Apply Now <ChevronRight className="w-3.5 h-3.5" />
-        </button>
+        {isSignedIn ? (
+          <button onClick={() => setLocation("/ambassador/apply")}
+            className="flex items-center gap-2 px-4 py-2 bg-primary text-black text-[11px] font-mono font-bold uppercase tracking-widest hover:bg-primary/80 rounded transition-colors shrink-0">
+            Apply Now <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+        ) : (
+          <a href={`${BASE}/sign-up`}
+            className="flex items-center gap-2 px-4 py-2 bg-primary text-black text-[11px] font-mono font-bold uppercase tracking-widest hover:bg-primary/80 rounded transition-colors shrink-0">
+            <LogIn className="w-3 h-3" /> Sign up to Apply
+          </a>
+        )}
       </div>
 
       {/* Search */}
@@ -261,10 +270,17 @@ export default function Ambassadors() {
             {ambassadors.length === 0 ? "No ambassadors yet — be the first!" : "No ambassadors match your search"}
           </div>
           {ambassadors.length === 0 && (
-            <button onClick={() => setLocation("/ambassador/apply")}
-              className="mt-4 px-4 py-2 border border-primary/30 text-primary/60 text-[11px] font-mono uppercase hover:border-primary hover:text-primary rounded transition-colors">
-              Apply to Join
-            </button>
+            isSignedIn ? (
+              <button onClick={() => setLocation("/ambassador/apply")}
+                className="mt-4 px-4 py-2 border border-primary/30 text-primary/60 text-[11px] font-mono uppercase hover:border-primary hover:text-primary rounded transition-colors">
+                Apply to Join
+              </button>
+            ) : (
+              <a href={`${BASE}/sign-up`}
+                className="mt-4 inline-flex items-center gap-2 px-4 py-2 border border-primary/30 text-primary/60 text-[11px] font-mono uppercase hover:border-primary hover:text-primary rounded transition-colors">
+                <LogIn className="w-3 h-3" /> Sign up to be first
+              </a>
+            )
           )}
         </div>
       ) : (

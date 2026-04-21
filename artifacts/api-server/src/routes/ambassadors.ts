@@ -81,7 +81,7 @@ function sanitizePromoCode(code: string): string {
 // ── GET /api/ambassadors — public list (approved only) ────────────────────────
 router.get("/", async (_req, res) => {
   try {
-    const rows = await db.execute(sql`
+    const result = await db.execute(sql`
       SELECT a.id, a.name, a.bio, a.promo_code, a.avatar_url, a.social_urls,
              a.status, a.total_earnings_cents, a.created_at,
              COALESCE(
@@ -102,7 +102,9 @@ router.get("/", async (_req, res) => {
       GROUP BY a.id
       ORDER BY a.created_at ASC
     `);
-    const ambassadors = (rows as any[]).map((r: any) => ({
+    // db.execute returns either a plain array or an object with .rows depending on query complexity
+    const rows: any[] = Array.isArray(result) ? result : ((result as any).rows ?? []);
+    const ambassadors = rows.map((r: any) => ({
       id:                 r.id,
       name:               r.name,
       bio:                r.bio,
