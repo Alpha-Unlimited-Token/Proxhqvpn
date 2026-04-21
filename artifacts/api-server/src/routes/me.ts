@@ -3,6 +3,7 @@ import { getAuth, clerkClient } from "@clerk/express";
 import { db } from "@workspace/db";
 import { usersTable } from "@workspace/db/schema";
 import { isEmployeeEmail } from "./employees";
+import { stripeStorage } from "../stripeStorage";
 import { eq } from "drizzle-orm";
 
 const router = Router();
@@ -32,13 +33,31 @@ router.get("/", async (req, res) => {
     .onConflictDoUpdate({ target: usersTable.id, set: conflictSet })
     .returning();
 
+  const isAdmin = dbUser?.isAdmin ?? isAdminByEmail;
   const isEmployee = email ? await isEmployeeEmail(email) : false;
+
+  // Determine whether this user has full access:
+  // admin → yes | employee → yes | active/trialing Stripe subscription → yes | free account → no
+  let hasSubscription = false;
+  if (!isAdmin && !isEmployee) {
+    try {
+      const stripeUser = await stripeStorage.getUser(userId);
+      if (stripeUser?.stripeSubscriptionId) {
+        const sub = await stripeStorage.getSubscription(stripeUser.stripeSubscriptionId);
+        hasSubscription = sub?.status === "active" || sub?.status === "trialing";
+      }
+    } catch {}
+  }
+
+  const hasAccess = isAdmin || isEmployee || hasSubscription;
 
   return res.json({
     userId,
     email,
-    isAdmin: dbUser?.isAdmin ?? isAdminByEmail,
+    isAdmin,
     isEmployee,
+    hasAccess,
+    hasSubscription,
   });
 });
 

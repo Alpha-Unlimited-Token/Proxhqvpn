@@ -4,6 +4,7 @@ import { db } from "@workspace/db";
 import { usersTable } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
 import { requireAdmin as _requireAdmin } from "../middlewares/requireAdmin";
+import { requireAccess } from "../middlewares/requireAccess";
 import fs from "fs";
 import path from "path";
 import healthRouter from "./health";
@@ -224,29 +225,32 @@ router.use("/monitor",        requireAdmin, monitorRouter);
 router.use("/terminal",       requireAdmin, terminalRouter);
 router.use("/sql",            requireAdmin, sqlRouter);
 
-// ── User-facing routes ─────────────────────────────────────────────────────
-router.use("/proxy-browser",  proxyBrowserRouter);
-router.use("/killswitch",     killswitchRouter);
-router.use("/leaks",          leaksRouter);
-router.use("/threatintel",    threatintelRouter);
-router.use("/split-tunnel",   splittunnelRouter);
-router.use("/obfuscation",    obfuscationRouter);
-router.use("/security-audit", securityauditRouter);
-router.use("/daemon",         daemonRouter);
-router.use("/vpn-coexist",    vpnCoexistRouter);
-router.use("/vpngate",        vpnGateRouter);
-router.use("/devices",        devicesRouter);
-router.use("/dns-shield",     dnsShieldRouter);
-router.use("/smart-dns",      smartDnsRouter);
-router.use("/router-config",  routerConfigRouter);
-
-// Stripe routes — require auth (enforced above)
+// Stripe routes — always accessible (needed to purchase a subscription)
 router.use("/stripe",         stripeRouter);
-router.use("/wireguard",      wireguardRouter);
-router.use("/sqlmap",         sqlmapRouter);
-router.use("/alpha",          alphaRouter);
+
+// ── All routes below require an active subscription (or admin / employee) ──
+// ── User-facing tool routes ─────────────────────────────────────────────────
+router.use("/proxy-browser",  requireAccess, proxyBrowserRouter);
+router.use("/killswitch",     requireAccess, killswitchRouter);
+router.use("/leaks",          requireAccess, leaksRouter);
+router.use("/threatintel",    requireAccess, threatintelRouter);
+router.use("/split-tunnel",   requireAccess, splittunnelRouter);
+router.use("/obfuscation",    requireAccess, obfuscationRouter);
+router.use("/security-audit", requireAccess, securityauditRouter);
+router.use("/daemon",         requireAccess, daemonRouter);
+router.use("/vpn-coexist",    requireAccess, vpnCoexistRouter);
+router.use("/vpngate",        requireAccess, vpnGateRouter);
+router.use("/devices",        requireAccess, devicesRouter);
+router.use("/dns-shield",     requireAccess, dnsShieldRouter);
+router.use("/smart-dns",      requireAccess, smartDnsRouter);
+router.use("/router-config",  requireAccess, routerConfigRouter);
+router.use("/wireguard",      requireAccess, wireguardRouter);
+router.use("/sqlmap",         requireAccess, sqlmapRouter);
+router.use("/alpha",          requireAccess, alphaRouter);
+router.use("/threat-protection", requireAccess, threatProtectionRouter);
+
+// ── Admin-only routes (admin is a superset of requireAccess) ──────────────
 router.use("/employees",      employeesRouter);
-router.use("/threat-protection", threatProtectionRouter);
 router.use("/setup",          requireAdmin, setupRouter);
 
 export default router;

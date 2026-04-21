@@ -31,6 +31,7 @@ import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/reac
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Layout } from "./components/layout/Layout";
+import { PaywallGate } from "./components/PaywallGate";
 
 import Home from "@/pages/Home";
 import Dashboard from "@/pages/Dashboard";
@@ -195,7 +196,7 @@ function SignUpPage() {
             <img src={`${basePath}/icon-final2.png`} alt="ProxhqVPN" className="w-12 h-12 mx-auto mb-3" />
             <div className="text-xl font-bold text-white">ProxhqVPN</div>
           </div>
-          <SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} afterSignUpUrl="/dashboard" />
+          <SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} afterSignUpUrl="/pricing" />
         </div>
       </div>
     </div>
@@ -210,12 +211,31 @@ function HomeRedirect() {
   return <Home />;
 }
 
+/** Pages accessible to any signed-in user (no subscription required) */
 function ProtectedLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
       <Show when="signed-in">
         <Layout>
           <ErrorBoundary>{children}</ErrorBoundary>
+        </Layout>
+      </Show>
+      <Show when="signed-out">
+        <Redirect to="/sign-in" />
+      </Show>
+    </>
+  );
+}
+
+/** Pages that require an active subscription (or admin / employee status) */
+function ToolLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <>
+      <Show when="signed-in">
+        <Layout>
+          <ErrorBoundary>
+            <PaywallGate>{children}</PaywallGate>
+          </ErrorBoundary>
         </Layout>
       </Show>
       <Show when="signed-out">
@@ -254,92 +274,12 @@ function AppRoutes() {
           <Route path="/sign-in/*?" component={SignInPage} />
           <Route path="/sign-up/*?" component={SignUpPage} />
 
-          <Route path="/dashboard">
-            <ProtectedLayout><Dashboard /></ProtectedLayout>
-          </Route>
-          <Route path="/nodes">
-            <ProtectedLayout><NodeManager /></ProtectedLayout>
-          </Route>
-          <Route path="/beacons">
-            <ProtectedLayout><BeaconAlerts /></ProtectedLayout>
-          </Route>
-          <Route path="/silkweb">
-            <ProtectedLayout><SilkWeb /></ProtectedLayout>
-          </Route>
-          <Route path="/firewall">
-            <ProtectedLayout><Firewall /></ProtectedLayout>
-          </Route>
-          <Route path="/wireguard">
-            <ProtectedLayout><WireGuardConfig /></ProtectedLayout>
-          </Route>
-          <Route path="/monitor">
-            <ProtectedLayout><SystemMonitor /></ProtectedLayout>
-          </Route>
-          <Route path="/terminal">
-            <ProtectedLayout><Terminal /></ProtectedLayout>
-          </Route>
-          <Route path="/sql">
-            <ProtectedLayout><SqlInterface /></ProtectedLayout>
-          </Route>
-          <Route path="/proxy">
-            <ProtectedLayout><ProxyConfig /></ProtectedLayout>
-          </Route>
-          <Route path="/onion-browser">
-            <ProtectedLayout><OnionBrowser /></ProtectedLayout>
-          </Route>
-          <Route path="/kill-switch">
-            <ProtectedLayout><KillSwitch /></ProtectedLayout>
-          </Route>
-          <Route path="/leaks">
-            <ProtectedLayout><LeakDetection /></ProtectedLayout>
-          </Route>
-          <Route path="/threat-intel">
-            <ProtectedLayout><ThreatIntel /></ProtectedLayout>
-          </Route>
-          <Route path="/split-tunnel">
-            <ProtectedLayout><SplitTunnel /></ProtectedLayout>
-          </Route>
-          <Route path="/obfuscation">
-            <ProtectedLayout><Obfuscation /></ProtectedLayout>
-          </Route>
-          <Route path="/security-audit">
-            <ProtectedLayout><SecurityAudit /></ProtectedLayout>
-          </Route>
-          <Route path="/vpn-coexist">
-            <ProtectedLayout><VpnCoexist /></ProtectedLayout>
-          </Route>
-          <Route path="/vpngate">
-            <ProtectedLayout><VpnGate /></ProtectedLayout>
-          </Route>
-          <Route path="/platforms">
-            <ProtectedLayout><Platforms /></ProtectedLayout>
-          </Route>
-          <Route path="/devices">
-            <ProtectedLayout><DeviceManager /></ProtectedLayout>
-          </Route>
-          <Route path="/smart-dns">
-            <ProtectedLayout><SmartDns /></ProtectedLayout>
-          </Route>
-          <Route path="/dns-shield">
-            <ProtectedLayout><DnsShield /></ProtectedLayout>
-          </Route>
-          <Route path="/router-config">
-            <ProtectedLayout><RouterConfig /></ProtectedLayout>
-          </Route>
-          <Route path="/account">
-            <ProtectedLayout><Account /></ProtectedLayout>
-          </Route>
-          <Route path="/my-vpn">
-            <ProtectedLayout><MyVPN /></ProtectedLayout>
-          </Route>
+          {/* ── Freely accessible to any signed-in user ── */}
           <Route path="/pricing">
             <ProtectedLayout><Pricing /></ProtectedLayout>
           </Route>
-          <Route path="/sqlmap">
-            <ProtectedLayout><SqlmapScanner /></ProtectedLayout>
-          </Route>
-          <Route path="/alpha-tools">
-            <ProtectedLayout><AlphaTools /></ProtectedLayout>
+          <Route path="/account">
+            <ProtectedLayout><Account /></ProtectedLayout>
           </Route>
           <Route path="/downloads">
             <ProtectedLayout><Downloads /></ProtectedLayout>
@@ -347,14 +287,97 @@ function AppRoutes() {
           <Route path="/guide">
             <ProtectedLayout><UserGuide /></ProtectedLayout>
           </Route>
+
+          {/* ── Subscription required (PaywallGate applied) ── */}
+          <Route path="/dashboard">
+            <ToolLayout><Dashboard /></ToolLayout>
+          </Route>
+          <Route path="/my-vpn">
+            <ToolLayout><MyVPN /></ToolLayout>
+          </Route>
+          <Route path="/nodes">
+            <ToolLayout><NodeManager /></ToolLayout>
+          </Route>
+          <Route path="/beacons">
+            <ToolLayout><BeaconAlerts /></ToolLayout>
+          </Route>
+          <Route path="/silkweb">
+            <ToolLayout><SilkWeb /></ToolLayout>
+          </Route>
+          <Route path="/firewall">
+            <ToolLayout><Firewall /></ToolLayout>
+          </Route>
+          <Route path="/wireguard">
+            <ToolLayout><WireGuardConfig /></ToolLayout>
+          </Route>
+          <Route path="/monitor">
+            <ToolLayout><SystemMonitor /></ToolLayout>
+          </Route>
+          <Route path="/terminal">
+            <ToolLayout><Terminal /></ToolLayout>
+          </Route>
+          <Route path="/sql">
+            <ToolLayout><SqlInterface /></ToolLayout>
+          </Route>
+          <Route path="/proxy">
+            <ToolLayout><ProxyConfig /></ToolLayout>
+          </Route>
+          <Route path="/onion-browser">
+            <ToolLayout><OnionBrowser /></ToolLayout>
+          </Route>
+          <Route path="/kill-switch">
+            <ToolLayout><KillSwitch /></ToolLayout>
+          </Route>
+          <Route path="/leaks">
+            <ToolLayout><LeakDetection /></ToolLayout>
+          </Route>
+          <Route path="/threat-intel">
+            <ToolLayout><ThreatIntel /></ToolLayout>
+          </Route>
+          <Route path="/split-tunnel">
+            <ToolLayout><SplitTunnel /></ToolLayout>
+          </Route>
+          <Route path="/obfuscation">
+            <ToolLayout><Obfuscation /></ToolLayout>
+          </Route>
+          <Route path="/security-audit">
+            <ToolLayout><SecurityAudit /></ToolLayout>
+          </Route>
+          <Route path="/vpn-coexist">
+            <ToolLayout><VpnCoexist /></ToolLayout>
+          </Route>
+          <Route path="/vpngate">
+            <ToolLayout><VpnGate /></ToolLayout>
+          </Route>
+          <Route path="/platforms">
+            <ToolLayout><Platforms /></ToolLayout>
+          </Route>
+          <Route path="/devices">
+            <ToolLayout><DeviceManager /></ToolLayout>
+          </Route>
+          <Route path="/smart-dns">
+            <ToolLayout><SmartDns /></ToolLayout>
+          </Route>
+          <Route path="/dns-shield">
+            <ToolLayout><DnsShield /></ToolLayout>
+          </Route>
+          <Route path="/router-config">
+            <ToolLayout><RouterConfig /></ToolLayout>
+          </Route>
+          <Route path="/sqlmap">
+            <ToolLayout><SqlmapScanner /></ToolLayout>
+          </Route>
+          <Route path="/alpha-tools">
+            <ToolLayout><AlphaTools /></ToolLayout>
+          </Route>
           <Route path="/employees">
-            <ProtectedLayout><Employees /></ProtectedLayout>
+            <ToolLayout><Employees /></ToolLayout>
           </Route>
           <Route path="/threat-protection">
-            <ProtectedLayout><ThreatProtection /></ProtectedLayout>
+            <ToolLayout><ThreatProtection /></ToolLayout>
           </Route>
           <Route path="/setup">
-            <ProtectedLayout><Setup /></ProtectedLayout>
+            <ToolLayout><Setup /></ToolLayout>
           </Route>
           <Route>
             <ProtectedLayout>
