@@ -89,6 +89,7 @@ function createSetupWindow() {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
       nodeIntegration: false,
+      webRTCIPHandlingPolicy: "disable_non_proxied_udp",
     },
     icon: path.join(__dirname, "..", "assets", "icon.png"),
   });
@@ -109,6 +110,7 @@ function createMainWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       webSecurity: false,
+      webRTCIPHandlingPolicy: "disable_non_proxied_udp",
     },
     icon: path.join(__dirname, "..", "assets", "icon.png"),
     title: "ProxhqVPN",

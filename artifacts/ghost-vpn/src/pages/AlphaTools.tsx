@@ -12,7 +12,7 @@ const SCRAPER_URL = `${import.meta.env.BASE_URL}AlphaWebScraper.html`;
 
 type Tab       = "scanner" | "verifier" | "scraper";
 type ScanMode  = "network" | "security" | "exploits" | "all";
-type JobStatus = "idle" | "running" | "complete" | "error";
+type JobStatus = "idle" | "running" | "complete" | "error" | "cancelled";
 
 interface TorStatus { connected: boolean; ip: string | null }
 
