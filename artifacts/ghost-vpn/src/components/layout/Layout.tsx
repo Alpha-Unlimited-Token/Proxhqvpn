@@ -1,4 +1,4 @@
-import React, { ReactNode, useState } from "react";
+import React, { ReactNode, useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useUser, useClerk } from "@clerk/react";
 import {
@@ -137,12 +137,38 @@ function NavSection({ label, items, onNav }: {
   );
 }
 
+interface UpdateInfo {
+  version: string;
+}
+
 export function Layout({ children }: LayoutProps) {
   const [location] = useLocation();
   const { user } = useUser();
   const { signOut } = useClerk();
   const { isAdmin } = useAdmin();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [pendingUpdate, setPendingUpdate] = useState<UpdateInfo | null>(null);
+  const [updateDismissed, setUpdateDismissed] = useState(false);
+  const [restarting, setRestarting] = useState(false);
+
+  // Register the callback that Electron calls when a background update finishes downloading
+  useEffect(() => {
+    (window as any).__proxhqShowUpdateBanner = (info: UpdateInfo) => {
+      setPendingUpdate(info);
+      setUpdateDismissed(false);
+    };
+    return () => { delete (window as any).__proxhqShowUpdateBanner; };
+  }, []);
+
+  function updateNow() {
+    setRestarting(true);
+    // Give the UI a moment to show "Restarting…" before Electron kills the window
+    setTimeout(() => {
+      (window as any).proxhq?.installUpdateNow?.();
+    }, 600);
+  }
+
+  const showBanner = pendingUpdate && !updateDismissed;
 
   const pageName = PAGE_NAMES[location] ?? "ProxhqVPN";
   const closeSidebar = () => setSidebarOpen(false);
@@ -260,6 +286,68 @@ export function Layout({ children }: LayoutProps) {
           </div>
         </main>
       </div>
+
+      {/* Update-ready banner — only appears when update downloads while the app is already open */}
+      {showBanner && (
+        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 w-full max-w-md px-4 animate-in slide-in-from-bottom-4 duration-300">
+          <div className="bg-[#0d1a0f] border border-primary/40 rounded-xl shadow-2xl shadow-black/60 p-4 flex flex-col gap-3">
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 rounded-lg bg-primary/15 border border-primary/25 flex items-center justify-center shrink-0">
+                <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-[13px] font-semibold text-white leading-tight">
+                  ProxhqVPN {pendingUpdate.version} is ready
+                </div>
+                <div className="text-[11px] text-white/45 mt-0.5 leading-snug">
+                  Downloaded in the background. Update now or it installs automatically next time you open the app.
+                </div>
+              </div>
+              <button
+                onClick={() => setUpdateDismissed(true)}
+                className="text-white/25 hover:text-white/60 transition-colors shrink-0 mt-0.5"
+                aria-label="Dismiss"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={updateNow}
+                disabled={restarting}
+                className="flex-1 bg-primary text-black text-[12px] font-semibold py-2 rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-60 flex items-center justify-center gap-1.5"
+              >
+                {restarting ? (
+                  <>
+                    <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                    </svg>
+                    Restarting…
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    Update Now
+                  </>
+                )}
+              </button>
+              <button
+                onClick={() => setUpdateDismissed(true)}
+                className="px-4 text-[12px] font-medium text-white/40 hover:text-white/70 border border-white/10 rounded-lg hover:border-white/20 transition-colors"
+              >
+                Later
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
