@@ -3,6 +3,7 @@ import { getAuth } from "@clerk/express";
 import { db } from "@workspace/db";
 import { usersTable } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
+import { requireAdmin as _requireAdmin } from "../middlewares/requireAdmin";
 import fs from "fs";
 import path from "path";
 import healthRouter from "./health";
@@ -34,6 +35,7 @@ import daemonInboundRouter from "./daemon-inbound";
 import nodeProvisionRouter from "./node-provision";
 import sqlmapRouter from "./sqlmap";
 import alphaRouter from "./alpha";
+import employeesRouter from "./employees";
 
 const router: IRouter = Router();
 
@@ -200,14 +202,8 @@ const requireAuth = (req: Request, res: Response, next: NextFunction) => {
 };
 router.use(requireAuth);
 
-// Admin guard — checks is_admin flag in DB
-export const requireAdmin = async (req: Request, res: Response, next: NextFunction) => {
-  const { userId } = getAuth(req);
-  if (!userId) return res.status(401).json({ error: "Unauthorized" });
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
-  if (!user?.isAdmin) return res.status(403).json({ error: "Forbidden: admin only" });
-  next();
-};
+// Admin guard — checks is_admin flag in DB (re-exported from shared middleware)
+export const requireAdmin = _requireAdmin;
 
 router.use("/me",             meRouter);
 router.use("/nodes",          nodesRouter);
@@ -237,5 +233,6 @@ router.use("/stripe",         stripeRouter);
 router.use("/wireguard",      wireguardRouter);
 router.use("/sqlmap",         sqlmapRouter);
 router.use("/alpha",          alphaRouter);
+router.use("/employees",      employeesRouter);
 
 export default router;

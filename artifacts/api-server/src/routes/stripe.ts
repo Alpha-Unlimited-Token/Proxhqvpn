@@ -1,7 +1,8 @@
 import { Router } from "express";
-import { getAuth } from "@clerk/express";
+import { getAuth, clerkClient } from "@clerk/express";
 import { getUncachableStripeClient, getStripePublishableKey, getStripeSync } from "../stripeClient";
 import { stripeStorage } from "../stripeStorage";
+import { isEmployeeEmail } from "./employees";
 import { z } from "zod";
 
 const router = Router();
@@ -53,12 +54,28 @@ router.get("/subscription", async (req, res) => {
   const { userId } = getAuth(req);
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
+  // Resolve email from Clerk
+  let email: string | null = null;
+  try {
+    const clerkUser = await clerkClient.users.getUser(userId);
+    email = clerkUser.emailAddresses.find((e) => e.id === clerkUser.primaryEmailAddressId)?.emailAddress ?? null;
+  } catch {}
+
+  // Employees always get full access — no subscription required
+  if (email && await isEmployeeEmail(email)) {
+    return res.json({
+      subscription: { status: "active", plan: "Employee — Complimentary" },
+      hasWireGuard: true,
+      isEmployee: true,
+    });
+  }
+
   const user = await stripeStorage.getUser(userId);
   if (!user?.stripeSubscriptionId) return res.json({ subscription: null, hasWireGuard: false });
 
   const subscription = await stripeStorage.getSubscription(user.stripeSubscriptionId);
   const hasWireGuard = subscription?.status === "active" || subscription?.status === "trialing";
-  res.json({ subscription, hasWireGuard: !!hasWireGuard });
+  res.json({ subscription, hasWireGuard: !!hasWireGuard, isEmployee: false });
 });
 
 router.post("/checkout", async (req, res) => {

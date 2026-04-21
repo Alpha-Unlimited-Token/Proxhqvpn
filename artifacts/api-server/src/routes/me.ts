@@ -2,6 +2,7 @@ import { Router } from "express";
 import { getAuth, clerkClient } from "@clerk/express";
 import { db } from "@workspace/db";
 import { usersTable } from "@workspace/db/schema";
+import { isEmployeeEmail } from "./employees";
 import { eq } from "drizzle-orm";
 
 const router = Router();
@@ -31,10 +32,13 @@ router.get("/", async (req, res) => {
     .onConflictDoUpdate({ target: usersTable.id, set: conflictSet })
     .returning();
 
+  const isEmployee = email ? await isEmployeeEmail(email) : false;
+
   return res.json({
     userId,
     email,
     isAdmin: dbUser?.isAdmin ?? isAdminByEmail,
+    isEmployee,
   });
 });
 

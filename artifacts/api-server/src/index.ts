@@ -2,6 +2,7 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { runMigrations } from "stripe-replit-sync";
 import { getStripeSync } from "./stripeClient";
+import { seedEmployees } from "./routes/employees";
 import { exec } from "child_process";
 import fs from "fs";
 
@@ -57,6 +58,9 @@ async function initStripe() {
 }
 
 await initStripe();
+
+// Seed default employees (idempotent — uses onConflictDoNothing)
+seedEmployees().catch((err) => logger.warn({ err }, "Employee seed failed"));
 
 app.listen(port, (err) => {
   if (err) {

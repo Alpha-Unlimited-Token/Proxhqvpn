@@ -8,7 +8,7 @@ import {
   LayoutDashboard, Server, ShieldAlert, Network,
   Activity, Shield, Terminal, Database,
   LogOut, User, Menu, Download,
-  Zap, Settings, Cpu, Router, ScanSearch, Layers, FileText
+  Zap, Settings, Cpu, Router, ScanSearch, Layers, FileText, Users
 } from "lucide-react";
 import { useAdmin } from "@/hooks/useAdmin";
 
@@ -48,6 +48,7 @@ const PAGE_NAMES: Record<string, string> = {
   "/alpha-tools":  "Alpha Toolkit",
   "/downloads":    "Download ProxhqVPN",
   "/guide":        "User Guide",
+  "/employees":    "Employee Access",
 };
 
 const USER_NAV = [
@@ -89,6 +90,7 @@ const ADMIN_NAV = [
   { href: "/silkweb",       label: "Decoy Network",   icon: Network },
   { href: "/monitor",       label: "Performance",     icon: Activity },
   { href: "/firewall",      label: "Firewall",        icon: Shield },
+  { href: "/employees",     label: "Employee Access", icon: Users },
   { href: "/terminal",      label: "Terminal",        icon: Terminal },
   { href: "/sql",           label: "Database",        icon: Database },
 ];

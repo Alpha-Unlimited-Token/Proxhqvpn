@@ -5,5 +5,6 @@ export * from "./firewall";
 export * from "./devices";
 export * from "./dnsshield";
 export * from "./users";
+// employeesTable is exported from users.ts
 export * from "./wireguard";
 export * from "./vpngate";
