@@ -6,6 +6,9 @@ import { writeFileSync, unlinkSync, existsSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import { z } from "zod";
+import { db } from "@workspace/db";
+import { vpngateNodeSessionsTable, nodesTable } from "@workspace/db";
+import { eq, desc } from "drizzle-orm";
 
 const router = Router();
 
@@ -442,6 +445,111 @@ router.post("/connect", async (req, res) => {
     connState.error = e.message;
     res.status(500).json({ error: e.message });
   }
+});
+
+// ── Node-level double-hop management ──────────────────────────────────────────
+
+// GET /api/vpngate/node-sessions — list all active VPN Gate sessions across nodes
+router.get("/node-sessions", async (_req, res) => {
+  const sessions = await db
+    .select()
+    .from(vpngateNodeSessionsTable)
+    .orderBy(desc(vpngateNodeSessionsTable.assignedAt));
+  const nodes = await db.select().from(nodesTable);
+  const nodeMap = Object.fromEntries(nodes.map((n) => [n.id, n]));
+  res.json({
+    sessions: sessions.map((s) => ({
+      ...s,
+      nodeName: nodeMap[s.nodeId]?.name ?? `Node ${s.nodeId}`,
+      nodeRegion: nodeMap[s.nodeId]?.region ?? "Unknown",
+      nodeIp: nodeMap[s.nodeId]?.ipAddress ?? null,
+    })),
+  });
+});
+
+// POST /api/vpngate/node/:nodeId/enable — assign best VPN Gate server to a node
+router.post("/node/:nodeId/enable", async (req, res) => {
+  const nodeId = parseInt(req.params.nodeId);
+  if (!nodeId) return res.status(400).json({ error: "Invalid nodeId" });
+
+  const { country, serverIp } = req.body as { country?: string; serverIp?: string };
+
+  // Find the right VPN Gate server
+  let servers: VpnGateServer[];
+  try {
+    servers = await getServers();
+  } catch (e: any) {
+    return res.status(502).json({ error: "Could not fetch VPN Gate servers", detail: e.message });
+  }
+
+  let pool = servers.filter((s) => s.hasOvpn && s.ping < 400);
+
+  if (serverIp) {
+    pool = pool.filter((s) => s.ip === serverIp);
+  } else if (country) {
+    const q = country.toLowerCase();
+    pool = pool.filter((s) => s.countryCode.toLowerCase() === q || s.country.toLowerCase().includes(q));
+  }
+
+  const server = pool[0];
+  if (!server) return res.status(404).json({ error: "No suitable VPN Gate server found" });
+  if (!server.ovpnConfigB64) return res.status(400).json({ error: "Server has no OpenVPN config" });
+
+  // Remove any existing session for this node
+  await db.delete(vpngateNodeSessionsTable).where(eq(vpngateNodeSessionsTable.nodeId, nodeId));
+
+  // Create new pending session
+  const [session] = await db.insert(vpngateNodeSessionsTable).values({
+    nodeId,
+    status: "pending_connect",
+    serverIp: server.ip,
+    serverCountry: server.country,
+    serverCountryCode: server.countryCode,
+    ovpnConfigB64: server.ovpnConfigB64,
+    assignedAt: new Date(),
+    updatedAt: new Date(),
+  }).returning();
+
+  res.json({
+    message: "VPN Gate session queued — node will connect within 30 seconds",
+    sessionId: session.id,
+    server: { ip: server.ip, country: server.country, ping: server.ping, speedMbps: server.speedMbps },
+  });
+});
+
+// POST /api/vpngate/node/:nodeId/disable — remove VPN Gate from a node
+router.post("/node/:nodeId/disable", async (req, res) => {
+  const nodeId = parseInt(req.params.nodeId);
+  if (!nodeId) return res.status(400).json({ error: "Invalid nodeId" });
+
+  const existing = await db
+    .select()
+    .from(vpngateNodeSessionsTable)
+    .where(eq(vpngateNodeSessionsTable.nodeId, nodeId));
+
+  if (existing.length === 0) {
+    return res.json({ message: "No active VPN Gate session for this node" });
+  }
+
+  await db.update(vpngateNodeSessionsTable).set({
+    status: "pending_disconnect",
+    updatedAt: new Date(),
+  }).where(eq(vpngateNodeSessionsTable.nodeId, nodeId));
+
+  res.json({ message: "Disconnect queued — node will disconnect within 30 seconds" });
+});
+
+// GET /api/vpngate/node/:nodeId/status — current VPN Gate status for a specific node
+router.get("/node/:nodeId/status", async (req, res) => {
+  const nodeId = parseInt(req.params.nodeId);
+  const [session] = await db
+    .select()
+    .from(vpngateNodeSessionsTable)
+    .where(eq(vpngateNodeSessionsTable.nodeId, nodeId))
+    .limit(1);
+
+  if (!session) return res.json({ active: false });
+  res.json({ active: true, ...session });
 });
 
 router.post("/disconnect", (_req, res) => {

@@ -4,7 +4,7 @@ import {
   Globe, RefreshCw, Download, Zap, Users, Clock,
   Radio, Activity, Shield, Filter, Star, Wifi,
   Play, Square, AlertCircle, CheckCircle, Loader,
-  Terminal, ChevronDown
+  Terminal, ChevronDown, Layers
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -663,8 +663,196 @@ export default function VpnGate() {
               ))}
             </div>
           </div>
+
+          <NodeDoubleHopPanel />
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── Node Double-Hop Control Panel ─────────────────────────────────────────────
+
+interface NodeSession {
+  id: number;
+  nodeId: number;
+  status: string;
+  serverIp: string;
+  serverCountry: string;
+  serverCountryCode: string;
+  exitIp: string | null;
+  errorMessage: string | null;
+  connectedAt: string | null;
+  nodeName: string;
+  nodeRegion: string;
+  nodeIp: string | null;
+}
+
+interface ProxhqNode {
+  id: number;
+  name: string;
+  region: string;
+  ipAddress: string;
+  status: string;
+  lastSeen: string | null;
+}
+
+function NodeDoubleHopPanel() {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [selectedCountry, setSelectedCountry] = useState("");
+
+  const { data: sessionsData, isFetching: sessionsFetching } = useQuery<{ sessions: NodeSession[] }>({
+    queryKey: ["node-vpngate-sessions"],
+    queryFn: () => apiFetch("/vpngate/node-sessions"),
+    refetchInterval: 8000,
+  });
+
+  const { data: nodesData } = useQuery<{ nodes: ProxhqNode[] }>({
+    queryKey: ["proxhq-nodes"],
+    queryFn: () => apiFetch("/nodes"),
+    refetchInterval: 30000,
+  });
+
+  const nodes = nodesData?.nodes ?? [];
+  const sessions = sessionsData?.sessions ?? [];
+  const sessionByNode = Object.fromEntries(sessions.map((s) => [s.nodeId, s]));
+
+  const enableMutation = useMutation({
+    mutationFn: ({ nodeId, country }: { nodeId: number; country?: string }) =>
+      apiFetch(`/vpngate/node/${nodeId}/enable`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ country: country || undefined }),
+      }),
+    onSuccess: (data) => {
+      toast({
+        title: "Double-Hop Queued",
+        description: `→ ${data.server?.country} (${data.server?.ip}) · connects within 30s`,
+      });
+      qc.invalidateQueries({ queryKey: ["node-vpngate-sessions"] });
+    },
+    onError: (e: any) => {
+      let msg = e.message;
+      try { const j = JSON.parse(e.message); msg = j.error || msg; } catch {}
+      toast({ title: "Failed", description: msg, variant: "destructive" });
+    },
+  });
+
+  const disableMutation = useMutation({
+    mutationFn: (nodeId: number) =>
+      apiFetch(`/vpngate/node/${nodeId}/disable`, { method: "POST" }),
+    onSuccess: () => {
+      toast({ title: "Disconnecting", description: "Double-hop will stop within 30s" });
+      qc.invalidateQueries({ queryKey: ["node-vpngate-sessions"] });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const statusColor: Record<string, string> = {
+    connected: "text-primary border-primary/40 bg-primary/10",
+    pending_connect: "text-yellow-400 border-yellow-400/30 bg-yellow-400/5",
+    pending_disconnect: "text-orange-400 border-orange-400/30 bg-orange-400/5",
+    error: "text-red-400 border-red-400/30 bg-red-400/5",
+    disconnected: "text-primary/30 border-primary/10",
+  };
+
+  return (
+    <div className="border border-cyan-400/20 bg-black p-3 space-y-3">
+      <div className="text-[10px] font-mono uppercase tracking-widest text-cyan-400/70 flex items-center gap-2">
+        <Layers className="w-3 h-3 text-cyan-400" />
+        Node Double-Hop
+        {sessionsFetching && <Loader className="w-2.5 h-2.5 animate-spin ml-auto text-primary/30" />}
+      </div>
+
+      <div className="text-[9px] font-mono text-primary/30 leading-relaxed">
+        Route each ProxhqVPN node through a VPN Gate relay — traffic becomes double-encrypted before reaching the internet.
+      </div>
+
+      <div className="flex items-center gap-1.5">
+        <span className="text-[9px] font-mono text-primary/40 shrink-0">EXIT COUNTRY</span>
+        <input
+          value={selectedCountry}
+          onChange={(e) => setSelectedCountry(e.target.value.toUpperCase().slice(0, 2))}
+          placeholder="ANY"
+          className="flex-1 bg-black border border-primary/20 text-primary font-mono text-[9px] px-2 py-1 uppercase w-16 focus:outline-none focus:border-primary/40"
+          maxLength={2}
+        />
+        <span className="text-[8px] font-mono text-primary/20">e.g. JP · KR · DE</span>
+      </div>
+
+      {nodes.length === 0 ? (
+        <div className="text-[9px] font-mono text-primary/20 text-center py-3 border border-primary/10">
+          No nodes online
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {nodes.map((node) => {
+            const session = sessionByNode[node.id];
+            const st = session?.status ?? "off";
+            const isOff = !session;
+            const isOn = session?.status === "connected";
+            const isPending = st === "pending_connect" || st === "pending_disconnect";
+            const isErr = st === "error";
+            const isWorking = enableMutation.isPending || disableMutation.isPending;
+
+            return (
+              <div key={node.id} className="border border-primary/10 bg-black/30 p-2 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-[9px] font-mono text-primary font-bold uppercase">{node.name}</div>
+                    <div className="text-[8px] font-mono text-primary/30">{node.region}</div>
+                  </div>
+                  <div className={`text-[8px] font-mono px-1.5 py-0.5 border uppercase ${statusColor[st] ?? "text-primary/20 border-primary/10"}`}>
+                    {isOff ? "OFF" : st.replace("_", " ")}
+                  </div>
+                </div>
+
+                {session && (
+                  <div className="text-[8px] font-mono text-primary/40 space-y-0.5">
+                    <div>{countryFlag(session.serverCountryCode)} {session.serverCountry} · {session.serverIp}</div>
+                    {session.exitIp && <div className="text-cyan-400/60">EXIT: {session.exitIp}</div>}
+                    {session.errorMessage && <div className="text-red-400/60 truncate">{session.errorMessage}</div>}
+                  </div>
+                )}
+
+                <div className="flex gap-1.5">
+                  {(isOff || isErr) && (
+                    <button
+                      onClick={() => enableMutation.mutate({ nodeId: node.id, country: selectedCountry || undefined })}
+                      disabled={isWorking}
+                      className="flex-1 text-[8px] font-mono py-1 border border-cyan-400/30 text-cyan-400/70 hover:bg-cyan-400/10 uppercase transition-colors disabled:opacity-40 flex items-center justify-center gap-1"
+                    >
+                      <Play className="w-2 h-2" />
+                      ENABLE
+                    </button>
+                  )}
+                  {(isOn || isPending) && (
+                    <button
+                      onClick={() => disableMutation.mutate(node.id)}
+                      disabled={isWorking || st === "pending_disconnect"}
+                      className="flex-1 text-[8px] font-mono py-1 border border-red-400/30 text-red-400/70 hover:bg-red-400/10 uppercase transition-colors disabled:opacity-40 flex items-center justify-center gap-1"
+                    >
+                      <Square className="w-2 h-2" />
+                      DISABLE
+                    </button>
+                  )}
+                  {(isOn || isPending) && (
+                    <button
+                      onClick={() => enableMutation.mutate({ nodeId: node.id, country: selectedCountry || undefined })}
+                      disabled={isWorking}
+                      className="text-[8px] font-mono px-2 py-1 border border-primary/20 text-primary/40 hover:bg-primary/10 uppercase transition-colors disabled:opacity-40"
+                      title="Switch to different exit server"
+                    >
+                      <RefreshCw className="w-2 h-2" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

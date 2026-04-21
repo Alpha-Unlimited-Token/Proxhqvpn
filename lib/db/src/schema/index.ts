@@ -6,3 +6,4 @@ export * from "./devices";
 export * from "./dnsshield";
 export * from "./users";
 export * from "./wireguard";
+export * from "./vpngate";

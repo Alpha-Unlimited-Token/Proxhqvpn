@@ -27,10 +27,13 @@ Autostart:
 """
 
 import argparse
+import base64
 import json
+import os
 import re
 import subprocess
 import sys
+import tempfile
 import time
 import urllib.request
 import urllib.error
@@ -219,6 +222,122 @@ def ack_peer(api_base: str, command_id: int, success: bool, psk: str, error: str
     post_to_api(api_base, "/daemon-inbound/peer-ack", payload, psk)
 
 
+def get_vpngate_action(api_base: str, node_id: int, psk: str) -> dict:
+    """Poll API for a pending VPN Gate action for this node."""
+    url = f"{api_base}/daemon-inbound/vpngate-config?nodeId={node_id}"
+    req = urllib.request.Request(url, headers={"X-Daemon-PSK": psk})
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            return json.loads(resp.read())
+    except Exception as e:
+        print(f"[proxhqd] VPN Gate poll failed: {e}", file=sys.stderr)
+        return {"action": "none"}
+
+
+def ack_vpngate(api_base: str, session_id: int, success: bool, status: str, psk: str,
+                exit_ip: str = "", error: str = "") -> None:
+    """Ack VPN Gate connection state back to the API."""
+    payload = {"sessionId": session_id, "success": success, "status": status}
+    if exit_ip:
+        payload["exitIp"] = exit_ip
+    if error:
+        payload["errorMessage"] = error
+    post_to_api(api_base, "/daemon-inbound/vpngate-ack", payload, psk)
+
+
+def get_public_ip() -> str:
+    """Detect the current public exit IP."""
+    for url in ["https://api.ipify.org", "https://icanhazip.com", "https://ipinfo.io/ip"]:
+        try:
+            with urllib.request.urlopen(url, timeout=6) as resp:
+                return resp.read().decode().strip()
+        except Exception:
+            pass
+    return ""
+
+
+def start_vpngate(config_b64: str, node_id: int) -> "subprocess.Popen | None":
+    """Start OpenVPN with a VPN Gate config and swap iptables to route through tun0."""
+    try:
+        config = base64.b64decode(config_b64).decode("utf-8", errors="replace")
+    except Exception as e:
+        print(f"[proxhqd] Failed to decode VPN Gate config: {e}", file=sys.stderr)
+        return None
+
+    # Write config and credentials to temp files
+    ovpn_path = f"/tmp/proxhq-vpngate-{node_id}.ovpn"
+    creds_path = f"/tmp/proxhq-vpngate-{node_id}-creds.txt"
+    try:
+        with open(ovpn_path, "w") as f:
+            f.write(config)
+        with open(creds_path, "w") as f:
+            f.write("vpn\nvpn\n")
+        os.chmod(ovpn_path, 0o600)
+        os.chmod(creds_path, 0o600)
+    except Exception as e:
+        print(f"[proxhqd] Failed to write VPN Gate files: {e}", file=sys.stderr)
+        return None
+
+    print("[proxhqd] Starting OpenVPN for VPN Gate double-hop...")
+    try:
+        proc = subprocess.Popen(
+            ["openvpn", "--config", ovpn_path, "--auth-user-pass", creds_path,
+             "--verb", "1", "--connect-timeout", "30", "--resolv-retry", "infinite"],
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        )
+    except FileNotFoundError:
+        print("[proxhqd] openvpn not found — install with: apt install openvpn", file=sys.stderr)
+        return None
+    except Exception as e:
+        print(f"[proxhqd] Failed to start openvpn: {e}", file=sys.stderr)
+        return None
+
+    # Wait for tun0 to appear (up to 60 seconds)
+    for i in range(60):
+        result = subprocess.run(["ip", "link", "show", "tun0"], capture_output=True)
+        if result.returncode == 0:
+            print("[proxhqd] tun0 is up — switching iptables to route through VPN Gate")
+            break
+        time.sleep(1)
+    else:
+        print("[proxhqd] tun0 never appeared — VPN Gate connection may have failed", file=sys.stderr)
+        proc.terminate()
+        return None
+
+    # Swap iptables NAT: eth0 → tun0 so WireGuard clients exit through VPN Gate
+    subprocess.run(["iptables", "-t", "nat", "-D", "POSTROUTING", "-o", "eth0", "-j", "MASQUERADE"],
+                   capture_output=True)
+    subprocess.run(["iptables", "-t", "nat", "-A", "POSTROUTING", "-o", "tun0", "-j", "MASQUERADE"],
+                   capture_output=True)
+    print("[proxhqd] VPN Gate double-hop active — traffic now exits through tun0")
+    return proc
+
+
+def stop_vpngate(proc: "subprocess.Popen | None", node_id: int) -> None:
+    """Stop OpenVPN and restore direct routing through eth0."""
+    if proc and proc.poll() is None:
+        print("[proxhqd] Stopping VPN Gate OpenVPN process...")
+        proc.terminate()
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+
+    # Remove NAT rule for tun0 and restore eth0
+    subprocess.run(["iptables", "-t", "nat", "-D", "POSTROUTING", "-o", "tun0", "-j", "MASQUERADE"],
+                   capture_output=True)
+    subprocess.run(["iptables", "-t", "nat", "-A", "POSTROUTING", "-o", "eth0", "-j", "MASQUERADE"],
+                   capture_output=True)
+
+    # Clean up temp files
+    for path in [f"/tmp/proxhq-vpngate-{node_id}.ovpn", f"/tmp/proxhq-vpngate-{node_id}-creds.txt"]:
+        try:
+            os.unlink(path)
+        except Exception:
+            pass
+    print("[proxhqd] VPN Gate stopped — traffic restored through eth0")
+
+
 def main():
     parser = argparse.ArgumentParser(description="ProxhqVPN Node Daemon")
     parser.add_argument("--api", required=True, help="API base URL (e.g. https://yourapp.replit.app/api)")
@@ -229,6 +348,10 @@ def main():
     args = parser.parse_args()
 
     print(f"[proxhqd] Starting — node_id={args.node_id} api={args.api} interval={args.interval}s")
+
+    # VPN Gate state
+    vpngate_proc = None         # OpenVPN subprocess
+    vpngate_session_id = None   # Active session ID
 
     while True:
         try:
@@ -245,9 +368,10 @@ def main():
             ok = post_to_api(args.api, "/daemon-inbound/report", report, args.psk)
             ts = datetime.now().strftime("%H:%M:%S")
             status = "OK" if ok else "FAIL"
-            print(f"[proxhqd] {ts} report={status} peers={len(peers)} cpu={sys_stats['cpuPercent']}%")
+            vg_status = f" vpngate={'ON' if vpngate_proc else 'OFF'}"
+            print(f"[proxhqd] {ts} report={status} peers={len(peers)} cpu={sys_stats['cpuPercent']}%{vg_status}")
 
-            # Auto-register any pending peers from the API
+            # Auto-register any pending WireGuard peers
             pending = get_pending_peers(args.api, args.node_id, args.psk)
             for cmd in pending:
                 pub_key = cmd["clientPublicKey"]
@@ -261,6 +385,52 @@ def main():
                 else:
                     print(f"[proxhqd] Peer {ip} FAILED: {error}", file=sys.stderr)
 
+            # VPN Gate double-hop management
+            vg_action = get_vpngate_action(args.api, args.node_id, args.psk)
+            action = vg_action.get("action", "none")
+
+            if action == "connect" and vpngate_proc is None:
+                session_id = vg_action["sessionId"]
+                config_b64 = vg_action["ovpnConfigB64"]
+                country = vg_action.get("serverCountry", "?")
+                server_ip = vg_action.get("serverIp", "?")
+                print(f"[proxhqd] VPN Gate connect requested → {country} ({server_ip})")
+                proc = start_vpngate(config_b64, args.node_id)
+                if proc:
+                    vpngate_proc = proc
+                    vpngate_session_id = session_id
+                    exit_ip = get_public_ip()
+                    ack_vpngate(args.api, session_id, True, "connected", args.psk, exit_ip=exit_ip)
+                    print(f"[proxhqd] VPN Gate connected — exit IP: {exit_ip}")
+                else:
+                    ack_vpngate(args.api, session_id, False, "error", args.psk,
+                                error="OpenVPN failed to start or tun0 never appeared")
+
+            elif action == "connect" and vpngate_proc is not None:
+                # Already connected — check if process is still alive
+                if vpngate_proc.poll() is not None:
+                    print("[proxhqd] VPN Gate process died unexpectedly — reconnecting...")
+                    vpngate_proc = None
+                    vpngate_session_id = None
+                    stop_vpngate(None, args.node_id)
+                    # Will reconnect on next cycle
+
+            elif action == "disconnect" and vpngate_proc is not None:
+                session_id = vg_action["sessionId"]
+                print(f"[proxhqd] VPN Gate disconnect requested")
+                stop_vpngate(vpngate_proc, args.node_id)
+                vpngate_proc = None
+                vpngate_session_id = None
+                ack_vpngate(args.api, session_id, True, "disconnected", args.psk)
+
+            # Check if active VPN Gate process died
+            if vpngate_proc is not None and vpngate_proc.poll() is not None:
+                print("[proxhqd] VPN Gate process exited unexpectedly — restoring direct routing")
+                stop_vpngate(None, args.node_id)
+                vpngate_proc = None
+                vpngate_session_id = None
+
+            # Beacon detection
             probes = detect_beacon_probes(args.beacon_log)
             for probe in probes:
                 beacon_payload = {

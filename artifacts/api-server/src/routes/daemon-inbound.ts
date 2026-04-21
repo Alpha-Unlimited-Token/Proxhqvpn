@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { nodesTable, beaconAlertsTable, wgPeerCommandsTable } from "@workspace/db";
+import { nodesTable, beaconAlertsTable, wgPeerCommandsTable, vpngateNodeSessionsTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 
@@ -113,6 +113,72 @@ router.post("/peer-ack", async (req, res) => {
     appliedAt: body.success ? new Date() : null,
     errorMessage: body.errorMessage ?? null,
   }).where(eq(wgPeerCommandsTable.id, body.commandId));
+
+  return res.json({ ok: true });
+});
+
+// VPN Gate double-hop endpoints
+
+// Daemon polls this to get the current VPN Gate config for its node
+router.get("/vpngate-config", async (req, res) => {
+  const nodeId = parseInt(req.query.nodeId as string);
+  if (!nodeId) return res.status(400).json({ error: "nodeId required" });
+
+  const [session] = await db
+    .select()
+    .from(vpngateNodeSessionsTable)
+    .where(and(
+      eq(vpngateNodeSessionsTable.nodeId, nodeId),
+    ))
+    .orderBy(vpngateNodeSessionsTable.assignedAt)
+    .limit(1);
+
+  if (!session) return res.json({ action: "none" });
+
+  if (session.status === "pending_connect") {
+    return res.json({
+      action: "connect",
+      sessionId: session.id,
+      serverIp: session.serverIp,
+      serverCountry: session.serverCountry,
+      serverCountryCode: session.serverCountryCode,
+      ovpnConfigB64: session.ovpnConfigB64,
+    });
+  }
+
+  if (session.status === "pending_disconnect") {
+    return res.json({ action: "disconnect", sessionId: session.id });
+  }
+
+  return res.json({ action: "none", status: session.status });
+});
+
+// Daemon acks VPN Gate connection status
+router.post("/vpngate-ack", async (req, res) => {
+  const body = z.object({
+    sessionId: z.number(),
+    success: z.boolean(),
+    status: z.enum(["connected", "disconnected", "error"]),
+    exitIp: z.string().optional(),
+    errorMessage: z.string().optional(),
+  }).parse(req.body);
+
+  const newStatus = body.success
+    ? (body.status === "disconnected" ? "disconnected" : "connected")
+    : "error";
+
+  await db.update(vpngateNodeSessionsTable).set({
+    status: newStatus,
+    exitIp: body.exitIp ?? null,
+    errorMessage: body.errorMessage ?? null,
+    connectedAt: body.status === "connected" ? new Date() : undefined,
+    updatedAt: new Date(),
+  }).where(eq(vpngateNodeSessionsTable.id, body.sessionId));
+
+  // If disconnected, delete the session so the node stays clean
+  if (newStatus === "disconnected") {
+    await db.delete(vpngateNodeSessionsTable).where(eq(vpngateNodeSessionsTable.id, body.sessionId));
+  }
 
   return res.json({ ok: true });
 });

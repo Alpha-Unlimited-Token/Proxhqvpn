@@ -92,7 +92,7 @@ ok
 echo "[1/7] Installing WireGuard..."
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq 2>&1 | tail -1 || true
-apt-get install -y wireguard wireguard-tools curl python3 iptables 2>&1 | grep -E "^(Err|W:|E:)" || true
+apt-get install -y wireguard wireguard-tools openvpn curl python3 iptables 2>&1 | grep -E "^(Err|W:|E:)" || true
 which wg > /dev/null 2>&1 || die "WireGuard failed to install. Try: apt-get install wireguard"
 ok
 
