@@ -29,6 +29,13 @@ export const trappedAttackersTable = pgTable("trapped_attackers", {
   loopCount: integer("loop_count").notNull().default(0),
   trappedAt: timestamp("trapped_at").defaultNow().notNull(),
   dataCollected: text("data_collected").notNull().default(""),
+  honeypotPort: integer("honeypot_port"),
+  probeType: text("probe_type").default("port_scan"),
+  sqlmapStatus: text("sqlmap_status").default("idle"),
+  sqlmapJobId: text("sqlmap_job_id"),
+  sqlmapResults: text("sqlmap_results"),
+  sqlmapStartedAt: timestamp("sqlmap_started_at"),
+  sqlmapFinishedAt: timestamp("sqlmap_finished_at"),
 });
 
 export type InsertSilkWeb = typeof silkWebTable.$inferInsert;

@@ -31,10 +31,13 @@ import base64
 import json
 import os
 import re
+import socket
+import socketserver
 import ssl
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import urllib.request
 import urllib.error
@@ -345,6 +348,96 @@ def stop_vpngate(proc: "subprocess.Popen | None", node_id: int) -> None:
     print("[proxhqd] VPN Gate stopped — traffic restored through eth0")
 
 
+# ─── Honeypot Spider — emulates an open port to lure and trap attackers ───────
+
+HONEYPOT_PORT = 8880  # Looks like an alt-HTTP port, common scan target
+
+# Fake banners to make the port look real to scanners
+_HONEYPOT_BANNERS = {
+    "http": (
+        b"HTTP/1.1 200 OK\r\n"
+        b"Server: Apache/2.4.51 (Ubuntu)\r\n"
+        b"Content-Type: text/html; charset=utf-8\r\n"
+        b"Connection: close\r\n\r\n"
+        b"<html><body><h1>It works!</h1><p>Apache2 Default Page</p></body></html>\r\n"
+    ),
+    "default": (
+        b"220 ProFTPD 1.3.5 Server ready.\r\n"
+    ),
+}
+
+def _honeypot_respond(request: bytes) -> bytes:
+    req_str = request.decode("latin-1", errors="replace")
+    if req_str.startswith("GET ") or req_str.startswith("POST ") or req_str.startswith("HEAD "):
+        return _HONEYPOT_BANNERS["http"]
+    return _HONEYPOT_BANNERS["default"]
+
+
+class HoneypotHandler(socketserver.BaseRequestHandler):
+    """Handles incoming connections to the honeypot port."""
+    api_base: str = ""
+    node_id: int = 0
+    psk: str = ""
+
+    def handle(self):
+        attacker_ip = self.client_address[0]
+        try:
+            self.request.settimeout(3)
+            raw = b""
+            try:
+                raw = self.request.recv(1024)
+            except Exception:
+                pass
+
+            # Send a convincing response to keep them engaged
+            try:
+                banner = _honeypot_respond(raw)
+                self.request.sendall(banner)
+            except Exception:
+                pass
+
+            raw_str = raw.decode("latin-1", errors="replace")[:500]
+            print(f"[honeypot] Connection from {attacker_ip} on port {HONEYPOT_PORT} — {raw_str[:60]!r}")
+
+            # Report to API
+            payload = {
+                "nodeId": HoneypotHandler.node_id,
+                "attackerIp": attacker_ip,
+                "port": HONEYPOT_PORT,
+                "banner": _honeypot_respond(raw).decode("latin-1", errors="replace")[:200],
+                "rawRequest": raw_str,
+            }
+            post_to_api(HoneypotHandler.api_base, "/daemon-inbound/honeypot-hit", payload, HoneypotHandler.psk)
+
+        except Exception as exc:
+            print(f"[honeypot] ERROR handling {attacker_ip}: {exc}", file=sys.stderr)
+
+
+class ReusableTCPServer(socketserver.TCPServer):
+    allow_reuse_address = True
+    daemon_threads = True
+
+
+def start_honeypot_thread(api_base: str, node_id: int, psk: str) -> threading.Thread:
+    """Start the honeypot TCP listener in a background daemon thread."""
+    HoneypotHandler.api_base = api_base
+    HoneypotHandler.node_id = node_id
+    HoneypotHandler.psk = psk
+
+    def _run():
+        try:
+            with ReusableTCPServer(("0.0.0.0", HONEYPOT_PORT), HoneypotHandler) as server:
+                server.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                print(f"[honeypot] Spider listening on port {HONEYPOT_PORT} (honeypot)")
+                server.serve_forever()
+        except Exception as exc:
+            print(f"[honeypot] Failed to start on port {HONEYPOT_PORT}: {exc}", file=sys.stderr)
+
+    t = threading.Thread(target=_run, daemon=True, name="honeypot")
+    t.start()
+    return t
+
+
 def main():
     parser = argparse.ArgumentParser(description="ProxhqVPN Node Daemon")
     parser.add_argument("--api", required=True, help="API base URL (e.g. https://yourapp.replit.app/api)")
@@ -355,6 +448,9 @@ def main():
     args = parser.parse_args()
 
     print(f"[proxhqd] Starting — node_id={args.node_id} api={args.api} interval={args.interval}s")
+
+    # Start honeypot spider in background thread
+    start_honeypot_thread(args.api, args.node_id, args.psk)
 
     # VPN Gate state
     vpngate_proc = None         # OpenVPN subprocess

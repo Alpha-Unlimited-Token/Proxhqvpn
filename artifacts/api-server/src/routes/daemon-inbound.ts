@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { nodesTable, beaconAlertsTable, wgPeerCommandsTable, vpngateNodeSessionsTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { nodesTable, beaconAlertsTable, wgPeerCommandsTable, vpngateNodeSessionsTable, trappedAttackersTable, silkWebTable } from "@workspace/db";
+import { eq, and, sql } from "drizzle-orm";
 import { z } from "zod";
 
 const router = Router();
@@ -72,21 +72,42 @@ router.post("/beacon", async (req, res) => {
     tunnel_probe: "critical",
   };
 
+  const severity = severityMap[body.probeType];
+  const fp = body.fingerprint ?? `IP:${body.attackerIp}|Source:proxhqd`;
+
+  // Auto-trap high/critical probes into the silkweb
+  let silkWebTrapped = false;
+  if (severity === "high" || severity === "critical") {
+    const existing = await db.select().from(trappedAttackersTable).where(sql`ip = ${body.attackerIp}`).limit(1);
+    if (existing.length === 0) {
+      await db.insert(trappedAttackersTable).values({
+        ip: body.attackerIp,
+        fingerprint: fp,
+        entryNodeId: body.nodeId,
+        loopCount: 0,
+        dataCollected: JSON.stringify({ probeType: body.probeType, severity, raw: body.raw }),
+        probeType: body.probeType,
+        sqlmapStatus: "idle",
+      });
+      silkWebTrapped = true;
+    }
+  }
+
   const [alert] = await db.insert(beaconAlertsTable).values({
     nodeId: body.nodeId,
     nodeName: node.name,
     nodeLayer: node.layer,
     attackerIp: body.attackerIp,
-    attackerFingerprint: body.fingerprint ?? `IP:${body.attackerIp}|Source:proxhqd`,
+    attackerFingerprint: fp,
     probeType: body.probeType,
-    severity: severityMap[body.probeType],
+    severity,
     status: "active",
-    silkWebTrapped: false,
+    silkWebTrapped,
     rawData: body.raw ?? null,
     detectedAt: new Date(),
   }).returning();
 
-  return res.status(201).json({ ok: true, alertId: alert.id });
+  return res.status(201).json({ ok: true, alertId: alert.id, silkWebTrapped });
 });
 
 router.get("/pending-peers", async (req, res) => {
@@ -115,6 +136,67 @@ router.post("/peer-ack", async (req, res) => {
   }).where(eq(wgPeerCommandsTable.id, body.commandId));
 
   return res.json({ ok: true });
+});
+
+// Honeypot port connection hit — spider emulating open port trapped a visitor
+router.post("/honeypot-hit", async (req, res) => {
+  const body = z.object({
+    nodeId: z.number(),
+    attackerIp: z.string(),
+    port: z.number(),
+    banner: z.string().optional(),
+    rawRequest: z.string().optional(),
+  }).parse(req.body);
+
+  const [node] = await db.select().from(nodesTable).where(eq(nodesTable.id, body.nodeId));
+  if (!node) return res.status(404).json({ error: "Node not found" });
+
+  const fp = `IP:${body.attackerIp}|PORT:${body.port}|NODE:${node.name}|TS:${Date.now()}`;
+
+  // Always trap honeypot visitors into silkweb (they connected to fake open port)
+  const existing = await db.select().from(trappedAttackersTable).where(sql`ip = ${body.attackerIp}`).limit(1);
+  let trappedId: number | null = null;
+
+  if (existing.length === 0) {
+    const [trapped] = await db.insert(trappedAttackersTable).values({
+      ip: body.attackerIp,
+      fingerprint: fp,
+      entryNodeId: body.nodeId,
+      loopCount: 0,
+      dataCollected: JSON.stringify({
+        honeypotPort: body.port,
+        banner: body.banner,
+        rawRequest: body.rawRequest?.substring(0, 500),
+        nodeRegion: node.region,
+      }),
+      honeypotPort: body.port,
+      probeType: "honeypot_connect",
+      sqlmapStatus: "idle",
+    }).returning();
+    trappedId = trapped.id;
+  } else {
+    trappedId = existing[0].id;
+    await db.update(trappedAttackersTable).set({
+      loopCount: sql`loop_count + 1`,
+    }).where(eq(trappedAttackersTable.id, existing[0].id));
+  }
+
+  // Create a beacon alert for visibility in the Beacons panel
+  await db.insert(beaconAlertsTable).values({
+    nodeId: body.nodeId,
+    nodeName: node.name,
+    nodeLayer: node.layer,
+    attackerIp: body.attackerIp,
+    attackerFingerprint: fp,
+    probeType: "port_scan",
+    severity: "critical",
+    status: "active",
+    silkWebTrapped: true,
+    rawData: body.rawRequest ?? `Honeypot port ${body.port} hit`,
+    detectedAt: new Date(),
+  });
+
+  return res.status(201).json({ ok: true, trappedId, message: `${body.attackerIp} trapped via honeypot port ${body.port}` });
 });
 
 // VPN Gate double-hop endpoints

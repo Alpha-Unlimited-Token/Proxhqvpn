@@ -2,8 +2,10 @@ import { useState, useEffect } from "react";
 import { Link } from "wouter";
 import {
   Shield, Zap, Lock, Globe, Eye, Network, Check, ChevronDown, ChevronUp,
-  ArrowRight, Menu, X, Wifi, Server, Clock, Star
+  ArrowRight, Menu, X, Wifi, Server, Clock, Star, Bug, AlertTriangle
 } from "lucide-react";
+
+const BASE_API = import.meta.env.BASE_URL.replace(/\/$/, "") + "/api";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -245,8 +247,37 @@ function FAQItem({ q, a }: { q: string; a: string }) {
   );
 }
 
+const NODE_LOCATIONS = [
+  { city: "Chicago",        country: "USA",    flag: "🇺🇸", latency: "12ms",  status: "online" },
+  { city: "London",         country: "UK",     flag: "🇬🇧", latency: "18ms",  status: "online" },
+  { city: "Los Angeles",    country: "USA",    flag: "🇺🇸", latency: "22ms",  status: "online" },
+  { city: "Tokyo",          country: "Japan",  flag: "🇯🇵", latency: "38ms",  status: "online" },
+];
+
+function useLiveStats() {
+  const [stats, setStats] = useState<{
+    activeNodes: number; trappedAttackers: number; silkRoutes: number;
+    honeypotNodes: number; sqlmapJobs: number;
+  } | null>(null);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const r = await fetch(`${BASE_API}/silkweb/stats`);
+        if (r.ok) setStats(await r.json());
+      } catch { /* ignore */ }
+    };
+    load();
+    const id = setInterval(load, 30000);
+    return () => clearInterval(id);
+  }, []);
+
+  return stats;
+}
+
 export default function Home() {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const liveStats = useLiveStats();
 
   return (
     <div className="min-h-screen bg-[#080d09] text-white">
@@ -260,7 +291,9 @@ export default function Home() {
         <div className="max-w-4xl mx-auto text-center relative">
           <div className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-full px-4 py-1.5 mb-8">
             <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-            <span className="text-xs text-primary font-medium">Network Online — Chicago Node Active</span>
+            <span className="text-xs text-primary font-medium">
+              4 Nodes Online — Chicago · London · LA · Tokyo
+            </span>
           </div>
 
           <h1 className="text-5xl md:text-7xl font-bold tracking-tight mb-6 leading-[1.05]">
@@ -290,13 +323,20 @@ export default function Home() {
           </div>
 
           {/* Stats */}
-          <div className="grid grid-cols-3 gap-4 max-w-lg mx-auto">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-2xl mx-auto">
             {[
-              { value: "256-bit", label: "Encryption" },
-              { value: "99.9%", label: "Uptime SLA" },
-              { value: "< 30s", label: "Setup time" },
-            ].map(({ value, label }) => (
-              <div key={label} className="bg-white/[0.03] border border-white/[0.06] rounded-xl py-4">
+              { value: "4", label: "Global Nodes", live: false },
+              { value: "4", label: "Honeypot Traps", live: false },
+              { value: liveStats ? String(liveStats.trappedAttackers) : "—", label: "Attackers Trapped", live: true },
+              { value: "< 30s", label: "Setup Time", live: false },
+            ].map(({ value, label, live }) => (
+              <div key={label} className="bg-white/[0.03] border border-white/[0.06] rounded-xl py-4 relative overflow-hidden">
+                {live && (
+                  <div className="absolute top-1.5 right-2 flex items-center gap-1">
+                    <div className="w-1 h-1 rounded-full bg-primary animate-pulse" />
+                    <span className="text-[8px] text-primary/50 uppercase tracking-widest">live</span>
+                  </div>
+                )}
                 <div className="text-xl font-bold text-primary">{value}</div>
                 <div className="text-xs text-white/35 mt-0.5">{label}</div>
               </div>
@@ -329,6 +369,71 @@ export default function Home() {
                 <p className="text-xs text-white/40 leading-relaxed">{desc}</p>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── SERVER LOCATIONS ── */}
+      <section className="py-20 px-6 border-t border-white/[0.05]">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-12">
+            <div className="text-xs font-semibold text-primary/60 uppercase tracking-widest mb-3">Global Infrastructure</div>
+            <h2 className="text-3xl font-bold tracking-tight mb-3">4 dedicated nodes. All online.</h2>
+            <p className="text-white/40 max-w-xl mx-auto">
+              Each node runs WireGuard, a honeypot spider, and a beacon intrusion sensor — all reporting live to your dashboard.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-12">
+            {NODE_LOCATIONS.map(({ city, country, flag, latency, status }) => (
+              <div key={city} className="bg-[#0d1610] border border-white/[0.07] rounded-2xl p-5 hover:border-primary/20 transition-all">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-2xl">{flag}</span>
+                  <span className="flex items-center gap-1 text-[10px] text-primary font-mono uppercase">
+                    <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                    {status}
+                  </span>
+                </div>
+                <div className="font-bold text-white">{city}</div>
+                <div className="text-xs text-white/40 mb-3">{country}</div>
+                <div className="flex items-center gap-3 text-xs font-mono">
+                  <span className="flex items-center gap-1 text-primary/60">
+                    <Zap className="w-3 h-3" /> {latency}
+                  </span>
+                  <span className="flex items-center gap-1 text-yellow-400/60">
+                    <AlertTriangle className="w-3 h-3" /> Honeypot
+                  </span>
+                  <span className="flex items-center gap-1 text-primary/60">
+                    <Bug className="w-3 h-3" /> Spider
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Honeypot mesh banner */}
+          <div className="bg-[#0d1610] border border-yellow-500/20 rounded-2xl p-6 flex flex-col md:flex-row items-center gap-6">
+            <div className="w-12 h-12 rounded-xl bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center shrink-0">
+              <Bug className="w-6 h-6 text-yellow-400" />
+            </div>
+            <div className="flex-1 text-center md:text-left">
+              <div className="font-bold text-white mb-1">SilkWeb Honeypot Mesh</div>
+              <p className="text-sm text-white/45">
+                Every node runs a spider that emulates an open HTTP port — luring attackers in with a convincing fake server.
+                When they connect, they're silently fingerprinted and trapped in the SilkWeb decoy network. 
+                As the owner, you can then launch a full SQL injection scan against the trapped attacker's IP directly from your dashboard.
+              </p>
+            </div>
+            <div className="shrink-0 flex items-center gap-3">
+              <div className="text-center">
+                <div className="text-xl font-bold text-yellow-400">{liveStats ? liveStats.trappedAttackers : "—"}</div>
+                <div className="text-[10px] text-white/35 uppercase tracking-widest">Trapped</div>
+              </div>
+              <div className="text-center">
+                <div className="text-xl font-bold text-primary">{liveStats ? liveStats.silkRoutes : "—"}</div>
+                <div className="text-[10px] text-white/35 uppercase tracking-widest">Web Routes</div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
