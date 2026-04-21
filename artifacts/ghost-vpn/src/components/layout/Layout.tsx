@@ -190,7 +190,7 @@ export function Layout({ children }: LayoutProps) {
   const closeSidebar = () => setSidebarOpen(false);
 
   const SidebarContent = () => (
-    <div className="flex flex-col h-full overflow-hidden">
+    <div className="flex flex-col h-full">
       {/* Logo */}
       <div className="px-4 py-4 flex items-center gap-3 border-b border-white/[0.05] shrink-0">
         <div className="w-8 h-8 rounded-lg bg-primary/12 border border-primary/25 flex items-center justify-center shrink-0">
@@ -208,7 +208,10 @@ export function Layout({ children }: LayoutProps) {
       </div>
 
       {/* Scrollable nav */}
-      <nav className="flex-1 overflow-y-auto px-2 py-1 scrollbar-none" style={{ scrollbarWidth: "none" }}>
+      <nav
+        className="flex-1 overflow-y-auto px-2 pt-1 pb-4 scrollbar-none min-h-0"
+        style={{ scrollbarWidth: "none", WebkitOverflowScrolling: "touch", overscrollBehavior: "contain" }}
+      >
         <NavSection label="My VPN" items={USER_NAV} onNav={closeSidebar} />
         <NavSection label="Ambassadors" items={AMBASSADOR_NAV} onNav={closeSidebar} />
         {hasAccess && (
@@ -233,7 +236,7 @@ export function Layout({ children }: LayoutProps) {
             <Zap className="w-3.5 h-3.5 text-primary/70 group-hover:text-primary shrink-0" />
             <div className="min-w-0 flex-1">
               <div className="text-[11px] font-semibold text-primary/80 leading-none">Subscribe to Get Started</div>
-              <div className="text-[10px] text-primary/40 mt-0.5">VPN from $6.99 · Pro from $34.99</div>
+              <div className="text-[10px] text-primary/40 mt-0.5">VPN from $6.99 · Pro from $39.99</div>
             </div>
           </Link>
         </div>
@@ -309,9 +312,9 @@ export function Layout({ children }: LayoutProps) {
 
       {/* Sidebar */}
       <aside className={`
-        fixed lg:static inset-y-0 left-0 z-40
-        w-56 bg-[#090e0a] border-r border-white/[0.05]
-        flex flex-col shrink-0
+        fixed lg:sticky inset-y-0 left-0 z-40 top-0
+        w-56 h-screen bg-[#090e0a] border-r border-white/[0.05]
+        flex flex-col shrink-0 overflow-hidden
         transition-transform duration-200 ease-out
         ${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
       `}>
