@@ -71,29 +71,44 @@ const SECURITY = [
 
 const PRICING_PLANS = [
   {
-    name: "Monthly",
-    price: "$9.99",
+    name: "VPN Basic",
+    price: "$6.99",
     period: "/month",
-    desc: "Cancel any time. No commitment.",
+    annual: "$59.99/yr",
+    annualNote: "Save 29% with annual",
+    desc: "Full privacy protection for everyday users.",
     highlight: false,
     badge: null,
+    features: [
+      "WireGuard AES-256 encryption",
+      "Kill switch & DNS leak protection",
+      "Double-hop routing",
+      "Split tunneling",
+      "SilkWeb threat detection",
+      "Unlimited devices",
+      "No logs policy",
+      "30-day money-back guarantee",
+    ],
   },
   {
-    name: "Annual",
-    price: "$69.99",
-    period: "/year",
-    sub: "Just $5.83/mo — save 42%",
-    desc: "Most popular. Best value for regular users.",
+    name: "Command Center Pro",
+    price: "$39.99",
+    period: "/month",
+    annual: "$349.99/yr",
+    annualNote: "Save 27% with annual",
+    desc: "Advanced security suite for power users and professionals.",
     highlight: true,
     badge: "MOST POPULAR",
-  },
-  {
-    name: "Lifetime",
-    price: "$149.99",
-    period: "one-time",
-    desc: "Pay once, protected forever. No renewals.",
-    highlight: false,
-    badge: "BEST DEAL",
+    features: [
+      "Everything in VPN Basic",
+      "Threat intelligence dashboard",
+      "Security audit tools",
+      "SQLmap vulnerability scanner",
+      "HTTP probe & directory fuzzer",
+      "Subdomain scanner",
+      "Alpha Toolkit (advanced recon)",
+      "Admin node management",
+    ],
   },
 ];
 
@@ -138,8 +153,8 @@ const FAQS = [
     a: "Yes. All plans come with a 30-day money-back guarantee. If you're not satisfied for any reason, contact us within 30 days for a full refund — no questions asked.",
   },
   {
-    q: "What is the Lifetime plan?",
-    a: "The Lifetime plan is a single one-time payment of $149.99 that gives you permanent access to ProxhqVPN with no recurring charges, ever. It's the best deal for long-term users.",
+    q: "What is the difference between VPN Basic and Command Center Pro?",
+    a: "VPN Basic ($6.99/mo) gives you full privacy protection — WireGuard encryption, kill switch, DNS shield, double-hop routing, split tunneling, and SilkWeb threat detection. Command Center Pro ($39.99/mo) adds the full professional security suite: threat intelligence, security audits, vulnerability scanning (SQLmap), HTTP probing, subdomain scanning, directory fuzzing, and the Alpha Toolkit — everything a security researcher or power user needs.",
   },
 ];
 
@@ -602,15 +617,15 @@ export default function Home() {
 
       {/* ── PRICING ── */}
       <section id="pricing" className="py-24 px-6 border-t border-white/[0.05]">
-        <div className="max-w-5xl mx-auto">
+        <div className="max-w-4xl mx-auto">
           <div className="text-center mb-16">
-            <div className="text-xs font-semibold text-primary/60 uppercase tracking-widest mb-3">Simple Pricing</div>
-            <h2 className="text-4xl font-bold tracking-tight mb-4">One plan. All features. Pick your term.</h2>
-            <p className="text-white/40 text-lg">No tiers, no limits, no surprises. Every plan includes everything.</p>
+            <div className="text-xs font-semibold text-primary/60 uppercase tracking-widest mb-3">Transparent Pricing</div>
+            <h2 className="text-4xl font-bold tracking-tight mb-4">Two tiers. No surprises.</h2>
+            <p className="text-white/40 text-lg">Start with VPN Basic or unlock the full security suite with Command Center Pro.</p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-            {PRICING_PLANS.map(({ name, price, period, sub, desc, highlight, badge }) => (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            {PRICING_PLANS.map(({ name, price, period, annual, annualNote, desc, highlight, badge, features }) => (
               <div
                 key={name}
                 className={`relative rounded-2xl overflow-hidden border transition-all ${
@@ -620,23 +635,21 @@ export default function Home() {
                 } bg-[#0d1610]`}
               >
                 {badge && (
-                  <div className={`text-center text-xs font-bold tracking-widest py-2 ${
-                    highlight ? "bg-primary text-black" : "bg-gradient-to-r from-yellow-500 to-orange-500 text-black"
-                  }`}>
+                  <div className="text-center text-xs font-bold tracking-widest py-2 bg-primary text-black">
                     {badge}
                   </div>
                 )}
                 <div className="p-8">
-                  <div className="text-sm font-semibold text-white/60 mb-4">{name}</div>
+                  <div className="text-xs font-bold text-primary/60 uppercase tracking-widest mb-2">{name}</div>
                   <div className="flex items-end gap-1 mb-1">
                     <span className="text-4xl font-bold text-white">{price}</span>
                     <span className="text-white/40 text-sm pb-1">{period}</span>
                   </div>
-                  {sub && <div className="text-primary text-sm font-medium mb-3">{sub}</div>}
-                  <p className="text-white/40 text-xs mb-6 leading-relaxed">{desc}</p>
+                  <div className="text-primary/70 text-xs font-medium mb-1">{annual} · <span className="text-primary/50">{annualNote}</span></div>
+                  <p className="text-white/40 text-xs mb-6 leading-relaxed mt-2">{desc}</p>
                   <Link
-                    href="/sign-up"
-                    className={`block text-center py-3 rounded-xl text-sm font-semibold transition-all ${
+                    href="/pricing"
+                    className={`block text-center py-3 rounded-xl text-sm font-semibold transition-all mb-6 ${
                       highlight
                         ? "bg-primary text-black hover:brightness-110 shadow-[0_0_20px_rgba(0,255,136,0.2)]"
                         : "border border-white/[0.1] text-white hover:border-white/20 hover:bg-white/[0.03]"
@@ -644,25 +657,22 @@ export default function Home() {
                   >
                     Get Started
                   </Link>
+                  <div className="space-y-2.5">
+                    {features.map((f) => (
+                      <div key={f} className="flex items-center gap-2.5">
+                        <div className="w-4 h-4 rounded-full bg-primary/10 border border-primary/25 flex items-center justify-center shrink-0">
+                          <Check className="w-2.5 h-2.5 text-primary" />
+                        </div>
+                        <span className="text-xs text-white/55">{f}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             ))}
           </div>
 
-          {/* Plan features list */}
-          <div className="bg-[#0d1610] border border-white/[0.07] rounded-2xl p-8">
-            <div className="text-sm font-semibold text-white/60 mb-6 text-center">All plans include every feature</div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {PLAN_FEATURES.map((f) => (
-                <div key={f} className="flex items-center gap-2.5">
-                  <div className="w-5 h-5 rounded-full bg-primary/10 border border-primary/25 flex items-center justify-center shrink-0">
-                    <Check className="w-3 h-3 text-primary" />
-                  </div>
-                  <span className="text-xs text-white/55">{f}</span>
-                </div>
-              ))}
-            </div>
-          </div>
+          <p className="text-center text-xs text-white/25">All plans include a 30-day money-back guarantee. Cancel any time.</p>
         </div>
       </section>
 

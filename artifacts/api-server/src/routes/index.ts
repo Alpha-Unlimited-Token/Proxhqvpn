@@ -62,7 +62,8 @@ router.use("/daemon-inbound", daemonInboundRouter);
 router.use("/node-provision", nodeProvisionRouter);
 
 // Public daemon download — serves proxhqd.py for deployment to VPN nodes
-router.get("/daemon-download", (_req: Request, res: Response) => {
+// Protected: requires admin auth since it could expose internal tooling
+router.get("/daemon-download", _requireAdmin, (_req: Request, res: Response) => {
   const filePath = path.resolve(process.cwd(), "../../tools/proxhqd.py");
   if (!fs.existsSync(filePath)) {
     return res.status(404).json({ error: "Daemon file not found" });
@@ -73,7 +74,8 @@ router.get("/daemon-download", (_req: Request, res: Response) => {
 });
 
 // Node setup script — returns a bash installer for new VPN servers
-router.get("/setup-script", (req: Request, res: Response) => {
+// MUST be admin-only: it embeds the DAEMON_PSK secret in the output
+router.get("/setup-script", _requireAdmin, (req: Request, res: Response) => {
   const psk = process.env.DAEMON_PSK || "";
   // Always use the stable Replit dev domain so external servers can reach us
   const replitDomain = process.env.REPLIT_DEV_DOMAIN || process.env.REPLIT_DOMAINS?.split(",")[0] || "";
@@ -264,7 +266,7 @@ router.use("/dir-fuzzer",      requireCommandCenter, dirFuzzerRouter);
 router.use("/subdomain-scan",  requireCommandCenter, subdomainScanRouter);
 
 // ── Admin-only routes ─────────────────────────────────────────────────────
-router.use("/employees",      employeesRouter);
+router.use("/employees",      requireAdmin, employeesRouter);
 router.use("/setup",          requireAdmin, setupRouter);
 
 export default router;

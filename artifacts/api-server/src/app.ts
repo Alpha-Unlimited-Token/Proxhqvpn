@@ -130,6 +130,14 @@ const mutateLimiter = rateLimit({
   message: { error: "Write rate limit exceeded." },
 });
 
+const ambassadorLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 10,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: { error: "Too many ambassador requests — please wait a moment." },
+});
+
 app.use(globalLimiter);
 
 app.use(express.json({ limit: "64kb", strict: true }));
@@ -150,6 +158,13 @@ app.use("/api/nodes", (req: Request, res: Response, next: NextFunction) => {
 });
 app.use("/api/firewall", (req: Request, res: Response, next: NextFunction) => {
   if (["POST", "PUT", "DELETE"].includes(req.method)) return mutateLimiter(req, res, next);
+  next();
+});
+// Strict rate limit on ambassador write operations to prevent abuse
+app.use("/api/ambassadors/apply", ambassadorLimiter);
+app.use("/api/ambassadors/record-referral", ambassadorLimiter);
+app.use("/api/ambassadors/me/videos", (req: Request, res: Response, next: NextFunction) => {
+  if (["POST", "DELETE"].includes(req.method)) return ambassadorLimiter(req, res, next);
   next();
 });
 

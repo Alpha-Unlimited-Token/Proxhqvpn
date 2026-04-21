@@ -2,7 +2,7 @@
  * Seed & maintain two Stripe products at server startup (idempotent).
  *
  * Tier 1 — VPN Basic          $6.99/mo · $59.99/yr
- * Tier 2 — Command Center Pro $34.99/mo · $299.99/yr
+ * Tier 2 — Command Center Pro $39.99/mo · $349.99/yr
  *
  * Products are tagged with metadata.tier = "vpn" | "command_center".
  * If a product already exists, its prices are reconciled to match

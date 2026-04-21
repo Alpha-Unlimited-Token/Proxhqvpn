@@ -1,8 +1,22 @@
 import { Router } from "express";
 import { getAuth } from "@clerk/express";
 import { db } from "@workspace/db";
-import { sql } from "drizzle-orm";
+import { usersTable } from "@workspace/db/schema";
+import { eq, sql } from "drizzle-orm";
 import crypto from "crypto";
+
+/** Normalize db.execute() result — returns plain array for simple queries, {rows} for complex aggregates */
+function toRows(result: unknown): any[] {
+  if (Array.isArray(result)) return result;
+  const r = result as any;
+  if (r && Array.isArray(r.rows)) return r.rows;
+  return [];
+}
+
+async function isAdminUser(userId: string): Promise<boolean> {
+  const [user] = await db.select({ isAdmin: usersTable.isAdmin }).from(usersTable).where(eq(usersTable.id, userId));
+  return user?.isAdmin === true;
+}
 
 const router = Router();
 
@@ -127,10 +141,10 @@ router.get("/", async (_req, res) => {
 router.get("/promo/:code", async (req, res) => {
   try {
     const code = sanitizePromoCode(req.params.code);
-    const rows = await db.execute(sql`
+    const rows = toRows(await db.execute(sql`
       SELECT id, name, promo_code, status FROM ambassadors WHERE promo_code = ${code} LIMIT 1
-    `);
-    const r = (rows as any[])[0];
+    `));
+    const r = rows[0];
     if (!r) return res.status(404).json({ error: "Promo code not found" });
     return res.json({ id: r.id, name: r.name, promoCode: r.promo_code, status: r.status });
   } catch {
@@ -154,19 +168,19 @@ router.post("/apply", async (req, res) => {
 
   try {
     // Check if already an ambassador
-    const existing = await db.execute(sql`SELECT id FROM ambassadors WHERE user_id = ${userId} LIMIT 1`);
-    if ((existing as any[]).length > 0) return res.status(400).json({ error: "You have already applied" });
+    const existing = toRows(await db.execute(sql`SELECT id FROM ambassadors WHERE user_id = ${userId} LIMIT 1`));
+    if (existing.length > 0) return res.status(400).json({ error: "You have already applied" });
 
     // Check promo code uniqueness
-    const codeCheck = await db.execute(sql`SELECT id FROM ambassadors WHERE promo_code = ${code} LIMIT 1`);
-    if ((codeCheck as any[]).length > 0) return res.status(400).json({ error: "Promo code already taken — choose a different one" });
+    const codeCheck = toRows(await db.execute(sql`SELECT id FROM ambassadors WHERE promo_code = ${code} LIMIT 1`));
+    if (codeCheck.length > 0) return res.status(400).json({ error: "Promo code already taken — choose a different one" });
 
-    const rows = await db.execute(sql`
+    const rows = toRows(await db.execute(sql`
       INSERT INTO ambassadors (user_id, name, bio, promo_code, avatar_url, social_urls, status)
       VALUES (${userId}, ${name.trim()}, ${bio?.trim() || null}, ${code}, ${avatarUrl?.trim() || null}, ${JSON.stringify(socialUrls || {})}::jsonb, 'pending')
       RETURNING id, name, promo_code, status
-    `);
-    const r = (rows as any[])[0];
+    `));
+    const r = rows[0];
     return res.status(201).json({ ok: true, ambassador: { id: r.id, name: r.name, promoCode: r.promo_code, status: r.status } });
   } catch (err: any) {
     if (err.message?.includes("unique")) return res.status(400).json({ error: "Promo code already taken" });
@@ -181,25 +195,25 @@ router.get("/me", async (req, res) => {
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
   try {
-    const rows = await db.execute(sql`
+    const rows = toRows(await db.execute(sql`
       SELECT a.id, a.name, a.bio, a.promo_code, a.avatar_url, a.social_urls,
              a.status, a.total_earnings_cents, a.created_at
       FROM ambassadors a WHERE a.user_id = ${userId} LIMIT 1
-    `);
-    const r = (rows as any[])[0];
+    `));
+    const r = rows[0];
     if (!r) return res.status(404).json({ error: "Not an ambassador" });
 
-    const videos = await db.execute(sql`
+    const videos = toRows(await db.execute(sql`
       SELECT id, title, description, video_url, embed_url, sort_order
       FROM ambassador_videos WHERE ambassador_id = ${r.id}
       ORDER BY sort_order, created_at
-    `);
-    const referrals = await db.execute(sql`
+    `));
+    const referrals = toRows(await db.execute(sql`
       SELECT id, customer_user_id, stripe_session_id, stripe_subscription_id,
              plan, amount_cents, commission_cents, paid_out, created_at
       FROM ambassador_referrals WHERE ambassador_id = ${r.id}
       ORDER BY created_at DESC LIMIT 100
-    `);
+    `));
 
     return res.json({
       id:                 r.id,
@@ -211,7 +225,7 @@ router.get("/me", async (req, res) => {
       status:             r.status,
       totalEarningsCents: r.total_earnings_cents,
       createdAt:          r.created_at,
-      videos:             (videos as any[]).map((v: any) => ({
+      videos:             videos.map((v: any) => ({
         id:          v.id,
         title:       v.title,
         description: v.description,
@@ -219,7 +233,7 @@ router.get("/me", async (req, res) => {
         embedUrl:    v.embed_url,
         sortOrder:   v.sort_order,
       })),
-      referrals: (referrals as any[]).map((ref: any) => ({
+      referrals: referrals.map((ref: any) => ({
         id:                   ref.id,
         customerUserId:       ref.customer_user_id,
         stripeSessionId:      ref.stripe_session_id,
@@ -247,8 +261,8 @@ router.patch("/me", async (req, res) => {
   };
 
   try {
-    const rows = await db.execute(sql`SELECT id FROM ambassadors WHERE user_id = ${userId} LIMIT 1`);
-    const r = (rows as any[])[0];
+    const rows = toRows(await db.execute(sql`SELECT id FROM ambassadors WHERE user_id = ${userId} LIMIT 1`));
+    const r = rows[0];
     if (!r) return res.status(404).json({ error: "Not an ambassador" });
 
     await db.execute(sql`
@@ -276,17 +290,17 @@ router.post("/me/videos", async (req, res) => {
   if (!videoUrl?.trim()) return res.status(400).json({ error: "videoUrl is required" });
 
   try {
-    const rows = await db.execute(sql`SELECT id FROM ambassadors WHERE user_id = ${userId} LIMIT 1`);
-    const r = (rows as any[])[0];
+    const rows = toRows(await db.execute(sql`SELECT id FROM ambassadors WHERE user_id = ${userId} LIMIT 1`));
+    const r = rows[0];
     if (!r) return res.status(404).json({ error: "Not an ambassador" });
 
     const embedUrl = extractEmbedUrl(videoUrl.trim());
-    const inserted = await db.execute(sql`
+    const inserted = toRows(await db.execute(sql`
       INSERT INTO ambassador_videos (ambassador_id, title, description, video_url, embed_url)
       VALUES (${r.id}, ${title.trim()}, ${description?.trim() || null}, ${videoUrl.trim()}, ${embedUrl})
       RETURNING id, title, description, video_url, embed_url, sort_order, created_at
-    `);
-    const v = (inserted as any[])[0];
+    `));
+    const v = inserted[0];
     return res.status(201).json({
       ok: true,
       video: {
@@ -305,8 +319,8 @@ router.delete("/me/videos/:id", async (req, res) => {
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
   try {
-    const amb = await db.execute(sql`SELECT id FROM ambassadors WHERE user_id = ${userId} LIMIT 1`);
-    const r = (amb as any[])[0];
+    const amb = toRows(await db.execute(sql`SELECT id FROM ambassadors WHERE user_id = ${userId} LIMIT 1`));
+    const r = amb[0];
     if (!r) return res.status(404).json({ error: "Not an ambassador" });
 
     await db.execute(sql`
@@ -331,20 +345,20 @@ router.post("/record-referral", async (req, res) => {
 
   try {
     const code = sanitizePromoCode(promoCode);
-    const rows = await db.execute(sql`
+    const rows = toRows(await db.execute(sql`
       SELECT id FROM ambassadors WHERE promo_code = ${code} AND status = 'approved' LIMIT 1
-    `);
-    const amb = (rows as any[])[0];
+    `));
+    const amb = rows[0];
     if (!amb) return res.json({ ok: true, skipped: "invalid promo code" });
 
     // Prevent duplicate referrals for same customer+session
-    const dupCheck = await db.execute(sql`
+    const dupCheck = toRows(await db.execute(sql`
       SELECT id FROM ambassador_referrals
       WHERE ambassador_id = ${amb.id} AND customer_user_id = ${userId}
         AND (stripe_session_id = ${sessionId || null} OR stripe_session_id IS NULL)
       LIMIT 1
-    `);
-    if ((dupCheck as any[]).length > 0) return res.json({ ok: true, skipped: "already recorded" });
+    `));
+    if (dupCheck.length > 0) return res.json({ ok: true, skipped: "already recorded" });
 
     const amount       = amountCents || 0;
     const commission   = Math.floor(amount * 0.10); // 10%
@@ -370,19 +384,18 @@ router.post("/record-referral", async (req, res) => {
 
 // ── Admin: GET /api/ambassadors/admin/all — list all incl. pending ────────────
 router.get("/admin/all", async (req, res) => {
-  // Simple admin check via query param PSK (admin-only use)
-  const adminKey = process.env.ADMIN_PSK || process.env.DAEMON_PSK || "";
-  if (adminKey && req.headers["x-admin-psk"] !== adminKey) {
-    return res.status(403).json({ error: "Forbidden" });
-  }
+  const { userId } = getAuth(req);
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+  if (!await isAdminUser(userId)) return res.status(403).json({ error: "Forbidden: admin only" });
+
   try {
-    const rows = await db.execute(sql`
+    const result = await db.execute(sql`
       SELECT a.*, COUNT(r.id)::int AS referral_count
       FROM ambassadors a
       LEFT JOIN ambassador_referrals r ON r.ambassador_id = a.id
       GROUP BY a.id ORDER BY a.created_at DESC
     `);
-    return res.json(rows);
+    return res.json(toRows(result));
   } catch {
     return res.status(500).json({ error: "Failed" });
   }
@@ -390,10 +403,10 @@ router.get("/admin/all", async (req, res) => {
 
 // ── Admin: PATCH /api/ambassadors/admin/:id/status — approve/reject ───────────
 router.patch("/admin/:id/status", async (req, res) => {
-  const adminKey = process.env.ADMIN_PSK || process.env.DAEMON_PSK || "";
-  if (adminKey && req.headers["x-admin-psk"] !== adminKey) {
-    return res.status(403).json({ error: "Forbidden" });
-  }
+  const { userId } = getAuth(req);
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+  if (!await isAdminUser(userId)) return res.status(403).json({ error: "Forbidden: admin only" });
+
   const { status } = req.body as { status: string };
   if (!["approved", "rejected", "pending"].includes(status)) {
     return res.status(400).json({ error: "Invalid status" });
