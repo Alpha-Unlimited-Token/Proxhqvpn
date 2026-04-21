@@ -6,7 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import {
   Network, Skull, ShieldAlert, Bug, Loader2, XCircle,
-  Copy, Search, ChevronDown, Syringe, Globe, TerminalSquare
+  Copy, Search, ChevronDown, Syringe, Globe, TerminalSquare, Download,
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -293,6 +293,27 @@ export default function SilkWeb() {
 
   const attackerList = (attackers?.attackers ?? []) as AttackerRow[];
 
+  function downloadReport() {
+    const rows = [["Time Trapped", "IP", "Fingerprint", "Loop Count", "Honeypot Port", "Probe Type", "SQLmap Status", "Data Collected"]];
+    attackerList.forEach(a => rows.push([
+      a.trappedAt ? new Date(a.trappedAt).toISOString() : "",
+      a.ip ?? "",
+      a.fingerprint ?? "",
+      String(a.loopCount ?? 0),
+      a.honeypotPort ? String(a.honeypotPort) : "",
+      a.probeType ?? "",
+      a.sqlmapStatus ?? "",
+      a.dataCollected ?? "",
+    ]));
+    const csv = rows.map(r => r.map(c => `"${c.replace(/"/g,'""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `proxhqvpn-silkweb-report-${Date.now()}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
   return (
     <div className="space-y-4 h-full flex flex-col">
       <div className="flex items-center justify-between shrink-0">
@@ -300,14 +321,25 @@ export default function SilkWeb() {
           <Network className="w-6 h-6" />
           Silk Web Traps
         </h2>
-        <button
-          onClick={handleCollapse}
-          disabled={collapse.isPending}
-          className="flex items-center gap-2 border border-red-500/40 text-red-400 px-4 py-1.5 text-xs font-mono uppercase hover:bg-red-500/10 hover:border-red-500 transition-colors disabled:opacity-50"
-        >
-          <Skull className="w-4 h-4" />
-          {collapse.isPending ? "COLLAPSING…" : "COLLAPSE WEB"}
-        </button>
+        <div className="flex items-center gap-2">
+          {attackerList.length > 0 && (
+            <button
+              onClick={downloadReport}
+              className="flex items-center gap-2 border border-primary/30 text-primary/70 px-4 py-1.5 text-xs font-mono uppercase hover:bg-primary/10 hover:border-primary transition-colors"
+            >
+              <Download className="w-3.5 h-3.5" />
+              DOWNLOAD CSV
+            </button>
+          )}
+          <button
+            onClick={handleCollapse}
+            disabled={collapse.isPending}
+            className="flex items-center gap-2 border border-red-500/40 text-red-400 px-4 py-1.5 text-xs font-mono uppercase hover:bg-red-500/10 hover:border-red-500 transition-colors disabled:opacity-50"
+          >
+            <Skull className="w-4 h-4" />
+            {collapse.isPending ? "COLLAPSING…" : "COLLAPSE WEB"}
+          </button>
+        </div>
       </div>
 
       {/* Stats bar */}

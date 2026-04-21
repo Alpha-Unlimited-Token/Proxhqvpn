@@ -6,7 +6,7 @@ import {
   Shield, ShieldAlert, ShieldCheck, Globe, Wifi,
   Search, RefreshCw, AlertTriangle, CheckCircle2,
   XCircle, Eye, EyeOff, Radio, Fingerprint, Network,
-  Lock,
+  Lock, Download,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -208,6 +208,88 @@ export default function LeakDetection() {
     : "secure"
     : null;
 
+  function downloadReport() {
+    const now = new Date().toISOString();
+    const esc = (s: string) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const verdict = overallLeaked ? "LEAKED" : overallWarning ? "WARNING" : "SECURE";
+    const verdictColor = overallLeaked ? "#ff4141" : overallWarning ? "#ffd93d" : "#00ff88";
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>ProxhqVPN Privacy Leak Report — ${now}</title>
+  <style>
+    body { background:#0a0f0c; color:#e0e0e0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; padding:40px; max-width:800px; margin:0 auto; }
+    h1 { font-size:22px; color:#00ff88; margin-bottom:4px; }
+    .subtitle { color:#555; font-size:12px; margin-bottom:28px; }
+    .verdict { display:inline-block; font-size:16px; font-weight:700; padding:8px 20px; border-radius:8px; border:1px solid ${verdictColor}40; color:${verdictColor}; background:${verdictColor}10; margin-bottom:28px; }
+    .card { background:#0d1a11; border:1px solid #1a2e20; border-radius:12px; padding:20px; margin-bottom:20px; }
+    .card h2 { font-size:12px; color:#00ff8880; font-weight:600; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:12px; }
+    .row { display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid #1a2e20; font-size:13px; }
+    .row:last-child { border-bottom:none; }
+    .label { color:#6b7280; } .value { color:#e0e0e0; font-family:monospace; text-align:right; max-width:65%; word-break:break-all; }
+    .ok { color:#00ff88; } .warn { color:#ffd93d; } .bad { color:#ff4141; }
+    footer { margin-top:40px; text-align:center; font-size:11px; color:#333; }
+  </style>
+</head>
+<body>
+  <h1>ProxhqVPN Privacy Leak Report</h1>
+  <div class="subtitle">ALPHA UNLIMITED TECHNOLOGIES LLC · ${now}</div>
+  <div class="verdict">OVERALL VERDICT: ${verdict}</div>
+
+  <div class="card">
+    <h2>Public IP &amp; Tor Status</h2>
+    ${[
+      ["Public IP", ipTest.result?.ip ?? "—", false],
+      ["ISP", ipTest.result?.isp ?? "—", false],
+      ["Country", ipTest.result?.country ?? "—", false],
+      ["Using Tor", torTest.result?.isTor ? "YES" : (torTest.status === "done" ? "NO" : "—"), torTest.result?.isTor],
+    ].map(([l, v, ok]) => `<div class="row"><span class="label">${l}</span><span class="value ${ok === true ? "ok" : ok === false ? "" : ""}">${esc(String(v))}</span></div>`).join("")}
+  </div>
+
+  <div class="card">
+    <h2>WebRTC Leak Test</h2>
+    ${webrtcTest.status === "done" ? [
+      ["Status", webrtcTest.result?.status ?? "—", webrtcTest.result?.status !== "leaked"],
+      ["Real IP exposed", webrtcTest.result?.realIp ?? "—", false],
+      ["Gathered IPs", (webrtcTest.result?.gathered ?? []).join(", ") || "none", false],
+    ].map(([l, v, ok]) => `<div class="row"><span class="label">${l}</span><span class="value ${ok === false && webrtcTest.result?.status === "leaked" ? "bad" : "ok"}">${esc(String(v))}</span></div>`).join("") : "<div style='color:#555;font-size:12px;'>Not completed</div>"}
+  </div>
+
+  <div class="card">
+    <h2>DNS Resolver Analysis</h2>
+    ${dnsTest.status === "done" ? [
+      ["Leak Detected", dnsTest.result?.leakDetected ? "YES" : "NO", !dnsTest.result?.leakDetected],
+      ["Resolvers", (dnsTest.result?.resolvers ?? []).join(", ") || "—", false],
+    ].map(([l, v, ok]) => `<div class="row"><span class="label">${l}</span><span class="value ${ok === false && dnsTest.result?.leakDetected ? "warn" : "ok"}">${esc(String(v))}</span></div>`).join("") : "<div style='color:#555;font-size:12px;'>Not completed</div>"}
+  </div>
+
+  <div class="card">
+    <h2>IPv6 Exposure</h2>
+    ${ipv6Test.status === "done" ? [
+      ["Leak Detected", ipv6Test.result?.leakDetected ? "YES" : "NO", !ipv6Test.result?.leakDetected],
+      ["IPv6 Address", ipv6Test.result?.address ?? "None", false],
+    ].map(([l, v, ok]) => `<div class="row"><span class="label">${l}</span><span class="value ${ok === false && ipv6Test.result?.leakDetected ? "bad" : "ok"}">${esc(String(v))}</span></div>`).join("") : "<div style='color:#555;font-size:12px;'>Not completed</div>"}
+  </div>
+
+  <div class="card">
+    <h2>Browser Fingerprint</h2>
+    ${fingerTest.status === "done" && fingerTest.result ? Object.entries(fingerTest.result as Record<string, unknown>).slice(0, 15).map(([k, v]) =>
+      `<div class="row"><span class="label">${esc(k)}</span><span class="value">${esc(String(v))}</span></div>`
+    ).join("") : "<div style='color:#555;font-size:12px;'>Not completed</div>"}
+  </div>
+
+  <footer>ProxhqVPN · ALPHA UNLIMITED TECHNOLOGIES LLC · Report generated ${now}</footer>
+</body>
+</html>`;
+    const blob = new Blob([html], { type: "text/html" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `proxhqvpn-privacy-leak-${Date.now()}.html`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
   return (
     <div className="flex flex-col gap-4 pb-8">
       {/* Header */}
@@ -226,15 +308,27 @@ export default function LeakDetection() {
             </Badge>
           )}
         </div>
-        <Button
-          onClick={runAll}
-          disabled={running}
-          className="bg-primary/10 border border-primary/30 text-primary hover:bg-primary/20 font-mono text-xs"
-          variant="outline"
-        >
-          <RefreshCw className={`w-3 h-3 mr-1.5 ${running ? "animate-spin" : ""}`} />
-          {running ? "SCANNING..." : completed ? "RUN AGAIN" : "RUN LEAK TEST"}
-        </Button>
+        <div className="flex items-center gap-2">
+          {completed && (
+            <Button
+              onClick={downloadReport}
+              className="bg-primary/5 border border-primary/20 text-primary hover:bg-primary/15 font-mono text-xs"
+              variant="outline"
+            >
+              <Download className="w-3 h-3 mr-1.5" />
+              DOWNLOAD REPORT
+            </Button>
+          )}
+          <Button
+            onClick={runAll}
+            disabled={running}
+            className="bg-primary/10 border border-primary/30 text-primary hover:bg-primary/20 font-mono text-xs"
+            variant="outline"
+          >
+            <RefreshCw className={`w-3 h-3 mr-1.5 ${running ? "animate-spin" : ""}`} />
+            {running ? "SCANNING..." : completed ? "RUN AGAIN" : "RUN LEAK TEST"}
+          </Button>
+        </div>
       </div>
 
       {/* Progress checklist */}

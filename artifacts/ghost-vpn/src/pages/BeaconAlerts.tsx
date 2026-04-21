@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   ShieldOff, AlertOctagon, Target, Ban,
   ChevronDown, Copy, Search, Globe, Syringe,
-  TerminalSquare, Loader2, XCircle,
+  TerminalSquare, Loader2, XCircle, Download,
 } from "lucide-react";
 import { useQueryClient, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -484,6 +484,34 @@ export default function BeaconAlerts() {
 
   const alerts = (data?.alerts ?? []) as AlertRow[];
 
+  function downloadCsv() {
+    const rows = [["Time", "Node", "Attacker IP", "Probe Type", "Severity", "Status"]];
+    alerts.forEach(a => rows.push([
+      new Date(a.detectedAt).toISOString(),
+      a.nodeName ?? "",
+      a.attackerIp ?? "",
+      a.probeType ?? "",
+      a.severity ?? "",
+      a.status ?? "",
+    ]));
+    const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `proxhqvpn-intrusion-alerts-${Date.now()}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  function downloadJson() {
+    const blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), alerts }, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `proxhqvpn-intrusion-alerts-${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
   return (
     <div className="space-y-4 h-full flex flex-col">
       {/* Header */}
@@ -492,13 +520,24 @@ export default function BeaconAlerts() {
           <AlertOctagon className="w-6 h-6" />
           Intrusion Detection
         </h2>
-        <Dialog open={isTriggerOpen} onOpenChange={setIsTriggerOpen}>
-          <DialogTrigger asChild>
-            <Button variant="outline" className="border-primary text-primary hover:bg-primary/20">
-              <Target className="w-4 h-4 mr-2" />
-              SIMULATE PROBE
-            </Button>
-          </DialogTrigger>
+        <div className="flex items-center gap-2">
+          {alerts.length > 0 && (
+            <>
+              <Button variant="outline" onClick={downloadCsv} className="border-primary/30 text-primary/70 hover:bg-primary/10 text-xs">
+                <Download className="w-3.5 h-3.5 mr-1.5" /> CSV
+              </Button>
+              <Button variant="outline" onClick={downloadJson} className="border-primary/30 text-primary/70 hover:bg-primary/10 text-xs">
+                <Download className="w-3.5 h-3.5 mr-1.5" /> JSON
+              </Button>
+            </>
+          )}
+          <Dialog open={isTriggerOpen} onOpenChange={setIsTriggerOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="border-primary text-primary hover:bg-primary/20">
+                <Target className="w-4 h-4 mr-2" />
+                SIMULATE PROBE
+              </Button>
+            </DialogTrigger>
           <DialogContent className="bg-black border border-primary/50 text-primary font-mono">
             <DialogHeader>
               <DialogTitle className="uppercase tracking-widest text-primary/70">Trigger Beacon Test</DialogTitle>
@@ -530,6 +569,7 @@ export default function BeaconAlerts() {
             </form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {/* Main area: table + command panel */}
