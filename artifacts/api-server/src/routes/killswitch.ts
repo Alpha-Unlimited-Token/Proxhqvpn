@@ -1,10 +1,7 @@
 import { Router } from "express";
-import { exec } from "child_process";
-import { promisify } from "util";
 import os from "os";
 
 const router = Router();
-const execAsync = promisify(exec);
 
 interface KillSwitchState {
   enabled: boolean;
@@ -15,6 +12,7 @@ interface KillSwitchState {
   lastTriggeredAt: string | null;
   triggerCount: number;
   platform: string;
+  safeIps: string[];
 }
 
 let state: KillSwitchState = {
@@ -26,12 +24,23 @@ let state: KillSwitchState = {
   lastTriggeredAt: null,
   triggerCount: 0,
   platform: os.platform(),
+  safeIps: [],
 };
 
-function generateIptablesRules(ifaces: string[]): string[] {
+function parseSafeIps(raw: string | string[] | undefined): string[] {
+  if (!raw) return [];
+  const str = Array.isArray(raw) ? raw.join(",") : raw;
+  return str
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => /^[\d.:a-fA-F/]+$/.test(s));
+}
+
+function generateIptablesRules(ifaces: string[], safeIps: string[]): string[] {
   const rules: string[] = [
     "# ProxhqVPN Kill Switch — iptables rules",
     "# Apply with: sudo bash kill_switch.sh",
+    "# Auto-generated — includes your current IP as a safe address",
     "",
     "#!/usr/bin/env bash",
     "set -e",
@@ -50,6 +59,16 @@ function generateIptablesRules(ifaces: string[]): string[] {
     "iptables -A INPUT  -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT",
     "",
   ];
+
+  if (safeIps.length > 0) {
+    rules.push("# Allow your safe/current IP(s) — auto-detected before VPN activated");
+    for (const ip of safeIps) {
+      const clean = ip.includes("/") ? ip : `${ip}/32`;
+      rules.push(`iptables -A OUTPUT -d ${clean} -j ACCEPT`);
+      rules.push(`iptables -A INPUT  -s ${clean} -j ACCEPT`);
+    }
+    rules.push("");
+  }
 
   for (const iface of ifaces) {
     rules.push(`# Allow traffic on ${iface} (VPN tunnel)`);
@@ -89,10 +108,11 @@ function generateDisableScript(): string[] {
   ];
 }
 
-function generatePfRules(ifaces: string[]): string[] {
+function generatePfRules(ifaces: string[], safeIps: string[]): string[] {
   const rules = [
     "# ProxhqVPN Kill Switch — macOS pf rules",
     "# Apply with: sudo pfctl -f /etc/pf.anchors/proxhq_killswitch",
+    "# Auto-generated — includes your current IP as a safe address",
     "",
     "# Block all by default",
     "block out all",
@@ -102,6 +122,16 @@ function generatePfRules(ifaces: string[]): string[] {
     "pass on lo0 all",
     "",
   ];
+
+  if (safeIps.length > 0) {
+    rules.push("# Allow your safe/current IP(s) — auto-detected before VPN activated");
+    for (const ip of safeIps) {
+      rules.push(`pass out proto { tcp udp } from any to ${ip}`);
+      rules.push(`pass in  proto { tcp udp } from ${ip} to any`);
+    }
+    rules.push("");
+  }
+
   for (const iface of ifaces) {
     rules.push(`pass out on ${iface} all`);
     rules.push(`pass in  on ${iface} all`);
@@ -115,15 +145,52 @@ function generatePfRules(ifaces: string[]): string[] {
   return rules;
 }
 
+function generateWindowsRules(ifaces: string[], safeIps: string[]): string {
+  const lines = [
+    "# ProxhqVPN Kill Switch — Windows Firewall (PowerShell)",
+    "# Run as Administrator",
+    "# Auto-generated — includes your current IP as a safe address",
+    "",
+    "# Block all outbound except VPN",
+    "netsh advfirewall set allprofiles firewallpolicy blockinbound,blockoutbound",
+  ];
+
+  if (safeIps.length > 0) {
+    lines.push("");
+    lines.push("# Allow your safe/current IP(s) — auto-detected before VPN activated");
+    for (const ip of safeIps) {
+      lines.push(
+        `netsh advfirewall firewall add rule name="ProxhqVPN SafeIP ${ip}" protocol=any dir=out action=allow remoteip=${ip}`,
+      );
+      lines.push(
+        `netsh advfirewall firewall add rule name="ProxhqVPN SafeIP In ${ip}" protocol=any dir=in action=allow remoteip=${ip}`,
+      );
+    }
+  }
+
+  lines.push("");
+  lines.push("# Allow WireGuard/VPN interfaces and ports");
+  for (const i of ifaces) {
+    lines.push(`# Allow interface: ${i}`);
+  }
+  lines.push(
+    'netsh advfirewall firewall add rule name="ProxhqVPN WireGuard" protocol=UDP dir=out action=allow localport=51820',
+    'netsh advfirewall firewall add rule name="ProxhqVPN Loopback" protocol=any dir=out action=allow localip=127.0.0.0/8',
+  );
+
+  return lines.join("\n");
+}
+
 router.get("/status", (_req, res) => {
   res.json(state);
 });
 
 router.post("/enable", (req, res) => {
-  const { mode, allowedInterfaces } = req.body as Partial<KillSwitchState>;
+  const { mode, allowedInterfaces, safeIps } = req.body as Partial<KillSwitchState>;
   state.enabled = true;
   state.mode = mode ?? state.mode;
   state.allowedInterfaces = allowedInterfaces ?? state.allowedInterfaces;
+  if (safeIps && Array.isArray(safeIps)) state.safeIps = safeIps;
   state.lastTriggeredAt = new Date().toISOString();
   state.triggerCount += 1;
   res.json({ ...state, message: "Kill switch enabled — VPN tunnel is now the sole exit." });
@@ -135,48 +202,44 @@ router.post("/disable", (_req, res) => {
 });
 
 router.patch("/config", (req, res) => {
-  const { mode, allowedInterfaces, autoTriggerOnDrop, blockedOutboundWhenVpnDown } =
+  const { mode, allowedInterfaces, autoTriggerOnDrop, blockedOutboundWhenVpnDown, safeIps } =
     req.body as Partial<KillSwitchState>;
   if (mode) state.mode = mode;
   if (allowedInterfaces) state.allowedInterfaces = allowedInterfaces;
   if (autoTriggerOnDrop !== undefined) state.autoTriggerOnDrop = autoTriggerOnDrop;
-  if (blockedOutboundWhenVpnDown !== undefined)
-    state.blockedOutboundWhenVpnDown = blockedOutboundWhenVpnDown;
+  if (blockedOutboundWhenVpnDown !== undefined) state.blockedOutboundWhenVpnDown = blockedOutboundWhenVpnDown;
+  if (safeIps && Array.isArray(safeIps)) state.safeIps = safeIps;
   res.json(state);
 });
 
 router.get("/generate-rules", (req, res) => {
   const platform = (req.query.platform as string) ?? os.platform();
   const ifaces = state.allowedInterfaces;
+  const querySafeIps = parseSafeIps(req.query.safeIps as string | undefined);
+  const safeIps = querySafeIps.length > 0 ? querySafeIps : state.safeIps;
 
   if (platform === "darwin") {
     res.json({
       platform: "macOS",
       type: "pf",
-      enable: generatePfRules(ifaces).join("\n"),
+      safeIps,
+      enable: generatePfRules(ifaces, safeIps).join("\n"),
       disable: "sudo pfctl -d  # disable pf entirely",
     });
   } else if (platform === "win32") {
     res.json({
       platform: "Windows",
       type: "netsh/wfp",
-      enable: [
-        "# ProxhqVPN Kill Switch — Windows Firewall (PowerShell)",
-        '# Run as Administrator',
-        "",
-        "# Block all outbound except VPN",
-        'netsh advfirewall set allprofiles firewallpolicy blockinbound,blockoutbound',
-        ...ifaces.map(i => `# Allow interface: ${i}`),
-        'netsh advfirewall firewall add rule name="ProxhqVPN VPN" protocol=UDP dir=out action=allow localport=51820',
-        'netsh advfirewall firewall add rule name="ProxhqVPN Loopback" protocol=any dir=out action=allow localip=127.0.0.0/8',
-      ].join("\n"),
-      disable: 'netsh advfirewall set allprofiles firewallpolicy blockinbound,allowoutbound',
+      safeIps,
+      enable: generateWindowsRules(ifaces, safeIps),
+      disable: "netsh advfirewall set allprofiles firewallpolicy blockinbound,allowoutbound",
     });
   } else {
     res.json({
       platform: "Linux",
       type: "iptables",
-      enable: generateIptablesRules(ifaces).join("\n"),
+      safeIps,
+      enable: generateIptablesRules(ifaces, safeIps).join("\n"),
       disable: generateDisableScript().join("\n"),
     });
   }

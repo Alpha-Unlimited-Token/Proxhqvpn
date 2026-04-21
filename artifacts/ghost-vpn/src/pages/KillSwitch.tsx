@@ -3,7 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Shield, ShieldOff, Power, AlertTriangle, Zap } from "lucide-react";
+import { Shield, ShieldOff, Power, AlertTriangle, Zap, ShieldCheck, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
@@ -17,18 +17,29 @@ interface KsState {
   lastTriggeredAt: string | null;
   triggerCount: number;
   platform: string;
+  safeIps: string[];
 }
-
 
 export default function KillSwitch() {
   const { toast } = useToast();
   const [state, setState] = useState<KsState | null>(null);
   const [loading, setLoading] = useState(true);
   const [toggling, setToggling] = useState(false);
+  const [safeIp, setSafeIp] = useState<string | null>(null);
+  const [ipLoading, setIpLoading] = useState(true);
+
+  useEffect(() => {
+    setIpLoading(true);
+    fetch(`${BASE}/api/my-ip`, { credentials: "include" })
+      .then((r) => r.json())
+      .then((d) => { if (d.ip && d.ip !== "unknown") setSafeIp(d.ip); })
+      .catch(() => {})
+      .finally(() => setIpLoading(false));
+  }, []);
 
   const fetchState = useCallback(async () => {
     try {
-      const r = await fetch(`${BASE}/api/killswitch/status`);
+      const r = await fetch(`${BASE}/api/killswitch/status`, { credentials: "include" });
       const d = await r.json();
       setState(d);
     } catch { }
@@ -42,17 +53,25 @@ export default function KillSwitch() {
     setToggling(true);
     try {
       const endpoint = state.enabled ? "disable" : "enable";
+      const body: Record<string, unknown> = {
+        mode: state.mode,
+        allowedInterfaces: state.allowedInterfaces,
+      };
+      if (!state.enabled && safeIp) {
+        body.safeIps = [safeIp];
+      }
       const r = await fetch(`${BASE}/api/killswitch/${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: state.mode, allowedInterfaces: state.allowedInterfaces }),
+        credentials: "include",
+        body: JSON.stringify(body),
       });
       const d = await r.json();
       setState(d);
       toast({
         title: d.enabled ? "Kill Switch ARMED" : "Kill Switch Disarmed",
         description: d.enabled
-          ? "All non-VPN traffic will be blocked if the tunnel drops."
+          ? `All non-VPN traffic blocked. Safe IP ${safeIp ?? "unknown"} whitelisted.`
           : "Normal routing restored. VPN protection only.",
         variant: d.enabled ? "default" : "destructive",
       });
@@ -63,10 +82,27 @@ export default function KillSwitch() {
     const r = await fetch(`${BASE}/api/killswitch/config`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
+      credentials: "include",
       body: JSON.stringify(field),
     });
     const d = await r.json();
     setState(d);
+  };
+
+  const downloadRules = async (platform: string) => {
+    const params = new URLSearchParams({ platform });
+    if (safeIp) params.set("safeIps", safeIp);
+    const r = await fetch(`${BASE}/api/killswitch/generate-rules?${params}`, { credentials: "include" });
+    const d = await r.json();
+    const ext = platform === "darwin" ? "conf" : platform === "win32" ? "ps1" : "sh";
+    const blob = new Blob([d.enable], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `proxhqvpn_killswitch_${platform}.${ext}`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast({ title: "Rules downloaded", description: `Kill switch script for ${d.platform} saved.` });
   };
 
   if (loading) {
@@ -78,9 +114,23 @@ export default function KillSwitch() {
   }
 
   const isArmed = state?.enabled ?? false;
+  const allSafeIps = Array.from(new Set([...(state?.safeIps ?? []), ...(safeIp ? [safeIp] : [])]));
 
   return (
     <div className="flex flex-col gap-4 pb-8">
+
+      {/* Safe IP badge */}
+      {!ipLoading && safeIp && (
+        <div className="border border-primary/20 bg-primary/[0.04] rounded-sm px-3 py-2.5 flex items-center gap-3 text-xs font-mono">
+          <ShieldCheck className="w-4 h-4 text-primary flex-shrink-0" />
+          <div className="min-w-0">
+            <span className="text-primary/80">SAFE IP AUTO-DETECTED: </span>
+            <span className="text-primary font-bold">{safeIp}</span>
+            <span className="text-primary/40 ml-2">— whitelisted in all generated rules</span>
+          </div>
+        </div>
+      )}
+
       <div className="border border-primary/10 bg-black/20 rounded-sm px-3 py-2.5 flex items-center justify-between flex-wrap gap-3 shrink-0">
         <div className="flex items-center gap-3">
           <h2 className="text-xl font-bold tracking-tighter uppercase flex items-center gap-2">
@@ -113,7 +163,12 @@ export default function KillSwitch() {
       {isArmed && (
         <div className="border border-green-500/30 bg-green-900/10 rounded-sm px-4 py-3 flex items-center gap-3 text-xs font-mono text-green-400">
           <Zap className="w-4 h-4 flex-shrink-0" />
-          <span>KILL SWITCH ARMED — All internet traffic blocked if VPN tunnel drops. Only interfaces [{state?.allowedInterfaces?.join(", ")}] may route traffic.</span>
+          <div className="min-w-0">
+            <span>KILL SWITCH ARMED — All internet blocked if VPN drops. VPN interfaces [{state?.allowedInterfaces?.join(", ")}] allowed.</span>
+            {allSafeIps.length > 0 && (
+              <span> Safe IPs: [{allSafeIps.join(", ")}].</span>
+            )}
+          </div>
         </div>
       )}
 
@@ -188,6 +243,12 @@ export default function KillSwitch() {
                 <span>ALLOWED IFACES</span>
                 <span className="text-primary">{state?.allowedInterfaces?.join(", ") ?? "tun0, wg0"}</span>
               </div>
+              {allSafeIps.length > 0 && (
+                <div className="flex justify-between">
+                  <span>SAFE IPS</span>
+                  <span className="text-primary">{allSafeIps.join(", ")}</span>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -195,11 +256,28 @@ export default function KillSwitch() {
         <Card className="bg-black border-primary/20">
           <CardContent className="p-4 space-y-3">
             <div className="pb-2 border-b border-primary/10">
-              <span className="text-xs font-mono uppercase tracking-widest text-primary/50">How It Works</span>
+              <span className="text-xs font-mono uppercase tracking-widest text-primary/50">Download Rules</span>
             </div>
-            <div className="space-y-2 text-[10px] font-mono text-primary/50 leading-relaxed">
-              <p>When the kill switch is armed, the server automatically applies iptables/nftables firewall rules that block all non-VPN traffic at the OS level.</p>
-              <p>Rules are applied instantly when you toggle the switch above. No scripts, no manual steps, no user action required.</p>
+            <p className="text-[10px] font-mono text-primary/40 leading-relaxed">
+              Download a platform-specific kill switch script pre-configured with your safe IP baked in. Apply to any device.
+            </p>
+            <div className="space-y-2">
+              {[
+                { label: "Linux / Raspberry Pi / VPS", platform: "linux" },
+                { label: "macOS / Mac", platform: "darwin" },
+                { label: "Windows (PowerShell)", platform: "win32" },
+              ].map(({ label, platform }) => (
+                <button
+                  key={platform}
+                  onClick={() => downloadRules(platform)}
+                  className="w-full flex items-center gap-2 px-3 py-2 border border-primary/20 text-[10px] font-mono text-primary/60 hover:text-primary hover:border-primary/40 hover:bg-primary/[0.04] rounded-sm transition-all"
+                >
+                  <Download className="w-3 h-3 flex-shrink-0" />
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="pt-1 space-y-2 text-[10px] font-mono text-primary/50 leading-relaxed">
               <div className="grid grid-cols-2 gap-2 pt-1">
                 {[
                   ["ARMED", "All traffic blocked unless it goes through the VPN tunnel"],

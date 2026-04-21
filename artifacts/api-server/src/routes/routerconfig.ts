@@ -27,14 +27,16 @@ router.post("/generate", async (req, res) => {
     clientAddress: z.string().default("10.8.0.2/24"),
     dns: z.string().default("1.1.1.1"),
     killSwitch: z.boolean().default(true),
+    safeIp: z.string().optional(),
   }).safeParse(req.body);
 
   if (!body.success) return res.status(400).json({ error: body.error.flatten() });
 
-  const { firmware, nodeId, clientPrivateKey, clientAddress, dns, killSwitch } = body.data;
+  const { firmware, nodeId, clientPrivateKey, clientAddress, dns, killSwitch, safeIp } = body.data;
 
   let serverPublicKey = "SERVER_PUBLIC_KEY_HERE";
   let serverEndpoint = "YOUR_SERVER_IP:51820";
+  let serverIp = "";
   let serverName = "ProxhqVPN Node";
 
   if (nodeId) {
@@ -42,24 +44,41 @@ router.post("/generate", async (req, res) => {
     if (node) {
       serverPublicKey = node.publicKey;
       serverEndpoint = `${node.ipAddress}:${node.listenPort}`;
+      serverIp = node.ipAddress ?? "";
       serverName = node.name;
     }
   }
 
   const privKey = clientPrivateKey || "YOUR_CLIENT_PRIVATE_KEY";
-  const wgConf = buildWgConf(privKey, clientAddress, dns, serverPublicKey, serverEndpoint, killSwitch);
+  const wgConf = buildWgConf(privKey, clientAddress, dns, serverPublicKey, serverEndpoint, killSwitch, safeIp, serverIp);
   const { commands, steps, notes } = buildFirmwareInstructions(firmware, wgConf, serverName, clientAddress, serverPublicKey, serverEndpoint, dns, privKey);
 
   res.json({ firmware, serverName, serverEndpoint, wgConf, commands, steps, notes });
 });
 
-function buildWgConf(privKey: string, address: string, dns: string, serverPubKey: string, endpoint: string, killSwitch: boolean): string {
-  const ks = killSwitch ? `\nPreUp = iptables -I OUTPUT ! -o %i -m mark ! --mark $(wg show %i fwmark) -m addrtype ! --dst-type LOCAL -j REJECT
-PreDown = iptables -D OUTPUT ! -o %i -m mark ! --mark $(wg show %i fwmark) -m addrtype ! --dst-type LOCAL -j REJECT` : "";
+function buildWgConf(
+  privKey: string,
+  address: string,
+  dns: string,
+  serverPubKey: string,
+  endpoint: string,
+  killSwitch: boolean,
+  safeIp?: string,
+  serverIp?: string,
+): string {
+  const safeIpRules = safeIp
+    ? `\nPostUp = iptables -I OUTPUT -s ${safeIp} -j ACCEPT; iptables -I OUTPUT -d ${safeIp} -j ACCEPT\nPostDown = iptables -D OUTPUT -s ${safeIp} -j ACCEPT; iptables -D OUTPUT -d ${safeIp} -j ACCEPT`
+    : "";
+  const serverIpRules = serverIp
+    ? `\nPostUp = iptables -I OUTPUT -d ${serverIp} -j ACCEPT\nPostDown = iptables -D OUTPUT -d ${serverIp} -j ACCEPT`
+    : "";
+  const ks = killSwitch
+    ? `\nPostUp = iptables -I OUTPUT ! -o %i -m mark ! --mark $(wg show %i fwmark) -m addrtype ! --dst-type LOCAL -j REJECT\nPostDown = iptables -D OUTPUT ! -o %i -m mark ! --mark $(wg show %i fwmark) -m addrtype ! --dst-type LOCAL -j REJECT`
+    : "";
   return `[Interface]
 PrivateKey = ${privKey}
 Address = ${address}
-DNS = ${dns}${ks}
+DNS = ${dns}${serverIpRules}${safeIpRules}${ks}
 
 [Peer]
 PublicKey = ${serverPubKey}

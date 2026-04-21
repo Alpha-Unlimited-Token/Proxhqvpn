@@ -51,6 +51,18 @@ const router: IRouter = Router();
 // Public routes
 router.use(healthRouter);
 
+// Public IP detection — returns the caller's IP as seen by the server.
+// No auth required; used by the frontend to auto-whitelist the user's current IP.
+router.get("/my-ip", (req: Request, res: Response) => {
+  const forwarded = req.headers["x-forwarded-for"];
+  const ip =
+    (Array.isArray(forwarded) ? forwarded[0] : forwarded)?.split(",")[0]?.trim() ||
+    req.socket?.remoteAddress ||
+    req.ip ||
+    "unknown";
+  res.json({ ip });
+});
+
 // Public update manifests — electron-updater reads these without auth
 // Admin sub-routes (/publish, /admin) are protected inside the router
 router.use("/updates", updatesRouter);

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useUser } from "@clerk/react";
-import { Download, Shield, CheckCircle, ChevronDown, ChevronUp, RefreshCw, Smartphone, Apple, Monitor, Loader2 } from "lucide-react";
+import { Download, Shield, CheckCircle, ChevronDown, ChevronUp, RefreshCw, Smartphone, Apple, Monitor, Loader2, ShieldCheck } from "lucide-react";
 import { useListNodes } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -42,13 +42,25 @@ type WgConfig = {
 
 type PeerStatus = "pending" | "applied" | "failed" | "unknown";
 
-function buildConfText(cfg: WgConfig): string {
+function buildConfText(cfg: WgConfig, safeIp?: string | null): string {
   const node = cfg.node;
   const endpoint = node?.publicIp ? `${node.publicIp}:${node.listenPort}` : "SERVER_IP_NOT_SET";
+  const serverIp = node?.publicIp ?? null;
+
+  const preUp = serverIp
+    ? `PostUp = iptables -I OUTPUT -d ${serverIp} -j ACCEPT\nPostDown = iptables -D OUTPUT -d ${serverIp} -j ACCEPT`
+    : "";
+
+  const safeIpLine = safeIp
+    ? `PostUp = iptables -I OUTPUT -s ${safeIp} -j ACCEPT; iptables -I OUTPUT -d ${safeIp} -j ACCEPT\nPostDown = iptables -D OUTPUT -s ${safeIp} -j ACCEPT; iptables -D OUTPUT -d ${safeIp} -j ACCEPT`
+    : "";
+
+  const hooks = [preUp, safeIpLine].filter(Boolean).join("\n");
+
   return `[Interface]
 PrivateKey = ${cfg.clientPrivateKey}
 Address = ${cfg.assignedIp}/24
-DNS = 1.1.1.1, 1.0.0.1
+DNS = 1.1.1.1, 1.0.0.1${hooks ? "\n" + hooks : ""}
 
 [Peer]
 PublicKey = ${node?.publicKey ?? "PEER_KEY"}
@@ -57,10 +69,10 @@ Endpoint = ${endpoint}
 PersistentKeepalive = 25`;
 }
 
-function downloadConf(cfg: WgConfig) {
+function downloadConf(cfg: WgConfig, safeIp?: string | null) {
   const node = cfg.node;
   const filename = `proxhqvpn-${(node?.region ?? "server").toLowerCase().replace(/\s+/g, "-")}.conf`;
-  const blob = new Blob([buildConfText(cfg)], { type: "text/plain" });
+  const blob = new Blob([buildConfText(cfg, safeIp)], { type: "text/plain" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -84,7 +96,18 @@ export default function Connect() {
   const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
   const [peerStatus, setPeerStatus] = useState<PeerStatus>("unknown");
   const [justConnected, setJustConnected] = useState(false);
+  const [myPublicIp, setMyPublicIp] = useState<string | null>(null);
+  const [ipLoading, setIpLoading] = useState(true);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    setIpLoading(true);
+    fetch(`${BASE}/api/my-ip`, { credentials: "include" })
+      .then((r) => r.json())
+      .then((d) => { if (d.ip && d.ip !== "unknown") setMyPublicIp(d.ip); })
+      .catch(() => {})
+      .finally(() => setIpLoading(false));
+  }, []);
 
   const { data: myConfigs, isLoading } = useQuery<{ configs: WgConfig[]; hasConfig: boolean }>({
     queryKey: ["my-wg-configs"],
@@ -163,7 +186,7 @@ export default function Connect() {
       return;
     }
     if (activeConfig) {
-      downloadConf(activeConfig);
+      downloadConf(activeConfig, myPublicIp);
     } else {
       generateMutation.mutate(targetNodeId);
     }
@@ -192,6 +215,21 @@ export default function Connect() {
 
   return (
     <div className="max-w-lg mx-auto space-y-6 py-2">
+
+      {/* Safe IP banner */}
+      {!ipLoading && myPublicIp && (
+        <div className="flex items-center gap-3 bg-primary/[0.06] border border-primary/20 rounded-xl px-4 py-3">
+          <ShieldCheck className="w-4 h-4 text-primary shrink-0" />
+          <div className="min-w-0 flex-1">
+            <div className="text-xs font-medium text-primary/90">
+              Your current IP detected: <span className="font-mono">{myPublicIp}</span>
+            </div>
+            <div className="text-[11px] text-primary/50 mt-0.5">
+              Automatically whitelisted — your device will stay reachable when the VPN is active
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main connection card */}
       <div className="bg-[#0d1610] border border-white/[0.07] rounded-2xl overflow-hidden">
@@ -345,7 +383,7 @@ export default function Connect() {
         <div className="space-y-4">
           {[
             { n: "1", title: "Install WireGuard", body: "Download the free WireGuard app from the links above for your device." },
-            { n: "2", title: "Click Connect Now", body: "Your unique VPN tunnel is automatically registered on the server. Download your config file when ready." },
+            { n: "2", title: "Click Connect Now", body: "Your unique VPN tunnel is automatically registered on the server. Your current IP is detected and whitelisted so the VPN never blocks your own connection." },
             { n: "3", title: "Import & connect", body: 'In WireGuard, tap "+" → "Import from file". Select your .conf file, then toggle the switch to connect.' },
           ].map((step) => (
             <div key={step.n} className="flex gap-4">
@@ -373,6 +411,11 @@ export default function Connect() {
           </button>
           {showAdvanced && (
             <div className="mt-3 bg-[#0d1610] border border-white/[0.07] rounded-2xl p-5 space-y-3">
+              {myPublicIp && (
+                <div className="text-[11px] text-primary/50 font-mono bg-primary/[0.04] border border-primary/10 rounded-lg px-3 py-2">
+                  Safe IP in config: <span className="text-primary/80">{myPublicIp}</span> — whitelisted in PostUp rules
+                </div>
+              )}
               <p className="text-sm text-white/40 leading-relaxed">
                 If your device is lost or you suspect your config is compromised, revoke it here. You can generate a new one on your next visit.
               </p>
