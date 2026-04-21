@@ -8,7 +8,8 @@ import {
   LayoutDashboard, Server, ShieldAlert, Network,
   Activity, Shield, Terminal, Database,
   LogOut, User, Menu, Download,
-  Zap, Settings, Cpu, Router, ScanSearch, Layers, FileText, Users
+  Zap, Settings, Cpu, Router, ScanSearch, Layers, FileText, Users,
+  Send, FolderSearch, Radar
 } from "lucide-react";
 import { useAccess } from "@/hooks/useAccess";
 
@@ -40,6 +41,9 @@ const PAGE_NAMES: Record<string, string> = {
   "/monitor":      "Performance",
   "/firewall":     "Firewall",
   "/security-audit":"Security Audit",
+  "/http-probe":    "HTTP Probe",
+  "/dir-fuzzer":    "Directory Fuzzer",
+  "/subdomain-scan":"Subdomain Scout",
   "/threat-intel": "Threat Intelligence",
   "/terminal":     "Terminal",
   "/sql":          "Database",
@@ -83,6 +87,9 @@ const ADVANCED_NAV = [
   { href: "/vpn-coexist",   label: "VPN Coexistence",       icon: Settings },
   { href: "/sqlmap",        label: "Vulnerability Scanner", icon: ScanSearch },
   { href: "/alpha-tools",   label: "Alpha Toolkit",         icon: Layers },
+  { href: "/http-probe",    label: "HTTP Probe",            icon: Send },
+  { href: "/dir-fuzzer",    label: "Directory Fuzzer",      icon: FolderSearch },
+  { href: "/subdomain-scan",label: "Subdomain Scout",       icon: Radar },
 ];
 
 const ADMIN_NAV = [

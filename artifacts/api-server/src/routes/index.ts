@@ -37,6 +37,9 @@ import daemonInboundRouter from "./daemon-inbound";
 import nodeProvisionRouter from "./node-provision";
 import sqlmapRouter from "./sqlmap";
 import alphaRouter from "./alpha";
+import httpProbeRouter from "./httpprobe";
+import dirFuzzerRouter from "./dirfuzzer";
+import subdomainScanRouter from "./subdomainscan";
 import employeesRouter from "./employees";
 import threatProtectionRouter from "./threatprotection";
 import setupRouter from "./setup";
@@ -247,10 +250,13 @@ router.use("/threat-protection", requireAccess, threatProtectionRouter);
 router.use("/proxy-browser",  requireAccess, proxyBrowserRouter);
 
 // ── Command Center Pro routes — requires command_center tier (or admin/employee)
-router.use("/threatintel",    requireCommandCenter, threatintelRouter);
-router.use("/security-audit", requireCommandCenter, securityauditRouter);
-router.use("/sqlmap",         requireCommandCenter, sqlmapRouter);
-router.use("/alpha",          requireCommandCenter, alphaRouter);
+router.use("/threatintel",     requireCommandCenter, threatintelRouter);
+router.use("/security-audit",  requireCommandCenter, securityauditRouter);
+router.use("/sqlmap",          requireCommandCenter, sqlmapRouter);
+router.use("/alpha",           requireCommandCenter, alphaRouter);
+router.use("/http-probe",      requireCommandCenter, httpProbeRouter);
+router.use("/dir-fuzzer",      requireCommandCenter, dirFuzzerRouter);
+router.use("/subdomain-scan",  requireCommandCenter, subdomainScanRouter);
 
 // ── Admin-only routes ─────────────────────────────────────────────────────
 router.use("/employees",      employeesRouter);

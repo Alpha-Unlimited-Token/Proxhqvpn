@@ -26,8 +26,8 @@ const VPN_TARGETS: PriceTarget[] = [
 ];
 
 const PRO_TARGETS: PriceTarget[] = [
-  { interval: "month", amount: 3499,  nickname: "Command Center Pro — Monthly" },
-  { interval: "year",  amount: 29999, nickname: "Command Center Pro — Annual"  },
+  { interval: "month", amount: 3999,  nickname: "Command Center Pro — Monthly" },
+  { interval: "year",  amount: 34999, nickname: "Command Center Pro — Annual"  },
 ];
 
 async function getProductIdByTier(tier: string): Promise<string | null> {

@@ -4,7 +4,7 @@ import { useUser } from "@clerk/react";
 import {
   Check, Shield, Zap, Loader2, Star, AlertCircle,
   Lock, Cpu, Globe, ShieldCheck, Server, Terminal as TerminalIcon,
-  ScanSearch, Globe2, Network, Activity,
+  ScanSearch, Globe2, Network, Activity, Send, FolderSearch, Radar,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAccess } from "@/hooks/useAccess";
@@ -42,12 +42,14 @@ const VPN_FEATURES = [
 
 const PRO_EXTRAS = [
   { icon: ScanSearch, text: "Vulnerability Scanner (SQLMap + nmap port scan)" },
-  { icon: Network, text: "Ghost Chain — Tor-veiled proxy routing" },
-  { icon: Activity, text: "Threat Intelligence dashboard" },
-  { icon: TerminalIcon, text: "Alpha Toolkit — scraper, verifier, validator" },
-  { icon: ShieldCheck, text: "Security Audit suite — full site crawl & analysis" },
-  { icon: Server, text: "SilkWeb honeypot decoy network" },
-  { icon: Zap, text: "Beacon threat monitor & intrusion alerts" },
+  { icon: Send,       text: "HTTP Probe — craft raw HTTP requests, inspect responses (Burp Repeater equivalent)" },
+  { icon: FolderSearch, text: "Directory Fuzzer — brute-force hidden endpoints & admin panels (ffuf equivalent)" },
+  { icon: Radar,      text: "Subdomain Scout — certificate transparency + DNS enumeration" },
+  { icon: Network,    text: "Ghost Chain — 7-hop Tor-veiled proxy routing" },
+  { icon: Activity,   text: "Threat Intelligence — live IP reputation, Tor exit feeds, blocklist" },
+  { icon: TerminalIcon, text: "Alpha Toolkit — network/security/exploit scanner" },
+  { icon: ShieldCheck, text: "Security Audit — TLS grader, HTTP headers, WHOIS" },
+  { icon: Server,     text: "SilkWeb honeypot decoy network + Beacon intrusion alerts" },
 ];
 
 function formatUSD(cents: number) {
@@ -105,9 +107,9 @@ export default function Pricing() {
     Math.round(100 - (annual / 12 / monthly * 100));
 
   const vpnMonthly  = vpnProduct  ? (getPriceForPeriod(vpnProduct.prices,  "monthly")?.unitAmount ?? 699)   : 699;
-  const proMonthly  = proProduct  ? (getPriceForPeriod(proProduct.prices,  "monthly")?.unitAmount ?? 3499)  : 3499;
+  const proMonthly  = proProduct  ? (getPriceForPeriod(proProduct.prices,  "monthly")?.unitAmount ?? 3999)  : 3999;
   const vpnAnnual   = vpnProduct  ? (getPriceForPeriod(vpnProduct.prices,  "annual")?.unitAmount  ?? 5999)  : 5999;
-  const proAnnual   = proProduct  ? (getPriceForPeriod(proProduct.prices,  "annual")?.unitAmount  ?? 29999) : 29999;
+  const proAnnual   = proProduct  ? (getPriceForPeriod(proProduct.prices,  "annual")?.unitAmount  ?? 34999) : 34999;
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 py-2">
@@ -377,10 +379,10 @@ export default function Pricing() {
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
-            { tool: "Burp Suite Pro", price: "$449/yr", tag: "vulnerability scanner only" },
-            { tool: "Shodan", price: "$49/mo", tag: "network intelligence only" },
-            { tool: "NordVPN", price: "$6.99/mo", tag: "VPN only" },
-            { tool: "ProxhqVPN Pro", price: "$24.99/mo*", tag: "all tools + VPN combined", highlight: true },
+            { tool: "Burp Suite Pro", price: "$475/yr", tag: "HTTP proxy + scanner only (no VPN)" },
+            { tool: "Shodan Freelancer", price: "$69/mo", tag: "device intelligence only" },
+            { tool: "Metasploit Pro", price: "$15,000/yr", tag: "exploit framework only" },
+            { tool: "ProxhqVPN Pro", price: "$39.99/mo*", tag: "VPN + full security toolkit", highlight: true },
           ].map((r) => (
             <div key={r.tool} className={`rounded-xl p-3.5 text-center ${
               r.highlight

@@ -63,6 +63,9 @@ import MyVPN from "@/pages/MyVPN";
 import Pricing from "@/pages/Pricing";
 import SqlmapScanner from "@/pages/SqlmapScanner";
 import AlphaTools from "@/pages/AlphaTools";
+import HttpProbe from "@/pages/HttpProbe";
+import DirectoryFuzzer from "@/pages/DirectoryFuzzer";
+import SubdomainScan from "@/pages/SubdomainScan";
 import Downloads from "@/pages/Downloads";
 import UserGuide from "@/pages/UserGuide";
 import Employees from "@/pages/Employees";
@@ -372,6 +375,15 @@ function AppRoutes() {
           </Route>
           <Route path="/threat-intel">
             <CcLayout><ThreatIntel /></CcLayout>
+          </Route>
+          <Route path="/http-probe">
+            <CcLayout><HttpProbe /></CcLayout>
+          </Route>
+          <Route path="/dir-fuzzer">
+            <CcLayout><DirectoryFuzzer /></CcLayout>
+          </Route>
+          <Route path="/subdomain-scan">
+            <CcLayout><SubdomainScan /></CcLayout>
           </Route>
 
           {/* ── Admin-only — gated on backend; frontend shows paywall for non-admins ── */}
