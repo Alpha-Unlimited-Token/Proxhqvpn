@@ -59,89 +59,106 @@ router.get("/daemon-download", (_req: Request, res: Response) => {
 // Node setup script — returns a bash installer for new VPN servers
 router.get("/setup-script", (req: Request, res: Response) => {
   const psk = process.env.DAEMON_PSK || "";
-  const proto = req.headers["x-forwarded-proto"] || "https";
-  const host = req.headers["x-forwarded-host"] || req.headers.host || "";
-  const apiBase = `${proto}://${host}/api`;
+  // Always use the stable Replit dev domain so external servers can reach us
+  const replitDomain = process.env.REPLIT_DEV_DOMAIN || process.env.REPLIT_DOMAINS?.split(",")[0] || "";
+  const apiBase = replitDomain ? `https://${replitDomain}/api` : `https://${req.headers.host}/api`;
   const region = (req.query.region as string) || "Unknown";
 
   const script = `#!/bin/bash
-set -e
+# ProxhqVPN Node Setup Script
+# Installs WireGuard + daemon on a fresh Ubuntu/Debian VPS
 
 API="${apiBase}"
 PSK="${psk}"
 REGION="${region}"
 
+die() { echo ""; echo "ERROR: \$1"; echo "Setup failed. Fix the error above and re-run."; exit 1; }
+ok()  { echo "  OK"; }
+
 echo ""
-echo "=== ProxhqVPN Node Setup ==="
-echo "API: \$API"
-echo "Region: \$REGION"
+echo "========================================"
+echo "   ProxhqVPN Node Setup"
+echo "   Region: \$REGION"
+echo "========================================"
 echo ""
 
-# 1. Update and install WireGuard
+# Wait for cloud-init to finish (new servers need this)
+echo "[0/7] Waiting for system to be ready..."
+sleep 5
+systemctl is-active --quiet cloud-init-local 2>/dev/null && sleep 10
+ok
+
+# 1. Install WireGuard
 echo "[1/7] Installing WireGuard..."
-apt-get update -qq
-apt-get install -y wireguard wireguard-tools curl python3 2>/dev/null
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -qq 2>&1 | tail -1 || true
+apt-get install -y wireguard wireguard-tools curl python3 iptables 2>&1 | grep -E "^(Err|W:|E:)" || true
+which wg > /dev/null 2>&1 || die "WireGuard failed to install. Try: apt-get install wireguard"
+ok
 
-# 2. Generate server WireGuard keys
+# 2. Generate WireGuard keys
 echo "[2/7] Generating WireGuard keys..."
-SERVER_PRIVKEY=\$(wg genkey)
-SERVER_PUBKEY=\$(echo \$SERVER_PRIVKEY | wg pubkey)
+SERVER_PRIVKEY=\$(wg genkey) || die "Failed to generate WireGuard private key"
+SERVER_PUBKEY=\$(echo "\$SERVER_PRIVKEY" | wg pubkey) || die "Failed to derive public key"
+echo "  Public key: \$SERVER_PUBKEY"
+ok
 
-# 3. Get this server's public IP
+# 3. Get public IP
 echo "[3/7] Detecting public IP..."
-PUBLIC_IP=\$(curl -sf --max-time 5 https://api.ipify.org || curl -sf --max-time 5 https://ipinfo.io/ip || curl -sf --max-time 5 https://icanhazip.com)
-echo "    Public IP: \$PUBLIC_IP"
+PUBLIC_IP=\$(curl -sf --max-time 8 https://api.ipify.org 2>/dev/null) \\
+  || PUBLIC_IP=\$(curl -sf --max-time 8 https://ipinfo.io/ip 2>/dev/null) \\
+  || PUBLIC_IP=\$(curl -sf --max-time 8 https://icanhazip.com 2>/dev/null)
+[ -z "\$PUBLIC_IP" ] && die "Could not detect public IP — check internet connectivity"
+echo "  IP: \$PUBLIC_IP"
+ok
 
-# 4. Register node with ProxhqVPN API
+# 4. Register with ProxhqVPN
 echo "[4/7] Registering node with ProxhqVPN..."
-RESPONSE=\$(curl -sf -X POST "\$API/node-provision" \\
+PAYLOAD='{"publicKey":"'"\$SERVER_PUBKEY"'","publicIp":"'"\$PUBLIC_IP"'","region":"'"\$REGION"'"}'
+RESPONSE=\$(curl -sf --max-time 15 -X POST "\$API/node-provision" \\
   -H "Content-Type: application/json" \\
   -H "X-Daemon-PSK: \$PSK" \\
-  -d "{\\\"publicKey\\\":\\\"\$SERVER_PUBKEY\\\",\\\"publicIp\\\":\\\"\$PUBLIC_IP\\\",\\\"region\\\":\\\"\$REGION\\\"}")
-
-NODE_ID=\$(echo \$RESPONSE | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['nodeId'])")
-SERVER_VPN_IP=\$(echo \$RESPONSE | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['serverVpnIp'])")
-VPN_SUBNET=\$(echo \$RESPONSE | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['vpnSubnet'])")
-
-echo "    Node ID: \$NODE_ID"
-echo "    VPN IP: \$SERVER_VPN_IP"
-echo "    Subnet: \$VPN_SUBNET"
+  -d "\$PAYLOAD") || die "Could not reach ProxhqVPN API at \$API"
+[ -z "\$RESPONSE" ] && die "Empty response from API — check DAEMON_PSK"
+NODE_ID=\$(echo "\$RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['nodeId'])") || die "Bad API response: \$RESPONSE"
+SERVER_VPN_IP=\$(echo "\$RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['serverVpnIp'])")
+echo "  Node ID: \$NODE_ID | VPN IP: \$SERVER_VPN_IP"
+ok
 
 # 5. Create wg0.conf
-echo "[5/7] Creating WireGuard config..."
+echo "[5/7] Configuring WireGuard..."
 mkdir -p /etc/wireguard
-cat > /etc/wireguard/wg0.conf << WGCONF
+cat > /etc/wireguard/wg0.conf << WGEOF
 [Interface]
-Address = \$SERVER_VPN_IP/24
+Address = \${SERVER_VPN_IP}/24
 ListenPort = 51820
-PrivateKey = \$SERVER_PRIVKEY
+PrivateKey = \${SERVER_PRIVKEY}
 PostUp = iptables -A FORWARD -i %i -j ACCEPT; iptables -A FORWARD -o %i -j ACCEPT; iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
 PostDown = iptables -D FORWARD -i %i -j ACCEPT; iptables -D FORWARD -o %i -j ACCEPT; iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE
-WGCONF
+WGEOF
 chmod 600 /etc/wireguard/wg0.conf
+grep -q "net.ipv4.ip_forward=1" /etc/sysctl.conf || echo "net.ipv4.ip_forward=1" >> /etc/sysctl.conf
+sysctl -w net.ipv4.ip_forward=1 -q
+systemctl enable wg-quick@wg0 2>/dev/null || true
+systemctl restart wg-quick@wg0 || die "WireGuard failed to start — check /etc/wireguard/wg0.conf"
+ok
 
-# Enable IP forwarding
-echo "net.ipv4.ip_forward=1" >> /etc/sysctl.conf
-sysctl -p -q
-
-# Start WireGuard
-systemctl enable --now wg-quick@wg0
-echo "    WireGuard started on port 51820"
-
-# 6. Download and install daemon
+# 6. Download daemon
 echo "[6/7] Installing ProxhqVPN daemon..."
-curl -sf "\$API/daemon-download" -o /usr/local/bin/proxhqd.py
+curl -sf --max-time 15 "\$API/daemon-download" -o /usr/local/bin/proxhqd.py || die "Failed to download daemon from \$API/daemon-download"
 chmod +x /usr/local/bin/proxhqd.py
+ok
 
 # 7. Install systemd service
-echo "[7/7] Setting up auto-start service..."
+echo "[7/7] Starting daemon service..."
 cat > /etc/systemd/system/proxhqd.service << SVCEOF
 [Unit]
 Description=ProxhqVPN Daemon
 After=network.target wg-quick@wg0.service
+Wants=wg-quick@wg0.service
 
 [Service]
-ExecStart=/usr/bin/python3 /usr/local/bin/proxhqd.py --api \$API --node-id \$NODE_ID --psk \$PSK
+ExecStart=/usr/bin/python3 /usr/local/bin/proxhqd.py --api \${API} --node-id \${NODE_ID} --psk \${PSK}
 Restart=always
 RestartSec=30
 StandardOutput=journal
@@ -150,19 +167,23 @@ StandardError=journal
 [Install]
 WantedBy=multi-user.target
 SVCEOF
-
 systemctl daemon-reload
-systemctl enable --now proxhqd
+systemctl enable proxhqd
+systemctl restart proxhqd
+ok
 
 echo ""
-echo "========================================="
-echo "  ProxhqVPN Node Setup Complete!"
-echo "  Node ID:     \$NODE_ID"
-echo "  Region:      \$REGION"
-echo "  Public IP:   \$PUBLIC_IP"
-echo "  VPN Address: \$SERVER_VPN_IP"
-echo "  Status:      Online — reporting every 30s"
-echo "========================================="
+echo "========================================"
+echo "  Setup Complete!"
+echo ""
+echo "  Node ID  : \$NODE_ID"
+echo "  Region   : \$REGION"
+echo "  Public IP: \$PUBLIC_IP"
+echo "  VPN IP   : \$SERVER_VPN_IP"
+echo ""
+echo "  Node is now online and reporting"
+echo "  Check your dashboard in 30 seconds"
+echo "========================================"
 echo ""
 `;
 
