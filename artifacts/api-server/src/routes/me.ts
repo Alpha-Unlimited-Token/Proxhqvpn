@@ -2,9 +2,10 @@ import { Router } from "express";
 import { getAuth, clerkClient } from "@clerk/express";
 import { db } from "@workspace/db";
 import { usersTable } from "@workspace/db/schema";
-import { isEmployeeEmail } from "./employees";
+import { isEmployeeEmail, getEmployeeByEmail } from "./employees";
 import { stripeStorage } from "../stripeStorage";
 import { eq } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 
 const router = Router();
 
@@ -34,7 +35,38 @@ router.get("/", async (req, res) => {
     .returning();
 
   const isAdmin = dbUser?.isAdmin ?? isAdminByEmail;
-  const isEmployee = email ? await isEmployeeEmail(email) : false;
+  const employee = email ? await getEmployeeByEmail(email) : null;
+  const isEmployee = !!employee;
+
+  // Auto-create a pre-approved ambassador account for employees flagged as ambassadors
+  if (employee?.isAmbassador && employee.ambassadorPromoCode) {
+    try {
+      const existingAmb = await db.execute(sql`
+        SELECT id FROM ambassadors WHERE user_id = ${userId} LIMIT 1
+      `);
+      const existing: any[] = Array.isArray(existingAmb) ? existingAmb : ((existingAmb as any).rows ?? []);
+      if (existing.length === 0) {
+        const displayName = employee.displayName ?? email ?? "Ambassador";
+        const promoCode = employee.ambassadorPromoCode.toUpperCase().replace(/[^A-Z0-9]/g, "").substring(0, 12);
+        await db.execute(sql`
+          INSERT INTO ambassadors (user_id, name, bio, promo_code, avatar_url, social_urls, status)
+          VALUES (
+            ${userId},
+            ${displayName},
+            ${"ProxhqVPN team member and founding ambassador."},
+            ${promoCode},
+            ${null},
+            ${"{}"}::jsonb,
+            ${"approved"}
+          )
+          ON CONFLICT (user_id) DO NOTHING
+        `);
+      }
+    } catch (err) {
+      // Non-fatal — ambassador setup can be retried later
+      console.error("[me] ambassador auto-create failed:", err);
+    }
+  }
 
   // Determine subscription tier
   let tier: "vpn" | "command_center" | null = null;

@@ -14,6 +14,8 @@ const SEED_EMPLOYEES = [
     displayName: "Charlie Chris",
     note: "Founding employee — full access",
     addedByEmail: "admin",
+    isAmbassador: true,
+    ambassadorPromoCode: "CHARLIE10",
   },
 ];
 
@@ -22,8 +24,24 @@ export async function seedEmployees() {
     await db
       .insert(employeesTable)
       .values(emp)
-      .onConflictDoNothing();
+      .onConflictDoUpdate({
+        target: employeesTable.email,
+        set: {
+          isAmbassador: emp.isAmbassador ?? false,
+          ambassadorPromoCode: emp.ambassadorPromoCode ?? null,
+        },
+      });
   }
+}
+
+/** Returns the employee row (including ambassador fields) if found, else null */
+export async function getEmployeeByEmail(email: string | null | undefined) {
+  if (!email) return null;
+  const rows = await db
+    .select()
+    .from(employeesTable)
+    .where(ilike(employeesTable.email, email.trim()));
+  return rows[0] ?? null;
 }
 
 export async function isEmployeeEmail(email: string | null | undefined): Promise<boolean> {
