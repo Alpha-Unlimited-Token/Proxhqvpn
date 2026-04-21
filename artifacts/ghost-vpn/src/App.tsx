@@ -96,11 +96,6 @@ const ghostGreen = "#00ff88";
 const ghostGreenDark = "#009952";
 
 const clerkAppearance = {
-  options: {
-    logoPlacement: "inside" as const,
-    logoLinkUrl: basePath || "/",
-    logoImageUrl: `${window.location.origin}${basePath}/logo.svg`,
-  },
   variables: {
     colorPrimary: ghostGreen,
     colorBackground: "#040a06",
@@ -172,7 +167,7 @@ function SignInPage() {
             <img src={`${basePath}/icon-final2.png`} alt="ProxhqVPN" className="w-12 h-12 mx-auto mb-3" />
             <div className="text-xl font-bold text-white">ProxhqVPN</div>
           </div>
-          <SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} afterSignInUrl="/dashboard" forceRedirectUrl="/dashboard" />
+          <SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} fallbackRedirectUrl={`${basePath}/dashboard`} />
         </div>
       </div>
     </div>
@@ -203,7 +198,7 @@ function SignUpPage() {
             <img src={`${basePath}/icon-final2.png`} alt="ProxhqVPN" className="w-12 h-12 mx-auto mb-3" />
             <div className="text-xl font-bold text-white">ProxhqVPN</div>
           </div>
-          <SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} afterSignUpUrl="/pricing" />
+          <SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} fallbackRedirectUrl={`${basePath}/pricing`} />
         </div>
       </div>
     </div>
@@ -489,6 +484,8 @@ function ClerkProviderWithRoutes() {
       publishableKey={clerkPubKey}
       proxyUrl={clerkProxyUrl}
       appearance={clerkAppearance}
+      signInFallbackRedirectUrl={`${basePath}/dashboard`}
+      signUpFallbackRedirectUrl={`${basePath}/pricing`}
       localization={{
         signIn: {
           start: {
