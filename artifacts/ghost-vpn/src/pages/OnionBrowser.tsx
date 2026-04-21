@@ -31,7 +31,6 @@ import {
   ChevronRight,
   Home,
   Bookmark,
-  AlertTriangle,
   Power,
   PowerOff,
   Shuffle,
@@ -63,11 +62,12 @@ const MODE_COLORS: Record<ProxyMode, string> = {
 };
 
 const DEFAULT_BOOKMARKS = [
-  { label: "DuckDuckGo (Onion)", url: "https://duckduckgogg42xjoc72x3sjasowoarfbgcmvfimaftt6twagswzczad.onion" },
+  { label: "DuckDuckGo (Onion)", url: "http://duckduckgogg42xjoc72x3sjasowoarfbgcmvfimaftt6twagswzczad.onion" },
   { label: "DuckDuckGo", url: "https://duckduckgo.com" },
-  { label: "Ahmia (Onion Search)", url: "http://ahmia.fi" },
-  { label: "Wikipedia", url: "https://en.wikipedia.org/wiki/Tor_%28network%29" },
+  { label: "Ahmia (Onion Search)", url: "https://ahmia.fi" },
+  { label: "ProPublica Onion", url: "https://p53lf57qovyuvwsc6xnrppyply3vtqm7l6pcobkmyqe6e573ikisif4id.onion" },
   { label: "Check Tor IP", url: "https://check.torproject.org" },
+  { label: "Wikipedia", url: "https://en.wikipedia.org/wiki/Tor_%28network%29" },
 ];
 
 function OnionLayer({
@@ -203,11 +203,11 @@ export default function OnionBrowser() {
       setIsLoading(true);
       setCurrentLayers([]);
 
+      const isOnion = targetUrl.toLowerCase().includes(".onion");
+
       try {
-        const apiMode: ProxyFetchBodyMode =
-          mode === "custom-proxy" ? ProxyFetchBodyMode.direct : (mode as ProxyFetchBodyMode);
         const result = await fetchUrl.mutateAsync({
-          data: { url: targetUrl, mode: apiMode },
+          data: { url: targetUrl, mode: mode as any },
         });
 
         setIframeContent(result.html ?? "");
@@ -232,7 +232,7 @@ export default function OnionBrowser() {
 
         if (result.error) {
           toast({
-            title: "Connection Issue",
+            title: isOnion ? ".onion Connection Issue" : "Connection Issue",
             description: result.error,
             variant: "destructive",
           });
@@ -247,6 +247,7 @@ export default function OnionBrowser() {
         setIsLoading(false);
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [mode, historyIndex, fetchUrl, toast]
   );
 
@@ -646,22 +647,19 @@ export default function OnionBrowser() {
 
         <div className="flex items-center justify-between px-3 py-1 border-t border-primary/10 bg-black/60 text-xs font-mono">
           <div className="flex items-center gap-3">
-            {mode === "custom-proxy" ? (
+            {mode === "direct" ? (
+              <span className="flex items-center gap-1 text-yellow-500">
+                <WifiOff className="w-3 h-3" /> Direct (no proxy — not anonymous)
+              </span>
+            ) : mode === "custom-proxy" ? (
               <span className="flex items-center gap-1 text-orange-400">
                 <Shield className="w-3 h-3" />
                 {customProxyType.toUpperCase()} {customProxyUrl || "— configure proxy ↗"}
               </span>
-            ) : torActive ? (
-              <span className="flex items-center gap-1 text-purple-400">
-                <Wifi className="w-3 h-3" /> Tor SOCKS5 {socks5Host}:{socks5Port}
-              </span>
-            ) : ghostActive ? (
-              <span className="flex items-center gap-1 text-primary">
-                <Shield className="w-3 h-3" /> ProxhqVPN Multi-hop Active
-              </span>
             ) : (
-              <span className="flex items-center gap-1 text-yellow-500">
-                <WifiOff className="w-3 h-3" /> Direct (no proxy)
+              <span className="flex items-center gap-1 text-purple-400">
+                <Wifi className="w-3 h-3" />
+                {torActive ? `Tor SOCKS5 · ${socks5Host}:${socks5Port}` : "Tor SOCKS5 Active · Server-side"}
               </span>
             )}
             {statusCode !== null && (
@@ -679,24 +677,16 @@ export default function OnionBrowser() {
         </div>
       </Card>
 
-      {(mode === "tor-gateway" || mode === "double-layer") && (
-        <div className="flex items-center gap-2 mt-2 px-1 text-xs font-mono text-yellow-500/70">
-          <AlertTriangle className="w-3 h-3" />
-          <span>
-            Tor mode requires Tor daemon running locally ({socks5Host}:{socks5Port}).
-            Install from{" "}
-            <a
-              href="https://www.torproject.org/download/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline hover:text-yellow-500"
-            >
-              torproject.org
-            </a>
-            . For maximum protection, also enable Tor Browser and chain it via Double Layer mode.
-          </span>
-        </div>
-      )}
+      <div className="flex items-center gap-2 mt-2 px-1 text-xs font-mono text-primary/40">
+        <Shield className="w-3 h-3" />
+        <span>
+          {mode === "direct"
+            ? "Direct mode — no anonymization. Not recommended for sensitive browsing."
+            : mode === "custom-proxy"
+            ? `Custom proxy active: ${customProxyType.toUpperCase()} ${customProxyUrl || "— set proxy URL in settings"}`
+            : "All traffic is routed server-side through Tor SOCKS5. .onion addresses are fully supported."}
+        </span>
+      </div>
     </div>
   );
 }
@@ -721,21 +711,21 @@ function NewTabPage({
     "proxhq-onion": {
       color: "text-primary",
       description:
-        "Routes through ProxhqVPN's multi-hop relay network with IP rotation and encryption.",
+        "Routes through ProxhqVPN's multi-hop relay network + Tor exit node. Supports .onion addresses. All requests are server-side via Tor SOCKS5.",
       icon: <Shield className="w-5 h-5 text-primary" />,
-      layers: ["Your Device", "ProxhqVPN Relay ×7", "Destination"],
+      layers: ["Your Device", "ProxhqVPN Relay ×7", "Tor Exit Node", "Destination"],
     },
     "tor-gateway": {
       color: "text-purple-400",
       description:
-        "Routes through Tor's 3-hop onion network via SOCKS5. Requires Tor daemon (port 9050).",
+        "Direct 3-hop Tor routing via SOCKS5. Server-side Tor daemon handles all requests. .onion fully supported.",
       icon: <Lock className="w-5 h-5 text-purple-400" />,
-      layers: ["Your Device", "Entry Guard", "Middle Relay", "Exit Node", "Destination"],
+      layers: ["Your Device", "Tor Entry Guard", "Tor Middle Relay", "Tor Exit Node", "Destination"],
     },
     "double-layer": {
       color: "text-cyan-400",
       description:
-        "Maximum protection: ProxhqVPN multi-hop → Tor network. Slowest but most anonymous.",
+        "Maximum protection: ProxhqVPN Ghost Chain → Tor network → destination. Slowest but most anonymous. .onion supported.",
       icon: <Layers className="w-5 h-5 text-cyan-400" />,
       layers: ["Your Device", "ProxhqVPN ×3", "Tor Entry", "Tor Middle", "Tor Exit", "Destination"],
     },
