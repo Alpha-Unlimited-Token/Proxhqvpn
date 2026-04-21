@@ -6,6 +6,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Layout } from "./components/layout/Layout";
 
+import Home from "@/pages/Home";
 import Dashboard from "@/pages/Dashboard";
 import NodeManager from "@/pages/NodeManager";
 import BeaconAlerts from "@/pages/BeaconAlerts";
@@ -168,16 +169,10 @@ function SignUpPage() {
 }
 
 function HomeRedirect() {
-  return (
-    <>
-      <Show when="signed-in">
-        <Redirect to="/dashboard" />
-      </Show>
-      <Show when="signed-out">
-        <Redirect to="/sign-in" />
-      </Show>
-    </>
-  );
+  const { isSignedIn, isLoaded } = useClerk();
+  if (!isLoaded) return null;
+  if (isSignedIn) return <Redirect to="/dashboard" />;
+  return <Home />;
 }
 
 function ProtectedLayout({ children }: { children: React.ReactNode }) {
