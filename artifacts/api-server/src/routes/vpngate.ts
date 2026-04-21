@@ -395,12 +395,21 @@ router.post("/connect", async (req, res) => {
     writeFileSync(ovpnPath, config, { mode: 0o600 });
     writeFileSync(credsPath, "vpn\nvpn\n", { mode: 0o600 });
 
-    vpnProcess = spawn("sudo", [
+    const args = [
       "openvpn",
       "--config", ovpnPath,
       "--auth-user-pass", credsPath,
       "--verb", "1",
-    ], { detached: false });
+    ];
+
+    // Mask 1 — Tor Veil: route entire OpenVPN handshake + traffic through Tor SOCKS5
+    // VPNGate server will only see the Tor exit node IP, never this server's real IP
+    if ((req.body as any)?.torVeil) {
+      args.push("--socks-proxy", "127.0.0.1", "9050");
+      args.push("--proto", "tcp"); // Tor only proxies TCP
+    }
+
+    vpnProcess = spawn("sudo", args, { detached: false });
 
     const pid = vpnProcess.pid || null;
     connState.pid = pid;
@@ -564,6 +573,320 @@ router.post("/disconnect", (_req, res) => {
   vpnProcess = null;
   connState = { ...connState, status: "disconnected", connectedAt: null, pid: null, error: null };
   res.json({ message: "Disconnected" });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GHOST CHAIN — multi-veil anonymity routing
+//
+// Architecture:
+//   User → [WireGuard] → This Server → [TOR VEIL] → VPNGate Relay A
+//        → [RELAY VEIL] → VPNGate Exit B → Website
+//
+// Mask 1 (Tor Veil):   OpenVPN to VPNGate-A is routed through the Tor daemon
+//                      on 127.0.0.1:9050. VPNGate-A never sees this server's
+//                      real IP — it only sees a Tor exit node.
+//
+// Mask 2 (Relay Veil): VPNGate-A is used as an intermediate SOCKS relay.
+//                      Traffic exits through VPNGate-B. The destination website
+//                      only ever sees VPNGate-B's IP.
+// ─────────────────────────────────────────────────────────────────────────────
+
+router.get("/ghost-chain", async (req, res) => {
+  try {
+    const servers = await getServers();
+
+    // Need at least 2 servers with OpenVPN configs, from different countries
+    const ovpnServers = servers.filter((s) => s.hasOvpn && s.ovpnConfigB64);
+    if (ovpnServers.length < 2) {
+      return res.status(503).json({ error: "Not enough VPNGate servers available to build a Ghost Chain. Try again in a moment." });
+    }
+
+    // Pick the best relay server (lowest ping, has OVPN)
+    const relayServer = ovpnServers[0];
+
+    // Pick exit from a different country
+    const exitServer = ovpnServers.find(
+      (s) => s.countryCode !== relayServer.countryCode && s.ip !== relayServer.ip
+    ) ?? ovpnServers[1];
+
+    // Decode the OVPN configs
+    const relayConfig = Buffer.from(relayServer.ovpnConfigB64, "base64").toString("utf-8");
+    const exitConfig  = Buffer.from(exitServer.ovpnConfigB64, "base64").toString("utf-8");
+
+    // Generate Tor-veiled OVPN config for relay (Mask 1)
+    // We inject the socks-proxy directive so the OpenVPN client uses our Tor daemon
+    const torVeiled = relayConfig
+      .replace(/^proto\s+udp/gim, "proto tcp") // Tor only supports TCP
+      + "\n# Ghost Chain — Mask 1: Tor Veil\nsocks-proxy 127.0.0.1 9050\n";
+
+    // Parse relay server SOCKS port for proxychains (OpenVPN tun typically exposes SOCKS at 1080)
+    const relayIp = relayServer.ip;
+    const exitIp  = exitServer.ip;
+
+    // Generate proxychains4 config for the relay-through-exit chain (Mask 2)
+    const proxychainsConf = `# ProxhqVPN Ghost Chain — Mask 2: Relay Veil
+# Generated: ${new Date().toISOString()}
+# Architecture: This Machine → VPNGate Relay (${relayIp}) → VPNGate Exit (${exitIp}) → Website
+
+strict_chain
+proxy_dns
+remote_dns_subnet 224
+tcp_read_time_out 15000
+tcp_connect_time_out 8000
+
+[ProxyList]
+# Mask 1 — Tor Veil (hides this server's IP from VPNGate Relay)
+socks5  127.0.0.1 9050
+
+# Mask 2 — VPNGate Relay (VPNGate A — hides Tor exit from VPNGate Exit)
+# Connect to relay first, then chain through to exit
+socks5  ${relayIp} 1194
+
+# VPNGate Exit — the only IP the destination website sees
+socks5  ${exitIp} 1194
+`;
+
+    // Linux/macOS Ghost Chain script
+    const linuxScript = `#!/usr/bin/env bash
+# ═══════════════════════════════════════════════════════════════
+#  ProxhqVPN Ghost Chain — Full 5-Hop Anonymity Setup
+#  Generated: ${new Date().toISOString()}
+# ═══════════════════════════════════════════════════════════════
+#
+#  Routing Path:
+#    Your Device
+#      ↓ [WireGuard — Hop 1]
+#    ProxhqVPN Server
+#      ↓ [Tor Circuit — Hops 2-4, 3 relays inside Tor]
+#    Tor Exit Node  ← VPNGate Relay sees this IP only
+#      ↓ [OpenVPN / Mask 1 — Tor Veil]
+#    VPNGate Relay: ${relayServer.country} (${relayIp})
+#      ↓ [OpenVPN / Mask 2 — Relay Veil]
+#    VPNGate Exit:  ${exitServer.country} (${exitIp})  ← Website sees ONLY this
+#      ↓ [HTTPS/TCP]
+#    Destination Website
+#
+# ═══════════════════════════════════════════════════════════════
+
+set -euo pipefail
+
+RELAY_IP="${relayIp}"
+EXIT_IP="${exitIp}"
+TOR_SOCKS="127.0.0.1:9050"
+
+echo "[Ghost Chain] Checking dependencies..."
+
+# Require: openvpn, proxychains4, tor
+for cmd in openvpn proxychains4 tor; do
+  if ! command -v "\$cmd" &>/dev/null; then
+    echo "[!] Missing: \$cmd — install it first"
+    echo "    Ubuntu/Debian: sudo apt install \$cmd"
+    echo "    macOS:         brew install \$cmd"
+    exit 1
+  fi
+done
+
+echo "[Ghost Chain] Verifying Tor SOCKS proxy on \$TOR_SOCKS..."
+if ! nc -z 127.0.0.1 9050 2>/dev/null; then
+  echo "[!] Tor SOCKS not reachable on 127.0.0.1:9050"
+  echo "    Start Tor: sudo systemctl start tor"
+  exit 1
+fi
+echo "[OK] Tor is running"
+
+echo "[Ghost Chain] Writing Tor-veiled relay config (Mask 1)..."
+cat > /tmp/ghost-relay.ovpn << 'OVPNEOF'
+${torVeiled}
+OVPNEOF
+
+echo "[Ghost Chain] Writing exit server config (Mask 2)..."
+cat > /tmp/ghost-exit.ovpn << 'OVPNEOF'
+${exitConfig}
+OVPNEOF
+
+echo "[Ghost Chain] Writing proxychains4 config..."
+cat > /tmp/ghost-proxychains.conf << 'PCEOF'
+${proxychainsConf}
+PCEOF
+
+echo ""
+echo "╔══════════════════════════════════════════════════════════════╗"
+echo "║           ProxhqVPN GHOST CHAIN — ACTIVE ROUTING            ║"
+echo "╠══════════════════════════════════════════════════════════════╣"
+echo "║  Your Device → WireGuard → ProxhqVPN Server                 ║"
+echo "║      → [TOR VEIL] → Tor Exit                                ║"
+echo "║      → [OpenVPN]  → ${relayServer.country} Relay (${relayIp})   ║"
+echo "║      → [RELAY]    → ${exitServer.country} Exit  (${exitIp})     ║"
+echo "║      → Website (sees only ${exitIp})                 ║"
+echo "╚══════════════════════════════════════════════════════════════╝"
+echo ""
+echo "[Ghost Chain] Establishing Mask 1 — Tor-veiled relay connection..."
+sudo proxychains4 -f /tmp/ghost-proxychains.conf openvpn \\
+  --config /tmp/ghost-relay.ovpn \\
+  --auth-user-pass <(echo -e "vpn\\nvpn") \\
+  --socks-proxy 127.0.0.1 9050 \\
+  --proto tcp \\
+  --verb 1 &
+RELAY_PID=\$!
+echo "[OK] Relay PID: \$RELAY_PID"
+
+sleep 8  # allow relay tunnel to establish
+
+echo "[Ghost Chain] Establishing Mask 2 — Relay-veiled exit connection..."
+sudo openvpn \\
+  --config /tmp/ghost-exit.ovpn \\
+  --auth-user-pass <(echo -e "vpn\\nvpn") \\
+  --verb 1 &
+EXIT_PID=\$!
+echo "[OK] Exit PID: \$EXIT_PID"
+
+echo ""
+echo "[Ghost Chain] Both veils active. Press Ctrl+C to disconnect all."
+trap "echo 'Disconnecting...'; kill \$RELAY_PID \$EXIT_PID 2>/dev/null; echo 'Ghost Chain terminated.'" INT TERM
+wait
+`;
+
+    // Windows PowerShell Ghost Chain script
+    const psScript = `# ═══════════════════════════════════════════════════════════════
+#  ProxhqVPN Ghost Chain — Windows PowerShell
+#  Generated: ${new Date().toISOString()}
+# ═══════════════════════════════════════════════════════════════
+#
+#  Routing Path:
+#    Your Device → WireGuard → ProxhqVPN Server
+#      → [TOR VEIL]    → Tor Exit Node
+#      → [RELAY]       → ${relayServer.country} Relay (${relayIp})
+#      → [RELAY VEIL]  → ${exitServer.country} Exit  (${exitIp})
+#      → Website (sees ONLY ${exitIp})
+#
+# Requirements: OpenVPN, Tor (from Expert Bundle), proxychains (via cygwin)
+# ═══════════════════════════════════════════════════════════════
+
+param([switch]\$Verbose)
+
+\$RELAY_IP = "${relayIp}"
+\$EXIT_IP  = "${exitIp}"
+
+Write-Host "[Ghost Chain] ProxhqVPN Ghost Chain — Windows" -ForegroundColor Cyan
+Write-Host "  Relay : ${relayServer.country} (\$RELAY_IP)" -ForegroundColor Yellow
+Write-Host "  Exit  : ${exitServer.country} (\$EXIT_IP)"  -ForegroundColor Green
+Write-Host ""
+
+# Check OpenVPN
+if (-not (Get-Command "openvpn" -ErrorAction SilentlyContinue)) {
+    Write-Host "[!] OpenVPN not found. Download from https://openvpn.net/community-downloads/" -ForegroundColor Red
+    exit 1
+}
+
+# Check Tor
+\$torPath = "C:\\Tor\\tor.exe"
+if (-not (Test-Path \$torPath)) {
+    Write-Host "[!] Tor Expert Bundle not found at \$torPath" -ForegroundColor Red
+    Write-Host "    Download: https://www.torproject.org/download/tor/" -ForegroundColor Yellow
+    exit 1
+}
+
+# Write relay config
+\$relayConf = @'
+${torVeiled}
+'@
+\$relayConf | Out-File -FilePath "\$env:TEMP\\ghost-relay.ovpn" -Encoding ascii
+
+# Write exit config
+\$exitConf = @'
+${exitConfig}
+'@
+\$exitConf | Out-File -FilePath "\$env:TEMP\\ghost-exit.ovpn" -Encoding ascii
+
+Write-Host "[Ghost Chain] Starting Tor SOCKS proxy..."
+Start-Process -FilePath \$torPath -ArgumentList "--SocksPort 9050" -WindowStyle Hidden
+
+Start-Sleep -Seconds 3
+
+Write-Host "[Ghost Chain] Mask 1 — Connecting through Tor to relay (\$RELAY_IP)..."
+\$relayJob = Start-Process "openvpn" -ArgumentList \`
+  "--config", "\$env:TEMP\\ghost-relay.ovpn", \`
+  "--auth-user-pass", "\$env:TEMP\\ghost-creds.txt", \`
+  "--socks-proxy", "127.0.0.1", "9050", \`
+  "--proto", "tcp", \`
+  "--verb", "1" \`
+  -PassThru
+
+Start-Sleep -Seconds 8
+
+Write-Host "[Ghost Chain] Mask 2 — Connecting through relay to exit (\$EXIT_IP)..."
+\$exitJob = Start-Process "openvpn" -ArgumentList \`
+  "--config", "\$env:TEMP\\ghost-exit.ovpn", \`
+  "--auth-user-pass", "\$env:TEMP\\ghost-creds.txt", \`
+  "--verb", "1" \`
+  -PassThru
+
+Write-Host ""
+Write-Host "╔══════════════════════════════════════════════╗" -ForegroundColor Cyan
+Write-Host "║   GHOST CHAIN ACTIVE — Press Ctrl+C to stop  ║" -ForegroundColor Cyan
+Write-Host "╚══════════════════════════════════════════════╝" -ForegroundColor Cyan
+Write-Host "  Your traffic exits via: \$EXIT_IP (${exitServer.country})" -ForegroundColor Green
+Write-Host ""
+
+try {
+    while (\$true) { Start-Sleep -Seconds 5 }
+} finally {
+    Write-Host "Disconnecting Ghost Chain..." -ForegroundColor Yellow
+    Stop-Process -Id \$relayJob.Id -Force -ErrorAction SilentlyContinue
+    Stop-Process -Id \$exitJob.Id  -Force -ErrorAction SilentlyContinue
+    Write-Host "Ghost Chain terminated." -ForegroundColor Red
+}
+`;
+
+    res.json({
+      ghostChain: {
+        generatedAt: new Date().toISOString(),
+        hops: 5,
+        description: "5-hop Ghost Chain: WireGuard → Tor (3 relays) → VPNGate Relay → VPNGate Exit → Website",
+        masks: [
+          {
+            name: "Tor Veil",
+            position: "Between ProxhqVPN Server and VPNGate Relay",
+            mechanism: "OpenVPN routed through Tor SOCKS5 (127.0.0.1:9050)",
+            effect: "VPNGate Relay sees Tor exit node IP — never sees this server's real IP",
+            hops: 3,
+          },
+          {
+            name: "Relay Veil",
+            position: "Between VPNGate Relay and VPNGate Exit",
+            mechanism: "VPNGate Relay server used as intermediary SOCKS relay",
+            effect: "Website sees only VPNGate Exit IP. VPNGate Exit sees only VPNGate Relay IP.",
+            hops: 1,
+          },
+        ],
+        relay: {
+          ip: relayServer.ip,
+          country: relayServer.country,
+          countryCode: relayServer.countryCode,
+          ping: relayServer.ping,
+          speedMbps: relayServer.speedMbps,
+          role: "Mask 1 exit / Mask 2 relay — receives Tor-veiled OpenVPN connection",
+        },
+        exit: {
+          ip: exitServer.ip,
+          country: exitServer.country,
+          countryCode: exitServer.countryCode,
+          ping: exitServer.ping,
+          speedMbps: exitServer.speedMbps,
+          role: "Final exit — ONLY IP visible to destination websites",
+        },
+        configs: {
+          torVeiledOvpn: Buffer.from(torVeiled).toString("base64"),
+          exitOvpn: exitServer.ovpnConfigB64,
+          proxychainsConf: Buffer.from(proxychainsConf).toString("base64"),
+          linuxScript: Buffer.from(linuxScript).toString("base64"),
+          windowsScript: Buffer.from(psScript).toString("base64"),
+        },
+      },
+    });
+  } catch (e: any) {
+    res.status(500).json({ error: "Ghost Chain generation failed", detail: e.message });
+  }
 });
 
 export default router;

@@ -4,7 +4,8 @@ import {
   Globe, RefreshCw, Download, Zap, Users, Clock,
   Radio, Activity, Shield, Filter, Star, Wifi,
   Play, Square, AlertCircle, CheckCircle, Loader,
-  Terminal, ChevronDown, Layers
+  Terminal, ChevronDown, Layers, Ghost, Lock, Eye,
+  ArrowDown, ArrowRight, Cpu
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -664,9 +665,282 @@ export default function VpnGate() {
             </div>
           </div>
 
+          <GhostChainPanel />
+
           <NodeDoubleHopPanel />
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── Ghost Chain Panel ──────────────────────────────────────────────────────────
+
+interface GhostChainServer {
+  ip: string;
+  country: string;
+  countryCode: string;
+  ping: number;
+  speedMbps: number;
+  role: string;
+}
+
+interface GhostChainMask {
+  name: string;
+  position: string;
+  mechanism: string;
+  effect: string;
+  hops: number;
+}
+
+interface GhostChainData {
+  generatedAt: string;
+  hops: number;
+  description: string;
+  masks: GhostChainMask[];
+  relay: GhostChainServer;
+  exit: GhostChainServer;
+  configs: {
+    torVeiledOvpn: string;
+    exitOvpn: string;
+    proxychainsConf: string;
+    linuxScript: string;
+    windowsScript: string;
+  };
+}
+
+function downloadB64(b64: string, filename: string) {
+  const bytes = atob(b64);
+  const blob = new Blob([bytes], { type: "application/octet-stream" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function GhostChainPanel() {
+  const [expanded, setExpanded] = useState(false);
+  const [chain, setChain] = useState<GhostChainData | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
+
+  const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+  async function generate() {
+    setLoading(true);
+    setError(null);
+    try {
+      const r = await fetch(`${BASE}/api/vpngate/ghost-chain`);
+      if (!r.ok) {
+        const body = await r.json().catch(() => ({}));
+        throw new Error(body.error ?? "Failed to generate Ghost Chain");
+      }
+      const data = await r.json();
+      setChain(data.ghostChain);
+      setExpanded(true);
+      toast({ title: "Ghost Chain Generated", description: `${data.ghostChain.hops}-hop chain ready. Download your scripts below.` });
+    } catch (e: any) {
+      setError(e.message);
+      toast({ title: "Ghost Chain Error", description: e.message, variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const hopNodes = chain
+    ? [
+        { label: "YOUR DEVICE", sub: "WireGuard client", color: "text-primary", icon: Cpu },
+        { label: "PROXHQVPN SERVER", sub: "Your server", color: "text-cyan-400", icon: Shield },
+        { label: "TOR VEIL", sub: "3 Tor relays — Mask 1", color: "text-yellow-400", icon: Eye },
+        { label: `VPNGATE RELAY`, sub: `${chain.relay.country} · ${chain.relay.ip}`, color: "text-orange-400", icon: Globe },
+        { label: "RELAY VEIL", sub: "OpenVPN chain — Mask 2", color: "text-yellow-400", icon: Lock },
+        { label: `VPNGATE EXIT`, sub: `${chain.exit.country} · ${chain.exit.ip}`, color: "text-green-400", icon: Globe },
+        { label: "DESTINATION", sub: "Sees only exit IP", color: "text-primary/60", icon: Wifi },
+      ]
+    : null;
+
+  return (
+    <div className="border border-yellow-400/30 bg-black p-3 space-y-3">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Ghost className="w-3.5 h-3.5 text-yellow-400" />
+          <span className="text-[10px] font-mono uppercase tracking-widest text-yellow-400">Ghost Chain</span>
+        </div>
+        {chain && (
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="text-[9px] font-mono text-primary/40 hover:text-primary flex items-center gap-0.5"
+          >
+            {expanded ? "COLLAPSE" : "EXPAND"}
+            <ChevronDown className={`w-2.5 h-2.5 transition-transform ${expanded ? "rotate-180" : ""}`} />
+          </button>
+        )}
+      </div>
+
+      {/* Description */}
+      <div className="text-[9px] font-mono text-primary/40 leading-relaxed">
+        Two invisible veils intercept traffic between every hop.
+        VPNGate never sees your server IP. The destination never sees VPNGate.
+      </div>
+
+      {/* Chain diagram (always visible when chain exists) */}
+      {chain && hopNodes && (
+        <div className="space-y-1">
+          {hopNodes.map((node, i) => {
+            const isVeil = node.label.includes("VEIL");
+            const Icon = node.icon;
+            return (
+              <div key={i} className="flex flex-col items-center">
+                <div className={`w-full flex items-center gap-1.5 px-1.5 py-1 ${
+                  isVeil
+                    ? "border border-dashed border-yellow-400/30 bg-yellow-400/5"
+                    : "border border-primary/10 bg-black/40"
+                }`}>
+                  <Icon className={`w-2.5 h-2.5 shrink-0 ${node.color}`} />
+                  <div className="min-w-0 flex-1">
+                    <div className={`text-[8px] font-mono font-bold uppercase ${node.color}`}>{node.label}</div>
+                    <div className="text-[7px] font-mono text-primary/30 truncate">{node.sub}</div>
+                  </div>
+                  {isVeil && (
+                    <div className="text-[7px] font-mono text-yellow-400/60 border border-yellow-400/20 px-1 py-0.5 shrink-0">MASK</div>
+                  )}
+                </div>
+                {i < hopNodes.length - 1 && (
+                  <div className={`w-px h-2 ${isVeil || hopNodes[i + 1]?.label.includes("VEIL") ? "bg-yellow-400/40" : "bg-primary/20"}`} />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Expanded: server details + downloads */}
+      {chain && expanded && (
+        <div className="space-y-2 border-t border-primary/10 pt-2">
+          {/* Relay server */}
+          <div className="border border-orange-400/20 bg-orange-400/5 p-2 space-y-1">
+            <div className="text-[8px] font-mono text-orange-400 uppercase">Relay Server — Mask 1 Exit</div>
+            {[
+              ["COUNTRY", `${countryFlag(chain.relay.countryCode)} ${chain.relay.country}`],
+              ["IP", chain.relay.ip],
+              ["PING", `${chain.relay.ping}ms`],
+              ["SPEED", `${chain.relay.speedMbps} Mbps`],
+            ].map(([k, v]) => (
+              <div key={k} className="flex justify-between text-[8px] font-mono">
+                <span className="text-primary/30">{k}</span>
+                <span className="text-primary/70 truncate max-w-[100px]">{v}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Exit server */}
+          <div className="border border-green-400/20 bg-green-400/5 p-2 space-y-1">
+            <div className="text-[8px] font-mono text-green-400 uppercase">Exit Server — Only IP Website Sees</div>
+            {[
+              ["COUNTRY", `${countryFlag(chain.exit.countryCode)} ${chain.exit.country}`],
+              ["IP", chain.exit.ip],
+              ["PING", `${chain.exit.ping}ms`],
+              ["SPEED", `${chain.exit.speedMbps} Mbps`],
+            ].map(([k, v]) => (
+              <div key={k} className="flex justify-between text-[8px] font-mono">
+                <span className="text-primary/30">{k}</span>
+                <span className="text-primary/70 truncate max-w-[100px]">{v}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Mask summaries */}
+          <div className="space-y-1">
+            {chain.masks.map((mask, i) => (
+              <div key={i} className="border border-yellow-400/15 bg-yellow-400/5 p-1.5 space-y-0.5">
+                <div className="text-[8px] font-mono text-yellow-400 uppercase">{mask.name}</div>
+                <div className="text-[7px] font-mono text-primary/40 leading-relaxed">{mask.effect}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Download buttons */}
+          <div className="space-y-1 pt-1">
+            <div className="text-[8px] font-mono text-primary/40 uppercase">Download Chain Scripts</div>
+            <button
+              onClick={() => downloadB64(chain.configs.linuxScript, "ghost-chain.sh")}
+              className="w-full flex items-center gap-1.5 text-[9px] font-mono py-1.5 px-2 border border-primary/20 text-primary/60 hover:border-primary/40 hover:text-primary transition-colors"
+            >
+              <Terminal className="w-2.5 h-2.5" />
+              ghost-chain.sh (Linux/macOS)
+            </button>
+            <button
+              onClick={() => downloadB64(chain.configs.windowsScript, "ghost-chain.ps1")}
+              className="w-full flex items-center gap-1.5 text-[9px] font-mono py-1.5 px-2 border border-primary/20 text-primary/60 hover:border-primary/40 hover:text-primary transition-colors"
+            >
+              <Download className="w-2.5 h-2.5" />
+              ghost-chain.ps1 (Windows)
+            </button>
+            <button
+              onClick={() => downloadB64(chain.configs.proxychainsConf, "ghost-proxychains.conf")}
+              className="w-full flex items-center gap-1.5 text-[9px] font-mono py-1.5 px-2 border border-primary/20 text-primary/60 hover:border-primary/40 hover:text-primary transition-colors"
+            >
+              <Download className="w-2.5 h-2.5" />
+              proxychains.conf (advanced)
+            </button>
+            <button
+              onClick={() => downloadB64(chain.configs.torVeiledOvpn, "ghost-relay-torveil.ovpn")}
+              className="w-full flex items-center gap-1.5 text-[9px] font-mono py-1.5 px-2 border border-primary/20 text-primary/60 hover:border-primary/40 hover:text-primary transition-colors"
+            >
+              <Shield className="w-2.5 h-2.5" />
+              relay.ovpn (Tor-veiled)
+            </button>
+            <button
+              onClick={() => downloadB64(chain.configs.exitOvpn, "ghost-exit.ovpn")}
+              className="w-full flex items-center gap-1.5 text-[9px] font-mono py-1.5 px-2 border border-primary/20 text-primary/60 hover:border-primary/40 hover:text-primary transition-colors"
+            >
+              <Globe className="w-2.5 h-2.5" />
+              exit.ovpn
+            </button>
+          </div>
+
+          <button
+            onClick={generate}
+            disabled={loading}
+            className="w-full text-[8px] font-mono py-1 border border-yellow-400/20 text-yellow-400/50 hover:bg-yellow-400/10 uppercase transition-colors"
+          >
+            <RefreshCw className={`w-2 h-2 inline mr-1 ${loading ? "animate-spin" : ""}`} />
+            REGENERATE NEW CHAIN
+          </button>
+        </div>
+      )}
+
+      {/* Error state */}
+      {error && !chain && (
+        <div className="text-[9px] font-mono text-red-400/70 border border-red-400/20 p-2">
+          {error}
+        </div>
+      )}
+
+      {/* Generate button */}
+      {!chain && (
+        <button
+          onClick={generate}
+          disabled={loading}
+          className="w-full flex items-center justify-center gap-2 py-2 border border-yellow-400/40 text-yellow-400/70 hover:bg-yellow-400/10 hover:text-yellow-400 transition-colors font-mono text-[10px] uppercase disabled:opacity-40"
+        >
+          {loading ? (
+            <>
+              <Loader className="w-3 h-3 animate-spin" />
+              BUILDING CHAIN…
+            </>
+          ) : (
+            <>
+              <Ghost className="w-3 h-3" />
+              GENERATE GHOST CHAIN
+            </>
+          )}
+        </button>
+      )}
     </div>
   );
 }
