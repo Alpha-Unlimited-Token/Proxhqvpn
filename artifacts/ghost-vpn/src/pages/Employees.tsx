@@ -232,15 +232,49 @@ export default function Employees() {
       )}
 
       {/* Info box */}
-      <div className="border border-primary/10 rounded p-3 space-y-1.5 text-[9px] font-mono text-primary/40">
-        <div className="flex items-center gap-1.5 text-primary/50 font-bold uppercase text-[8px] tracking-widest">
-          <Shield className="w-3 h-3" /> How Employee Access Works
+      <div className="border border-primary/10 rounded p-3 space-y-1.5 text-[9px] font-mono text-primary/83">
+        <div className="flex items-center gap-1.5 text-primary font-bold uppercase text-[8px] tracking-widest">
+          <Shield className="w-3 h-3" /> Employee Handbook — Access & Features
         </div>
+        <div className="text-primary/78 mt-1 mb-2 text-[8px]">ALPHA UNLIMITED TECHNOLOGIES LLC — Internal Policy</div>
+
+        <div className="font-bold text-primary/90 text-[8px] uppercase tracking-wider mt-2 mb-1">How Access is Granted</div>
         <div>• Employee emails are matched at login — exact match, case-insensitive.</div>
-        <div>• The employee signs in with their Google or email account using the standard ProxhqVPN login.</div>
-        <div>• They immediately see all Pro features: WireGuard config, Alpha Toolkit, VPN Gate, Kill Switch, etc.</div>
-        <div>• The Pricing/Subscription page shows "Employee — Complimentary" instead of asking for payment.</div>
-        <div>• Removing an employee revokes complimentary access at their next login. Existing sessions are unaffected until they refresh.</div>
+        <div>• The employee signs in with their Google or email account using the standard ProxhqVPN login page.</div>
+        <div>• Access is granted immediately and automatically on their first login after being added to this list.</div>
+        <div>• The Pricing/Subscription page shows <span className="text-green-400">Employee — Complimentary</span> instead of asking for payment.</div>
+
+        <div className="font-bold text-primary/90 text-[8px] uppercase tracking-wider mt-3 mb-1">What Employees Get (Full Pro Access)</div>
+        <div>• <strong>My VPN</strong> — WireGuard config generation, auto-IP detection banner, QR code for mobile, connection to all nodes.</div>
+        <div>• <strong>Kill Switch</strong> — Auto-IP whitelisting with downloadable iptables/pf/netsh rule files for Linux, macOS, and Windows.</div>
+        <div>• <strong>WireGuard Config</strong> — Cryptographically signed configs with PostUp/PostDown kill switch hooks pre-baked.</div>
+        <div>• <strong>Router Config</strong> — One-click WireGuard configs for OpenWRT, DD-WRT, AsusWRT-Merlin, pfSense, GL.iNet, and Ubiquiti EdgeOS.</div>
+        <div>• <strong>VPN Gate</strong> — Double-hop routing through community VPN Gate servers.</div>
+        <div>• <strong>Onion Browser</strong> — Built-in Tor browser for .onion addresses and anonymous browsing.</div>
+        <div>• <strong>Leak Detection</strong> — IP, DNS, WebRTC, and IPv6 leak tests.</div>
+        <div>• <strong>DNS Shield</strong> — DNS-over-HTTPS and DNS-over-TLS configuration.</div>
+        <div>• <strong>Split Tunneling</strong> — Per-app and per-CIDR routing rules.</div>
+        <div>• <strong>Alpha Toolkit</strong> — Universal Scanner v4.0, Vulnerability Verifier, Web Scraper (all Tor-cloakable). Command Center Pro exclusive.</div>
+        <div>• <strong>SQLmap Scanner</strong> — Full SQLmap integration with Tor routing. Command Center Pro exclusive.</div>
+        <div>• <strong>SilkWeb Honeypot</strong> — Decoy network management, trapped IP logs, counter-scan interface.</div>
+        <div>• <strong>Threat Monitor</strong> — Real-time intrusion alerts from all nodes and honeypots.</div>
+        <div>• <strong>Firewall Manager</strong> — iptables/nftables rule management across all VPN nodes.</div>
+        <div>• <strong>Remote Terminal</strong> — Web-based shell for VPN node administration.</div>
+        <div>• <strong>Security Audit</strong> — Automated self-audit of the ProxhqVPN platform.</div>
+        <div>• <strong>Threat Intelligence</strong> — IP reputation, WHOIS, TLS inspection, threat feeds.</div>
+        <div>• <strong>VPN Node Manager</strong> — Add, configure, enable/disable VPN server nodes.</div>
+        <div>• <strong>Performance Monitor</strong> — Real-time CPU, RAM, bandwidth, and connection metrics per node.</div>
+
+        <div className="font-bold text-primary/90 text-[8px] uppercase tracking-wider mt-3 mb-1">Revoking Access</div>
+        <div>• Removing an employee immediately flags them for access revocation.</div>
+        <div>• Complimentary access is fully revoked at their next login attempt.</div>
+        <div>• Existing active sessions are unaffected until they log out or refresh — for immediate revocation, contact support to invalidate their Clerk session.</div>
+
+        <div className="font-bold text-primary/90 text-[8px] uppercase tracking-wider mt-3 mb-1">Security Policy</div>
+        <div>• Employees must not share login credentials or sessions with external parties.</div>
+        <div>• Alpha Toolkit, SQLmap, and SilkWeb may only be used against targets the company has written authorization to test.</div>
+        <div>• All terminal commands are audit-logged and may be reviewed by management.</div>
+        <div>• Report security concerns to <span className="text-primary">support@proxhqvpn.com</span>.</div>
       </div>
     </div>
   );

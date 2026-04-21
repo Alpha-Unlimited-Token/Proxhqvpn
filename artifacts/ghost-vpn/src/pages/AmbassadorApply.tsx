@@ -123,18 +123,40 @@ export default function AmbassadorApply() {
       {/* How it works */}
       <div className="grid grid-cols-3 gap-3">
         {[
-          { step: "1", title: "Apply", desc: "Fill this form and get approved" },
-          { step: "2", title: "Share", desc: "Upload tutorials and share your promo code" },
-          { step: "3", title: "Earn", desc: "Earn 10% on every subscriber you refer" },
+          { step: "1", title: "Apply", desc: "Fill this form — name, promo code, bio, social links. Reviewed within 24–48 hours." },
+          { step: "2", title: "Go Live", desc: "Once approved, your profile and tutorial videos are visible on the Ambassadors page publicly." },
+          { step: "3", title: "Earn 10%", desc: "Every subscriber who uses your promo code at checkout earns you 10% recurring commission." },
         ].map(({ step, title, desc }) => (
           <div key={step} className="border border-primary/15 rounded p-3 text-center">
             <div className="w-7 h-7 rounded-full bg-primary/10 border border-primary/30 text-primary text-[11px] font-mono font-bold flex items-center justify-center mx-auto mb-2">
               {step}
             </div>
             <div className="text-[11px] font-mono font-semibold text-primary">{title}</div>
-            <div className="text-[9px] text-primary/40 mt-0.5">{desc}</div>
+            <div className="text-[9px] text-primary/83 mt-0.5">{desc}</div>
           </div>
         ))}
+      </div>
+
+      {/* Ambassador Handbook Summary */}
+      <div className="border border-primary/15 rounded-lg p-4 bg-primary/5 space-y-3">
+        <div className="text-[10px] font-mono font-bold text-primary uppercase tracking-widest">Ambassador Handbook — What to Expect</div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[9px] font-mono">
+          {[
+            { t: "Commission Rate", d: "10% of every subscription payment from subscribers who used your promo code — monthly and annual renewals included." },
+            { t: "Promo Code", d: "Your unique code (up to 12 chars, letters & numbers). Subscribers enter it at checkout on the Pricing page." },
+            { t: "Tutorial Videos", d: "Add YouTube or Vimeo links from your Ambassador Dashboard. Videos appear on your public profile card and attract more subscribers." },
+            { t: "Dashboard Access", d: "Your Ambassador Dashboard shows live stats: referral count, total earned, pending payout, and a line-by-line referral history." },
+            { t: "Approval Timeline", d: "Applications are reviewed within 24–48 hours. You can pre-load tutorial videos while pending — they go live when approved." },
+            { t: "Payout", d: "Commission is tracked in real-time per subscription payment. Payout details are communicated via email after approval." },
+            { t: "Profile Page", d: "Your ambassador card is publicly visible on /ambassadors. Anyone can find you, watch your tutorials, and copy your code — no login required." },
+            { t: "New Features to Cover", d: "Auto-IP whitelisting, kill switch for all platforms, WireGuard router configs, Ghost Chain (Tor VPN), Alpha Toolkit, SilkWeb honeypot, VPN Gate double-hop." },
+          ].map(({ t, d }) => (
+            <div key={t} className="border border-primary/10 rounded px-3 py-2">
+              <div className="font-bold text-primary">{t}</div>
+              <div className="text-primary/83 mt-0.5 leading-relaxed">{d}</div>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Form */}

@@ -7,6 +7,7 @@ import {
   ChevronRight, Bookmark, Copy, Check, AlertCircle, Info,
   Radio, Gamepad2, Tv, Smartphone, Monitor, Bug, FileText,
   Lock, Key, Settings, BarChart2, Bell, Map, TrendingUp,
+  MapPin, Crosshair,
 } from "lucide-react";
 
 function CopyBtn({ text }: { text: string }) {
@@ -60,19 +61,34 @@ const SECTIONS: Section[] = [
     id: "overview", title: "Platform Overview", icon: BookOpen,
     content: (
       <div className="space-y-3">
-        <p>ProxhqVPN is a fully self-hosted, enterprise-grade VPN platform built by <strong>ALPHA UNLIMITED TECHNOLOGIES LLC</strong>. It combines WireGuard's modern cryptography (AES-256-GCM, ChaCha20-Poly1305) with double-hop routing via VPN Gate, a SilkWeb honeypot mesh for active threat detection, and an integrated Alpha Toolkit for advanced security research.</p>
+        <p>ProxhqVPN is a fully self-hosted, enterprise-grade VPN platform built by <strong>ALPHA UNLIMITED TECHNOLOGIES LLC</strong>. It combines WireGuard's modern cryptography (AES-256-GCM, ChaCha20-Poly1305) with double-hop routing via VPN Gate, a SilkWeb honeypot mesh for active threat detection, an integrated Alpha Toolkit for advanced security research, and automatic IP whitelisting to prevent lockouts.</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
           {[
             { t: "WireGuard Core", d: "Modern VPN protocol with AES-256-GCM. Fastest and most secure available." },
             { t: "Double-Hop (VPN Gate)", d: "Route through community VPN Gate servers for an extra anonymity layer." },
             { t: "SilkWeb Honeypot Mesh", d: "Decoy network that lures, fingerprints, and blocks attackers in real time." },
             { t: "Alpha Toolkit", d: "Universal Scanner, Vuln Verifier, Web Scraper — all Tor-cloakable." },
-            { t: "Kill Switch", d: "Block all traffic if VPN drops. No IP leaks, ever." },
+            { t: "Kill Switch + Auto-IP", d: "Block all traffic if VPN drops. Your real IP is auto-detected and whitelisted so you never lose remote access." },
             { t: "Clerk Auth + Stripe", d: "Enterprise SSO authentication with integrated subscription billing." },
+            { t: "Auto IP Whitelisting", d: "Platform detects your current IP at session start and pre-bakes it into iptables/pf/netsh rules and WireGuard PostUp hooks." },
+            { t: "Router Config Generator", d: "One-click WireGuard configs for 6 router firmware platforms with your IP pre-embedded in the kill switch rules." },
           ].map(({ t, d }) => (
             <div key={t} className="border border-primary/15 rounded p-3">
               <div className="text-[10px] font-mono font-bold text-primary mb-0.5">{t}</div>
-              <div className="text-[9px] text-primary/50 font-mono">{d}</div>
+              <div className="text-[9px] text-primary/83 font-mono">{d}</div>
+            </div>
+          ))}
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Plan Tiers</h4>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {[
+            { t: "VPN Basic", p: "$6.99/mo · $59.99/yr", d: "WireGuard VPN, Kill Switch, Leak Detection, DNS Protection, Smart DNS, Split Tunneling, VPN Gate double-hop, Onion Browser, Router Config." },
+            { t: "Command Center Pro", p: "$39.99/mo · $349.99/yr", d: "Everything in Basic plus the full security toolkit: Alpha Toolkit, SQLmap Scanner, SilkWeb Honeypot, Firewall Manager, Threat Monitor, Remote Terminal, Security Audit, Threat Intelligence." },
+          ].map(({ t, p, d }) => (
+            <div key={t} className="border border-primary/20 rounded p-3 bg-primary/5">
+              <div className="text-[11px] font-mono font-bold text-primary">{t}</div>
+              <div className="text-[10px] text-green-400 font-mono font-bold mb-1">{p}</div>
+              <div className="text-[9px] text-primary/83 font-mono leading-relaxed">{d}</div>
             </div>
           ))}
         </div>
@@ -83,14 +99,15 @@ const SECTIONS: Section[] = [
     id: "connect", title: "My VPN — Connecting", icon: Wifi,
     content: (
       <div className="space-y-3">
-        <p>The <strong>My VPN</strong> page (<code>/my-vpn</code>) is your main connection hub. It shows your active tunnel, public IP, protocol, and connection stats.</p>
+        <p>The <strong>My VPN</strong> page (<code>/my-vpn</code>) is your main connection hub. It shows your active tunnel, public IP, protocol, and connection stats. It also auto-detects your current IP and displays a green confirmation banner.</p>
         <h4 className="font-bold text-primary text-[11px] mt-3">How to Connect</h4>
-        <ol className="space-y-2 text-[10px] font-mono text-primary/70">
+        <ol className="space-y-2 text-[10px] font-mono text-primary/83">
           <li><span className="text-primary/30">1.</span> Go to <strong>My VPN</strong> in the sidebar.</li>
-          <li><span className="text-primary/30">2.</span> Select a server from the map or the server list. Servers are sorted by latency.</li>
-          <li><span className="text-primary/30">3.</span> Click <strong>Connect</strong>. The status indicator changes from grey to green.</li>
-          <li><span className="text-primary/30">4.</span> Your real IP is replaced with the VPN server's IP. Verify at <code>https://api64.ipify.org</code>.</li>
-          <li><span className="text-primary/30">5.</span> To disconnect, click the red <strong>Disconnect</strong> button.</li>
+          <li><span className="text-primary/30">2.</span> A green banner confirms: <strong>"Your current IP detected"</strong> — this IP is automatically embedded in your WireGuard config's PostUp/PostDown iptables rules.</li>
+          <li><span className="text-primary/30">3.</span> Select a server from the map or the server list. Servers are sorted by latency.</li>
+          <li><span className="text-primary/30">4.</span> Click <strong>Connect</strong>. The status indicator changes from grey to green.</li>
+          <li><span className="text-primary/30">5.</span> Your real IP is replaced with the VPN server's IP. Verify at <code>https://api64.ipify.org</code>.</li>
+          <li><span className="text-primary/30">6.</span> To disconnect, click the red <strong>Disconnect</strong> button.</li>
         </ol>
         <Note type="info">ProxhqVPN uses WireGuard by default. It re-establishes connections automatically if the network changes (e.g. switching from WiFi to cellular).</Note>
         <h4 className="font-bold text-primary text-[11px] mt-4">Connection Modes</h4>
@@ -101,7 +118,7 @@ const SECTIONS: Section[] = [
             { m: "Obfuscated (Stealth)", d: "Wraps WireGuard in obfs4 to look like HTTPS traffic. Bypasses VPN-blocking firewalls." },
           ].map(({ m, d }) => (
             <div key={m} className="border border-primary/10 rounded px-3 py-2 text-[10px] font-mono">
-              <span className="text-primary font-bold">{m}</span> — <span className="text-primary/60">{d}</span>
+              <span className="text-primary font-bold">{m}</span> — <span className="text-primary/83">{d}</span>
             </div>
           ))}
         </div>
@@ -112,50 +129,80 @@ const SECTIONS: Section[] = [
     id: "wireguard", title: "WireGuard Config", icon: Cpu,
     content: (
       <div className="space-y-3">
-        <p>The <strong>WireGuard Config</strong> page (<code>/wireguard</code>) generates cryptographically-signed config files for any device.</p>
+        <p>The <strong>WireGuard Config</strong> page (<code>/wireguard</code>) generates cryptographically-signed config files for any device. Generated configs now include <strong>automatic PostUp/PostDown IP whitelisting hooks</strong> so your remote access IP is never blocked when the kill switch activates.</p>
         <h4 className="font-bold text-primary text-[11px]">Generate a Config</h4>
-        <ol className="space-y-1.5 text-[10px] font-mono text-primary/70">
-          <li><span className="text-primary/30">1.</span> Select a server location from the dropdown.</li>
-          <li><span className="text-primary/30">2.</span> Choose DNS: ProxhqVPN DNS (default), Cloudflare, or system.</li>
-          <li><span className="text-primary/30">3.</span> Click <strong>Generate</strong>. A config block appears.</li>
-          <li><span className="text-primary/30">4.</span> Click <strong>Download .conf</strong> for desktop/router or <strong>Show QR</strong> for mobile.</li>
+        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <li><span className="text-primary/30">1.</span> Your current IP is auto-detected and shown in a green banner.</li>
+          <li><span className="text-primary/30">2.</span> Select a server location from the dropdown.</li>
+          <li><span className="text-primary/30">3.</span> Choose DNS: ProxhqVPN DNS (default), Cloudflare, or system.</li>
+          <li><span className="text-primary/30">4.</span> Click <strong>Generate</strong>. A config block appears with your IP embedded in PostUp/PostDown rules.</li>
+          <li><span className="text-primary/30">5.</span> Click <strong>Download .conf</strong> for desktop/router or <strong>Show QR</strong> for mobile.</li>
         </ol>
-        <h4 className="font-bold text-primary text-[11px] mt-3">Sample Config Structure</h4>
-        <CB label="wireguard config file (wg0.conf)">{`[Interface]
+        <h4 className="font-bold text-primary text-[11px] mt-3">Sample Config Structure (with Auto-IP Hooks)</h4>
+        <CB label="wireguard config file with kill switch hooks (wg0.conf)">{`[Interface]
 PrivateKey = <your-generated-private-key>
 Address = 10.8.0.2/24
 DNS = 1.1.1.1
+PostUp   = iptables -I OUTPUT ! -o wg0 -m mark ! --mark $(wg show wg0 fwmark) -m addrtype ! --dst-type LOCAL -j REJECT
+PostUp   = iptables -I OUTPUT -s YOUR_SAFE_IP/32 -j ACCEPT
+PostUp   = iptables -I OUTPUT -d VPN_ENDPOINT_IP/32 -j ACCEPT
+PostDown = iptables -D OUTPUT ! -o wg0 -m mark ! --mark $(wg show wg0 fwmark) -m addrtype ! --dst-type LOCAL -j REJECT
+PostDown = iptables -D OUTPUT -s YOUR_SAFE_IP/32 -j ACCEPT
+PostDown = iptables -D OUTPUT -d VPN_ENDPOINT_IP/32 -j ACCEPT
 
 [Peer]
 PublicKey = <proxhqvpn-server-public-key>
 Endpoint = vpn.proxhqvpn.net:51820
 AllowedIPs = 0.0.0.0/0, ::/0
 PersistentKeepalive = 25`}</CB>
-        <Note type="info">AllowedIPs = 0.0.0.0/0 routes ALL traffic through the VPN (full tunnel). To use split tunneling, use specific CIDR ranges instead.</Note>
+        <Note type="info">YOUR_SAFE_IP is automatically filled in from your detected IP. VPN_ENDPOINT_IP is the server's public IP — whitelisted so the WireGuard handshake always works even with the kill switch active.</Note>
         <h4 className="font-bold text-primary text-[11px] mt-3">Rotate Keys</h4>
-        <p className="text-[10px] font-mono text-primary/70">Click <strong>Rotate Keys</strong> to generate a new keypair. Old configs are immediately invalidated — update all devices after rotating.</p>
+        <p className="text-[10px] font-mono text-primary/83">Click <strong>Rotate Keys</strong> to generate a new keypair. Old configs are immediately invalidated — update all devices after rotating.</p>
       </div>
     ),
   },
   {
-    id: "killswitch", title: "Kill Switch", icon: Power,
+    id: "killswitch", title: "Kill Switch + Auto-IP", icon: Power,
     content: (
       <div className="space-y-3">
-        <p>The <strong>Kill Switch</strong> (<code>/kill-switch</code>) blocks ALL internet traffic if the VPN tunnel drops, preventing IP leaks.</p>
-        <h4 className="font-bold text-primary text-[11px]">How It Works</h4>
-        <p className="text-[10px] font-mono text-primary/70">The kill switch adds iptables/nftables rules that DROP all outbound packets not going through the WireGuard interface (<code>wg0</code>). If WireGuard disconnects, your traffic stops — it does not fall back to your real IP.</p>
-        <CB label="what the kill switch rules look like">{`# Block all outbound traffic NOT on wg0
+        <p>The <strong>Kill Switch</strong> (<code>/kill-switch</code>) blocks ALL internet traffic if the VPN tunnel drops, preventing IP leaks. It now includes <strong>Auto-IP Whitelisting</strong> — your current IP is detected automatically and pre-baked into the generated rules so you never lose remote access to your own machine.</p>
+        <h4 className="font-bold text-primary text-[11px]">Auto-IP Detection</h4>
+        <p className="text-[10px] font-mono text-primary/83">When you open the Kill Switch page, ProxhqVPN calls <code>/api/my-ip</code> and displays a green <strong>"SAFE IP AUTO-DETECTED"</strong> banner showing your current public IP. This IP is automatically embedded in all generated firewall rules.</p>
+        <Note type="info">If you're on a dynamic IP, regenerate your kill switch rules after your IP changes. Your new IP will be auto-detected when you reload the page.</Note>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Platform Rules — Download</h4>
+        <p className="text-[10px] font-mono text-primary/83">The Kill Switch page provides downloadable rule files for all three OS platforms, with your IP pre-baked in:</p>
+        <div className="space-y-2">
+          {[
+            { t: "Linux (iptables)", d: "Download a .sh script that sets up iptables REJECT rules for all traffic outside wg0, while allowing your safe IP and the VPN endpoint." },
+            { t: "macOS (pf firewall)", d: "Download a pf.conf snippet that blocks all non-VPN traffic. Includes an anchor rule allowing your IP to bypass the block." },
+            { t: "Windows (netsh)", d: "Download a .bat script that sets Windows Firewall rules blocking all traffic except the WireGuard interface and your whitelisted IP." },
+          ].map(({ t, d }) => (
+            <div key={t} className="border border-primary/10 rounded px-3 py-2">
+              <div className="text-[10px] font-mono font-bold text-primary">{t}</div>
+              <div className="text-[9px] font-mono text-primary/83 mt-0.5">{d}</div>
+            </div>
+          ))}
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">How the Rules Work</h4>
+        <CB label="linux kill switch rules (auto-generated with your ip)">{`# Block all outbound traffic NOT on wg0
 iptables -I OUTPUT ! -o wg0 -m mark ! --mark $(wg show wg0 fwmark) -m addrtype ! --dst-type LOCAL -j REJECT
+
+# Allow your safe IP (auto-detected) to bypass block
+iptables -I OUTPUT -s YOUR_SAFE_IP/32 -j ACCEPT
+
+# Allow VPN server endpoint IP (so handshake always works)
+iptables -I OUTPUT -d VPN_ENDPOINT_IP/32 -j ACCEPT
 
 # Allow local network traffic
 iptables -I OUTPUT -o lo -j ACCEPT
 iptables -I OUTPUT -d 192.168.0.0/16 -j ACCEPT`}</CB>
         <h4 className="font-bold text-primary text-[11px] mt-3">Enable Kill Switch</h4>
-        <ol className="space-y-1.5 text-[10px] font-mono text-primary/70">
+        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
           <li><span className="text-primary/30">1.</span> Go to <strong>Kill Switch</strong> in the Protection section.</li>
-          <li><span className="text-primary/30">2.</span> Toggle <strong>Enable Kill Switch</strong> → Confirm.</li>
-          <li><span className="text-primary/30">3.</span> The rules are applied to the server. Status shows <span className="text-green-400">ACTIVE</span>.</li>
-          <li><span className="text-primary/30">4.</span> To disable: toggle off and confirm — rules are flushed.</li>
+          <li><span className="text-primary/30">2.</span> Confirm the green "SAFE IP AUTO-DETECTED" banner shows your correct IP.</li>
+          <li><span className="text-primary/30">3.</span> Toggle <strong>Enable Kill Switch</strong> → Confirm.</li>
+          <li><span className="text-primary/30">4.</span> The rules are applied. Status shows <span className="text-green-400">ACTIVE</span>.</li>
+          <li><span className="text-primary/30">5.</span> To disable: toggle off and confirm — rules are flushed.</li>
         </ol>
         <Note type="warn">If you disable the kill switch while disconnected, your real IP will be briefly exposed. Always re-connect the VPN first.</Note>
       </div>
@@ -175,7 +222,7 @@ iptables -I OUTPUT -d 192.168.0.0/16 -j ACCEPT`}</CB>
           ].map(({ t, d }) => (
             <div key={t} className="border border-primary/10 rounded px-3 py-2">
               <div className="text-[10px] font-mono font-bold text-primary">{t}</div>
-              <div className="text-[9px] font-mono text-primary/50 mt-0.5">{d}</div>
+              <div className="text-[9px] font-mono text-primary/83 mt-0.5">{d}</div>
             </div>
           ))}
         </div>
@@ -198,12 +245,12 @@ iptables -I OUTPUT -d 192.168.0.0/16 -j ACCEPT`}</CB>
           ].map(({ t, d }) => (
             <div key={t} className="border border-primary/10 rounded px-3 py-2">
               <div className="text-[10px] font-mono font-bold text-primary">{t}</div>
-              <div className="text-[9px] font-mono text-primary/50 mt-0.5">{d}</div>
+              <div className="text-[9px] font-mono text-primary/83 mt-0.5">{d}</div>
             </div>
           ))}
         </div>
         <h4 className="font-bold text-primary text-[11px] mt-3">Enable DNS Protection</h4>
-        <ol className="space-y-1.5 text-[10px] font-mono text-primary/70">
+        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
           <li><span className="text-primary/30">1.</span> Go to <strong>DNS Protection</strong> → choose your preferred DNS provider.</li>
           <li><span className="text-primary/30">2.</span> Click <strong>Apply</strong>. Your WireGuard DNS setting is updated automatically.</li>
           <li><span className="text-primary/30">3.</span> Regenerate your WireGuard config if you use a device with a cached config.</li>
@@ -226,7 +273,7 @@ iptables -I OUTPUT -d 192.168.0.0/16 -j ACCEPT`}</CB>
           ].map(({ t, d }) => (
             <div key={t} className="border border-primary/10 rounded px-3 py-2">
               <div className="text-[10px] font-mono font-bold text-primary">{t}</div>
-              <div className="text-[9px] font-mono text-primary/50 mt-0.5">{d}</div>
+              <div className="text-[9px] font-mono text-primary/83 mt-0.5">{d}</div>
             </div>
           ))}
         </div>
@@ -240,13 +287,13 @@ iptables -I OUTPUT -d 192.168.0.0/16 -j ACCEPT`}</CB>
       <div className="space-y-3">
         <p>Split Tunneling (<code>/split-tunnel</code>) lets you choose which apps or domains go through the VPN and which use your direct internet connection.</p>
         <h4 className="font-bold text-primary text-[11px]">Use Cases</h4>
-        <div className="space-y-1.5 text-[10px] font-mono text-primary/70">
+        <div className="space-y-1.5 text-[10px] font-mono text-primary/83">
           <div>• Route <strong>Netflix</strong> through VPN (US server) while banking app uses your real IP (avoids fraud flags).</div>
           <div>• Route all <strong>corporate traffic</strong> through VPN but let <strong>YouTube</strong> bypass it for speed.</div>
           <div>• Tunnel only <strong>torrent clients</strong> through VPN — everything else stays on your ISP connection.</div>
         </div>
         <h4 className="font-bold text-primary text-[11px] mt-3">Configuration</h4>
-        <ol className="space-y-1.5 text-[10px] font-mono text-primary/70">
+        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
           <li><span className="text-primary/30">1.</span> Go to <strong>Split Tunnel</strong> → choose Exclude or Include mode.</li>
           <li><span className="text-primary/30">2.</span> <strong>Exclude mode</strong>: everything goes through VPN except the apps/IPs you list.</li>
           <li><span className="text-primary/30">3.</span> <strong>Include mode</strong>: only the apps/IPs you list use the VPN.</li>
@@ -268,15 +315,15 @@ iptables -I OUTPUT -d 192.168.0.0/16 -j ACCEPT`}</CB>
       <div className="space-y-3">
         <p>The <strong>Proxy & Tor</strong> page (<code>/proxy</code>) manages SOCKS5 proxy endpoints and Tor bridge configuration. Use these to add extra anonymity layers on top of your VPN.</p>
         <h4 className="font-bold text-primary text-[11px]">SOCKS5 Proxy</h4>
-        <p className="text-[10px] font-mono text-primary/70">ProxhqVPN exposes a SOCKS5 proxy on port 1080 of the VPN server. Configure your browser or torrent client to use it:</p>
+        <p className="text-[10px] font-mono text-primary/83">ProxhqVPN exposes a SOCKS5 proxy on port 1080 of the VPN server. Configure your browser or torrent client to use it:</p>
         <CB label="socks5 proxy settings">{`SOCKS5 Host: 10.8.0.1  (VPN server internal IP)
 Port: 1080
 Authentication: use your ProxhqVPN credentials
 
 # In curl:
 curl --socks5-hostname 10.8.0.1:1080 https://api64.ipify.org`}</CB>
-        <h4 className="font-bold text-primary text-[11px] mt-3">Tor Integration</h4>
-        <p className="text-[10px] font-mono text-primary/70">ProxhqVPN runs a Tor daemon (127.0.0.1:9050). Traffic routed through Tor exits at a random Tor exit node — triple-hop: you → ProxhqVPN → Tor circuit → destination.</p>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Tor Integration (Ghost Chain)</h4>
+        <p className="text-[10px] font-mono text-primary/83">ProxhqVPN runs a Tor daemon (127.0.0.1:9050). Traffic routed through Tor exits at a random Tor exit node — triple-hop: you → ProxhqVPN → Tor circuit → destination. This is referred to as <strong>Ghost Chain</strong> mode in the UI.</p>
         <CB label="verify tor is running">{`# On the server (via Terminal page):
 systemctl status tor
 
@@ -291,7 +338,7 @@ curl --socks5 127.0.0.1:9050 https://check.torproject.org/api/ip`}</CB>
     content: (
       <div className="space-y-3">
         <p>VPN Gate (<code>/vpngate</code>) connects you to community-operated VPN servers worldwide for an extra anonymity layer. Your traffic goes: <strong>You → ProxhqVPN → VPN Gate Server → Internet</strong>.</p>
-        <ol className="space-y-1.5 text-[10px] font-mono text-primary/70">
+        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
           <li><span className="text-primary/30">1.</span> Go to <strong>VPN Gate</strong> — the page fetches the live server list from vpngate.net.</li>
           <li><span className="text-primary/30">2.</span> Filter by country, latency, or protocol (OpenVPN/L2TP).</li>
           <li><span className="text-primary/30">3.</span> Click a server → <strong>Generate Config</strong> → the config is created for that specific VPN Gate endpoint.</li>
@@ -307,7 +354,7 @@ curl --socks5 127.0.0.1:9050 https://check.torproject.org/api/ip`}</CB>
       <div className="space-y-3">
         <p>The <strong>Onion Browser</strong> (<code>/onion-browser</code>) is a built-in dark web browser that routes traffic through Tor circuits, accessible directly from the ProxhqVPN dashboard.</p>
         <h4 className="font-bold text-primary text-[11px]">Usage</h4>
-        <ol className="space-y-1.5 text-[10px] font-mono text-primary/70">
+        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
           <li><span className="text-primary/30">1.</span> Click <strong>Onion Browser</strong> in the Network section.</li>
           <li><span className="text-primary/30">2.</span> Enter any .onion address or clearnet URL in the address bar.</li>
           <li><span className="text-primary/30">3.</span> Traffic is routed: ProxhqVPN Server → Tor Entry Guard → Tor Relay → Tor Exit → Destination.</li>
@@ -328,7 +375,7 @@ https://www.nytimesn7cgmftshazwhfgzm37qxb44r64ytbb2dj3x62d2lljsciiyd.onion`}</CB
       <div className="space-y-3">
         <p>Smart DNS (<code>/smart-dns</code>) bypasses geo-blocks on streaming services (Netflix, Hulu, BBC iPlayer) without routing ALL your traffic through a VPN. Only DNS queries for geo-blocked domains are intercepted and spoofed.</p>
         <h4 className="font-bold text-primary text-[11px]">Setup Smart DNS</h4>
-        <ol className="space-y-1.5 text-[10px] font-mono text-primary/70">
+        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
           <li><span className="text-primary/30">1.</span> Go to <strong>Smart DNS</strong> → copy the two DNS server IPs.</li>
           <li><span className="text-primary/30">2.</span> On your device, set the DNS servers to the ProxhqVPN Smart DNS addresses.</li>
           <li><span className="text-primary/30">3.</span> No VPN app needed — works on any device including Smart TVs and game consoles.</li>
@@ -342,11 +389,21 @@ https://www.nytimesn7cgmftshazwhfgzm37qxb44r64ytbb2dj3x62d2lljsciiyd.onion`}</CB
     id: "router", title: "Router Config", icon: Router,
     content: (
       <div className="space-y-3">
-        <p>The <strong>Router Config</strong> page (<code>/router-config</code>) generates platform-specific WireGuard configs for routers, protecting every device on your network automatically.</p>
+        <p>The <strong>Router Config</strong> page (<code>/router-config</code>) generates platform-specific WireGuard configs for routers, protecting every device on your network automatically. Your current IP is auto-detected and embedded in the kill switch rules for each firmware.</p>
         <h4 className="font-bold text-primary text-[11px]">Supported Router Firmware</h4>
         <div className="grid grid-cols-2 gap-2">
-          {["OpenWRT", "DD-WRT", "pfSense", "OPNsense", "AsusWRT-Merlin", "Tomato", "MikroTik"].map(f => (
-            <div key={f} className="text-[9px] font-mono text-primary/70 border border-primary/10 rounded px-2 py-1">✓ {f}</div>
+          {[
+            { f: "OpenWRT",         d: "opkg + luci-proto-wireguard" },
+            { f: "DD-WRT",          d: "Built-in WireGuard module" },
+            { f: "AsusWRT-Merlin",  d: "wg-quick via Entware" },
+            { f: "pfSense / OPNsense", d: "VPN → WireGuard UI" },
+            { f: "GL.iNet",         d: "Native WireGuard in GL admin panel" },
+            { f: "Ubiquiti EdgeOS", d: "configure via set interfaces wireguard" },
+          ].map(({ f, d }) => (
+            <div key={f} className="text-[9px] font-mono border border-primary/10 rounded px-2 py-1.5">
+              <div className="text-primary font-bold">✓ {f}</div>
+              <div className="text-primary/78 mt-0.5">{d}</div>
+            </div>
           ))}
         </div>
         <h4 className="font-bold text-primary text-[11px] mt-3">OpenWRT Quick Setup</h4>
@@ -361,6 +418,7 @@ uci set network.wg0.private_key='PASTE_PRIVATE_KEY_FROM_PROXHQVPN'
 uci set network.wg0.addresses='10.8.0.2/24'
 uci commit network
 /etc/init.d/network restart`}</CB>
+        <Note type="info">After running the Setup Script from the Router Config page, your router config includes your safe IP pre-baked into PostUp/PostDown rules so you never lose LAN access when the kill switch fires.</Note>
       </div>
     ),
   },
@@ -378,7 +436,7 @@ uci commit network
           ].map(({ t, d }) => (
             <div key={t} className="border border-primary/10 rounded px-3 py-2">
               <div className="text-[10px] font-mono font-bold text-primary">{t}</div>
-              <div className="text-[9px] font-mono text-primary/50 mt-0.5">{d}</div>
+              <div className="text-[9px] font-mono text-primary/83 mt-0.5">{d}</div>
             </div>
           ))}
         </div>
@@ -391,7 +449,7 @@ uci commit network
       <div className="space-y-3">
         <p>The <strong>VPN Servers</strong> page (<code>/nodes</code>) is the admin control panel for your ProxhqVPN server infrastructure.</p>
         <h4 className="font-bold text-primary text-[11px]">Provisioning a New Server</h4>
-        <ol className="space-y-1.5 text-[10px] font-mono text-primary/70">
+        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
           <li><span className="text-primary/30">1.</span> Click <strong>Add Server</strong> → enter the server's IP, location, and label.</li>
           <li><span className="text-primary/30">2.</span> Click <strong>Get Setup Script</strong> — a bash script is generated for that server.</li>
           <li><span className="text-primary/30">3.</span> SSH into the server and run the script as root. It installs WireGuard, the ProxhqVPN daemon, and configures all firewall rules.</li>
@@ -399,7 +457,7 @@ uci commit network
         </ol>
         <CB label="run on your new vps as root:">{`curl -s https://your-proxhqvpn-api/api/setup-script | bash`}</CB>
         <h4 className="font-bold text-primary text-[11px] mt-3">Server Actions</h4>
-        <div className="space-y-1.5 text-[10px] font-mono text-primary/70">
+        <div className="space-y-1.5 text-[10px] font-mono text-primary/83">
           <div>• <strong>Rotate IP</strong> — assigns a new public IP to the node (if provider supports it)</div>
           <div>• <strong>Enable/Disable</strong> — temporarily removes the node from the connection pool</div>
           <div>• <strong>Bulk Replace</strong> — swap all nodes with a new batch simultaneously</div>
@@ -414,14 +472,14 @@ uci commit network
       <div className="space-y-3">
         <p>SilkWeb (<code>/silkweb</code>) is the ProxhqVPN honeypot and decoy mesh. It deploys fake services that look real (SSH, HTTP, FTP, databases) to attract and fingerprint attackers.</p>
         <h4 className="font-bold text-primary text-[11px]">How SilkWeb Works</h4>
-        <div className="space-y-2 text-[10px] font-mono text-primary/70">
+        <div className="space-y-2 text-[10px] font-mono text-primary/83">
           <div>1. SilkWeb traps listen on commonly-scanned ports (22, 80, 443, 3306, 5432, 6379, 27017).</div>
           <div>2. When an attacker connects, SilkWeb accepts the connection and logs every keystroke, payload, and command.</div>
           <div>3. The attacker's IP, fingerprint, and tools are captured and automatically added to the firewall blocklist.</div>
           <div>4. Advanced traps run nmap and SQLmap back against the attacker to identify their infrastructure.</div>
         </div>
         <h4 className="font-bold text-primary text-[11px] mt-3">Running a Port Scan on a Trapped IP</h4>
-        <ol className="space-y-1.5 text-[10px] font-mono text-primary/70">
+        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
           <li><span className="text-primary/30">1.</span> Go to <strong>SilkWeb</strong> → <strong>Trapped IPs</strong> tab.</li>
           <li><span className="text-primary/30">2.</span> Select a trapped IP → click <strong>Port Scan</strong>.</li>
           <li><span className="text-primary/30">3.</span> Toggle <strong>Use Tor</strong> to route the scan through Tor (recommended to avoid revealing your server IP).</li>
@@ -447,12 +505,12 @@ uci commit network
           ].map(({ t, d }) => (
             <div key={t} className="border border-red-500/10 rounded px-3 py-2 bg-red-900/5">
               <div className="text-[10px] font-mono font-bold text-red-400">{t}</div>
-              <div className="text-[9px] font-mono text-primary/50 mt-0.5">{d}</div>
+              <div className="text-[9px] font-mono text-primary/83 mt-0.5">{d}</div>
             </div>
           ))}
         </div>
         <h4 className="font-bold text-primary text-[11px] mt-3">Actions</h4>
-        <p className="text-[10px] font-mono text-primary/70">For each alert: <strong>Dismiss</strong> (false positive), <strong>Block IP</strong> (add to firewall), or <strong>Investigate</strong> (run port scan, WHOIS, threat intel lookup).</p>
+        <p className="text-[10px] font-mono text-primary/83">For each alert: <strong>Dismiss</strong> (false positive), <strong>Block IP</strong> (add to firewall), or <strong>Investigate</strong> (run port scan, WHOIS, threat intel lookup).</p>
       </div>
     ),
   },
@@ -471,7 +529,7 @@ uci commit network
           ].map(({ t, d }) => (
             <div key={t} className="border border-primary/10 rounded px-3 py-2">
               <div className="text-[10px] font-mono font-bold text-primary">{t}</div>
-              <div className="text-[9px] font-mono text-primary/50 mt-0.5">{d}</div>
+              <div className="text-[9px] font-mono text-primary/83 mt-0.5">{d}</div>
             </div>
           ))}
         </div>
@@ -520,7 +578,7 @@ nmap -sV localhost              # Local port scan`}</CB>
           ].map(({ t, d }) => (
             <div key={t} className="border border-primary/10 rounded px-3 py-2">
               <div className="text-[10px] font-mono font-bold text-primary">{t}</div>
-              <div className="text-[9px] font-mono text-primary/50 mt-0.5">{d}</div>
+              <div className="text-[9px] font-mono text-primary/83 mt-0.5">{d}</div>
             </div>
           ))}
         </div>
@@ -534,7 +592,7 @@ nmap -sV localhost              # Local port scan`}</CB>
         <p>The <strong>SQLmap Scanner</strong> (<code>/sqlmap</code>) is a full integration of the SQLmap automatic SQL injection detection and exploitation tool, accessible from the ProxhqVPN dashboard. All scans can be routed through Tor.</p>
         <Note type="danger">Only scan targets you own or have explicit written permission to test. Unauthorized scanning is illegal.</Note>
         <h4 className="font-bold text-primary text-[11px]">Running a Scan from the UI</h4>
-        <ol className="space-y-1.5 text-[10px] font-mono text-primary/70">
+        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
           <li><span className="text-primary/30">1.</span> Go to <strong>Vulnerability Scanner</strong> → enter the target URL.</li>
           <li><span className="text-primary/30">2.</span> Set the scan options (level, risk, technique, DBMS type).</li>
           <li><span className="text-primary/30">3.</span> Toggle <strong>Use Tor</strong> to route through Tor SOCKS5 (127.0.0.1:9050).</li>
@@ -562,22 +620,6 @@ nmap -sV localhost              # Local port scan`}</CB>
   --tamper=space2comment,charencode,randomcase \
   --level=5 --risk=3 \
   --batch --dbs`}</CB>
-        <CB label="test all parameters in a request (burp format)">{`# Save a Burp Suite HTTP request to request.txt, then:
-sqlmap -r request.txt --batch --dbs --level=3 --risk=2`}</CB>
-        <CB label="blind boolean injection">{`sqlmap -u "https://target.com/page.php?id=1" \
-  --technique=B \
-  --dbms=postgres \
-  --batch --dbs`}</CB>
-        <CB label="time-based blind injection">{`sqlmap -u "https://target.com/page.php?id=1" \
-  --technique=T \
-  --time-sec=5 \
-  --batch --dbs`}</CB>
-        <CB label="enumerate users and passwords">{`sqlmap -u "https://target.com/page.php?id=1" \
-  --users --passwords \
-  --batch`}</CB>
-        <CB label="os command execution (if db has privileges)">{`sqlmap -u "https://target.com/page.php?id=1" \
-  --os-shell \
-  --batch`}</CB>
         <h4 className="font-bold text-primary text-[11px] mt-3">SQLmap Flags Reference</h4>
         <div className="space-y-1.5 text-[9px] font-mono">
           {[
@@ -594,7 +636,7 @@ sqlmap -r request.txt --batch --dbs --level=3 --risk=2`}</CB>
           ].map(([flag, desc]) => (
             <div key={flag} className="flex gap-3 border border-primary/10 rounded px-2 py-1">
               <code className="text-green-400/80 shrink-0 w-48">{flag}</code>
-              <span className="text-primary/50">{desc}</span>
+              <span className="text-primary/83">{desc}</span>
             </div>
           ))}
         </div>
@@ -605,10 +647,10 @@ sqlmap -r request.txt --batch --dbs --level=3 --risk=2`}</CB>
     id: "alphatools", title: "Alpha Toolkit", icon: Layers,
     content: (
       <div className="space-y-4">
-        <p>The <strong>Alpha Toolkit</strong> (<code>/alpha-tools</code>) provides three advanced security research engines with a seamless Scanner → Verifier pipeline, all optionally routed through Tor.</p>
+        <p>The <strong>Alpha Toolkit</strong> (<code>/alpha-tools</code>) provides three advanced security research engines with a seamless Scanner → Verifier pipeline, all optionally routed through Tor. Available to Command Center Pro subscribers and all employees.</p>
 
         <h4 className="font-bold text-primary text-[11px]">Tool 1 — Universal Scanner</h4>
-        <p className="text-[10px] font-mono text-primary/70">Alpha Scanner v4.0 supports 35+ programming languages, 200+ vulnerability patterns, multi-step exploit chain detection, network port scanning, service fingerprinting, and secret/credential detection.</p>
+        <p className="text-[10px] font-mono text-primary/83">Alpha Scanner v4.0 supports 35+ programming languages, 200+ vulnerability patterns, multi-step exploit chain detection, network port scanning, service fingerprinting, and secret/credential detection.</p>
         <div className="space-y-2">
           {[
             { m: "Network Scan", d: "Port scanning + service fingerprinting + banner grabbing via nmap integration." },
@@ -618,7 +660,7 @@ sqlmap -r request.txt --batch --dbs --level=3 --risk=2`}</CB>
           ].map(({ m, d }) => (
             <div key={m} className="border border-primary/10 rounded px-3 py-2">
               <div className="text-[10px] font-mono font-bold text-primary">{m}</div>
-              <div className="text-[9px] font-mono text-primary/50 mt-0.5">{d}</div>
+              <div className="text-[9px] font-mono text-primary/83 mt-0.5">{d}</div>
             </div>
           ))}
         </div>
@@ -630,7 +672,7 @@ sqlmap -r request.txt --batch --dbs --level=3 --risk=2`}</CB>
 6. When complete: click Download HTML Report or Send to Verifier`}</CB>
 
         <h4 className="font-bold text-primary text-[11px] mt-3">Tool 2 — Vulnerability Verifier</h4>
-        <p className="text-[10px] font-mono text-primary/70">The Verifier takes the Alpha Scanner HTML report and <strong>actively probes every finding against the live target</strong>. It performs TLS handshakes, TCP banner grabs, HTTP header analysis, SQL error probes, SSRF checks, and CDN false-positive filtering.</p>
+        <p className="text-[10px] font-mono text-primary/83">The Verifier takes the Alpha Scanner HTML report and <strong>actively probes every finding against the live target</strong>. It performs TLS handshakes, TCP banner grabs, HTTP header analysis, SQL error probes, SSRF checks, and CDN false-positive filtering.</p>
         <CB label="scanner → verifier pipeline">{`Step 1: Run Universal Scanner → wait for completion
 Step 2: Click "Send to Verifier" (green button)
          → App switches to Verifier tab automatically
@@ -645,7 +687,7 @@ Step 6: Results show:
          - Downloadable color-coded Exposure Report`}</CB>
 
         <h4 className="font-bold text-primary text-[11px] mt-3">Tool 3 — Web Scraper</h4>
-        <p className="text-[10px] font-mono text-primary/70">Alpha Web Scraper runs entirely in the browser and stores everything in a local SQLite database. It captures pages, links, emails, phone numbers, OpenGraph metadata, JSON-LD structured data, forms, and file assets into 14 queryable tables.</p>
+        <p className="text-[10px] font-mono text-primary/83">Alpha Web Scraper runs entirely in the browser and stores everything in a local SQLite database. It captures pages, links, emails, phone numbers, OpenGraph metadata, JSON-LD structured data, forms, and file assets into 14 queryable tables.</p>
         <CB label="what the scraper captures">{`Table: pages         → URL, title, meta description, HTML, status code
 Table: links         → All href links (internal + external) with anchor text
 Table: emails        → All email addresses found on any scraped page
@@ -660,12 +702,12 @@ Table: scripts       → External script URLs loaded per page
 Table: stylesheets   → External CSS URLs
 Table: assets        → Other assets (fonts, media, PDFs, etc.)
 Table: metadata      → Crawl session info, start time, depth`}</CB>
-        <div className="text-[9px] font-mono text-primary/50 border border-primary/10 rounded px-3 py-2">
+        <div className="text-[9px] font-mono text-primary/83 border border-primary/10 rounded px-3 py-2">
           Export all data as <strong>.sqlite</strong> (open in DB Browser for SQLite), <strong>CSV</strong> (per table), or <strong>JSON</strong>. Enable Tor Mode inside the scraper (top-right toggle) to route all fetch requests through Tor circuits.
         </div>
 
         <h4 className="font-bold text-primary text-[11px] mt-3">Global Tor Cloak</h4>
-        <p className="text-[10px] font-mono text-primary/70">The <strong>Tor Cloak</strong> toggle at the top of the Alpha Toolkit page routes ALL tools (Scanner, Verifier, nmap, SQLmap) through the Tor daemon at 127.0.0.1:9050. The Tor badge shows your current exit IP — verify it's a Tor exit node before running any scans.</p>
+        <p className="text-[10px] font-mono text-primary/83">The <strong>Tor Cloak</strong> toggle at the top of the Alpha Toolkit page routes ALL tools (Scanner, Verifier, nmap, SQLmap) through the Tor daemon at 127.0.0.1:9050. The Tor badge shows your current exit IP — verify it's a Tor exit node before running any scans.</p>
       </div>
     ),
   },
@@ -675,7 +717,7 @@ Table: metadata      → Crawl session info, start time, depth`}</CB>
       <div className="space-y-3">
         <p>The <strong>Security Audit</strong> page (<code>/security-audit</code>) runs a full self-audit of the ProxhqVPN platform, checking for misconfigurations, weak settings, exposed endpoints, and known vulnerabilities in the installed software stack.</p>
         <h4 className="font-bold text-primary text-[11px]">What It Checks</h4>
-        <div className="space-y-1.5 text-[10px] font-mono text-primary/70">
+        <div className="space-y-1.5 text-[10px] font-mono text-primary/83">
           {[
             "WireGuard key strength and rotation status",
             "Firewall rules completeness (default-deny, rate limiting)",
@@ -690,7 +732,7 @@ Table: metadata      → Crawl session info, start time, depth`}</CB>
           ].map(c => <div key={c}>• {c}</div>)}
         </div>
         <h4 className="font-bold text-primary text-[11px] mt-3">How to Run</h4>
-        <ol className="space-y-1.5 text-[10px] font-mono text-primary/70">
+        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
           <li><span className="text-primary/30">1.</span> Click <strong>Run Self-Audit</strong>. Results appear in under 30 seconds.</li>
           <li><span className="text-primary/30">2.</span> Each finding is rated: <span className="text-green-400">PASS</span>, <span className="text-yellow-400">WARN</span>, or <span className="text-red-400">FAIL</span>.</li>
           <li><span className="text-primary/30">3.</span> Expand any finding for remediation instructions.</li>
@@ -714,7 +756,7 @@ Table: metadata      → Crawl session info, start time, depth`}</CB>
           ].map(({ t, d }) => (
             <div key={t} className="border border-primary/10 rounded px-3 py-2">
               <div className="text-[10px] font-mono font-bold text-primary">{t}</div>
-              <div className="text-[9px] font-mono text-primary/50 mt-0.5">{d}</div>
+              <div className="text-[9px] font-mono text-primary/83 mt-0.5">{d}</div>
             </div>
           ))}
         </div>
@@ -725,13 +767,26 @@ Table: metadata      → Crawl session info, start time, depth`}</CB>
     id: "subscription", title: "Subscription & Billing", icon: BarChart2,
     content: (
       <div className="space-y-3">
-        <p>ProxhqVPN uses Stripe for subscription billing. Manage your plan from the <strong>Pricing</strong> page (<code>/pricing</code>) and your billing details from <strong>Account</strong> (<code>/account</code>).</p>
-        <h4 className="font-bold text-primary text-[11px]">Plan Actions</h4>
-        <div className="space-y-1.5 text-[10px] font-mono text-primary/70">
+        <p>ProxhqVPN uses Stripe for subscription billing. Manage your plan from the <strong>Pricing</strong> page (<code>/pricing</code>) and your billing details from <strong>Account</strong> (<code>/account</code>). The Pricing page is publicly accessible — no login needed to compare plans.</p>
+        <h4 className="font-bold text-primary text-[11px]">Plan Pricing</h4>
+        <div className="space-y-2">
+          {[
+            { t: "VPN Basic", p: "$6.99/mo — $59.99/yr", d: "WireGuard VPN, kill switch, leak test, DNS shield, smart DNS, split tunneling, VPN Gate, onion browser, router config." },
+            { t: "Command Center Pro", p: "$39.99/mo — $349.99/yr", d: "Everything in Basic plus Alpha Toolkit, SQLmap, SilkWeb honeypot, firewall manager, threat monitor, terminal, security audit, threat intel." },
+          ].map(({ t, p, d }) => (
+            <div key={t} className="border border-primary/10 rounded px-3 py-2">
+              <div className="text-[10px] font-mono font-bold text-primary">{t} <span className="text-green-400 ml-1">{p}</span></div>
+              <div className="text-[9px] font-mono text-primary/83 mt-0.5">{d}</div>
+            </div>
+          ))}
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Plan Actions</h4>
+        <div className="space-y-1.5 text-[10px] font-mono text-primary/83">
           <div>• <strong>Upgrade</strong> — click a plan tier → redirected to Stripe Checkout → payment processed securely</div>
           <div>• <strong>Downgrade</strong> — takes effect at end of current billing period</div>
           <div>• <strong>Cancel</strong> — click <strong>Manage Billing</strong> in Account → Stripe Customer Portal → Cancel subscription</div>
           <div>• <strong>Invoices</strong> — all invoices available in Account → Stripe Customer Portal</div>
+          <div>• <strong>Ambassador Promo Code</strong> — enter at checkout for a 10% discount and to support your chosen ambassador</div>
         </div>
         <Note type="info">ProxhqVPN never stores your payment card details. All payment data is handled exclusively by Stripe's PCI-DSS Level 1 certified systems.</Note>
       </div>
@@ -748,113 +803,163 @@ Table: metadata      → Crawl session info, start time, depth`}</CB>
             { t: "Linked Accounts", d: "Add Google, GitHub, or other SSO providers to your account for passwordless login." },
             { t: "Rotate API Keys", d: "Rotate WireGuard keypairs or API access tokens. Old keys are immediately revoked." },
             { t: "Session Management", d: "View all active sessions (device type, location, last active). Revoke any session remotely." },
-            { t: "Two-Factor Auth", d: "Enable TOTP 2FA (Google Authenticator, Authy) via Clerk's 2FA settings." },
-            { t: "Data Export", d: "Request a full export of your ProxhqVPN data (configs, usage logs, account info)." },
+            { t: "Two-Factor Authentication", d: "Enable TOTP 2FA via Clerk. Supported by Google Authenticator, Authy, 1Password." },
+            { t: "Manage Billing", d: "Opens the Stripe Customer Portal — change plan, update card, view invoices, or cancel." },
           ].map(({ t, d }) => (
             <div key={t} className="border border-primary/10 rounded px-3 py-2">
               <div className="text-[10px] font-mono font-bold text-primary">{t}</div>
-              <div className="text-[9px] font-mono text-primary/50 mt-0.5">{d}</div>
+              <div className="text-[9px] font-mono text-primary/83 mt-0.5">{d}</div>
             </div>
           ))}
         </div>
       </div>
     ),
   },
+  {
+    id: "ambassador", title: "Ambassador Program", icon: TrendingUp,
+    content: (
+      <div className="space-y-3">
+        <p>The <strong>Ambassador Program</strong> lets content creators, security researchers, and ProxhqVPN enthusiasts earn <strong>10% commission</strong> on every subscription referred through their unique promo code.</p>
+        <h4 className="font-bold text-primary text-[11px]">How It Works</h4>
+        <div className="space-y-2">
+          {[
+            { step: "1", t: "Apply", d: "Visit Ambassadors → Apply Now. Fill in your display name, bio, promo code, and social links. Applications are reviewed within 24–48 hours." },
+            { step: "2", t: "Get Approved", d: "Once approved, your public profile goes live on the Ambassadors page. You can add YouTube/Vimeo tutorial videos at any time from your dashboard." },
+            { step: "3", t: "Share Your Code", d: "Share your unique promo code with your audience. When someone enters it at checkout, they get recognized as your referral." },
+            { step: "4", t: "Earn Commission", d: "You earn 10% of every subscription payment made by your referred subscribers — monthly and annual. Tracked live in your Ambassador Dashboard." },
+          ].map(({ step, t, d }) => (
+            <div key={step} className="border border-primary/10 rounded px-3 py-2 flex gap-3">
+              <div className="w-6 h-6 rounded-full bg-primary/10 border border-primary/20 text-primary text-[10px] font-mono font-bold flex items-center justify-center shrink-0">{step}</div>
+              <div>
+                <div className="text-[10px] font-mono font-bold text-primary">{t}</div>
+                <div className="text-[9px] font-mono text-primary/83 mt-0.5">{d}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Ambassador Dashboard Features</h4>
+        <div className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <div>• <strong>Promo Code Display</strong> — large, easy-to-copy promo code with one-click clipboard copy</div>
+          <div>• <strong>Live Stats</strong> — total referrals, total earned, pending payout, video count</div>
+          <div>• <strong>Video Management</strong> — add/remove YouTube or Vimeo tutorial links anytime</div>
+          <div>• <strong>Bio Editor</strong> — edit your public profile bio in-place</div>
+          <div>• <strong>Referral History</strong> — line-by-line breakdown of each referred subscriber and commission earned</div>
+        </div>
+        <Note type="info">Your ambassador profile page is public — it can be found at <code>/ambassadors</code> by anyone browsing the site, whether or not they are logged in.</Note>
+      </div>
+    ),
+  },
 ];
 
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+
 export default function UserGuide() {
-  const [activeId, setActiveId] = useState(SECTIONS[0].id);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [active, setActive] = useState("overview");
+  const [search, setSearch] = useState("");
   const contentRef = useRef<HTMLDivElement>(null);
 
-  const active = SECTIONS.find(s => s.id === activeId) ?? SECTIONS[0];
+  const filtered = search
+    ? SECTIONS.filter(s =>
+        s.title.toLowerCase().includes(search.toLowerCase()) ||
+        s.id.toLowerCase().includes(search.toLowerCase())
+      )
+    : SECTIONS;
+
+  useEffect(() => {
+    if (contentRef.current) contentRef.current.scrollTop = 0;
+  }, [active]);
+
+  const current = SECTIONS.find(s => s.id === active) ?? SECTIONS[0];
 
   return (
-    <div className="font-mono max-w-6xl">
+    <div className="flex gap-0 h-[calc(100vh-4rem)] -mx-6 -my-6 overflow-hidden">
       <PageSEO
-        title="User Guide — Complete ProxhqVPN Documentation"
-        description="Complete documentation for ProxhqVPN. Learn how to set up WireGuard, configure double-hop routing, use the Alpha Toolkit, manage nodes, run security audits, and more."
+        title="User Guide & Documentation — ProxhqVPN"
+        description="Complete documentation for ProxhqVPN — WireGuard setup, kill switch, leak testing, router configs, Alpha Toolkit, SilkWeb honeypot, ambassador program, and billing. Self-hosted VPN by ALPHA UNLIMITED TECHNOLOGIES LLC."
         path="/guide"
       />
-      <div className="mb-5">
-        <h1 className="text-lg font-bold tracking-widest uppercase text-primary flex items-center gap-2">
-          <BookOpen className="w-5 h-5" /> ProxhqVPN — Complete User Guide
-        </h1>
-        <p className="text-xs text-primary/40 mt-1">
-          Comprehensive instruction manual covering every feature, tool, and engine. By ALPHA UNLIMITED TECHNOLOGIES LLC.
-        </p>
-      </div>
 
-      <div className="flex gap-6">
-        {/* Sidebar TOC */}
-        <div className="hidden lg:block w-56 shrink-0">
-          <div className="sticky top-4 space-y-0.5 border border-primary/15 rounded p-2 bg-primary/3">
-            <div className="text-[8px] font-mono text-primary/30 uppercase tracking-widest px-2 py-1">Table of Contents</div>
-            {SECTIONS.map(s => {
-              const Icon = s.icon;
-              return (
-                <button key={s.id} onClick={() => setActiveId(s.id)}
-                  className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-left transition-colors text-[9px] font-mono ${activeId === s.id ? "bg-primary/10 text-primary" : "text-primary/40 hover:text-primary/70 hover:bg-primary/5"}`}>
-                  <Icon className="w-3 h-3 shrink-0" />
-                  <span className="truncate">{s.title}</span>
-                  {activeId === s.id && <ChevronRight className="w-2.5 h-2.5 ml-auto shrink-0" />}
-                </button>
-              );
-            })}
+      {/* Sidebar */}
+      <aside className="w-52 shrink-0 border-r border-primary/10 bg-black overflow-y-auto flex flex-col">
+        <div className="px-3 py-3 border-b border-primary/10 shrink-0">
+          <div className="text-[9px] font-mono font-bold text-primary uppercase tracking-widest mb-2 flex items-center gap-1.5">
+            <BookOpen className="w-3 h-3" /> User Guide
+          </div>
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search docs…"
+            className="w-full bg-black border border-primary/15 text-primary text-[9px] font-mono px-2 py-1 focus:outline-none focus:border-primary/40 rounded"
+          />
+        </div>
+        <nav className="flex-1 py-2">
+          {filtered.map(s => {
+            const Icon = s.icon;
+            return (
+              <button
+                key={s.id}
+                onClick={() => { setActive(s.id); setSearch(""); }}
+                className={`w-full text-left px-3 py-2 flex items-center gap-2 text-[10px] font-mono transition-colors ${
+                  active === s.id
+                    ? "bg-primary/10 text-primary border-r-2 border-primary"
+                    : "text-primary/78 hover:text-primary hover:bg-primary/5"
+                }`}
+              >
+                <Icon className="w-3 h-3 shrink-0" />
+                <span className="truncate">{s.title}</span>
+              </button>
+            );
+          })}
+        </nav>
+        <div className="px-3 py-3 border-t border-primary/10 shrink-0">
+          <div className="text-[8px] font-mono text-primary/83 leading-relaxed">
+            ProxhqVPN v2.0<br />
+            ALPHA UNLIMITED TECHNOLOGIES LLC<br />
+            <a href="mailto:support@proxhqvpn.com" className="text-primary/78 hover:text-primary">support@proxhqvpn.com</a>
           </div>
         </div>
+      </aside>
 
-        {/* Mobile TOC */}
-        <div className="lg:hidden w-full mb-4">
-          <button onClick={() => setMobileMenuOpen(v => !v)}
-            className="flex items-center gap-2 text-[10px] font-mono text-primary/60 border border-primary/20 px-3 py-2 rounded w-full">
-            <BookOpen className="w-3.5 h-3.5" /> Contents: {active.title}
-            <ChevronRight className={`w-3 h-3 ml-auto transition-transform ${mobileMenuOpen ? "rotate-90" : ""}`} />
-          </button>
-          {mobileMenuOpen && (
-            <div className="border border-primary/15 rounded mt-1 p-2 space-y-0.5 bg-primary/3">
-              {SECTIONS.map(s => {
-                const Icon = s.icon;
-                return (
-                  <button key={s.id} onClick={() => { setActiveId(s.id); setMobileMenuOpen(false); }}
-                    className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-left transition-colors text-[9px] font-mono ${activeId === s.id ? "bg-primary/10 text-primary" : "text-primary/40 hover:text-primary/70"}`}>
-                    <Icon className="w-3 h-3 shrink-0" /> {s.title}
-                  </button>
-                );
-              })}
+      {/* Content */}
+      <div ref={contentRef} className="flex-1 overflow-y-auto">
+        <div className="max-w-3xl mx-auto px-6 py-6 space-y-4">
+          {/* Header */}
+          <div className="flex items-center gap-2 text-[9px] font-mono text-primary/78">
+            <BookOpen className="w-3 h-3 text-primary" />
+            <ChevronRight className="w-2 h-2" />
+            <span className="text-primary">{current.title}</span>
+          </div>
+          <div className="flex items-start gap-3">
+            <div className="w-8 h-8 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+              <current.icon className="w-4 h-4 text-primary" />
             </div>
-          )}
-        </div>
-
-        {/* Content */}
-        <div ref={contentRef} className="flex-1 min-w-0">
-          <div className="border border-primary/15 rounded p-5 bg-primary/3">
-            <div className="flex items-center gap-2 mb-4 pb-3 border-b border-primary/15">
-              {(() => { const Icon = active.icon; return <Icon className="w-4 h-4 text-primary/60" />; })()}
-              <h2 className="text-sm font-bold text-primary tracking-widest uppercase">{active.title}</h2>
-            </div>
-            <div className="text-[10px] font-mono text-primary/70 leading-relaxed space-y-3">
-              {active.content}
+            <div>
+              <h1 className="text-lg font-bold text-primary tracking-tight">{current.title}</h1>
+              <div className="text-[9px] font-mono text-primary/78">ProxhqVPN Documentation</div>
             </div>
           </div>
 
-          {/* Pagination */}
-          <div className="flex items-center justify-between mt-4">
+          <div className="border-t border-primary/10 pt-4 text-[10px] font-mono text-primary/88 leading-relaxed space-y-2">
+            {current.content}
+          </div>
+
+          {/* Navigation */}
+          <div className="flex items-center justify-between pt-6 border-t border-primary/10">
             {(() => {
-              const idx = SECTIONS.findIndex(s => s.id === activeId);
+              const idx = SECTIONS.findIndex(s => s.id === active);
               const prev = SECTIONS[idx - 1];
               const next = SECTIONS[idx + 1];
               return (
                 <>
                   {prev ? (
-                    <button onClick={() => setActiveId(prev.id)}
-                      className="flex items-center gap-2 text-[9px] font-mono text-primary/40 hover:text-primary border border-primary/15 hover:border-primary/30 px-3 py-2 rounded transition-colors">
+                    <button onClick={() => setActive(prev.id)}
+                      className="flex items-center gap-1 text-[9px] font-mono text-primary/78 hover:text-primary transition-colors">
                       ← {prev.title}
                     </button>
                   ) : <div />}
                   {next ? (
-                    <button onClick={() => setActiveId(next.id)}
-                      className="flex items-center gap-2 text-[9px] font-mono text-primary/40 hover:text-primary border border-primary/15 hover:border-primary/30 px-3 py-2 rounded transition-colors">
+                    <button onClick={() => setActive(next.id)}
+                      className="flex items-center gap-1 text-[9px] font-mono text-primary/78 hover:text-primary transition-colors">
                       {next.title} →
                     </button>
                   ) : <div />}

@@ -214,10 +214,27 @@ export default function Ambassadors() {
           <Users className="w-5 h-5 text-primary" />
           <h1 className="text-xl font-bold tracking-widest uppercase text-primary">Ambassador Community</h1>
         </div>
-        <p className="text-sm text-primary/40">
+        <p className="text-sm text-primary/83">
           Find an ambassador you trust, watch their tutorials, copy their promo code and use it at checkout.
-          They earn 10% of your subscription — and you support someone who's genuinely helping.
+          They earn 10% of your subscription — and you support someone who's genuinely helping the ProxhqVPN community grow.
         </p>
+      </div>
+
+      {/* How it works for visitors */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {[
+          { step: "1", title: "Find an Ambassador", desc: "Browse the creators below. Watch their tutorials to learn how to get the most out of ProxhqVPN." },
+          { step: "2", title: "Copy Their Promo Code", desc: "Click the promo code badge on any ambassador card. It copies instantly to your clipboard." },
+          { step: "3", title: "Enter Code at Checkout", desc: "Paste the code when subscribing on the Pricing page. The ambassador earns 10% — no extra cost to you." },
+        ].map(({ step, title, desc }) => (
+          <div key={step} className="border border-primary/15 rounded p-4 bg-primary/5">
+            <div className="w-7 h-7 rounded-full bg-primary/10 border border-primary/30 text-primary text-[11px] font-mono font-bold flex items-center justify-center mb-2">
+              {step}
+            </div>
+            <div className="text-[11px] font-bold text-primary mb-1">{title}</div>
+            <div className="text-[10px] text-primary/83 leading-relaxed">{desc}</div>
+          </div>
+        ))}
       </div>
 
       {/* Stats banner */}
