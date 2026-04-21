@@ -31,6 +31,7 @@ import base64
 import json
 import os
 import re
+import ssl
 import subprocess
 import sys
 import tempfile
@@ -38,6 +39,12 @@ import time
 import urllib.request
 import urllib.error
 from datetime import datetime, timezone
+
+# Replit dev domains use a wildcard cert that Python's default SSL context rejects.
+# Create one unverified context and reuse it for all daemon→API requests.
+_SSL_CTX = ssl.create_default_context()
+_SSL_CTX.check_hostname = False
+_SSL_CTX.verify_mode = ssl.CERT_NONE
 
 
 def run(cmd: list[str]) -> str:
@@ -178,7 +185,7 @@ def post_to_api(api_base: str, path: str, payload: dict, psk: str, timeout: int 
         method="POST"
     )
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        with urllib.request.urlopen(req, timeout=timeout, context=_SSL_CTX) as resp:
             return resp.status < 300
     except urllib.error.URLError as e:
         print(f"[proxhqd] API error {path}: {e}", file=sys.stderr)
@@ -190,7 +197,7 @@ def get_pending_peers(api_base: str, node_id: int, psk: str) -> list[dict]:
     url = f"{api_base}/daemon-inbound/pending-peers?nodeId={node_id}"
     req = urllib.request.Request(url, headers={"X-Daemon-PSK": psk})
     try:
-        with urllib.request.urlopen(req, timeout=10) as resp:
+        with urllib.request.urlopen(req, timeout=10, context=_SSL_CTX) as resp:
             data = json.loads(resp.read())
             return data.get("peers", [])
     except Exception as e:
@@ -227,7 +234,7 @@ def get_vpngate_action(api_base: str, node_id: int, psk: str) -> dict:
     url = f"{api_base}/daemon-inbound/vpngate-config?nodeId={node_id}"
     req = urllib.request.Request(url, headers={"X-Daemon-PSK": psk})
     try:
-        with urllib.request.urlopen(req, timeout=10) as resp:
+        with urllib.request.urlopen(req, timeout=10, context=_SSL_CTX) as resp:
             return json.loads(resp.read())
     except Exception as e:
         print(f"[proxhqd] VPN Gate poll failed: {e}", file=sys.stderr)
@@ -249,7 +256,7 @@ def get_public_ip() -> str:
     """Detect the current public exit IP."""
     for url in ["https://api.ipify.org", "https://icanhazip.com", "https://ipinfo.io/ip"]:
         try:
-            with urllib.request.urlopen(url, timeout=6) as resp:
+            with urllib.request.urlopen(url, timeout=6, context=_SSL_CTX) as resp:
                 return resp.read().decode().strip()
         except Exception:
             pass
