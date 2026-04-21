@@ -6,8 +6,48 @@ const https = require("https");
 const os = require("os");
 
 const isDev = process.argv.includes("--dev");
-const { PROXHQ_SERVER_URL } = require("./config");
-const PROXHQ_URL = isDev ? "http://localhost:24043" : PROXHQ_SERVER_URL;
+
+// Primary and backup domains — automatic failover if primary is unreachable
+const SERVERS = [
+  "https://proxhq.app",
+  "https://proxhqvpn.com",
+];
+const DEV_URL = "http://localhost:24043";
+
+let activeServerUrl = SERVERS[0];
+
+// Probe a URL — resolves true if reachable within 4 seconds
+function probeUrl(url) {
+  return new Promise((resolve) => {
+    try {
+      const mod = url.startsWith("https") ? https : require("http");
+      const req = mod.get(url, { timeout: 4000 }, (res) => {
+        resolve(res.statusCode < 500);
+        req.destroy();
+      });
+      req.on("error", () => resolve(false));
+      req.on("timeout", () => { req.destroy(); resolve(false); });
+    } catch { resolve(false); }
+  });
+}
+
+// Try each server in order — use the first one that responds
+async function resolveActiveServer() {
+  if (isDev) { activeServerUrl = DEV_URL; return DEV_URL; }
+  for (const url of SERVERS) {
+    const ok = await probeUrl(url);
+    if (ok) {
+      activeServerUrl = url;
+      console.log(`[proxhq] Using server: ${url}`);
+      return url;
+    }
+    console.log(`[proxhq] Unreachable: ${url} — trying next...`);
+  }
+  // All servers failed — use primary anyway and let the offline page handle it
+  activeServerUrl = SERVERS[0];
+  console.warn("[proxhq] All servers unreachable — defaulting to primary");
+  return SERVERS[0];
+}
 
 const STORE_PATH = path.join(app.getPath("userData"), "proxhq-config.json");
 
@@ -62,9 +102,20 @@ function createMainWindow() {
     title: "ProxhqVPN",
   });
 
-  mainWindow.loadURL(PROXHQ_URL);
+  mainWindow.loadURL(activeServerUrl);
 
-  mainWindow.webContents.on("did-fail-load", () => {
+  // If load fails, try the other server before showing offline page
+  mainWindow.webContents.on("did-fail-load", async () => {
+    const fallback = SERVERS.find(s => s !== activeServerUrl);
+    if (fallback) {
+      const ok = await probeUrl(fallback);
+      if (ok) {
+        activeServerUrl = fallback;
+        console.log(`[proxhq] Failed over to: ${fallback}`);
+        mainWindow.loadURL(fallback);
+        return;
+      }
+    }
     mainWindow.loadFile(path.join(__dirname, "..", "setup", "offline.html"));
   });
 
@@ -247,6 +298,9 @@ ipcMain.handle("close-window", (event) => {
 
 // ─── App lifecycle ─────────────────────────────────────────────────────────
 app.whenReady().then(async () => {
+  // Resolve the fastest reachable server before opening any window
+  await resolveActiveServer();
+
   const store = readStore();
   const alreadySetUp = store.setupComplete === true;
 

@@ -1,47 +1,39 @@
 # ProxhqVPN Desktop — Build Instructions
 
-Everything is automated. You only need to run **one command** per platform.
+Everything is automated. **No configuration needed.** Just install and build.
 
 ---
 
-## What Happens Automatically
+## How Server Failover Works
 
-Before every build, the following runs automatically with zero manual steps:
+Both your domains are permanently hardcoded into the app:
 
-| Step | What it does |
-|------|-------------|
-| Icon — PNG | Copies `icon-final2.png` from your web app automatically |
-| Icon — Windows (.ico) | Generated automatically from that PNG |
-| Icon — macOS (.icns) | Generated automatically from that PNG |
-| Server URL | Read from `PROXHQ_SERVER_URL` environment variable and baked in |
+| Priority | Domain | Role |
+|----------|--------|------|
+| 1st | `proxhq.app` | Primary — tried first on every launch |
+| 2nd | `proxhqvpn.com` | Backup — automatically used if primary is unreachable |
+
+When a user launches ProxhqVPN:
+- The app silently checks `proxhq.app` (4 second timeout)
+- If it responds → connects there, user never knows anything happened
+- If it doesn't respond → silently switches to `proxhqvpn.com` automatically
+- If both are down → shows a friendly "server unreachable" screen and lets them retry
+- If a page fails mid-session → instantly retries on the backup domain
+
+**Users never see any of this. It's completely invisible.**
 
 ---
 
 ## Building Installers
 
-### Step 1 — Set your server URL (once)
-
-Set this to the URL of your deployed ProxhqVPN server:
-
-```bash
-# macOS / Linux
-export PROXHQ_SERVER_URL=https://your-domain.replit.app
-
-# Windows (Command Prompt)
-set PROXHQ_SERVER_URL=https://your-domain.replit.app
-
-# Windows (PowerShell)
-$env:PROXHQ_SERVER_URL="https://your-domain.replit.app"
-```
-
-### Step 2 — Install dependencies (once per machine)
+### Step 1 — Install dependencies (once per build machine)
 
 ```bash
 cd artifacts/desktop
 npm install
 ```
 
-### Step 3 — Build for your platform
+### Step 2 — Build
 
 ```bash
 # Windows installer (.exe) — run on a Windows machine
@@ -52,44 +44,38 @@ npm run build:mac
 
 # Linux installers (.AppImage + .deb + .rpm) — run on Linux
 npm run build:linux
-
-# All platforms at once
-npm run build:all
 ```
 
 That's it. Output installers appear in `artifacts/desktop/dist/`.
 
 ---
 
+## What Runs Automatically Before Every Build
+
+| Step | What it does |
+|------|-------------|
+| Icon — PNG | Copies from the web app automatically |
+| Icon — Windows (.ico) | Generated from PNG automatically |
+| Icon — macOS (.icns) | Generated from PNG automatically |
+| Server URLs | Already hardcoded — no action needed |
+
+---
+
 ## Setup Wizard (What users experience)
 
-When a user runs your installer:
-
 1. **Welcome** — ProxhqVPN branding and feature list
-2. **Permission** — Legal consent checkbox (OS-specific language)
-   - The **Continue button stays locked** until the box is checked
-   - Checking it means they have explicitly consented in writing
+2. **Permission** — Consent checkbox locked until checked (legal protection)
 3. **Installing** — WireGuard installs silently with live progress
 4. **Done** — One click launches ProxhqVPN
 
-Every subsequent launch skips the wizard entirely and goes straight to the app.
+Every subsequent launch skips the wizard entirely.
 
 ---
 
 ## WireGuard Installation by Platform
 
-| Platform | Method | Flags |
-|----------|--------|-------|
-| Windows  | Official `wireguard-installer.exe` from wireguard.com | `/S` (silent) |
-| macOS    | Homebrew: `brew install wireguard-tools` | Background |
-| Linux    | `apt` / `dnf` / `yum` / `pacman` / `zypper` — auto-detected | `-y` (non-interactive) |
-
----
-
-## Output Files
-
-| Platform | File |
-|----------|------|
-| Windows  | `dist/ProxhqVPN Setup 1.0.0.exe` |
-| macOS    | `dist/ProxhqVPN-1.0.0.dmg` and `dist/ProxhqVPN-1.0.0.pkg` |
-| Linux    | `dist/ProxhqVPN-1.0.0.AppImage`, `.deb`, `.rpm` |
+| Platform | Method | Silent? |
+|----------|--------|---------|
+| Windows | Official installer from wireguard.com (`/S` flag) | Yes |
+| macOS | Homebrew: `brew install wireguard-tools` | Yes |
+| Linux | `apt` / `dnf` / `yum` / `pacman` / `zypper` — auto-detected | Yes |
