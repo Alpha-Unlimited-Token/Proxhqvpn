@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { PageSEO } from "@/components/PageSEO";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ChevronDown, ChevronUp, Wifi, Router, Tv, Smartphone, Monitor, Gamepad2, Globe, Download } from "lucide-react";
@@ -320,6 +321,11 @@ export default function Platforms() {
 
   return (
     <div className="space-y-6 font-mono">
+      <PageSEO
+        title="Platform Support — VPN for Every Device"
+        description="ProxhqVPN works on Windows, macOS, iPhone, Android, Linux, Apple TV, Fire TV, smart TVs, gaming consoles (PS5, Xbox), and routers. Full WireGuard support across all platforms."
+        path="/platforms"
+      />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-lg font-bold tracking-widest uppercase text-primary">Platform Support</h1>

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { PageSEO } from "@/components/PageSEO";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useUser } from "@clerk/react";
 import {
@@ -140,6 +141,11 @@ export default function Pricing() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 py-2">
+      <PageSEO
+        title="Pricing — VPN Basic &amp; Command Center Pro"
+        description="Choose your ProxhqVPN plan. VPN Basic starts at $6.99/month ($59.99/year). Command Center Pro with full security suite from $39.99/month ($349.99/year). 30-day money-back guarantee."
+        path="/pricing"
+      />
 
       {/* Header */}
       <div className="text-center space-y-3">

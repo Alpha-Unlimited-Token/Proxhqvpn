@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useUser } from "@clerk/react";
+import { PageSEO } from "@/components/PageSEO";
 import { useToast } from "@/hooks/use-toast";
 import {
   Star, Play, Copy, Check, Users, ChevronRight,
@@ -202,6 +203,11 @@ export default function Ambassadors() {
 
   return (
     <div className="space-y-8 max-w-5xl">
+      <PageSEO
+        title="Ambassadors — Earn 10% Commission on Every Referral"
+        description="Join the ProxhqVPN Ambassador Program. Earn 10% commission on every subscription you refer. Create your promo code, share tutorial videos, and grow your audience."
+        path="/ambassadors"
+      />
       {/* Header */}
       <div className="space-y-1">
         <div className="flex items-center gap-2">

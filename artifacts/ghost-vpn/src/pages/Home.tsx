@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "wouter";
+import { PageSEO } from "@/components/PageSEO";
 import {
   Shield, Zap, Lock, Globe, Eye, Network, Check, ChevronDown, ChevronUp,
   ArrowRight, Menu, X, Wifi, Server, Clock, Star, Bug, AlertTriangle
@@ -418,8 +419,24 @@ export default function Home() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const liveStats = useLiveStats();
 
+  const faqSchema = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: FAQS.map(({ q, a }) => ({
+      "@type": "Question",
+      name: q,
+      acceptedAnswer: { "@type": "Answer", text: a },
+    })),
+  };
+
   return (
     <div className="min-h-screen bg-[#080d09] text-white">
+      <PageSEO
+        title="ProxhqVPN — Self-Hosted WireGuard VPN with Double-Hop & Tor Ghost Chain"
+        description="Military-grade self-hosted VPN. WireGuard + AES-256-GCM encryption, double-hop anonymity, SilkWeb honeypot protection, and Tor Ghost Chain routing. From $6.99/month. By ALPHA UNLIMITED TECHNOLOGIES LLC."
+        path="/"
+        schema={faqSchema}
+      />
       <NavBar mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} />
 
       {/* ── HERO ── */}

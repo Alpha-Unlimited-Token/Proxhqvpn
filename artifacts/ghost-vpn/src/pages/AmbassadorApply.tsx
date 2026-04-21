@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
+import { PageSEO } from "@/components/PageSEO";
 import { useToast } from "@/hooks/use-toast";
 import {
   Award, ChevronRight, Loader2, CheckCircle,
@@ -103,6 +104,11 @@ export default function AmbassadorApply() {
 
   return (
     <div className="max-w-2xl space-y-8">
+      <PageSEO
+        title="Apply to Become a ProxhqVPN Ambassador"
+        description="Apply for the ProxhqVPN Ambassador Program. Earn a 10% commission on every subscription from your referral code. Content creators, YouTubers, and security enthusiasts welcome."
+        path="/ambassadors/apply"
+      />
       {/* Header */}
       <div>
         <div className="flex items-center gap-2 mb-1">

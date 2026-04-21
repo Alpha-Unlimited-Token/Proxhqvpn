@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { PageSEO } from "@/components/PageSEO";
 import {
   Monitor, Smartphone, Tv, Router, Download, CheckCircle,
   ChevronDown, ChevronUp, AlertCircle, ExternalLink, Cpu,
@@ -618,6 +619,11 @@ export default function Downloads() {
 
   return (
     <div className="space-y-7 max-w-4xl">
+      <PageSEO
+        title="Downloads — WireGuard VPN Apps for Every Device"
+        description="Download ProxhqVPN on any device. Native WireGuard apps for Windows, macOS, iOS, Android, Linux, Fire TV, Apple TV, gaming consoles, and routers. Free to download."
+        path="/downloads"
+      />
       {/* Header */}
       <div>
         <h1 className="text-lg font-bold tracking-widest uppercase text-primary flex items-center gap-2">

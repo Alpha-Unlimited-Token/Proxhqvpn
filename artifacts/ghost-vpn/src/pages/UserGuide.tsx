@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { PageSEO } from "@/components/PageSEO";
 import {
   BookOpen, Wifi, Shield, Globe, Server, Terminal, Database,
   ScanSearch, Layers, Router, Cpu, Zap, EyeOff, GitBranch,
@@ -770,6 +771,11 @@ export default function UserGuide() {
 
   return (
     <div className="font-mono max-w-6xl">
+      <PageSEO
+        title="User Guide — Complete ProxhqVPN Documentation"
+        description="Complete documentation for ProxhqVPN. Learn how to set up WireGuard, configure double-hop routing, use the Alpha Toolkit, manage nodes, run security audits, and more."
+        path="/guide"
+      />
       <div className="mb-5">
         <h1 className="text-lg font-bold tracking-widest uppercase text-primary flex items-center gap-2">
           <BookOpen className="w-5 h-5" /> ProxhqVPN — Complete User Guide
