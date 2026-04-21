@@ -127,8 +127,8 @@ const clerkAppearance = {
 };
 
 function SignInPage() {
-  // To update login providers, app branding, or OAuth settings use the Auth
-  // pane in the workspace toolbar. More information can be found in the Replit docs.
+  const { isSignedIn, isLoaded } = useClerk();
+  if (isLoaded && isSignedIn) return <Redirect to="/dashboard" />;
   return (
     <div className="flex min-h-[100dvh] bg-[#080d09]">
       {/* Left branding panel */}
@@ -158,7 +158,7 @@ function SignInPage() {
             <img src={`${basePath}/icon-final2.png`} alt="ProxhqVPN" className="w-12 h-12 mx-auto mb-3" />
             <div className="text-xl font-bold text-white">ProxhqVPN</div>
           </div>
-          <SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} />
+          <SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} afterSignInUrl="/dashboard" forceRedirectUrl="/dashboard" />
         </div>
       </div>
     </div>
@@ -166,6 +166,8 @@ function SignInPage() {
 }
 
 function SignUpPage() {
+  const { isSignedIn, isLoaded } = useClerk();
+  if (isLoaded && isSignedIn) return <Redirect to="/dashboard" />;
   return (
     <div className="flex min-h-[100dvh] bg-[#080d09]">
       <div className="hidden lg:flex flex-col justify-between w-96 bg-gradient-to-b from-[#0d1610] to-[#080d09] border-r border-white/[0.06] p-10">
@@ -187,7 +189,7 @@ function SignUpPage() {
             <img src={`${basePath}/icon-final2.png`} alt="ProxhqVPN" className="w-12 h-12 mx-auto mb-3" />
             <div className="text-xl font-bold text-white">ProxhqVPN</div>
           </div>
-          <SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} />
+          <SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} afterSignUpUrl="/dashboard" />
         </div>
       </div>
     </div>
