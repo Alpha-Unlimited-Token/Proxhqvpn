@@ -334,18 +334,20 @@ function AppRoutes() {
           <Route path="/sign-in/*?" component={SignInPage} />
           <Route path="/sign-up/*?" component={SignUpPage} />
 
-          {/* ── Freely accessible to any signed-in user ── */}
+          {/* ── Freely accessible to everyone — no login needed ── */}
           <Route path="/pricing">
-            <ProtectedLayout><Pricing /></ProtectedLayout>
-          </Route>
-          <Route path="/account">
-            <ProtectedLayout><Account /></ProtectedLayout>
+            <PublicLayout><Pricing /></PublicLayout>
           </Route>
           <Route path="/downloads">
-            <ProtectedLayout><Downloads /></ProtectedLayout>
+            <PublicLayout><Downloads /></PublicLayout>
           </Route>
           <Route path="/guide">
-            <ProtectedLayout><UserGuide /></ProtectedLayout>
+            <PublicLayout><UserGuide /></PublicLayout>
+          </Route>
+
+          {/* ── Requires sign-in ── */}
+          <Route path="/account">
+            <ProtectedLayout><Account /></ProtectedLayout>
           </Route>
           <Route path="/ambassadors">
             <PublicLayout><Ambassadors /></PublicLayout>
