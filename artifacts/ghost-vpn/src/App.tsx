@@ -196,7 +196,8 @@ function SignUpPage() {
 
 function HomeRedirect() {
   const { isSignedIn, isLoaded } = useClerk();
-  if (!isLoaded) return null;
+  // Show the homepage immediately while Clerk loads — never blank screen
+  if (!isLoaded) return <Home />;
   if (isSignedIn) return <Redirect to="/dashboard" />;
   return <Home />;
 }
