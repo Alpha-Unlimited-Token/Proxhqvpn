@@ -65,6 +65,7 @@ import AlphaTools from "@/pages/AlphaTools";
 import Downloads from "@/pages/Downloads";
 import UserGuide from "@/pages/UserGuide";
 import Employees from "@/pages/Employees";
+import ThreatProtection from "@/pages/ThreatProtection";
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
@@ -347,6 +348,9 @@ function AppRoutes() {
           </Route>
           <Route path="/employees">
             <ProtectedLayout><Employees /></ProtectedLayout>
+          </Route>
+          <Route path="/threat-protection">
+            <ProtectedLayout><ThreatProtection /></ProtectedLayout>
           </Route>
           <Route>
             <ProtectedLayout>

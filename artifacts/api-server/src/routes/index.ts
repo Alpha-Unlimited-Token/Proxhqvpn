@@ -36,6 +36,7 @@ import nodeProvisionRouter from "./node-provision";
 import sqlmapRouter from "./sqlmap";
 import alphaRouter from "./alpha";
 import employeesRouter from "./employees";
+import threatProtectionRouter from "./threatprotection";
 
 const router: IRouter = Router();
 
@@ -239,5 +240,6 @@ router.use("/wireguard",      wireguardRouter);
 router.use("/sqlmap",         sqlmapRouter);
 router.use("/alpha",          alphaRouter);
 router.use("/employees",      employeesRouter);
+router.use("/threat-protection", threatProtectionRouter);
 
 export default router;

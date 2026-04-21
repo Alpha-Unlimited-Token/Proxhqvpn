@@ -31,15 +31,17 @@ const PERIOD_META: Record<BillingPeriod, { label: string; badge?: string; icon: 
 };
 
 const FEATURES = [
-  "WireGuard AES-256 encryption",
-  "Auto tunnel registration — zero setup",
+  "Unlimited devices — use on every screen you own",
+  "WireGuard AES-256-GCM encryption",
+  "Stealth Protocol — bypass deep packet inspection",
+  "Threat Protection — malware & phishing DNS blocking",
   "Kill switch & DNS leak protection",
   "Beacon threat detection & alerts",
-  "One-click IP blocking",
-  "Double-hop VPN Gate routing",
-  "SilkWeb decoy traffic masking",
-  "Split tunneling",
-  "Obfuscation & traffic shaping",
+  "6,000+ VPN Gate relay servers worldwide",
+  "Double-hop anonymity routing",
+  "SilkWeb honeypot decoy network",
+  "Split tunneling & smart DNS",
+  "Alpha Toolkit — scanner, verifier, Tor scraper",
   "No logs. Ever.",
 ];
 

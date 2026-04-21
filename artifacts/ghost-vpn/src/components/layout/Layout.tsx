@@ -61,10 +61,11 @@ const USER_NAV = [
 ];
 
 const PROTECTION_NAV = [
-  { href: "/kill-switch",   label: "Kill Switch",     icon: Power },
-  { href: "/leaks",         label: "Leak Test",       icon: Search },
-  { href: "/dns-shield",    label: "DNS Protection",  icon: ShieldPlus },
-  { href: "/obfuscation",   label: "Obfuscation",     icon: EyeOff },
+  { href: "/kill-switch",        label: "Kill Switch",         icon: Power },
+  { href: "/leaks",              label: "Leak Test",           icon: Search },
+  { href: "/dns-shield",         label: "DNS Protection",      icon: ShieldPlus },
+  { href: "/threat-protection",  label: "Threat Protection",   icon: ShieldAlert },
+  { href: "/obfuscation",        label: "Stealth Protocol",    icon: EyeOff },
 ];
 
 const NETWORK_NAV = [
