@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import {
   ScanSearch, ShieldAlert, Globe2,
-  Wifi, WifiOff, Play, Loader2,
+  Wifi, WifiOff, Play, Loader2, Square,
   Download, RotateCcw, Layers, Bug,
   ArrowRight, FileText, CheckCircle,
 } from "lucide-react";
@@ -64,11 +64,25 @@ function ScannerTab({ useTor, onReportReady }: ScannerTabProps) {
   const [currentJobId, setJobId]  = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const stop = () => { if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; } };
+  const stopPolling = () => { if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; } };
+
+  const cancelScan = useCallback(async () => {
+    stopPolling();
+    if (currentJobId) {
+      try {
+        await fetch(`${BASE}/api/alpha/scan/${currentJobId}`, { method: "DELETE", credentials: "include" });
+      } catch {}
+    }
+    setStatus("idle");
+    setOutput(null);
+    setCmd(null);
+    setHtmlReady(false);
+    setJobId(null);
+  }, [currentJobId]);
 
   const run = useCallback(async () => {
     if (!target.trim()) { toast({ title: "Target required", variant: "destructive" }); return; }
-    stop();
+    stopPolling();
     setStatus("running"); setOutput(null); setCmd(null); setHtmlReady(false); setJobId(null);
 
     const body: Record<string, any> = { mode, useTor, extraFlags };
@@ -96,7 +110,7 @@ function ScannerTab({ useTor, onReportReady }: ScannerTabProps) {
             setStatus(pd.status as JobStatus);
             setOutput(pd.output ?? "No output");
             if (pd.htmlReady) { setHtmlReady(true); onReportReady(d.jobId); }
-            stop();
+            stopPolling();
           }
         } catch {}
       }, 4000);
@@ -126,7 +140,7 @@ function ScannerTab({ useTor, onReportReady }: ScannerTabProps) {
 
   const statusColor: Record<JobStatus, string> = {
     idle: "text-primary/30", running: "text-yellow-400 animate-pulse",
-    complete: "text-green-400", error: "text-red-400",
+    complete: "text-green-400", error: "text-red-400", cancelled: "text-primary/40",
   };
 
   return (
@@ -175,17 +189,29 @@ function ScannerTab({ useTor, onReportReady }: ScannerTabProps) {
 
       {/* Actions */}
       <div className="flex items-center gap-3 flex-wrap">
-        <button onClick={run} disabled={status === "running"}
-          className="flex items-center gap-2 px-5 py-2 bg-primary text-black text-[10px] font-mono uppercase tracking-widest hover:bg-primary/80 disabled:opacity-50 transition-colors rounded">
-          {status === "running" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
-          {status === "running" ? "Scanning…" : "Run Scanner"}
-        </button>
+        {status === "running" ? (
+          <button onClick={cancelScan}
+            className="flex items-center gap-2 px-5 py-2 bg-red-500/90 text-white text-[10px] font-mono uppercase tracking-widest hover:bg-red-500 transition-colors rounded">
+            <Square className="w-3.5 h-3.5 fill-white" />
+            Stop Scan
+          </button>
+        ) : (
+          <button onClick={run}
+            className="flex items-center gap-2 px-5 py-2 bg-primary text-black text-[10px] font-mono uppercase tracking-widest hover:bg-primary/80 transition-colors rounded">
+            <Play className="w-3.5 h-3.5" />
+            Run Scanner
+          </button>
+        )}
 
-        {status !== "idle" && (
-          <span className={`text-[10px] font-mono uppercase ${statusColor[status]}`}>
-            {status === "running" ? "● SCANNING" : status === "complete" ? "✓ COMPLETE" : "✗ ERROR"}
+        {status === "running" && (
+          <span className="flex items-center gap-1.5 text-[10px] font-mono uppercase text-yellow-400">
+            <Loader2 className="w-3 h-3 animate-spin" />
+            SCANNING
           </span>
         )}
+        {status === "complete" && <span className="text-[10px] font-mono uppercase text-green-400">✓ COMPLETE</span>}
+        {status === "error"     && <span className="text-[10px] font-mono uppercase text-red-400">✗ ERROR</span>}
+        {status === "cancelled" && <span className="text-[10px] font-mono uppercase text-primary/40">◼ STOPPED</span>}
 
         {/* Report actions — appear when HTML report is ready */}
         {htmlReady && currentJobId && (
@@ -201,7 +227,7 @@ function ScannerTab({ useTor, onReportReady }: ScannerTabProps) {
           </>
         )}
 
-        {status === "complete" && (
+        {(status === "complete" || status === "error" || status === "cancelled") && (
           <button onClick={() => { setStatus("idle"); setOutput(null); setCmd(null); setHtmlReady(false); setJobId(null); }}
             className="flex items-center gap-1 text-[9px] text-primary/40 hover:text-primary font-mono">
             <RotateCcw className="w-3 h-3" /> Reset

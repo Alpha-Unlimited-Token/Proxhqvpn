@@ -15,9 +15,12 @@ const PYTHON    = "/home/runner/workspace/.pythonlibs/bin/python3";
 const TOR_PROXY = "socks5h://127.0.0.1:9050";
 
 // ── Job stores ──────────────────────────────────────────────────────────────
-type Job = { status: "running" | "complete" | "error"; output: string | null; cmd: string; startedAt: number };
-const scanJobs:   Map<string, Job> = new Map();
-const verifyJobs: Map<string, Job> = new Map();
+type JobStatus = "running" | "complete" | "error" | "cancelled";
+type Job = { status: JobStatus; output: string | null; cmd: string; startedAt: number };
+const scanJobs:    Map<string, Job>          = new Map();
+const verifyJobs:  Map<string, Job>          = new Map();
+const scanProcs:   Map<string, import("child_process").ChildProcess> = new Map();
+const verifyProcs: Map<string, import("child_process").ChildProcess> = new Map();
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 function torEnv() {
@@ -38,6 +41,7 @@ function torPrefix(useTor: boolean): string {
 
 function runJob(
   jobs: Map<string, Job>,
+  procs: Map<string, import("child_process").ChildProcess>,
   jobId: string,
   cmd: string,
   useTor: boolean,
@@ -46,7 +50,10 @@ function runJob(
   jobs.set(jobId, { status: "running", output: null, cmd, startedAt: Date.now() });
 
   const env = useTor ? torEnv() : process.env as any;
-  exec(cmd, { timeout, env, maxBuffer: 10 * 1024 * 1024 }, (err, stdout, stderr) => {
+  const proc = exec(cmd, { timeout, env, maxBuffer: 10 * 1024 * 1024 }, (err, stdout, stderr) => {
+    procs.delete(jobId);
+    // If already marked cancelled, don't overwrite
+    if (jobs.get(jobId)?.status === "cancelled") return;
     const raw = [stdout, stderr].filter(Boolean).join("\n").substring(0, 30000);
     jobs.set(jobId, {
       status:    err && !raw ? "error" : "complete",
@@ -55,6 +62,7 @@ function runJob(
       startedAt: jobs.get(jobId)!.startedAt,
     });
   });
+  procs.set(jobId, proc);
 }
 
 // ── Tor status ───────────────────────────────────────────────────────────────
@@ -123,7 +131,7 @@ router.post("/scan", (req, res) => {
   const safeExtra = (extraFlags as string).replace(/['"`;]/g, "").substring(0, 100);
   const cmdStr = `${torPrefix(useTor)}${PYTHON} ${args.join(" ")} ${safeExtra}`.trim();
 
-  runJob(scanJobs, jobId, cmdStr, useTor);
+  runJob(scanJobs, scanProcs, jobId, cmdStr, useTor);
   return res.status(202).json({ ok: true, jobId, cmd: cmdStr, mode, htmlOut });
 });
 
@@ -134,6 +142,24 @@ router.get("/scan/:jobId", (req, res) => {
   const htmlFile = path.join(os.tmpdir(), `alpha-scan-${req.params.jobId}.html`);
   const htmlReady = fs.existsSync(htmlFile);
   return res.json({ ...job, htmlReady });
+});
+
+// DELETE /api/alpha/scan/:jobId — cancel a running scan
+router.delete("/scan/:jobId", (req, res) => {
+  const { jobId } = req.params;
+  const job  = scanJobs.get(jobId);
+  const proc = scanProcs.get(jobId);
+  if (!job) return res.status(404).json({ error: "Job not found" });
+  if (job.status !== "running") return res.json({ ok: true, status: job.status });
+
+  // Kill the process tree
+  if (proc?.pid) {
+    try { process.kill(-proc.pid, "SIGKILL"); } catch {}
+    try { proc.kill("SIGKILL"); } catch {}
+  }
+  scanProcs.delete(jobId);
+  scanJobs.set(jobId, { ...job, status: "cancelled", output: "Scan stopped by user." });
+  return res.json({ ok: true, status: "cancelled" });
 });
 
 // GET /api/alpha/scan/:jobId/html — returns the raw HTML report for piping into Vuln Verifier
@@ -164,7 +190,7 @@ router.post("/verify", async (req, res) => {
   if (targetUrl) args.push("--target", targetUrl.replace(/['"]/g, ""));
 
   const cmdStr = `${torPrefix(useTor)}${PYTHON} ${args.join(" ")}`.trim();
-  runJob(verifyJobs, jobId, cmdStr, useTor, 240000);
+  runJob(verifyJobs, verifyProcs, jobId, cmdStr, useTor, 240000);
 
   return res.status(202).json({ ok: true, jobId, cmd: cmdStr, tmpDir });
 });
