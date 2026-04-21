@@ -208,11 +208,24 @@ function IpCommandPanel({
         body: JSON.stringify({ ip, ports: scanPorts, flags: scanFlags }),
       });
       const data = await res.json();
-      setScanCmd(data.cmd); setScanOutput(data.output);
-      if (!res.ok) toast({ title: "Port Scan Error", description: data.error, variant: "destructive" });
+      if (!res.ok) {
+        toast({ title: "Port Scan Error", description: data.error, variant: "destructive" });
+        setScanning(false); return;
+      }
+      setScanCmd(data.cmd);
+      toast({ title: "Port Scan Launched", description: `Job ${data.jobId} — scanning ${ip}` });
+      const poll = setInterval(async () => {
+        try {
+          const pr = await fetch(`${BASE}/api/silkweb/scan/portscan/${data.jobId}`, { credentials: "include" });
+          const pd = await pr.json();
+          if (pd.status !== "running") {
+            setScanOutput(pd.results ?? "No output");
+            setScanning(false); clearInterval(poll);
+          }
+        } catch { /* ignore */ }
+      }, 4000);
     } catch (e: any) {
       setScanOutput("Error: " + e.message);
-    } finally {
       setScanning(false);
     }
   };

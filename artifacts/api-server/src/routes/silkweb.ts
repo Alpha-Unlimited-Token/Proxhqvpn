@@ -149,30 +149,37 @@ router.post("/trap", async (req, res) => {
   return res.status(201).json({ ok: true, trapped });
 });
 
-// Port scan a trapped attacker using nmap
+// Port scan a trapped attacker using nmap — async, returns jobId immediately
+const trappedPortscanJobs = new Map<string, { status: string; results: string | null; cmd: string; ip: string }>();
+
 router.post("/trapped/:id/portscan", async (req, res) => {
   const id = parseInt(req.params.id);
   const [attacker] = await db.select().from(trappedAttackersTable).where(eq(trappedAttackersTable.id, id));
   if (!attacker) return res.status(404).json({ error: "Trapped attacker not found" });
 
   const { ports = "1-10000", flags = "-sV -T4" } = req.body as { ports?: string; flags?: string };
-
-  // Sanitize inputs
   const safePorts = ports.replace(/[^0-9\-,]/g, "").substring(0, 50);
   const safeFlags = flags.replace(/[^a-zA-Z0-9 \-]/g, "").substring(0, 80);
-
+  const jobId = crypto.randomUUID().substring(0, 8).toUpperCase();
   const cmd = `nmap ${safeFlags} -p ${safePorts} ${attacker.ip}`;
+  trappedPortscanJobs.set(jobId, { status: "running", results: null, cmd, ip: attacker.ip });
 
-  exec(cmd, { timeout: 90000 }, (err, stdout, stderr) => {
+  exec(cmd, { timeout: 120000 }, (err, stdout, stderr) => {
     const output = [stdout, stderr].filter(Boolean).join("\n").substring(0, 8000);
-    res.json({
-      ok: true,
-      ip: attacker.ip,
+    trappedPortscanJobs.set(jobId, {
+      status: err ? "error" : "complete",
+      results: output || (err ? err.message : "No output"),
       cmd,
-      output: output || (err ? err.message : "No output"),
-      exitCode: err ? (err as any).code ?? 1 : 0,
+      ip: attacker.ip,
     });
   });
+  return res.status(202).json({ ok: true, jobId, cmd, ip: attacker.ip, message: `nmap launched against ${attacker.ip}` });
+});
+
+router.get("/trapped/:id/portscan/:jobId", (req, res) => {
+  const job = trappedPortscanJobs.get(req.params.jobId);
+  if (!job) return res.status(404).json({ error: "Job not found" });
+  return res.json(job);
 });
 
 // Launch SQLmap against a trapped attacker
@@ -243,6 +250,7 @@ router.get("/trapped/:id/sqlmap", async (req, res) => {
 // Used by the Beacon Alerts page to scan any raw IP directly.
 
 const directSqlmapJobs = new Map<string, { status: string; results: string | null }>();
+const directPortscanJobs = new Map<string, { status: string; results: string | null; cmd: string; ip: string }>();
 
 router.post("/scan/portscan", async (req, res) => {
   const { ip, ports = "1-10000", flags = "-sV -T4" } = req.body as {
@@ -252,11 +260,25 @@ router.post("/scan/portscan", async (req, res) => {
   const safeIp    = ip.replace(/[^0-9a-fA-F.:]/g, "").substring(0, 45);
   const safePorts = ports.replace(/[^0-9\-,]/g, "").substring(0, 50);
   const safeFlags = flags.replace(/[^a-zA-Z0-9 \-]/g, "").substring(0, 80);
-  const cmd = `nmap ${safeFlags} -p ${safePorts} ${safeIp}`;
-  exec(cmd, { timeout: 90000 }, (err, stdout, stderr) => {
+  const jobId     = crypto.randomUUID().substring(0, 8).toUpperCase();
+  const cmd       = `nmap ${safeFlags} -p ${safePorts} ${safeIp}`;
+  directPortscanJobs.set(jobId, { status: "running", results: null, cmd, ip: safeIp });
+  exec(cmd, { timeout: 120000 }, (err, stdout, stderr) => {
     const output = [stdout, stderr].filter(Boolean).join("\n").substring(0, 8000);
-    res.json({ ok: true, ip: safeIp, cmd, output: output || (err ? err.message : "No output") });
+    directPortscanJobs.set(jobId, {
+      status: err ? "error" : "complete",
+      results: output || (err ? err.message : "No output"),
+      cmd,
+      ip: safeIp,
+    });
   });
+  return res.status(202).json({ ok: true, jobId, cmd, ip: safeIp, message: `nmap launched against ${safeIp}` });
+});
+
+router.get("/scan/portscan/:jobId", (req, res) => {
+  const job = directPortscanJobs.get(req.params.jobId);
+  if (!job) return res.status(404).json({ error: "Job not found" });
+  return res.json(job);
 });
 
 router.post("/scan/sqlmap", async (req, res) => {
