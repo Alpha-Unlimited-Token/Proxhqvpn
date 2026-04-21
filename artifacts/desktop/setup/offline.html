@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>ProxhqVPN — Connection Error</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      height: 100vh; background: #040a06; color: #00ff88;
+      font-family: 'Inter', system-ui, sans-serif;
+      display: flex; align-items: center; justify-content: center;
+      flex-direction: column; gap: 16px; text-align: center; padding: 40px;
+    }
+    h1 { font-size: 18px; font-weight: 700; color: #fff; }
+    p  { font-size: 13px; color: rgba(0,255,136,0.5); max-width: 360px; line-height: 1.6; }
+    button {
+      margin-top: 8px; padding: 10px 24px; background: #00ff88; color: #040a06;
+      border: none; border-radius: 6px; font-weight: 700; font-size: 13px; cursor: pointer;
+    }
+    button:hover { background: #00ffaa; }
+    .icon { font-size: 40px; }
+  </style>
+</head>
+<body>
+  <div class="icon">🔒</div>
+  <h1>Cannot reach ProxhqVPN server</h1>
+  <p>The desktop app cannot connect to your ProxhqVPN server. Make sure the server is running and you have an internet connection.</p>
+  <button onclick="location.reload()">Retry</button>
+</body>
+</html>

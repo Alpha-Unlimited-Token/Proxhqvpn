@@ -10,6 +10,8 @@ ProxhqVPN is an advanced VPN orchestration and security platform with 60-node me
 - `/downloads` — Multi-platform download/install page: Windows, macOS, Linux, Android, iPhone/iPad, Amazon Fire Stick, Fire TV, Android TV/Google TV, Samsung/LG Smart TVs, Apple TV, Routers (OpenWRT/DD-WRT/pfSense/AsusWRT), Roku, PS5/Xbox, Raspberry Pi, Chromebook.
 - `/guide` — Complete comprehensive user guide / instruction manual covering all 20+ features with step-by-step instructions, command references, SQLmap code examples, and Alpha Toolkit full documentation.
 - Alpha Toolkit Scanner → Verifier pipeline: Scanner generates HTML report → `htmlReady` flag on poll endpoint → "Send to Verifier" auto-switches tab and pre-loads the report HTML.
+- `artifacts/desktop/` — Electron desktop app for Windows, macOS, and Linux. 4-screen setup wizard with OS-specific WireGuard consent checkbox (legal gate), silent WireGuard install (Win: official installer/S; Mac: Homebrew; Linux: apt/dnf/yum/pacman/zypper), progress log, and main app launch. See `artifacts/desktop/BUILD_INSTRUCTIONS.md` for building installers.
+- `/setup` — Admin server setup page: auto-installs all server-side dependencies (openvpn, proxychains4, wireguard-tools, tor, iptables) with streaming install log and dependency status grid.
 
 ## Stack
 

@@ -1,0 +1,32 @@
+PROXHQVPN END USER LICENSE AGREEMENT
+
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC. All rights reserved.
+
+By installing or using ProxhqVPN, you agree to the following terms:
+
+1. LICENSE GRANT
+   ALPHA UNLIMITED TECHNOLOGIES LLC grants you a limited, non-exclusive,
+   non-transferable license to install and use ProxhqVPN on devices you own
+   or control.
+
+2. THIRD-PARTY SOFTWARE INSTALLATION CONSENT
+   ProxhqVPN requires WireGuard® (an open-source VPN tunneling protocol) to
+   function. By proceeding with installation and checking the consent checkbox
+   during setup, you explicitly authorize ProxhqVPN to install WireGuard on
+   your device. WireGuard is developed by Jason A. Donenfeld and is licensed
+   under the GPLv2. Installation of WireGuard is required for ProxhqVPN to
+   operate.
+
+3. PRIVACY & ZERO-LOGS POLICY
+   ALPHA UNLIMITED TECHNOLOGIES LLC does not log, store, or monitor your VPN
+   traffic, browsing activity, or connection timestamps.
+
+4. LIMITATION OF LIABILITY
+   To the maximum extent permitted by law, ALPHA UNLIMITED TECHNOLOGIES LLC
+   shall not be liable for any indirect, incidental, or consequential damages.
+
+5. GOVERNING LAW
+   This agreement is governed by the laws of the jurisdiction in which ALPHA
+   UNLIMITED TECHNOLOGIES LLC is registered.
+
+WireGuard® is a registered trademark of Jason A. Donenfeld.

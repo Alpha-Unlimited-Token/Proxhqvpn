@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ProxhqVPN Setup</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --green:      #00ff88;
+      --green-dim:  #00cc66;
+      --green-dark: #009952;
+      --bg:         #040a06;
+      --bg2:        #08120a;
+      --bg3:        #0d1a10;
+      --border:     rgba(0,255,136,0.12);
+      --border2:    rgba(0,255,136,0.25);
+      --text:       rgba(0,255,136,0.85);
+      --text-dim:   rgba(0,255,136,0.45);
+      --text-faint: rgba(0,255,136,0.20);
+      --red:        #ff4444;
+    }
+
+    html, body {
+      height: 100%; width: 100%;
+      background: var(--bg);
+      color: var(--green);
+      font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+      font-size: 13px;
+      -webkit-font-smoothing: antialiased;
+      user-select: none;
+      overflow: hidden;
+    }
+
+    /* ── Titlebar ─────────────────────────────────────────────────── */
+    #titlebar {
+      -webkit-app-region: drag;
+      position: fixed; top: 0; left: 0; right: 0;
+      height: 36px;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 14px;
+      background: rgba(4,10,6,0.95);
+      border-bottom: 1px solid var(--border);
+      z-index: 999;
+    }
+    #titlebar .brand { display: flex; align-items: center; gap: 8px; }
+    #titlebar .brand-icon {
+      width: 18px; height: 18px;
+      background: var(--green); border-radius: 4px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    #titlebar .brand-icon svg { width: 11px; height: 11px; fill: #040a06; }
+    #titlebar .brand-name { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; color: var(--green); }
+    #titlebar .win-controls { -webkit-app-region: no-drag; display: flex; gap: 6px; }
+    #titlebar .win-btn {
+      width: 24px; height: 18px; border: 1px solid var(--border);
+      background: transparent; color: var(--text-dim);
+      font-size: 9px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+      transition: all 0.15s;
+    }
+    #titlebar .win-btn:hover { background: var(--bg3); color: var(--green); border-color: var(--border2); }
+    #titlebar .win-btn.close:hover { background: rgba(255,60,60,0.15); color: var(--red); border-color: rgba(255,60,60,0.3); }
+
+    /* ── Screens ──────────────────────────────────────────────────── */
+    .screen {
+      position: absolute; inset: 36px 0 0 0;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 32px 48px;
+      opacity: 0; pointer-events: none; transition: opacity 0.3s;
+    }
+    .screen.active { opacity: 1; pointer-events: all; }
+
+    /* ── Progress dots ─────────────────────────────────────────────── */
+    #progress-dots {
+      position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
+      display: flex; gap: 7px; z-index: 100;
+    }
+    .dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--text-faint); transition: all 0.3s;
+    }
+    .dot.active { background: var(--green); transform: scale(1.3); }
+    .dot.done   { background: var(--green-dim); }
+
+    /* ── SCREEN 1: Welcome ─────────────────────────────────────────── */
+    #screen-welcome { gap: 24px; }
+    .logo-wrap {
+      width: 72px; height: 72px;
+      border: 1.5px solid var(--border2);
+      border-radius: 18px;
+      background: rgba(0,255,136,0.05);
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 0 40px rgba(0,255,136,0.08);
+    }
+    .logo-wrap svg { width: 36px; height: 36px; fill: var(--green); }
+    .welcome-title { font-size: 24px; font-weight: 800; letter-spacing: -0.02em; color: #fff; text-align: center; }
+    .welcome-title span { color: var(--green); }
+    .welcome-sub { font-size: 13px; color: var(--text-dim); text-align: center; max-width: 340px; line-height: 1.6; }
+    .feature-list { display: flex; flex-direction: column; gap: 8px; width: 100%; max-width: 320px; }
+    .feature-item {
+      display: flex; align-items: center; gap: 10px;
+      background: var(--bg3); border: 1px solid var(--border);
+      border-radius: 6px; padding: 9px 12px;
+    }
+    .feature-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+    .feature-item span { font-size: 12px; color: var(--text); }
+
+    /* ── SCREEN 2: Consent ────────────────────────────────────────── */
+    #screen-consent { gap: 20px; align-items: flex-start; }
+    .consent-header { width: 100%; }
+    .consent-header h2 { font-size: 17px; font-weight: 700; color: #fff; margin-bottom: 4px; }
+    .consent-header p  { font-size: 12px; color: var(--text-dim); line-height: 1.5; }
+
+    .consent-box {
+      width: 100%;
+      background: var(--bg2); border: 1px solid var(--border);
+      border-radius: 6px; padding: 16px;
+    }
+    .consent-os-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 10px; font-weight: 600; letter-spacing: 0.06em;
+      color: var(--green-dim); background: rgba(0,255,136,0.06);
+      border: 1px solid var(--border); border-radius: 4px;
+      padding: 3px 8px; margin-bottom: 12px; text-transform: uppercase;
+    }
+    .consent-os-badge svg { width: 10px; height: 10px; fill: var(--green-dim); }
+    .consent-text {
+      font-size: 12px; color: var(--text-dim); line-height: 1.7;
+    }
+    .consent-text strong { color: var(--text); font-weight: 600; }
+
+    .consent-check-row {
+      display: flex; align-items: flex-start; gap: 12px;
+      width: 100%;
+      background: rgba(0,255,136,0.03); border: 1.5px solid var(--border);
+      border-radius: 6px; padding: 14px 16px; cursor: pointer;
+      transition: all 0.2s;
+    }
+    .consent-check-row:hover { border-color: var(--border2); background: rgba(0,255,136,0.06); }
+    .consent-check-row.checked { border-color: rgba(0,255,136,0.5); background: rgba(0,255,136,0.08); }
+
+    .checkbox-custom {
+      width: 18px; height: 18px; flex-shrink: 0; margin-top: 1px;
+      border: 1.5px solid var(--border2); border-radius: 3px;
+      background: var(--bg); display: flex; align-items: center; justify-content: center;
+      transition: all 0.2s;
+    }
+    .checkbox-custom.checked { background: var(--green); border-color: var(--green); }
+    .checkbox-custom svg { width: 11px; height: 11px; stroke: #040a06; stroke-width: 2.5; fill: none; opacity: 0; transition: opacity 0.15s; }
+    .checkbox-custom.checked svg { opacity: 1; }
+    .checkbox-label { font-size: 12px; color: var(--text); line-height: 1.6; }
+    .checkbox-label em { color: var(--text-dim); font-style: normal; }
+
+    /* ── SCREEN 3: Installing ─────────────────────────────────────── */
+    #screen-installing { gap: 24px; }
+    .install-title { font-size: 17px; font-weight: 700; color: #fff; }
+    .install-subtitle { font-size: 12px; color: var(--text-dim); text-align: center; }
+    .progress-track {
+      width: 100%; max-width: 400px; height: 4px;
+      background: var(--bg3); border-radius: 2px; overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%; background: var(--green);
+      border-radius: 2px; transition: width 0.6s ease;
+      box-shadow: 0 0 12px rgba(0,255,136,0.6);
+    }
+    .install-step { font-size: 12px; color: var(--text-dim); min-height: 18px; text-align: center; }
+    .install-log {
+      width: 100%; max-width: 460px; height: 120px;
+      background: var(--bg2); border: 1px solid var(--border);
+      border-radius: 4px; padding: 10px 12px;
+      font-family: 'Consolas', 'Courier New', monospace;
+      font-size: 10px; color: var(--text-dim);
+      overflow-y: auto; line-height: 1.6;
+    }
+    .spinner {
+      width: 36px; height: 36px;
+      border: 2px solid var(--border2);
+      border-top-color: var(--green);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── SCREEN 4: Complete ───────────────────────────────────────── */
+    #screen-done { gap: 20px; }
+    .done-icon {
+      width: 64px; height: 64px; border-radius: 50%;
+      background: rgba(0,255,136,0.08); border: 1.5px solid rgba(0,255,136,0.4);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .done-icon svg { width: 30px; height: 30px; stroke: var(--green); stroke-width: 2; fill: none; }
+    .done-title { font-size: 20px; font-weight: 800; color: #fff; }
+    .done-sub { font-size: 12px; color: var(--text-dim); text-align: center; max-width: 320px; line-height: 1.6; }
+
+    /* ── Error state ──────────────────────────────────────────────── */
+    .error-box {
+      display: none; width: 100%; max-width: 420px;
+      background: rgba(255,60,60,0.07); border: 1px solid rgba(255,60,60,0.25);
+      border-radius: 6px; padding: 12px 16px;
+      font-size: 11px; color: rgba(255,120,120,0.9); line-height: 1.6;
+    }
+
+    /* ── Buttons ──────────────────────────────────────────────────── */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+      padding: 10px 28px; border-radius: 6px; font-size: 13px; font-weight: 600;
+      cursor: pointer; border: none; transition: all 0.2s; letter-spacing: 0.01em;
+    }
+    .btn-primary {
+      background: var(--green); color: #040a06;
+      box-shadow: 0 0 24px rgba(0,255,136,0.3);
+    }
+    .btn-primary:hover:not(:disabled) {
+      background: #00ffaa; box-shadow: 0 0 32px rgba(0,255,136,0.45);
+    }
+    .btn-primary:disabled {
+      background: rgba(0,255,136,0.15); color: rgba(0,255,136,0.3);
+      cursor: not-allowed; box-shadow: none;
+    }
+    .btn-ghost {
+      background: transparent; color: var(--text-dim);
+      border: 1px solid var(--border);
+    }
+    .btn-ghost:hover { border-color: var(--border2); color: var(--text); }
+
+    .btn-row { display: flex; gap: 10px; margin-top: 8px; }
+    .btn svg { width: 14px; height: 14px; fill: currentColor; }
+    .btn-primary svg { fill: #040a06; }
+  </style>
+</head>
+<body>
+
+<!-- Titlebar -->
+<div id="titlebar">
+  <div class="brand">
+    <div class="brand-icon">
+      <svg viewBox="0 0 24 24"><path d="M12 2L4 6v6c0 5.25 3.45 10.15 8 11.35C16.55 22.15 20 17.25 20 12V6L12 2z"/></svg>
+    </div>
+    <span class="brand-name">PROXHQVPN SETUP</span>
+  </div>
+  <div class="win-controls">
+    <button class="win-btn" onclick="window.proxhq.minimizeWindow()">&#8211;</button>
+    <button class="win-btn close" onclick="window.proxhq.closeWindow()">&#10005;</button>
+  </div>
+</div>
+
+<!-- Progress dots -->
+<div id="progress-dots">
+  <div class="dot active" id="dot-0"></div>
+  <div class="dot" id="dot-1"></div>
+  <div class="dot" id="dot-2"></div>
+  <div class="dot" id="dot-3"></div>
+</div>
+
+<!-- ── SCREEN 1: Welcome ─────────────────────────────────────────────── -->
+<div class="screen active" id="screen-welcome">
+  <div class="logo-wrap">
+    <svg viewBox="0 0 24 24"><path d="M12 2L4 6v6c0 5.25 3.45 10.15 8 11.35C16.55 22.15 20 17.25 20 12V6L12 2z"/></svg>
+  </div>
+  <div class="welcome-title">Welcome to <span>ProxhqVPN</span></div>
+  <div class="welcome-sub">Military-grade WireGuard encryption, auto-configured on your device in seconds.</div>
+  <div class="feature-list">
+    <div class="feature-item"><div class="feature-dot"></div><span>WireGuard installed automatically — no manual steps</span></div>
+    <div class="feature-item"><div class="feature-dot"></div><span>Ghost Chain double-hop anonymity</span></div>
+    <div class="feature-item"><div class="feature-dot"></div><span>Kill switch &amp; leak protection always on</span></div>
+    <div class="feature-item"><div class="feature-dot"></div><span>Zero-logs — your data stays yours</span></div>
+  </div>
+  <div class="btn-row">
+    <button class="btn btn-primary" onclick="goTo(1)">
+      Get Started
+      <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+    </button>
+  </div>
+</div>
+
+<!-- ── SCREEN 2: Consent ─────────────────────────────────────────────── -->
+<div class="screen" id="screen-consent">
+  <div class="consent-header">
+    <h2>Installation Permission</h2>
+    <p>Please read and confirm before continuing.</p>
+  </div>
+
+  <div class="consent-box">
+    <div class="consent-os-badge" id="os-badge">
+      <svg viewBox="0 0 24 24"><path d="M12 2L4 6v6c0 5.25 3.45 10.15 8 11.35C16.55 22.15 20 17.25 20 12V6L12 2z"/></svg>
+      <span id="os-label">Detecting OS...</span>
+    </div>
+    <div class="consent-text" id="consent-text">
+      Loading...
+    </div>
+  </div>
+
+  <div class="consent-check-row" id="check-row" onclick="toggleConsent()">
+    <div class="checkbox-custom" id="checkbox">
+      <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+    </div>
+    <div class="checkbox-label">
+      I understand and <strong>consent to ProxhqVPN installing WireGuard</strong> on my device.<br/>
+      <em>WireGuard is required for the VPN to function. It will be installed silently in the background and can be removed at any time through your system's software manager.</em>
+    </div>
+  </div>
+
+  <div class="error-box" id="consent-error"></div>
+
+  <div class="btn-row">
+    <button class="btn btn-ghost" onclick="goTo(0)">Back</button>
+    <button class="btn btn-primary" id="btn-continue" disabled onclick="beginInstall()">
+      Continue &amp; Install
+      <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+    </button>
+  </div>
+</div>
+
+<!-- ── SCREEN 3: Installing ──────────────────────────────────────────── -->
+<div class="screen" id="screen-installing">
+  <div class="spinner" id="spinner"></div>
+  <div class="install-title">Installing WireGuard</div>
+  <div class="install-subtitle">Please wait — this may take a moment.<br/>Do not close this window.</div>
+  <div class="progress-track"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+  <div class="install-step" id="install-step">Preparing...</div>
+  <div class="install-log" id="install-log"></div>
+  <div class="error-box" id="install-error"></div>
+</div>
+
+<!-- ── SCREEN 4: Complete ────────────────────────────────────────────── -->
+<div class="screen" id="screen-done">
+  <div class="done-icon">
+    <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+  </div>
+  <div class="done-title">You're all set!</div>
+  <div class="done-sub">WireGuard has been installed and ProxhqVPN is ready. Sign in to activate your VPN.</div>
+  <div class="btn-row">
+    <button class="btn btn-primary" onclick="launchApp()">
+      <svg viewBox="0 0 24 24"><path d="M12 2L4 6v6c0 5.25 3.45 10.15 8 11.35C16.55 22.15 20 17.25 20 12V6L12 2z"/></svg>
+      Open ProxhqVPN
+    </button>
+  </div>
+</div>
+
+<script>
+  let currentScreen = 0;
+  let consentChecked = false;
+  let platformInfo = {};
+
+  const OS_ICONS = {
+    windows: "🪟",
+    mac:     "🍎",
+    linux:   "🐧",
+    unknown: "💻",
+  };
+
+  const CONSENT_TEXTS = {
+    windows: `ProxhqVPN requires <strong>WireGuard for Windows</strong> to establish secure encrypted connections. By continuing, you authorize ProxhqVPN to silently download and run the official WireGuard installer (<code>wireguard-installer.exe</code>) from <strong>wireguard.com</strong>. It will be installed to <code>C:\\Program Files\\WireGuard\\</code>. No other software will be installed. You can remove WireGuard at any time via <em>Windows Settings → Apps</em>.`,
+    mac:     `ProxhqVPN requires <strong>WireGuard Tools for macOS</strong> to establish secure encrypted connections. By continuing, you authorize ProxhqVPN to install <code>wireguard-tools</code> via Homebrew. If Homebrew is not present, it will also be installed. All software comes from official, open-source sources. You can remove WireGuard at any time via <em>brew uninstall wireguard-tools</em>.`,
+    linux:   `ProxhqVPN requires <strong>WireGuard Tools for Linux</strong> to establish secure encrypted connections. By continuing, you authorize ProxhqVPN to install <code>wireguard-tools</code> using your system's package manager (apt, dnf, yum, pacman, or zypper). Sudo access may be required. You can remove WireGuard at any time using your package manager.`,
+    unknown: `ProxhqVPN requires <strong>WireGuard</strong> to establish secure encrypted connections. By continuing, you authorize ProxhqVPN to install WireGuard using the appropriate method for your system. You can remove WireGuard at any time through your system's software manager.`,
+  };
+
+  async function initScreen1() {
+    platformInfo = await window.proxhq.getPlatform();
+    document.getElementById("os-label").textContent = platformInfo.label || "Your System";
+    const key = platformInfo.os || "unknown";
+    document.getElementById("consent-text").innerHTML = CONSENT_TEXTS[key] || CONSENT_TEXTS.unknown;
+    const { installed } = await window.proxhq.checkWireGuard();
+    if (installed) {
+      document.getElementById("consent-text").innerHTML =
+        `<span style="color:var(--green)">✓ WireGuard is already installed on this system.</span><br/><br/>` +
+        document.getElementById("consent-text").innerHTML;
+    }
+  }
+
+  function goTo(n) {
+    document.querySelectorAll(".screen").forEach((s, i) => {
+      s.classList.toggle("active", i === n);
+    });
+    document.querySelectorAll(".dot").forEach((d, i) => {
+      d.classList.toggle("active", i === n);
+      d.classList.toggle("done", i < n);
+    });
+    currentScreen = n;
+    if (n === 1) initScreen1();
+  }
+
+  function toggleConsent() {
+    consentChecked = !consentChecked;
+    const checkbox = document.getElementById("checkbox");
+    const row = document.getElementById("check-row");
+    const btn = document.getElementById("btn-continue");
+    checkbox.classList.toggle("checked", consentChecked);
+    row.classList.toggle("checked", consentChecked);
+    btn.disabled = !consentChecked;
+  }
+
+  async function beginInstall() {
+    if (!consentChecked) return;
+    goTo(2);
+
+    const fillEl   = document.getElementById("progress-fill");
+    const stepEl   = document.getElementById("install-step");
+    const logEl    = document.getElementById("install-log");
+    const errEl    = document.getElementById("install-error");
+    const spinner  = document.getElementById("spinner");
+
+    const cleanup = window.proxhq.onInstallProgress((data) => {
+      if (data.percent !== null && data.percent !== undefined) {
+        fillEl.style.width = data.percent + "%";
+      }
+      if (data.step) stepEl.textContent = data.step;
+      if (data.log) {
+        const line = document.createElement("div");
+        line.textContent = "> " + data.log;
+        logEl.appendChild(line);
+        logEl.scrollTop = logEl.scrollHeight;
+      }
+      if (data.done) {
+        cleanup();
+        spinner.style.display = "none";
+        setTimeout(() => goTo(3), 800);
+      }
+      if (data.error) {
+        cleanup();
+        spinner.style.display = "none";
+        errEl.style.display = "block";
+        errEl.textContent = "Installation failed: " + data.step;
+      }
+    });
+
+    const result = await window.proxhq.installWireGuard();
+    if (!result.success && !document.getElementById("install-error").style.display.includes("block")) {
+      errEl.style.display = "block";
+      errEl.textContent = "Installation failed: " + (result.error || "Unknown error");
+    }
+  }
+
+  async function launchApp() {
+    await window.proxhq.markSetupComplete();
+    await window.proxhq.launchMainApp();
+  }
+</script>
+</body>
+</html>
