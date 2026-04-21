@@ -159,11 +159,11 @@ function SignInPage() {
               <div className="w-5 h-5 rounded-full bg-primary/15 border border-primary/30 flex items-center justify-center shrink-0">
                 <div className="w-1.5 h-1.5 rounded-full bg-primary" />
               </div>
-              <span className="text-sm text-white/60">{f}</span>
+              <span className="text-sm text-white/88">{f}</span>
             </div>
           ))}
         </div>
-        <div className="text-xs text-white/20">© 2026 ALPHA UNLIMITED TECHNOLOGIES LLC</div>
+        <div className="text-xs text-white/70">© 2026 ALPHA UNLIMITED TECHNOLOGIES LLC</div>
       </div>
       {/* Sign in form */}
       <div className="flex-1 flex items-center justify-center px-6 py-10">
@@ -193,9 +193,9 @@ function SignUpPage() {
         </div>
         <div className="space-y-4">
           <div className="text-2xl font-bold text-white leading-tight">Privacy that works from day one.</div>
-          <div className="text-sm text-white/45 leading-relaxed">Create your account and download your personal VPN config in under 60 seconds.</div>
+          <div className="text-sm text-white/83 leading-relaxed">Create your account and download your personal VPN config in under 60 seconds.</div>
         </div>
-        <div className="text-xs text-white/20">© 2026 ALPHA UNLIMITED TECHNOLOGIES LLC</div>
+        <div className="text-xs text-white/70">© 2026 ALPHA UNLIMITED TECHNOLOGIES LLC</div>
       </div>
       <div className="flex-1 flex items-center justify-center px-6 py-10">
         <div className="w-full max-w-sm space-y-6">
@@ -238,7 +238,7 @@ function PublicLayout({ children }: { children: React.ReactNode }) {
               <span className="font-bold text-white text-sm">ProxhqVPN</span>
             </a>
             <div className="flex items-center gap-3">
-              <a href={`${basePath}/sign-in`} className="text-xs text-white/50 hover:text-white transition-colors">Sign in</a>
+              <a href={`${basePath}/sign-in`} className="text-xs text-white/83 hover:text-white transition-colors">Sign in</a>
               <a href={`${basePath}/sign-up`} className="text-xs bg-primary text-black font-semibold px-4 py-2 rounded-lg hover:brightness-110 transition-all">
                 Get Started
               </a>

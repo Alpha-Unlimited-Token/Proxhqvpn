@@ -156,7 +156,7 @@ export default function Pricing() {
         <h1 className="text-3xl font-bold text-white tracking-tight">
           Privacy tools. Developer toolkit. One platform.
         </h1>
-        <p className="text-white/40 text-sm max-w-xl mx-auto">
+        <p className="text-white/78 text-sm max-w-xl mx-auto">
           Start with VPN Basic for personal privacy — or unlock the full Command Center suite for security research, penetration testing, and developer workflows.
         </p>
       </div>
@@ -168,7 +168,7 @@ export default function Pricing() {
             <Check className="w-4 h-4 shrink-0" />
             <span>
               Active plan: <strong>{tier === "command_center" ? "Command Center Pro" : "VPN Basic"}</strong>
-              {tier === "vpn" && <span className="text-white/35 font-normal ml-1">— upgrade to Pro to unlock developer tools</span>}
+              {tier === "vpn" && <span className="text-white/78 font-normal ml-1">— upgrade to Pro to unlock developer tools</span>}
             </span>
           </div>
           <button
@@ -189,7 +189,7 @@ export default function Pricing() {
               key={p}
               onClick={() => setPeriod(p)}
               className={`relative px-6 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                period === p ? "bg-primary text-black" : "text-white/50 hover:text-white/80"
+                period === p ? "bg-primary text-black" : "text-white/83 hover:text-white/80"
               }`}
             >
               {p === "monthly" ? "Monthly" : "Annual"}
@@ -243,7 +243,7 @@ export default function Pricing() {
 
       {/* Plan cards */}
       {isLoading ? (
-        <div className="flex items-center justify-center py-16 text-white/30 gap-2">
+        <div className="flex items-center justify-center py-16 text-white/70 gap-2">
           <Loader2 className="w-4 h-4 animate-spin" /> Loading plans...
         </div>
       ) : (!vpnProduct && !proProduct) ? (
@@ -275,20 +275,20 @@ export default function Pricing() {
               {/* Price */}
               <div className="flex items-end gap-2 mb-1">
                 <div className="flex items-start">
-                  <span className="text-white/40 text-base mt-1.5 mr-0.5">$</span>
+                  <span className="text-white/78 text-base mt-1.5 mr-0.5">$</span>
                   <span className="text-5xl font-bold text-white leading-none">
                     {period === "monthly"
                       ? Math.floor(vpnMonthly / 100)
                       : Math.floor(vpnAnnual / 100)}
                   </span>
                   {period === "monthly" && vpnMonthly % 100 !== 0 && (
-                    <span className="text-white/60 text-2xl mt-2">.{String(vpnMonthly % 100).padStart(2, "0")}</span>
+                    <span className="text-white/88 text-2xl mt-2">.{String(vpnMonthly % 100).padStart(2, "0")}</span>
                   )}
                   {period === "annual" && vpnAnnual % 100 !== 0 && (
-                    <span className="text-white/60 text-2xl mt-2">.{String(vpnAnnual % 100).padStart(2, "0")}</span>
+                    <span className="text-white/88 text-2xl mt-2">.{String(vpnAnnual % 100).padStart(2, "0")}</span>
                   )}
                 </div>
-                <span className="text-white/30 text-sm pb-1">/{period === "monthly" ? "month" : "year"}</span>
+                <span className="text-white/70 text-sm pb-1">/{period === "monthly" ? "month" : "year"}</span>
               </div>
               {period === "annual" && (
                 <div className="text-primary/70 text-xs font-medium mb-4">
@@ -297,7 +297,7 @@ export default function Pricing() {
               )}
               {period === "monthly" && <div className="mb-4" />}
 
-              <div className="text-white/35 text-xs mb-6 leading-relaxed">
+              <div className="text-white/78 text-xs mb-6 leading-relaxed">
                 Everything you need for personal privacy and secure browsing. Includes all core VPN features with no limitations.
               </div>
 
@@ -308,7 +308,7 @@ export default function Pricing() {
                     <div className="w-5 h-5 rounded-full bg-primary/12 border border-primary/25 flex items-center justify-center shrink-0">
                       <Check className="w-2.5 h-2.5 text-primary" />
                     </div>
-                    <span className="text-[12px] text-white/60">{f.text}</span>
+                    <span className="text-[12px] text-white/88">{f.text}</span>
                   </li>
                 ))}
               </ul>
@@ -319,7 +319,7 @@ export default function Pricing() {
                   <Check className="w-4 h-4" /> Current Plan
                 </div>
               ) : tier === "command_center" ? (
-                <div className="w-full flex items-center justify-center gap-2 bg-white/[0.04] border border-white/[0.08] rounded-xl py-3 text-white/30 text-sm">
+                <div className="w-full flex items-center justify-center gap-2 bg-white/[0.04] border border-white/[0.08] rounded-xl py-3 text-white/70 text-sm">
                   Included in your Pro plan
                 </div>
               ) : (
@@ -357,20 +357,20 @@ export default function Pricing() {
               {/* Price */}
               <div className="flex items-end gap-2 mb-1">
                 <div className="flex items-start">
-                  <span className="text-white/40 text-base mt-1.5 mr-0.5">$</span>
+                  <span className="text-white/78 text-base mt-1.5 mr-0.5">$</span>
                   <span className="text-5xl font-bold text-white leading-none">
                     {period === "monthly"
                       ? Math.floor(proMonthly / 100)
                       : Math.floor(proAnnual / 100)}
                   </span>
                   {period === "monthly" && proMonthly % 100 !== 0 && (
-                    <span className="text-white/60 text-2xl mt-2">.{String(proMonthly % 100).padStart(2, "0")}</span>
+                    <span className="text-white/88 text-2xl mt-2">.{String(proMonthly % 100).padStart(2, "0")}</span>
                   )}
                   {period === "annual" && proAnnual % 100 !== 0 && (
-                    <span className="text-white/60 text-2xl mt-2">.{String(proAnnual % 100).padStart(2, "0")}</span>
+                    <span className="text-white/88 text-2xl mt-2">.{String(proAnnual % 100).padStart(2, "0")}</span>
                   )}
                 </div>
-                <span className="text-white/30 text-sm pb-1">/{period === "monthly" ? "month" : "year"}</span>
+                <span className="text-white/70 text-sm pb-1">/{period === "monthly" ? "month" : "year"}</span>
               </div>
               {period === "annual" && (
                 <div className="text-yellow-400/70 text-xs font-medium mb-4">
@@ -383,8 +383,8 @@ export default function Pricing() {
                 </div>
               )}
 
-              <div className="text-white/35 text-xs mb-5 leading-relaxed">
-                Everything in VPN Basic <strong className="text-white/50">plus</strong> the complete developer security toolkit — built for pentesters, developers, and security researchers.
+              <div className="text-white/78 text-xs mb-5 leading-relaxed">
+                Everything in VPN Basic <strong className="text-white/83">plus</strong> the complete developer security toolkit — built for pentesters, developers, and security researchers.
               </div>
 
               {/* VPN features (condensed) */}
@@ -392,7 +392,7 @@ export default function Pricing() {
                 <div className="w-5 h-5 rounded-full bg-primary/12 border border-primary/25 flex items-center justify-center shrink-0">
                   <Check className="w-2.5 h-2.5 text-primary" />
                 </div>
-                <span className="text-[12px] text-white/40">All VPN Basic features included</span>
+                <span className="text-[12px] text-white/78">All VPN Basic features included</span>
               </div>
 
               {/* Pro extras */}
@@ -403,7 +403,7 @@ export default function Pricing() {
                     <div className="w-5 h-5 rounded-full bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center shrink-0">
                       <Check className="w-2.5 h-2.5 text-yellow-400" />
                     </div>
-                    <span className="text-[12px] text-white/60">{f.text}</span>
+                    <span className="text-[12px] text-white/88">{f.text}</span>
                   </li>
                 ))}
               </ul>
@@ -445,7 +445,7 @@ export default function Pricing() {
 
       {/* Value comparison */}
       <div className="bg-[#0d1610] border border-white/[0.06] rounded-2xl p-6">
-        <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-4 text-center">
+        <div className="text-[11px] font-bold uppercase tracking-widest text-white/70 mb-4 text-center">
           Command Center Pro vs industry tools
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -460,19 +460,19 @@ export default function Pricing() {
                 ? "bg-yellow-500/8 border border-yellow-500/20"
                 : "bg-white/[0.02] border border-white/[0.05]"
             }`}>
-              <div className={`text-sm font-bold mb-0.5 ${r.highlight ? "text-yellow-400" : "text-white/50"}`}>
+              <div className={`text-sm font-bold mb-0.5 ${r.highlight ? "text-yellow-400" : "text-white/83"}`}>
                 {r.price}
               </div>
-              <div className={`text-[11px] font-semibold mb-0.5 ${r.highlight ? "text-white/80" : "text-white/40"}`}>
+              <div className={`text-[11px] font-semibold mb-0.5 ${r.highlight ? "text-white/93" : "text-white/78"}`}>
                 {r.tool}
               </div>
-              <div className={`text-[10px] ${r.highlight ? "text-yellow-400/50" : "text-white/20"}`}>
+              <div className={`text-[10px] ${r.highlight ? "text-yellow-400/50" : "text-white/70"}`}>
                 {r.tag}
               </div>
             </div>
           ))}
         </div>
-        <div className="text-center text-[10px] text-white/15 mt-3">* Annual plan equivalent · $299.99/yr</div>
+        <div className="text-center text-[10px] text-white/70 mt-3">* Annual plan equivalent · $299.99/yr</div>
       </div>
 
       {/* Guarantees */}
@@ -483,8 +483,8 @@ export default function Pricing() {
           { title: "Instant Access", body: "Your VPN is live within 30 seconds of subscribing." },
         ].map((item) => (
           <div key={item.title} className="bg-[#0d1610] border border-white/[0.07] rounded-xl p-4 text-center">
-            <div className="text-xs font-semibold text-white/70 mb-1">{item.title}</div>
-            <div className="text-xs text-white/30 leading-relaxed">{item.body}</div>
+            <div className="text-xs font-semibold text-white/88 mb-1">{item.title}</div>
+            <div className="text-xs text-white/70 leading-relaxed">{item.body}</div>
           </div>
         ))}
       </div>

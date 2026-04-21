@@ -257,17 +257,17 @@ export default function Connect() {
               ) : tunnelReady ? (
                 <Shield className="w-12 h-12 text-primary drop-shadow-[0_0_12px_rgba(0,255,136,0.6)]" />
               ) : (
-                <Shield className="w-12 h-12 text-white/20" />
+                <Shield className="w-12 h-12 text-white/70" />
               )}
             </div>
           </div>
 
           <div className={`text-2xl font-bold tracking-tight mb-1 ${
-            tunnelReady ? "text-primary" : isRegistering ? "text-yellow-400" : "text-white/40"
+            tunnelReady ? "text-primary" : isRegistering ? "text-yellow-400" : "text-white/78"
           }`}>
             {statusLabel()}
           </div>
-          <div className="text-sm text-white/40 max-w-xs leading-relaxed">
+          <div className="text-sm text-white/78 max-w-xs leading-relaxed">
             {statusSub()}
           </div>
 
@@ -301,7 +301,7 @@ export default function Connect() {
               <select
                 value={targetNodeId ?? ""}
                 onChange={(e) => setSelectedNodeId(Number(e.target.value))}
-                className="flex-1 bg-transparent text-sm text-white/80 focus:outline-none cursor-pointer"
+                className="flex-1 bg-transparent text-sm text-white/93 focus:outline-none cursor-pointer"
               >
                 {activeNodes.map((n: any) => (
                   <option key={n.id} value={n.id} className="bg-[#0d1610]">
@@ -317,7 +317,7 @@ export default function Connect() {
           <div className="px-6 pb-2">
             <div className="flex items-center gap-3 bg-white/[0.04] rounded-xl px-4 py-3 border border-white/[0.06]">
               <div className="w-2 h-2 rounded-full bg-primary shrink-0" />
-              <span className="text-sm text-white/70">{activeNodes[0]?.name} — {(activeNodes[0] as any)?.region}</span>
+              <span className="text-sm text-white/88">{activeNodes[0]?.name} — {(activeNodes[0] as any)?.region}</span>
             </div>
           </div>
         )}
@@ -350,7 +350,7 @@ export default function Connect() {
             <button
               onClick={handleSwitch}
               disabled={isWorking}
-              className="w-full mt-2 py-2.5 rounded-xl text-sm text-white/40 hover:text-white/70 hover:bg-white/5 transition-all"
+              className="w-full mt-2 py-2.5 rounded-xl text-sm text-white/78 hover:text-white/70 hover:bg-white/5 transition-all"
             >
               Switch to {targetNode?.name} and get new config
             </button>
@@ -360,7 +360,7 @@ export default function Connect() {
 
       {/* Download apps */}
       <div className="bg-[#0d1610] border border-white/[0.07] rounded-2xl p-6">
-        <div className="text-sm font-semibold text-white/60 mb-4">Get the WireGuard App</div>
+        <div className="text-sm font-semibold text-white/88 mb-4">Get the WireGuard App</div>
         <div className="grid grid-cols-4 gap-2">
           {PLATFORMS.map(({ label, icon: Icon, url }) => (
             <a
@@ -370,8 +370,8 @@ export default function Connect() {
               rel="noreferrer"
               className="flex flex-col items-center gap-2 py-3 px-2 rounded-xl bg-white/[0.03] border border-white/[0.06] hover:bg-white/[0.07] hover:border-primary/20 transition-all group"
             >
-              <Icon className="w-5 h-5 text-white/40 group-hover:text-primary/70 transition-colors" />
-              <span className="text-[11px] text-white/40 group-hover:text-white/70 font-medium">{label}</span>
+              <Icon className="w-5 h-5 text-white/78 group-hover:text-primary/70 transition-colors" />
+              <span className="text-[11px] text-white/78 group-hover:text-white/70 font-medium">{label}</span>
             </a>
           ))}
         </div>
@@ -379,7 +379,7 @@ export default function Connect() {
 
       {/* How to connect */}
       <div className="bg-[#0d1610] border border-white/[0.07] rounded-2xl p-6">
-        <div className="text-sm font-semibold text-white/60 mb-4">How to Connect</div>
+        <div className="text-sm font-semibold text-white/88 mb-4">How to Connect</div>
         <div className="space-y-4">
           {[
             { n: "1", title: "Install WireGuard", body: "Download the free WireGuard app from the links above for your device." },
@@ -391,8 +391,8 @@ export default function Connect() {
                 <span className="text-xs font-bold text-primary">{step.n}</span>
               </div>
               <div className="pt-0.5">
-                <div className="text-sm font-medium text-white/80 mb-0.5">{step.title}</div>
-                <div className="text-sm text-white/40 leading-relaxed">{step.body}</div>
+                <div className="text-sm font-medium text-white/93 mb-0.5">{step.title}</div>
+                <div className="text-sm text-white/78 leading-relaxed">{step.body}</div>
               </div>
             </div>
           ))}
@@ -404,7 +404,7 @@ export default function Connect() {
         <div>
           <button
             onClick={() => setShowAdvanced(v => !v)}
-            className="flex items-center gap-2 text-sm text-white/30 hover:text-white/50 transition-colors"
+            className="flex items-center gap-2 text-sm text-white/70 hover:text-white/50 transition-colors"
           >
             {showAdvanced ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
             Advanced options
@@ -416,7 +416,7 @@ export default function Connect() {
                   Safe IP in config: <span className="text-primary/80">{myPublicIp}</span> — whitelisted in PostUp rules
                 </div>
               )}
-              <p className="text-sm text-white/40 leading-relaxed">
+              <p className="text-sm text-white/78 leading-relaxed">
                 If your device is lost or you suspect your config is compromised, revoke it here. You can generate a new one on your next visit.
               </p>
               <button

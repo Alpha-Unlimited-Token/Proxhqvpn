@@ -93,7 +93,7 @@ function OnionLayer({
               : isLast
               ? "bg-green-900/20 border-green-500/40 text-green-400"
               : "bg-purple-900/20 border-purple-500/30 text-purple-300"
-            : "border-gray-700 text-gray-600"
+            : "border-gray-700 text-white/65"
         }`}
         title={label}
       >
@@ -108,7 +108,7 @@ function OnionLayer({
       </div>
       {!isLast && (
         <ChevronRight
-          className={`w-3 h-3 flex-shrink-0 ${active ? "text-primary/60" : "text-gray-700"}`}
+          className={`w-3 h-3 flex-shrink-0 ${active ? "text-primary/60" : "text-white/55"}`}
         />
       )}
     </div>

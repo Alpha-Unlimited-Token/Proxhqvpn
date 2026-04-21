@@ -119,8 +119,8 @@ const PLATFORMS: PlatformGroup[] = [
       },
       {
         id: "macos", name: "macOS", os: "macOS 12+",
-        icon: Monitor, iconColor: "text-gray-300",
-        badge: "Mac App Store", badgeColor: "text-gray-400 border-gray-500/30 bg-gray-900/10",
+        icon: Monitor, iconColor: "text-white/90",
+        badge: "Mac App Store", badgeColor: "text-white/82 border-gray-500/30 bg-gray-900/10",
         canInstall: true,
         downloads: [
           { label: "WireGuard on Mac App Store", url: WG_APPSTORE_MAC, variant: "store", icon: Apple },
@@ -284,7 +284,7 @@ const PLATFORMS: PlatformGroup[] = [
       },
       {
         id: "appletv", name: "Apple TV", os: "tvOS 17+ (4K 3rd gen)",
-        icon: Tv, iconColor: "text-gray-300",
+        icon: Tv, iconColor: "text-white/90",
         badge: "tvOS App Store", badgeColor: "text-blue-400 border-blue-500/30 bg-blue-900/10",
         canInstall: true,
         downloads: [
@@ -575,12 +575,12 @@ function FireStickBanner() {
 // ── Quick-pick platform buttons ───────────────────────────────────────────────
 const QUICK_PICKS = [
   { label: "Windows",       id: "windows",       color: "text-blue-300",   bg: "border-blue-500/20 hover:border-blue-400/40" },
-  { label: "macOS",         id: "macos",         color: "text-gray-300",   bg: "border-gray-500/20 hover:border-gray-400/40" },
+  { label: "macOS",         id: "macos",         color: "text-white/90",   bg: "border-gray-500/20 hover:border-gray-400/40" },
   { label: "Android",       id: "android",       color: "text-green-400",  bg: "border-green-500/20 hover:border-green-400/40" },
   { label: "iPhone/iPad",   id: "iphone",        color: "text-blue-300",   bg: "border-blue-500/20 hover:border-blue-400/40" },
   { label: "Fire Stick",    id: "firestick",     color: "text-orange-400", bg: "border-orange-500/20 hover:border-orange-400/40" },
   { label: "Android TV",    id: "androidtv",     color: "text-green-400",  bg: "border-green-500/20 hover:border-green-400/40" },
-  { label: "Apple TV",      id: "appletv",       color: "text-gray-300",   bg: "border-gray-500/20 hover:border-gray-400/40" },
+  { label: "Apple TV",      id: "appletv",       color: "text-white/90",   bg: "border-gray-500/20 hover:border-gray-400/40" },
   { label: "Router",        id: "openwrt",       color: "text-cyan-400",   bg: "border-cyan-500/20 hover:border-cyan-400/40" },
 ];
 

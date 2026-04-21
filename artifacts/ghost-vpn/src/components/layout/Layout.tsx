@@ -126,10 +126,10 @@ function NavItem({ href, label, icon: Icon, onClick }: {
       className={`flex items-center gap-3 px-3 py-2 rounded-xl transition-all duration-150 group ${
         isActive
           ? "bg-primary/12 text-primary"
-          : "text-white/45 hover:text-white/85 hover:bg-white/[0.05]"
+          : "text-white/83 hover:text-white/85 hover:bg-white/[0.05]"
       }`}
     >
-      <Icon className={`w-[17px] h-[17px] flex-shrink-0 ${isActive ? "text-primary" : "text-white/35 group-hover:text-white/65"}`} />
+      <Icon className={`w-[17px] h-[17px] flex-shrink-0 ${isActive ? "text-primary" : "text-white/78 group-hover:text-white/65"}`} />
       <span className="text-[13px] font-medium leading-none">{label}</span>
       {isActive && <span className="ml-auto w-1 h-1 rounded-full bg-primary/70 shrink-0" />}
     </Link>
@@ -141,7 +141,7 @@ function NavSection({ label, items, onNav }: {
 }) {
   return (
     <div>
-      <div className="px-3 pt-5 pb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-white/20 select-none">
+      <div className="px-3 pt-5 pb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-white/70 select-none">
         {label}
       </div>
       <div className="space-y-0.5">
@@ -264,7 +264,7 @@ export function Layout({ children }: LayoutProps) {
               </span>
             </div>
             <div className="min-w-0 flex-1">
-              <div className="text-[12px] font-medium text-white/75 truncate leading-none">
+              <div className="text-[12px] font-medium text-white/93 truncate leading-none">
                 {user.firstName
                   ? `${user.firstName} ${user.lastName ?? ""}`.trim()
                   : (user.username ?? "User")}
@@ -276,7 +276,7 @@ export function Layout({ children }: LayoutProps) {
                 {tier === "vpn" && (
                   <span className="text-[9px] font-bold uppercase tracking-widest text-primary/70 bg-primary/10 px-1.5 py-0.5 rounded-full leading-none">VPN</span>
                 )}
-                <div className="text-[10px] text-white/30 truncate">
+                <div className="text-[10px] text-white/70 truncate">
                   {user.primaryEmailAddress?.emailAddress ?? ""}
                 </div>
               </div>
@@ -285,13 +285,13 @@ export function Layout({ children }: LayoutProps) {
           <Link
             href="/account"
             onClick={closeSidebar}
-            className="flex items-center gap-2.5 w-full px-3 py-2 rounded-xl text-[12px] text-white/40 hover:text-white/80 hover:bg-white/[0.05] transition-all"
+            className="flex items-center gap-2.5 w-full px-3 py-2 rounded-xl text-[12px] text-white/78 hover:text-white/80 hover:bg-white/[0.05] transition-all"
           >
             <User className="w-[14px] h-[14px]" /> Account
           </Link>
           <button
             onClick={() => signOut()}
-            className="flex items-center gap-2.5 w-full px-3 py-2 rounded-xl text-[12px] text-white/40 hover:text-red-400/80 hover:bg-red-900/[0.12] transition-all"
+            className="flex items-center gap-2.5 w-full px-3 py-2 rounded-xl text-[12px] text-white/78 hover:text-red-400/80 hover:bg-red-900/[0.12] transition-all"
           >
             <LogOut className="w-[14px] h-[14px]" /> Sign Out
           </button>
@@ -328,13 +328,13 @@ export function Layout({ children }: LayoutProps) {
           <div className="flex items-center gap-3">
             <button
               onClick={() => setSidebarOpen(v => !v)}
-              className="lg:hidden p-1.5 rounded-lg text-white/35 hover:text-white hover:bg-white/[0.07] transition-colors"
+              className="lg:hidden p-1.5 rounded-lg text-white/78 hover:text-white hover:bg-white/[0.07] transition-colors"
             >
               <Menu className="w-4 h-4" />
             </button>
-            <span className="text-[13px] font-semibold text-white/65 tracking-tight">{pageName}</span>
+            <span className="text-[13px] font-semibold text-white/88 tracking-tight">{pageName}</span>
           </div>
-          <div className="text-[11px] text-white/20 tabular-nums font-mono">
+          <div className="text-[11px] text-white/70 tabular-nums font-mono">
             {new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
           </div>
         </header>
@@ -361,13 +361,13 @@ export function Layout({ children }: LayoutProps) {
                 <div className="text-[13px] font-semibold text-white leading-tight">
                   ProxhqVPN {pendingUpdate.version} is ready
                 </div>
-                <div className="text-[11px] text-white/45 mt-0.5 leading-snug">
+                <div className="text-[11px] text-white/83 mt-0.5 leading-snug">
                   Downloaded in the background. Update now or it installs automatically next time you open the app.
                 </div>
               </div>
               <button
                 onClick={() => setUpdateDismissed(true)}
-                className="text-white/25 hover:text-white/60 transition-colors shrink-0 mt-0.5"
+                className="text-white/70 hover:text-white/60 transition-colors shrink-0 mt-0.5"
                 aria-label="Dismiss"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -400,7 +400,7 @@ export function Layout({ children }: LayoutProps) {
               </button>
               <button
                 onClick={() => setUpdateDismissed(true)}
-                className="px-4 text-[12px] font-medium text-white/40 hover:text-white/70 border border-white/10 rounded-lg hover:border-white/20 transition-colors"
+                className="px-4 text-[12px] font-medium text-white/78 hover:text-white/70 border border-white/10 rounded-lg hover:border-white/20 transition-colors"
               >
                 Later
               </button>

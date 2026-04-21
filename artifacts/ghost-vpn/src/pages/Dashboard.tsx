@@ -8,7 +8,7 @@ const SEVERITY_STYLES: Record<string, string> = {
   critical: "text-red-400 bg-red-500/10 border-red-500/20",
   high:     "text-orange-400 bg-orange-500/10 border-orange-500/20",
   medium:   "text-yellow-400 bg-yellow-500/10 border-yellow-500/20",
-  low:      "text-white/50 bg-white/5 border-white/10",
+  low:      "text-white/83 bg-white/5 border-white/10",
 };
 
 function StatCard({ label, value, sub, icon: Icon, accent }: {
@@ -19,20 +19,20 @@ function StatCard({ label, value, sub, icon: Icon, accent }: {
     green:   { bg: "bg-primary/10",   border: "border-primary/15",   icon: "text-primary",    value: "text-primary" },
     red:     { bg: "bg-red-500/10",   border: "border-red-500/15",   icon: "text-red-400",    value: "text-red-400" },
     yellow:  { bg: "bg-yellow-500/10",border: "border-yellow-500/15",icon: "text-yellow-400", value: "text-yellow-400" },
-    neutral: { bg: "bg-white/[0.04]", border: "border-white/[0.06]", icon: "text-white/40",   value: "text-white/70" },
+    neutral: { bg: "bg-white/[0.04]", border: "border-white/[0.06]", icon: "text-white/78",   value: "text-white/88" },
   };
   const c = colors[accent ?? "neutral"];
   return (
     <div className={`bg-[#0d1610] ${c.border} border rounded-2xl p-5 space-y-4`}>
       <div className="flex items-center justify-between">
-        <span className="text-sm text-white/50 font-medium">{label}</span>
+        <span className="text-sm text-white/83 font-medium">{label}</span>
         <div className={`w-9 h-9 rounded-xl ${c.bg} flex items-center justify-center`}>
           <Icon className={`w-[18px] h-[18px] ${c.icon}`} />
         </div>
       </div>
       <div>
         <div className={`text-3xl font-bold tracking-tight ${c.value}`}>{value}</div>
-        {sub && <div className="text-xs text-white/35 mt-1.5">{sub}</div>}
+        {sub && <div className="text-xs text-white/78 mt-1.5">{sub}</div>}
       </div>
     </div>
   );
@@ -68,7 +68,7 @@ export default function Dashboard() {
         <h1 className="text-2xl font-bold text-white tracking-tight">
           {getGreeting()}, {firstName}
         </h1>
-        <p className="text-white/40 mt-1 text-sm">
+        <p className="text-white/78 mt-1 text-sm">
           {totalNodes > 0
             ? `${activeNodes} of ${totalNodes} server${totalNodes !== 1 ? "s" : ""} online`
             : "No servers configured yet"}
@@ -135,10 +135,10 @@ export default function Dashboard() {
         <div className="bg-[#0d1610] border border-white/[0.07] rounded-2xl overflow-hidden">
           <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
             <div className="flex items-center gap-2.5">
-              <Wifi className="w-4 h-4 text-white/40" />
-              <span className="text-sm font-semibold text-white/80">VPN Servers</span>
+              <Wifi className="w-4 h-4 text-white/78" />
+              <span className="text-sm font-semibold text-white/93">VPN Servers</span>
             </div>
-            <Link href="/nodes" className="text-xs text-white/30 hover:text-primary flex items-center gap-1 transition-colors">
+            <Link href="/nodes" className="text-xs text-white/70 hover:text-primary flex items-center gap-1 transition-colors">
               Manage <ChevronRight className="w-3 h-3" />
             </Link>
           </div>
@@ -147,18 +147,18 @@ export default function Dashboard() {
               <div key={node.id} className="flex items-center gap-3.5 px-5 py-3.5 hover:bg-white/[0.02] transition-colors">
                 <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${node.status === "active" ? "bg-primary shadow-[0_0_8px_rgba(0,255,136,0.5)]" : "bg-white/15"}`} />
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium text-white/80 truncate">{node.name}</div>
-                  <div className="text-xs text-white/35">{node.region}</div>
+                  <div className="text-sm font-medium text-white/93 truncate">{node.name}</div>
+                  <div className="text-xs text-white/78">{node.region}</div>
                 </div>
-                <div className="text-xs text-white/30 font-mono shrink-0">
+                <div className="text-xs text-white/70 font-mono shrink-0">
                   {node.latencyMs != null && node.latencyMs > 0 ? `${node.latencyMs}ms` : "—"}
                 </div>
               </div>
             ))}
             {!nodesData?.nodes?.length && (
               <div className="px-5 py-10 text-center">
-                <Activity className="w-8 h-8 text-white/10 mx-auto mb-3" />
-                <p className="text-sm text-white/30">No servers configured</p>
+                <Activity className="w-8 h-8 text-white/70 mx-auto mb-3" />
+                <p className="text-sm text-white/70">No servers configured</p>
                 <Link href="/nodes" className="text-xs text-primary/60 hover:text-primary mt-1 inline-block">
                   Add your first server →
                 </Link>
@@ -171,10 +171,10 @@ export default function Dashboard() {
         <div className="bg-[#0d1610] border border-white/[0.07] rounded-2xl overflow-hidden">
           <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
             <div className="flex items-center gap-2.5">
-              <AlertTriangle className="w-4 h-4 text-white/40" />
-              <span className="text-sm font-semibold text-white/80">Recent Threats</span>
+              <AlertTriangle className="w-4 h-4 text-white/78" />
+              <span className="text-sm font-semibold text-white/93">Recent Threats</span>
             </div>
-            <Link href="/beacons" className="text-xs text-white/30 hover:text-primary flex items-center gap-1 transition-colors">
+            <Link href="/beacons" className="text-xs text-white/70 hover:text-primary flex items-center gap-1 transition-colors">
               View all <ChevronRight className="w-3 h-3" />
             </Link>
           </div>
@@ -185,10 +185,10 @@ export default function Dashboard() {
                   {alert.severity.toUpperCase()}
                 </span>
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm text-white/70 truncate font-mono text-xs">{alert.attackerIp}</div>
-                  <div className="text-xs text-white/35">{alert.nodeName}</div>
+                  <div className="text-sm text-white/88 truncate font-mono text-xs">{alert.attackerIp}</div>
+                  <div className="text-xs text-white/78">{alert.nodeName}</div>
                 </div>
-                <div className="text-xs text-white/25 shrink-0">
+                <div className="text-xs text-white/70 shrink-0">
                   {formatDistanceToNow(new Date(alert.detectedAt), { addSuffix: true })}
                 </div>
               </div>
@@ -196,7 +196,7 @@ export default function Dashboard() {
             {!recentAlerts?.alerts?.length && (
               <div className="px-5 py-10 text-center">
                 <CheckCircle className="w-8 h-8 text-primary/20 mx-auto mb-3" />
-                <p className="text-sm text-white/30">No threats detected</p>
+                <p className="text-sm text-white/70">No threats detected</p>
               </div>
             )}
           </div>

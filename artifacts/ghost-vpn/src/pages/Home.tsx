@@ -181,13 +181,13 @@ function AmbassadorsSection() {
           <div>
             <div className="text-xs font-semibold text-primary/60 uppercase tracking-widest mb-3">Ambassador Community</div>
             <h2 className="text-4xl font-bold tracking-tight mb-3">Learn from real users</h2>
-            <p className="text-white/40 text-base leading-relaxed max-w-xl">
+            <p className="text-white/78 text-base leading-relaxed max-w-xl">
               Our ambassadors create free YouTube tutorials for every platform. Watch a setup guide, use their promo code at checkout, and they earn 10% — no extra cost to you.
             </p>
           </div>
           <div className="flex items-center gap-3 shrink-0">
             <Link href="/ambassadors"
-              className="px-5 py-2.5 text-sm font-semibold border border-white/[0.12] text-white/70 hover:border-white/25 hover:text-white rounded-xl transition-all">
+              className="px-5 py-2.5 text-sm font-semibold border border-white/[0.12] text-white/88 hover:border-white/25 hover:text-white rounded-xl transition-all">
               Browse All
             </Link>
             <Link href="/sign-up"
@@ -208,7 +208,7 @@ function AmbassadorsSection() {
               <div key={step} className="bg-[#0d1610] border border-white/[0.07] rounded-2xl p-6 hover:border-primary/20 transition-all">
                 <div className="text-3xl font-black text-primary/15 mb-4 font-mono">{step}</div>
                 <div className="font-semibold text-white mb-2">{title}</div>
-                <p className="text-sm text-white/40 leading-relaxed">{body}</p>
+                <p className="text-sm text-white/78 leading-relaxed">{body}</p>
               </div>
             ))}
           </div>
@@ -251,10 +251,10 @@ function AmbassadorsSection() {
                       )}
                       <span className="text-sm font-semibold text-white">{a.name}</span>
                     </div>
-                    {a.bio && <p className="text-xs text-white/40 leading-relaxed line-clamp-2 mb-3">{a.bio}</p>}
+                    {a.bio && <p className="text-xs text-white/78 leading-relaxed line-clamp-2 mb-3">{a.bio}</p>}
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] font-mono text-primary/60 bg-primary/10 border border-primary/20 px-2 py-0.5 rounded">{a.promoCode}</span>
-                      <span className="text-[10px] text-white/30">{a.videos.length} tutorial{a.videos.length !== 1 ? "s" : ""}</span>
+                      <span className="text-[10px] text-white/70">{a.videos.length} tutorial{a.videos.length !== 1 ? "s" : ""}</span>
                     </div>
                   </div>
                 </Link>
@@ -269,13 +269,13 @@ function AmbassadorsSection() {
             <div className="text-3xl font-black text-primary">10%</div>
             <div className="text-left">
               <div className="text-sm font-semibold text-white">Commission on every referral</div>
-              <div className="text-xs text-white/40">Recurring — paid every billing cycle</div>
+              <div className="text-xs text-white/78">Recurring — paid every billing cycle</div>
             </div>
           </div>
-          <div className="text-white/25 text-sm">+</div>
+          <div className="text-white/70 text-sm">+</div>
           <div className="border border-white/[0.07] rounded-2xl px-6 py-4 bg-[#0d1610]">
             <div className="text-sm font-semibold text-white mb-0.5">Free to join</div>
-            <div className="text-xs text-white/40">No fees. No minimums. Just sign up and start.</div>
+            <div className="text-xs text-white/78">No fees. No minimums. Just sign up and start.</div>
           </div>
         </div>
       </div>
@@ -315,7 +315,7 @@ function NavBar({ mobileOpen, setMobileOpen }: { mobileOpen: boolean; setMobileO
             <button
               key={label}
               onClick={() => scrollTo(href)}
-              className="px-4 py-2 text-sm text-white/60 hover:text-white rounded-lg hover:bg-white/[0.05] transition-all"
+              className="px-4 py-2 text-sm text-white/88 hover:text-white rounded-lg hover:bg-white/[0.05] transition-all"
             >
               {label}
             </button>
@@ -324,7 +324,7 @@ function NavBar({ mobileOpen, setMobileOpen }: { mobileOpen: boolean; setMobileO
 
         {/* CTA buttons */}
         <div className="hidden md:flex items-center gap-2">
-          <Link href="/sign-in" className="px-4 py-2 text-sm text-white/70 hover:text-white transition-colors">
+          <Link href="/sign-in" className="px-4 py-2 text-sm text-white/88 hover:text-white transition-colors">
             Sign In
           </Link>
           <Link href="/sign-up" className="px-4 py-2 text-sm font-semibold bg-primary text-black rounded-xl hover:brightness-110 transition-all shadow-[0_0_20px_rgba(0,255,136,0.2)]">
@@ -334,7 +334,7 @@ function NavBar({ mobileOpen, setMobileOpen }: { mobileOpen: boolean; setMobileO
 
         {/* Mobile menu button */}
         <button
-          className="md:hidden w-9 h-9 flex items-center justify-center rounded-lg text-white/60 hover:text-white hover:bg-white/[0.06] transition-all"
+          className="md:hidden w-9 h-9 flex items-center justify-center rounded-lg text-white/88 hover:text-white hover:bg-white/[0.06] transition-all"
           onClick={() => setMobileOpen(!mobileOpen)}
         >
           {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -348,13 +348,13 @@ function NavBar({ mobileOpen, setMobileOpen }: { mobileOpen: boolean; setMobileO
             <button
               key={label}
               onClick={() => scrollTo(href)}
-              className="block w-full text-left px-4 py-3 text-sm text-white/70 hover:text-white hover:bg-white/[0.05] rounded-xl transition-all"
+              className="block w-full text-left px-4 py-3 text-sm text-white/88 hover:text-white hover:bg-white/[0.05] rounded-xl transition-all"
             >
               {label}
             </button>
           ))}
           <div className="pt-3 flex flex-col gap-2">
-            <Link href="/sign-in" className="block text-center py-3 text-sm text-white/70 border border-white/[0.1] rounded-xl hover:border-white/20 transition-all">
+            <Link href="/sign-in" className="block text-center py-3 text-sm text-white/88 border border-white/[0.1] rounded-xl hover:border-white/20 transition-all">
               Sign In
             </Link>
             <Link href="/sign-up" className="block text-center py-3 text-sm font-semibold bg-primary text-black rounded-xl hover:brightness-110 transition-all">
@@ -375,11 +375,11 @@ function FAQItem({ q, a }: { q: string; a: string }) {
         onClick={() => setOpen(!open)}
         className="w-full flex items-center justify-between px-6 py-5 text-left hover:bg-white/[0.02] transition-colors"
       >
-        <span className="text-sm font-medium text-white/90 pr-4">{q}</span>
-        {open ? <ChevronUp className="w-4 h-4 text-white/40 shrink-0" /> : <ChevronDown className="w-4 h-4 text-white/40 shrink-0" />}
+        <span className="text-sm font-medium text-white/97 pr-4">{q}</span>
+        {open ? <ChevronUp className="w-4 h-4 text-white/78 shrink-0" /> : <ChevronDown className="w-4 h-4 text-white/78 shrink-0" />}
       </button>
       {open && (
-        <div className="px-6 pb-5 text-sm text-white/50 leading-relaxed border-t border-white/[0.05]">
+        <div className="px-6 pb-5 text-sm text-white/83 leading-relaxed border-t border-white/[0.05]">
           <div className="pt-4">{a}</div>
         </div>
       )}
@@ -458,7 +458,7 @@ export default function Home() {
             <br />own.
           </h1>
 
-          <p className="text-white/50 text-lg md:text-xl max-w-2xl mx-auto mb-10 leading-relaxed">
+          <p className="text-white/83 text-lg md:text-xl max-w-2xl mx-auto mb-10 leading-relaxed">
             ProxhqVPN uses WireGuard encryption, automatic peer registration, and real-time intrusion detection 
             to protect your privacy — without a shared data center or a corporation between you and your data.
           </p>
@@ -472,7 +472,7 @@ export default function Home() {
             </Link>
             <button
               onClick={() => document.getElementById("pricing")?.scrollIntoView({ behavior: "smooth" })}
-              className="px-8 py-4 border border-white/[0.1] text-white/70 hover:text-white hover:border-white/20 rounded-2xl transition-all text-base"
+              className="px-8 py-4 border border-white/[0.1] text-white/88 hover:text-white hover:border-white/20 rounded-2xl transition-all text-base"
             >
               See Pricing
             </button>
@@ -494,7 +494,7 @@ export default function Home() {
                   </div>
                 )}
                 <div className="text-xl font-bold text-primary">{value}</div>
-                <div className="text-xs text-white/35 mt-0.5">{label}</div>
+                <div className="text-xs text-white/78 mt-0.5">{label}</div>
               </div>
             ))}
           </div>
@@ -507,7 +507,7 @@ export default function Home() {
           <div className="text-center mb-16">
             <div className="text-xs font-semibold text-primary/60 uppercase tracking-widest mb-3">Everything Included</div>
             <h2 className="text-4xl font-bold tracking-tight mb-4">Built different from day one.</h2>
-            <p className="text-white/40 text-lg max-w-2xl mx-auto">
+            <p className="text-white/78 text-lg max-w-2xl mx-auto">
               Every feature you need to stay private, every tool to stay in control — all included in every plan.
             </p>
           </div>
@@ -522,7 +522,7 @@ export default function Home() {
                   <Icon className="w-5 h-5 text-primary" />
                 </div>
                 <h3 className="text-sm font-semibold text-white mb-2">{title}</h3>
-                <p className="text-xs text-white/40 leading-relaxed">{desc}</p>
+                <p className="text-xs text-white/78 leading-relaxed">{desc}</p>
               </div>
             ))}
           </div>
@@ -535,7 +535,7 @@ export default function Home() {
           <div className="text-center mb-12">
             <div className="text-xs font-semibold text-primary/60 uppercase tracking-widest mb-3">Global Infrastructure</div>
             <h2 className="text-3xl font-bold tracking-tight mb-3">4 dedicated nodes. All online.</h2>
-            <p className="text-white/40 max-w-xl mx-auto">
+            <p className="text-white/78 max-w-xl mx-auto">
               Each node runs WireGuard, a honeypot spider, and a beacon intrusion sensor — all reporting live to your dashboard.
             </p>
           </div>
@@ -551,7 +551,7 @@ export default function Home() {
                   </span>
                 </div>
                 <div className="font-bold text-white">{city}</div>
-                <div className="text-xs text-white/40 mb-3">{country}</div>
+                <div className="text-xs text-white/78 mb-3">{country}</div>
                 <div className="flex items-center gap-3 text-xs font-mono">
                   <span className="flex items-center gap-1 text-primary/60">
                     <Zap className="w-3 h-3" /> {latency}
@@ -574,7 +574,7 @@ export default function Home() {
             </div>
             <div className="flex-1 text-center md:text-left">
               <div className="font-bold text-white mb-1">SilkWeb Honeypot Mesh</div>
-              <p className="text-sm text-white/45">
+              <p className="text-sm text-white/83">
                 Every node runs a spider that emulates an open HTTP port — luring attackers in with a convincing fake server.
                 When they connect, they're silently fingerprinted and trapped in the SilkWeb decoy network. 
                 As the owner, you can then launch a full SQL injection scan against the trapped attacker's IP directly from your dashboard.
@@ -583,11 +583,11 @@ export default function Home() {
             <div className="shrink-0 flex items-center gap-3">
               <div className="text-center">
                 <div className="text-xl font-bold text-yellow-400">{liveStats ? liveStats.trappedAttackers : "—"}</div>
-                <div className="text-[10px] text-white/35 uppercase tracking-widest">Trapped</div>
+                <div className="text-[10px] text-white/78 uppercase tracking-widest">Trapped</div>
               </div>
               <div className="text-center">
                 <div className="text-xl font-bold text-primary">{liveStats ? liveStats.silkRoutes : "—"}</div>
-                <div className="text-[10px] text-white/35 uppercase tracking-widest">Web Routes</div>
+                <div className="text-[10px] text-white/78 uppercase tracking-widest">Web Routes</div>
               </div>
             </div>
           </div>
@@ -603,7 +603,7 @@ export default function Home() {
               <h2 className="text-4xl font-bold tracking-tight mb-6">
                 We built ProxhqVPN so there's nothing to compromise.
               </h2>
-              <p className="text-white/45 text-base leading-relaxed mb-8">
+              <p className="text-white/83 text-base leading-relaxed mb-8">
                 Most VPN providers store connection logs "for troubleshooting." We don't. Your server, your data, your rules. 
                 If we don't have it, nobody can get it — not hackers, not subpoenas, not anyone.
               </p>
@@ -624,7 +624,7 @@ export default function Home() {
                     </div>
                     <span className="text-sm font-semibold text-white">{title}</span>
                   </div>
-                  <p className="text-xs text-white/40 leading-relaxed">{body}</p>
+                  <p className="text-xs text-white/78 leading-relaxed">{body}</p>
                 </div>
               ))}
             </div>
@@ -638,7 +638,7 @@ export default function Home() {
           <div className="text-center mb-16">
             <div className="text-xs font-semibold text-primary/60 uppercase tracking-widest mb-3">Transparent Pricing</div>
             <h2 className="text-4xl font-bold tracking-tight mb-4">Two tiers. No surprises.</h2>
-            <p className="text-white/40 text-lg">Start with VPN Basic or unlock the full security suite with Command Center Pro.</p>
+            <p className="text-white/78 text-lg">Start with VPN Basic or unlock the full security suite with Command Center Pro.</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
@@ -660,10 +660,10 @@ export default function Home() {
                   <div className="text-xs font-bold text-primary/60 uppercase tracking-widest mb-2">{name}</div>
                   <div className="flex items-end gap-1 mb-1">
                     <span className="text-4xl font-bold text-white">{price}</span>
-                    <span className="text-white/40 text-sm pb-1">{period}</span>
+                    <span className="text-white/78 text-sm pb-1">{period}</span>
                   </div>
                   <div className="text-primary/70 text-xs font-medium mb-1">{annual} · <span className="text-primary/50">{annualNote}</span></div>
-                  <p className="text-white/40 text-xs mb-6 leading-relaxed mt-2">{desc}</p>
+                  <p className="text-white/78 text-xs mb-6 leading-relaxed mt-2">{desc}</p>
                   <Link
                     href="/pricing"
                     className={`block text-center py-3 rounded-xl text-sm font-semibold transition-all mb-6 ${
@@ -680,7 +680,7 @@ export default function Home() {
                         <div className="w-4 h-4 rounded-full bg-primary/10 border border-primary/25 flex items-center justify-center shrink-0">
                           <Check className="w-2.5 h-2.5 text-primary" />
                         </div>
-                        <span className="text-xs text-white/55">{f}</span>
+                        <span className="text-xs text-white/83">{f}</span>
                       </div>
                     ))}
                   </div>
@@ -689,7 +689,7 @@ export default function Home() {
             ))}
           </div>
 
-          <p className="text-center text-xs text-white/25">All plans include a 30-day money-back guarantee. Cancel any time.</p>
+          <p className="text-center text-xs text-white/70">All plans include a 30-day money-back guarantee. Cancel any time.</p>
         </div>
       </section>
 
@@ -699,10 +699,10 @@ export default function Home() {
           <div className="flex justify-center gap-1 mb-4">
             {[...Array(5)].map((_, i) => <Star key={i} className="w-4 h-4 text-yellow-400 fill-yellow-400" />)}
           </div>
-          <blockquote className="text-lg text-white/70 italic leading-relaxed max-w-2xl mx-auto mb-4">
+          <blockquote className="text-lg text-white/88 italic leading-relaxed max-w-2xl mx-auto mb-4">
             "Finally a VPN that gives me real control. Setup took less than a minute, and knowing my traffic runs on my own server — not some shared data center — makes all the difference."
           </blockquote>
-          <div className="text-sm text-white/30">— ProxhqVPN subscriber</div>
+          <div className="text-sm text-white/70">— ProxhqVPN subscriber</div>
         </div>
       </section>
 
@@ -728,7 +728,7 @@ export default function Home() {
           <h2 className="text-4xl font-bold tracking-tight mb-4">
             Ready to take back your privacy?
           </h2>
-          <p className="text-white/40 text-lg mb-8 leading-relaxed">
+          <p className="text-white/78 text-lg mb-8 leading-relaxed">
             Set up your personal VPN in under 60 seconds. 30-day money-back guarantee on all plans.
           </p>
           <Link
@@ -737,7 +737,7 @@ export default function Home() {
           >
             Start Free Today <ArrowRight className="w-5 h-5" />
           </Link>
-          <div className="text-white/25 text-sm mt-4">No credit card required to sign up · Cancel any time</div>
+          <div className="text-white/70 text-sm mt-4">No credit card required to sign up · Cancel any time</div>
         </div>
       </section>
 
@@ -750,23 +750,23 @@ export default function Home() {
                 <Shield className="w-4 h-4 text-primary" />
               </div>
               <span className="text-sm font-bold text-white">ProxhqVPN</span>
-              <span className="text-white/20 text-xs ml-1">by ALPHA UNLIMITED TECHNOLOGIES LLC</span>
+              <span className="text-white/70 text-xs ml-1">by ALPHA UNLIMITED TECHNOLOGIES LLC</span>
             </div>
             <div className="flex items-center gap-6 flex-wrap justify-center">
               {NAV_LINKS.map(({ label, href }) => (
                 <button
                   key={label}
                   onClick={() => document.getElementById(href.replace("#", ""))?.scrollIntoView({ behavior: "smooth" })}
-                  className="text-xs text-white/30 hover:text-white/60 transition-colors"
+                  className="text-xs text-white/70 hover:text-white/60 transition-colors"
                 >
                   {label}
                 </button>
               ))}
-              <Link href="/ambassadors" className="text-xs text-white/30 hover:text-white/60 transition-colors">
+              <Link href="/ambassadors" className="text-xs text-white/70 hover:text-white/60 transition-colors">
                 Ambassadors
               </Link>
             </div>
-            <div className="text-xs text-white/20">
+            <div className="text-xs text-white/70">
               © {new Date().getFullYear()} All rights reserved.
             </div>
           </div>
