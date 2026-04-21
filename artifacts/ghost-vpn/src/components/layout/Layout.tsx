@@ -7,8 +7,8 @@ import {
   Globe, GitBranch, Globe2, Globe as Onion,
   LayoutDashboard, Server, ShieldAlert, Network,
   Activity, Shield, Terminal, Database,
-  LogOut, User, Menu,
-  Zap, Settings, Cpu, Router, ScanSearch, Layers
+  LogOut, User, Menu, Download,
+  Zap, Settings, Cpu, Router, ScanSearch, Layers, FileText
 } from "lucide-react";
 import { useAdmin } from "@/hooks/useAdmin";
 
@@ -46,13 +46,17 @@ const PAGE_NAMES: Record<string, string> = {
   "/account":      "My Account",
   "/sqlmap":       "Vulnerability Scanner",
   "/alpha-tools":  "Alpha Toolkit",
+  "/downloads":    "Download ProxhqVPN",
+  "/guide":        "User Guide",
 };
 
 const USER_NAV = [
   { href: "/my-vpn",        label: "Connect",         icon: Wifi },
   { href: "/pricing",       label: "Subscription",    icon: CreditCard },
   { href: "/devices",       label: "My Devices",      icon: Smartphone },
+  { href: "/downloads",     label: "Download App",    icon: Download },
   { href: "/platforms",     label: "Setup Guide",     icon: BookOpen },
+  { href: "/guide",         label: "User Guide",      icon: FileText },
 ];
 
 const PROTECTION_NAV = [

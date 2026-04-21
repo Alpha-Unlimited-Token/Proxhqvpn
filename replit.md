@@ -6,6 +6,11 @@
 
 ProxhqVPN is an advanced VPN orchestration and security platform with 60-node mesh (50 outer + 10 inner), silk web trap network, port knocking, mTLS, beacons/spiders/worms, firewall, WireGuard config generation, SQL interface (local + external PostgreSQL + HTTP API mode), terminal emulator (ProxhqVPN Mode with full outbound), security audit suite, system monitor, Tor/SOCKS5 integration, kill switch, leak detection, threat intelligence, split tunneling, and DPI obfuscation. React + Vite frontend; Express/PostgreSQL backend.
 
+**Latest additions:**
+- `/downloads` — Multi-platform download/install page: Windows, macOS, Linux, Android, iPhone/iPad, Amazon Fire Stick, Fire TV, Android TV/Google TV, Samsung/LG Smart TVs, Apple TV, Routers (OpenWRT/DD-WRT/pfSense/AsusWRT), Roku, PS5/Xbox, Raspberry Pi, Chromebook.
+- `/guide` — Complete comprehensive user guide / instruction manual covering all 20+ features with step-by-step instructions, command references, SQLmap code examples, and Alpha Toolkit full documentation.
+- Alpha Toolkit Scanner → Verifier pipeline: Scanner generates HTML report → `htmlReady` flag on poll endpoint → "Send to Verifier" auto-switches tab and pre-loads the report HTML.
+
 ## Stack
 
 - **Monorepo tool**: pnpm workspaces
