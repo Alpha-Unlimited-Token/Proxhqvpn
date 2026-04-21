@@ -38,11 +38,16 @@ import alphaRouter from "./alpha";
 import employeesRouter from "./employees";
 import threatProtectionRouter from "./threatprotection";
 import setupRouter from "./setup";
+import updatesRouter from "./updates";
 
 const router: IRouter = Router();
 
 // Public routes
 router.use(healthRouter);
+
+// Public update manifests — electron-updater reads these without auth
+// Admin sub-routes (/publish, /admin) are protected inside the router
+router.use("/updates", updatesRouter);
 
 // Daemon inbound — authenticated via PSK header (not Clerk), public route
 router.use("/daemon-inbound", daemonInboundRouter);

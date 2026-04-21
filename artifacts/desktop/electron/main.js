@@ -5,6 +5,18 @@ const fs = require("fs");
 const https = require("https");
 const os = require("os");
 
+// Auto-updater — silently checks for new versions and installs overnight
+let autoUpdater = null;
+try {
+  autoUpdater = require("electron-updater").autoUpdater;
+  autoUpdater.logger = require("electron-log");
+  autoUpdater.logger.transports.file.level = "info";
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+} catch (e) {
+  console.warn("[updater] electron-updater not available:", e.message);
+}
+
 const isDev = process.argv.includes("--dev");
 
 // Primary and backup domains — automatic failover if primary is unreachable
@@ -296,16 +308,81 @@ ipcMain.handle("close-window", (event) => {
   BrowserWindow.fromWebContents(event.sender)?.close();
 });
 
+// ─── Auto-update logic ─────────────────────────────────────────────────────
+function configureUpdater(serverUrl) {
+  if (!autoUpdater || isDev) return;
+  try {
+    const platform = process.platform;
+    const platformPath = platform === "win32" ? "win" : platform === "darwin" ? "mac" : "linux";
+    autoUpdater.setFeedURL({
+      provider: "generic",
+      url: `${serverUrl}/api/updates/${platformPath}`,
+      channel: "latest",
+    });
+
+    autoUpdater.on("update-available", (info) => {
+      console.log(`[updater] Update available: v${info.version} — downloading silently...`);
+      if (mainWindow) {
+        mainWindow.webContents.executeJavaScript(
+          `window.__proxhqUpdateAvailable = ${JSON.stringify(info)};`
+        ).catch(() => {});
+      }
+    });
+
+    autoUpdater.on("update-downloaded", (info) => {
+      console.log(`[updater] Update downloaded: v${info.version} — will install on next quit`);
+      if (mainWindow) {
+        mainWindow.webContents.executeJavaScript(`
+          if (window.__proxhqShowUpdateBanner) {
+            window.__proxhqShowUpdateBanner(${JSON.stringify(info)});
+          }
+        `).catch(() => {});
+      }
+    });
+
+    autoUpdater.on("error", (err) => {
+      console.warn("[updater] Auto-update error:", err.message);
+    });
+
+    // Check for updates 10 seconds after launch, then every 4 hours
+    setTimeout(() => {
+      autoUpdater.checkForUpdatesAndNotify().catch(() => {});
+    }, 10_000);
+
+    setInterval(() => {
+      autoUpdater.checkForUpdatesAndNotify().catch(() => {});
+    }, 4 * 60 * 60 * 1000);
+  } catch (e) {
+    console.warn("[updater] Failed to configure updater:", e.message);
+  }
+}
+
+// IPC: renderer can ask Electron to install update now
+ipcMain.handle("install-update-now", () => {
+  if (autoUpdater) autoUpdater.quitAndInstall(false, true);
+});
+
+// IPC: get current app version
+ipcMain.handle("get-app-version", () => app.getVersion());
+
 // ─── App lifecycle ─────────────────────────────────────────────────────────
 app.whenReady().then(async () => {
   // Resolve the fastest reachable server before opening any window
-  await resolveActiveServer();
+  const serverUrl = await resolveActiveServer();
 
   const store = readStore();
   const alreadySetUp = store.setupComplete === true;
 
   if (alreadySetUp) {
     createMainWindow();
+    // Start update checks after main window is ready
+    if (mainWindow) {
+      mainWindow.webContents.on("did-finish-load", () => {
+        configureUpdater(serverUrl);
+      });
+    } else {
+      configureUpdater(serverUrl);
+    }
   } else {
     createSetupWindow();
   }
