@@ -1,16 +1,17 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import {
-  ScanSearch, ShieldAlert, Globe2, Wifi, WifiOff,
-  Play, Loader2, CheckCircle, XCircle, Download,
-  ChevronDown, RotateCcw, Layers, Bug,
+  ScanSearch, ShieldAlert, Globe2,
+  Wifi, WifiOff, Play, Loader2,
+  Download, RotateCcw, Layers, Bug,
+  ArrowRight, FileText, CheckCircle,
 } from "lucide-react";
 
-const BASE       = import.meta.env.BASE_URL.replace(/\/$/, "");
+const BASE        = import.meta.env.BASE_URL.replace(/\/$/, "");
 const SCRAPER_URL = `${import.meta.env.BASE_URL}AlphaWebScraper.html`;
 
-type Tab = "scanner" | "verifier" | "scraper";
-type ScanMode = "network" | "security" | "exploits" | "all";
+type Tab       = "scanner" | "verifier" | "scraper";
+type ScanMode  = "network" | "security" | "exploits" | "all";
 type JobStatus = "idle" | "running" | "complete" | "error";
 
 interface TorStatus { connected: boolean; ip: string | null }
@@ -20,36 +21,38 @@ function TorBadge({ status }: { status: TorStatus | null }) {
   if (!status) return <span className="text-[9px] text-primary/30 font-mono animate-pulse">CHECKING TOR…</span>;
   return status.connected ? (
     <span className="flex items-center gap-1 text-[9px] font-mono text-purple-400 border border-purple-500/30 bg-purple-900/20 px-2 py-0.5 rounded">
-      <Wifi className="w-2.5 h-2.5" />
-      TOR ACTIVE · {status.ip}
+      <Wifi className="w-2.5 h-2.5" /> TOR ACTIVE · {status.ip}
     </span>
   ) : (
     <span className="flex items-center gap-1 text-[9px] font-mono text-red-400/60 border border-red-500/20 px-2 py-0.5 rounded">
-      <WifiOff className="w-2.5 h-2.5" />
-      TOR OFFLINE
+      <WifiOff className="w-2.5 h-2.5" /> TOR OFFLINE
     </span>
   );
 }
 
-// ── Output terminal ──────────────────────────────────────────────────────────
-function Terminal({ text, label }: { text: string | null; label?: string }) {
+// ── Output terminal ───────────────────────────────────────────────────────────
+function TermOut({ text, label }: { text: string | null; label?: string }) {
   const ref = useRef<HTMLPreElement>(null);
   useEffect(() => { if (ref.current) ref.current.scrollTop = ref.current.scrollHeight; }, [text]);
   if (!text) return null;
   return (
     <div className="mt-4">
       {label && <div className="text-[9px] text-primary/30 font-mono uppercase tracking-widest mb-1">{label}</div>}
-      <pre
-        ref={ref}
-        className="text-[10px] font-mono text-primary/80 bg-black border border-primary/10 rounded p-3 overflow-auto max-h-[500px] whitespace-pre-wrap leading-relaxed"
-      >{text}</pre>
+      <pre ref={ref} className="text-[10px] font-mono text-primary/80 bg-black border border-primary/10 rounded p-3 overflow-auto max-h-[500px] whitespace-pre-wrap leading-relaxed">
+        {text}
+      </pre>
     </div>
   );
 }
 
-// ── Universal Scanner tab ────────────────────────────────────────────────────
-function ScannerTab({ useTor }: { useTor: boolean }) {
-  const { toast } = useToast();
+// ── Universal Scanner tab ─────────────────────────────────────────────────────
+interface ScannerTabProps {
+  useTor: boolean;
+  onReportReady: (jobId: string) => void;
+}
+
+function ScannerTab({ useTor, onReportReady }: ScannerTabProps) {
+  const { toast }   = useToast();
   const [mode, setMode]         = useState<ScanMode>("network");
   const [target, setTarget]     = useState("");
   const [ports, setPorts]       = useState("1-10000");
@@ -57,23 +60,20 @@ function ScannerTab({ useTor }: { useTor: boolean }) {
   const [status, setStatus]     = useState<JobStatus>("idle");
   const [cmd, setCmd]           = useState<string | null>(null);
   const [output, setOutput]     = useState<string | null>(null);
-  const [reportJson, setReport] = useState<any>(null);
+  const [htmlReady, setHtmlReady] = useState(false);
+  const [currentJobId, setJobId]  = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const stop = () => { if (pollRef.current) clearInterval(pollRef.current); };
+  const stop = () => { if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; } };
 
   const run = useCallback(async () => {
     if (!target.trim()) { toast({ title: "Target required", variant: "destructive" }); return; }
     stop();
-    setStatus("running"); setOutput(null); setCmd(null); setReport(null);
+    setStatus("running"); setOutput(null); setCmd(null); setHtmlReady(false); setJobId(null);
 
     const body: Record<string, any> = { mode, useTor, extraFlags };
-    if (mode === "network" || mode === "all") {
-      body.targetIp = target.trim();
-      body.ports    = ports;
-    } else {
-      body.target = target.trim();
-    }
+    if (mode === "network" || mode === "all") { body.targetIp = target.trim(); body.ports = ports; }
+    else body.target = target.trim();
 
     try {
       const r = await fetch(`${BASE}/api/alpha/scan`, {
@@ -84,16 +84,18 @@ function ScannerTab({ useTor }: { useTor: boolean }) {
       const d = await r.json();
       if (!r.ok) { toast({ title: "Error", description: d.error, variant: "destructive" }); setStatus("error"); return; }
       setCmd(d.cmd);
-      toast({ title: "Scan launched", description: `Job ${d.jobId} · ${mode} mode${useTor ? " · via Tor" : ""}` });
+      setJobId(d.jobId);
+      toast({ title: "Alpha Scanner launched", description: `Job ${d.jobId} · ${mode}${useTor ? " · Tor" : ""}` });
 
       pollRef.current = setInterval(async () => {
         try {
           const pr = await fetch(`${BASE}/api/alpha/scan/${d.jobId}`, { credentials: "include" });
           const pd = await pr.json();
+          if (pd.htmlReady) setHtmlReady(true);
           if (pd.status !== "running") {
-            setStatus(pd.status);
+            setStatus(pd.status as JobStatus);
             setOutput(pd.output ?? "No output");
-            if (pd.report) setReport(pd.report);
+            if (pd.htmlReady) { setHtmlReady(true); onReportReady(d.jobId); }
             stop();
           }
         } catch {}
@@ -101,12 +103,24 @@ function ScannerTab({ useTor }: { useTor: boolean }) {
     } catch (e: any) {
       setStatus("error"); setOutput("Error: " + e.message);
     }
-  }, [mode, target, ports, useTor, extraFlags, toast]);
+  }, [mode, target, ports, useTor, extraFlags, toast, onReportReady]);
+
+  const downloadHtml = async () => {
+    if (!currentJobId) return;
+    const r = await fetch(`${BASE}/api/alpha/scan/${currentJobId}/html`, { credentials: "include" });
+    if (!r.ok) { toast({ title: "Report not ready", variant: "destructive" }); return; }
+    const html = await r.text();
+    const blob = new Blob([html], { type: "text/html" });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href = url; a.download = `alpha-scan-${currentJobId}.html`; a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const MODES: { id: ScanMode; label: string; desc: string }[] = [
-    { id: "network",  label: "Network Scan",  desc: "Open ports · services · banners" },
-    { id: "security", label: "Security Audit", desc: "Sensitive files · misconfigs · keys" },
-    { id: "exploits", label: "Exploit Scan",   desc: "200+ vuln patterns · exploit chains" },
+    { id: "network",  label: "Network Scan",  desc: "Ports · services · banners" },
+    { id: "security", label: "Security Audit", desc: "Misconfigs · keys · secrets" },
+    { id: "exploits", label: "Exploit Scan",   desc: "200+ vuln patterns · chains" },
     { id: "all",      label: "Full Scan",      desc: "Network + security + exploits" },
   ];
 
@@ -118,23 +132,16 @@ function ScannerTab({ useTor }: { useTor: boolean }) {
   return (
     <div className="space-y-5">
       <div className="text-[10px] text-primary/40 font-mono border border-primary/10 rounded px-3 py-2 bg-primary/5 leading-relaxed">
-        Alpha Universal Scanner™ v4.0 — 35+ languages · 200+ vuln patterns · multi-step exploit chain detection ·
-        network port scanning · service fingerprinting. Pure Python, no external deps.
+        Alpha Universal Scanner™ v4.0 — 35+ languages · 200+ vuln patterns · multi-step exploit chains ·
+        network port scanning · service fingerprinting. Generates a full HTML report that can be piped directly into the Vulnerability Verifier.
         {useTor && <span className="ml-2 text-purple-400 font-bold">[ ROUTING VIA TOR ]</span>}
       </div>
 
       {/* Mode picker */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
         {MODES.map(m => (
-          <button
-            key={m.id}
-            onClick={() => setMode(m.id)}
-            className={`text-left border rounded px-3 py-2 transition-colors ${
-              mode === m.id
-                ? "border-primary bg-primary/10 text-primary"
-                : "border-primary/20 text-primary/50 hover:border-primary/40 hover:text-primary/70"
-            }`}
-          >
+          <button key={m.id} onClick={() => setMode(m.id)}
+            className={`text-left border rounded px-3 py-2 transition-colors ${mode === m.id ? "border-primary bg-primary/10 text-primary" : "border-primary/20 text-primary/50 hover:border-primary/40 hover:text-primary/70"}`}>
             <div className="text-[10px] font-mono font-bold uppercase">{m.label}</div>
             <div className="text-[9px] text-primary/40 mt-0.5">{m.desc}</div>
           </button>
@@ -147,56 +154,56 @@ function ScannerTab({ useTor }: { useTor: boolean }) {
           <label className="text-[9px] text-primary/40 font-mono uppercase block mb-1">
             {mode === "network" || mode === "all" ? "Target IP / Hostname" : "Target Path or URL"}
           </label>
-          <input
-            value={target}
-            onChange={e => setTarget(e.target.value)}
-            placeholder={mode === "network" || mode === "all" ? "192.168.1.1 or example.com" : "/path/to/code or https://example.com"}
-            className="w-full bg-black border border-primary/20 text-primary text-xs font-mono px-2 py-1.5 focus:outline-none focus:border-primary/50 rounded"
-          />
+          <input value={target} onChange={e => setTarget(e.target.value)}
+            placeholder={mode === "network" || mode === "all" ? "192.168.1.1  or  example.com" : "/path/to/code  or  https://example.com"}
+            className="w-full bg-black border border-primary/20 text-primary text-xs font-mono px-2 py-1.5 focus:outline-none focus:border-primary/50 rounded" />
         </div>
         {(mode === "network" || mode === "all") && (
-          <div className="w-48">
+          <div className="w-44">
             <label className="text-[9px] text-primary/40 font-mono uppercase block mb-1">Port Range</label>
-            <input
-              value={ports}
-              onChange={e => setPorts(e.target.value)}
-              placeholder="1-10000"
-              className="w-full bg-black border border-primary/20 text-primary text-xs font-mono px-2 py-1.5 focus:outline-none focus:border-primary/50 rounded"
-            />
+            <input value={ports} onChange={e => setPorts(e.target.value)} placeholder="1-10000"
+              className="w-full bg-black border border-primary/20 text-primary text-xs font-mono px-2 py-1.5 focus:outline-none focus:border-primary/50 rounded" />
           </div>
         )}
       </div>
 
       <div>
         <label className="text-[9px] text-primary/40 font-mono uppercase block mb-1">Extra Flags (optional)</label>
-        <input
-          value={extraFlags}
-          onChange={e => setExtra(e.target.value)}
-          placeholder="--lang cpp  or  --deep  etc."
-          className="w-full bg-black border border-primary/20 text-primary text-xs font-mono px-2 py-1.5 focus:outline-none focus:border-primary/50 rounded"
-        />
+        <input value={extraFlags} onChange={e => setExtra(e.target.value)} placeholder="--lang cpp  ·  --deep  ·  --config-audit"
+          className="w-full bg-black border border-primary/20 text-primary text-xs font-mono px-2 py-1.5 focus:outline-none focus:border-primary/50 rounded" />
       </div>
 
       {/* Actions */}
       <div className="flex items-center gap-3 flex-wrap">
-        <button
-          onClick={run}
-          disabled={status === "running"}
-          className="flex items-center gap-2 px-5 py-2 bg-primary text-black text-[10px] font-mono uppercase tracking-widest hover:bg-primary/80 disabled:opacity-50 transition-colors rounded"
-        >
+        <button onClick={run} disabled={status === "running"}
+          className="flex items-center gap-2 px-5 py-2 bg-primary text-black text-[10px] font-mono uppercase tracking-widest hover:bg-primary/80 disabled:opacity-50 transition-colors rounded">
           {status === "running" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
           {status === "running" ? "Scanning…" : "Run Scanner"}
         </button>
+
         {status !== "idle" && (
           <span className={`text-[10px] font-mono uppercase ${statusColor[status]}`}>
             {status === "running" ? "● SCANNING" : status === "complete" ? "✓ COMPLETE" : "✗ ERROR"}
           </span>
         )}
+
+        {/* Report actions — appear when HTML report is ready */}
+        {htmlReady && currentJobId && (
+          <>
+            <button onClick={downloadHtml}
+              className="flex items-center gap-1.5 text-[9px] font-mono text-primary/60 hover:text-primary border border-primary/20 hover:border-primary/40 px-3 py-1.5 transition-colors rounded">
+              <Download className="w-3 h-3" /> Download HTML Report
+            </button>
+            <button onClick={() => onReportReady(currentJobId)}
+              className="flex items-center gap-1.5 text-[9px] font-mono text-green-400 border border-green-500/30 bg-green-900/10 hover:bg-green-900/20 px-3 py-1.5 transition-colors rounded">
+              <ArrowRight className="w-3 h-3" /> Send to Verifier
+            </button>
+          </>
+        )}
+
         {status === "complete" && (
-          <button
-            onClick={() => { setStatus("idle"); setOutput(null); setCmd(null); setReport(null); }}
-            className="flex items-center gap-1 text-[9px] text-primary/40 hover:text-primary font-mono"
-          >
+          <button onClick={() => { setStatus("idle"); setOutput(null); setCmd(null); setHtmlReady(false); setJobId(null); }}
+            className="flex items-center gap-1 text-[9px] text-primary/40 hover:text-primary font-mono">
             <RotateCcw className="w-3 h-3" /> Reset
           </button>
         )}
@@ -208,36 +215,28 @@ function ScannerTab({ useTor }: { useTor: boolean }) {
         </div>
       )}
 
-      {/* Report summary */}
-      {reportJson && (
-        <div className="border border-primary/20 rounded p-4 space-y-3">
-          <div className="text-[10px] font-mono font-bold text-primary uppercase tracking-widest">
-            Scan Report — {reportJson.scan_target ?? reportJson.target ?? "Unknown"}
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            {[
-              { label: "Total Findings", val: reportJson.total_findings ?? reportJson.summary?.total ?? "—" },
-              { label: "Critical",       val: reportJson.critical ?? reportJson.summary?.critical ?? "—" },
-              { label: "High",           val: reportJson.high ?? reportJson.summary?.high ?? "—" },
-              { label: "Open Ports",     val: reportJson.network?.open_ports?.length ?? reportJson.open_ports ?? "—" },
-            ].map(({ label, val }) => (
-              <div key={label} className="border border-primary/15 rounded p-2 text-center">
-                <div className="text-[18px] font-bold text-primary font-mono">{String(val)}</div>
-                <div className="text-[8px] text-primary/30 font-mono uppercase mt-0.5">{label}</div>
-              </div>
-            ))}
-          </div>
+      {/* HTML report ready notice */}
+      {htmlReady && (
+        <div className="flex items-center gap-2 text-[10px] font-mono text-green-400 border border-green-500/20 bg-green-900/10 px-3 py-2 rounded">
+          <CheckCircle className="w-3.5 h-3.5 shrink-0" />
+          HTML report generated — click <strong>Send to Verifier</strong> to probe every finding against the live target, or <strong>Download</strong> to save it.
         </div>
       )}
 
-      <Terminal text={output} label="Scanner Output" />
+      <TermOut text={output} label="Scanner Output" />
     </div>
   );
 }
 
-// ── Vuln Verifier tab ────────────────────────────────────────────────────────
-function VerifierTab({ useTor }: { useTor: boolean }) {
-  const { toast } = useToast();
+// ── Vuln Verifier tab ─────────────────────────────────────────────────────────
+interface VerifierTabProps {
+  useTor: boolean;
+  prefillJobId: string | null;
+  onConsumed: () => void;
+}
+
+function VerifierTab({ useTor, prefillJobId, onConsumed }: VerifierTabProps) {
+  const { toast }   = useToast();
   const [reportHtml, setReportHtml] = useState("");
   const [targetUrl, setTargetUrl]   = useState("");
   const [status, setStatus]         = useState<JobStatus>("idle");
@@ -245,10 +244,29 @@ function VerifierTab({ useTor }: { useTor: boolean }) {
   const [jsonResult, setJson]       = useState<any>(null);
   const [htmlReport, setHtmlRep]    = useState<string | null>(null);
   const [cmd, setCmd]               = useState<string | null>(null);
+  const [loading, setLoading]       = useState(false);
   const pollRef                     = useRef<ReturnType<typeof setInterval> | null>(null);
   const fileRef                     = useRef<HTMLInputElement>(null);
 
-  const stop = () => { if (pollRef.current) clearInterval(pollRef.current); };
+  const stop = () => { if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; } };
+
+  // Auto-load when a scan report becomes available from the Scanner tab
+  useEffect(() => {
+    if (!prefillJobId) return;
+    setLoading(true);
+    fetch(`${BASE}/api/alpha/scan/${prefillJobId}/html`, { credentials: "include" })
+      .then(r => {
+        if (!r.ok) throw new Error("Report not ready");
+        return r.text();
+      })
+      .then(html => {
+        setReportHtml(html);
+        toast({ title: "Report loaded from Scanner", description: `${(html.length / 1024).toFixed(0)} KB — ready to verify` });
+        onConsumed();
+      })
+      .catch(() => toast({ title: "Could not load report", variant: "destructive" }))
+      .finally(() => setLoading(false));
+  }, [prefillJobId]);
 
   const onFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
@@ -259,7 +277,7 @@ function VerifierTab({ useTor }: { useTor: boolean }) {
   };
 
   const run = useCallback(async () => {
-    if (!reportHtml.trim()) { toast({ title: "Paste or upload a scan report HTML first", variant: "destructive" }); return; }
+    if (!reportHtml.trim()) { toast({ title: "Paste or load a scan report first", variant: "destructive" }); return; }
     stop();
     setStatus("running"); setOutput(null); setJson(null); setHtmlRep(null);
 
@@ -279,10 +297,10 @@ function VerifierTab({ useTor }: { useTor: boolean }) {
           const pr = await fetch(`${BASE}/api/alpha/verify/${d.jobId}`, { credentials: "include" });
           const pd = await pr.json();
           if (pd.status !== "running") {
-            setStatus(pd.status);
+            setStatus(pd.status as JobStatus);
             setOutput(pd.output ?? "No output");
-            if (pd.jsonResult) setJson(pd.jsonResult);
-            if (pd.htmlReport) setHtmlRep(pd.htmlReport);
+            if (pd.jsonResult)  setJson(pd.jsonResult);
+            if (pd.htmlReport)  setHtmlRep(pd.htmlReport);
             stop();
           }
         } catch {}
@@ -292,7 +310,7 @@ function VerifierTab({ useTor }: { useTor: boolean }) {
     }
   }, [reportHtml, targetUrl, useTor, toast]);
 
-  const downloadHtml = () => {
+  const downloadExposure = () => {
     if (!htmlReport) return;
     const blob = new Blob([htmlReport], { type: "text/html" });
     const url  = URL.createObjectURL(blob);
@@ -309,52 +327,46 @@ function VerifierTab({ useTor }: { useTor: boolean }) {
   return (
     <div className="space-y-5">
       <div className="text-[10px] text-primary/40 font-mono border border-primary/10 rounded px-3 py-2 bg-primary/5 leading-relaxed">
-        Alpha Vulnerability Verifier™ v2.0 — reads an Alpha Scanner HTML report and actively probes every finding
-        against the live target. Outputs JSON + color-coded HTML exposure report.
-        Read-only probes only (GET, TCP banner grab, TLS handshake).
+        Alpha Vulnerability Verifier™ v2.0 — reads an Alpha Scanner HTML report and <strong className="text-primary/60">actively probes</strong> every
+        finding against the live target (TLS handshakes, TCP banner grabs, HTTP headers, SQL error probes, SSRF checks).
+        Produces a color-coded exposure report.
         {useTor && <span className="ml-2 text-purple-400 font-bold">[ ROUTING VIA TOR ]</span>}
       </div>
 
-      {/* Upload or paste */}
+      {/* Source — loaded from scanner or upload */}
       <div>
         <div className="flex items-center gap-2 mb-2">
           <label className="text-[9px] text-primary/40 font-mono uppercase">Scan Report HTML</label>
-          <button
-            onClick={() => fileRef.current?.click()}
-            className="text-[9px] font-mono text-primary/50 border border-primary/20 px-2 py-0.5 hover:border-primary/50 hover:text-primary transition-colors rounded"
-          >
+          <button onClick={() => fileRef.current?.click()}
+            className="text-[9px] font-mono text-primary/50 border border-primary/20 px-2 py-0.5 hover:border-primary/50 hover:text-primary transition-colors rounded">
             Upload File
           </button>
           <input ref={fileRef} type="file" accept=".html" className="hidden" onChange={onFile} />
-          {reportHtml && <span className="text-[9px] text-green-400 font-mono">✓ {(reportHtml.length / 1024).toFixed(0)} KB loaded</span>}
+          {loading && <span className="text-[9px] font-mono text-yellow-400 animate-pulse">Loading from scanner…</span>}
+          {reportHtml && !loading && (
+            <span className="flex items-center gap-1 text-[9px] text-green-400 font-mono">
+              <FileText className="w-3 h-3" /> {(reportHtml.length / 1024).toFixed(0)} KB loaded
+            </span>
+          )}
         </div>
-        <textarea
-          value={reportHtml}
-          onChange={e => setReportHtml(e.target.value)}
-          placeholder="Paste your Alpha Scanner HTML report here, or click 'Upload File' above…"
-          rows={6}
-          className="w-full bg-black border border-primary/20 text-primary/70 text-[10px] font-mono px-2 py-2 focus:outline-none focus:border-primary/50 rounded resize-y"
-        />
+        <textarea value={reportHtml} onChange={e => setReportHtml(e.target.value)}
+          placeholder="Paste your Alpha Scanner HTML report here — or run a scan on the Scanner tab and click 'Send to Verifier'."
+          rows={reportHtml ? 4 : 6}
+          className="w-full bg-black border border-primary/20 text-primary/70 text-[10px] font-mono px-2 py-2 focus:outline-none focus:border-primary/50 rounded resize-y" />
       </div>
 
       <div>
         <label className="text-[9px] text-primary/40 font-mono uppercase block mb-1">Target URL Override (optional)</label>
-        <input
-          value={targetUrl}
-          onChange={e => setTargetUrl(e.target.value)}
-          placeholder="https://target.example.com  (leave blank to use URL from report)"
-          className="w-full bg-black border border-primary/20 text-primary text-xs font-mono px-2 py-1.5 focus:outline-none focus:border-primary/50 rounded"
-        />
+        <input value={targetUrl} onChange={e => setTargetUrl(e.target.value)}
+          placeholder="https://target.example.com — leave blank to use URL embedded in report"
+          className="w-full bg-black border border-primary/20 text-primary text-xs font-mono px-2 py-1.5 focus:outline-none focus:border-primary/50 rounded" />
       </div>
 
       <div className="flex items-center gap-3 flex-wrap">
-        <button
-          onClick={run}
-          disabled={status === "running"}
-          className="flex items-center gap-2 px-5 py-2 bg-primary text-black text-[10px] font-mono uppercase tracking-widest hover:bg-primary/80 disabled:opacity-50 transition-colors rounded"
-        >
+        <button onClick={run} disabled={status === "running" || loading}
+          className="flex items-center gap-2 px-5 py-2 bg-primary text-black text-[10px] font-mono uppercase tracking-widest hover:bg-primary/80 disabled:opacity-50 transition-colors rounded">
           {status === "running" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ShieldAlert className="w-3.5 h-3.5" />}
-          {status === "running" ? "Verifying…" : "Verify Findings"}
+          {status === "running" ? "Probing…" : "Verify Findings"}
         </button>
         {status !== "idle" && (
           <span className={`text-[10px] font-mono uppercase ${statusColor[status]}`}>
@@ -362,10 +374,8 @@ function VerifierTab({ useTor }: { useTor: boolean }) {
           </span>
         )}
         {htmlReport && (
-          <button
-            onClick={downloadHtml}
-            className="flex items-center gap-1.5 text-[9px] font-mono text-primary/60 hover:text-primary border border-primary/20 hover:border-primary/40 px-3 py-1.5 transition-colors rounded"
-          >
+          <button onClick={downloadExposure}
+            className="flex items-center gap-1.5 text-[9px] font-mono text-primary/60 hover:text-primary border border-primary/20 hover:border-primary/40 px-3 py-1.5 transition-colors rounded">
             <Download className="w-3 h-3" /> Download Exposure Report
           </button>
         )}
@@ -377,7 +387,7 @@ function VerifierTab({ useTor }: { useTor: boolean }) {
         </div>
       )}
 
-      {/* JSON summary */}
+      {/* JSON result summary */}
       {jsonResult && (
         <div className="border border-primary/20 rounded p-4 space-y-3">
           <div className="text-[10px] font-mono font-bold text-primary uppercase tracking-widest">
@@ -385,20 +395,20 @@ function VerifierTab({ useTor }: { useTor: boolean }) {
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {[
-              { label: "Checked",        val: jsonResult.stats?.total            ?? "—" },
-              { label: "Exposed",        val: jsonResult.stats?.exposed          ?? "—" },
-              { label: "With Data",      val: jsonResult.stats?.verified         ?? "—" },
-              { label: "False Positive", val: jsonResult.stats?.false_positives  ?? "—" },
-            ].map(({ label, val }) => (
-              <div key={label} className={`border rounded p-2 text-center ${label === "Exposed" && Number(val) > 0 ? "border-red-500/40 bg-red-900/10" : "border-primary/15"}`}>
-                <div className={`text-[18px] font-bold font-mono ${label === "Exposed" && Number(val) > 0 ? "text-red-400" : "text-primary"}`}>{String(val)}</div>
+              { label: "Checked",        val: jsonResult.stats?.total           ?? "—" },
+              { label: "Exposed",        val: jsonResult.stats?.exposed         ?? "—", alert: true },
+              { label: "With Data",      val: jsonResult.stats?.verified        ?? "—" },
+              { label: "False Positives",val: jsonResult.stats?.false_positives ?? "—" },
+            ].map(({ label, val, alert }) => (
+              <div key={label} className={`border rounded p-2 text-center ${alert && Number(val) > 0 ? "border-red-500/40 bg-red-900/10" : "border-primary/15"}`}>
+                <div className={`text-[20px] font-bold font-mono ${alert && Number(val) > 0 ? "text-red-400" : "text-primary"}`}>{String(val)}</div>
                 <div className="text-[8px] text-primary/30 font-mono uppercase mt-0.5">{label}</div>
               </div>
             ))}
           </div>
           {jsonResult.cdn?.detected && (
             <div className="text-[9px] text-yellow-400 font-mono border border-yellow-500/20 bg-yellow-900/10 px-3 py-1.5 rounded">
-              CDN DETECTED: {jsonResult.cdn.name} — some findings may be false-positives
+              CDN DETECTED: {jsonResult.cdn.name} — some findings may be edge false-positives
             </div>
           )}
           {jsonResult.results?.filter((r: any) => r.exposed_data).map((r: any, i: number) => (
@@ -416,43 +426,41 @@ function VerifierTab({ useTor }: { useTor: boolean }) {
         </div>
       )}
 
-      <Terminal text={output} label="Verifier Output" />
+      <TermOut text={output} label="Verifier Output" />
     </div>
   );
 }
 
-// ── Web Scraper tab ──────────────────────────────────────────────────────────
+// ── Web Scraper tab ───────────────────────────────────────────────────────────
 function ScraperTab() {
   return (
     <div className="space-y-3">
       <div className="text-[10px] text-primary/40 font-mono border border-primary/10 rounded px-3 py-2 bg-primary/5 leading-relaxed">
-        Alpha Web Scraper™ — standalone browser-based crawler with built-in SQLite database. Captures pages, links,
-        emails, phone numbers, OpenGraph data, JSON-LD, forms, assets, and more into 14 tables you can query with SQL.
-        Supports custom proxy, Tor Mode (enable the 🧅 toggle inside), and .sqlite export.
+        Alpha Web Scraper™ — browser-based crawler with built-in SQLite. Captures pages, links, emails, phone numbers,
+        OpenGraph data, JSON-LD, forms, and assets into 14 queryable tables. Export as .sqlite, CSV, or JSON.
       </div>
       <div className="text-[9px] text-purple-400 font-mono border border-purple-500/20 bg-purple-900/10 px-3 py-1.5 rounded">
-        ⬆ Enable the 🧅 Tor Mode toggle inside the scraper to route all fetch requests through Tor Browser's circuits.
-        Connect Tor Browser first, then toggle Tor Mode in the top-right of the scraper.
+        Enable the 🧅 <strong>Tor Mode</strong> toggle inside the scraper (top-right) to route all fetches through Tor circuits.
+        Open this dashboard in Tor Browser for full end-to-end anonymity.
       </div>
       <div className="border border-primary/15 rounded overflow-hidden" style={{ height: "800px" }}>
-        <iframe
-          src={SCRAPER_URL}
-          title="Alpha Web Scraper"
+        <iframe src={SCRAPER_URL} title="Alpha Web Scraper"
           className="w-full h-full border-0 bg-black"
-          sandbox="allow-scripts allow-same-origin allow-forms allow-downloads allow-popups"
-        />
+          sandbox="allow-scripts allow-same-origin allow-forms allow-downloads allow-popups" />
       </div>
     </div>
   );
 }
 
-// ── Main page ────────────────────────────────────────────────────────────────
+// ── Main page ─────────────────────────────────────────────────────────────────
 export default function AlphaTools() {
-  const [tab, setTab]         = useState<Tab>("scanner");
-  const [useTor, setUseTor]   = useState(false);
+  const [tab, setTab]             = useState<Tab>("scanner");
+  const [useTor, setUseTor]       = useState(false);
   const [torStatus, setTorStatus] = useState<TorStatus | null>(null);
+  // Scanner → Verifier handoff: jobId that has a fresh HTML report
+  const [pendingJobId, setPendingJobId] = useState<string | null>(null);
 
-  // Poll Tor status every 15s
+  // Poll Tor status every 20s
   useEffect(() => {
     const check = async () => {
       try {
@@ -461,14 +469,20 @@ export default function AlphaTools() {
       } catch {}
     };
     check();
-    const id = setInterval(check, 15000);
+    const id = setInterval(check, 20000);
     return () => clearInterval(id);
   }, []);
 
-  const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
-    { id: "scanner",  label: "Universal Scanner",    icon: ScanSearch },
-    { id: "verifier", label: "Vuln Verifier",        icon: Bug },
-    { id: "scraper",  label: "Web Scraper",          icon: Globe2 },
+  // When scanner reports a finished HTML report, switch to verifier and auto-load
+  const handleReportReady = useCallback((jobId: string) => {
+    setPendingJobId(jobId);
+    setTab("verifier");
+  }, []);
+
+  const TABS: { id: Tab; label: string; icon: React.ElementType; dot?: boolean }[] = [
+    { id: "scanner",  label: "Universal Scanner",  icon: ScanSearch },
+    { id: "verifier", label: "Vuln Verifier",      icon: Bug, dot: !!pendingJobId },
+    { id: "scraper",  label: "Web Scraper",        icon: Globe2 },
   ];
 
   return (
@@ -477,63 +491,67 @@ export default function AlphaTools() {
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-lg font-bold tracking-widest uppercase text-primary flex items-center gap-2">
-            <Layers className="w-5 h-5" />
-            Alpha Toolkit
+            <Layers className="w-5 h-5" /> Alpha Toolkit
           </h1>
           <p className="text-xs text-primary/40 mt-0.5">
-            Alpha Universal Scanner · Vulnerability Verifier · Web Scraper — all routed through Tor on demand
+            Universal Scanner → HTML report → Vuln Verifier pipeline · Web Scraper · all tools Tor-cloakable
           </p>
         </div>
         <div className="flex items-center gap-3">
           <TorBadge status={torStatus} />
           <label className="flex items-center gap-2 cursor-pointer select-none">
             <span className="text-[9px] font-mono text-primary/50 uppercase tracking-widest">Tor Cloak</span>
-            <div
-              onClick={() => setUseTor(v => !v)}
-              className={`relative w-10 h-5 rounded-full transition-colors ${useTor ? "bg-purple-600" : "bg-primary/20"}`}
-            >
+            <div onClick={() => setUseTor(v => !v)}
+              className={`relative w-10 h-5 rounded-full transition-colors cursor-pointer ${useTor ? "bg-purple-600" : "bg-primary/20"}`}>
               <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${useTor ? "translate-x-5" : ""}`} />
             </div>
           </label>
         </div>
       </div>
 
-      {/* Tor active banner */}
+      {/* Tor banner */}
       {useTor && (
         <div className="flex items-center gap-2 text-[10px] font-mono text-purple-300 border border-purple-500/30 bg-purple-900/20 px-4 py-2 rounded">
           <Wifi className="w-3.5 h-3.5 shrink-0 text-purple-400" />
           <span>
-            <strong>Tor Cloak enabled</strong> — all scanner, nmap, and SQLmap traffic will be routed through Tor
-            (SOCKS5 127.0.0.1:9050). Your real IP is hidden from scan targets.
-            {!torStatus?.connected && (
-              <span className="text-yellow-400 ml-2">⚠ Tor appears offline — check daemon status.</span>
-            )}
+            <strong>Tor Cloak ON</strong> — nmap, SQLmap, Alpha Scanner, and Vuln Verifier traffic all exit through Tor (SOCKS5 127.0.0.1:9050).
+            {!torStatus?.connected && <span className="text-yellow-400 ml-2">⚠ Tor appears offline — restart may be needed.</span>}
           </span>
         </div>
       )}
 
+      {/* Workflow hint */}
+      <div className="flex items-center gap-2 text-[9px] font-mono text-primary/30 border border-primary/10 rounded px-3 py-2">
+        <ScanSearch className="w-3 h-3 shrink-0" />
+        Scanner generates HTML report
+        <ArrowRight className="w-3 h-3 shrink-0" />
+        click <strong className="text-primary/50">Send to Verifier</strong>
+        <ArrowRight className="w-3 h-3 shrink-0" />
+        Verifier actively probes every finding against the live target
+      </div>
+
       {/* Tab bar */}
       <div className="flex border-b border-primary/15">
-        {TABS.map(({ id, label, icon: Icon }) => (
-          <button
-            key={id}
-            onClick={() => setTab(id)}
-            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-mono uppercase tracking-widest border-b-2 transition-colors ${
-              tab === id
-                ? "border-primary text-primary bg-primary/5"
-                : "border-transparent text-primary/40 hover:text-primary/70"
-            }`}
-          >
+        {TABS.map(({ id, label, icon: Icon, dot }) => (
+          <button key={id} onClick={() => setTab(id)}
+            className={`relative flex items-center gap-2 px-4 py-2.5 text-xs font-mono uppercase tracking-widest border-b-2 transition-colors ${tab === id ? "border-primary text-primary bg-primary/5" : "border-transparent text-primary/40 hover:text-primary/70"}`}>
             <Icon className="w-3.5 h-3.5" />
             {label}
+            {dot && <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse absolute top-2 right-2" />}
           </button>
         ))}
       </div>
 
-      {/* Content */}
+      {/* Tab content */}
       <div>
-        {tab === "scanner"  && <ScannerTab  useTor={useTor} />}
-        {tab === "verifier" && <VerifierTab useTor={useTor} />}
+        {tab === "scanner"  && <ScannerTab useTor={useTor} onReportReady={handleReportReady} />}
+        {tab === "verifier" && (
+          <VerifierTab
+            useTor={useTor}
+            prefillJobId={pendingJobId}
+            onConsumed={() => setPendingJobId(null)}
+          />
+        )}
         {tab === "scraper"  && <ScraperTab />}
       </div>
     </div>

@@ -89,8 +89,8 @@ router.post("/scan", (req, res) => {
     useTor    = false,
   } = req.body as Record<string, any>;
 
-  const jobId = crypto.randomUUID().substring(0, 8).toUpperCase();
-  const outFile = path.join(os.tmpdir(), `alpha-scan-${jobId}.json`);
+  const jobId   = crypto.randomUUID().substring(0, 8).toUpperCase();
+  const htmlOut = path.join(os.tmpdir(), `alpha-scan-${jobId}.html`);
 
   // Build arg list
   const args: string[] = [SCANNER];
@@ -117,38 +117,31 @@ router.post("/scan", (req, res) => {
     args.push("--network-only", "--target-ip", safeIp, "--ports", ports.replace(/[^0-9\-,]/g, "").substring(0, 50));
   }
 
-  // Output as JSON
-  args.push("-o", outFile);
+  // Output as HTML — the Vuln Verifier reads this file directly
+  args.push("-o", htmlOut);
 
   const safeExtra = (extraFlags as string).replace(/['"`;]/g, "").substring(0, 100);
   const cmdStr = `${torPrefix(useTor)}${PYTHON} ${args.join(" ")} ${safeExtra}`.trim();
 
   runJob(scanJobs, jobId, cmdStr, useTor);
-  return res.status(202).json({ ok: true, jobId, cmd: cmdStr, mode, outFile });
+  return res.status(202).json({ ok: true, jobId, cmd: cmdStr, mode, htmlOut });
 });
 
-// GET /api/alpha/scan/:jobId — poll
+// GET /api/alpha/scan/:jobId — poll; returns htmlReady:true once the HTML report file exists
 router.get("/scan/:jobId", (req, res) => {
   const job = scanJobs.get(req.params.jobId);
   if (!job) return res.status(404).json({ error: "Job not found" });
-
-  // Try to attach JSON report if complete
-  if (job.status !== "running") {
-    const outFile = path.join(os.tmpdir(), `alpha-scan-${req.params.jobId}.json`);
-    let report: any = null;
-    try { if (fs.existsSync(outFile)) report = JSON.parse(fs.readFileSync(outFile, "utf-8")); } catch {}
-    return res.json({ ...job, report });
-  }
-
-  return res.json(job);
+  const htmlFile = path.join(os.tmpdir(), `alpha-scan-${req.params.jobId}.html`);
+  const htmlReady = fs.existsSync(htmlFile);
+  return res.json({ ...job, htmlReady });
 });
 
-// GET /api/alpha/scan/:jobId/report — download full HTML report if exists
-router.get("/scan/:jobId/report", (req, res) => {
+// GET /api/alpha/scan/:jobId/html — returns the raw HTML report for piping into Vuln Verifier
+router.get("/scan/:jobId/html", (req, res) => {
   const htmlFile = path.join(os.tmpdir(), `alpha-scan-${req.params.jobId}.html`);
-  if (!fs.existsSync(htmlFile)) return res.status(404).json({ error: "Report not ready" });
-  res.setHeader("Content-Type", "text/html");
-  res.send(fs.readFileSync(htmlFile));
+  if (!fs.existsSync(htmlFile)) return res.status(404).json({ error: "HTML report not ready yet" });
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.send(fs.readFileSync(htmlFile, "utf-8"));
 });
 
 // ── Vuln Verifier ────────────────────────────────────────────────────────────
