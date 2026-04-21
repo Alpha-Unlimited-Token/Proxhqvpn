@@ -71,6 +71,10 @@ import UserGuide from "@/pages/UserGuide";
 import Employees from "@/pages/Employees";
 import ThreatProtection from "@/pages/ThreatProtection";
 import Setup from "@/pages/Setup";
+import Ambassadors from "@/pages/Ambassadors";
+import AmbassadorApply from "@/pages/AmbassadorApply";
+import AmbassadorDashboard from "@/pages/AmbassadorDashboard";
+import CheckoutSuccess from "@/pages/CheckoutSuccess";
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
@@ -307,6 +311,18 @@ function AppRoutes() {
           </Route>
           <Route path="/guide">
             <ProtectedLayout><UserGuide /></ProtectedLayout>
+          </Route>
+          <Route path="/ambassadors">
+            <ProtectedLayout><Ambassadors /></ProtectedLayout>
+          </Route>
+          <Route path="/ambassador/apply">
+            <ProtectedLayout><AmbassadorApply /></ProtectedLayout>
+          </Route>
+          <Route path="/ambassador/dashboard">
+            <ProtectedLayout><AmbassadorDashboard /></ProtectedLayout>
+          </Route>
+          <Route path="/checkout/success">
+            <ProtectedLayout><CheckoutSuccess /></ProtectedLayout>
           </Route>
 
           {/* ── VPN Basic — any active subscription ── */}

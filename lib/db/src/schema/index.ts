@@ -8,3 +8,4 @@ export * from "./users";
 // employeesTable is exported from users.ts
 export * from "./wireguard";
 export * from "./vpngate";
+export * from "./ambassadors";

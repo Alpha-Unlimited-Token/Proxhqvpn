@@ -9,7 +9,7 @@ import {
   Activity, Shield, Terminal, Database,
   LogOut, User, Menu, Download,
   Zap, Settings, Cpu, Router, ScanSearch, Layers, FileText, Users,
-  Send, FolderSearch, Radar
+  Send, FolderSearch, Radar, Award, BarChart2,
 } from "lucide-react";
 import { useAccess } from "@/hooks/useAccess";
 
@@ -49,11 +49,14 @@ const PAGE_NAMES: Record<string, string> = {
   "/sql":          "Database",
   "/account":      "My Account",
   "/sqlmap":       "Vulnerability Scanner",
-  "/alpha-tools":  "Alpha Toolkit",
-  "/downloads":    "Download ProxhqVPN",
-  "/guide":        "User Guide",
-  "/employees":    "Employee Access",
-  "/setup":        "Server Setup",
+  "/alpha-tools":          "Alpha Toolkit",
+  "/downloads":            "Download ProxhqVPN",
+  "/guide":                "User Guide",
+  "/employees":            "Employee Access",
+  "/setup":                "Server Setup",
+  "/ambassadors":          "Ambassadors",
+  "/ambassador/apply":     "Become an Ambassador",
+  "/ambassador/dashboard": "Ambassador Dashboard",
 };
 
 const USER_NAV = [
@@ -90,6 +93,12 @@ const ADVANCED_NAV = [
   { href: "/http-probe",    label: "HTTP Probe",            icon: Send },
   { href: "/dir-fuzzer",    label: "Directory Fuzzer",      icon: FolderSearch },
   { href: "/subdomain-scan",label: "Subdomain Scout",       icon: Radar },
+];
+
+const AMBASSADOR_NAV = [
+  { href: "/ambassadors",          label: "Browse Ambassadors", icon: Users },
+  { href: "/ambassador/apply",     label: "Become Ambassador",  icon: Award },
+  { href: "/ambassador/dashboard", label: "My Dashboard",       icon: BarChart2 },
 ];
 
 const ADMIN_NAV = [
@@ -201,6 +210,7 @@ export function Layout({ children }: LayoutProps) {
       {/* Scrollable nav */}
       <nav className="flex-1 overflow-y-auto px-2 py-1 scrollbar-none" style={{ scrollbarWidth: "none" }}>
         <NavSection label="My VPN" items={USER_NAV} onNav={closeSidebar} />
+        <NavSection label="Ambassadors" items={AMBASSADOR_NAV} onNav={closeSidebar} />
         {hasAccess && (
           <>
             <NavSection label="Protection" items={PROTECTION_NAV} onNav={closeSidebar} />

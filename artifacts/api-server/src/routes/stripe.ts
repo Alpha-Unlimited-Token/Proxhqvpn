@@ -91,7 +91,7 @@ router.post("/checkout", async (req, res) => {
   const { userId, sessionClaims } = getAuth(req);
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-  const body = z.object({ priceId: z.string() }).safeParse(req.body);
+  const body = z.object({ priceId: z.string(), promoCode: z.string().optional() }).safeParse(req.body);
   if (!body.success) return res.status(400).json({ error: "priceId required" });
 
   const email = (sessionClaims?.email as string) ?? undefined;
@@ -115,7 +115,10 @@ router.post("/checkout", async (req, res) => {
     mode: "subscription",
     success_url: `${base}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${base}/checkout/cancel`,
-    metadata: { userId },
+    metadata: {
+      userId,
+      ...(body.data.promoCode ? { ambassador_promo_code: body.data.promoCode } : {}),
+    },
   });
 
   res.json({ url: session.url });

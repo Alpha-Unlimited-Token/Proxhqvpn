@@ -32,6 +32,7 @@ import dnsShieldRouter from "./dnsshield";
 import smartDnsRouter from "./smartdns";
 import routerConfigRouter from "./routerconfig";
 import stripeRouter from "./stripe";
+import ambassadorsRouter from "./ambassadors";
 import wireguardRouter from "./wireguard";
 import daemonInboundRouter from "./daemon-inbound";
 import nodeProvisionRouter from "./node-provision";
@@ -231,6 +232,9 @@ router.use("/sql",            requireAdmin, sqlRouter);
 
 // Stripe routes — always accessible (needed to purchase a subscription)
 router.use("/stripe",         stripeRouter);
+
+// Ambassador routes — public list + browse is accessible to all authed users
+router.use("/ambassadors",    ambassadorsRouter);
 
 // ── VPN Basic routes — any active subscription (vpn OR command_center) ──────
 router.use("/killswitch",     requireAccess, killswitchRouter);
