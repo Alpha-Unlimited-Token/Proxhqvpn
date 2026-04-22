@@ -157,10 +157,13 @@ const SECTIONS: Section[] = [
         <h4 className="font-bold text-primary text-[11px]">What You Can Say</h4>
         <div className="space-y-2">
           {[
-            { claim: "Military-grade WireGuard encryption", detail: "AES-256-GCM and ChaCha20-Poly1305 — the same protocols used by major VPN providers." },
+            { claim: "Military-grade WireGuard encryption", detail: "AES-256-GCM and ChaCha20-Poly1305 — the same protocols used by major VPN providers and the U.S. military." },
             { claim: "Zero-log privacy policy", detail: "ProxhqVPN does not log user activity, connection timestamps, or DNS queries." },
-            { claim: "Works on every device", detail: "Windows, Mac, Linux, iPhone, Android, Fire Stick, Android TV, routers, Raspberry Pi, gaming consoles via router." },
-            { claim: "Developer security toolkit", detail: "Command Center Pro includes the full Alpha Toolkit, SQLMap scanner, HTTP Probe, Subdomain Scout, Threat Intel, and more." },
+            { claim: "Works on every device", detail: "Windows, Mac, Linux, iPhone, Android, Fire Stick, Android TV, routers, Raspberry Pi, gaming consoles via router. Setup guides and download bundles available for every platform." },
+            { claim: "Full offensive security toolkit for pentesters and developers", detail: "Command Center Pro includes the Alpha Toolkit, SQLMap scanner, HTTP Probe, Directory Fuzzer, Subdomain Scout, Ghost Chain Exploit Arsenal, Exploit Importer, OSINT Recon, Canary Tokens, SIEM, and more — all routed through the VPN for operational security." },
+            { claim: "Built-in vulnerability education library", detail: "The Exploit Importer includes step-by-step exploitation guides for 24 vulnerability types — covering tools required, attack walkthroughs, verification steps, and how to fix each issue with real code examples. Downloadable as a full Markdown report." },
+            { claim: "Downloadable exploit reports for any scan", detail: "Upload any Nessus, Burp Suite, ZAP, Nikto, or OpenVAS report and get a complete downloadable .md report covering every finding, its impact, PoC code, and remediation. Perfect for client deliverables." },
+            { claim: "Honeypot + threat detection built in", detail: "SilkWeb honeypot, DNS Sinkhole, Firewall Manager, and Canary Tokens form a complete defensive layer — not just a privacy tool." },
             { claim: "Double-hop + Tor anonymity", detail: "Route traffic through VPN Gate relay servers or Tor for extra anonymity layers." },
           ].map(({ claim, detail }) => (
             <div key={claim} className="border border-primary/10 rounded px-3 py-2">
@@ -255,8 +258,8 @@ const SECTIONS: Section[] = [
               detail: "The #1 use case that converts is 'VPN for Fire Stick'. Cord-cutters who want to bypass geo-blocks and protect streaming are highly motivated buyers. A 5-minute setup tutorial on YouTube for this audience converts at 3–5x the rate of general privacy content.",
             },
             {
-              num: "2", tip: "Emphasize the Developer Toolkit",
-              detail: "Command Center Pro at $39.99/mo competes with tools costing hundreds of dollars. Security researchers, bug bounty hunters, and developers understand the value. Content like 'Full penetration testing lab for $40/mo' resonates strongly with this audience.",
+              num: "2", tip: "Target Security Researchers & Bug Bounty Hunters",
+              detail: "Command Center Pro at $39.99/mo competes with tools costing hundreds of dollars individually. Lead with the Exploit Importer's built-in vulnerability education library — 24 step-by-step exploitation guides covering SQLi, XSS, RCE, SSRF, JWT attacks, and more, each with tool install commands, attack walkthroughs, and downloadable client-ready reports. Content like 'Full pentest lab + 24 exploit guides for $40/mo' resonates strongly. Bug bounty write-up channels, cybersecurity TikTok, and InfoSec Reddit are high-conversion audiences for this angle.",
             },
             {
               num: "3", tip: "Create Comparison Content",

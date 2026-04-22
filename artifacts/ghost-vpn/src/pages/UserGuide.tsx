@@ -1173,7 +1173,7 @@ Table: metadata      → Crawl session info, start time, depth`}</CB>
     id: "exploitimporter", title: "Exploit Importer", icon: Upload,
     content: (
       <div className="space-y-3">
-        <p>The <strong>Exploit Importer</strong> (<code>/exploit-import</code>) parses external vulnerability scan reports — from Nessus, Burp Suite, Nikto, ZAP, OpenVAS, or any text-based output — and extracts structured exploit findings with severity ratings, CVE IDs, and ready-to-use PoC code. Command Center Pro only.</p>
+        <p>The <strong>Exploit Importer</strong> (<code>/exploit-import</code>) parses external vulnerability scan reports — from Nessus, Burp Suite, Nikto, ZAP, OpenVAS, or any text-based output — and extracts structured exploit findings with severity ratings, CVE IDs, ready-to-use PoC code, and complete step-by-step exploitation guides for each vulnerability type. Command Center Pro only.</p>
         <h4 className="font-bold text-primary text-[11px]">Two Input Methods</h4>
         <div className="space-y-2">
           {[
@@ -1189,10 +1189,12 @@ Table: metadata      → Crawl session info, start time, depth`}</CB>
         <h4 className="font-bold text-primary text-[11px] mt-3">Detection Patterns (30+ Categories)</h4>
         <div className="grid grid-cols-2 gap-2">
           {[
-            { cat: "Injection", items: ["SQL Injection", "XSS (reflected/stored/DOM)", "Command Injection", "SSTI", "LDAP Injection"] },
-            { cat: "Server-Side", items: ["SSRF", "XXE", "LFI / Path Traversal", "RCE / Remote Code Execution", "Deserialization"] },
-            { cat: "Auth & Tokens", items: ["JWT Vulnerabilities", "IDOR", "CSRF", "Broken Auth", "OAuth Flaws"] },
-            { cat: "Exposure", items: ["Exposed .env / .git", "Default Credentials", "Hardcoded Secrets", "Open Swagger / Actuator", "No Rate Limiting"] },
+            { cat: "Injection", items: ["SQL Injection (blind, UNION, error, OOB)", "XSS (reflected/stored/DOM)", "Command Injection", "SSTI (Jinja2, Twig, FreeMarker, ERB)", "LDAP / NoSQL Injection"] },
+            { cat: "Server-Side", items: ["SSRF (internal services, cloud metadata)", "XXE (file read, SSRF via XXE)", "LFI / Path Traversal", "RCE / Remote Code Execution", "Java / PHP / Python Deserialization"] },
+            { cat: "Auth & Tokens", items: ["JWT Vulnerabilities (alg:none, confusion)", "IDOR (object-level auth bypass)", "CSRF", "Auth Bypass (SQLi in login, param tamper)", "Default & Weak Credentials"] },
+            { cat: "Exposure & Config", items: ["Exposed .env / .git repositories", "Hardcoded Secrets & API Keys", "Open Swagger UI / Spring Actuator", "No Rate Limiting", "Weak TLS / Missing Security Headers"] },
+            { cat: "API & GraphQL", items: ["CORS Wildcard / Origin Reflection", "Mass Assignment (over-posting)", "GraphQL Introspection + IDOR", "Open Redirect", "Buffer Overflow"] },
+            { cat: "CVE-Based", items: ["Named CVE findings (auto-linked to NVD)", "Log4Shell, Spring4Shell, ProxyLogon", "Nuclei template matching", "Metasploit module recommendations"] },
           ].map(({ cat, items }) => (
             <div key={cat} className="border border-primary/10 rounded px-2.5 py-2">
               <div className="text-[10px] font-mono font-bold text-primary mb-1">{cat}</div>
@@ -1200,9 +1202,100 @@ Table: metadata      → Crawl session info, start time, depth`}</CB>
             </div>
           ))}
         </div>
-        <h4 className="font-bold text-primary text-[11px] mt-3">Results View</h4>
-        <p className="text-[10px] font-mono text-primary/83">Results are sorted by severity (Critical → High → Medium → Low → Info). Each card shows the vulnerability name, evidence excerpt, CVE ID (if detected), and a summary bar showing total counts. Click <strong>Details</strong> for the full evidence text, or <strong>Exploit PoC</strong> for copy-ready attack code.</p>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Three-Tab Result Cards</h4>
+        <div className="space-y-2">
+          {[
+            { t: "Details Tab", d: "Full evidence text extracted from the scanner report, CVE IDs hyperlinked to NVD, and severity badge. This is the raw finding context from your uploaded file." },
+            { t: "Instructions Tab", d: "Complete step-by-step exploitation guide for this exact vulnerability type. Includes: Impact summary, tools required with install commands, before-you-start checklist, numbered attack walkthrough with commands, how to verify it worked, and how to fix it with corrected code examples. Powered by the built-in 24-vulnerability guide library." },
+            { t: "Exploit Code Tab", d: "Ready-to-use PoC attack code (Python, Bash, SQL, JavaScript, XML, YAML) specific to the finding type. One-click copy to clipboard." },
+          ].map(({ t, d }) => (
+            <div key={t} className="border border-primary/10 rounded px-3 py-2">
+              <div className="text-[10px] font-mono font-bold text-primary">{t}</div>
+              <div className="text-[9px] font-mono text-primary/83 mt-0.5">{d}</div>
+            </div>
+          ))}
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Download Full Report</h4>
+        <p className="text-[10px] font-mono text-primary/83">After scanning, click the green <strong>Download Full Report</strong> button in the results header. A comprehensive <code>.md</code> (Markdown) report is generated on the spot and downloaded to your device. The report includes:</p>
+        <div className="space-y-1 text-[10px] font-mono text-primary/83 ml-2">
+          <div>• Executive summary table (finding count by severity)</div>
+          <div>• Per-finding section with full evidence, CVE IDs, impact rating</div>
+          <div>• Complete exploitation guide (all tools, prerequisites, step-by-step commands)</div>
+          <div>• How-to-verify section for each vulnerability</div>
+          <div>• Full remediation with corrected code examples</div>
+          <div>• Reference links (PortSwigger, OWASP, NVD) for further reading</div>
+        </div>
         <Note type="info">The parser strips HTML tags from Burp/Nessus HTML exports automatically. Nessus XML (.nessus) plugin IDs are cross-referenced to CVE IDs and the NVD severity scale.</Note>
+        <Note type="warn">All exploit guides and PoC code are for authorized security testing only. Only test against systems you own or have explicit written permission to test.</Note>
+      </div>
+    ),
+  },
+  {
+    id: "vulnguides", title: "Vulnerability Instruction Library", icon: BookOpen,
+    content: (
+      <div className="space-y-3">
+        <p>The <strong>Vulnerability Instruction Library</strong> is built into the Exploit Importer and provides complete educational exploitation guides for 24 vulnerability types. Each guide covers the full attack lifecycle — from tool setup through exploitation to remediation — with copy-ready commands for every step.</p>
+        <h4 className="font-bold text-primary text-[11px]">What Each Guide Contains</h4>
+        <div className="space-y-2">
+          {[
+            { t: "Impact Assessment", d: "What the vulnerability enables an attacker to do — data exfiltration, authentication bypass, full RCE, lateral movement, or service disruption." },
+            { t: "Real-World Examples", d: "Named historical incidents and bug bounty reports referencing this vulnerability class (e.g., Log4Shell RCE, Coinbase CORS misconfiguration, Facebook IDOR)." },
+            { t: "Tools Required", d: "Every tool needed to exploit the vulnerability, with exact install commands for all major operating systems (apt, brew, pip, gem, go install). You never have to guess what to install." },
+            { t: "Before You Start", d: "Prerequisites and access requirements you need before beginning — what to confirm, what permissions you need, what recon must be done first." },
+            { t: "Step-by-Step Walkthrough", d: "Numbered attack steps, each with a description AND a ready-to-run command (curl, sqlmap, python3, metasploit, nuclei, etc.). Commands work directly in a terminal against your target." },
+            { t: "How to Verify", d: "Exactly how to confirm the vulnerability is successfully exploited — what output to look for, what HTTP response to expect, what server behavior confirms the attack worked." },
+            { t: "How to Fix", d: "Remediation steps with corrected code examples in the relevant language (Node.js, Python, Java, PHP). Shows the vulnerable pattern and the safe replacement side-by-side." },
+            { t: "Further Reading", d: "Reference links to PortSwigger Web Security Academy, OWASP Testing Guide, NVD CVE database, and tool documentation for deeper research." },
+          ].map(({ t, d }) => (
+            <div key={t} className="border border-primary/10 rounded px-3 py-2">
+              <div className="text-[10px] font-mono font-bold text-primary">{t}</div>
+              <div className="text-[9px] font-mono text-primary/83 mt-0.5">{d}</div>
+            </div>
+          ))}
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">All 24 Covered Vulnerability Types</h4>
+        <div className="grid grid-cols-2 gap-1.5">
+          {[
+            "SQL Injection (blind, UNION, boolean, auth-bypass, OOB)",
+            "Cross-Site Scripting — XSS (reflected, stored, DOM, cookie theft)",
+            "Remote Code Execution — RCE (bash/python reverse shells, curl exfil)",
+            "Local File Inclusion — LFI (directory traversal, log poisoning)",
+            "Server-Side Request Forgery — SSRF (internal services, cloud IMDS)",
+            "XML External Entity — XXE (file read, SSRF chaining, OOB)",
+            "Insecure Direct Object Reference — IDOR (ID enumeration, mass exfil)",
+            "Cross-Site Request Forgery — CSRF (SameSite bypass, token theft)",
+            "JWT Vulnerabilities (alg:none, HMAC confusion, kid injection, secret crack)",
+            "Deserialization (Java ysoserial, PHP unserialize, Python pickle RCE)",
+            "Server-Side Template Injection — SSTI (Jinja2, Twig, FreeMarker, ERB RCE)",
+            "CORS Wildcard Misconfiguration (origin reflection, credential theft)",
+            "Authentication Bypass (SQLi login, JWT forgery, parameter tampering)",
+            "Environment File Exposure (.env/.git exfiltration)",
+            "Git Repository Exposure (git-dumper, history extraction)",
+            "Missing Security Headers (CSP, HSTS, X-Frame-Options, CORS audit)",
+            "No Rate Limiting (brute-force, OTP/password enumeration)",
+            "Hardcoded Secrets (grep patterns, trufflehog, gitleaks)",
+            "Buffer Overflow (pwntools, ret2libc, stack smashing)",
+            "Mass Assignment (over-posting undocumented fields, privilege escalation)",
+            "Weak TLS (testssl.sh, sslscan, cipher downgrade, certificate issues)",
+            "Spring Boot Actuator Exposure (/env, /heapdump, /actuator/env RCE)",
+            "Open Redirect (parameter hijacking, phishing chaining, OAuth abuse)",
+            "Default Credentials (hydra wordlists, known vendor defaults)",
+            "GraphQL Security (introspection, IDOR, nested query DoS, depth limiting)",
+            "CVE-Based Exploits (Nuclei templates, Metasploit modules, PoC verification)",
+          ].map(v => (
+            <div key={v} className="text-[9px] font-mono text-primary/83 border border-primary/8 rounded px-2 py-1">• {v}</div>
+          ))}
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">How to Access a Guide</h4>
+        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <li><span className="text-primary/30">1.</span> Go to <strong>Exploit Importer</strong> (<code>/exploit-import</code>).</li>
+          <li><span className="text-primary/30">2.</span> Upload or paste any scanner report containing vulnerability findings.</li>
+          <li><span className="text-primary/30">3.</span> Click any finding card to expand it.</li>
+          <li><span className="text-primary/30">4.</span> Click the green <strong>Instructions</strong> tab — the complete guide for that vulnerability type loads inline.</li>
+          <li><span className="text-primary/30">5.</span> Scroll through Impact → Tools → Prerequisites → Steps → Verify → Fix → References.</li>
+          <li><span className="text-primary/30">6.</span> To export everything: click <strong>Download Full Report</strong> at the top to get a <code>.md</code> file covering all findings.</li>
+        </ol>
+        <Note type="info">The instruction library is available offline in the downloaded report — the .md file includes all guides for every finding detected in your upload, formatted for sharing with clients or teams.</Note>
       </div>
     ),
   },

@@ -972,8 +972,36 @@ Exploit Importer (/exploit-import):
   Upload Nessus XML, Burp HTML, Nikto, ZAP, or OpenVAS reports.
   Also accepts .txt, .log, .json — ZIP archives auto-extracted.
   30+ pattern categories: SQLi, XSS, RCE, SSRF, XXE, LFI, IDOR, CSRF,
-  JWT vulns, exposed .env/.git, default creds, no rate limiting, etc.
-  CVE IDs auto-extracted. Results sorted by severity with PoC code.
+  JWT vulns, SSTI, CORS, mass assignment, GraphQL, buffer overflow,
+  exposed .env/.git, hardcoded secrets, open Actuator/Swagger,
+  weak TLS, no rate limiting, open redirect, default credentials.
+  CVE IDs auto-extracted. Results sorted by severity.
+
+  Each result card has THREE TABS:
+    [Details]      Full evidence text, CVE hyperlinks, severity badge
+    [Instructions] Complete step-by-step exploitation guide:
+                   - Impact assessment
+                   - Tools required (with exact install commands)
+                   - Before you start / prerequisites
+                   - Numbered attack walkthrough with terminal commands
+                   - How to verify the exploit succeeded
+                   - Remediation with corrected code examples
+                   - Reference links (PortSwigger, OWASP, NVD)
+    [Exploit Code] Ready-to-run PoC code (Python, Bash, SQL, JS, XML)
+                   with one-click clipboard copy
+
+  Download Full Report: Click the green button in the results header
+  to download a comprehensive .md (Markdown) report of all findings —
+  including full instruction guides for every vulnerability detected.
+  Ideal for client deliverables, pentest reports, and team briefings.
+
+  24 Built-in Vulnerability Guides:
+    SQL Injection, XSS, RCE, LFI, SSRF, XXE, IDOR, CSRF, JWT attacks,
+    Deserialization, SSTI, CORS misconfig, Auth Bypass, .env Exposure,
+    .git Exposure, Missing Security Headers, No Rate Limiting,
+    Hardcoded Secrets, Buffer Overflow, Mass Assignment, Weak TLS,
+    Spring Actuator Exposure, Open Redirect, Default Credentials,
+    GraphQL Security, CVE-Based Exploits
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 VPN BASIC EXCLUSIVE FEATURES

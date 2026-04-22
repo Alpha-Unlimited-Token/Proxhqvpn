@@ -251,20 +251,19 @@ ss -tupn | grep LISTEN          # Listening ports`}</CB>
     content: (
       <div className="space-y-3">
         <p>All employees have full Command Center Pro access. Here is a quick reference for the developer security tools.</p>
+        <h4 className="font-bold text-primary text-[11px]">Offensive Tools</h4>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {[
-            { tool: "Vulnerability Scanner", path: "/sqlmap", desc: "SQLMap + nmap. Automated SQL injection testing and port scanning." },
-            { tool: "HTTP Probe", path: "/http-probe", desc: "Craft raw HTTP requests. Inspect responses. Equivalent to Burp Repeater." },
-            { tool: "Directory Fuzzer", path: "/dir-fuzzer", desc: "Brute-force hidden endpoints, admin panels, backup files. Equivalent to ffuf." },
-            { tool: "Subdomain Scout", path: "/subdomain-scan", desc: "Certificate transparency + DNS brute-force subdomain enumeration." },
-            { tool: "Threat Intelligence", path: "/threat-intel", desc: "Live IP reputation, Tor exit node feeds, abuse database lookups." },
-            { tool: "Security Audit", path: "/security-audit", desc: "TLS grade, HTTP headers, WHOIS, open ports — full site health check." },
-            { tool: "Intruder", path: "/intruder", desc: "Automated parameter fuzzer. Test all inputs across multiple payloads." },
-            { tool: "Payload Generator", path: "/payloads", desc: "Pre-built payloads for XSS, SQLi, SSTI, SSRF, RCE, and more." },
-            { tool: "CVE Lookup", path: "/cve-search", desc: "Search NVD database for known vulnerabilities by CVE ID or keyword." },
-            { tool: "Encoder / Decoder", path: "/encoder", desc: "Base64, URL, HTML entity, hex, JWT decode, hash functions." },
-            { tool: "Request Comparer", path: "/comparer", desc: "Side-by-side diff of two HTTP requests/responses." },
-            { tool: "Alpha Toolkit", path: "/alpha-tools", desc: "Universal scanner, web scraper, vuln verifier — all Tor-routable." },
+            { tool: "Alpha Toolkit", path: "/alpha-tools", desc: "Universal scanner (35+ languages, 200+ vuln patterns), vulnerability verifier, and web scraper. All Tor-routable." },
+            { tool: "Vulnerability Scanner", path: "/sqlmap", desc: "Full SQLMap integration for automated SQL injection testing across all DBMS types. Tamper scripts + Tor routing." },
+            { tool: "HTTP Probe", path: "/http-probe", desc: "Craft raw HTTP requests. Inspect full responses. Equivalent to Burp Suite Repeater." },
+            { tool: "Directory Fuzzer", path: "/dir-fuzzer", desc: "Brute-force hidden endpoints, admin panels, backup files, .git, .env. Equivalent to ffuf/gobuster." },
+            { tool: "Subdomain Scout", path: "/subdomain-scan", desc: "Certificate transparency log enumeration + DNS brute-force subdomain discovery." },
+            { tool: "Intruder", path: "/intruder", desc: "Automated parameter fuzzer — Sniper, Battering Ram, Pitchfork, Cluster Bomb modes (Burp Intruder equivalent)." },
+            { tool: "Payload Generator", path: "/payloads", desc: "Pre-built payloads: SQLi, XSS, SSTI, SSRF, XXE, RCE, Path Traversal, Command Injection, WAF bypass, JWT secrets." },
+            { tool: "Ghost Chain Arsenal", path: "/ghost-chain", desc: "200+ categorized exploits with Details tab (CVEs, technique explanation) and PoC code tab. Integrates with HTTP Probe and Intruder." },
+            { tool: "Exploit Importer", path: "/exploit-import", desc: "Upload Nessus/Burp/ZAP/Nikto/OpenVAS reports. Auto-extracts findings, CVE IDs, severity. Three result tabs: Details · Instructions · PoC Code. Download Full Report as .md." },
+            { tool: "OSINT Recon", path: "/osint-recon", desc: "Aggregates 15+ passive intel sources: Shodan, Censys, AbuseIPDB, VirusTotal, GreyNoise, WHOIS, DNSDumpster, crt.sh, HaveIBeenPwned. All VPN-routed." },
           ].map(({ tool, path, desc }) => (
             <div key={tool} className="border border-primary/10 rounded px-2.5 py-2">
               <div className="flex items-center justify-between mb-0.5">
@@ -275,6 +274,41 @@ ss -tupn | grep LISTEN          # Listening ports`}</CB>
             </div>
           ))}
         </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Defensive / Intelligence Tools</h4>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {[
+            { tool: "SilkWeb Honeypot", path: "/silkweb", desc: "Deploy decoy services (SSH, HTTP, FTP, RDP). Captures attacker IPs and payloads. Integrates with SIEM." },
+            { tool: "Firewall Manager", path: "/firewall", desc: "iptables/nftables rules across all VPN nodes. Block IPs, ports, and protocols with live rule editor." },
+            { tool: "Threat Monitor", path: "/beacons", desc: "Real-time intrusion alert stream from all nodes + SilkWeb honeypot hits. Beacon-based persistent monitoring." },
+            { tool: "SIEM", path: "/siem", desc: "Unified security event log: WireGuard events, SilkWeb hits, firewall blocks, DNS sinkhole, auth failures. Filter + export CSV/JSON. Alert rules." },
+            { tool: "Canary Tokens", path: "/canary-tokens", desc: "Generate invisible tripwires: HTTP URL, DNS, PDF/DOCX, email pixel, fake AWS key, SQL canary row. Alerts on access with IP, GeoIP, browser." },
+            { tool: "Threat Intelligence", path: "/threat-intel", desc: "IP reputation (AbuseIPDB/Shodan/GreyNoise), WHOIS, TLS cert inspector, HTTP headers analyzer, live threat feeds." },
+            { tool: "CVE Lookup", path: "/cve-search", desc: "Search NVD database by CVE ID or keyword. CVSS score filtering. Critical/High/Medium/Low severity breakdown." },
+            { tool: "Security Audit", path: "/security-audit", desc: "Self-audit of ProxhqVPN platform — TLS grade, open ports, WireGuard key strength, firewall rules, CORS, CSP headers." },
+            { tool: "Encoder / Decoder", path: "/encoder", desc: "Base64, URL, HTML entity, hex, MD5/SHA-256/SHA-512, HMAC, bcrypt, JWT decode, auto-detect mode." },
+            { tool: "Request Comparer", path: "/comparer", desc: "Side-by-side diff of two HTTP requests/responses — Words, Lines, Bytes. Useful for auth bypass and IDOR verification." },
+          ].map(({ tool, path, desc }) => (
+            <div key={tool} className="border border-primary/10 rounded px-2.5 py-2">
+              <div className="flex items-center justify-between mb-0.5">
+                <div className="text-[10px] font-mono font-bold text-primary">{tool}</div>
+                <code className="text-[8px] text-primary/40">{path}</code>
+              </div>
+              <div className="text-[9px] font-mono text-primary/83">{desc}</div>
+            </div>
+          ))}
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Exploit Importer — Instructions Tab Detail</h4>
+        <p className="text-[10px] font-mono text-primary/83">The Exploit Importer's <strong>Instructions Tab</strong> (on each result card) provides a built-in educational guide for every detected vulnerability type. Each guide includes:</p>
+        <div className="space-y-1 text-[10px] font-mono text-primary/83 ml-2">
+          <div>• <strong>Impact Assessment</strong> — what the vulnerability enables an attacker to do</div>
+          <div>• <strong>Tools Required</strong> — exact apt/brew/pip install commands for every tool needed</div>
+          <div>• <strong>Prerequisites</strong> — what access or recon must be in place before beginning</div>
+          <div>• <strong>Step-by-Step Walkthrough</strong> — numbered commands that work directly in a terminal</div>
+          <div>• <strong>How to Verify</strong> — what output confirms the exploit worked</div>
+          <div>• <strong>Remediation</strong> — corrected code examples showing the vulnerable vs. safe pattern</div>
+          <div>• <strong>References</strong> — PortSwigger, OWASP, NVD links for deeper research</div>
+        </div>
+        <p className="text-[10px] font-mono text-primary/83 mt-2">Click <strong>Download Full Report</strong> in the results header to export a complete <code>.md</code> file covering all findings — including full guides for each vulnerability type. Use this for client deliverables and internal documentation.</p>
         <Note type="danger">All Command Center tools are for authorized testing only. Never use them against targets you do not own or have explicit written permission to test. Unauthorized use is illegal under the CFAA and Computer Misuse Act.</Note>
       </div>
     ),
