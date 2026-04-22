@@ -54,8 +54,8 @@ function NoSubscriptionScreen() {
       </div>
       <div className="mt-10 grid grid-cols-2 gap-4 max-w-sm w-full text-left">
         {[
-          { label: "VPN Basic", detail: "WireGuard, kill switch, DNS, devices", tag: "$9.99/mo" },
-          { label: "Command Center Pro", detail: "VPN + full developer toolkit", tag: "$34.99/mo" },
+          { label: "VPN Basic", detail: "WireGuard, kill switch, DNS, devices", tag: "$6.99/mo" },
+          { label: "Command Center Pro", detail: "VPN + full developer toolkit", tag: "$39.99/mo" },
         ].map((f) => (
           <div key={f.label} className="flex flex-col gap-1.5 bg-white/[0.03] border border-white/[0.06] rounded-xl p-3">
             <div className="text-[10px] font-bold text-primary/60 uppercase tracking-widest">{f.tag}</div>

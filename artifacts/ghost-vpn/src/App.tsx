@@ -81,6 +81,8 @@ import PayloadGen from "@/pages/PayloadGen";
 import CveSearch from "@/pages/CveSearch";
 import Intruder from "@/pages/Intruder";
 import IpExposure from "@/pages/IpExposure";
+import AmbassadorHandbook from "@/pages/AmbassadorHandbook";
+import EmployeeHandbook from "@/pages/EmployeeHandbook";
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
@@ -344,6 +346,14 @@ function AppRoutes() {
           </Route>
           <Route path="/guide">
             <PublicLayout><UserGuide /></PublicLayout>
+          </Route>
+
+          {/* ── Handbooks — publicly readable ── */}
+          <Route path="/handbook/ambassador">
+            <PublicLayout><AmbassadorHandbook /></PublicLayout>
+          </Route>
+          <Route path="/handbook/employee">
+            <ProtectedLayout><EmployeeHandbook /></ProtectedLayout>
           </Route>
 
           {/* ── Requires sign-in ── */}

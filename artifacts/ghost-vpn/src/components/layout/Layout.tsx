@@ -10,7 +10,7 @@ import {
   LogOut, User, Menu, Download,
   Zap, Settings, Cpu, Router, ScanSearch, Layers, FileText, Users,
   Send, FolderSearch, Radar, Award, BarChart2,
-  Code2, GitCompare, Swords, Bug, Eye,
+  Code2, GitCompare, Swords, Bug, Eye, BookMarked,
 } from "lucide-react";
 import { useAccess } from "@/hooks/useAccess";
 
@@ -64,6 +64,8 @@ const PAGE_NAMES: Record<string, string> = {
   "/cve-search":           "CVE Lookup",
   "/intruder":             "Intruder",
   "/ip-exposure":          "IP Exposure Scanner",
+  "/handbook/ambassador":  "Ambassador Handbook",
+  "/handbook/employee":    "Employee Handbook",
 };
 
 const USER_NAV = [
@@ -112,19 +114,21 @@ const AMBASSADOR_NAV = [
   { href: "/ambassadors",          label: "Browse Ambassadors", icon: Users },
   { href: "/ambassador/apply",     label: "Become Ambassador",  icon: Award },
   { href: "/ambassador/dashboard", label: "My Dashboard",       icon: BarChart2 },
+  { href: "/handbook/ambassador",  label: "Ambassador Handbook", icon: BookMarked },
 ];
 
 const ADMIN_NAV = [
-  { href: "/dashboard",     label: "Dashboard",       icon: LayoutDashboard },
-  { href: "/nodes",         label: "VPN Servers",     icon: Server },
-  { href: "/beacons",       label: "Threat Monitor",  icon: ShieldAlert },
-  { href: "/silkweb",       label: "Decoy Network",   icon: Network },
-  { href: "/monitor",       label: "Performance",     icon: Activity },
-  { href: "/firewall",      label: "Firewall",        icon: Shield },
-  { href: "/employees",     label: "Employee Access", icon: Users },
-  { href: "/setup",         label: "Server Setup",    icon: Settings },
-  { href: "/terminal",      label: "Terminal",        icon: Terminal },
-  { href: "/sql",           label: "Database",        icon: Database },
+  { href: "/dashboard",          label: "Dashboard",          icon: LayoutDashboard },
+  { href: "/nodes",              label: "VPN Servers",        icon: Server },
+  { href: "/beacons",            label: "Threat Monitor",     icon: ShieldAlert },
+  { href: "/silkweb",            label: "Decoy Network",      icon: Network },
+  { href: "/monitor",            label: "Performance",        icon: Activity },
+  { href: "/firewall",           label: "Firewall",           icon: Shield },
+  { href: "/employees",          label: "Employee Access",    icon: Users },
+  { href: "/handbook/employee",  label: "Employee Handbook",  icon: BookMarked },
+  { href: "/setup",              label: "Server Setup",       icon: Settings },
+  { href: "/terminal",           label: "Terminal",           icon: Terminal },
+  { href: "/sql",                label: "Database",           icon: Database },
 ];
 
 function NavItem({ href, label, icon: Icon, onClick }: {

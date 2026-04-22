@@ -4,7 +4,7 @@ import {
   Monitor, Smartphone, Tv, Router, Download, CheckCircle,
   ChevronDown, ChevronUp, AlertCircle, ExternalLink, Cpu,
   Tablet, Gamepad2, Wifi, Copy, Check, Flame, Apple,
-  Star, Info, Package, Shield,
+  Star, Info, Package, Shield, FileText, BookOpen,
 } from "lucide-react";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -734,6 +734,333 @@ export default function Downloads() {
             Every device on your network — including your TV, gaming console, and smart home devices — is automatically protected without any extra setup.
           </p>
         </div>
+      </div>
+
+      {/* Platform README Downloads */}
+      <ReadmeDownloads />
+    </div>
+  );
+}
+
+// ── README content per platform ───────────────────────────────────────────────
+const README_CONTENT: Record<string, string> = {
+  windows: `ProxhqVPN — Windows Setup README
+========================================
+ALPHA UNLIMITED TECHNOLOGIES LLC
+https://proxhqvpn.com
+
+REQUIREMENTS
+- Windows 10 or 11 (64-bit)
+- WireGuard for Windows
+
+STEP 1 — Install WireGuard
+  Download: https://download.wireguard.com/windows-client/wireguard-installer.exe
+  Run the installer with default settings. WireGuard installs as a Windows service.
+
+STEP 2 — Get Your Config File
+  1. Sign in to ProxhqVPN → WireGuard Config (proxhqvpn.com/wireguard)
+  2. Click "Generate" to create your personal keypair
+  3. Click "Download .conf" to save your configuration file
+
+STEP 3 — Import & Connect
+  1. Open WireGuard
+  2. Click the arrow next to "Add Tunnel" → "Import tunnel(s) from file"
+  3. Select the .conf file you downloaded
+  4. Click "Activate" — the status indicator turns green
+
+STEP 4 — Verify Connection
+  Open Command Prompt and run:
+    curl https://api64.ipify.org
+  The IP shown should be your ProxhqVPN server IP, not your real IP.
+
+OPTIONAL — Kill Switch
+  ProxhqVPN → Kill Switch (/kill-switch)
+  Enable to block all traffic if the VPN drops unexpectedly.
+
+SUPPORT
+  Email: support@proxhqvpn.com
+  Guide: https://proxhqvpn.com/guide
+`,
+  mac: `ProxhqVPN — macOS Setup README
+========================================
+ALPHA UNLIMITED TECHNOLOGIES LLC
+https://proxhqvpn.com
+
+REQUIREMENTS
+- macOS 12 (Monterey) or later
+- WireGuard from the Mac App Store
+
+STEP 1 — Install WireGuard
+  Mac App Store: https://apps.apple.com/us/app/wireguard/id1451685025
+  Click "Get" → install as usual.
+
+STEP 2 — Get Your Config File
+  1. Sign in to ProxhqVPN → WireGuard Config
+  2. Click "Generate" → "Download .conf"
+
+STEP 3 — Import & Connect
+  1. Open WireGuard
+  2. Click "Import tunnel(s) from file" and select the .conf
+  3. Allow VPN configuration when prompted by macOS System Settings
+  4. Toggle the tunnel ON — status turns Active
+
+STEP 4 — Verify
+  Terminal: curl https://api64.ipify.org
+
+SUPPORT
+  Email: support@proxhqvpn.com | Guide: https://proxhqvpn.com/guide
+`,
+  linux: `ProxhqVPN — Linux Setup README
+========================================
+ALPHA UNLIMITED TECHNOLOGIES LLC
+https://proxhqvpn.com
+
+REQUIREMENTS
+- Ubuntu 20.04+ / Debian 11+ / Fedora 36+ / Arch Linux
+- WireGuard kernel module (included in mainline kernel ≥5.6)
+
+STEP 1 — Install WireGuard Tools
+  Ubuntu/Debian:  sudo apt install wireguard wireguard-tools
+  Fedora:         sudo dnf install wireguard-tools
+  Arch:           sudo pacman -S wireguard-tools
+  Alpine:         apk add wireguard-tools
+
+STEP 2 — Get Your Config
+  1. Sign in to ProxhqVPN → WireGuard Config
+  2. Click "Generate" → "Copy Config"
+  3. Paste into: sudo nano /etc/wireguard/proxhq.conf
+
+STEP 3 — Connect
+  Start:    sudo wg-quick up proxhq
+  Stop:     sudo wg-quick down proxhq
+  Status:   sudo wg show
+  Auto-start: sudo systemctl enable wg-quick@proxhq
+
+STEP 4 — Verify
+  curl https://api64.ipify.org
+
+OPTIONAL — DNS Shield
+  Edit your config and set DNS = 1.1.1.1 or use ProxhqVPN's encrypted DNS.
+
+SUPPORT
+  Email: support@proxhqvpn.com | Guide: https://proxhqvpn.com/guide
+`,
+  android: `ProxhqVPN — Android Setup README
+========================================
+ALPHA UNLIMITED TECHNOLOGIES LLC
+https://proxhqvpn.com
+
+REQUIREMENTS
+- Android 8.0+ (API level 26+)
+- WireGuard for Android
+
+STEP 1 — Install WireGuard
+  Option A: Google Play Store
+    https://play.google.com/store/apps/details?id=com.wireguard.android
+  Option B: Direct APK (for devices without Play Store)
+    https://download.wireguard.com/android-client/com.wireguard.android-apk-latest.apk
+    Enable "Install from unknown sources" in Settings → Security
+
+STEP 2 — Get Your Config
+  1. Sign in to ProxhqVPN → WireGuard Config
+  2. Click "Generate" → "Show QR Code"
+  3. On your Android: WireGuard → + → "Scan from QR code"
+  4. Scan the QR — tunnel is imported automatically
+
+STEP 3 — Connect
+  Tap the tunnel name → toggle ON. Android shows the VPN key icon in the status bar.
+
+STEP 4 — Verify
+  Visit https://api64.ipify.org in Chrome — should show ProxhqVPN server IP.
+
+SUPPORT
+  Email: support@proxhqvpn.com | Guide: https://proxhqvpn.com/guide
+`,
+  ios: `ProxhqVPN — iOS / iPadOS Setup README
+========================================
+ALPHA UNLIMITED TECHNOLOGIES LLC
+https://proxhqvpn.com
+
+REQUIREMENTS
+- iPhone or iPad running iOS/iPadOS 15+
+- WireGuard from the App Store
+
+STEP 1 — Install WireGuard
+  App Store: https://apps.apple.com/us/app/wireguard/id1441195209
+
+STEP 2 — Get Your Config
+  1. Sign in to ProxhqVPN → WireGuard Config
+  2. Click "Generate" → "Show QR Code"
+  3. In WireGuard app: tap + → "Create from QR code"
+  4. Point your camera at the QR code
+
+STEP 3 — Connect
+  Allow VPN configuration when iOS prompts. Tap the tunnel → toggle ON.
+  The VPN key icon appears in the iOS status bar.
+
+STEP 4 — Verify
+  Safari: visit https://api64.ipify.org — should show ProxhqVPN server IP.
+
+SUPPORT
+  Email: support@proxhqvpn.com | Guide: https://proxhqvpn.com/guide
+`,
+  fire: `ProxhqVPN — Amazon Fire Stick / Fire TV README
+========================================
+ALPHA UNLIMITED TECHNOLOGIES LLC
+https://proxhqvpn.com
+
+REQUIREMENTS
+- Fire Stick (any generation) or Fire TV
+- Downloader app (free on Amazon App Store)
+
+STEP 1 — Enable Apps from Unknown Sources
+  Fire Stick Settings → My Fire TV → Developer Options → Apps from Unknown Sources → ON
+
+STEP 2 — Install Downloader
+  Fire Stick → Find → Search → "Downloader" → Install
+
+STEP 3 — Download WireGuard APK
+  Open Downloader → enter URL:
+    https://download.wireguard.com/android-client/com.wireguard.android-apk-latest.apk
+  Tap "Go" → Download → Install → Done
+
+STEP 4 — Get Your Config
+  On a phone/computer: sign in to ProxhqVPN → WireGuard Config → "Show QR Code"
+  In WireGuard on Fire Stick: tap + → Scan QR Code
+
+STEP 5 — Connect
+  Tap the tunnel name → toggle Active. VPN key icon appears at top of screen.
+
+TIP
+  Connect your Fire Stick remote → navigate WireGuard using the D-pad.
+
+SUPPORT
+  Email: support@proxhqvpn.com | Guide: https://proxhqvpn.com/guide
+`,
+  router: `ProxhqVPN — Router Setup README
+========================================
+ALPHA UNLIMITED TECHNOLOGIES LLC
+https://proxhqvpn.com
+
+SUPPORTED FIRMWARE
+  - OpenWRT (recommended)
+  - DD-WRT
+  - AsusWRT-Merlin
+  - pfSense / OPNsense
+  - GL.iNet (native WireGuard support)
+  - Ubiquiti EdgeOS
+
+WHY USE ROUTER SETUP?
+  Protects every device on your network (TVs, consoles, phones, smart home)
+  without installing any app on each device.
+
+STEP 1 — Generate Router Config
+  Sign in to ProxhqVPN → Router Config (/router-config)
+  Select your firmware → your safe LAN IP is auto-detected and embedded in kill switch rules.
+
+STEP 2 — OpenWRT Quick Install
+  SSH into your router as root, then run:
+    opkg update
+    opkg install wireguard-tools kmod-wireguard luci-proto-wireguard
+    
+  Paste the generated config block into /etc/config/network
+  Then: /etc/init.d/network restart
+
+STEP 3 — GL.iNet (Simplest Option)
+  GL.iNet routers have native WireGuard support.
+  Admin Panel → VPN → WireGuard Client → Add Profile → paste config → Connect
+
+STEP 4 — Verify
+  From any device on your network:
+    curl https://api64.ipify.org
+  IP should show ProxhqVPN server address.
+
+SUPPORT
+  Email: support@proxhqvpn.com | Guide: https://proxhqvpn.com/guide
+`,
+  appletv: `ProxhqVPN — Apple TV Setup README
+========================================
+ALPHA UNLIMITED TECHNOLOGIES LLC
+https://proxhqvpn.com
+
+REQUIREMENTS
+  Apple TV HD or Apple TV 4K running tvOS 17+
+
+RECOMMENDED METHOD — Router Setup
+  Apple TV cannot run VPN apps directly.
+  The best approach: install ProxhqVPN on your router.
+  See: https://proxhqvpn.com/downloads (Router section)
+
+ALTERNATIVE — iPhone VPN Hotspot
+  1. Set up ProxhqVPN on your iPhone (see iOS README).
+  2. Turn on iPhone Personal Hotspot.
+  3. Connect Apple TV to iPhone hotspot via Wi-Fi.
+  4. Apple TV traffic is tunneled through ProxhqVPN on your iPhone.
+
+ALTERNATIVE — WireGuard on tvOS (Beta)
+  The WireGuard tvOS app is available on the App Store:
+  https://apps.apple.com/us/app/wireguard/id1451685025
+  Set up is identical to iOS — scan QR from ProxhqVPN → WireGuard Config.
+
+SUPPORT
+  Email: support@proxhqvpn.com | Guide: https://proxhqvpn.com/guide
+`,
+};
+
+function downloadReadme(platform: string) {
+  const content = README_CONTENT[platform];
+  if (!content) return;
+  const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `ProxhqVPN-Setup-${platform.charAt(0).toUpperCase() + platform.slice(1)}.txt`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+const README_PLATFORMS = [
+  { id: "windows",  label: "Windows",       emoji: "🪟" },
+  { id: "mac",      label: "macOS",          emoji: "🍎" },
+  { id: "linux",    label: "Linux",          emoji: "🐧" },
+  { id: "android",  label: "Android",        emoji: "📱" },
+  { id: "ios",      label: "iPhone/iPad",    emoji: "📱" },
+  { id: "fire",     label: "Fire Stick",     emoji: "🔥" },
+  { id: "router",   label: "Router Setup",   emoji: "📡" },
+  { id: "appletv",  label: "Apple TV",       emoji: "📺" },
+];
+
+function ReadmeDownloads() {
+  return (
+    <div className="border border-primary/20 rounded-xl p-4 space-y-3 bg-primary/[0.02]">
+      <div className="flex items-center gap-2">
+        <BookOpen className="w-4 h-4 text-primary/70 shrink-0" />
+        <div>
+          <div className="text-[11px] font-bold text-primary">Platform README & Installer Guides</div>
+          <div className="text-[9px] font-mono text-primary/50 mt-0.5">Download a step-by-step text setup guide for any device. Includes WireGuard install commands and troubleshooting tips.</div>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        {README_PLATFORMS.map(({ id, label, emoji }) => (
+          <button
+            key={id}
+            onClick={() => downloadReadme(id)}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg border border-primary/15 bg-black hover:bg-primary/5 hover:border-primary/30 transition-all text-left group"
+          >
+            <span className="text-sm">{emoji}</span>
+            <div className="min-w-0">
+              <div className="text-[10px] font-mono font-bold text-primary/80 group-hover:text-primary truncate">{label}</div>
+              <div className="text-[8px] font-mono text-primary/30">README.txt</div>
+            </div>
+            <FileText className="w-3 h-3 text-primary/20 group-hover:text-primary/50 ml-auto shrink-0 transition-colors" />
+          </button>
+        ))}
+      </div>
+      <div className="text-[9px] font-mono text-primary/30 flex items-center gap-1.5">
+        <Download className="w-3 h-3" />
+        Each guide downloads as a .txt file — open with any text editor or share via USB
       </div>
     </div>
   );

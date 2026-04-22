@@ -7,7 +7,8 @@ import {
   ChevronRight, Bookmark, Copy, Check, AlertCircle, Info,
   Radio, Gamepad2, Tv, Smartphone, Monitor, Bug, FileText,
   Lock, Key, Settings, BarChart2, Bell, Map, TrendingUp,
-  MapPin, Crosshair,
+  MapPin, Crosshair, Eye, Send, FolderSearch, Radar,
+  Swords, Code2, GitCompare, ShieldAlert,
 } from "lucide-react";
 
 function CopyBtn({ text }: { text: string }) {
@@ -760,6 +761,240 @@ Table: metadata      → Crawl session info, start time, depth`}</CB>
             </div>
           ))}
         </div>
+      </div>
+    ),
+  },
+  {
+    id: "ipexposure", title: "IP Exposure Scanner", icon: Eye,
+    content: (
+      <div className="space-y-3">
+        <p>The <strong>IP Exposure Scanner</strong> (<code>/ip-exposure</code>) shows you a full breakdown of what your current IP address reveals to websites, trackers, and monitoring systems. Available to all VPN Basic subscribers.</p>
+        <h4 className="font-bold text-primary text-[11px]">What It Shows</h4>
+        <div className="space-y-2">
+          {[
+            { t: "Public IP & Geolocation", d: "Your external IP with country, region, city, ISP name, and ASN — exactly what websites see when you connect." },
+            { t: "VPN / Proxy Detection", d: "Whether your IP is flagged as a known VPN exit, proxy, or Tor exit node by third-party databases." },
+            { t: "WebRTC Leak Test", d: "Checks if your browser leaks your real local IP via WebRTC, even when using a VPN." },
+            { t: "DNS Leak Test", d: "Verifies that your DNS queries are routed through ProxhqVPN's encrypted DNS, not your ISP's servers." },
+            { t: "Browser Fingerprint Risk", d: "Checks canvas fingerprint, user-agent, timezone, and language consistency against your apparent location." },
+          ].map(({ t, d }) => (
+            <div key={t} className="border border-primary/10 rounded px-3 py-2">
+              <div className="text-[10px] font-mono font-bold text-primary">{t}</div>
+              <div className="text-[9px] font-mono text-primary/83 mt-0.5">{d}</div>
+            </div>
+          ))}
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Using IP Exposure Scanner</h4>
+        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <li><span className="text-primary/30">1.</span> Go to <strong>IP Exposure</strong> — the scan runs automatically on page load.</li>
+          <li><span className="text-primary/30">2.</span> If you see a <span className="text-red-400">LEAK DETECTED</span> badge, follow the remediation steps shown on screen.</li>
+          <li><span className="text-primary/30">3.</span> Enable <strong>Kill Switch</strong> and ensure your WireGuard connection is active to resolve most leak types.</li>
+          <li><span className="text-primary/30">4.</span> Use the <strong>DNS Shield</strong> page to fix DNS leak issues specifically.</li>
+        </ol>
+        <Note type="info">Run the IP Exposure Scanner before and after connecting to ProxhqVPN to verify your IP is properly masked.</Note>
+      </div>
+    ),
+  },
+  {
+    id: "httprobe", title: "HTTP Probe", icon: Send,
+    content: (
+      <div className="space-y-3">
+        <p>The <strong>HTTP Probe</strong> (<code>/http-probe</code>) is a full-featured HTTP client for crafting and sending custom HTTP requests. It is equivalent to Burp Suite Repeater and is available to Command Center Pro subscribers.</p>
+        <h4 className="font-bold text-primary text-[11px]">Key Features</h4>
+        <div className="space-y-2">
+          {[
+            { t: "Custom Headers", d: "Set any request header including Authorization, Content-Type, Cookie, X-Forwarded-For, and custom headers." },
+            { t: "All HTTP Methods", d: "GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS, CONNECT, TRACE." },
+            { t: "Body Editors", d: "Switch between raw text, JSON, form data, XML, and binary body types with syntax highlighting." },
+            { t: "Response Inspector", d: "View response status, headers, body, timing, and size. Syntax-highlighted JSON and HTML responses." },
+            { t: "Tor Routing", d: "Toggle to route requests through Tor SOCKS5 to hide your probe origin." },
+            { t: "Request History", d: "All requests logged locally. Re-send, modify, or compare any previous request." },
+          ].map(({ t, d }) => (
+            <div key={t} className="border border-primary/10 rounded px-3 py-2">
+              <div className="text-[10px] font-mono font-bold text-primary">{t}</div>
+              <div className="text-[9px] font-mono text-primary/83 mt-0.5">{d}</div>
+            </div>
+          ))}
+        </div>
+        <Note type="danger">Only probe targets you own or have explicit written authorization to test. Unauthorized HTTP probing may violate the CFAA and similar laws.</Note>
+      </div>
+    ),
+  },
+  {
+    id: "dirfuzzer", title: "Directory Fuzzer", icon: FolderSearch,
+    content: (
+      <div className="space-y-3">
+        <p>The <strong>Directory Fuzzer</strong> (<code>/dir-fuzzer</code>) brute-forces hidden files and directories on web servers using customizable wordlists. Equivalent to ffuf or gobuster. Command Center Pro only.</p>
+        <h4 className="font-bold text-primary text-[11px]">How to Run a Directory Fuzz</h4>
+        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <li><span className="text-primary/30">1.</span> Enter the target URL (e.g. <code>https://target.com/</code>).</li>
+          <li><span className="text-primary/30">2.</span> Choose a wordlist: <strong>Common</strong> (admin panels, backups), <strong>API Routes</strong>, <strong>Git/Config Files</strong>, or upload a custom list.</li>
+          <li><span className="text-primary/30">3.</span> Set the file extensions to append (e.g. <code>.php, .bak, .old, .zip</code>).</li>
+          <li><span className="text-primary/30">4.</span> Set the thread count and delay. Higher threads = faster but more detectable.</li>
+          <li><span className="text-primary/30">5.</span> Toggle <strong>Tor Mode</strong> to route requests anonymously.</li>
+          <li><span className="text-primary/30">6.</span> Click <strong>Start Fuzz</strong> — discovered paths stream in real-time.</li>
+        </ol>
+        <Note type="warn">Fuzzing sends hundreds or thousands of requests per minute. This may trigger WAFs, rate limiting, or alert the target's monitoring systems.</Note>
+      </div>
+    ),
+  },
+  {
+    id: "subdomains", title: "Subdomain Scout", icon: Radar,
+    content: (
+      <div className="space-y-3">
+        <p>The <strong>Subdomain Scout</strong> (<code>/subdomain-scan</code>) enumerates subdomains of a target domain using multiple passive and active techniques. Command Center Pro only.</p>
+        <h4 className="font-bold text-primary text-[11px]">Enumeration Methods</h4>
+        <div className="space-y-2">
+          {[
+            { t: "Certificate Transparency (CT Logs)", d: "Query crt.sh and other CT log aggregators for every SSL certificate ever issued for the domain. Purely passive — never touches the target." },
+            { t: "DNS Brute-Force", d: "Send DNS resolution requests for common subdomain patterns (www, api, dev, staging, mail, cdn, etc.)." },
+            { t: "Reverse DNS / ASN Lookup", d: "Identify all IPs owned by the target's ASN and attempt reverse DNS resolution to find additional hosts." },
+          ].map(({ t, d }) => (
+            <div key={t} className="border border-primary/10 rounded px-3 py-2">
+              <div className="text-[10px] font-mono font-bold text-primary">{t}</div>
+              <div className="text-[9px] font-mono text-primary/83 mt-0.5">{d}</div>
+            </div>
+          ))}
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Export Results</h4>
+        <p className="text-[10px] font-mono text-primary/83">Export discovered subdomains as a plain text list or JSON. Send directly to the Security Audit tool for a quick TLS/header check across all found domains.</p>
+        <Note type="info">CT log enumeration is always anonymous — it never contacts the target domain. DNS brute-force sends packets to your DNS resolver, not to the target directly.</Note>
+      </div>
+    ),
+  },
+  {
+    id: "intruder", title: "Intruder", icon: Swords,
+    content: (
+      <div className="space-y-3">
+        <p>The <strong>Intruder</strong> (<code>/intruder</code>) automates parameter fuzzing across multiple payload sets. Modeled after Burp Intruder — inject payloads at any marked position in a request template. Command Center Pro only.</p>
+        <h4 className="font-bold text-primary text-[11px]">Attack Modes</h4>
+        <div className="space-y-2">
+          {[
+            { t: "Sniper", d: "One payload set. Injects each payload into one position at a time, cycling through all positions sequentially. Best for single-parameter fuzzing." },
+            { t: "Battering Ram", d: "One payload set. Injects the same payload into all marked positions simultaneously. Good for testing multi-parameter forms." },
+            { t: "Pitchfork", d: "Multiple payload sets (one per position). Iterates all sets in parallel — position 1 gets payload 1[n], position 2 gets payload 2[n]." },
+            { t: "Cluster Bomb", d: "Multiple payload sets. Tries every combination of all payloads across all positions. Highest coverage, highest request count." },
+          ].map(({ t, d }) => (
+            <div key={t} className="border border-primary/10 rounded px-3 py-2">
+              <div className="text-[10px] font-mono font-bold text-primary">{t}</div>
+              <div className="text-[9px] font-mono text-primary/83 mt-0.5">{d}</div>
+            </div>
+          ))}
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Using Intruder</h4>
+        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <li><span className="text-primary/30">1.</span> Paste a raw HTTP request or set a base URL + params.</li>
+          <li><span className="text-primary/30">2.</span> Mark injection positions with <code>§ § </code> delimiters.</li>
+          <li><span className="text-primary/30">3.</span> Load a payload list (paste custom list, use a built-in wordlist, or pull from Payload Generator).</li>
+          <li><span className="text-primary/30">4.</span> Set concurrency and delay. Enable Tor for anonymous fuzzing.</li>
+          <li><span className="text-primary/30">5.</span> Click <strong>Start Attack</strong>. Filter results by response length, status code, or keywords to find anomalies.</li>
+        </ol>
+        <Note type="danger">Intruder can send thousands of requests quickly. Only use on targets you are authorized to test.</Note>
+      </div>
+    ),
+  },
+  {
+    id: "encoder", title: "Encoder / Decoder", icon: Code2,
+    content: (
+      <div className="space-y-3">
+        <p>The <strong>Encoder</strong> (<code>/encoder</code>) provides encoding, decoding, and hashing utilities essential for security testing and development. Command Center Pro only.</p>
+        <h4 className="font-bold text-primary text-[11px]">Supported Transforms</h4>
+        <div className="grid grid-cols-2 gap-2">
+          {[
+            { cat: "Encoding", items: ["Base64 (encode/decode)", "URL encode/decode", "HTML entity encode/decode", "Hex encode/decode", "Binary (UTF-8 ↔ binary)"] },
+            { cat: "Cryptography", items: ["MD5 hash", "SHA-1 / SHA-256 / SHA-512", "HMAC-SHA256 (with key)", "bcrypt hash (cost factor)", "JWT decode (header + payload)"] },
+          ].map(({ cat, items }) => (
+            <div key={cat} className="border border-primary/10 rounded px-3 py-2">
+              <div className="text-[10px] font-mono font-bold text-primary mb-1">{cat}</div>
+              {items.map(i => <div key={i} className="text-[9px] font-mono text-primary/83">• {i}</div>)}
+            </div>
+          ))}
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Smart Detect</h4>
+        <p className="text-[10px] font-mono text-primary/83">Paste any string and click <strong>Auto-Detect</strong> — the encoder identifies the encoding format and decodes it automatically. Useful for analyzing encoded payloads in HTTP responses or JWT tokens.</p>
+      </div>
+    ),
+  },
+  {
+    id: "comparer", title: "Request Comparer", icon: GitCompare,
+    content: (
+      <div className="space-y-3">
+        <p>The <strong>Request Comparer</strong> (<code>/comparer</code>) shows a side-by-side diff of two HTTP requests or responses. Equivalent to Burp Comparer. Command Center Pro only.</p>
+        <h4 className="font-bold text-primary text-[11px]">Use Cases</h4>
+        <div className="space-y-2">
+          {[
+            { t: "Auth Bypass Detection", d: "Compare an authenticated request and an unauthenticated request — if responses are identical, the endpoint lacks proper auth enforcement." },
+            { t: "IDOR Verification", d: "Compare two responses with different user IDs in the parameter — identical data indicates an IDOR vulnerability." },
+            { t: "WAF Bypass Testing", d: "Compare a raw payload response vs a tampered payload response to confirm WAF evasion is working." },
+          ].map(({ t, d }) => (
+            <div key={t} className="border border-primary/10 rounded px-3 py-2">
+              <div className="text-[10px] font-mono font-bold text-primary">{t}</div>
+              <div className="text-[9px] font-mono text-primary/83 mt-0.5">{d}</div>
+            </div>
+          ))}
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Diff Modes</h4>
+        <div className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <div>• <strong>Words</strong> — highlight individual changed words</div>
+          <div>• <strong>Lines</strong> — highlight full changed lines (good for raw HTTP)</div>
+          <div>• <strong>Bytes</strong> — byte-level diff for binary responses</div>
+          <div>• <strong>Ignore</strong> — optionally ignore headers, timestamps, session IDs</div>
+        </div>
+      </div>
+    ),
+  },
+  {
+    id: "payloads", title: "Payload Generator", icon: Bug,
+    content: (
+      <div className="space-y-3">
+        <p>The <strong>Payload Generator</strong> (<code>/payloads</code>) provides categorized, ready-to-use attack payloads for security testing. Command Center Pro only.</p>
+        <h4 className="font-bold text-primary text-[11px]">Payload Categories</h4>
+        <div className="grid grid-cols-2 gap-2">
+          {[
+            { cat: "Injection", items: ["SQL Injection (MySQL, Postgres, MSSQL, Oracle)", "XSS (reflected, stored, DOM, polyglots)", "Server-Side Template Injection (SSTI)", "LDAP Injection", "Command Injection"] },
+            { cat: "Server-Side", items: ["SSRF (localhost, cloud metadata endpoints)", "XXE (XML External Entity)", "Path Traversal / LFI", "Deserialization (Java, PHP, Python)", "RCE via Log4j"] },
+            { cat: "Evasion", items: ["WAF bypass variants (encoding, case mangling)", "Filter bypass payloads", "Null byte injection", "Unicode normalization attacks"] },
+            { cat: "Recon", items: ["Wordlists (admin, backup, API, upload dirs)", "Common credential pairs", "Default password lists", "JWT secret brute-force lists"] },
+          ].map(({ cat, items }) => (
+            <div key={cat} className="border border-primary/10 rounded px-2.5 py-2">
+              <div className="text-[10px] font-mono font-bold text-primary mb-1">{cat}</div>
+              {items.map(i => <div key={i} className="text-[9px] font-mono text-primary/83">• {i}</div>)}
+            </div>
+          ))}
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Sending Payloads to Other Tools</h4>
+        <p className="text-[10px] font-mono text-primary/83">Click <strong>Send to HTTP Probe</strong> to test a payload directly, or <strong>Send to Intruder</strong> to use the payload list as input for an automated attack run.</p>
+      </div>
+    ),
+  },
+  {
+    id: "cvesearch", title: "CVE Lookup", icon: ShieldAlert,
+    content: (
+      <div className="space-y-3">
+        <p>The <strong>CVE Lookup</strong> (<code>/cve-search</code>) lets you search the NVD (National Vulnerability Database) and other CVE sources directly from the Command Center. Command Center Pro only.</p>
+        <h4 className="font-bold text-primary text-[11px]">Search Modes</h4>
+        <div className="space-y-2">
+          {[
+            { t: "CVE ID Lookup", d: "Enter a CVE ID (e.g. CVE-2021-44228) to pull the full description, CVSS score, affected versions, and available patches." },
+            { t: "Keyword Search", d: "Search by software name, vendor, or vulnerability type (e.g. 'Apache Log4j', 'WordPress plugin RCE', 'OpenSSL buffer overflow')." },
+            { t: "CVSS Score Filter", d: "Filter results by CVSS score — focus on Critical (9.0–10.0) or High (7.0–8.9) vulnerabilities only." },
+          ].map(({ t, d }) => (
+            <div key={t} className="border border-primary/10 rounded px-3 py-2">
+              <div className="text-[10px] font-mono font-bold text-primary">{t}</div>
+              <div className="text-[9px] font-mono text-primary/83 mt-0.5">{d}</div>
+            </div>
+          ))}
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">CVSS Score Reference</h4>
+        <div className="space-y-1.5 text-[9px] font-mono">
+          {[["9.0 – 10.0", "Critical", "text-red-400"], ["7.0 – 8.9", "High", "text-orange-400"], ["4.0 – 6.9", "Medium", "text-yellow-400"], ["0.1 – 3.9", "Low", "text-green-400"]].map(([range, level, color]) => (
+            <div key={range} className="flex gap-3 items-center">
+              <span className="text-primary/83 w-24">{range}</span>
+              <span className={`font-bold ${color}`}>{level}</span>
+            </div>
+          ))}
+        </div>
+        <Note type="info">CVE data is pulled live from the NVD API. Results may take 2–3 seconds for high-volume keyword searches. Results are not cached.</Note>
       </div>
     ),
   },
