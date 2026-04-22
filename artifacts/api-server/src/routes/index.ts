@@ -48,6 +48,11 @@ import setupRouter from "./setup";
 import updatesRouter from "./updates";
 import ghostTraceRouter from "./ghosttrace";
 import attackChainRouter from "./attackchain";
+import networkMonitorRouter from "./networkmonitor";
+import dnsSinkholeRouter from "./dnssinkhole";
+import siemRouter from "./siem";
+import osintRouter from "./osint";
+import canaryRouter from "./canary";
 
 const router: IRouter = Router();
 
@@ -72,6 +77,16 @@ router.use("/updates", updatesRouter);
 
 // Daemon inbound — authenticated via PSK header (not Clerk), public route
 router.use("/daemon-inbound", daemonInboundRouter);
+
+// Canary token trigger — public, must fire even without auth
+router.get("/t/:tokenId", (req, res, next) => {
+  req.url = `/trigger/${req.params.tokenId}`;
+  (canaryRouter as any).handle(req, res, next);
+});
+router.get("/t/:tokenId/pixel.gif", (req, res, next) => {
+  req.url = `/trigger/${req.params.tokenId}/pixel.gif`;
+  (canaryRouter as any).handle(req, res, next);
+});
 
 // Node auto-provision — PSK protected, public (no Clerk)
 router.use("/node-provision", nodeProvisionRouter);
@@ -280,8 +295,13 @@ router.use("/http-probe",      requireCommandCenter, httpProbeRouter);
 router.use("/dir-fuzzer",      requireCommandCenter, dirFuzzerRouter);
 router.use("/subdomain-scan",  requireCommandCenter, subdomainScanRouter);
 router.use("/intruder",        requireCommandCenter, intruderRouter);
-router.use("/ghost-trace",    requireCommandCenter, ghostTraceRouter);
-router.use("/attack-chain",   requireCommandCenter, attackChainRouter);
+router.use("/ghost-trace",      requireCommandCenter, ghostTraceRouter);
+router.use("/attack-chain",    requireCommandCenter, attackChainRouter);
+router.use("/network-monitor", requireAccess,        networkMonitorRouter);
+router.use("/dns-sinkhole",    requireAccess,        dnsSinkholeRouter);
+router.use("/siem",            requireCommandCenter, siemRouter);
+router.use("/osint",           requireCommandCenter, osintRouter);
+router.use("/canary",          requireCommandCenter, canaryRouter);
 
 // ── Admin-only routes ─────────────────────────────────────────────────────
 router.use("/employees",      requireAdmin, employeesRouter);

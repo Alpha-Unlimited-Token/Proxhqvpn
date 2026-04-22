@@ -11,7 +11,7 @@ import {
   Zap, Settings, Cpu, Router, ScanSearch, Layers, FileText, Users,
   Send, FolderSearch, Radar, Award, BarChart2,
   Code2, GitCompare, Swords, Bug, Eye, BookMarked,
-  GitMerge,
+  GitMerge, Ban, Bell, Fingerprint,
 } from "lucide-react";
 import { useAccess } from "@/hooks/useAccess";
 
@@ -69,6 +69,11 @@ const PAGE_NAMES: Record<string, string> = {
   "/handbook/employee":    "Employee Handbook",
   "/ghost-trace":          "Ghost Trace",
   "/ghost-chain":          "Ghost Chain",
+  "/network-monitor":      "Network Monitor",
+  "/dns-sinkhole":         "DNS Sinkhole",
+  "/siem":                 "Security Event Log",
+  "/osint":                "OSINT Recon",
+  "/canary":               "Canary Tokens",
 };
 
 const USER_NAV = [
@@ -84,6 +89,7 @@ const PROTECTION_NAV = [
   { href: "/kill-switch",        label: "Kill Switch",         icon: Power },
   { href: "/leaks",              label: "Leak Test",           icon: Search },
   { href: "/dns-shield",         label: "DNS Protection",      icon: ShieldPlus },
+  { href: "/dns-sinkhole",       label: "DNS Sinkhole",        icon: Ban },
   { href: "/threat-protection",  label: "Threat Protection",   icon: ShieldAlert },
   { href: "/obfuscation",        label: "Stealth Protocol",    icon: EyeOff },
   { href: "/ip-exposure",        label: "IP Exposure Scan",    icon: Eye },
@@ -91,10 +97,11 @@ const PROTECTION_NAV = [
 ];
 
 const NETWORK_NAV = [
-  { href: "/vpngate",       label: "VPN Gate",        icon: Globe },
-  { href: "/split-tunnel",  label: "Split Tunneling", icon: GitBranch },
-  { href: "/proxy",         label: "Proxy & Tor",     icon: Globe2 },
-  { href: "/onion-browser", label: "Onion Browser",   icon: Onion },
+  { href: "/vpngate",          label: "VPN Gate",          icon: Globe },
+  { href: "/split-tunnel",     label: "Split Tunneling",   icon: GitBranch },
+  { href: "/proxy",            label: "Proxy & Tor",       icon: Globe2 },
+  { href: "/onion-browser",    label: "Onion Browser",     icon: Onion },
+  { href: "/network-monitor",  label: "Network Monitor",   icon: Activity },
 ];
 
 const ADVANCED_NAV = [
@@ -113,6 +120,9 @@ const ADVANCED_NAV = [
   { href: "/payloads",      label: "Payload Generator",     icon: Bug },
   { href: "/cve-search",    label: "CVE Lookup",            icon: ShieldAlert },
   { href: "/ghost-chain",   label: "Ghost Chain",           icon: GitMerge },
+  { href: "/siem",          label: "Security Event Log",    icon: Database },
+  { href: "/osint",         label: "OSINT Recon",           icon: Fingerprint },
+  { href: "/canary",        label: "Canary Tokens",         icon: Bell },
 ];
 
 const AMBASSADOR_NAV = [

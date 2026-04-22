@@ -11,3 +11,5 @@ export * from "./vpngate";
 export * from "./ambassadors";
 export * from "./ghosttrace";
 export * from "./attackchain";
+export * from "./sinkhole";
+export * from "./canary";

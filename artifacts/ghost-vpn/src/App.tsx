@@ -85,6 +85,11 @@ import AmbassadorHandbook from "@/pages/AmbassadorHandbook";
 import EmployeeHandbook from "@/pages/EmployeeHandbook";
 import GhostTrace from "@/pages/GhostTrace";
 import GhostChain from "@/pages/GhostChain";
+import NetworkMonitor from "@/pages/NetworkMonitor";
+import DnsSinkhole from "@/pages/DnsSinkhole";
+import Siem from "@/pages/Siem";
+import OsintRecon from "@/pages/OsintRecon";
+import CanaryTokens from "@/pages/CanaryTokens";
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
@@ -474,6 +479,21 @@ function AppRoutes() {
           </Route>
           <Route path="/ghost-chain">
             <CcLayout><GhostChain /></CcLayout>
+          </Route>
+          <Route path="/network-monitor">
+            <ToolLayout><NetworkMonitor /></ToolLayout>
+          </Route>
+          <Route path="/dns-sinkhole">
+            <ToolLayout><DnsSinkhole /></ToolLayout>
+          </Route>
+          <Route path="/siem">
+            <CcLayout><Siem /></CcLayout>
+          </Route>
+          <Route path="/osint">
+            <CcLayout><OsintRecon /></CcLayout>
+          </Route>
+          <Route path="/canary">
+            <CcLayout><CanaryTokens /></CcLayout>
           </Route>
 
           {/* ── Admin-only — gated on backend; frontend shows paywall for non-admins ── */}
