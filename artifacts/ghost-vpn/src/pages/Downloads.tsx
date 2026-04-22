@@ -754,25 +754,109 @@ export default function Downloads() {
 const QUICK_START_TXT = `ProxhqVPN — Quick Start Guide
 ==============================
 ALPHA UNLIMITED TECHNOLOGIES LLC | https://proxhqvpn.com
+Version 4.0 | Updated 2025
 
-1. Sign in at https://proxhqvpn.com/sign-in (or create an account)
-2. Subscribe to VPN Basic ($6.99/mo) or Command Center Pro ($39.99/mo) at /pricing
-3. Go to ProxhqVPN → WireGuard Config (/wireguard)
-4. Click "Generate" to create your personal encrypted keypair
-5. Click "Download .conf" (or "Show QR Code" on mobile)
-6. Install WireGuard for your device (see platform-specific README.txt)
-7. Import the .conf into WireGuard (or scan the QR)
-8. Toggle ON — VPN key icon appears, you're protected
-9. Verify: visit https://api64.ipify.org — shows ProxhqVPN server IP
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 1 — CREATE YOUR ACCOUNT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Visit: https://proxhqvpn.com/sign-in
+  Sign up with email or use Google / GitHub SSO.
 
-SUPPORT: support@proxhqvpn.com | Full guide: https://proxhqvpn.com/guide
+STEP 2 — CHOOSE A PLAN
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  VPN Basic:           $6.99/mo or $59.99/yr
+  Command Center Pro:  $39.99/mo or $349.99/yr
+  Subscribe at: https://proxhqvpn.com/pricing
+  Use an Ambassador promo code at checkout for a 10% discount.
+
+STEP 3 — GENERATE YOUR WIREGUARD CONFIG
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Sign in → WireGuard Config (/wireguard) → click "Generate"
+  Download the .conf file (desktop) or show QR code (mobile/TV)
+
+STEP 4 — INSTALL WIREGUARD ON YOUR DEVICE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  See your platform-specific README.txt in this bundle for
+  exact install instructions for your operating system.
+  All platform downloads: https://proxhqvpn.com/downloads
+
+STEP 5 — IMPORT YOUR CONFIG & CONNECT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Desktop: Import the .conf file into WireGuard → Activate
+  Mobile:  Scan the QR code in the WireGuard app → Toggle ON
+  Router:  Paste the generated config block → restart network
+
+STEP 6 — VERIFY YOU'RE PROTECTED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Visit: https://api64.ipify.org
+  The IP shown must be a ProxhqVPN server IP, not your real IP.
+  Run a full leak test at: https://proxhqvpn.com/leaks
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+WHAT'S NEW IN VERSION 4.0
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ★ Exploit Importer — Instructions Tab
+    Every detected vulnerability now includes a complete
+    step-by-step exploitation guide: tools required (with
+    exact install commands), prerequisites, numbered attack
+    walkthrough, how to verify, and corrected code remediation.
+
+  ★ 24 Built-In Vulnerability Guides
+    SQLi, XSS, RCE, LFI, SSRF, XXE, IDOR, CSRF, JWT attacks,
+    Deserialization, SSTI, CORS misconfig, Auth Bypass, .env/.git
+    Exposure, Missing Headers, No Rate Limiting, Hardcoded Secrets,
+    Buffer Overflow, Mass Assignment, Weak TLS, Spring Actuator,
+    Open Redirect, Default Credentials, GraphQL Security.
+
+  ★ Download Full Report Button
+    Export a complete .md pentest report from any Exploit Importer
+    scan — every finding, full guide, PoC code, and remediation.
+    Ready to share with clients or teams.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SUPPORT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Email:     support@proxhqvpn.com
+  Full guide: https://proxhqvpn.com/guide
+  Downloads:  https://proxhqvpn.com/downloads
+  Pricing:    https://proxhqvpn.com/pricing
 `;
 
 const USER_GUIDE_TXT = `ProxhqVPN — Full User Guide
 ============================
 ALPHA UNLIMITED TECHNOLOGIES LLC
 https://proxhqvpn.com | support@proxhqvpn.com
-Version 3.0
+Version 4.0 | Updated 2025
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+WHAT'S NEW IN VERSION 4.0
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+★ Exploit Importer — Instructions Tab
+  Each detected vulnerability now opens a complete exploitation
+  guide covering tools required (with exact install commands for
+  all OS), prerequisites, numbered step-by-step attack walkthrough,
+  how to verify the exploit, corrected code remediation examples,
+  and curated reference links (PortSwigger, OWASP, NVD).
+
+★ 24 Built-In Vulnerability Guides
+  SQL Injection, XSS (reflected/stored/DOM), RCE, LFI, SSRF, XXE,
+  IDOR, CSRF, JWT Vulnerabilities, Deserialization, SSTI, CORS
+  Misconfiguration, Auth Bypass, .env/.git Exposure, Missing Security
+  Headers, No Rate Limiting, Hardcoded Secrets, Buffer Overflow, Mass
+  Assignment, Weak TLS, Spring Actuator Exposure, Open Redirect,
+  Default Credentials, GraphQL Security, CVE-Based Exploits.
+
+★ Download Full Report
+  The green "Download Full Report" button in Exploit Importer exports
+  a complete Markdown (.md) pentest report covering every finding:
+  full guide, PoC code, remediation, and reference links. Ready to
+  share with clients or security teams.
+
+★ Three-Tab Result Cards
+  Every Exploit Importer finding now has three tabs:
+    [Details]      — raw evidence, CVE ID, severity badge
+    [Instructions] — complete step-by-step exploitation guide
+    [Exploit Code] — ready-to-run PoC code (Python/Bash/SQL/JS/XML)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 PLAN OVERVIEW
@@ -1065,265 +1149,702 @@ Downloads:  https://proxhqvpn.com/downloads
 
 // Platform-specific README content keyed by platform ID
 const README_CONTENT: Record<string, string> = {
-  windows: `ProxhqVPN — Windows Setup README
+  windows: `ProxhqVPN — Windows Setup & User Guide
 ========================================
 ALPHA UNLIMITED TECHNOLOGIES LLC
-https://proxhqvpn.com
+https://proxhqvpn.com | support@proxhqvpn.com
+Version 4.0 | Updated 2025
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 REQUIREMENTS
-- Windows 10 or 11 (64-bit)
-- WireGuard for Windows
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  - Windows 10 or Windows 11 (64-bit)
+  - WireGuard for Windows (free, open source)
+  - A ProxhqVPN account (proxhqvpn.com/sign-in)
 
-STEP 1 — Install WireGuard
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 1 — INSTALL WIREGUARD FOR WINDOWS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   Download: https://download.wireguard.com/windows-client/wireguard-installer.exe
-  Run the installer with default settings. WireGuard installs as a Windows service.
+  1. Run the .exe installer (click "Yes" at the UAC prompt)
+  2. WireGuard installs as a Windows Service — no reboot needed
+  3. The WireGuard tray icon appears in the system notification area
 
-STEP 2 — Get Your Config File
-  1. Sign in to ProxhqVPN → WireGuard Config (proxhqvpn.com/wireguard)
-  2. Click "Generate" to create your personal keypair
-  3. Click "Download .conf" to save your configuration file
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 2 — GENERATE YOUR CONFIG FILE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  1. Sign in at https://proxhqvpn.com/sign-in
+  2. Navigate to WireGuard Config (/wireguard)
+  3. Click "Generate" — your private/public keypair is created
+     (your private key is generated in your browser; the server
+      only stores your public key — maximum privacy)
+  4. Click "Download .conf" to save your proxhq.conf file
 
-STEP 3 — Import & Connect
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 3 — IMPORT THE CONFIG & CONNECT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   1. Open WireGuard
-  2. Click the arrow next to "Add Tunnel" → "Import tunnel(s) from file"
-  3. Select the .conf file you downloaded
-  4. Click "Activate" — the status indicator turns green
+  2. Click the drop-down arrow next to "Add Tunnel"
+  3. Select "Import tunnel(s) from file"
+  4. Browse to your downloaded proxhq.conf file
+  5. The tunnel "proxhq" appears in the list
+  6. Click "Activate" — the indicator turns green
+     Your Windows taskbar shows the WireGuard tunnel icon
 
-STEP 4 — Verify Connection
-  Open Command Prompt and run:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 4 — VERIFY YOUR CONNECTION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Open Command Prompt (Win + R → cmd) and run:
     curl https://api64.ipify.org
-  The IP shown should be your ProxhqVPN server IP, not your real IP.
+  The IP address shown must be a ProxhqVPN server IP, NOT your real IP.
+  Run a full leak test at: https://proxhqvpn.com/leaks
 
-OPTIONAL — Kill Switch
-  ProxhqVPN → Kill Switch (/kill-switch)
-  Enable to block all traffic if the VPN drops unexpectedly.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+WINDOWS-SPECIFIC FEATURES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Kill Switch (/kill-switch):
+    ProxhqVPN generates Windows netsh firewall rules that block
+    ALL internet traffic if the VPN drops. Prevents IP leaks.
+    Three modes: Strict / Allow LAN / Custom CIDR whitelist.
 
+  Split Tunneling (/split-tunnel):
+    Route only specific apps or IPs through the VPN.
+    ProxhqVPN generates Windows "route add" commands for your config.
+    Useful for keeping gaming UDP ports on your direct connection.
+
+  DNS Shield (/dns-shield):
+    Use ProxhqVPN's encrypted DNS-over-HTTPS to block ads, trackers,
+    and malware domains. Add the DNS line to your .conf file:
+      DNS = 1.1.1.1, 1.0.0.1
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+WHAT'S NEW IN VERSION 4.0
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Exploit Importer (/exploit-import) — Command Center Pro:
+  Upload scan reports (Nessus, Burp Suite, Nikto, ZAP, OpenVAS)
+  and get structured findings with three tabs per result:
+    [Details]      Evidence, CVE ID, severity
+    [Instructions] Full step-by-step exploitation guide with
+                   tool install commands and remediation code
+    [Exploit Code] Ready-to-run PoC attack code
+  Click "Download Full Report" to export a complete .md report.
+  24 built-in vulnerability guides cover SQLi, XSS, RCE, LFI,
+  SSRF, XXE, IDOR, JWT attacks, SSTI, CORS, and more.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 SUPPORT
-  Email: support@proxhqvpn.com
-  Guide: https://proxhqvpn.com/guide
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Email:      support@proxhqvpn.com
+  Full guide: https://proxhqvpn.com/guide
+  Downloads:  https://proxhqvpn.com/downloads
 `,
-  mac: `ProxhqVPN — macOS Setup README
+  mac: `ProxhqVPN — macOS Setup & User Guide
 ========================================
 ALPHA UNLIMITED TECHNOLOGIES LLC
-https://proxhqvpn.com
+https://proxhqvpn.com | support@proxhqvpn.com
+Version 4.0 | Updated 2025
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 REQUIREMENTS
-- macOS 12 (Monterey) or later
-- WireGuard from the Mac App Store
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  - macOS 12 Monterey or later (Intel or Apple Silicon)
+  - WireGuard from the Mac App Store (free)
+  - A ProxhqVPN account (proxhqvpn.com/sign-in)
 
-STEP 1 — Install WireGuard
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 1 — INSTALL WIREGUARD FOR MACOS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   Mac App Store: https://apps.apple.com/us/app/wireguard/id1451685025
-  Click "Get" → install as usual.
+  Click "Get" → install with your Apple ID as normal.
+  WireGuard appears in your Applications folder and menu bar.
 
-STEP 2 — Get Your Config File
-  1. Sign in to ProxhqVPN → WireGuard Config
-  2. Click "Generate" → "Download .conf"
+  Alternatively via Homebrew (for CLI usage):
+    brew install wireguard-tools
 
-STEP 3 — Import & Connect
-  1. Open WireGuard
-  2. Click "Import tunnel(s) from file" and select the .conf
-  3. Allow VPN configuration when prompted by macOS System Settings
-  4. Toggle the tunnel ON — status turns Active
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 2 — GENERATE YOUR CONFIG FILE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  1. Sign in at https://proxhqvpn.com/sign-in
+  2. Navigate to WireGuard Config (/wireguard)
+  3. Click "Generate" — keypair created in-browser
+  4. Click "Download .conf" → save proxhq.conf
 
-STEP 4 — Verify
-  Terminal: curl https://api64.ipify.org
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 3 — IMPORT & CONNECT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  App Store WireGuard:
+    1. Open WireGuard → click "Import tunnel(s) from file"
+    2. Select your proxhq.conf
+    3. macOS shows a VPN configuration prompt — click "Allow"
+    4. Go to System Settings → VPN → allow ProxhqVPN if needed
+    5. Toggle the tunnel ON in WireGuard — status shows "Active"
 
+  CLI (Homebrew):
+    sudo cp proxhq.conf /etc/wireguard/proxhq.conf
+    sudo wg-quick up proxhq
+    sudo wg-quick down proxhq   # to disconnect
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 4 — VERIFY YOUR CONNECTION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Open Terminal and run:
+    curl https://api64.ipify.org
+  Must show a ProxhqVPN server IP, not your home IP.
+  Full leak test: https://proxhqvpn.com/leaks
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MACOS-SPECIFIC FEATURES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Kill Switch (/kill-switch):
+    ProxhqVPN generates pf (Packet Filter) firewall rules for macOS.
+    Paste into /etc/pf.conf — blocks all non-VPN traffic on drop.
+
+  Split Tunneling (/split-tunnel):
+    ProxhqVPN generates macOS route commands for per-IP bypass rules.
+
+  DNS Shield: Set DNS = 1.1.1.1 in your .conf for encrypted DNS.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+WHAT'S NEW IN VERSION 4.0
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Exploit Importer — 24 built-in vulnerability guides, three-tab
+  result cards (Details / Instructions / Exploit Code), and the
+  Download Full Report button for complete .md pentest reports.
+  Command Center Pro only. Full guide: https://proxhqvpn.com/guide
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 SUPPORT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   Email: support@proxhqvpn.com | Guide: https://proxhqvpn.com/guide
 `,
-  linux: `ProxhqVPN — Linux Setup README
+  linux: `ProxhqVPN — Linux Setup & User Guide
 ========================================
 ALPHA UNLIMITED TECHNOLOGIES LLC
-https://proxhqvpn.com
+https://proxhqvpn.com | support@proxhqvpn.com
+Version 4.0 | Updated 2025
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 REQUIREMENTS
-- Ubuntu 20.04+ / Debian 11+ / Fedora 36+ / Arch Linux
-- WireGuard kernel module (included in mainline kernel ≥5.6)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  - Ubuntu 20.04+ / Debian 11+ / Fedora 36+ / Arch / Alpine / Kali
+  - WireGuard kernel module (built into Linux kernel ≥5.6)
+  - wireguard-tools package
 
-STEP 1 — Install WireGuard Tools
-  Ubuntu/Debian:  sudo apt install wireguard wireguard-tools
-  Fedora:         sudo dnf install wireguard-tools
-  Arch:           sudo pacman -S wireguard-tools
-  Alpine:         apk add wireguard-tools
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 1 — INSTALL WIREGUARD TOOLS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Ubuntu / Debian / Kali:
+    sudo apt update && sudo apt install wireguard wireguard-tools -y
 
-STEP 2 — Get Your Config
-  1. Sign in to ProxhqVPN → WireGuard Config
-  2. Click "Generate" → "Copy Config"
-  3. Paste into: sudo nano /etc/wireguard/proxhq.conf
+  Fedora / RHEL 9+:
+    sudo dnf install wireguard-tools -y
 
-STEP 3 — Connect
-  Start:    sudo wg-quick up proxhq
-  Stop:     sudo wg-quick down proxhq
-  Status:   sudo wg show
-  Auto-start: sudo systemctl enable wg-quick@proxhq
+  Arch Linux / Manjaro:
+    sudo pacman -S wireguard-tools
 
-STEP 4 — Verify
+  Alpine Linux:
+    apk add wireguard-tools
+
+  Raspberry Pi OS (Raspbian):
+    sudo apt update && sudo apt install wireguard -y
+
+  Verify: which wg-quick   # should return /usr/bin/wg-quick
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 2 — GENERATE YOUR CONFIG
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  1. Sign in at https://proxhqvpn.com/sign-in
+  2. Navigate to WireGuard Config (/wireguard)
+  3. Click "Generate" → "Copy Config"
+  4. Paste into your config file:
+       sudo nano /etc/wireguard/proxhq.conf
+     (or use the Download .conf button and copy it over)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 3 — CONNECT & MANAGE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Start VPN:        sudo wg-quick up proxhq
+  Stop VPN:         sudo wg-quick down proxhq
+  Check status:     sudo wg show
+  View interface:   ip a show wg0
+
+  Enable at boot (systemd):
+    sudo systemctl enable wg-quick@proxhq
+    sudo systemctl start wg-quick@proxhq
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 4 — VERIFY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   curl https://api64.ipify.org
+  Should show ProxhqVPN server IP, not your real IP.
+  Full leak test: https://proxhqvpn.com/leaks
 
-OPTIONAL — DNS Shield
-  Edit your config and set DNS = 1.1.1.1 or use ProxhqVPN's encrypted DNS.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+LINUX-SPECIFIC FEATURES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Kill Switch — iptables:
+    ProxhqVPN (/kill-switch) generates PostUp/PreDown iptables rules.
+    Add them to your [Interface] block in proxhq.conf:
+      PostUp   = iptables -I OUTPUT ! -o wg0 -m mark ! --mark $(wg show wg0 fwmark) -m addrtype ! --dst-type LOCAL -j REJECT
+      PreDown  = iptables -D OUTPUT ! -o wg0 -m mark ! --mark $(wg show wg0 fwmark) -m addrtype ! --dst-type LOCAL -j REJECT
 
+  Kill Switch — nftables (modern systems):
+    ProxhqVPN generates equivalent nftables ruleset via /kill-switch.
+
+  Split Tunneling (/split-tunnel):
+    ProxhqVPN generates "ip rule" and "ip route" commands for
+    per-IP or per-port VPN bypass on Linux.
+
+  DNS Shield:
+    Add to your [Interface] block: DNS = 1.1.1.1, 1.0.0.1
+    Or use systemd-resolved for persistent encrypted DNS.
+
+  Chromebook / Raspberry Pi:
+    These platforms use the Linux instructions above.
+    Raspberry Pi: tested on Raspberry Pi OS Bullseye (64-bit).
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+WHAT'S NEW IN VERSION 4.0
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Exploit Importer — 24 built-in vulnerability guides, three-tab
+  result cards (Details / Instructions / Exploit Code), and the
+  Download Full Report button for complete .md pentest reports.
+  Ideal for security researchers, red teamers, and bug bounty hunters
+  running Kali Linux. Command Center Pro only.
+  Full guide: https://proxhqvpn.com/guide
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 SUPPORT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   Email: support@proxhqvpn.com | Guide: https://proxhqvpn.com/guide
 `,
-  android: `ProxhqVPN — Android Setup README
+  android: `ProxhqVPN — Android Setup & User Guide
 ========================================
 ALPHA UNLIMITED TECHNOLOGIES LLC
-https://proxhqvpn.com
+https://proxhqvpn.com | support@proxhqvpn.com
+Version 4.0 | Updated 2025
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 REQUIREMENTS
-- Android 8.0+ (API level 26+)
-- WireGuard for Android
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  - Android 8.0 (Oreo) or later, API level 26+
+  - Works on phones, tablets, Android TV, and Nvidia Shield
 
-STEP 1 — Install WireGuard
-  Option A: Google Play Store
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 1 — INSTALL WIREGUARD FOR ANDROID
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Option A — Google Play Store (recommended):
     https://play.google.com/store/apps/details?id=com.wireguard.android
-  Option B: Direct APK (for devices without Play Store)
+    Search "WireGuard" → install the official app (by WireGuard LLC)
+
+  Option B — Direct APK (no Play Store needed):
     https://download.wireguard.com/android-client/com.wireguard.android-apk-latest.apk
-    Enable "Install from unknown sources" in Settings → Security
+    Before installing: Settings → Security → Install unknown apps → ON
+    Tap the downloaded APK → Install → Open
 
-STEP 2 — Get Your Config
-  1. Sign in to ProxhqVPN → WireGuard Config
-  2. Click "Generate" → "Show QR Code"
-  3. On your Android: WireGuard → + → "Scan from QR code"
-  4. Scan the QR — tunnel is imported automatically
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 2 — GET YOUR CONFIG (QR CODE METHOD)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  1. On a desktop/laptop: sign in to proxhqvpn.com
+  2. Navigate to WireGuard Config (/wireguard)
+  3. Click "Generate" → "Show QR Code"
+  4. On your Android: open WireGuard → tap the blue "+" button
+  5. Choose "Scan from QR code"
+  6. Point your camera at the QR code on your screen
+  7. The tunnel is imported with name "proxhq"
 
-STEP 3 — Connect
-  Tap the tunnel name → toggle ON. Android shows the VPN key icon in the status bar.
+  Alternatively — File Import:
+  Download the .conf file → copy to phone → WireGuard → + →
+  "Import from file" → browse to proxhq.conf
 
-STEP 4 — Verify
-  Visit https://api64.ipify.org in Chrome — should show ProxhqVPN server IP.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 3 — CONNECT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Tap the tunnel name "proxhq" → tap the toggle switch to ON
+  Android shows a VPN key icon in the status bar = connected
+  First use: Android asks to allow a VPN connection → tap "OK"
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 4 — VERIFY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Open Chrome → visit https://api64.ipify.org
+  Must show a ProxhqVPN server IP, not your mobile carrier IP.
+  Full leak test: https://proxhqvpn.com/leaks
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ANDROID TV / NVIDIA SHIELD
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Android TV and Nvidia Shield run full Android — the Play Store
+  WireGuard app installs and works the same way. Use a mouse or
+  connect your phone as a remote for QR code scanning.
+  Alternatively, use ADB to push the .conf file and import it.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+WHAT'S NEW IN VERSION 4.0
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Exploit Importer — 24 built-in vulnerability guides, three-tab
+  result cards (Details / Instructions / Exploit Code), and the
+  Download Full Report button for complete .md pentest reports.
+  Access from the ProxhqVPN mobile browser at proxhqvpn.com.
+  Command Center Pro only.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 SUPPORT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   Email: support@proxhqvpn.com | Guide: https://proxhqvpn.com/guide
 `,
-  ios: `ProxhqVPN — iOS / iPadOS Setup README
-========================================
+  ios: `ProxhqVPN — iOS & iPadOS Setup & User Guide
+============================================
 ALPHA UNLIMITED TECHNOLOGIES LLC
-https://proxhqvpn.com
+https://proxhqvpn.com | support@proxhqvpn.com
+Version 4.0 | Updated 2025
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 REQUIREMENTS
-- iPhone or iPad running iOS/iPadOS 15+
-- WireGuard from the App Store
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  - iPhone or iPad running iOS / iPadOS 15.0 or later
+  - WireGuard from the App Store (free, developed by WireGuard LLC)
 
-STEP 1 — Install WireGuard
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 1 — INSTALL WIREGUARD
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   App Store: https://apps.apple.com/us/app/wireguard/id1441195209
+  Search "WireGuard" → install the official app
+  No sign-in required for the WireGuard app itself
 
-STEP 2 — Get Your Config
-  1. Sign in to ProxhqVPN → WireGuard Config
-  2. Click "Generate" → "Show QR Code"
-  3. In WireGuard app: tap + → "Create from QR code"
-  4. Point your camera at the QR code
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 2 — GENERATE YOUR CONFIG (QR METHOD)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  1. On a desktop/laptop: sign in to proxhqvpn.com
+  2. Navigate to WireGuard Config (/wireguard)
+  3. Click "Generate" → "Show QR Code"
+  4. On your iPhone/iPad: open WireGuard → tap the "+" button
+  5. Choose "Create from QR code"
+  6. Point your camera at the QR code on your screen
+  7. Name the tunnel "ProxhqVPN" → tap "Save"
 
-STEP 3 — Connect
-  Allow VPN configuration when iOS prompts. Tap the tunnel → toggle ON.
-  The VPN key icon appears in the iOS status bar.
+  Alternatively — File Import:
+  Download the .conf file → share it to WireGuard via iOS Share Sheet
 
-STEP 4 — Verify
-  Safari: visit https://api64.ipify.org — should show ProxhqVPN server IP.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 3 — CONNECT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  1. iOS will ask to add a VPN configuration — tap "Allow"
+  2. Toggle the tunnel ON in WireGuard
+  3. The VPN key icon (🔑) appears in the iOS status bar = connected
+  4. You can also toggle from Settings → VPN
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 4 — VERIFY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Open Safari → visit https://api64.ipify.org
+  Must show ProxhqVPN server IP, not your carrier's IP.
+  Full leak test: https://proxhqvpn.com/leaks
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+iOS-SPECIFIC TIPS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  On-Demand Connect:
+    In WireGuard, tap your tunnel → "On-Demand" → enable for
+    Wi-Fi and/or Cellular. The VPN reconnects automatically.
+
+  Personal Hotspot Sharing:
+    Enable VPN on your iPhone, then share via Personal Hotspot.
+    Devices connected to the hotspot (Apple TV, laptop) tunnel
+    all traffic through ProxhqVPN automatically.
+
+  iPhone as Router for Apple TV:
+    This is the recommended way to protect Apple TV with ProxhqVPN.
+    iPhone → VPN ON → Personal Hotspot ON → Apple TV connects to hotspot.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+WHAT'S NEW IN VERSION 4.0
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Exploit Importer — 24 built-in vulnerability guides, three-tab
+  result cards (Details / Instructions / Exploit Code), and the
+  Download Full Report button for complete .md pentest reports.
+  Access at proxhqvpn.com in Safari. Command Center Pro only.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 SUPPORT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   Email: support@proxhqvpn.com | Guide: https://proxhqvpn.com/guide
 `,
-  fire: `ProxhqVPN — Amazon Fire Stick / Fire TV README
-========================================
+  fire: `ProxhqVPN — Amazon Fire Stick & Fire TV Setup Guide
+====================================================
 ALPHA UNLIMITED TECHNOLOGIES LLC
-https://proxhqvpn.com
+https://proxhqvpn.com | support@proxhqvpn.com
+Version 4.0 | Updated 2025
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 REQUIREMENTS
-- Fire Stick (any generation) or Fire TV
-- Downloader app (free on Amazon App Store)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  - Amazon Fire Stick (any generation: Lite, 4K, 4K Max, 4K Plus)
+  - Amazon Fire TV Cube or Fire TV Stick
+  - The "Downloader" app (free on Amazon App Store)
 
-STEP 1 — Enable Apps from Unknown Sources
-  Fire Stick Settings → My Fire TV → Developer Options → Apps from Unknown Sources → ON
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 1 — ENABLE APPS FROM UNKNOWN SOURCES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  On your Fire Stick remote, navigate to:
+    Settings → My Fire TV → Developer Options
+    → Apps from Unknown Sources → ON
+  If "Developer Options" is not visible:
+    Settings → My Fire TV → About → click "Build" 7 times rapidly
+    then go back and Developer Options will appear.
 
-STEP 2 — Install Downloader
-  Fire Stick → Find → Search → "Downloader" → Install
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 2 — INSTALL THE DOWNLOADER APP
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Fire Stick Home → Find → Search → type "Downloader"
+  Install the app by AFTVnews (orange icon)
+  Open Downloader and allow storage permissions when prompted
 
-STEP 3 — Download WireGuard APK
-  Open Downloader → enter URL:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 3 — DOWNLOAD & INSTALL WIREGUARD APK
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Open Downloader → tap the URL bar → enter this URL exactly:
     https://download.wireguard.com/android-client/com.wireguard.android-apk-latest.apk
-  Tap "Go" → Download → Install → Done
+  Tap "Go" → the APK downloads automatically
+  When complete: tap "Install" → tap "Done" (not "Open" yet)
+  Tap "Delete" to remove the APK file (saves storage space)
 
-STEP 4 — Get Your Config
-  On a phone/computer: sign in to ProxhqVPN → WireGuard Config → "Show QR Code"
-  In WireGuard on Fire Stick: tap + → Scan QR Code
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 4 — GET YOUR WIREGUARD CONFIG
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  On a phone or computer:
+    1. Sign in at https://proxhqvpn.com/sign-in
+    2. Navigate to WireGuard Config (/wireguard)
+    3. Click "Generate" → "Show QR Code"
+    4. Leave this screen open (you'll scan it in Step 5)
 
-STEP 5 — Connect
-  Tap the tunnel name → toggle Active. VPN key icon appears at top of screen.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 5 — IMPORT CONFIG & CONNECT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Find WireGuard in your Fire Stick apps:
+    Home → Apps → Your Apps & Channels → WireGuard
+    (or use Downloader: URL bar → type "wireguard" → Find)
+  Open WireGuard → tap the blue "+" button (use D-pad + OK)
+  Choose "Scan from QR code"
+  Point your Fire Stick camera at the QR code on your phone/computer
+  Tap "Create Tunnel" → name it "ProxhqVPN"
+  Toggle the tunnel ON → VPN key icon appears at the top of the screen
 
-TIP
-  Connect your Fire Stick remote → navigate WireGuard using the D-pad.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 6 — VERIFY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Open Silk Browser → visit https://api64.ipify.org
+  Must show ProxhqVPN server IP, not your home IP.
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIRE STICK TIPS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  D-Pad Navigation: Use the directional pad + OK button to navigate
+    the WireGuard app. Long-press OK to access context menus.
+
+  Auto-Start: WireGuard does not auto-start on Fire Stick boot.
+    Add WireGuard to your favorites and toggle ON each session,
+    OR use your router as the VPN instead (see Router README).
+
+  No Camera? Use a USB keyboard + mouse (OTG adapter) to navigate
+    to WireGuard → Import from file, and copy the .conf via USB.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+WHAT'S NEW IN VERSION 4.0
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Exploit Importer — 24 built-in vulnerability guides with
+  step-by-step attack walkthroughs and downloadable .md reports.
+  Command Center Pro. Access at proxhqvpn.com in Silk Browser.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 SUPPORT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   Email: support@proxhqvpn.com | Guide: https://proxhqvpn.com/guide
 `,
-  router: `ProxhqVPN — Router Setup README
+  router: `ProxhqVPN — Router Setup & User Guide
 ========================================
 ALPHA UNLIMITED TECHNOLOGIES LLC
-https://proxhqvpn.com
+https://proxhqvpn.com | support@proxhqvpn.com
+Version 4.0 | Updated 2025
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+WHY USE A ROUTER?
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Installing ProxhqVPN on your router protects EVERY device on
+  your network automatically — Smart TVs, gaming consoles, phones,
+  tablets, smart home devices, laptops — without installing any app
+  on each device. One setup, whole-home VPN coverage.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 SUPPORTED FIRMWARE
-  - OpenWRT (recommended)
-  - DD-WRT
-  - AsusWRT-Merlin
-  - pfSense / OPNsense
-  - GL.iNet (native WireGuard support)
-  - Ubiquiti EdgeOS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  - OpenWRT (recommended — best control and kill switch support)
+  - DD-WRT (for older routers)
+  - AsusWRT-Merlin (for Asus routers)
+  - pfSense / OPNsense (for advanced/enterprise routers)
+  - GL.iNet (plug-and-play, native WireGuard support)
+  - Ubiquiti EdgeOS (EdgeRouter series)
 
-WHY USE ROUTER SETUP?
-  Protects every device on your network (TVs, consoles, phones, smart home)
-  without installing any app on each device.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 1 — GENERATE YOUR ROUTER CONFIG
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Sign in → Router Config (/router-config)
+  Select your router firmware from the dropdown.
+  Your LAN IP is auto-detected and embedded in the kill switch rules.
+  Click "Generate" → copy the full config block.
 
-STEP 1 — Generate Router Config
-  Sign in to ProxhqVPN → Router Config (/router-config)
-  Select your firmware → your safe LAN IP is auto-detected and embedded in kill switch rules.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+OPENWRT INSTALLATION (RECOMMENDED)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  SSH into your router as root:
+    ssh root@192.168.1.1
 
-STEP 2 — OpenWRT Quick Install
-  SSH into your router as root, then run:
+  Install WireGuard packages:
     opkg update
     opkg install wireguard-tools kmod-wireguard luci-proto-wireguard
-    
-  Paste the generated config block into /etc/config/network
-  Then: /etc/init.d/network restart
 
-STEP 3 — GL.iNet (Simplest Option)
-  GL.iNet routers have native WireGuard support.
-  Admin Panel → VPN → WireGuard Client → Add Profile → paste config → Connect
+  Create and paste your config:
+    nano /etc/config/network
+    (paste the ProxhqVPN generated [interface] and [peer] block)
 
-STEP 4 — Verify
-  From any device on your network:
+  Restart networking:
+    /etc/init.d/network restart
+
+  Verify from a connected device:
     curl https://api64.ipify.org
-  IP should show ProxhqVPN server address.
 
+  Enable LuCI WireGuard UI (optional):
+    opkg install luci-proto-wireguard luci-app-wireguard
+    Reboot → Network → Interfaces → WireGuard visible in LuCI
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+GL.INET (EASIEST — PLUG AND PLAY)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  GL.iNet routers (GL-MT3000, GL-AXT1800, GL-AX1800, etc.) have
+  native WireGuard client support built in:
+    1. Admin Panel (192.168.8.1) → VPN → WireGuard Client
+    2. Add Profile → paste the generated config → Save
+    3. Toggle WireGuard ON → connected
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PFSENSE / OPNSENSE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  pfSense: Install the WireGuard package via Package Manager.
+  OPNsense: WireGuard is built in (Plugins → os-wireguard).
+  Use the ProxhqVPN generated [Interface] and [Peer] values
+  to fill in the GUI fields for key, endpoint, and allowed IPs.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+UBIQUITI EDGEOS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  EdgeOS supports WireGuard via DPKG packages:
+    configure
+    set interfaces wireguard wg0 address <your-vpn-ip>/32
+    set interfaces wireguard wg0 private-key <your-private-key>
+    set interfaces wireguard wg0 peer <server-pubkey> endpoint <server>:51820
+    set interfaces wireguard wg0 peer <server-pubkey> allowed-ips 0.0.0.0/0
+    commit ; save
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+WHICH DEVICES ARE COVERED BY ROUTER VPN?
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ✓ Samsung TVs / LG TVs / Hisense TVs
+  ✓ Roku, Fire TV Stick (via router — no APK needed)
+  ✓ PlayStation 4, PlayStation 5
+  ✓ Xbox One, Xbox Series X/S
+  ✓ Nintendo Switch
+  ✓ Apple TV HD / Apple TV 4K
+  ✓ Smart home devices (Ring, Nest, Alexa)
+  ✓ Any phone, tablet, or laptop on your Wi-Fi
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+WHAT'S NEW IN VERSION 4.0
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Exploit Importer — 24 built-in vulnerability guides with
+  step-by-step attack walkthroughs and downloadable .md reports.
+  Command Center Pro. Access at proxhqvpn.com from any browser.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 SUPPORT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   Email: support@proxhqvpn.com | Guide: https://proxhqvpn.com/guide
 `,
-  appletv: `ProxhqVPN — Apple TV Setup README
-========================================
+  appletv: `ProxhqVPN — Apple TV Setup Guide
+==================================
 ALPHA UNLIMITED TECHNOLOGIES LLC
-https://proxhqvpn.com
+https://proxhqvpn.com | support@proxhqvpn.com
+Version 4.0 | Updated 2025
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 REQUIREMENTS
-  Apple TV HD or Apple TV 4K running tvOS 17+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  - Apple TV HD (4th gen) or Apple TV 4K (any generation)
+  - Running tvOS 17.0 or later
+  - Choose one of the three methods below
 
-RECOMMENDED METHOD — Router Setup
-  Apple TV cannot run VPN apps directly.
-  The best approach: install ProxhqVPN on your router.
-  See: https://proxhqvpn.com/downloads (Router section)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+METHOD 1 — WIREGUARD ON TVOS (RECOMMENDED)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  WireGuard is available as a native tvOS app:
+    App Store on Apple TV → search "WireGuard" → Install
+    (Or: https://apps.apple.com/us/app/wireguard/id1451685025)
 
-ALTERNATIVE — iPhone VPN Hotspot
-  1. Set up ProxhqVPN on your iPhone (see iOS README).
-  2. Turn on iPhone Personal Hotspot.
-  3. Connect Apple TV to iPhone hotspot via Wi-Fi.
-  4. Apple TV traffic is tunneled through ProxhqVPN on your iPhone.
+  Import your config via QR code:
+    1. On a desktop/phone: sign in to proxhqvpn.com
+    2. Navigate to WireGuard Config (/wireguard)
+    3. Click "Generate" → "Show QR Code"
+    4. On Apple TV: open WireGuard → tap "+" → "Create from QR code"
+       (Use the Apple TV camera or hold your phone's screen in front
+        of the Apple TV camera — works via the tvOS QR scanner)
+    5. Toggle the tunnel ON → VPN key appears at top of tvOS
 
-ALTERNATIVE — WireGuard on tvOS (Beta)
-  The WireGuard tvOS app is available on the App Store:
-  https://apps.apple.com/us/app/wireguard/id1451685025
-  Set up is identical to iOS — scan QR from ProxhqVPN → WireGuard Config.
+  No Apple TV camera? Use the tvOS Share Clipboard method:
+    - AirDrop the .conf file to Apple TV from your Mac
+    - Or use Apple TV settings to sign into your iCloud
+      and then use iCloud Drive to share the file
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+METHOD 2 — IPHONE PERSONAL HOTSPOT (EASIEST)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  You don't need to configure anything on the Apple TV itself.
+  1. Set up ProxhqVPN on your iPhone (see iOS README)
+  2. Connect Apple TV to your iPhone's Personal Hotspot via Wi-Fi
+     (Settings → Wi-Fi on Apple TV → select your iPhone's hotspot)
+  3. Enable ProxhqVPN on your iPhone → toggle WireGuard ON
+  4. All Apple TV traffic is now tunneled through ProxhqVPN
+
+  Trade-off: Your iPhone battery will drain faster, and your
+  Apple TV won't work if your iPhone goes out of range.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+METHOD 3 — ROUTER SETUP (BEST FOR ALWAYS-ON)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Install ProxhqVPN on your router — every device on your Wi-Fi,
+  including Apple TV, is automatically protected. No configuration
+  needed on the Apple TV at all.
+  See the Router README in this bundle for full instructions.
+  Supported routers: OpenWRT, GL.iNet, pfSense, OPNsense, AsusWRT,
+  DD-WRT, Ubiquiti EdgeOS.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+VERIFY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Open the Infuse or VLC browser on Apple TV and navigate to:
+    https://api64.ipify.org
+  Or check from any device on the same network:
+    curl https://api64.ipify.org
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+WHAT'S NEW IN VERSION 4.0
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Exploit Importer — 24 built-in vulnerability guides with
+  step-by-step attack walkthroughs and downloadable .md reports.
+  Command Center Pro. Access at proxhqvpn.com from Safari on iPhone
+  or Mac while your Apple TV is protected by the VPN.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 SUPPORT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   Email: support@proxhqvpn.com | Guide: https://proxhqvpn.com/guide
 `,
 };
