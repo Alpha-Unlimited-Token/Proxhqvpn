@@ -50,13 +50,28 @@ export async function getStripePublishableKey(): Promise<string> {
   return publishableKey;
 }
 
+/** Normalize DATABASE_URL sslmode to suppress pg-connection-string v3 deprecation warning.
+ *  Only applied in the deployed environment — dev Postgres may not support TLS. */
+function normalizeDatabaseUrl(url: string): string {
+  if (process.env.REPLIT_DEPLOYMENT !== "1") return url;
+  try {
+    const u = new URL(url);
+    u.searchParams.set("sslmode", "verify-full");
+    return u.toString();
+  } catch {
+    return url
+      .replace(/([?&])sslmode=[^&]*/g, "$1sslmode=verify-full")
+      .replace(/^([^?]*)$/, "$1?sslmode=verify-full");
+  }
+}
+
 export async function getStripeSync(): Promise<StripeSync> {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) throw new Error("DATABASE_URL required");
 
   const { secretKey, webhookSecret } = await getCredentials();
   return new StripeSync({
-    poolConfig: { connectionString: databaseUrl, max: 2 },
+    poolConfig: { connectionString: normalizeDatabaseUrl(databaseUrl), max: 2 },
     stripeSecretKey: secretKey,
     stripeWebhookSecret: webhookSecret ?? "",
   });

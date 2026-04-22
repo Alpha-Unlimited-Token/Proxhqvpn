@@ -7,9 +7,29 @@ import { seedStripeProducts } from "./seedStripeProducts";
 import { exec, execSync } from "child_process";
 import fs from "fs";
 
+/** Normalize DATABASE_URL sslmode to suppress pg-connection-string deprecation warnings.
+ *  Only applied in the deployed environment where the managed Postgres supports TLS.
+ *  Development uses a local Postgres that may not have SSL, so we skip normalization. */
+function normalizeDatabaseUrl(url: string): string {
+  if (process.env.REPLIT_DEPLOYMENT !== "1") return url;
+  try {
+    const u = new URL(url);
+    u.searchParams.set("sslmode", "verify-full");
+    return u.toString();
+  } catch {
+    return url.replace(/([?&])sslmode=[^&]*/g, "$1sslmode=verify-full").replace(/^([^?]*)$/, "$1?sslmode=verify-full");
+  }
+}
+
 // ── Auto-install all required dependencies on server startup ─────────────────
 // Users never see install instructions — the server handles everything itself.
+// Skip entirely in Replit deployment containers (REPLIT_DEPLOYMENT=1) — the
+// package manager is not available there and the install will fail with code 100.
 function autoInstallDependencies() {
+  if (process.env.REPLIT_DEPLOYMENT === "1") {
+    logger.info("Deployment environment detected — skipping VPN package auto-install");
+    return;
+  }
   const hasApt = (() => { try { execSync("which apt-get 2>/dev/null", { timeout: 2000 }); return true; } catch { return false; } })();
   if (!hasApt) return; // Only auto-install on Debian/Ubuntu servers
 
@@ -78,8 +98,9 @@ if (Number.isNaN(port) || port <= 0) {
 }
 
 async function initStripe() {
-  const databaseUrl = process.env.DATABASE_URL;
-  if (!databaseUrl) { logger.warn("DATABASE_URL not set — Stripe init skipped"); return; }
+  const rawDatabaseUrl = process.env.DATABASE_URL;
+  if (!rawDatabaseUrl) { logger.warn("DATABASE_URL not set — Stripe init skipped"); return; }
+  const databaseUrl = normalizeDatabaseUrl(rawDatabaseUrl);
   try {
     await runMigrations({ databaseUrl } as any);
     logger.info("Stripe schema ready");
