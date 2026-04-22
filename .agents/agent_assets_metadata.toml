@@ -36,6 +36,12 @@ uri = "file://artifacts/ghost-vpn/public/icon-final2.png"
 type = "image"
 title = "ProxhqVPN eye lock shield icon"
 
+[[generated]]
+id = "BeX2iG8PSpraSME7CRA1S"
+uri = "file://artifacts/mobile/assets/images/icon.png"
+type = "image"
+title = "proxhqvpn mobile app icon shield green black"
+
 [[outputs]]
 id = "IJDFyPELKQJakMkMUDhlS"
 uri = "file://standalone/dist/GhostNet-ALL-PLATFORMS.zip"
