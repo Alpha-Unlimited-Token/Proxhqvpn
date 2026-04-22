@@ -69,40 +69,28 @@ router.put("/config", async (req: Request, res: Response) => {
 router.get("/stats", async (req: Request, res: Response) => {
   try {
     const config = await getOrCreateConfig();
-    const seed = Date.now() / 3_600_000;
-    const base = 8_400;
-    const variation = Math.abs(Math.sin(seed * 1.7)) * 3200;
+    const totalBlocked = config.totalBlocked || 0;
+    const totalAllowed = 0;
+    const blockRate = totalBlocked + totalAllowed > 0
+      ? `${((totalBlocked / (totalBlocked + totalAllowed)) * 100).toFixed(1)}%`
+      : "0.0%";
 
     res.json({
-      totalBlocked: Math.floor(base + variation) + (config.totalBlocked || 0),
-      totalAllowed: Math.floor(52_000 + variation * 8),
-      blockRate: "14.3%",
+      totalBlocked,
+      totalAllowed,
+      blockRate,
       categoryCounts: {
-        ads: Math.floor(3200 + variation * 0.6),
-        trackers: Math.floor(2800 + variation * 0.4),
-        malware: Math.floor(890 + variation * 0.15),
-        phishing: Math.floor(340 + variation * 0.05),
-        cryptomining: Math.floor(120 + variation * 0.02),
-        botnet: Math.floor(78 + variation * 0.01),
-        adult: config.blockAdult ? Math.floor(200 + variation * 0.03) : 0,
+        ads: 0,
+        trackers: 0,
+        malware: 0,
+        phishing: 0,
+        cryptomining: 0,
+        botnet: 0,
+        adult: 0,
         custom: 0,
       },
-      topBlockedDomains: [
-        { domain: "googlesyndication.com", count: Math.floor(820 + variation * 0.1) },
-        { domain: "doubleclick.net", count: Math.floor(640 + variation * 0.08) },
-        { domain: "facebook.com", count: Math.floor(480 + variation * 0.05) },
-        { domain: "hotjar.com", count: Math.floor(320 + variation * 0.04) },
-        { domain: "moatads.com", count: Math.floor(280 + variation * 0.03) },
-      ],
-      queryTimeline: Array.from({ length: 24 }, (_, h) => {
-        const isActive = h >= 8 && h <= 22;
-        const r = Math.abs(Math.sin(seed + h));
-        return {
-          hour: h,
-          blocked: Math.floor((isActive ? 400 : 60) * (0.4 + r * 0.8)),
-          allowed: Math.floor((isActive ? 2400 : 320) * (0.4 + r * 0.8)),
-        };
-      }),
+      topBlockedDomains: [],
+      queryTimeline: Array.from({ length: 24 }, (_, h) => ({ hour: h, blocked: 0, allowed: 0 })),
     });
   } catch (err) {
     res.status(500).json({ error: "Failed to load stats" });
