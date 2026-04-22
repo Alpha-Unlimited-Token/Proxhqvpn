@@ -11,6 +11,7 @@ import {
   Zap, Settings, Cpu, Router, ScanSearch, Layers, FileText, Users,
   Send, FolderSearch, Radar, Award, BarChart2,
   Code2, GitCompare, Swords, Bug, Eye, BookMarked,
+  GitMerge,
 } from "lucide-react";
 import { useAccess } from "@/hooks/useAccess";
 
@@ -66,6 +67,8 @@ const PAGE_NAMES: Record<string, string> = {
   "/ip-exposure":          "IP Exposure Scanner",
   "/handbook/ambassador":  "Ambassador Handbook",
   "/handbook/employee":    "Employee Handbook",
+  "/ghost-trace":          "Ghost Trace",
+  "/ghost-chain":          "Ghost Chain",
 };
 
 const USER_NAV = [
@@ -84,6 +87,7 @@ const PROTECTION_NAV = [
   { href: "/threat-protection",  label: "Threat Protection",   icon: ShieldAlert },
   { href: "/obfuscation",        label: "Stealth Protocol",    icon: EyeOff },
   { href: "/ip-exposure",        label: "IP Exposure Scan",    icon: Eye },
+  { href: "/ghost-trace",        label: "Ghost Trace",         icon: Radar },
 ];
 
 const NETWORK_NAV = [
@@ -108,6 +112,7 @@ const ADVANCED_NAV = [
   { href: "/comparer",      label: "Request Comparer",      icon: GitCompare },
   { href: "/payloads",      label: "Payload Generator",     icon: Bug },
   { href: "/cve-search",    label: "CVE Lookup",            icon: ShieldAlert },
+  { href: "/ghost-chain",   label: "Ghost Chain",           icon: GitMerge },
 ];
 
 const AMBASSADOR_NAV = [

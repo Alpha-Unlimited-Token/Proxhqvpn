@@ -46,6 +46,8 @@ import employeesRouter from "./employees";
 import threatProtectionRouter from "./threatprotection";
 import setupRouter from "./setup";
 import updatesRouter from "./updates";
+import ghostTraceRouter from "./ghosttrace";
+import attackChainRouter from "./attackchain";
 
 const router: IRouter = Router();
 
@@ -278,6 +280,8 @@ router.use("/http-probe",      requireCommandCenter, httpProbeRouter);
 router.use("/dir-fuzzer",      requireCommandCenter, dirFuzzerRouter);
 router.use("/subdomain-scan",  requireCommandCenter, subdomainScanRouter);
 router.use("/intruder",        requireCommandCenter, intruderRouter);
+router.use("/ghost-trace",    requireCommandCenter, ghostTraceRouter);
+router.use("/attack-chain",   requireCommandCenter, attackChainRouter);
 
 // ── Admin-only routes ─────────────────────────────────────────────────────
 router.use("/employees",      requireAdmin, employeesRouter);

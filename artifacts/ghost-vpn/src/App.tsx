@@ -83,6 +83,8 @@ import Intruder from "@/pages/Intruder";
 import IpExposure from "@/pages/IpExposure";
 import AmbassadorHandbook from "@/pages/AmbassadorHandbook";
 import EmployeeHandbook from "@/pages/EmployeeHandbook";
+import GhostTrace from "@/pages/GhostTrace";
+import GhostChain from "@/pages/GhostChain";
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
@@ -466,6 +468,12 @@ function AppRoutes() {
           </Route>
           <Route path="/ip-exposure">
             <ToolLayout><IpExposure /></ToolLayout>
+          </Route>
+          <Route path="/ghost-trace">
+            <CcLayout><GhostTrace /></CcLayout>
+          </Route>
+          <Route path="/ghost-chain">
+            <CcLayout><GhostChain /></CcLayout>
           </Route>
 
           {/* ── Admin-only — gated on backend; frontend shows paywall for non-admins ── */}
