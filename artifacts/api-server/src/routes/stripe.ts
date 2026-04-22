@@ -8,6 +8,8 @@ import { z } from "zod";
 const router = Router();
 
 const HOST = () => {
+  // Prefer the custom domain if set, then fall back to the first Replit domain
+  if (process.env.CUSTOM_DOMAIN) return `https://${process.env.CUSTOM_DOMAIN}`;
   const domain = process.env.REPLIT_DOMAINS?.split(",")[0];
   return domain ? `https://${domain}` : "http://localhost:3000";
 };

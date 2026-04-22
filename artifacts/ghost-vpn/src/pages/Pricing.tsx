@@ -78,7 +78,7 @@ export default function Pricing() {
   const { data: products = [], isLoading } = useQuery<Product[]>({
     queryKey: ["stripe-products"],
     queryFn: () => apiFetch("/api/stripe/products"),
-    enabled: !!user,
+    staleTime: 60_000,
   });
 
   const checkoutMutation = useMutation({
