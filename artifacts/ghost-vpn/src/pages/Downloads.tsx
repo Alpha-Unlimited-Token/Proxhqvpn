@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
+import JSZip from "jszip";
 import { PageSEO } from "@/components/PageSEO";
 import {
   Monitor, Smartphone, Tv, Router, Download, CheckCircle,
   ChevronDown, ChevronUp, AlertCircle, ExternalLink, Cpu,
   Tablet, Gamepad2, Wifi, Copy, Check, Flame, Apple,
-  Star, Info, Package, Shield, FileText, BookOpen,
+  Star, Info, Package, Shield, Archive,
 } from "lucide-react";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -472,26 +473,33 @@ function PlatformCard({ p, defaultOpen }: { p: Platform; defaultOpen?: boolean }
           <div className="text-[9px] text-primary/30 font-mono">{p.os}</div>
 
           {/* Download buttons — visible without expanding */}
-          {p.downloads.length > 0 && (
-            <div className="flex flex-wrap gap-2 mt-2.5">
-              {p.downloads.map((d, i) => {
-                const DIcon = d.icon ?? Download;
-                const styles: Record<string, string> = {
-                  primary: "bg-primary text-black hover:bg-primary/80",
-                  store:   "bg-white/10 text-white hover:bg-white/15 border border-white/20",
-                  apk:     "bg-orange-500/90 text-white hover:bg-orange-500 border border-orange-400/40",
-                };
-                return (
-                  <a key={i} href={d.url} target="_blank" rel="noopener noreferrer"
-                    className={`inline-flex items-center gap-1.5 text-[10px] font-mono font-bold px-3 py-1.5 rounded-lg transition-colors ${styles[d.variant]}`}>
-                    <DIcon className="w-3 h-3" />
-                    {d.label}
-                    <ExternalLink className="w-2 h-2 opacity-50" />
-                  </a>
-                );
-              })}
-            </div>
-          )}
+          <div className="flex flex-wrap gap-2 mt-2.5">
+            {p.downloads.map((d, i) => {
+              const DIcon = d.icon ?? Download;
+              const styles: Record<string, string> = {
+                primary: "bg-primary text-black hover:bg-primary/80",
+                store:   "bg-white/10 text-white hover:bg-white/15 border border-white/20",
+                apk:     "bg-orange-500/90 text-white hover:bg-orange-500 border border-orange-400/40",
+              };
+              return (
+                <a key={i} href={d.url} target="_blank" rel="noopener noreferrer"
+                  className={`inline-flex items-center gap-1.5 text-[10px] font-mono font-bold px-3 py-1.5 rounded-lg transition-colors ${styles[d.variant]}`}>
+                  <DIcon className="w-3 h-3" />
+                  {d.label}
+                  <ExternalLink className="w-2 h-2 opacity-50" />
+                </a>
+              );
+            })}
+            {/* ZIP setup bundle — always shown */}
+            <button
+              onClick={() => downloadPlatformZip(p.id, p.name)}
+              className="inline-flex items-center gap-1.5 text-[10px] font-mono font-bold px-3 py-1.5 rounded-lg transition-colors bg-primary/10 text-primary/70 hover:bg-primary/20 hover:text-primary border border-primary/20 hover:border-primary/40"
+              title="Download README + User Guide + Quick Start as ZIP"
+            >
+              <Archive className="w-3 h-3" />
+              Setup Bundle (.zip)
+            </button>
+          </div>
         </div>
         <button onClick={() => setOpen(v => !v)}
           className="shrink-0 mt-1 text-primary/30 hover:text-primary transition-colors">
@@ -736,13 +744,247 @@ export default function Downloads() {
         </div>
       </div>
 
-      {/* Platform README Downloads */}
-      <ReadmeDownloads />
     </div>
   );
 }
 
-// ── README content per platform ───────────────────────────────────────────────
+// ── ZIP bundle generator (README + User Guide + Quick Start per platform) ─────
+// Each platform's ZIP contains: README.txt + User_Guide.txt + Quick_Start.txt
+
+const QUICK_START_TXT = `ProxhqVPN — Quick Start Guide
+==============================
+ALPHA UNLIMITED TECHNOLOGIES LLC | https://proxhqvpn.com
+
+1. Sign in at https://proxhqvpn.com/sign-in (or create an account)
+2. Subscribe to VPN Basic ($6.99/mo) or Command Center Pro ($39.99/mo) at /pricing
+3. Go to ProxhqVPN → WireGuard Config (/wireguard)
+4. Click "Generate" to create your personal encrypted keypair
+5. Click "Download .conf" (or "Show QR Code" on mobile)
+6. Install WireGuard for your device (see platform-specific README.txt)
+7. Import the .conf into WireGuard (or scan the QR)
+8. Toggle ON — VPN key icon appears, you're protected
+9. Verify: visit https://api64.ipify.org — shows ProxhqVPN server IP
+
+SUPPORT: support@proxhqvpn.com | Full guide: https://proxhqvpn.com/guide
+`;
+
+const USER_GUIDE_TXT = `ProxhqVPN — Full User Guide
+============================
+ALPHA UNLIMITED TECHNOLOGIES LLC
+https://proxhqvpn.com | support@proxhqvpn.com
+Version 2.0
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PLAN OVERVIEW
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+VPN Basic:           $6.99/mo or $59.99/yr
+Command Center Pro:  $39.99/mo or $349.99/yr
+
+VPN Basic includes:
+  WireGuard VPN, Kill Switch, DNS Shield, Leak Detection, Smart DNS,
+  Split Tunneling, VPN Gate (double-hop), Onion Browser (Tor over VPN),
+  Router Config, VPN Coexistence, Device Manager, IP Exposure Scanner
+
+Command Center Pro (everything in Basic plus):
+  Alpha Toolkit (Universal Scanner + Verifier + Web Scraper),
+  SQLmap Vulnerability Scanner, HTTP Probe, Directory Fuzzer,
+  Subdomain Scout, Threat Intelligence, Security Audit,
+  Threat Monitor (Beacons), Firewall Manager, Remote Terminal,
+  Database Interface, SilkWeb Honeypot, Encoder/Decoder,
+  Request Comparer, Payload Generator, CVE Lookup, Intruder
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+VPN CONNECTION (/my-vpn)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+The main VPN connection page. Shows your active WireGuard tunnel status,
+connected server, connection time, and bandwidth. Connect/disconnect here.
+
+WireGuard Config (/wireguard):
+  - Generate your private/public keypair (server stores only the public key)
+  - Download .conf file or show QR code for mobile import
+  - Regenerate at any time (old keypair is immediately revoked)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+KILL SWITCH (/kill-switch)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Blocks ALL internet traffic if the VPN drops unexpectedly, preventing
+IP leaks. Three modes:
+  - Strict: Block everything if VPN is down (recommended)
+  - Allow LAN: Block internet but allow local network access
+  - Custom: Whitelist specific IPs or CIDRs to always bypass the kill switch
+
+Platform-specific firewall rule generators for Linux (iptables/nftables),
+macOS (pf), and Windows (netsh) are included.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+LEAK DETECTION (/leaks)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Tests your VPN connection for three types of leaks:
+  - DNS Leak: Verifies DNS queries go through ProxhqVPN, not your ISP
+  - IPv6 Leak: Checks for IPv6 address exposure (common on dual-stack ISPs)
+  - WebRTC Leak: Tests if the browser leaks your local IP via WebRTC
+
+If a leak is detected, follow the on-screen remediation steps.
+Enable Kill Switch + use DNS Shield to eliminate most leaks.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+DNS SHIELD (/dns-shield)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Encrypted DNS resolver with built-in blocking lists:
+  - Ads & Trackers: Blocks 100k+ advertising and tracking domains
+  - Malware: Blocks known malware distribution and phishing domains
+  - Adult Content: Optional category-based blocking
+  - Custom: Add your own allow/block rules (one domain per line)
+  - DNS-over-HTTPS: Routes DNS queries over encrypted HTTPS (no ISP snooping)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SPLIT TUNNELING (/split-tunnel)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Route only specific traffic through the VPN. Bypass rules by:
+  - IP Address / CIDR: Force specific IPs to bypass or use the VPN
+  - Domain: Bypass VPN for specific websites (e.g., local banking, corporate intranet)
+  - Port: Bypass VPN for specific ports (e.g., gaming UDP ports for low latency)
+  - Application: Per-app VPN rules (Linux only via cgroups)
+
+Generates platform-specific scripts (Linux ip rules, Windows route commands).
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+VPN GATE DOUBLE-HOP (/vpngate)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Routes traffic through an additional relay VPN Gate server before reaching
+the destination. Your traffic: Your Device → ProxhqVPN → VPN Gate Relay → Internet.
+The destination site sees a VPN Gate relay IP, not your ProxhqVPN server IP.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ONION BROWSER (TOR OVER VPN) (/onion-browser)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Browse .onion sites and surface web through Tor, tunneled through ProxhqVPN.
+Connection chain: Your Device → ProxhqVPN → Tor Entry → Tor Relay → Tor Exit → Destination
+The Tor exit node IP is shown. You are NOT identified to the destination.
+
+Proxy modes: Direct / ProxhqVPN Onion / Tor / Double-hop / Custom SOCKS4/5/HTTP
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SMART DNS (/smart-dns)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+DNS-only geo-bypass for streaming (Netflix, Hulu, BBC iPlayer) on any
+device including Smart TVs and game consoles that cannot run VPN apps.
+Copy the two DNS server IPs and enter them in your device network settings.
+Note: Smart DNS does NOT encrypt traffic — for privacy, use the full VPN.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ROUTER CONFIG (/router-config)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Generates firmware-specific WireGuard configs for routers. Supported:
+OpenWRT, DD-WRT, AsusWRT-Merlin, pfSense/OPNsense, GL.iNet, Ubiquiti EdgeOS.
+Your current IP is auto-detected and embedded in the kill switch rules.
+Protects every device on your network automatically.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+IP EXPOSURE SCANNER (/ip-exposure) — VPN Basic
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Shows exactly what your IP reveals: geolocation, ISP, VPN/proxy detection,
+WebRTC leak, DNS leak, browser fingerprint risk. Run before and after
+connecting to ProxhqVPN to verify coverage.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+COMMAND CENTER PRO TOOLS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Alpha Toolkit (/alpha-tools):
+  Three engines: Universal Scanner (35+ languages, 200+ vuln patterns),
+  Vulnerability Verifier (actively probes Scanner findings), Web Scraper
+  (browser-based, stores to 14-table SQLite DB). All Tor-routable.
+
+Vulnerability Scanner (/sqlmap):
+  Full SQLmap integration for automated SQL injection testing.
+  Modes: GET/POST/form-data, all DBMS types, Tor routing, tamper scripts.
+
+HTTP Probe (/http-probe):
+  Full HTTP client — all methods, custom headers, body editors.
+  Equivalent to Burp Suite Repeater. Full response inspector.
+
+Directory Fuzzer (/dir-fuzzer):
+  Brute-force hidden files/dirs with wordlists. Equivalent to ffuf/gobuster.
+  Common wordlists: admin panels, API routes, git/config files, backups.
+
+Subdomain Scout (/subdomain-scan):
+  Certificate Transparency log enumeration + DNS brute-force.
+  Passive (CT logs) or active (DNS resolution) enumeration modes.
+
+Threat Intelligence (/threat-intel):
+  IP reputation (AbuseIPDB/Shodan/GreyNoise), WHOIS, TLS cert inspector,
+  HTTP headers analyzer, live threat feeds.
+
+Security Audit (/security-audit):
+  Self-audit of ProxhqVPN platform — TLS grade, open ports, WireGuard
+  key strength, firewall rules, CORS, CSP headers. PASS/WARN/FAIL output.
+
+Intruder (/intruder):
+  Automated parameter fuzzer. Modes: Sniper, Battering Ram, Pitchfork,
+  Cluster Bomb. Modeled after Burp Intruder.
+
+Payload Generator (/payloads):
+  Pre-built payloads: SQLi, XSS, SSTI, SSRF, XXE, RCE, Path Traversal,
+  Command Injection, WAF bypass, JWT secrets, credential lists.
+
+CVE Lookup (/cve-search):
+  NVD database search by CVE ID or keyword. CVSS score filtering.
+  Critical (9.0-10.0), High (7.0-8.9), Medium (4.0-6.9), Low (0.1-3.9).
+
+Encoder / Decoder (/encoder):
+  Base64, URL encode, HTML entities, Hex, Binary, MD5, SHA-1/256/512,
+  HMAC-SHA256, bcrypt, JWT decode, auto-detect mode.
+
+Request Comparer (/comparer):
+  Side-by-side diff of two HTTP requests/responses. Modes: Words, Lines,
+  Bytes. Useful for auth bypass detection and IDOR verification.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ADMIN TOOLS (Admin accounts only)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Dashboard (/dashboard):       Live platform metrics, subscription counts, MRR
+VPN Servers (/nodes):         Add/remove/rotate VPN nodes, get setup scripts
+Threat Monitor (/beacons):    Real-time intrusion alerts from all nodes + SilkWeb
+SilkWeb Decoy (/silkweb):     Honeypot manager — trapped IPs, payloads captured
+Firewall (/firewall):         iptables/nftables rules across all nodes
+Performance (/monitor):       Real-time CPU/RAM/bandwidth per node
+Employee Access (/employees): Manage employee accounts
+Remote Terminal (/terminal):  Web shell for live VPN server management
+Database (/sql):              Direct SQL interface (local + external DBs)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+AMBASSADOR PROGRAM
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Earn 10% commission on every subscription payment from customers you refer.
+Apply at: https://proxhqvpn.com/ambassador/apply
+Dashboard: https://proxhqvpn.com/ambassador/dashboard
+Full handbook: https://proxhqvpn.com/handbook/ambassador
+
+Commission rates:
+  VPN Basic Monthly ($6.99):     $0.70/mo per customer
+  VPN Basic Annual ($59.99):     $6.00/yr per customer
+  Pro Monthly ($39.99):          $4.00/mo per customer
+  Pro Annual ($349.99):          $35.00/yr per customer
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ACCOUNT & BILLING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Account (/account): Manage profile, 2FA, linked OAuth accounts,
+  view active sessions, rotate WireGuard keys, manage billing.
+Billing is handled by Stripe (PCI-DSS Level 1). ProxhqVPN never stores
+payment card data. Use Account → Manage Billing to cancel or change plans.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SUPPORT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Email:      support@proxhqvpn.com
+Guide:      https://proxhqvpn.com/guide
+Pricing:    https://proxhqvpn.com/pricing
+Downloads:  https://proxhqvpn.com/downloads
+`;
+
+// Platform-specific README content keyed by platform ID
 const README_CONTENT: Record<string, string> = {
   windows: `ProxhqVPN — Windows Setup README
 ========================================
@@ -1007,63 +1249,50 @@ SUPPORT
 `,
 };
 
-function downloadReadme(platform: string) {
-  const content = README_CONTENT[platform];
-  if (!content) return;
-  const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+// Map platform IDs → README_CONTENT keys
+const README_ID_MAP: Record<string, string> = {
+  macos:           "mac",
+  iphone:          "ios",
+  "android-tablet":"android",
+  firestick:       "fire",
+  firetv:          "fire",
+  androidtv:       "android",
+  samsung:         "router",
+  lg:              "router",
+  roku:            "router",
+  openwrt:         "router",
+  ddwrt:           "router",
+  pfsense:         "router",
+  asus:            "router",
+  ps5:             "router",
+  xbox:            "router",
+  chromebook:      "linux",
+  raspberrypi:     "linux",
+};
+
+async function downloadPlatformZip(platformId: string, platformName: string) {
+  const resolvedId = README_ID_MAP[platformId] ?? platformId;
+  const readmeContent = README_CONTENT[resolvedId]
+    ?? README_CONTENT["linux"]
+    ?? "";
+
+  const zip = new JSZip();
+  const folderName = `ProxhqVPN-${platformName.replace(/[^a-zA-Z0-9]/g, "-")}`;
+  const folder = zip.folder(folderName)!;
+
+  folder.file("README.txt",       readmeContent);
+  folder.file("User_Guide.txt",   USER_GUIDE_TXT);
+  folder.file("Quick_Start.txt",  QUICK_START_TXT);
+
+  const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `ProxhqVPN-Setup-${platform.charAt(0).toUpperCase() + platform.slice(1)}.txt`;
+  a.download = `${folderName}-Setup.zip`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
-}
-
-const README_PLATFORMS = [
-  { id: "windows",  label: "Windows",       emoji: "🪟" },
-  { id: "mac",      label: "macOS",          emoji: "🍎" },
-  { id: "linux",    label: "Linux",          emoji: "🐧" },
-  { id: "android",  label: "Android",        emoji: "📱" },
-  { id: "ios",      label: "iPhone/iPad",    emoji: "📱" },
-  { id: "fire",     label: "Fire Stick",     emoji: "🔥" },
-  { id: "router",   label: "Router Setup",   emoji: "📡" },
-  { id: "appletv",  label: "Apple TV",       emoji: "📺" },
-];
-
-function ReadmeDownloads() {
-  return (
-    <div className="border border-primary/20 rounded-xl p-4 space-y-3 bg-primary/[0.02]">
-      <div className="flex items-center gap-2">
-        <BookOpen className="w-4 h-4 text-primary/70 shrink-0" />
-        <div>
-          <div className="text-[11px] font-bold text-primary">Platform README & Installer Guides</div>
-          <div className="text-[9px] font-mono text-primary/50 mt-0.5">Download a step-by-step text setup guide for any device. Includes WireGuard install commands and troubleshooting tips.</div>
-        </div>
-      </div>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-        {README_PLATFORMS.map(({ id, label, emoji }) => (
-          <button
-            key={id}
-            onClick={() => downloadReadme(id)}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg border border-primary/15 bg-black hover:bg-primary/5 hover:border-primary/30 transition-all text-left group"
-          >
-            <span className="text-sm">{emoji}</span>
-            <div className="min-w-0">
-              <div className="text-[10px] font-mono font-bold text-primary/80 group-hover:text-primary truncate">{label}</div>
-              <div className="text-[8px] font-mono text-primary/30">README.txt</div>
-            </div>
-            <FileText className="w-3 h-3 text-primary/20 group-hover:text-primary/50 ml-auto shrink-0 transition-colors" />
-          </button>
-        ))}
-      </div>
-      <div className="text-[9px] font-mono text-primary/30 flex items-center gap-1.5">
-        <Download className="w-3 h-3" />
-        Each guide downloads as a .txt file — open with any text editor or share via USB
-      </div>
-    </div>
-  );
 }
 
 // Search icon not imported above — add it
