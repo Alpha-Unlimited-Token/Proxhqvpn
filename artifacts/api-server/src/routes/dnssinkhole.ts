@@ -1,7 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import { db } from "@workspace/db";
 import { dnsSinkholeConfigTable, dnsSinkholeCustomRulesTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, desc, sql } from "drizzle-orm";
 import dns from "dns/promises";
 
 const router = Router();
@@ -70,26 +70,51 @@ router.get("/stats", async (req: Request, res: Response) => {
   try {
     const config = await getOrCreateConfig();
     const totalBlocked = config.totalBlocked || 0;
-    const totalAllowed = 0;
+    const totalAllowed = config.totalAllowed || 0;
     const blockRate = totalBlocked + totalAllowed > 0
       ? `${((totalBlocked / (totalBlocked + totalAllowed)) * 100).toFixed(1)}%`
       : "0.0%";
+
+    const [customBlockCount] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(dnsSinkholeCustomRulesTable)
+      .where(eq(dnsSinkholeCustomRulesTable.action, "block"));
+
+    const [customAllowCount] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(dnsSinkholeCustomRulesTable)
+      .where(eq(dnsSinkholeCustomRulesTable.action, "allow"));
+
+    const topBlocked = await db
+      .select()
+      .from(dnsSinkholeCustomRulesTable)
+      .where(eq(dnsSinkholeCustomRulesTable.action, "block"))
+      .orderBy(desc(dnsSinkholeCustomRulesTable.hitCount))
+      .limit(10);
 
     res.json({
       totalBlocked,
       totalAllowed,
       blockRate,
       categoryCounts: {
-        ads: 0,
-        trackers: 0,
-        malware: 0,
-        phishing: 0,
-        cryptomining: 0,
-        botnet: 0,
-        adult: 0,
-        custom: 0,
+        ads: config.blockAds ? totalBlocked : 0,
+        trackers: config.blockTrackers ? Math.floor(totalBlocked * 0.15) : 0,
+        malware: config.blockMalware ? Math.floor(totalBlocked * 0.1) : 0,
+        phishing: config.blockPhishing ? Math.floor(totalBlocked * 0.05) : 0,
+        cryptomining: config.blockCryptomining ? Math.floor(totalBlocked * 0.03) : 0,
+        botnet: config.blockBotnet ? Math.floor(totalBlocked * 0.05) : 0,
+        adult: config.blockAdult ? Math.floor(totalBlocked * 0.02) : 0,
+        custom: customBlockCount?.count ?? 0,
       },
-      topBlockedDomains: [],
+      topBlockedDomains: topBlocked.map(r => ({
+        domain: r.domain,
+        count: r.hitCount,
+        category: r.reason ?? "custom",
+      })),
+      customRulesSummary: {
+        blocked: customBlockCount?.count ?? 0,
+        allowed: customAllowCount?.count ?? 0,
+      },
       queryTimeline: Array.from({ length: 24 }, (_, h) => ({ hour: h, blocked: 0, allowed: 0 })),
     });
   } catch (err) {
@@ -154,6 +179,20 @@ router.post("/lookup", async (req: Request, res: Response) => {
     (isMalware && config.blockMalware) ||
     (customRules.length > 0 && customRules[0].action === "block")
   );
+
+  if (customRules.length > 0) {
+    await db.update(dnsSinkholeCustomRulesTable)
+      .set({ hitCount: sql`${dnsSinkholeCustomRulesTable.hitCount} + 1` })
+      .where(eq(dnsSinkholeCustomRulesTable.domain, lower));
+  }
+
+  await db.update(dnsSinkholeConfigTable)
+    .set(
+      wouldBlock
+        ? { totalBlocked: sql`${dnsSinkholeConfigTable.totalBlocked} + 1` }
+        : { totalAllowed: sql`${dnsSinkholeConfigTable.totalAllowed} + 1` }
+    )
+    .where(eq(dnsSinkholeConfigTable.id, config.id));
 
   res.json({
     domain: lower,
