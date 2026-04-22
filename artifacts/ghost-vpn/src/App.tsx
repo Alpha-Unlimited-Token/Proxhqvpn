@@ -363,10 +363,19 @@ function ClerkQueryClientCacheInvalidator() {
   return null;
 }
 
+function ScrollToTop() {
+  const [location] = useLocation();
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+  }, [location]);
+  return null;
+}
+
 function AppRoutes() {
   return (
     <QueryClientProvider client={queryClient}>
       <ClerkQueryClientCacheInvalidator />
+      <ScrollToTop />
       <TooltipProvider>
         <Switch>
           <Route path="/" component={HomeRedirect} />
