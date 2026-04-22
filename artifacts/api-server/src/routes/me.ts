@@ -38,22 +38,31 @@ router.get("/", async (req, res) => {
   const employee = email ? await getEmployeeByEmail(email) : null;
   const isEmployee = !!employee;
 
-  // Auto-create a pre-approved ambassador account for employees flagged as ambassadors
-  if (employee?.isAmbassador && employee.ambassadorPromoCode) {
+  // Auto-create a pre-approved ambassador account for:
+  //   a) employees flagged as ambassadors, and
+  //   b) admin users (platform owners)
+  const shouldAutoAmb =
+    (employee?.isAmbassador && employee.ambassadorPromoCode) || isAdminByEmail;
+
+  if (shouldAutoAmb) {
     try {
       const existingAmb = await db.execute(sql`
         SELECT id FROM ambassadors WHERE user_id = ${userId} LIMIT 1
       `);
       const existing: any[] = Array.isArray(existingAmb) ? existingAmb : ((existingAmb as any).rows ?? []);
       if (existing.length === 0) {
-        const displayName = employee.displayName ?? email ?? "Ambassador";
-        const promoCode = employee.ambassadorPromoCode.toUpperCase().replace(/[^A-Z0-9]/g, "").substring(0, 12);
+        const displayName = employee?.displayName ?? email?.split("@")[0] ?? "Ambassador";
+        const rawCode = employee?.ambassadorPromoCode ?? "PROXHQADMIN";
+        const promoCode = rawCode.toUpperCase().replace(/[^A-Z0-9]/g, "").substring(0, 12);
+        const bio = isAdminByEmail
+          ? "Founder & CEO — ALPHA UNLIMITED TECHNOLOGIES LLC. Official ProxhqVPN founding ambassador."
+          : "ProxhqVPN team member and founding ambassador.";
         await db.execute(sql`
           INSERT INTO ambassadors (user_id, name, bio, promo_code, avatar_url, social_urls, status)
           VALUES (
             ${userId},
             ${displayName},
-            ${"ProxhqVPN team member and founding ambassador."},
+            ${bio},
             ${promoCode},
             ${null},
             ${"{}"}::jsonb,

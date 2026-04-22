@@ -242,7 +242,7 @@ function SignUpPage() {
             <img src={`${basePath}/icon-final2.png`} alt="ProxhqVPN" className="w-12 h-12 mx-auto mb-3" />
             <div className="text-xl font-bold text-white">ProxhqVPN</div>
           </div>
-          <SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} fallbackRedirectUrl={`${basePath}/pricing`} />
+          <SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} fallbackRedirectUrl={`${basePath}/app`} />
         </div>
       </div>
     </div>
