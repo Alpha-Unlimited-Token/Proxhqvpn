@@ -328,7 +328,7 @@ router.get("/stats", async (req, res) => {
     activeNodes: nodeCount?.count ?? 0,
     trappedAttackers: trapCount?.count ?? 0,
     silkRoutes: webData?.totalRoutes ?? 0,
-    honeypotNodes: 4,
+    honeypotNodes: webData?.active ? (webData.totalRoutes ?? 0) : 0,
     sqlmapJobs: sqlmapJobs[0]?.count ?? 0,
   });
 });

@@ -9,206 +9,56 @@ import { eq, desc, and, isNotNull, sql } from "drizzle-orm";
 
 const router = Router();
 
-const DEMO_DEVICES = [
-  {
-    peerPublicKey: "DEMO_KEY_A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8S9t0=",
-    deviceName: "MacBook Pro (Home)",
-    nodeId: 1,
-    baselineBytesOutPerHour: 2_400_000,
-    baselineDestCount: 12,
-    activeHours: [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21],
-  },
-  {
-    peerPublicKey: "DEMO_KEY_Z9y8X7w6V5u4T3s2R1q0P9o8N7m6L5k4J3i2H1g0=",
-    deviceName: "iPhone 15 Pro",
-    nodeId: 1,
-    baselineBytesOutPerHour: 800_000,
-    baselineDestCount: 8,
-    activeHours: [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22],
-  },
-  {
-    peerPublicKey: "DEMO_KEY_Q1w2E3r4T5y6U7i8O9p0A1s2D3f4G5h6J7k8L9=",
-    deviceName: "Work Laptop (Ubuntu)",
-    nodeId: 2,
-    baselineBytesOutPerHour: 5_200_000,
-    baselineDestCount: 24,
-    activeHours: [9, 10, 11, 12, 13, 14, 15, 16, 17],
-  },
-];
-
-function generateTimelineData(deviceKey: string, daysBack = 7) {
-  const seed = deviceKey.charCodeAt(10) || 42;
-  const now = Date.now();
-  const hours: { hour: string; bytesOut: number; bytesIn: number; anomaly: string | null }[] = [];
-  const device = DEMO_DEVICES.find(d => d.peerPublicKey === deviceKey);
-  const baseline = device?.baselineBytesOutPerHour || 2_000_000;
-  const activeHours = device?.activeHours || [9, 10, 11, 12, 13, 14, 15, 16, 17];
-
-  for (let h = daysBack * 24; h >= 0; h--) {
-    const ts = new Date(now - h * 3_600_000);
-    const hour = ts.getHours();
-    const isActive = activeHours.includes(hour);
-    const rand = Math.abs(Math.sin(seed * h + 1.7)) * 0.6 + 0.4;
-    const bytesOut = isActive ? Math.floor(baseline * rand) : Math.floor(baseline * 0.05 * rand);
-    const bytesIn = Math.floor(bytesOut * (0.3 + Math.abs(Math.sin(seed * h)) * 0.4));
-
-    let anomaly: string | null = null;
-    if (h === 38 && deviceKey.includes("A1b2")) anomaly = "beacon";
-    if (h === 52 && deviceKey.includes("A1b2")) anomaly = "exfil";
-    if (h === 15 && deviceKey.includes("Z9y8")) anomaly = "malicious_dest";
-
-    hours.push({ hour: ts.toISOString(), bytesOut, bytesIn, anomaly });
-  }
-  return hours;
-}
-
-function generateDemoAnomalies() {
-  return [
-    {
-      id: 1001,
-      peerPublicKey: DEMO_DEVICES[0].peerPublicKey,
-      deviceName: DEMO_DEVICES[0].deviceName,
-      nodeId: 1,
-      anomalyType: "beacon",
-      anomalyScore: 87,
-      bytesOut: 4_200,
-      bytesIn: 1_800,
-      destIpCount: 1,
-      uniqueNewDests: 1,
-      avgIntervalMs: 29_800,
-      anomalyDetails: JSON.stringify({
-        description: "Periodic outbound connections at near-constant 30-second intervals detected",
-        destinationIp: "185.220.101.47",
-        destinationPort: 443,
-        intervalStdDev: 312,
-        matchesC2Pattern: true,
-        threatCategory: "Command & Control Beacon",
-        knownMalicious: true,
-        asnInfo: "AS204028 — Known Tor exit node / C2 infrastructure",
-      }),
-      resolved: false,
-      observedAt: new Date(Date.now() - 2 * 3_600_000).toISOString(),
-    },
-    {
-      id: 1002,
-      peerPublicKey: DEMO_DEVICES[0].peerPublicKey,
-      deviceName: DEMO_DEVICES[0].deviceName,
-      nodeId: 1,
-      anomalyType: "exfil",
-      anomalyScore: 94,
-      bytesOut: 48_000_000,
-      bytesIn: 82_000,
-      destIpCount: 1,
-      uniqueNewDests: 1,
-      avgIntervalMs: null,
-      anomalyDetails: JSON.stringify({
-        description: "Sustained high-volume outbound transfer to single untrusted IP — 48 MB in 4 minutes",
-        destinationIp: "91.193.18.22",
-        destinationPort: 8443,
-        transferDurationMs: 237_000,
-        mbTransferred: 48,
-        uploadToDownloadRatio: 585,
-        threatCategory: "Data Exfiltration",
-        knownMalicious: false,
-        asnInfo: "AS48282 — Unrecognized VPS provider, Eastern Europe",
-        baselineMultiplier: "19.8x above normal",
-      }),
-      resolved: false,
-      observedAt: new Date(Date.now() - 5 * 3_600_000).toISOString(),
-    },
-    {
-      id: 1003,
-      peerPublicKey: DEMO_DEVICES[1].peerPublicKey,
-      deviceName: DEMO_DEVICES[1].deviceName,
-      nodeId: 1,
-      anomalyType: "malicious_dest",
-      anomalyScore: 72,
-      bytesOut: 12_400,
-      bytesIn: 3_200,
-      destIpCount: 1,
-      uniqueNewDests: 1,
-      avgIntervalMs: null,
-      anomalyDetails: JSON.stringify({
-        description: "Connection to destination flagged across 4 threat intelligence feeds",
-        destinationIp: "194.165.16.98",
-        destinationPort: 80,
-        threatCategory: "Malware Distribution",
-        knownMalicious: true,
-        asnInfo: "AS204957 — Bulletproof hosting",
-        feeds: ["AlienVault OTX", "Spamhaus", "Emerging Threats", "ProofPoint ET"],
-        firstSeen: "2024-09-12",
-      }),
-      resolved: false,
-      observedAt: new Date(Date.now() - 8 * 3_600_000).toISOString(),
-    },
-  ];
-}
-
 router.get("/devices", async (req: Request, res: Response) => {
   try {
-    const dbBaselines = await db
-      .select()
-      .from(ghostTraceBaselineTable)
-      .limit(50);
-
-    const dbObs = await db
-      .select()
-      .from(ghostTraceObservationsTable)
-      .where(isNotNull(ghostTraceObservationsTable.anomalyType))
+    const baselines = await db.select().from(ghostTraceBaselineTable).limit(50);
+    const obs = await db.select().from(ghostTraceObservationsTable)
+      .where(and(isNotNull(ghostTraceObservationsTable.anomalyType), eq(ghostTraceObservationsTable.resolved, false)))
       .orderBy(desc(ghostTraceObservationsTable.observedAt))
       .limit(100);
 
-    const demoAnomalies = generateDemoAnomalies();
-    const allDevices = DEMO_DEVICES.map(d => {
-      const anomalies = demoAnomalies.filter(a => a.peerPublicKey === d.peerPublicKey && !a.resolved);
-      const maxScore = anomalies.length ? Math.max(...anomalies.map(a => a.anomalyScore)) : 0;
-      const status = maxScore >= 80 ? "critical" : maxScore >= 50 ? "warning" : "clean";
+    const devices = baselines.map(b => {
+      const myObs = obs.filter(o => o.peerPublicKey === b.peerPublicKey);
+      const maxScore = myObs.length ? Math.max(...myObs.map(o => o.anomalyScore)) : 0;
       return {
-        peerPublicKey: d.peerPublicKey,
-        deviceName: d.deviceName,
-        nodeId: d.nodeId,
-        status,
-        activeAnomalies: anomalies.length,
+        peerPublicKey: b.peerPublicKey,
+        deviceName: b.deviceName,
+        nodeId: 0,
+        status: maxScore >= 80 ? "critical" : maxScore >= 50 ? "warning" : "clean",
+        activeAnomalies: myObs.length,
         anomalyScore: maxScore,
-        baseline: {
-          bytesOutPerHour: d.baselineBytesOutPerHour,
-          destCount: d.baselineDestCount,
-        },
-        lastSeen: new Date(Date.now() - Math.floor(Math.random() * 600_000)).toISOString(),
+        baseline: { bytesOutPerHour: b.baselineBytesOutPerHour, destCount: b.baselineDestCount },
+        lastSeen: b.lastUpdated instanceof Date ? b.lastUpdated.toISOString() : new Date().toISOString(),
       };
     });
 
-    dbBaselines.forEach(b => {
-      if (!allDevices.find(d => d.peerPublicKey === b.peerPublicKey)) {
-        const myObs = dbObs.filter(o => o.peerPublicKey === b.peerPublicKey && !o.resolved);
-        const maxScore = myObs.length ? Math.max(...myObs.map(o => o.anomalyScore)) : 0;
-        allDevices.push({
-          peerPublicKey: b.peerPublicKey,
-          deviceName: b.deviceName,
-          nodeId: 0,
-          status: maxScore >= 80 ? "critical" : maxScore >= 50 ? "warning" : "clean",
-          activeAnomalies: myObs.length,
-          anomalyScore: maxScore,
-          baseline: {
-            bytesOutPerHour: b.baselineBytesOutPerHour,
-            destCount: b.baselineDestCount,
-          },
-          lastSeen: new Date().toISOString(),
-        });
-      }
-    });
-
-    res.json(allDevices);
+    res.json(devices);
   } catch (err) {
     console.error("[ghost-trace] devices error:", err);
     res.status(500).json({ error: "Failed to load devices" });
   }
 });
 
-router.get("/timeline/:key", (req: Request, res: Response) => {
-  const key = String(req.params.key);
-  const data = generateTimelineData(key, 7);
-  res.json(data);
+router.get("/timeline/:key", async (req: Request, res: Response) => {
+  try {
+    const key = String(req.params.key);
+    const since = new Date(Date.now() - 7 * 24 * 3_600_000);
+    const rows = await db.select().from(ghostTraceObservationsTable)
+      .where(and(eq(ghostTraceObservationsTable.peerPublicKey, key)))
+      .orderBy(desc(ghostTraceObservationsTable.observedAt))
+      .limit(200);
+
+    const data = rows.filter(r => new Date(r.observedAt) >= since).map(r => ({
+      hour: r.observedAt instanceof Date ? r.observedAt.toISOString() : String(r.observedAt),
+      bytesOut: r.bytesOut,
+      bytesIn: r.bytesIn,
+      anomaly: r.anomalyType || null,
+    }));
+
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to load timeline" });
+  }
 });
 
 router.get("/anomalies", async (req: Request, res: Response) => {
@@ -220,14 +70,11 @@ router.get("/anomalies", async (req: Request, res: Response) => {
       .orderBy(desc(ghostTraceObservationsTable.observedAt))
       .limit(50);
 
-    const demo = generateDemoAnomalies();
-    const combined = [...demo, ...dbAnomalies.map(a => ({
+    res.json(dbAnomalies.map(a => ({
       ...a,
-      observedAt: a.observedAt.toISOString(),
+      observedAt: a.observedAt instanceof Date ? a.observedAt.toISOString() : String(a.observedAt),
       anomalyDetails: a.anomalyDetails || null,
-    }))];
-
-    res.json(combined);
+    })));
   } catch (err) {
     console.error("[ghost-trace] anomalies error:", err);
     res.status(500).json({ error: "Failed to load anomalies" });
@@ -236,9 +83,6 @@ router.get("/anomalies", async (req: Request, res: Response) => {
 
 router.post("/anomalies/:id/resolve", async (req: Request, res: Response) => {
   const id = parseInt(String(req.params.id));
-  if (id >= 1000) {
-    return res.json({ ok: true, demo: true });
-  }
   try {
     await db
       .update(ghostTraceObservationsTable)
@@ -270,14 +114,15 @@ router.post("/block/:key", async (req: Request, res: Response) => {
 
 router.get("/stats", async (req: Request, res: Response) => {
   try {
-    const demoAnomalies = generateDemoAnomalies();
-    const activeCount = demoAnomalies.filter(a => !a.resolved).length;
-    const criticalCount = demoAnomalies.filter(a => a.anomalyScore >= 80 && !a.resolved).length;
-    const deviceCount = DEMO_DEVICES.length;
+    const baselines = await db.select().from(ghostTraceBaselineTable);
+    const activeAnomalies = await db.select().from(ghostTraceObservationsTable)
+      .where(and(isNotNull(ghostTraceObservationsTable.anomalyType), eq(ghostTraceObservationsTable.resolved, false)));
+
+    const criticalCount = activeAnomalies.filter(a => a.anomalyScore >= 80).length;
 
     res.json({
-      monitoredDevices: deviceCount,
-      activeAnomalies: activeCount,
+      monitoredDevices: baselines.length,
+      activeAnomalies: activeAnomalies.length,
       criticalAnomalies: criticalCount,
       detectionTypes: ["C2 Beacon", "Data Exfiltration", "Malicious Destination", "Ghost Traffic", "DNS Tunneling"],
       agentless: true,

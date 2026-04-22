@@ -103,49 +103,7 @@ router.get("/events", async (req: Request, res: Response) => {
       }
     }
 
-    const demo: SiemEvent[] = [
-      {
-        id: "demo-1",
-        source: "Beacon Monitor",
-        eventType: "intrusion_probe",
-        severity: "critical",
-        title: "Coordinated port scan from 185.220.101.47",
-        details: "Node: edge-us-east | 847 packets in 3.2 seconds | 65,534 ports scanned",
-        timestamp: new Date(Date.now() - 4 * 3_600_000).toISOString(),
-        metadata: { attackerIp: "185.220.101.47", probeType: "port_scan" },
-      },
-      {
-        id: "demo-2",
-        source: "Ghost Trace",
-        eventType: "device_anomaly_beacon",
-        severity: "critical",
-        title: "C2 beacon detected — MacBook Pro (Home)",
-        details: "Score: 87/100 | 30-second interval outbound to known C2 infrastructure",
-        timestamp: new Date(Date.now() - 2 * 3_600_000).toISOString(),
-        metadata: { deviceName: "MacBook Pro (Home)", anomalyScore: 87 },
-      },
-      {
-        id: "demo-3",
-        source: "Firewall",
-        eventType: "ip_blocked",
-        severity: "medium",
-        title: "IP blocked: 91.193.18.22",
-        details: "Ghost Trace auto-block — data exfiltration destination",
-        timestamp: new Date(Date.now() - 5 * 3_600_000).toISOString(),
-      },
-      {
-        id: "demo-4",
-        source: "Ghost Trace",
-        eventType: "device_anomaly_exfil",
-        severity: "critical",
-        title: "Data exfiltration — MacBook Pro (Home)",
-        details: "Score: 94/100 | 48 MB sent to untrusted IP in 4 minutes — 19.8x baseline",
-        timestamp: new Date(Date.now() - 5 * 3_600_000).toISOString(),
-        metadata: { deviceName: "MacBook Pro (Home)", anomalyScore: 94 },
-      },
-    ];
-
-    const all = [...demo, ...events];
+    const all = [...events];
     const filtered = sevFilter && sevFilter !== "all"
       ? all.filter(e => e.severity === sevFilter)
       : all;
@@ -163,25 +121,31 @@ router.get("/stats", async (req: Request, res: Response) => {
   try {
     const since = new Date(Date.now() - 24 * 3_600_000);
 
-    const [beaconCount] = await db.select({ count: beaconAlertsTable.id }).from(beaconAlertsTable)
-      .where(gte(beaconAlertsTable.detectedAt, since));
-    const [blockCount] = await db.select({ count: blockedIpsTable.id }).from(blockedIpsTable)
-      .where(gte(blockedIpsTable.blockedAt, since));
-    const [ghostCount] = await db.select({ count: ghostTraceObservationsTable.id }).from(ghostTraceObservationsTable)
+    const beacons = await db.select().from(beaconAlertsTable).where(gte(beaconAlertsTable.detectedAt, since));
+    const blocked = await db.select().from(blockedIpsTable).where(gte(blockedIpsTable.blockedAt, since));
+    const ghostObs = await db.select().from(ghostTraceObservationsTable)
       .where(and(isNotNull(ghostTraceObservationsTable.anomalyType), gte(ghostTraceObservationsTable.observedAt, since)));
+    const chainScans = await db.select().from(attackChainScansTable)
+      .where(and(eq(attackChainScansTable.scanStatus, "complete"), gte(attackChainScansTable.startedAt, since)));
 
-    const demoEvents = 4;
-    const total = (beaconCount?.count ? 1 : 0) + (blockCount?.count ? 1 : 0) + (ghostCount?.count ? 1 : 0) + demoEvents;
+    const allEvents = [
+      ...beacons.map(b => ({ severity: b.severity, source: "Beacon Monitor" })),
+      ...blocked.map(() => ({ severity: "medium", source: "Firewall" })),
+      ...ghostObs.map(o => ({ severity: o.anomalyScore >= 80 ? "critical" : o.anomalyScore >= 50 ? "high" : "medium", source: "Ghost Trace" })),
+      ...chainScans.filter(s => (s.riskScore ?? 0) >= 10).map(s => ({ severity: (s.riskScore ?? 0) >= 60 ? "critical" : (s.riskScore ?? 0) >= 30 ? "high" : "medium", source: "Ghost Chain" })),
+    ];
+
+    const bySeverity = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
+    const bySource: Record<string, number> = { "Beacon Monitor": 0, "Ghost Trace": 0, "Firewall": 0, "Ghost Chain": 0 };
+    for (const e of allEvents) {
+      if (e.severity in bySeverity) bySeverity[e.severity as keyof typeof bySeverity]++;
+      if (e.source in bySource) bySource[e.source]++;
+    }
 
     res.json({
-      total24h: total + demoEvents,
-      bySeverity: { critical: 2, high: 1, medium: 1, low: 0, info: 0 },
-      bySource: {
-        "Beacon Monitor": 1,
-        "Ghost Trace": 2,
-        "Firewall": 1,
-        "Ghost Chain": 0,
-      },
+      total24h: allEvents.length,
+      bySeverity,
+      bySource,
       sources: ["Beacon Monitor", "Ghost Trace", "Firewall", "Ghost Chain"],
     });
   } catch (err) {
@@ -190,21 +154,42 @@ router.get("/stats", async (req: Request, res: Response) => {
 });
 
 router.get("/timeline", async (req: Request, res: Response) => {
-  const now = Date.now();
-  const timeline = Array.from({ length: 24 }, (_, h) => {
-    const isActive = h >= 8 && h <= 22;
-    const r = Math.abs(Math.sin((now / 100000) + h));
-    return {
+  try {
+    const since = new Date(Date.now() - 24 * 3_600_000);
+    const buckets: Record<number, { critical: number; high: number; medium: number; low: number }> = {};
+    for (let h = 0; h < 24; h++) buckets[h] = { critical: 0, high: 0, medium: 0, low: 0 };
+
+    const beacons = await db.select().from(beaconAlertsTable).where(gte(beaconAlertsTable.detectedAt, since));
+    for (const b of beacons) {
+      const h = new Date(b.detectedAt).getHours();
+      const sev = b.severity as string;
+      if (sev in buckets[h]) buckets[h][sev as keyof typeof buckets[0]]++;
+    }
+
+    const blocked = await db.select().from(blockedIpsTable).where(gte(blockedIpsTable.blockedAt, since));
+    for (const b of blocked) {
+      const h = new Date(b.blockedAt).getHours();
+      buckets[h].medium++;
+    }
+
+    const ghostObs = await db.select().from(ghostTraceObservationsTable)
+      .where(and(isNotNull(ghostTraceObservationsTable.anomalyType), gte(ghostTraceObservationsTable.observedAt, since)));
+    for (const o of ghostObs) {
+      const h = new Date(o.observedAt).getHours();
+      const sev = o.anomalyScore >= 80 ? "critical" : o.anomalyScore >= 50 ? "high" : "medium";
+      buckets[h][sev]++;
+    }
+
+    const timeline = Array.from({ length: 24 }, (_, h) => ({
       hour: h,
-      critical: Math.floor(r * (isActive ? 3 : 0.5)),
-      high: Math.floor(r * (isActive ? 6 : 1)),
-      medium: Math.floor(r * (isActive ? 12 : 2)),
-      low: Math.floor(r * (isActive ? 8 : 1)),
-      total: 0,
-    };
-  });
-  timeline.forEach(t => { t.total = t.critical + t.high + t.medium + t.low; });
-  res.json(timeline);
+      ...buckets[h],
+      total: buckets[h].critical + buckets[h].high + buckets[h].medium + buckets[h].low,
+    }));
+
+    res.json(timeline);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to load timeline" });
+  }
 });
 
 export default router;

@@ -389,7 +389,6 @@ function FAQItem({ q, a }: { q: string; a: string }) {
 
 const NODE_LOCATIONS = [
   { city: "Chicago",        country: "USA",    flag: "🇺🇸", latency: "12ms",  status: "online" },
-  { city: "London",         country: "UK",     flag: "🇬🇧", latency: "18ms",  status: "online" },
   { city: "Los Angeles",    country: "USA",    flag: "🇺🇸", latency: "22ms",  status: "online" },
   { city: "Tokyo",          country: "Japan",  flag: "🇯🇵", latency: "38ms",  status: "online" },
 ];
@@ -448,7 +447,7 @@ export default function Home() {
           <div className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-full px-4 py-1.5 mb-8">
             <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
             <span className="text-xs text-primary font-medium">
-              4 Nodes Online — Chicago · London · LA · Tokyo
+              3 Nodes Online — Chicago · LA · Tokyo
             </span>
           </div>
 
@@ -481,8 +480,8 @@ export default function Home() {
           {/* Stats */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-2xl mx-auto">
             {[
-              { value: "4", label: "Global Nodes", live: false },
-              { value: "4", label: "Honeypot Traps", live: false },
+              { value: "3", label: "Global Nodes", live: false },
+              { value: liveStats ? String(liveStats.honeypotNodes) : "—", label: "Honeypot Traps", live: true },
               { value: liveStats ? String(liveStats.trappedAttackers) : "—", label: "Attackers Trapped", live: true },
               { value: "< 30s", label: "Setup Time", live: false },
             ].map(({ value, label, live }) => (
