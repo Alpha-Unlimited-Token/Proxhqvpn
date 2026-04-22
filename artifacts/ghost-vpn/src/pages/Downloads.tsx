@@ -1987,16 +1987,23 @@ echo  Step 2 -- Installing WireGuard...
 start /wait "%TEMP%\\wireguard-installer.exe"
 echo  WireGuard installed.
 echo.
-echo  Step 3 -- Opening ProxhqVPN Dashboard...
-start https://proxhqvpn.com/wireguard
+echo  Step 3 -- Launching ProxhqVPN...
+start https://proxhqvpn.com/sign-in
 echo.
 echo  ================================================
-echo   NEXT STEPS:
-echo   1. Sign in at proxhqvpn.com
-echo   2. Go to WireGuard Config -- click Generate
-echo   3. Click Download .conf
-echo   4. In WireGuard: Add Tunnel -- Import file -- Activate
-echo   5. Run vpn-verify.bat to confirm connection
+echo   SUBSCRIPTION REQUIRED:
+echo   An active ProxhqVPN plan is required to connect.
+echo   No account? Visit https://proxhqvpn.com/pricing
+echo.
+echo   AFTER SIGNING IN:
+echo   The app detects your plan automatically:
+echo     VPN Basic          -- opens your VPN dashboard
+echo     Command Center Pro -- opens the full platform
+echo.
+echo   CONNECT YOUR VPN:
+echo   1. Go to WireGuard Config -- Generate -- Download .conf
+echo   2. WireGuard: Add Tunnel -- Import file -- Activate
+echo   3. Run vpn-verify.bat to confirm connection
 echo  ================================================
 echo.
 pause
@@ -2181,11 +2188,24 @@ else
 fi
 
 echo ""
-echo " Opening ProxhqVPN WireGuard Config page..."
-open "https://proxhqvpn.com/wireguard"
+echo " Launching ProxhqVPN — please sign in..."
+open "https://proxhqvpn.com/sign-in"
 echo ""
-echo " Next: Generate -> Download .conf -> Import into WireGuard -> Toggle ON"
-echo " Verify: run ./vpn-verify.sh"
+echo " ================================================"
+echo "  SUBSCRIPTION REQUIRED:"
+echo "  An active ProxhqVPN plan is required to connect."
+echo "  No account? Visit https://proxhqvpn.com/pricing"
+echo ""
+echo "  AFTER SIGNING IN:"
+echo "  The app detects your plan automatically:"
+echo "    VPN Basic          -- opens your VPN dashboard"
+echo "    Command Center Pro -- opens the full platform"
+echo ""
+echo "  CONNECT YOUR VPN:"
+echo "  1. WireGuard Config -> Generate -> Download .conf"
+echo "  2. Import the .conf into WireGuard -> Toggle ON"
+echo "  3. Run ./vpn-verify.sh to confirm connection"
+echo " ================================================"
 echo ""
 `,
     "vpn-connect.sh": `#!/bin/bash
@@ -2363,19 +2383,30 @@ else
 fi
 
 echo ""
-echo " Opening ProxhqVPN WireGuard Config in browser..."
+echo " Launching ProxhqVPN — please sign in..."
 if command -v xdg-open &>/dev/null; then
-  xdg-open "https://proxhqvpn.com/wireguard"
+  xdg-open "https://proxhqvpn.com/sign-in"
 elif command -v sensible-browser &>/dev/null; then
-  sensible-browser "https://proxhqvpn.com/wireguard"
+  sensible-browser "https://proxhqvpn.com/sign-in"
 fi
 
 echo ""
-echo " Next steps:"
-echo "  1. Sign in at https://proxhqvpn.com/wireguard"
-echo "  2. Click Generate -> Copy Config"
-echo "  3. Run: sudo bash vpn-setup.sh"
-echo "  4. Run: sudo bash vpn-connect.sh connect"
+echo " ================================================"
+echo "  SUBSCRIPTION REQUIRED:"
+echo "  An active ProxhqVPN plan is required to connect."
+echo "  No account? Visit https://proxhqvpn.com/pricing"
+echo ""
+echo "  AFTER SIGNING IN:"
+echo "  The app detects your plan automatically:"
+echo "    VPN Basic          -- opens your VPN dashboard"
+echo "    Command Center Pro -- opens the full platform"
+echo ""
+echo "  CONNECT YOUR VPN:"
+echo "  1. Sign in -> WireGuard Config -> Generate -> Copy Config"
+echo "  2. Run: sudo bash vpn-setup.sh  (paste your config)"
+echo "  3. Run: sudo bash vpn-connect.sh connect"
+echo "  4. Run: bash vpn-verify.sh to confirm"
+echo " ================================================"
 echo ""
 `,
     "vpn-setup.sh": `#!/bin/bash

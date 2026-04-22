@@ -1,4 +1,5 @@
 import { useEffect, useRef, Component, type ReactNode } from "react";
+import { useAccess } from "@/hooks/useAccess";
 import { ClerkProvider, SignIn, SignUp, Show, useClerk, useUser } from "@clerk/react";
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
@@ -151,9 +152,36 @@ const clerkAppearance = {
   },
 };
 
+/**
+ * Smart post-login landing page.
+ * Reads the user's subscription tier and redirects them to the right place:
+ *   Command Center Pro  →  /dashboard   (full platform)
+ *   VPN Basic           →  /my-vpn      (VPN-only experience)
+ *   No subscription     →  /pricing     (choose a plan)
+ */
+function AppLanding() {
+  const { hasCommandCenter, hasAccess, isLoading } = useAccess();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-[#080d09] flex flex-col items-center justify-center gap-4">
+        <div className="w-12 h-12 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center mb-2">
+          <img src={`${basePath}/icon-final2.png`} alt="ProxhqVPN" className="w-8 h-8" />
+        </div>
+        <div className="w-5 h-5 rounded-full border-2 border-primary/30 border-t-primary animate-spin" />
+        <p className="text-[11px] text-white/40 font-mono uppercase tracking-widest">Verifying access…</p>
+      </div>
+    );
+  }
+
+  if (hasCommandCenter) return <Redirect to="/dashboard" />;
+  if (hasAccess) return <Redirect to="/my-vpn" />;
+  return <Redirect to="/pricing" />;
+}
+
 function SignInPage() {
   const { isSignedIn, isLoaded } = useUser();
-  if (isLoaded && isSignedIn) return <Redirect to="/dashboard" />;
+  if (isLoaded && isSignedIn) return <Redirect to="/app" />;
   return (
     <div className="flex min-h-[100dvh] bg-[#080d09]">
       {/* Left branding panel */}
@@ -192,7 +220,7 @@ function SignInPage() {
 
 function SignUpPage() {
   const { isSignedIn, isLoaded } = useUser();
-  if (isLoaded && isSignedIn) return <Redirect to="/dashboard" />;
+  if (isLoaded && isSignedIn) return <Redirect to="/app" />;
   return (
     <div className="flex min-h-[100dvh] bg-[#080d09]">
       <div className="hidden lg:flex flex-col justify-between w-96 bg-gradient-to-b from-[#0d1610] to-[#080d09] border-r border-white/[0.06] p-10">
@@ -225,7 +253,7 @@ function HomeRedirect() {
   const { isSignedIn, isLoaded } = useUser();
   // Show the homepage immediately while Clerk loads — never blank screen
   if (!isLoaded) return <Home />;
-  if (isSignedIn) return <Redirect to="/dashboard" />;
+  if (isSignedIn) return <Redirect to="/app" />;
   return <Home />;
 }
 
@@ -344,6 +372,11 @@ function AppRoutes() {
           <Route path="/" component={HomeRedirect} />
           <Route path="/sign-in/*?" component={SignInPage} />
           <Route path="/sign-up/*?" component={SignUpPage} />
+
+          {/* ── Smart post-login redirect — reads tier, sends to the right page ── */}
+          <Route path="/app">
+            <ProtectedLayout><AppLanding /></ProtectedLayout>
+          </Route>
 
           {/* ── Freely accessible to everyone — no login needed ── */}
           <Route path="/pricing">
@@ -550,8 +583,8 @@ function ClerkProviderWithRoutes() {
       publishableKey={clerkPubKey}
       proxyUrl={clerkProxyUrl}
       appearance={clerkAppearance}
-      signInFallbackRedirectUrl={`${basePath}/dashboard`}
-      signUpFallbackRedirectUrl={`${basePath}/pricing`}
+      signInFallbackRedirectUrl={`${basePath}/app`}
+      signUpFallbackRedirectUrl={`${basePath}/app`}
       localization={{
         signIn: {
           start: {
