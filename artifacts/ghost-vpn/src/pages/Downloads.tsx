@@ -1849,6 +1849,1196 @@ SUPPORT
 `,
 };
 
+// ── Shared files included in every platform ZIP ───────────────────────────────
+
+const CHANGELOG_TXT = `ProxhqVPN — Changelog
+======================
+ALPHA UNLIMITED TECHNOLOGIES LLC | https://proxhqvpn.com
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+VERSION 4.0 — 2025
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+NEW: Exploit Importer — Instructions Tab
+  Every detected vulnerability card now has a dedicated Instructions tab
+  containing a complete step-by-step exploitation guide:
+    - Impact Assessment
+    - Tools Required (with exact apt/brew/pip/gem install commands)
+    - Prerequisites & access requirements
+    - Numbered attack walkthrough with terminal commands
+    - How to verify the exploit succeeded
+    - Remediation with corrected code examples (Node.js, Python, Java, PHP)
+    - Reference links (PortSwigger, OWASP, NVD)
+
+NEW: 24 Built-In Vulnerability Guides
+  SQL Injection, XSS (reflected/stored/DOM), RCE, LFI, SSRF, XXE,
+  IDOR, CSRF, JWT Vulnerabilities, Deserialization, SSTI, CORS Misconfig,
+  Auth Bypass, .env Exposure, .git Exposure, Missing Security Headers,
+  No Rate Limiting, Hardcoded Secrets, Buffer Overflow, Mass Assignment,
+  Weak TLS, Spring Boot Actuator Exposure, Open Redirect,
+  Default Credentials, GraphQL Security, CVE-Based Exploits.
+
+NEW: Download Full Report
+  Green "Download Full Report" button in Exploit Importer results header.
+  Exports a complete Markdown (.md) pentest report — every finding,
+  full instruction guide, PoC code, remediation, and reference links.
+  Ideal for client deliverables and team briefings.
+
+NEW: Three-Tab Result Cards
+  Every Exploit Importer finding now has three tabs:
+    [Details]      Raw evidence, CVE ID, severity badge
+    [Instructions] Complete step-by-step exploitation guide
+    [Exploit Code] Ready-to-run PoC code (Python/Bash/SQL/JS/XML)
+
+IMPROVED: Expanded Exploit Importer Detection
+  30+ pattern categories now include SSTI (FreeMarker, ERB, Twig, Jinja2),
+  CORS wildcard, mass assignment, GraphQL introspection, buffer overflow,
+  open redirect, Spring Actuator, weak TLS, and more.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+VERSION 3.0 — 2024
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  - Ghost Chain Exploit Arsenal: 200+ categorized exploits with PoC code
+  - Exploit Importer: upload Nessus/Burp/ZAP/Nikto/OpenVAS reports
+  - Canary Tokens: HTTP URL, DNS, document, email, AWS key, SQL canary
+  - OSINT Recon: 15+ passive intelligence sources (Shodan, Censys, etc.)
+  - SIEM: unified security event log with CSV/JSON export
+  - CVE Lookup: NVD database search by CVE ID or keyword
+  - Payload Generator: pre-built SQLi, XSS, SSTI, SSRF, XXE, RCE payloads
+  - Request Comparer: side-by-side HTTP diff (Words/Lines/Bytes)
+  - Encoder/Decoder: Base64, URL, hex, MD5/SHA, JWT decode, bcrypt
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+VERSION 2.0 — 2023
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  - Alpha Toolkit: Universal Scanner + Vulnerability Verifier + Web Scraper
+  - SilkWeb Honeypot: SSH/HTTP/FTP/RDP decoy services
+  - Firewall Manager: iptables/nftables rules across all VPN nodes
+  - Threat Monitor: real-time beacon intrusion alert stream
+  - Remote Terminal: web-based shell access to VPN servers
+  - HTTP Probe: full HTTP client (Burp Repeater equivalent)
+  - Directory Fuzzer: ffuf/gobuster equivalent
+  - Subdomain Scout: CT log + DNS brute-force enumeration
+  - Intruder: Sniper/Battering Ram/Pitchfork/Cluster Bomb fuzzing
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+VERSION 1.0 — 2022
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  - Initial release
+  - WireGuard VPN with AES-256-GCM / ChaCha20-Poly1305
+  - Kill Switch (Strict / Allow LAN / Custom)
+  - DNS Shield with DNS-over-HTTPS
+  - Leak Detection (DNS / IPv6 / WebRTC)
+  - VPN Gate Double-Hop relay routing
+  - Onion Browser (Tor over VPN)
+  - Smart DNS for geo-bypass without VPN encryption
+  - Split Tunneling (per-IP, per-domain, per-port)
+  - Router Config generator (OpenWRT/DD-WRT/pfSense/GL.iNet)
+  - DNS Sinkhole (Pi-hole equivalent)
+  - Network Traffic Monitor with PCAP export
+  - Device Manager
+  - IP Exposure Scanner
+  - Obfuscation / Stealth Mode
+`;
+
+const VERSION_TXT = `ProxhqVPN — Version Information
+=================================
+Product:   ProxhqVPN
+Version:   4.0
+Release:   2025
+Company:   ALPHA UNLIMITED TECHNOLOGIES LLC
+Website:   https://proxhqvpn.com
+Support:   support@proxhqvpn.com
+Guide:     https://proxhqvpn.com/guide
+Pricing:   https://proxhqvpn.com/pricing
+Downloads: https://proxhqvpn.com/downloads
+
+Plans:
+  VPN Basic           $6.99/mo or $59.99/yr
+  Command Center Pro  $39.99/mo or $349.99/yr
+
+WireGuard Protocol:  AES-256-GCM + ChaCha20-Poly1305
+`;
+
+// ── Platform-specific program/script files added to each ZIP ──────────────────
+// Keys: resolved platform ID (windows, mac, linux, android, ios, fire, router, appletv)
+
+const PLATFORM_SCRIPTS: Record<string, Record<string, string>> = {
+
+  windows: {
+    "install.bat": `@echo off
+title ProxhqVPN -- Windows Installer v4.0
+color 0A
+echo.
+echo  ================================================
+echo   ProxhqVPN -- Windows Setup  v4.0
+echo   ALPHA UNLIMITED TECHNOLOGIES LLC
+echo   https://proxhqvpn.com
+echo  ================================================
+echo.
+echo  Step 1 -- Downloading WireGuard for Windows...
+powershell -Command "Invoke-WebRequest -Uri 'https://download.wireguard.com/windows-client/wireguard-installer.exe' -OutFile '%TEMP%\\wireguard-installer.exe' -UseBasicParsing"
+if %errorlevel% neq 0 (
+  echo  [ERROR] Download failed. Check your internet connection.
+  pause & exit /b 1
+)
+echo  Download complete.
+echo.
+echo  Step 2 -- Installing WireGuard...
+start /wait "%TEMP%\\wireguard-installer.exe"
+echo  WireGuard installed.
+echo.
+echo  Step 3 -- Opening ProxhqVPN Dashboard...
+start https://proxhqvpn.com/wireguard
+echo.
+echo  ================================================
+echo   NEXT STEPS:
+echo   1. Sign in at proxhqvpn.com
+echo   2. Go to WireGuard Config -- click Generate
+echo   3. Click Download .conf
+echo   4. In WireGuard: Add Tunnel -- Import file -- Activate
+echo   5. Run vpn-verify.bat to confirm connection
+echo  ================================================
+echo.
+pause
+`,
+    "vpn-connect.bat": `@echo off
+title ProxhqVPN -- Connect / Disconnect
+color 0A
+echo.
+echo  ProxhqVPN -- WireGuard Control v4.0
+echo  ================================================
+echo  [1] Connect VPN
+echo  [2] Disconnect VPN
+echo  [3] Show VPN status
+echo  [4] Verify connection (check IP)
+echo  [Q] Quit
+echo.
+set /p choice="Enter choice: "
+if /i "%choice%"=="1" goto connect
+if /i "%choice%"=="2" goto disconnect
+if /i "%choice%"=="3" goto status
+if /i "%choice%"=="4" goto verify
+if /i "%choice%"=="Q" exit
+goto end
+
+:connect
+echo  Activating ProxhqVPN tunnel...
+net start WireGuardTunnel$proxhq 2>nul || (
+  echo  Tunnel service not found. Import your .conf file in WireGuard first.
+)
+goto end
+
+:disconnect
+echo  Deactivating ProxhqVPN tunnel...
+net stop WireGuardTunnel$proxhq 2>nul
+goto end
+
+:status
+echo  WireGuard tunnel status:
+sc query WireGuardTunnel$proxhq 2>nul || echo  (No tunnel named proxhq found)
+goto end
+
+:verify
+echo  Checking your public IP...
+curl -s https://api64.ipify.org
+echo.
+goto end
+
+:end
+echo.
+pause
+`,
+    "vpn-verify.bat": `@echo off
+title ProxhqVPN -- Connection Verification
+color 0A
+echo.
+echo  ProxhqVPN -- Connection Verification v4.0
+echo  ================================================
+echo.
+echo  Your current public IP address:
+curl -s https://api64.ipify.org
+echo.
+echo.
+echo  Checking DNS leak...
+nslookup myip.opendns.com resolver1.opendns.com
+echo.
+echo  If the IP above is a ProxhqVPN server IP -- you are protected.
+echo  If it shows your home/ISP IP -- the VPN is NOT active.
+echo.
+echo  Run a full leak test at: https://proxhqvpn.com/leaks
+echo.
+pause
+`,
+    "kill-switch-install.bat": `@echo off
+title ProxhqVPN -- Kill Switch Setup
+color 0C
+echo.
+echo  ProxhqVPN -- Kill Switch v4.0
+echo  Blocks ALL internet traffic if VPN drops unexpectedly
+echo  ================================================
+echo.
+echo  Adding Windows Firewall kill switch rules...
+echo  (Requires Administrator privileges)
+echo.
+netsh advfirewall firewall add rule name="ProxhqVPN-KS-BlockAll" dir=out action=block priority=1
+netsh advfirewall firewall add rule name="ProxhqVPN-KS-AllowWG" dir=out action=allow program="%PROGRAMFILES%\\WireGuard\\wireguard.exe" priority=2
+netsh advfirewall firewall add rule name="ProxhqVPN-KS-AllowLAN" dir=out action=allow remoteip=192.168.0.0/16,10.0.0.0/8,172.16.0.0/12 priority=3
+netsh advfirewall firewall add rule name="ProxhqVPN-KS-AllowLoopback" dir=out action=allow remoteip=127.0.0.0/8 priority=4
+echo.
+echo  Kill switch ENABLED.
+echo  All traffic is now blocked except WireGuard and LAN.
+echo.
+echo  To DISABLE: run kill-switch-remove.bat
+echo  Full options: https://proxhqvpn.com/kill-switch
+echo.
+pause
+`,
+    "kill-switch-remove.bat": `@echo off
+title ProxhqVPN -- Remove Kill Switch
+color 0E
+echo.
+echo  ProxhqVPN -- Removing Kill Switch Rules...
+echo  ================================================
+echo.
+netsh advfirewall firewall delete rule name="ProxhqVPN-KS-BlockAll"
+netsh advfirewall firewall delete rule name="ProxhqVPN-KS-AllowWG"
+netsh advfirewall firewall delete rule name="ProxhqVPN-KS-AllowLAN"
+netsh advfirewall firewall delete rule name="ProxhqVPN-KS-AllowLoopback"
+echo.
+echo  Kill switch removed. Normal internet access restored.
+echo.
+pause
+`,
+    "wg-template.conf": `# ProxhqVPN -- WireGuard Config Template
+# Version 4.0 | https://proxhqvpn.com
+#
+# Get your real config at: https://proxhqvpn.com/wireguard
+# Sign in -> Generate -> Download .conf
+#
+# DO NOT USE THESE PLACEHOLDER VALUES.
+# Replace every UPPERCASE_PLACEHOLDER with your actual values.
+
+[Interface]
+PrivateKey = YOUR_PRIVATE_KEY_FROM_PROXHQVPN_DASHBOARD
+Address = 10.0.0.2/32
+DNS = 1.1.1.1, 1.0.0.1
+
+[Peer]
+PublicKey = SERVER_PUBLIC_KEY_FROM_PROXHQVPN_DASHBOARD
+AllowedIPs = 0.0.0.0/0, ::/0
+Endpoint = YOUR_PROXHQVPN_SERVER_IP:51820
+PersistentKeepalive = 25
+`,
+  },
+
+  mac: {
+    "install.sh": `#!/bin/bash
+# ProxhqVPN -- macOS Installer v4.0
+# ALPHA UNLIMITED TECHNOLOGIES LLC | https://proxhqvpn.com
+
+echo ""
+echo " ================================================"
+echo "  ProxhqVPN -- macOS Setup  v4.0"
+echo "  ALPHA UNLIMITED TECHNOLOGIES LLC"
+echo "  https://proxhqvpn.com"
+echo " ================================================"
+echo ""
+
+check_wireguard() {
+  if command -v wg &>/dev/null; then
+    echo " WireGuard CLI found: $(which wg)"
+    return 0
+  fi
+  return 1
+}
+
+if check_wireguard; then
+  echo " WireGuard already installed."
+else
+  echo " WireGuard not found. Choose install method:"
+  echo "  [1] Mac App Store (recommended)"
+  echo "  [2] Homebrew CLI"
+  echo "  [Q] Skip install"
+  echo ""
+  read -p " Choice: " CHOICE
+  case "$CHOICE" in
+    1)
+      echo " Opening Mac App Store..."
+      open "https://apps.apple.com/us/app/wireguard/id1451685025"
+      echo " Install WireGuard from the App Store, then re-run this script."
+      ;;
+    2)
+      if ! command -v brew &>/dev/null; then
+        echo " Homebrew not found. Installing..."
+        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+      fi
+      brew install wireguard-tools
+      ;;
+    *)
+      echo " Skipping install."
+      ;;
+  esac
+fi
+
+echo ""
+echo " Opening ProxhqVPN WireGuard Config page..."
+open "https://proxhqvpn.com/wireguard"
+echo ""
+echo " Next: Generate -> Download .conf -> Import into WireGuard -> Toggle ON"
+echo " Verify: run ./vpn-verify.sh"
+echo ""
+`,
+    "vpn-connect.sh": `#!/bin/bash
+# ProxhqVPN -- macOS VPN Control v4.0
+VPN_NAME="proxhq"
+CONF_PATH="/etc/wireguard/\${VPN_NAME}.conf"
+ACTION="\${1:-status}"
+
+case "$ACTION" in
+  up|connect|start)
+    echo "Connecting ProxhqVPN..."
+    if [ ! -f "$CONF_PATH" ]; then
+      echo "[ERROR] Config not found at $CONF_PATH"
+      echo "Run: sudo cp /path/to/proxhq.conf /etc/wireguard/"
+      exit 1
+    fi
+    sudo wg-quick up $VPN_NAME && echo "Connected." || echo "[ERROR] Check your config."
+    sleep 1
+    echo ""
+    echo "Current IP:"
+    curl -s https://api64.ipify.org
+    echo ""
+    ;;
+  down|disconnect|stop)
+    echo "Disconnecting ProxhqVPN..."
+    sudo wg-quick down $VPN_NAME && echo "Disconnected."
+    ;;
+  status)
+    echo "Tunnel status:"
+    sudo wg show $VPN_NAME 2>/dev/null || echo "(Not active)"
+    echo ""
+    echo "Current IP:"
+    curl -s https://api64.ipify.org
+    echo ""
+    ;;
+  *)
+    echo "Usage: ./vpn-connect.sh [connect|disconnect|status]"
+    ;;
+esac
+`,
+    "vpn-verify.sh": `#!/bin/bash
+# ProxhqVPN -- macOS Connection Verification v4.0
+echo ""
+echo " ProxhqVPN -- Connection Verification v4.0"
+echo " ================================================"
+echo ""
+echo " Current public IP:"
+curl -s https://api64.ipify.org
+echo ""
+echo ""
+echo " WireGuard status:"
+sudo wg show proxhq 2>/dev/null || echo " (Tunnel not active)"
+echo ""
+echo " Full leak test: https://proxhqvpn.com/leaks"
+echo ""
+`,
+    "kill-switch-pf.conf": `# ProxhqVPN Kill Switch -- macOS pf Rules
+# Version 4.0 | https://proxhqvpn.com
+#
+# INSTALLATION:
+#   sudo cp kill-switch-pf.conf /etc/pf.anchors/proxhqvpn
+#   Add to /etc/pf.conf:
+#     anchor "proxhqvpn"
+#     load anchor "proxhqvpn" from "/etc/pf.anchors/proxhqvpn"
+#   Apply: sudo pfctl -f /etc/pf.conf -e
+#
+# DISABLE:  sudo pfctl -d
+#
+# Replace SERVER_ENDPOINT_IP with your server's IP from the .conf file.
+
+# Allow loopback
+pass quick on lo0 all
+
+# Allow WireGuard UDP to server endpoint (get IP from your .conf Endpoint line)
+# Replace SERVER_ENDPOINT_IP:
+pass quick proto udp to SERVER_ENDPOINT_IP port 51820
+
+# Allow LAN traffic
+pass quick to 192.168.0.0/16
+pass quick to 10.0.0.0/8
+pass quick to 172.16.0.0/12
+
+# Allow traffic through the WireGuard tunnel interface
+pass quick on utun0 all
+pass quick on utun1 all
+pass quick on utun2 all
+
+# Block everything else (kill switch)
+block all
+`,
+    "wg-template.conf": `# ProxhqVPN -- WireGuard Config Template
+# Version 4.0 | https://proxhqvpn.com
+# Get your real config: https://proxhqvpn.com/wireguard -> Generate -> Download .conf
+
+[Interface]
+PrivateKey = YOUR_PRIVATE_KEY_FROM_PROXHQVPN_DASHBOARD
+Address = 10.0.0.2/32
+DNS = 1.1.1.1, 1.0.0.1
+
+[Peer]
+PublicKey = SERVER_PUBLIC_KEY_FROM_PROXHQVPN_DASHBOARD
+AllowedIPs = 0.0.0.0/0, ::/0
+Endpoint = YOUR_PROXHQVPN_SERVER_IP:51820
+PersistentKeepalive = 25
+`,
+  },
+
+  linux: {
+    "install.sh": `#!/bin/bash
+# ProxhqVPN -- Linux Installer v4.0
+# ALPHA UNLIMITED TECHNOLOGIES LLC | https://proxhqvpn.com
+# Supports: Ubuntu, Debian, Kali, Fedora, Arch, Alpine, Raspberry Pi
+
+echo ""
+echo " ================================================"
+echo "  ProxhqVPN -- Linux Setup  v4.0"
+echo "  ALPHA UNLIMITED TECHNOLOGIES LLC"
+echo "  https://proxhqvpn.com"
+echo " ================================================"
+echo ""
+
+# Detect distribution
+if [ -f /etc/os-release ]; then
+  . /etc/os-release
+  DISTRO="$ID"
+  DISTRO_NAME="$PRETTY_NAME"
+else
+  DISTRO="unknown"
+  DISTRO_NAME="Unknown Linux"
+fi
+
+echo " Detected: $DISTRO_NAME"
+echo ""
+echo " Installing WireGuard tools..."
+echo ""
+
+case "$DISTRO" in
+  ubuntu|debian|kali|raspbian|pop)
+    sudo apt-get update -q
+    sudo apt-get install -y wireguard wireguard-tools resolvconf
+    ;;
+  fedora)
+    sudo dnf install -y wireguard-tools
+    ;;
+  centos|rhel|rocky|almalinux)
+    sudo dnf install -y epel-release
+    sudo dnf install -y wireguard-tools
+    ;;
+  arch|manjaro|endeavouros)
+    sudo pacman -S --noconfirm wireguard-tools
+    ;;
+  alpine)
+    apk add --no-cache wireguard-tools
+    ;;
+  opensuse*|suse*)
+    sudo zypper install -y wireguard-tools
+    ;;
+  *)
+    echo " Distro not auto-detected. Manual install:"
+    echo "   Ubuntu/Debian/Kali: sudo apt install wireguard-tools"
+    echo "   Fedora:             sudo dnf install wireguard-tools"
+    echo "   Arch:               sudo pacman -S wireguard-tools"
+    echo "   Alpine:             apk add wireguard-tools"
+    ;;
+esac
+
+if command -v wg &>/dev/null; then
+  echo ""
+  echo " WireGuard installed: $(wg --version)"
+else
+  echo ""
+  echo " [ERROR] WireGuard installation may have failed."
+  echo " Try manual install for your distro."
+  exit 1
+fi
+
+echo ""
+echo " Opening ProxhqVPN WireGuard Config in browser..."
+if command -v xdg-open &>/dev/null; then
+  xdg-open "https://proxhqvpn.com/wireguard"
+elif command -v sensible-browser &>/dev/null; then
+  sensible-browser "https://proxhqvpn.com/wireguard"
+fi
+
+echo ""
+echo " Next steps:"
+echo "  1. Sign in at https://proxhqvpn.com/wireguard"
+echo "  2. Click Generate -> Copy Config"
+echo "  3. Run: sudo bash vpn-setup.sh"
+echo "  4. Run: sudo bash vpn-connect.sh connect"
+echo ""
+`,
+    "vpn-setup.sh": `#!/bin/bash
+# ProxhqVPN -- WireGuard Config Setup v4.0
+# Run this after getting your config from https://proxhqvpn.com/wireguard
+
+CONF_DIR="/etc/wireguard"
+CONF_FILE="$CONF_DIR/proxhq.conf"
+
+echo ""
+echo " ProxhqVPN -- WireGuard Config Setup v4.0"
+echo " ================================================"
+echo ""
+
+if [ "$EUID" -ne 0 ]; then
+  echo " [ERROR] Run with sudo: sudo bash vpn-setup.sh"
+  exit 1
+fi
+
+if [ -f "$CONF_FILE" ]; then
+  echo " Existing config found at $CONF_FILE"
+  read -p " Overwrite? (y/N): " CONFIRM
+  if [[ ! "$CONFIRM" =~ ^[Yy]$ ]]; then
+    echo " Cancelled."
+    exit 0
+  fi
+fi
+
+echo ""
+echo " Paste your WireGuard config from https://proxhqvpn.com/wireguard"
+echo " Press Enter twice + Ctrl+D when done:"
+echo " ------------------------------------------------"
+CONFIG_CONTENT=$(cat)
+
+mkdir -p "$CONF_DIR"
+chmod 700 "$CONF_DIR"
+echo "$CONFIG_CONTENT" > "$CONF_FILE"
+chmod 600 "$CONF_FILE"
+
+echo ""
+echo " Config saved to $CONF_FILE"
+echo ""
+echo " Commands:"
+echo "  Connect:    sudo bash vpn-connect.sh connect"
+echo "  Disconnect: sudo bash vpn-connect.sh disconnect"
+echo "  Autostart:  sudo bash vpn-connect.sh autostart-on"
+echo ""
+`,
+    "vpn-connect.sh": `#!/bin/bash
+# ProxhqVPN -- Linux VPN Control v4.0
+VPN_NAME="proxhq"
+ACTION="\${1:-status}"
+
+case "$ACTION" in
+  up|connect|start)
+    echo "Connecting ProxhqVPN..."
+    sudo wg-quick up $VPN_NAME || { echo "[ERROR] Failed. Check /etc/wireguard/proxhq.conf exists."; exit 1; }
+    echo ""
+    echo "Current public IP:"
+    curl -s https://api64.ipify.org
+    echo ""
+    ;;
+  down|disconnect|stop)
+    echo "Disconnecting ProxhqVPN..."
+    sudo wg-quick down $VPN_NAME
+    ;;
+  status)
+    echo "Tunnel status:"
+    sudo wg show $VPN_NAME 2>/dev/null || echo "(Not active)"
+    echo ""
+    echo "Current public IP:"
+    curl -s https://api64.ipify.org
+    echo ""
+    ;;
+  autostart-on)
+    sudo systemctl enable wg-quick@$VPN_NAME
+    sudo systemctl start wg-quick@$VPN_NAME
+    echo "Autostart enabled. VPN will start on boot."
+    ;;
+  autostart-off)
+    sudo systemctl disable wg-quick@$VPN_NAME
+    sudo systemctl stop wg-quick@$VPN_NAME
+    echo "Autostart disabled."
+    ;;
+  restart)
+    sudo wg-quick down $VPN_NAME 2>/dev/null
+    sleep 1
+    sudo wg-quick up $VPN_NAME
+    ;;
+  *)
+    echo "Usage: sudo bash vpn-connect.sh [connect|disconnect|status|autostart-on|autostart-off|restart]"
+    ;;
+esac
+`,
+    "vpn-verify.sh": `#!/bin/bash
+# ProxhqVPN -- Linux Connection Verification v4.0
+echo ""
+echo " ProxhqVPN -- Connection Verification v4.0"
+echo " ================================================"
+echo ""
+echo " Current public IP:"
+curl -s https://api64.ipify.org
+echo ""
+echo ""
+echo " WireGuard tunnel status:"
+sudo wg show proxhq 2>/dev/null || echo " (Tunnel not active -- run: sudo bash vpn-connect.sh connect)"
+echo ""
+echo " Network interfaces:"
+ip link show | grep -E "wg|wireguard" | awk '{print "  " $0}'
+echo ""
+echo " DNS check:"
+nslookup whoami.akamai.net 2>/dev/null | grep -i address | tail -1 || dig +short whoami.akamai.net 2>/dev/null
+echo ""
+echo " Full leak test: https://proxhqvpn.com/leaks"
+echo ""
+`,
+    "kill-switch-iptables.sh": `#!/bin/bash
+# ProxhqVPN -- Kill Switch (iptables) v4.0
+# Blocks all internet traffic if VPN drops
+# Run: sudo bash kill-switch-iptables.sh [on|off]
+
+WG_INTERFACE="wg0"
+WG_PORT="51820"
+
+install_kill_switch() {
+  echo " Installing iptables kill switch..."
+  # Allow loopback
+  iptables -A OUTPUT -o lo -j ACCEPT
+  # Allow established/related
+  iptables -A OUTPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+  # Allow WireGuard UDP out
+  iptables -A OUTPUT -p udp --dport $WG_PORT -j ACCEPT
+  # Allow traffic through WireGuard interface
+  iptables -A OUTPUT -o $WG_INTERFACE -j ACCEPT
+  # Allow LAN
+  iptables -A OUTPUT -d 192.168.0.0/16 -j ACCEPT
+  iptables -A OUTPUT -d 10.0.0.0/8 -j ACCEPT
+  iptables -A OUTPUT -d 172.16.0.0/12 -j ACCEPT
+  # Block everything else
+  iptables -A OUTPUT -j DROP
+  echo " Kill switch ENABLED. All non-VPN traffic blocked."
+}
+
+remove_kill_switch() {
+  echo " Removing kill switch..."
+  iptables -F OUTPUT
+  iptables -P OUTPUT ACCEPT
+  echo " Kill switch DISABLED. Normal traffic restored."
+}
+
+if [ "$EUID" -ne 0 ]; then echo "Run with sudo."; exit 1; fi
+
+case "\${1:-on}" in
+  on|enable|install)   install_kill_switch ;;
+  off|disable|remove)  remove_kill_switch ;;
+  *)  echo "Usage: sudo bash kill-switch-iptables.sh [on|off]" ;;
+esac
+echo ""
+echo "Full kill switch guide: https://proxhqvpn.com/kill-switch"
+`,
+    "kill-switch-nftables.conf": `#!/usr/sbin/nft -f
+# ProxhqVPN Kill Switch -- nftables Rules v4.0
+# https://proxhqvpn.com/kill-switch
+#
+# Apply: sudo nft -f kill-switch-nftables.conf
+# Remove: sudo nft delete table inet proxhqvpn_killswitch
+
+table inet proxhqvpn_killswitch {
+  chain output {
+    type filter hook output priority 0; policy drop;
+    # Allow loopback
+    oif lo accept
+    # Allow established connections
+    ct state established,related accept
+    # Allow WireGuard UDP (replace PORT if different)
+    udp dport 51820 accept
+    # Allow WireGuard tunnel interface traffic
+    oifname "wg0" accept
+    # Allow LAN
+    ip daddr { 192.168.0.0/16, 10.0.0.0/8, 172.16.0.0/12 } accept
+    # Block everything else (kill switch)
+    drop
+  }
+}
+`,
+    "wg-template.conf": `# ProxhqVPN -- WireGuard Config Template
+# Version 4.0 | https://proxhqvpn.com
+# Get your real config: https://proxhqvpn.com/wireguard -> Generate -> Copy Config
+# Then run: sudo bash vpn-setup.sh  (and paste the config)
+
+[Interface]
+PrivateKey = YOUR_PRIVATE_KEY_FROM_PROXHQVPN_DASHBOARD
+Address = 10.0.0.2/32
+DNS = 1.1.1.1, 1.0.0.1
+# Optional kill switch (uncomment to enable):
+# PostUp   = iptables -A OUTPUT ! -o %i -m mark ! --mark $(wg show %i fwmark) -m addrtype ! --dst-type LOCAL -j REJECT
+# PreDown  = iptables -D OUTPUT ! -o %i -m mark ! --mark $(wg show %i fwmark) -m addrtype ! --dst-type LOCAL -j REJECT
+
+[Peer]
+PublicKey = SERVER_PUBLIC_KEY_FROM_PROXHQVPN_DASHBOARD
+AllowedIPs = 0.0.0.0/0, ::/0
+Endpoint = YOUR_PROXHQVPN_SERVER_IP:51820
+PersistentKeepalive = 25
+`,
+  },
+
+  fire: {
+    "SETUP-GUIDE.txt": `ProxhqVPN -- Fire Stick / Fire TV Setup Package
+================================================
+Version 4.0 | ALPHA UNLIMITED TECHNOLOGIES LLC
+https://proxhqvpn.com
+
+This package contains:
+  SETUP-GUIDE.txt          This file
+  adb-install-windows.bat  ADB installer for Windows
+  adb-install-linux.sh     ADB installer for Linux/macOS
+  README.txt               Full setup instructions
+  Quick_Start.txt          Quick start guide
+  User_Guide.txt           Complete user guide
+  CHANGELOG.txt            Version history
+  VERSION.txt              Version info
+
+QUICK START (Without ADB):
+  1. On Fire Stick: Settings -> My Fire TV -> Developer Options
+     -> Apps from Unknown Sources -> ON
+  2. Install "Downloader" from Amazon App Store (search: Downloader)
+  3. Open Downloader -> enter URL:
+       https://download.wireguard.com/android-client/com.wireguard.android-apk-latest.apk
+  4. Tap Go -> Download -> Install
+  5. Sign in to proxhqvpn.com on phone/computer
+  6. WireGuard Config -> Generate -> Show QR Code
+  7. Open WireGuard on Fire Stick -> + -> Scan QR Code
+  8. Toggle ON -- VPN key icon confirms connection
+
+ADB METHOD (Advanced):
+  Allows installing wirelessly from your PC/Mac without the Downloader app.
+  Run adb-install-windows.bat (Windows) or adb-install-linux.sh (Linux/macOS)
+
+Support: support@proxhqvpn.com | Guide: https://proxhqvpn.com/guide
+`,
+    "adb-install-windows.bat": `@echo off
+title ProxhqVPN -- Fire Stick ADB Installer v4.0
+color 0A
+echo.
+echo  ================================================
+echo   ProxhqVPN -- Fire Stick ADB Installer  v4.0
+echo   ALPHA UNLIMITED TECHNOLOGIES LLC
+echo   https://proxhqvpn.com
+echo  ================================================
+echo.
+echo  REQUIREMENTS:
+echo    Android Debug Bridge (ADB) must be installed.
+echo    Get ADB: https://developer.android.com/tools/releases/platform-tools
+echo.
+echo  BEFORE RUNNING:
+echo    1. Fire Stick: Settings -> My Fire TV -> Developer Options
+echo       -> ADB Debugging -> ON
+echo       -> Apps from Unknown Sources -> ON
+echo    2. Note your Fire Stick IP:
+echo       Settings -> My Fire TV -> About -> Network
+echo.
+set /p FIRE_IP="Enter your Fire Stick IP address: "
+if "%FIRE_IP%"=="" (echo Please enter an IP. & pause & exit)
+echo.
+echo  Connecting to Fire Stick at %FIRE_IP%...
+adb connect %FIRE_IP%:5555
+echo.
+echo  Downloading WireGuard APK...
+powershell -Command "Invoke-WebRequest -Uri 'https://download.wireguard.com/android-client/com.wireguard.android-apk-latest.apk' -OutFile '%TEMP%\\wireguard-fire.apk' -UseBasicParsing"
+if %errorlevel% neq 0 (echo [ERROR] Download failed. & pause & exit /b 1)
+echo  Download complete.
+echo.
+echo  Installing WireGuard on Fire Stick...
+adb -s %FIRE_IP%:5555 install "%TEMP%\\wireguard-fire.apk"
+echo.
+echo  ================================================
+echo   NEXT STEPS:
+echo   1. Open WireGuard on your Fire Stick
+echo   2. Tap + -> Scan from QR code
+echo   3. Show QR at: https://proxhqvpn.com/wireguard
+echo      (Sign in -> Generate -> Show QR Code)
+echo   4. Toggle the tunnel ON
+echo  ================================================
+echo.
+pause
+`,
+    "adb-install-linux.sh": `#!/bin/bash
+# ProxhqVPN -- Fire Stick ADB Installer v4.0
+# For Linux and macOS
+echo ""
+echo " ================================================"
+echo "  ProxhqVPN -- Fire Stick ADB Installer  v4.0"
+echo "  ALPHA UNLIMITED TECHNOLOGIES LLC"
+echo "  https://proxhqvpn.com"
+echo " ================================================"
+echo ""
+echo " REQUIREMENTS: adb must be installed."
+echo "   Ubuntu/Debian: sudo apt install adb"
+echo "   macOS:         brew install android-platform-tools"
+echo ""
+echo " BEFORE RUNNING:"
+echo "   1. Fire Stick: Settings -> My Fire TV -> Developer Options"
+echo "      -> ADB Debugging -> ON"
+echo "      -> Apps from Unknown Sources -> ON"
+echo "   2. Note Fire Stick IP:"
+echo "      Settings -> My Fire TV -> About -> Network"
+echo ""
+read -p " Enter your Fire Stick IP address: " FIRE_IP
+if [ -z "$FIRE_IP" ]; then echo "No IP entered."; exit 1; fi
+echo ""
+echo " Connecting to Fire Stick at $FIRE_IP..."
+adb connect "\${FIRE_IP}:5555"
+echo ""
+echo " Downloading WireGuard APK..."
+APK_URL="https://download.wireguard.com/android-client/com.wireguard.android-apk-latest.apk"
+curl -L -o /tmp/wireguard-fire.apk "$APK_URL" || { echo "[ERROR] Download failed."; exit 1; }
+echo " Download complete."
+echo ""
+echo " Installing WireGuard on Fire Stick..."
+adb -s "\${FIRE_IP}:5555" install /tmp/wireguard-fire.apk
+echo ""
+echo " ================================================"
+echo "  NEXT STEPS:"
+echo "  1. Open WireGuard on your Fire Stick"
+echo "  2. Tap + -> Scan from QR code"
+echo "  3. Show QR at: https://proxhqvpn.com/wireguard"
+echo "     (Sign in -> Generate -> Show QR Code)"
+echo "  4. Toggle the tunnel ON"
+echo " ================================================"
+echo ""
+`,
+  },
+
+  router: {
+    "openwrt-setup.sh": `#!/bin/bash
+# ProxhqVPN -- OpenWRT Router Setup v4.0
+# ALPHA UNLIMITED TECHNOLOGIES LLC | https://proxhqvpn.com
+# Installs WireGuard on your OpenWRT router via SSH
+
+echo ""
+echo " ================================================"
+echo "  ProxhqVPN -- OpenWRT Router Setup  v4.0"
+echo "  ALPHA UNLIMITED TECHNOLOGIES LLC"
+echo " ================================================"
+echo ""
+echo " This installs WireGuard on your OpenWRT router."
+echo " Requirements: SSH access to your router (usually root@192.168.1.1)"
+echo ""
+read -p " Router IP address [192.168.1.1]: " ROUTER_IP
+ROUTER_IP="\${ROUTER_IP:-192.168.1.1}"
+read -p " SSH username [root]: " SSH_USER
+SSH_USER="\${SSH_USER:-root}"
+echo ""
+echo " Connecting to router at $ROUTER_IP as $SSH_USER..."
+echo " (You will be prompted for the router SSH password)"
+echo ""
+
+ssh \${SSH_USER}@\${ROUTER_IP} 'bash -s' << 'EOF'
+echo "Updating package lists..."
+opkg update
+
+echo "Installing WireGuard packages..."
+opkg install wireguard-tools kmod-wireguard luci-proto-wireguard luci-app-wireguard
+
+if command -v wg &>/dev/null; then
+  echo ""
+  echo "WireGuard installed: $(wg --version 2>/dev/null || echo OK)"
+  echo ""
+  echo "Next: paste your WireGuard config into /etc/config/network"
+  echo "Get config from: https://proxhqvpn.com/router-config"
+  echo ""
+  echo "Then restart networking: /etc/init.d/network restart"
+else
+  echo "[ERROR] Installation may have failed. Check opkg logs."
+fi
+EOF
+
+echo ""
+echo " ================================================"
+echo "  NEXT STEPS:"
+echo "  1. Get your router config: https://proxhqvpn.com/router-config"
+echo "  2. SSH into router: ssh root@$ROUTER_IP"
+echo "  3. Paste config into /etc/config/network"
+echo "  4. Run: /etc/init.d/network restart"
+echo "  5. Verify from any device: curl https://api64.ipify.org"
+echo " ================================================"
+echo ""
+`,
+    "gliNet-setup.txt": `ProxhqVPN -- GL.iNet Router Setup
+===================================
+Version 4.0 | ALPHA UNLIMITED TECHNOLOGIES LLC
+https://proxhqvpn.com
+
+GL.iNet routers (GL-MT3000, GL-AXT1800, GL-AX1800, GL-MT1300,
+GL-MT2500, GL-X3000, GL-E750) have native WireGuard client support.
+
+STEP 1 -- Get your ProxhqVPN config
+  Visit: https://proxhqvpn.com/wireguard
+  Sign in -> Generate -> Copy Config (copy the entire block)
+
+STEP 2 -- Open GL.iNet Admin Panel
+  Open browser -> go to http://192.168.8.1
+  Default login password is on the label under your router.
+
+STEP 3 -- Set up WireGuard Client
+  Navigate to: VPN -> WireGuard Client -> Add Profile
+  Paste your entire copied config into the profile field.
+  Give it a name (e.g. ProxhqVPN) -> Save.
+
+STEP 4 -- Connect
+  Toggle the WireGuard Client ON.
+  Every device on your GL.iNet network is now VPN-protected.
+
+STEP 5 -- Verify
+  From any connected device, visit: https://api64.ipify.org
+  The IP should be a ProxhqVPN server IP.
+
+RECOMMENDED SETTINGS:
+  VPN -> VPN Policies -> Force all traffic through VPN -> ON
+  This ensures no device on your network bypasses the VPN.
+
+KILL SWITCH:
+  GL.iNet has a built-in VPN kill switch under VPN -> VPN Policies.
+  Enable "Block Non-VPN Traffic" for whole-network protection.
+
+Support: support@proxhqvpn.com | Guide: https://proxhqvpn.com/guide
+`,
+    "pfsense-opnsense-setup.txt": `ProxhqVPN -- pfSense / OPNsense Setup
+=======================================
+Version 4.0 | ALPHA UNLIMITED TECHNOLOGIES LLC
+https://proxhqvpn.com
+
+PFSENSE SETUP:
+  1. Install WireGuard package:
+     System -> Package Manager -> Available Packages
+     Search "WireGuard" -> Install
+
+  2. Configure WireGuard:
+     VPN -> WireGuard -> Settings -> Enable WireGuard -> Save
+     Tunnels tab -> Add Tunnel
+       Description: ProxhqVPN
+       Listen Port: (leave blank for random)
+       Interface Keys: Generate (or paste from ProxhqVPN dashboard)
+
+  3. Add Peer (ProxhqVPN server):
+     Public Key: (from your ProxhqVPN .conf Peer section)
+     Endpoint: (your ProxhqVPN server IP):51820
+     Allowed IPs: 0.0.0.0/0
+     Keep Alive: 25
+
+  4. Assign Interface:
+     Interfaces -> Assignments -> Add wg0 -> Save
+     Configure the interface with address from your .conf
+
+  5. Add firewall rule:
+     Firewall -> Rules -> WireGuard tab
+     Add rule: Allow All (or restrict as needed)
+
+OPNSENSE SETUP:
+  1. Install WireGuard plugin:
+     System -> Firmware -> Plugins -> os-wireguard -> Install
+     Reboot required.
+
+  2. Configure:
+     VPN -> WireGuard -> Local -> Add
+     Fill in keys, name "ProxhqVPN", port 51820
+
+  3. Add Endpoint (peer):
+     VPN -> WireGuard -> Endpoints -> Add
+     Fill in server public key, endpoint IP:51820, AllowedIPs 0.0.0.0/0
+
+  4. Assign interface and add firewall rules.
+
+Get your keys from: https://proxhqvpn.com/wireguard
+Support: support@proxhqvpn.com | Guide: https://proxhqvpn.com/guide
+`,
+    "wg-router-template.conf": `# ProxhqVPN -- Router WireGuard Config Template
+# Version 4.0 | https://proxhqvpn.com
+#
+# Get your REAL config from: https://proxhqvpn.com/router-config
+# Select your firmware -> Generate -> Copy the output below
+#
+# For OpenWRT, paste the [Interface] and [Peer] block values
+# into /etc/config/network in the WireGuard section.
+#
+# DO NOT USE THESE PLACEHOLDER VALUES.
+
+[Interface]
+PrivateKey = YOUR_ROUTER_PRIVATE_KEY_FROM_PROXHQVPN
+Address = 10.0.0.3/32
+DNS = 1.1.1.1
+
+[Peer]
+PublicKey = SERVER_PUBLIC_KEY_FROM_PROXHQVPN
+AllowedIPs = 0.0.0.0/0, ::/0
+Endpoint = YOUR_PROXHQVPN_SERVER_IP:51820
+PersistentKeepalive = 25
+`,
+    "router-kill-switch.sh": `#!/bin/bash
+# ProxhqVPN -- Router Kill Switch (OpenWRT) v4.0
+# Run on your OpenWRT router via SSH
+# Blocks all WAN traffic if WireGuard tunnel goes down
+
+echo "ProxhqVPN Router Kill Switch v4.0"
+echo "==================================="
+echo ""
+
+# Add kill switch rules via iptables (run on router)
+iptables -I FORWARD -i br-lan -o eth0 -j REJECT
+iptables -I FORWARD -i br-lan -o wg0 -j ACCEPT
+iptables -I OUTPUT -o eth0 -j REJECT
+iptables -I OUTPUT -o wg0 -j ACCEPT
+iptables -I OUTPUT -o lo -j ACCEPT
+
+echo "Kill switch enabled. LAN traffic blocked except through wg0."
+echo ""
+echo "To remove: iptables -D FORWARD -i br-lan -o eth0 -j REJECT"
+echo "Full guide: https://proxhqvpn.com/kill-switch"
+`,
+  },
+
+  android: {
+    "SETUP-GUIDE.txt": `ProxhqVPN -- Android Setup Package
+====================================
+Version 4.0 | ALPHA UNLIMITED TECHNOLOGIES LLC
+https://proxhqvpn.com
+
+This package contains:
+  SETUP-GUIDE.txt   This file
+  README.txt        Full platform-specific setup guide
+  Quick_Start.txt   Quick start guide
+  User_Guide.txt    Complete user guide
+  CHANGELOG.txt     Version history
+  VERSION.txt       Version info
+
+INSTALL WIREGUARD:
+  Option A -- Google Play Store (recommended):
+    https://play.google.com/store/apps/details?id=com.wireguard.android
+
+  Option B -- Direct APK download (no Play Store needed):
+    URL: https://download.wireguard.com/android-client/com.wireguard.android-apk-latest.apk
+    Enable unknown sources: Settings -> Security -> Install unknown apps -> ON
+    Tap the downloaded APK -> Install
+
+CONNECT:
+  1. Sign in at https://proxhqvpn.com/wireguard
+  2. Generate -> Show QR Code
+  3. WireGuard app -> + -> Scan from QR code
+  4. Toggle ON -> VPN key icon in status bar = connected
+
+VERIFY:
+  Chrome -> https://api64.ipify.org
+  Must show ProxhqVPN server IP.
+  Full leak test: https://proxhqvpn.com/leaks
+
+ANDROID TV / NVIDIA SHIELD:
+  Install WireGuard from Google Play on Android TV.
+  For Nvidia Shield: Play Store -> search WireGuard -> install.
+  Use ADB or a USB mouse to navigate the QR scanner.
+  ADB push method:
+    adb connect SHIELD_IP:5555
+    adb install wireguard.apk
+
+Support: support@proxhqvpn.com | Guide: https://proxhqvpn.com/guide
+`,
+  },
+
+  ios: {
+    "SETUP-GUIDE.txt": `ProxhqVPN -- iOS / iPadOS Setup Package
+=========================================
+Version 4.0 | ALPHA UNLIMITED TECHNOLOGIES LLC
+https://proxhqvpn.com
+
+This package contains:
+  SETUP-GUIDE.txt   This file
+  README.txt        Full platform-specific setup guide
+  Quick_Start.txt   Quick start guide
+  User_Guide.txt    Complete user guide
+  CHANGELOG.txt     Version history
+  VERSION.txt       Version info
+
+INSTALL WIREGUARD:
+  App Store: https://apps.apple.com/us/app/wireguard/id1441195209
+  Search "WireGuard" in the App Store -> Get -> Install
+
+CONNECT:
+  1. Sign in at https://proxhqvpn.com/wireguard on desktop or laptop
+  2. Generate -> Show QR Code
+  3. On iPhone/iPad: WireGuard -> + -> Create from QR code
+  4. Point camera at QR code -> Save tunnel
+  5. Toggle ON -> VPN key icon appears in status bar = connected
+
+ALTERNATIVE -- FILE IMPORT:
+  Download the .conf file from ProxhqVPN -> WireGuard Config
+  Share the file to WireGuard via iOS Share Sheet:
+    Files app -> tap .conf -> Share -> WireGuard -> Import
+
+ON-DEMAND CONNECT:
+  In WireGuard: tap your tunnel -> On-Demand
+  Enable for Wi-Fi and/or Cellular so VPN reconnects automatically.
+
+USING IPHONE AS ROUTER FOR APPLE TV:
+  Enable VPN on iPhone -> Personal Hotspot ON
+  Connect Apple TV to iPhone hotspot -> Apple TV is protected.
+
+VERIFY:
+  Safari -> https://api64.ipify.org
+  Must show ProxhqVPN server IP.
+  Full leak test: https://proxhqvpn.com/leaks
+
+Support: support@proxhqvpn.com | Guide: https://proxhqvpn.com/guide
+`,
+  },
+
+  appletv: {
+    "SETUP-GUIDE.txt": `ProxhqVPN -- Apple TV Setup Package
+=====================================
+Version 4.0 | ALPHA UNLIMITED TECHNOLOGIES LLC
+https://proxhqvpn.com
+
+This package contains:
+  SETUP-GUIDE.txt   This file
+  README.txt        Full platform-specific setup guide
+  Quick_Start.txt   Quick start guide
+  User_Guide.txt    Complete user guide
+  CHANGELOG.txt     Version history
+  VERSION.txt       Version info
+
+THREE SETUP METHODS -- choose the one that works for you:
+
+METHOD 1 -- WIREGUARD ON TVOS (recommended for Apple TV 4K):
+  App Store on Apple TV -> search "WireGuard" -> Install
+  Sign in at proxhqvpn.com -> WireGuard Config -> Generate -> Show QR
+  WireGuard on Apple TV -> + -> Create from QR code
+  Point the Apple TV camera at the QR on your phone/screen
+  Toggle ON -> VPN key icon at top = connected
+
+  No camera? Use iCloud sharing:
+    iPhone WireGuard -> tap tunnel -> Share -> add to iCloud
+    Apple TV WireGuard -> Import from iCloud Keychain
+
+METHOD 2 -- IPHONE PERSONAL HOTSPOT (easiest):
+  1. Install ProxhqVPN on your iPhone (see iOS README)
+  2. Enable VPN on iPhone -> toggle WireGuard ON
+  3. iPhone -> Personal Hotspot -> ON
+  4. Apple TV Settings -> Wi-Fi -> connect to your iPhone hotspot
+  All Apple TV traffic tunnels through your iPhone's VPN.
+
+METHOD 3 -- ROUTER SETUP (best for always-on protection):
+  Install ProxhqVPN on your router. Every device including Apple TV
+  is automatically protected with no configuration on the Apple TV.
+  See Router README and: https://proxhqvpn.com/router-config
+
+VERIFY:
+  From any device on the same network:
+    curl https://api64.ipify.org
+  Should show ProxhqVPN server IP.
+
+Support: support@proxhqvpn.com | Guide: https://proxhqvpn.com/guide
+`,
+  },
+};
+
 // Map platform IDs → README_CONTENT keys
 const README_ID_MAP: Record<string, string> = {
   macos:           "mac",
@@ -1872,17 +3062,24 @@ const README_ID_MAP: Record<string, string> = {
 
 async function downloadPlatformZip(platformId: string, platformName: string) {
   const resolvedId = README_ID_MAP[platformId] ?? platformId;
-  const readmeContent = README_CONTENT[resolvedId]
-    ?? README_CONTENT["linux"]
-    ?? "";
+  const readmeContent = README_CONTENT[resolvedId] ?? README_CONTENT["linux"] ?? "";
 
   const zip = new JSZip();
-  const folderName = `ProxhqVPN-${platformName.replace(/[^a-zA-Z0-9]/g, "-")}`;
+  const folderName = `ProxhqVPN-${platformName.replace(/[^a-zA-Z0-9]/g, "-")}-v4.0`;
   const folder = zip.folder(folderName)!;
 
+  // ── Core documentation (every platform) ──────────────────────────────────
   folder.file("README.txt",       readmeContent);
   folder.file("User_Guide.txt",   USER_GUIDE_TXT);
   folder.file("Quick_Start.txt",  QUICK_START_TXT);
+  folder.file("CHANGELOG.txt",    CHANGELOG_TXT);
+  folder.file("VERSION.txt",      VERSION_TXT);
+
+  // ── Platform-specific program files (scripts, configs, tools) ────────────
+  const scripts = PLATFORM_SCRIPTS[resolvedId] ?? {};
+  for (const [filename, content] of Object.entries(scripts)) {
+    folder.file(filename, content);
+  }
 
   const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE" });
   const url = URL.createObjectURL(blob);
