@@ -5,13 +5,11 @@
  * Tier 2 — Command Center Pro $39.99/mo · $349.99/yr
  *
  * Products are tagged with metadata.tier = "vpn" | "command_center".
- * If a product already exists, its prices are reconciled to match
- * the targets above — outdated prices get deactivated automatically.
+ * Always verifies product existence via the live Stripe API (not just the
+ * synced DB) so a fresh account never re-uses stale sandbox IDs.
  */
 
 import { getUncachableStripeClient } from "./stripeClient";
-import { db } from "@workspace/db";
-import { sql } from "drizzle-orm";
 import { logger } from "./lib/logger";
 
 interface PriceTarget {
@@ -30,22 +28,22 @@ const PRO_TARGETS: PriceTarget[] = [
   { interval: "year",  amount: 34999, nickname: "Command Center Pro — Annual"  },
 ];
 
-async function getProductIdByTier(tier: string): Promise<string | null> {
-  const result = await db.execute(
-    sql`SELECT id FROM stripe.products WHERE active = true AND metadata->>'tier' = ${tier} LIMIT 1`
-  );
-  return (result.rows[0] as any)?.id ?? null;
+/** Find a live product in Stripe (not the synced DB) by tier metadata. */
+async function findProductInStripe(tier: string): Promise<string | null> {
+  const stripe = await getUncachableStripeClient();
+  const list = await stripe.products.list({ active: true, limit: 100 });
+  const match = list.data.find(p => p.metadata?.tier === tier);
+  return match?.id ?? null;
 }
 
 async function reconcilePrices(productId: string, targets: PriceTarget[]) {
   const stripe = await getUncachableStripeClient();
 
-  // Fetch all active prices for this product from Stripe (not just DB — ensures freshness)
   const existing = await stripe.prices.list({ product: productId, active: true, limit: 50 });
 
   for (const target of targets) {
     const match = existing.data.find(
-      (p) =>
+      p =>
         p.recurring?.interval === target.interval &&
         p.unit_amount === target.amount &&
         p.currency === "usd"
@@ -60,7 +58,6 @@ async function reconcilePrices(productId: string, targets: PriceTarget[]) {
         }
       }
 
-      // Create the new price at the correct amount
       const created = await stripe.prices.create({
         product: productId,
         unit_amount: target.amount,
@@ -77,8 +74,8 @@ export async function seedStripeProducts() {
   try {
     const stripe = await getUncachableStripeClient();
 
-    // ── VPN Basic ────────────────────────────────────────────────────────────────
-    let vpnId = await getProductIdByTier("vpn");
+    // ── VPN Basic ────────────────────────────────────────────────────────────
+    let vpnId = await findProductInStripe("vpn");
     if (!vpnId) {
       const vpn = await stripe.products.create({
         name: "ProxhqVPN — VPN Basic",
@@ -87,11 +84,13 @@ export async function seedStripeProducts() {
       });
       vpnId = vpn.id;
       logger.info({ productId: vpnId }, "Seeded Stripe product: VPN Basic");
+    } else {
+      logger.info({ productId: vpnId }, "Stripe product exists: VPN Basic");
     }
     await reconcilePrices(vpnId, VPN_TARGETS);
 
-    // ── Command Center Pro ────────────────────────────────────────────────────────
-    let proId = await getProductIdByTier("command_center");
+    // ── Command Center Pro ───────────────────────────────────────────────────
+    let proId = await findProductInStripe("command_center");
     if (!proId) {
       const pro = await stripe.products.create({
         name: "ProxhqVPN — Command Center Pro",
@@ -100,9 +99,12 @@ export async function seedStripeProducts() {
       });
       proId = pro.id;
       logger.info({ productId: proId }, "Seeded Stripe product: Command Center Pro");
+    } else {
+      logger.info({ productId: proId }, "Stripe product exists: Command Center Pro");
     }
     await reconcilePrices(proId, PRO_TARGETS);
 
+    logger.info("Stripe products seeded successfully");
   } catch (err: any) {
     logger.warn({ err: err.message }, "Stripe product seed failed — will retry on next restart");
   }
