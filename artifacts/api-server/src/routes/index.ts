@@ -39,6 +39,7 @@ import nodeProvisionRouter from "./node-provision";
 import sqlmapRouter from "./sqlmap";
 import alphaRouter from "./alpha";
 import httpProbeRouter from "./httpprobe";
+import intruderRouter from "./intruder";
 import dirFuzzerRouter from "./dirfuzzer";
 import subdomainScanRouter from "./subdomainscan";
 import employeesRouter from "./employees";
@@ -276,6 +277,7 @@ router.use("/alpha",           requireCommandCenter, alphaRouter);
 router.use("/http-probe",      requireCommandCenter, httpProbeRouter);
 router.use("/dir-fuzzer",      requireCommandCenter, dirFuzzerRouter);
 router.use("/subdomain-scan",  requireCommandCenter, subdomainScanRouter);
+router.use("/intruder",        requireCommandCenter, intruderRouter);
 
 // ── Admin-only routes ─────────────────────────────────────────────────────
 router.use("/employees",      requireAdmin, employeesRouter);

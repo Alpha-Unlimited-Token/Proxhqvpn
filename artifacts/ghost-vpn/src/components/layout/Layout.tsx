@@ -10,6 +10,7 @@ import {
   LogOut, User, Menu, Download,
   Zap, Settings, Cpu, Router, ScanSearch, Layers, FileText, Users,
   Send, FolderSearch, Radar, Award, BarChart2,
+  Code2, GitCompare, Swords, Bug, Eye,
 } from "lucide-react";
 import { useAccess } from "@/hooks/useAccess";
 
@@ -57,6 +58,12 @@ const PAGE_NAMES: Record<string, string> = {
   "/ambassadors":          "Ambassadors",
   "/ambassador/apply":     "Become an Ambassador",
   "/ambassador/dashboard": "Ambassador Dashboard",
+  "/encoder":              "Encoder / Decoder",
+  "/comparer":             "Request Comparer",
+  "/payloads":             "Payload Generator",
+  "/cve-search":           "CVE Lookup",
+  "/intruder":             "Intruder",
+  "/ip-exposure":          "IP Exposure Scanner",
 };
 
 const USER_NAV = [
@@ -74,6 +81,7 @@ const PROTECTION_NAV = [
   { href: "/dns-shield",         label: "DNS Protection",      icon: ShieldPlus },
   { href: "/threat-protection",  label: "Threat Protection",   icon: ShieldAlert },
   { href: "/obfuscation",        label: "Stealth Protocol",    icon: EyeOff },
+  { href: "/ip-exposure",        label: "IP Exposure Scan",    icon: Eye },
 ];
 
 const NETWORK_NAV = [
@@ -91,8 +99,13 @@ const ADVANCED_NAV = [
   { href: "/sqlmap",        label: "Vulnerability Scanner", icon: ScanSearch },
   { href: "/alpha-tools",   label: "Alpha Toolkit",         icon: Layers },
   { href: "/http-probe",    label: "HTTP Probe",            icon: Send },
+  { href: "/intruder",      label: "Intruder",              icon: Swords },
   { href: "/dir-fuzzer",    label: "Directory Fuzzer",      icon: FolderSearch },
   { href: "/subdomain-scan",label: "Subdomain Scout",       icon: Radar },
+  { href: "/encoder",       label: "Encoder / Decoder",     icon: Code2 },
+  { href: "/comparer",      label: "Request Comparer",      icon: GitCompare },
+  { href: "/payloads",      label: "Payload Generator",     icon: Bug },
+  { href: "/cve-search",    label: "CVE Lookup",            icon: ShieldAlert },
 ];
 
 const AMBASSADOR_NAV = [

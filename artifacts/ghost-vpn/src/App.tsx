@@ -75,6 +75,12 @@ import Ambassadors from "@/pages/Ambassadors";
 import AmbassadorApply from "@/pages/AmbassadorApply";
 import AmbassadorDashboard from "@/pages/AmbassadorDashboard";
 import CheckoutSuccess from "@/pages/CheckoutSuccess";
+import Encoder from "@/pages/Encoder";
+import Comparer from "@/pages/Comparer";
+import PayloadGen from "@/pages/PayloadGen";
+import CveSearch from "@/pages/CveSearch";
+import Intruder from "@/pages/Intruder";
+import IpExposure from "@/pages/IpExposure";
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
@@ -432,6 +438,24 @@ function AppRoutes() {
           </Route>
           <Route path="/subdomain-scan">
             <CcLayout><SubdomainScan /></CcLayout>
+          </Route>
+          <Route path="/encoder">
+            <CcLayout><Encoder /></CcLayout>
+          </Route>
+          <Route path="/comparer">
+            <CcLayout><Comparer /></CcLayout>
+          </Route>
+          <Route path="/payloads">
+            <CcLayout><PayloadGen /></CcLayout>
+          </Route>
+          <Route path="/cve-search">
+            <CcLayout><CveSearch /></CcLayout>
+          </Route>
+          <Route path="/intruder">
+            <CcLayout><Intruder /></CcLayout>
+          </Route>
+          <Route path="/ip-exposure">
+            <ToolLayout><IpExposure /></ToolLayout>
           </Route>
 
           {/* ── Admin-only — gated on backend; frontend shows paywall for non-admins ── */}
