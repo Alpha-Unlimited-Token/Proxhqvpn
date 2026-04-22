@@ -447,7 +447,7 @@ export default function Home() {
           <div className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-full px-4 py-1.5 mb-8">
             <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
             <span className="text-xs text-primary font-medium">
-              3 Nodes Online — Chicago · LA · Tokyo
+              4 Nodes Online — Chicago · LA · Tokyo · US-West
             </span>
           </div>
 
@@ -480,7 +480,7 @@ export default function Home() {
           {/* Stats */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-2xl mx-auto">
             {[
-              { value: "3", label: "Global Nodes", live: false },
+              { value: "4", label: "Global Nodes", live: false },
               { value: liveStats ? String(liveStats.honeypotNodes) : "—", label: "Honeypot Traps", live: true },
               { value: liveStats ? String(liveStats.trappedAttackers) : "—", label: "Attackers Trapped", live: true },
               { value: "< 30s", label: "Setup Time", live: false },
