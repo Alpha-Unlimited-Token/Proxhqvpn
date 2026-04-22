@@ -80,7 +80,7 @@ router.post("/", async (req: Request, res: Response) => {
  */
 router.get("/status/:nodeId", async (req: Request, res: Response) => {
   if (!checkPsk(req, res)) return;
-  const [node] = await db.select().from(nodesTable).where(eq(nodesTable.id, parseInt(req.params.nodeId)));
+  const [node] = await db.select().from(nodesTable).where(eq(nodesTable.id, parseInt(String(req.params.nodeId))));
   if (!node) return res.status(404).json({ error: "Node not found" });
   res.json({ nodeId: node.id, region: node.region, status: node.status, ipAddress: node.ipAddress });
 });

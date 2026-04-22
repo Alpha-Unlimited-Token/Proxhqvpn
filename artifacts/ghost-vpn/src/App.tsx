@@ -1,5 +1,5 @@
 import { useEffect, useRef, Component, type ReactNode } from "react";
-import { ClerkProvider, SignIn, SignUp, Show, useClerk } from "@clerk/react";
+import { ClerkProvider, SignIn, SignUp, Show, useClerk, useUser } from "@clerk/react";
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
   constructor(props: { children: ReactNode }) {
@@ -152,7 +152,7 @@ const clerkAppearance = {
 };
 
 function SignInPage() {
-  const { isSignedIn, isLoaded } = useClerk();
+  const { isSignedIn, isLoaded } = useUser();
   if (isLoaded && isSignedIn) return <Redirect to="/dashboard" />;
   return (
     <div className="flex min-h-[100dvh] bg-[#080d09]">
@@ -191,7 +191,7 @@ function SignInPage() {
 }
 
 function SignUpPage() {
-  const { isSignedIn, isLoaded } = useClerk();
+  const { isSignedIn, isLoaded } = useUser();
   if (isLoaded && isSignedIn) return <Redirect to="/dashboard" />;
   return (
     <div className="flex min-h-[100dvh] bg-[#080d09]">
@@ -222,7 +222,7 @@ function SignUpPage() {
 }
 
 function HomeRedirect() {
-  const { isSignedIn, isLoaded } = useClerk();
+  const { isSignedIn, isLoaded } = useUser();
   // Show the homepage immediately while Clerk loads — never blank screen
   if (!isLoaded) return <Home />;
   if (isSignedIn) return <Redirect to="/dashboard" />;

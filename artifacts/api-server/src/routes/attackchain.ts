@@ -571,7 +571,7 @@ router.get("/scan/:id", async (req: Request, res: Response) => {
   const { userId } = getAuth(req);
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-  const scanId = parseInt(req.params.id);
+  const scanId = parseInt(String(req.params.id));
   const [scan] = await db.select().from(attackChainScansTable).where(eq(attackChainScansTable.id, scanId)).limit(1);
   if (!scan) return res.status(404).json({ error: "Scan not found" });
   if (scan.createdBy !== userId) return res.status(403).json({ error: "Forbidden" });
@@ -604,7 +604,7 @@ router.delete("/scan/:id", async (req: Request, res: Response) => {
   const { userId } = getAuth(req);
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-  const scanId = parseInt(req.params.id);
+  const scanId = parseInt(String(req.params.id));
   const [scan] = await db.select().from(attackChainScansTable).where(eq(attackChainScansTable.id, scanId)).limit(1);
   if (!scan) return res.status(404).json({ error: "Scan not found" });
   if (scan.createdBy !== userId) return res.status(403).json({ error: "Forbidden" });

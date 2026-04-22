@@ -772,7 +772,7 @@ const USER_GUIDE_TXT = `ProxhqVPN — Full User Guide
 ============================
 ALPHA UNLIMITED TECHNOLOGIES LLC
 https://proxhqvpn.com | support@proxhqvpn.com
-Version 2.0
+Version 3.0
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 PLAN OVERVIEW
@@ -781,9 +781,11 @@ VPN Basic:           $6.99/mo or $59.99/yr
 Command Center Pro:  $39.99/mo or $349.99/yr
 
 VPN Basic includes:
-  WireGuard VPN, Kill Switch, DNS Shield, Leak Detection, Smart DNS,
+  WireGuard VPN, Kill Switch, DNS Shield, DNS Sinkhole,
+  Network Traffic Monitor, Leak Detection, Smart DNS,
   Split Tunneling, VPN Gate (double-hop), Onion Browser (Tor over VPN),
-  Router Config, VPN Coexistence, Device Manager, IP Exposure Scanner
+  Obfuscation (Stealth Mode), Router Config, VPN Coexistence,
+  Device Manager, IP Exposure Scanner
 
 Command Center Pro (everything in Basic plus):
   Alpha Toolkit (Universal Scanner + Verifier + Web Scraper),
@@ -791,7 +793,9 @@ Command Center Pro (everything in Basic plus):
   Subdomain Scout, Threat Intelligence, Security Audit,
   Threat Monitor (Beacons), Firewall Manager, Remote Terminal,
   Database Interface, SilkWeb Honeypot, Encoder/Decoder,
-  Request Comparer, Payload Generator, CVE Lookup, Intruder
+  Request Comparer, Payload Generator, CVE Lookup, Intruder,
+  SIEM (Security Event Log), OSINT Recon, Canary Tokens,
+  Ghost Chain Exploit Arsenal, Exploit Importer
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 VPN CONNECTION (/my-vpn)
@@ -939,6 +943,53 @@ Encoder / Decoder (/encoder):
 Request Comparer (/comparer):
   Side-by-side diff of two HTTP requests/responses. Modes: Words, Lines,
   Bytes. Useful for auth bypass detection and IDOR verification.
+
+SIEM — Security Event Log (/siem):
+  Unified event log aggregating WireGuard tunnel events, SilkWeb honeypot
+  hits, firewall rule blocks, DNS sinkhole blocks, and auth failures.
+  Filter by severity, source, time range. Export CSV or JSON.
+  Alert rules for email notifications on specific event patterns.
+
+OSINT Recon (/osint-recon):
+  Passive intelligence aggregation across 15+ sources: Shodan, Censys,
+  AbuseIPDB, VirusTotal, GreyNoise, WHOIS/RDAP, DNSDumpster, crt.sh,
+  HaveIBeenPwned, URLhaus, PassiveDNS, BGP/ASN. All queries VPN-routed.
+  Export findings as HTML, PDF, or JSON.
+
+Canary Tokens (/canary-tokens):
+  Invisible tripwires that alert you the instant someone accesses them.
+  Token types: HTTP URL, DNS, PDF/DOCX document, Email pixel, AWS fake
+  key, SQL canary row. Alerts include source IP, browser, GeoIP, OS.
+
+Ghost Chain Exploit Arsenal (/ghost-chain):
+  200+ categorized exploits with Details tab (technique, CVEs, examples)
+  and Exploit PoC tab (copy-ready attack code). Categories: SQLi, XSS,
+  RCE, SSRF, XXE, LFI, Deserialization, JWT, OAuth, HTTP Smuggling,
+  Cache Poisoning, CORS, WebSocket hijacking, subdomain takeover.
+  Integrates with HTTP Probe and Intruder (click Send to tool).
+
+Exploit Importer (/exploit-import):
+  Upload Nessus XML, Burp HTML, Nikto, ZAP, or OpenVAS reports.
+  Also accepts .txt, .log, .json — ZIP archives auto-extracted.
+  30+ pattern categories: SQLi, XSS, RCE, SSRF, XXE, LFI, IDOR, CSRF,
+  JWT vulns, exposed .env/.git, default creds, no rate limiting, etc.
+  CVE IDs auto-extracted. Results sorted by severity with PoC code.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+VPN BASIC EXCLUSIVE FEATURES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+DNS Sinkhole (/dns-sinkhole):
+  Pi-hole equivalent built into the VPN. Blocks 100k+ ad networks,
+  trackers, malware distribution domains, stalkerware, and coin miners
+  at the DNS layer. Custom block/allow lists with wildcard support.
+  Query log shows every DNS request with ALLOWED/BLOCKED status.
+
+Network Traffic Monitor (/network-monitor):
+  Real-time flow table — every connection through the VPN tunnel.
+  Columns: Source IP, Destination IP, Port, Protocol, Bytes In/Out,
+  Duration, Country (GeoIP), Threat flag (AbuseIPDB/botnet check).
+  Protocol breakdown tab. PCAP capture (30-sec Wireshark-compatible).
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ADMIN TOOLS (Admin accounts only)

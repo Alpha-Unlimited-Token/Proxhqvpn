@@ -8,7 +8,7 @@ import {
   Radio, Gamepad2, Tv, Smartphone, Monitor, Bug, FileText,
   Lock, Key, Settings, BarChart2, Bell, Map, TrendingUp,
   MapPin, Crosshair, Eye, Send, FolderSearch, Radar,
-  Swords, Code2, GitCompare, ShieldAlert,
+  Swords, Code2, GitCompare, ShieldAlert, Upload, GitMerge,
 } from "lucide-react";
 
 function CopyBtn({ text }: { text: string }) {
@@ -67,12 +67,16 @@ const SECTIONS: Section[] = [
           {[
             { t: "WireGuard Core", d: "Modern VPN protocol with AES-256-GCM. Fastest and most secure available." },
             { t: "Double-Hop (VPN Gate)", d: "Route through community VPN Gate servers for an extra anonymity layer." },
+            { t: "DNS Sinkhole", d: "Pi-hole equivalent built into the VPN. Blocks 100k+ ad, tracker, and malware domains at the DNS layer across all connected devices." },
+            { t: "Network Traffic Monitor", d: "Real-time flow table showing every connection through the tunnel — IPs, ports, bytes, country, threat flags, and PCAP export." },
             { t: "SilkWeb Honeypot Mesh", d: "Decoy network that lures, fingerprints, and blocks attackers in real time." },
+            { t: "SIEM — Security Event Log", d: "Unified event log aggregating WireGuard events, honeypot hits, firewall blocks, auth failures, and DNS sinkhole blocks." },
+            { t: "OSINT Recon Engine", d: "15+ passive intelligence sources (Shodan, Censys, AbuseIPDB, CT logs, HaveIBeenPwned) queried in parallel, all routed through the VPN." },
+            { t: "Canary Tokens", d: "Invisible tripwires — HTTP URLs, DNS tokens, document beacons, AWS fake keys — that alert you the instant someone accesses them." },
+            { t: "Ghost Chain Exploit Arsenal", d: "200+ categorized exploits (SQLi, XSS, RCE, SSRF, XXE, JWT, deserialization) with Details and PoC code tabs. Integrates with HTTP Probe and Intruder." },
+            { t: "Exploit Importer", d: "Upload Nessus, Burp, Nikto, ZAP, or OpenVAS reports (ZIP auto-extracted). 30+ pattern categories extract findings with severity scoring and PoC code." },
             { t: "Alpha Toolkit", d: "Universal Scanner, Vuln Verifier, Web Scraper — all Tor-cloakable." },
             { t: "Kill Switch + Auto-IP", d: "Block all traffic if VPN drops. Your real IP is auto-detected and whitelisted so you never lose remote access." },
-            { t: "Clerk Auth + Stripe", d: "Enterprise SSO authentication with integrated subscription billing." },
-            { t: "Auto IP Whitelisting", d: "Platform detects your current IP at session start and pre-bakes it into iptables/pf/netsh rules and WireGuard PostUp hooks." },
-            { t: "Router Config Generator", d: "One-click WireGuard configs for 6 router firmware platforms with your IP pre-embedded in the kill switch rules." },
           ].map(({ t, d }) => (
             <div key={t} className="border border-primary/15 rounded p-3">
               <div className="text-[10px] font-mono font-bold text-primary mb-0.5">{t}</div>
@@ -83,8 +87,8 @@ const SECTIONS: Section[] = [
         <h4 className="font-bold text-primary text-[11px] mt-3">Plan Tiers</h4>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {[
-            { t: "VPN Basic", p: "$6.99/mo · $59.99/yr", d: "WireGuard VPN, Kill Switch, Leak Detection, DNS Protection, Smart DNS, Split Tunneling, VPN Gate double-hop, Onion Browser, Router Config." },
-            { t: "Command Center Pro", p: "$39.99/mo · $349.99/yr", d: "Everything in Basic plus the full security toolkit: Alpha Toolkit, SQLmap Scanner, SilkWeb Honeypot, Firewall Manager, Threat Monitor, Remote Terminal, Security Audit, Threat Intelligence." },
+            { t: "VPN Basic", p: "$6.99/mo · $59.99/yr", d: "WireGuard VPN, Kill Switch, Leak Detection, DNS Shield, DNS Sinkhole, Network Traffic Monitor, Smart DNS, Split Tunneling, VPN Gate double-hop, Onion Browser, Router Config, IP Exposure Scanner, Obfuscation (Stealth Mode), Device Manager." },
+            { t: "Command Center Pro", p: "$39.99/mo · $349.99/yr", d: "Everything in Basic plus the full offensive + defensive security suite: Alpha Toolkit, SQLmap, SilkWeb Honeypot, Firewall Manager, Threat Monitor, Remote Terminal, Security Audit, Threat Intelligence, SIEM, OSINT Recon, Canary Tokens, Ghost Chain Exploit Arsenal, Exploit Importer, HTTP Probe, Directory Fuzzer, Subdomain Scout, Intruder, Encoder, CVE Lookup, Payload Generator, Request Comparer." },
           ].map(({ t, p, d }) => (
             <div key={t} className="border border-primary/20 rounded p-3 bg-primary/5">
               <div className="text-[11px] font-mono font-bold text-primary">{t}</div>
@@ -999,6 +1003,210 @@ Table: metadata      → Crawl session info, start time, depth`}</CB>
     ),
   },
   {
+    id: "networkmonitor", title: "Network Traffic Monitor", icon: Activity,
+    content: (
+      <div className="space-y-3">
+        <p>The <strong>Network Monitor</strong> (<code>/network-monitor</code>) provides real-time visibility into every network flow passing through your VPN tunnel — source/destination IPs, ports, protocols, bytes transferred, country, and active threat flags. Available on VPN Basic.</p>
+        <h4 className="font-bold text-primary text-[11px]">Live Flow Table</h4>
+        <div className="space-y-2">
+          {[
+            { t: "Source → Destination", d: "Every connection is logged with source IP, destination IP, port, and protocol (TCP/UDP/ICMP). Click any row for full details." },
+            { t: "Bytes In / Out", d: "Per-flow bandwidth usage. Useful for identifying bandwidth-heavy apps or unexpected data exfiltration." },
+            { t: "Duration", d: "How long each connection has been open. Long-lived connections to unusual IPs may indicate C2 beaconing." },
+            { t: "Country Flag", d: "GeoIP lookup on the destination IP. Filter by country to find unexpected foreign connections." },
+            { t: "Threat Flag", d: "Red triangle icon if the destination IP matches a known threat feed (AbuseIPDB, Shodan, botnet lists). Hover for threat category." },
+          ].map(({ t, d }) => (
+            <div key={t} className="border border-primary/10 rounded px-3 py-2">
+              <div className="text-[10px] font-mono font-bold text-primary">{t}</div>
+              <div className="text-[9px] font-mono text-primary/83 mt-0.5">{d}</div>
+            </div>
+          ))}
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Protocol Breakdown Tab</h4>
+        <p className="text-[10px] font-mono text-primary/83">Switch to the Protocols tab to see a pie chart and table of traffic by protocol (HTTPS, DNS, NTP, SSH, etc.) and by destination country. Quickly identify if a large proportion of your traffic is going to unexpected regions.</p>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Packet Capture (PCAP)</h4>
+        <p className="text-[10px] font-mono text-primary/83">Click <strong>Capture PCAP</strong> to start a 30-second packet capture on the WireGuard interface. The resulting .pcap file can be opened in Wireshark for deep protocol analysis.</p>
+        <Note type="info">The flow table auto-refreshes every 5 seconds. Click any column header to sort. Use the search box to filter by IP, port, or country.</Note>
+      </div>
+    ),
+  },
+  {
+    id: "dnssinkhole", title: "DNS Sinkhole", icon: Shield,
+    content: (
+      <div className="space-y-3">
+        <p>The <strong>DNS Sinkhole</strong> (<code>/dns-sinkhole</code>) intercepts DNS queries and redirects malicious, ad, and tracking domains to a local null address (0.0.0.0) before they can connect. It acts as a local Pi-hole equivalent built into your VPN. Available on VPN Basic.</p>
+        <h4 className="font-bold text-primary text-[11px]">How DNS Sinkholing Works</h4>
+        <p className="text-[10px] font-mono text-primary/83">When any device on your VPN tunnel makes a DNS query, the ProxhqVPN DNS resolver checks it against block lists. If the domain matches, the resolver returns 0.0.0.0 instead of the real IP — the connection is dead on arrival. Ads, trackers, and malware never load.</p>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Block List Categories</h4>
+        <div className="space-y-2">
+          {[
+            { t: "Ads & Trackers", d: "100,000+ ad networks, analytics trackers, and pixel beacons. Blocks Google Ads, DoubleClick, Facebook Pixel, and most ad exchange networks." },
+            { t: "Malware & Phishing", d: "Known malware distribution domains, phishing URLs, and ransomware command-and-control servers. Updated from threat intelligence feeds daily." },
+            { t: "Stalkerware & Spyware", d: "Mobile stalkerware domains that silently upload location and contact data. Important for device hygiene." },
+            { t: "Coinminer Domains", d: "Cryptomining JavaScript domains used in drive-by mining attacks." },
+            { t: "Custom Block/Allow", d: "Add your own domains to block or whitelist. One domain per line. Wildcards supported (*.example.com)." },
+          ].map(({ t, d }) => (
+            <div key={t} className="border border-primary/10 rounded px-3 py-2">
+              <div className="text-[10px] font-mono font-bold text-primary">{t}</div>
+              <div className="text-[9px] font-mono text-primary/83 mt-0.5">{d}</div>
+            </div>
+          ))}
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Query Log</h4>
+        <p className="text-[10px] font-mono text-primary/83">The DNS Query Log tab shows every DNS request: timestamp, queried domain, response type (ALLOWED / BLOCKED / SINKHOLED), and which device made the request. Exportable as CSV.</p>
+        <Note type="warn">DNS Sinkhole only blocks at the DNS layer. If an app hard-codes IP addresses (bypassing DNS), sinkholing won't stop it. Use the Firewall for IP-level blocking.</Note>
+      </div>
+    ),
+  },
+  {
+    id: "siem", title: "Security Event Log (SIEM)", icon: Database,
+    content: (
+      <div className="space-y-3">
+        <p>The <strong>SIEM</strong> (<code>/siem</code>) aggregates security events from all ProxhqVPN components — WireGuard tunnel events, SilkWeb honeypot triggers, firewall rule hits, failed auth attempts, and DNS sinkhole blocks — into a single unified event log with filtering, severity classification, and export. Command Center Pro only.</p>
+        <h4 className="font-bold text-primary text-[11px]">Event Sources</h4>
+        <div className="space-y-2">
+          {[
+            { t: "WireGuard Tunnel Events", d: "Peer handshakes, connection drops, key rotations, new device authorizations." },
+            { t: "SilkWeb Honeypot Hits", d: "Any probe or connection to your decoy services — attacker IP, service targeted, payload captured." },
+            { t: "Firewall Rule Hits", d: "Every blocked packet: source IP, destination port, rule matched, action taken." },
+            { t: "DNS Sinkhole Blocks", d: "All sinkholed DNS queries — domain blocked, requesting device, timestamp." },
+            { t: "Failed Auth Attempts", d: "SSH, HTTP, and API authentication failures with source IP and username tried." },
+            { t: "Threat Monitor Alerts", d: "Beacon alerts from all monitoring probes — escalated to SIEM with full context." },
+          ].map(({ t, d }) => (
+            <div key={t} className="border border-primary/10 rounded px-3 py-2">
+              <div className="text-[10px] font-mono font-bold text-primary">{t}</div>
+              <div className="text-[9px] font-mono text-primary/83 mt-0.5">{d}</div>
+            </div>
+          ))}
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Filtering & Search</h4>
+        <p className="text-[10px] font-mono text-primary/83">Filter events by: <strong>Severity</strong> (Critical / High / Medium / Low / Info), <strong>Source</strong> (WireGuard / SilkWeb / Firewall / DNS / Auth), <strong>Time Range</strong> (last 1h / 24h / 7d / 30d / custom), or full-text search across event messages and IP addresses.</p>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Export & Alerts</h4>
+        <div className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <div>• <strong>Export CSV</strong> — download all filtered events as a CSV for external SIEM ingestion</div>
+          <div>• <strong>Export JSON</strong> — structured JSON format compatible with Splunk, Elastic, and Graylog</div>
+          <div>• <strong>Alert Rules</strong> — create rules that trigger email notifications on specific event patterns</div>
+        </div>
+        <Note type="info">SIEM events are retained for 90 days. Admin accounts see all events from all nodes; regular users see only events from their own connections.</Note>
+      </div>
+    ),
+  },
+  {
+    id: "osint", title: "OSINT Recon", icon: Crosshair,
+    content: (
+      <div className="space-y-3">
+        <p>The <strong>OSINT Recon</strong> (<code>/osint-recon</code>) is an open-source intelligence aggregator. Paste any target (IP, domain, email, username, company name) and it fans out across 15+ public intelligence sources in parallel. All queries are routed through the ProxhqVPN tunnel — no source attribution back to you. Command Center Pro only.</p>
+        <h4 className="font-bold text-primary text-[11px]">Intelligence Sources</h4>
+        <div className="grid grid-cols-2 gap-2">
+          {[
+            { cat: "Network Intel", items: ["Shodan — open ports, banners, CVEs per IP", "Censys — TLS certs, hosts, ASN data", "WHOIS / RDAP — registrar, org, dates", "BGP / ASN lookup — routing info, ownership"] },
+            { cat: "Threat Intel", items: ["AbuseIPDB — abuse score, report history", "VirusTotal — domain/IP reputation", "GreyNoise — internet scanner classification", "URLhaus — malware URL database lookup"] },
+            { cat: "Passive DNS", items: ["DNSDumpster — subdomains, MX, NS records", "Certificate Transparency (crt.sh) — all issued TLS certs", "SecurityTrails — historical DNS records", "PassiveDNS — historical A/AAAA records"] },
+            { cat: "Social / Leak Intel", items: ["HaveIBeenPwned — email breach check", "Pastebin monitoring — mentions in public pastes", "GitHub dorking — exposed secrets/keys", "LinkedIn scrape — employee enumeration"] },
+          ].map(({ cat, items }) => (
+            <div key={cat} className="border border-primary/10 rounded px-2.5 py-2">
+              <div className="text-[10px] font-mono font-bold text-primary mb-1">{cat}</div>
+              {items.map(i => <div key={i} className="text-[9px] font-mono text-primary/83">• {i}</div>)}
+            </div>
+          ))}
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Report Output</h4>
+        <p className="text-[10px] font-mono text-primary/83">Results are aggregated into a single collapsible report with color-coded risk scoring. Export as HTML (styled, shareable), PDF, or JSON. Click any finding to drill into the source API response.</p>
+        <Note type="warn">OSINT Recon performs passive, read-only queries against public data sources. It does not send any traffic to the target directly. All API calls are made server-side through ProxhqVPN infrastructure.</Note>
+      </div>
+    ),
+  },
+  {
+    id: "canary", title: "Canary Tokens", icon: Bell,
+    content: (
+      <div className="space-y-3">
+        <p>The <strong>Canary Tokens</strong> (<code>/canary-tokens</code>) system lets you create invisible tripwires — URLs, email addresses, files, and tokens that alert you the instant someone accesses them. Use them to detect data theft, document exfiltration, and unauthorized access. Command Center Pro only.</p>
+        <h4 className="font-bold text-primary text-[11px]">Token Types</h4>
+        <div className="space-y-2">
+          {[
+            { t: "HTTP URL Token", d: "A unique URL that sends an alert with the visitor's IP, browser, OS, and location the moment anyone loads it. Embed in decoy documents, emails, or web pages." },
+            { t: "DNS Token", d: "A unique subdomain that fires an alert on any DNS lookup — even from air-gapped systems that can't make HTTP requests. Detects exfiltration via DNS." },
+            { t: "Document Token (PDF/DOCX)", d: "Generate a PDF or DOCX file with an embedded HTTP canary. When the file is opened on any internet-connected device, you receive an alert." },
+            { t: "Email Token", d: "A unique tracking pixel embedded in an email. Alert fires when the email is opened. Useful for detecting forwarded confidential emails." },
+            { t: "AWS Key Token", d: "A fake AWS access key pair. If anyone attempts to use it (e.g., an attacker who found leaked credentials), AWS triggers an alert immediately." },
+            { t: "SQL Canary", d: "A fake database row with a canary URL as a value. If an attacker dumps your DB and accesses the URL, you receive an alert with their IP." },
+          ].map(({ t, d }) => (
+            <div key={t} className="border border-primary/10 rounded px-3 py-2">
+              <div className="text-[10px] font-mono font-bold text-primary">{t}</div>
+              <div className="text-[9px] font-mono text-primary/83 mt-0.5">{d}</div>
+            </div>
+          ))}
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Alert Details</h4>
+        <p className="text-[10px] font-mono text-primary/83">Each token hit includes: timestamp (UTC), source IP, reverse DNS, GeoIP (country/city/ISP), user agent (browser, OS, device), and referrer URL. Alerts can be sent via email, or appear in your SIEM event log.</p>
+        <Note type="info">Canary tokens are one-way — the person accessing them gets no indication that a tracking token fired. They are completely silent.</Note>
+      </div>
+    ),
+  },
+  {
+    id: "ghostchain", title: "Ghost Chain Exploit Arsenal", icon: GitMerge,
+    content: (
+      <div className="space-y-3">
+        <p>The <strong>Ghost Chain</strong> (<code>/ghost-chain</code>) is ProxhqVPN's integrated exploit reference library and attack chain builder. Select a vulnerability category, browse 200+ exploit techniques, and get ready-to-use PoC code for each. All traffic is routed through the VPN tunnel. Command Center Pro only.</p>
+        <h4 className="font-bold text-primary text-[11px]">Exploit Categories</h4>
+        <div className="grid grid-cols-2 gap-2">
+          {[
+            { cat: "Injection", items: ["SQL Injection (blind, UNION, error-based, OOB)", "XSS (reflected, stored, DOM, CSP bypass)", "Server-Side Template Injection (Jinja2, Twig, Freemarker)", "Command Injection (Linux, Windows, PowerShell)", "LDAP / NoSQL / XPATH Injection"] },
+            { cat: "Server-Side Vulnerabilities", items: ["SSRF (internal services, cloud metadata, SSRF-to-RCE chains)", "XXE (file read, SSRF via XXE, OOB XXE)", "Deserialization (Java gadget chains, PHP unserialize, Python pickle)", "Path Traversal / LFI (directory traversal, null byte, log poisoning)", "RCE via Log4Shell / Spring4Shell"] },
+            { cat: "Authentication & Tokens", items: ["JWT attacks (alg:none, HMAC confusion, kid injection)", "OAuth 2.0 flaws (open redirect, state fixation)", "Password reset poisoning", "Broken SAML assertions", "API key bruteforce patterns"] },
+            { cat: "Web & Protocol Attacks", items: ["CORS misconfiguration exploitation", "HTTP Request Smuggling (CL.TE, TE.CL)", "WebSocket hijacking", "Cache poisoning", "Subdomain takeover chains"] },
+          ].map(({ cat, items }) => (
+            <div key={cat} className="border border-primary/10 rounded px-2.5 py-2">
+              <div className="text-[10px] font-mono font-bold text-primary mb-1">{cat}</div>
+              {items.map(i => <div key={i} className="text-[9px] font-mono text-primary/83">• {i}</div>)}
+            </div>
+          ))}
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">PoC Code Tabs</h4>
+        <p className="text-[10px] font-mono text-primary/83">Each exploit entry has two tabs: <strong>Details</strong> (technique description, CVE references, how the vulnerability works, real-world examples) and <strong>Exploit PoC</strong> (copy-ready attack code in the appropriate language — Python, Bash, JavaScript, SQL, XML, or YAML). One-click copy button on every code block.</p>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Send to Other Tools</h4>
+        <p className="text-[10px] font-mono text-primary/83">Click <strong>Send to HTTP Probe</strong> from any exploit to pre-fill the payload in the HTTP Probe tool. Click <strong>Send to Intruder</strong> to use a payload list for automated fuzzing. Ghost Chain integrates directly with the rest of the Command Center toolkit.</p>
+      </div>
+    ),
+  },
+  {
+    id: "exploitimporter", title: "Exploit Importer", icon: Upload,
+    content: (
+      <div className="space-y-3">
+        <p>The <strong>Exploit Importer</strong> (<code>/exploit-import</code>) parses external vulnerability scan reports — from Nessus, Burp Suite, Nikto, ZAP, OpenVAS, or any text-based output — and extracts structured exploit findings with severity ratings, CVE IDs, and ready-to-use PoC code. Command Center Pro only.</p>
+        <h4 className="font-bold text-primary text-[11px]">Two Input Methods</h4>
+        <div className="space-y-2">
+          {[
+            { t: "Paste Text", d: "Paste raw scanner output, copy-pasted Burp Suite findings, manual notes, or any text mentioning vulnerability keywords. The parser extracts all recognizable vulnerability patterns." },
+            { t: "Upload File", d: "Drag-and-drop or browse for a file. Supported: .txt, .log, .html, .htm, .xml, .nessus, .json, .zip. ZIP archives are automatically extracted — every readable file inside is parsed." },
+          ].map(({ t, d }) => (
+            <div key={t} className="border border-primary/10 rounded px-3 py-2">
+              <div className="text-[10px] font-mono font-bold text-primary">{t}</div>
+              <div className="text-[9px] font-mono text-primary/83 mt-0.5">{d}</div>
+            </div>
+          ))}
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Detection Patterns (30+ Categories)</h4>
+        <div className="grid grid-cols-2 gap-2">
+          {[
+            { cat: "Injection", items: ["SQL Injection", "XSS (reflected/stored/DOM)", "Command Injection", "SSTI", "LDAP Injection"] },
+            { cat: "Server-Side", items: ["SSRF", "XXE", "LFI / Path Traversal", "RCE / Remote Code Execution", "Deserialization"] },
+            { cat: "Auth & Tokens", items: ["JWT Vulnerabilities", "IDOR", "CSRF", "Broken Auth", "OAuth Flaws"] },
+            { cat: "Exposure", items: ["Exposed .env / .git", "Default Credentials", "Hardcoded Secrets", "Open Swagger / Actuator", "No Rate Limiting"] },
+          ].map(({ cat, items }) => (
+            <div key={cat} className="border border-primary/10 rounded px-2.5 py-2">
+              <div className="text-[10px] font-mono font-bold text-primary mb-1">{cat}</div>
+              {items.map(i => <div key={i} className="text-[9px] font-mono text-primary/83">• {i}</div>)}
+            </div>
+          ))}
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Results View</h4>
+        <p className="text-[10px] font-mono text-primary/83">Results are sorted by severity (Critical → High → Medium → Low → Info). Each card shows the vulnerability name, evidence excerpt, CVE ID (if detected), and a summary bar showing total counts. Click <strong>Details</strong> for the full evidence text, or <strong>Exploit PoC</strong> for copy-ready attack code.</p>
+        <Note type="info">The parser strips HTML tags from Burp/Nessus HTML exports automatically. Nessus XML (.nessus) plugin IDs are cross-referenced to CVE IDs and the NVD severity scale.</Note>
+      </div>
+    ),
+  },
+  {
     id: "subscription", title: "Subscription & Billing", icon: BarChart2,
     content: (
       <div className="space-y-3">
@@ -1006,8 +1214,8 @@ Table: metadata      → Crawl session info, start time, depth`}</CB>
         <h4 className="font-bold text-primary text-[11px]">Plan Pricing</h4>
         <div className="space-y-2">
           {[
-            { t: "VPN Basic", p: "$6.99/mo — $59.99/yr", d: "WireGuard VPN, kill switch, leak test, DNS shield, smart DNS, split tunneling, VPN Gate, onion browser, router config." },
-            { t: "Command Center Pro", p: "$39.99/mo — $349.99/yr", d: "Everything in Basic plus Alpha Toolkit, SQLmap, SilkWeb honeypot, firewall manager, threat monitor, terminal, security audit, threat intel." },
+            { t: "VPN Basic", p: "$6.99/mo — $59.99/yr", d: "WireGuard VPN, Kill Switch, Leak Detection, DNS Shield, DNS Sinkhole, Network Traffic Monitor, Smart DNS, Split Tunneling, VPN Gate, Onion Browser, Router Config, IP Exposure Scanner, Obfuscation (Stealth Mode), Device Manager." },
+            { t: "Command Center Pro", p: "$39.99/mo — $349.99/yr", d: "Everything in Basic plus: Alpha Toolkit, SQLmap, SilkWeb Honeypot, Firewall Manager, Threat Monitor, SIEM, OSINT Recon, Canary Tokens, Ghost Chain Exploit Arsenal, Exploit Importer, Remote Terminal, Security Audit, Threat Intelligence, HTTP Probe, Directory Fuzzer, Subdomain Scout, Intruder, Encoder, CVE Lookup, Payload Generator, Request Comparer." },
           ].map(({ t, p, d }) => (
             <div key={t} className="border border-primary/10 rounded px-3 py-2">
               <div className="text-[10px] font-mono font-bold text-primary">{t} <span className="text-green-400 ml-1">{p}</span></div>
@@ -1148,7 +1356,7 @@ export default function UserGuide() {
         </nav>
         <div className="px-3 py-3 border-t border-primary/10 shrink-0">
           <div className="text-[8px] font-mono text-primary/83 leading-relaxed">
-            ProxhqVPN v2.0<br />
+            ProxhqVPN v3.0<br />
             ALPHA UNLIMITED TECHNOLOGIES LLC<br />
             <a href="mailto:support@proxhqvpn.com" className="text-primary/78 hover:text-primary">support@proxhqvpn.com</a>
           </div>

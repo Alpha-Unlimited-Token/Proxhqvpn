@@ -349,7 +349,7 @@ function VerifierTab({ useTor, prefillJobId, onConsumed }: VerifierTabProps) {
 
   const statusColor: Record<JobStatus, string> = {
     idle: "text-primary/30", running: "text-yellow-400 animate-pulse",
-    complete: "text-green-400", error: "text-red-400",
+    complete: "text-green-400", error: "text-red-400", cancelled: "text-primary/40",
   };
 
   return (

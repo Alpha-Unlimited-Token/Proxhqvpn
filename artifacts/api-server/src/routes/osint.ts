@@ -67,8 +67,8 @@ function getTlsCert(hostname: string): Promise<{
         }
         sock.destroy();
         resolve({
-          subject: cert.subject?.CN || hostname,
-          issuer: cert.issuer?.O || cert.issuer?.CN || "unknown",
+          subject: (cert.subject?.CN as string | undefined) || hostname,
+          issuer: ((cert.issuer?.O || cert.issuer?.CN) as string | undefined) || "unknown",
           validFrom: cert.valid_from || "",
           validTo: cert.valid_to || "",
           daysLeft,
@@ -140,7 +140,7 @@ router.post("/lookup", async (req: Request, res: Response) => {
     result.tls = tlsCert;
   }
 
-  const ipList = Array.isArray(ipv4) && ipv4.length > 0 ? ipv4 : [];
+  const ipList: string[] = Array.isArray(ipv4) && (ipv4 as unknown[]).length > 0 ? (ipv4 as string[]) : [];
   if (ipList.length > 0) {
     result.ip = {
       primary: ipList[0],

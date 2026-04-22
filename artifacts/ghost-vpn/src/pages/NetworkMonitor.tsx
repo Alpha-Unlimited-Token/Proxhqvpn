@@ -190,7 +190,7 @@ export default function NetworkMonitor() {
               <div className="col-span-1 text-primary/40">{formatMs(flow.duration)}</div>
               <div className="col-span-1 text-primary/50">{flow.country}</div>
               <div className="col-span-1">
-                {flow.threat ? <AlertTriangle className="w-3.5 h-3.5 text-red-400" title={flow.threat} /> : <span className="text-[#00ff88]/30">—</span>}
+                {flow.threat ? <span title={flow.threat}><AlertTriangle className="w-3.5 h-3.5 text-red-400" /></span> : <span className="text-[#00ff88]/30">—</span>}
               </div>
             </div>
           ))}

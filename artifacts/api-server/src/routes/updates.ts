@@ -112,7 +112,7 @@ router.get("/linux/latest-linux.yml", (req: Request, res: Response) => {
 
 // Installer file download
 router.get("/download/:filename", (req: Request, res: Response) => {
-  const filename = path.basename(req.params.filename);
+  const filename = path.basename(String(req.params.filename));
   const filePath = path.join(FILES_DIR, filename);
   if (!fs.existsSync(filePath)) return res.status(404).json({ error: "File not found" });
   res.download(filePath, filename);

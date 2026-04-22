@@ -133,7 +133,7 @@ router.post("/rules", async (req: Request, res: Response) => {
 });
 
 router.delete("/rules/:id", async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   try {
     await db.delete(dnsSinkholeCustomRulesTable).where(eq(dnsSinkholeCustomRulesTable.id, id));
     res.json({ ok: true });

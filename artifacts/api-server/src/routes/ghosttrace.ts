@@ -206,7 +206,7 @@ router.get("/devices", async (req: Request, res: Response) => {
 });
 
 router.get("/timeline/:key", (req: Request, res: Response) => {
-  const { key } = req.params;
+  const key = String(req.params.key);
   const data = generateTimelineData(key, 7);
   res.json(data);
 });
@@ -235,7 +235,7 @@ router.get("/anomalies", async (req: Request, res: Response) => {
 });
 
 router.post("/anomalies/:id/resolve", async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   if (id >= 1000) {
     return res.json({ ok: true, demo: true });
   }

@@ -90,7 +90,7 @@ router.delete("/tokens/:id", async (req: Request, res: Response) => {
   const { userId } = getAuth(req);
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   const [token] = await db.select().from(canaryTokensTable).where(eq(canaryTokensTable.id, id)).limit(1);
   if (!token) return res.status(404).json({ error: "Not found" });
   if (token.createdBy !== userId) return res.status(403).json({ error: "Forbidden" });
@@ -104,7 +104,7 @@ router.get("/tokens/:id/triggers", async (req: Request, res: Response) => {
   const { userId } = getAuth(req);
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   const [token] = await db.select().from(canaryTokensTable).where(eq(canaryTokensTable.id, id)).limit(1);
   if (!token || token.createdBy !== userId) return res.status(403).json({ error: "Forbidden" });
 
@@ -116,7 +116,7 @@ router.get("/tokens/:id/triggers", async (req: Request, res: Response) => {
 });
 
 router.get("/trigger/:tokenId", async (req: Request, res: Response) => {
-  const { tokenId } = req.params;
+  const tokenId = String(req.params.tokenId);
   const ip = getRealIp(req);
   const ua = req.headers["user-agent"] || "";
   const ref = req.headers["referer"] || "";
@@ -149,7 +149,7 @@ router.get("/trigger/:tokenId", async (req: Request, res: Response) => {
 });
 
 router.get("/trigger/:tokenId/pixel.gif", async (req: Request, res: Response) => {
-  const { tokenId } = req.params;
+  const tokenId = String(req.params.tokenId);
   const ip = getRealIp(req);
   const ua = req.headers["user-agent"] || "";
   const ref = req.headers["referer"] || "";

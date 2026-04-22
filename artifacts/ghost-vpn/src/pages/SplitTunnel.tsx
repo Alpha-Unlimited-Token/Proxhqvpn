@@ -53,7 +53,7 @@ export default function SplitTunnel() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(form),
     });
-    if (r.ok) { load(); loadScript(); setForm({ type: "cidr", mode: "vpn", priority: 100, name: "", value: "" }); toast({ title: "Rule added" }); }
+    if (r.ok) { load(); setForm({ type: "cidr", mode: "vpn", priority: 100, name: "", value: "" }); toast({ title: "Rule added" }); }
   };
 
   const toggleRule = async (rule: SplitRule) => {
@@ -62,7 +62,7 @@ export default function SplitTunnel() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ enabled: !rule.enabled }),
     });
-    load(); loadScript();
+    load();
   };
 
   const deleteRule = async (id: string) => {
