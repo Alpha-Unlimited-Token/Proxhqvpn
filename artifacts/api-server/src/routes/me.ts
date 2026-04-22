@@ -52,7 +52,9 @@ router.get("/", async (req, res) => {
       const existing: any[] = Array.isArray(existingAmb) ? existingAmb : ((existingAmb as any).rows ?? []);
       if (existing.length === 0) {
         const displayName = employee?.displayName ?? email?.split("@")[0] ?? "Ambassador";
-        const rawCode = employee?.ambassadorPromoCode ?? "PROXHQADMIN";
+        // Use employee promo code if set, otherwise derive a unique code from userId
+        const rawCode = employee?.ambassadorPromoCode
+          ?? ("PROXHQ" + userId.replace(/[^A-Z0-9]/gi, "").substring(0, 6).toUpperCase());
         const promoCode = rawCode.toUpperCase().replace(/[^A-Z0-9]/g, "").substring(0, 12);
         const bio = isAdminByEmail
           ? "Founder & CEO — ALPHA UNLIMITED TECHNOLOGIES LLC. Official ProxhqVPN founding ambassador."

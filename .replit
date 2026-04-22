@@ -43,4 +43,4 @@ packages = ["file"]
 [userenv]
 
 [userenv.shared]
-ADMIN_EMAILS = "alphaunlimitedtechnologies@gmail.com"
+ADMIN_EMAILS = "alphaunlimitedtechnologies@gmail.com,alphaunlimitedtoken@gmail.com"
