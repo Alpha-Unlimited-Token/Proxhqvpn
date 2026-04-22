@@ -243,8 +243,8 @@ export function Layout({ children }: LayoutProps) {
 
       {/* Scrollable nav */}
       <nav
-        className="flex-1 overflow-y-auto px-2 pt-1 pb-4 scrollbar-none min-h-0"
-        style={{ scrollbarWidth: "none", WebkitOverflowScrolling: "touch", overscrollBehavior: "contain" }}
+        className="flex-1 px-2 pt-1 pb-4 scrollbar-green min-h-0"
+        style={{ WebkitOverflowScrolling: "touch", overscrollBehavior: "contain" }}
       >
         <NavSection label="My VPN" items={USER_NAV} onNav={closeSidebar} />
         <NavSection label="Ambassadors" items={AMBASSADOR_NAV} onNav={closeSidebar} />
