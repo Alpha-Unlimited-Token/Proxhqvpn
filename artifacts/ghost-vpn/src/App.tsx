@@ -90,6 +90,7 @@ import DnsSinkhole from "@/pages/DnsSinkhole";
 import Siem from "@/pages/Siem";
 import OsintRecon from "@/pages/OsintRecon";
 import CanaryTokens from "@/pages/CanaryTokens";
+import ExploitImporter from "@/pages/ExploitImporter";
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
@@ -494,6 +495,9 @@ function AppRoutes() {
           </Route>
           <Route path="/canary">
             <CcLayout><CanaryTokens /></CcLayout>
+          </Route>
+          <Route path="/exploit-import">
+            <CcLayout><ExploitImporter /></CcLayout>
           </Route>
 
           {/* ── Admin-only — gated on backend; frontend shows paywall for non-admins ── */}

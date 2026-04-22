@@ -11,7 +11,7 @@ import {
   Zap, Settings, Cpu, Router, ScanSearch, Layers, FileText, Users,
   Send, FolderSearch, Radar, Award, BarChart2,
   Code2, GitCompare, Swords, Bug, Eye, BookMarked,
-  GitMerge, Ban, Bell, Fingerprint,
+  GitMerge, Ban, Bell, Fingerprint, Upload,
 } from "lucide-react";
 import { useAccess } from "@/hooks/useAccess";
 
@@ -74,6 +74,7 @@ const PAGE_NAMES: Record<string, string> = {
   "/siem":                 "Security Event Log",
   "/osint":                "OSINT Recon",
   "/canary":               "Canary Tokens",
+  "/exploit-import":       "Exploit Importer",
 };
 
 const USER_NAV = [
@@ -123,6 +124,7 @@ const ADVANCED_NAV = [
   { href: "/siem",          label: "Security Event Log",    icon: Database },
   { href: "/osint",         label: "OSINT Recon",           icon: Fingerprint },
   { href: "/canary",        label: "Canary Tokens",         icon: Bell },
+  { href: "/exploit-import", label: "Exploit Importer",     icon: Upload },
 ];
 
 const AMBASSADOR_NAV = [

@@ -53,6 +53,7 @@ import dnsSinkholeRouter from "./dnssinkhole";
 import siemRouter from "./siem";
 import osintRouter from "./osint";
 import canaryRouter from "./canary";
+import exploitImportRouter from "./exploitimport";
 
 const router: IRouter = Router();
 
@@ -302,6 +303,7 @@ router.use("/dns-sinkhole",    requireAccess,        dnsSinkholeRouter);
 router.use("/siem",            requireCommandCenter, siemRouter);
 router.use("/osint",           requireCommandCenter, osintRouter);
 router.use("/canary",          requireCommandCenter, canaryRouter);
+router.use("/exploit-import",  requireCommandCenter, exploitImportRouter);
 
 // ── Admin-only routes ─────────────────────────────────────────────────────
 router.use("/employees",      requireAdmin, employeesRouter);
