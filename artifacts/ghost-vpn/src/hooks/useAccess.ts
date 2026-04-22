@@ -21,11 +21,13 @@ export function useAccess() {
     queryKey: ["me"],
     queryFn: async () => {
       const res = await fetch(`${BASE}/api/me`, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch user info");
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return res.json();
     },
     enabled: !!isSignedIn,
     staleTime: 60 * 1000,
+    retry: false,
+    refetchOnWindowFocus: false,
   });
 
   return {
