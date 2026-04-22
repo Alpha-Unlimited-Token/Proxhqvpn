@@ -1,8 +1,25 @@
 import Stripe from "stripe";
 import { StripeSync } from "stripe-replit-sync";
 
+/**
+ * Resolve Stripe credentials.
+ *
+ * Priority order:
+ *  1. STRIPE_SECRET_KEY env var  — the owner's real Stripe account keys
+ *  2. Replit connector           — sandbox keys for development / testing
+ */
 async function getCredentials(): Promise<{ publishableKey: string; secretKey: string; webhookSecret?: string }> {
-  const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
+  // ── 1. Owner's own Stripe keys (real account) ────────────────────────────
+  if (process.env.STRIPE_SECRET_KEY) {
+    return {
+      secretKey:    process.env.STRIPE_SECRET_KEY,
+      publishableKey: process.env.STRIPE_PUBLISHABLE_KEY ?? "",
+      webhookSecret:  process.env.STRIPE_WEBHOOK_SECRET,
+    };
+  }
+
+  // ── 2. Replit connector (sandbox / test fallback) ────────────────────────
+  const hostname    = process.env.REPLIT_CONNECTORS_HOSTNAME;
   const xReplitToken = process.env.REPL_IDENTITY
     ? "repl " + process.env.REPL_IDENTITY
     : process.env.WEB_REPL_RENEWAL
@@ -10,7 +27,9 @@ async function getCredentials(): Promise<{ publishableKey: string; secretKey: st
       : null;
 
   if (!hostname || !xReplitToken) {
-    throw new Error("Stripe integration not connected. Connect Stripe via the Integrations tab.");
+    throw new Error(
+      "Stripe not configured. Set STRIPE_SECRET_KEY in Secrets or connect via the Integrations tab."
+    );
   }
 
   const isProduction = process.env.REPLIT_DEPLOYMENT === "1";
@@ -31,12 +50,14 @@ async function getCredentials(): Promise<{ publishableKey: string; secretKey: st
   const data = await resp.json() as any;
   const settings = data.items?.[0]?.settings;
 
-  if (!settings?.secret) throw new Error("Stripe integration missing secret key. Connect via the Integrations tab.");
+  if (!settings?.secret) {
+    throw new Error("Stripe not configured. Set STRIPE_SECRET_KEY in Secrets or connect via the Integrations tab.");
+  }
 
   return {
     publishableKey: settings.publishable ?? "",
-    secretKey: settings.secret,
-    webhookSecret: settings.webhook_secret,
+    secretKey:      settings.secret,
+    webhookSecret:  settings.webhook_secret,
   };
 }
 
@@ -72,7 +93,7 @@ export async function getStripeSync(): Promise<StripeSync> {
   const { secretKey, webhookSecret } = await getCredentials();
   return new StripeSync({
     poolConfig: { connectionString: normalizeDatabaseUrl(databaseUrl), max: 2 },
-    stripeSecretKey: secretKey,
-    stripeWebhookSecret: webhookSecret ?? "",
+    stripeSecretKey:      secretKey,
+    stripeWebhookSecret:  webhookSecret ?? "",
   });
 }
