@@ -137,3 +137,9 @@ id = "hWwMftX21PzEaaDGCOVWr"
 uri = "file://screenshots/ProxhqVPN-DeepVoice-Package.zip"
 type = "unspecified"
 title = "Full Package — 2 PNG Ads + Deep Voice Commercial"
+
+[[outputs]]
+id = "3zWi8RzJbHvtODsYIMxfM"
+uri = "file://screenshots/ProxhqVPN-Commercial-Fixed.mp4"
+type = "video"
+title = "ProxhqVPN Commercial — Fixed (61s, no glitch, deep raspy voice)"
