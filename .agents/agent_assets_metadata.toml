@@ -125,3 +125,15 @@ id = "2ooDoDtgiB2FywXgmgJXb"
 uri = "file://screenshots/ProxhqVPN-Full-Package.zip"
 type = "unspecified"
 title = "Full Package — 2 PNG Ads + Commercial (no voice) + Commercial (with voice)"
+
+[[outputs]]
+id = "TFgQZvfM21VB703EL7nIi"
+uri = "file://screenshots/ProxhqVPN-Commercial-ElevenLabs.mp4"
+type = "video"
+title = "ProxhqVPN Commercial — Deep Raspy Voice (61s)"
+
+[[outputs]]
+id = "hWwMftX21PzEaaDGCOVWr"
+uri = "file://screenshots/ProxhqVPN-DeepVoice-Package.zip"
+type = "unspecified"
+title = "Full Package — 2 PNG Ads + Deep Voice Commercial"
