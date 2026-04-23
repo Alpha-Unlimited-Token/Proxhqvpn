@@ -16,7 +16,7 @@ const SEED_EMPLOYEES = [
     addedByEmail: "admin",
     isAmbassador: true,
     ambassadorPromoCode: "CHARLIE10",
-    isAdminEmployee: false,
+    isAdminEmployee: true,
   },
   {
     email: "cartowplayer@gmail.com",
