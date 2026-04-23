@@ -89,3 +89,27 @@ id = "FGaymWjJPEo5J0KR2HR-S"
 uri = "file://artifacts/ghost-vpn/public/icon-final2.png"
 type = "image"
 title = "ProxhqVPN Logo — icon-final2.png"
+
+[[outputs]]
+id = "zSv5lX3vt9pLlTmx-yxXD"
+uri = "file://screenshots/ProxhqVPN-Ad-Screenshots.png"
+type = "image"
+title = "Ad 1 — Privacy Power Platform (Screenshot Grid)"
+
+[[outputs]]
+id = "WYtUd2ESmGUdfOWZHNrog"
+uri = "file://screenshots/ProxhqVPN-Ad-Fresh.png"
+type = "image"
+title = "Ad 2 — Ghost-Level Privacy (Brand Focus)"
+
+[[outputs]]
+id = "zM_KsV3kbN1IN3_-D52xO"
+uri = "file://screenshots/ProxhqVPN-Commercial.mp4"
+type = "video"
+title = "ProxhqVPN Commercial — 32-second MP4"
+
+[[outputs]]
+id = "WfzmhRrHi1l5Y1TnpqBx1"
+uri = "file://screenshots/ProxhqVPN-Ads-Package.zip"
+type = "unspecified"
+title = "Full Package — All 3 files zipped"

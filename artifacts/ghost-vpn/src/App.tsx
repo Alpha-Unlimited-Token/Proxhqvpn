@@ -92,9 +92,6 @@ import Siem from "@/pages/Siem";
 import OsintRecon from "@/pages/OsintRecon";
 import CanaryTokens from "@/pages/CanaryTokens";
 import ExploitImporter from "@/pages/ExploitImporter";
-import AdScreenshots from "@/pages/AdScreenshots";
-import AdFresh from "@/pages/AdFresh";
-import Commercial from "@/pages/Commercial";
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
@@ -401,10 +398,6 @@ function AppRoutes() {
             <PublicLayout><UserGuide /></PublicLayout>
           </Route>
 
-          {/* ── Shareable ad pages — fully standalone, no auth ── */}
-          <Route path="/ad" component={AdScreenshots} />
-          <Route path="/ad-fresh" component={AdFresh} />
-          <Route path="/commercial" component={Commercial} />
 
           {/* ── Handbooks — publicly readable ── */}
           <Route path="/handbook/ambassador">
