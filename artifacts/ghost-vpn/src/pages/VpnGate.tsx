@@ -970,7 +970,7 @@ function NodeDoubleHopPanel() {
           No nodes online
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-2 max-h-64 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-primary/20 scrollbar-track-transparent">
           {nodes.map((node) => {
             const session = sessionByNode[node.id];
             const st = session?.status ?? "off";
