@@ -143,3 +143,9 @@ id = "3zWi8RzJbHvtODsYIMxfM"
 uri = "file://screenshots/ProxhqVPN-Commercial-Fixed.mp4"
 type = "video"
 title = "ProxhqVPN Commercial — Fixed (61s, no glitch, deep raspy voice)"
+
+[[outputs]]
+id = "eStol3hEanWyjpQAlIxAz"
+uri = "file://screenshots/ProxhqVPN-Commercial-VoiceSynced.mp4"
+type = "video"
+title = "ProxhqVPN Commercial — Voice-Synced (61s, scene cuts on natural pauses)"
