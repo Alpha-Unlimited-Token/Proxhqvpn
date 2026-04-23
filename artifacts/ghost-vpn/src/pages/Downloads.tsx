@@ -14,6 +14,7 @@ const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const WG_APK_URL      = "https://download.wireguard.com/android-client/com.wireguard.android-apk-latest.apk";
 const WG_WIN_URL      = "https://download.wireguard.com/windows-client/wireguard-installer.exe";
 const WG_APPSTORE_MAC = "https://apps.apple.com/us/app/wireguard/id1451685025";
+const PROXHQ_MAC_INSTALLER = `${BASE}/downloads/ProxhqVPN-Mac-Installer.zip`;
 const WG_APPSTORE_IOS = "https://apps.apple.com/us/app/wireguard/id1441195209";
 const WG_PLAY_URL     = "https://play.google.com/store/apps/details?id=com.wireguard.android";
 const WG_APPSTORE_TV  = "https://apps.apple.com/us/app/wireguard/id1451685025"; // tvOS App Store
@@ -119,21 +120,23 @@ const PLATFORMS: PlatformGroup[] = [
         note: "WireGuard runs as a Windows service and can auto-start at login.",
       },
       {
-        id: "macos", name: "macOS", os: "macOS 12+",
+        id: "macos", name: "macOS", os: "macOS 11+  ·  Intel & Apple Silicon",
         icon: Monitor, iconColor: "text-white/90",
-        badge: "Mac App Store", badgeColor: "text-white/82 border-gray-500/30 bg-gray-900/10",
+        badge: "One-Click Installer", badgeColor: "text-primary border-primary/30 bg-primary/10",
         canInstall: true,
         downloads: [
+          { label: "Download ProxhqVPN Installer (.zip)", url: PROXHQ_MAC_INSTALLER, variant: "primary", icon: Download },
           { label: "WireGuard on Mac App Store", url: WG_APPSTORE_MAC, variant: "store", icon: Apple },
         ],
         steps: [
-          { text: "Install WireGuard from the Mac App Store (link above)." },
-          { text: "In ProxhqVPN → WireGuard Config → Generate → Download .conf file." },
-          { text: "WireGuard → Import tunnel(s) from file → select your .conf." },
-          { text: "Click Allow when macOS asks for VPN permission." },
-          { text: "Click Activate — the WireGuard icon appears in the menu bar." },
-          { text: "Verify:", code: "curl https://api64.ipify.org" },
+          { text: "Download the ProxhqVPN Installer above and unzip it — you will get ProxhqVPN Installer.app." },
+          { text: "Double-click ProxhqVPN Installer.app to launch the setup wizard." },
+          { text: "If macOS says unidentified developer: right-click the file, click Open, then click Open again." },
+          { text: "Follow the on-screen prompts: Welcome, License, Install Location, WireGuard, Done." },
+          { text: "The wizard installs WireGuard and adds ProxhqVPN to your Applications folder automatically." },
+          { text: "Click Launch Now at the end — ProxhqVPN opens in your browser, sign in and connect." },
         ],
+        note: "The installer uses native macOS dialogs. No terminal or technical steps required.",
       },
       {
         id: "linux", name: "Linux", os: "Ubuntu · Debian · Fedora · Arch",
@@ -650,7 +653,7 @@ export default function Downloads() {
       {!isFireOS && detectedPlatform && detectedPlatform !== "unknown" && (() => {
         const dlMap: Record<string, { label: string; url: string; variant: "primary"|"store"|"apk" }> = {
           windows: { label: "Download WireGuard for Windows (.exe)", url: WG_WIN_URL, variant: "primary" },
-          mac:     { label: "WireGuard on Mac App Store",            url: WG_APPSTORE_MAC, variant: "store" },
+          mac:     { label: "Download ProxhqVPN Installer for Mac",  url: PROXHQ_MAC_INSTALLER, variant: "primary" },
           android: { label: "WireGuard on Google Play",              url: WG_PLAY_URL, variant: "primary" },
           ios:     { label: "WireGuard on the App Store",            url: WG_APPSTORE_IOS, variant: "store" },
         };
