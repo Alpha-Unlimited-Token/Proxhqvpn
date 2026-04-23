@@ -11,7 +11,7 @@ import {
   Zap, Settings, Cpu, Router, ScanSearch, Layers, FileText, Users,
   Send, FolderSearch, Radar, Award, BarChart2,
   Code2, GitCompare, Swords, Bug, Eye, BookMarked,
-  GitMerge, Ban, Bell, Fingerprint, Upload,
+  GitMerge, Ban, Bell, Fingerprint, Upload, ChevronDown,
 } from "lucide-react";
 import { useAccess } from "@/hooks/useAccess";
 
@@ -170,18 +170,40 @@ function NavItem({ href, label, icon: Icon, onClick }: {
   );
 }
 
-function NavSection({ label, items, onNav }: {
-  label: string; items: { href: string; label: string; icon: any }[]; onNav?: () => void;
+function NavSection({ label, items, onNav, isOpen, onToggle }: {
+  label: string;
+  items: { href: string; label: string; icon: any }[];
+  onNav?: () => void;
+  isOpen: boolean;
+  onToggle: () => void;
 }) {
+  const [location] = useLocation();
+  const hasActive = items.some((i) => i.href === location);
+
   return (
     <div>
-      <div className="px-3 pt-5 pb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-white/70 select-none">
-        {label}
-      </div>
-      <div className="space-y-0.5">
-        {items.map((item) => (
-          <NavItem key={item.href} {...item} onClick={onNav} />
-        ))}
+      <button
+        onClick={onToggle}
+        className={`w-full flex items-center justify-between px-3 pt-4 pb-1.5 group select-none`}
+      >
+        <span className={`text-[10px] font-semibold uppercase tracking-[0.12em] transition-colors ${
+          hasActive ? "text-primary/80" : "text-white/50 group-hover:text-white/70"
+        }`}>
+          {label}
+        </span>
+        <ChevronDown className={`w-3 h-3 transition-all duration-200 ${
+          hasActive ? "text-primary/60" : "text-white/30 group-hover:text-white/50"
+        } ${isOpen ? "rotate-180" : "rotate-0"}`} />
+      </button>
+
+      <div className={`overflow-hidden transition-all duration-200 ease-in-out ${
+        isOpen ? "max-h-[600px] opacity-100" : "max-h-0 opacity-0"
+      }`}>
+        <div className="space-y-0.5 pb-1">
+          {items.map((item) => (
+            <NavItem key={item.href} {...item} onClick={onNav} />
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -223,7 +245,26 @@ export function Layout({ children }: LayoutProps) {
   const pageName = PAGE_NAMES[location] ?? "ProxhqVPN";
   const closeSidebar = () => setSidebarOpen(false);
 
-  const SidebarContent = () => (
+  const SidebarContent = () => {
+    const [location] = useLocation();
+
+    // Determine which section contains the current route so it opens by default
+    const getDefaultSection = () => {
+      if (USER_NAV.some((i) => i.href === location)) return "myvpn";
+      if (AMBASSADOR_NAV.some((i) => i.href === location)) return "ambassadors";
+      if (PROTECTION_NAV.some((i) => i.href === location)) return "protection";
+      if (NETWORK_NAV.some((i) => i.href === location)) return "network";
+      if (ADVANCED_NAV.some((i) => i.href === location)) return "commandcenter";
+      if (ADMIN_NAV.some((i) => i.href === location)) return "admin";
+      return "myvpn";
+    };
+
+    const [openSection, setOpenSection] = useState<string>(getDefaultSection);
+
+    const toggle = (key: string) =>
+      setOpenSection((prev) => (prev === key ? "" : key));
+
+    return (
     <div className="flex flex-col h-full">
       {/* Logo */}
       <div className="px-4 py-4 flex items-center gap-3 border-b border-white/[0.05] shrink-0">
@@ -243,22 +284,22 @@ export function Layout({ children }: LayoutProps) {
 
       {/* Scrollable nav */}
       <nav
-        className="flex-1 px-2 pt-1 pb-4 scrollbar-green min-h-0"
+        className="flex-1 overflow-y-auto px-2 pt-1 pb-4 scrollbar-green min-h-0"
         style={{ WebkitOverflowScrolling: "touch", overscrollBehavior: "contain" }}
       >
-        <NavSection label="My VPN" items={USER_NAV} onNav={closeSidebar} />
-        <NavSection label="Ambassadors" items={AMBASSADOR_NAV} onNav={closeSidebar} />
+        <NavSection label="My VPN"      items={USER_NAV}       onNav={closeSidebar} isOpen={openSection === "myvpn"}       onToggle={() => toggle("myvpn")} />
+        <NavSection label="Ambassadors" items={AMBASSADOR_NAV} onNav={closeSidebar} isOpen={openSection === "ambassadors"} onToggle={() => toggle("ambassadors")} />
         {hasAccess && (
           <>
-            <NavSection label="Protection" items={PROTECTION_NAV} onNav={closeSidebar} />
-            <NavSection label="Network"    items={NETWORK_NAV}    onNav={closeSidebar} />
+            <NavSection label="Protection" items={PROTECTION_NAV} onNav={closeSidebar} isOpen={openSection === "protection"} onToggle={() => toggle("protection")} />
+            <NavSection label="Network"    items={NETWORK_NAV}    onNav={closeSidebar} isOpen={openSection === "network"}    onToggle={() => toggle("network")} />
           </>
         )}
         {hasCommandCenter && (
-          <NavSection label="Command Center" items={ADVANCED_NAV} onNav={closeSidebar} />
+          <NavSection label="Command Center" items={ADVANCED_NAV} onNav={closeSidebar} isOpen={openSection === "commandcenter"} onToggle={() => toggle("commandcenter")} />
         )}
         {isAdmin && (
-          <NavSection label="Admin" items={ADMIN_NAV} onNav={closeSidebar} />
+          <NavSection label="Admin" items={ADMIN_NAV} onNav={closeSidebar} isOpen={openSection === "admin"} onToggle={() => toggle("admin")} />
         )}
       </nav>
 
@@ -333,6 +374,7 @@ export function Layout({ children }: LayoutProps) {
       )}
     </div>
   );
+  };
 
   return (
     <div className="min-h-screen bg-[#080d09] text-white flex selection:bg-primary selection:text-black">
