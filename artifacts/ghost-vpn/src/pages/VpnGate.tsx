@@ -942,35 +942,40 @@ function NodeDoubleHopPanel() {
   };
 
   return (
-    <div className="border border-cyan-400/20 bg-black p-3 space-y-3">
-      <div className="text-[10px] font-mono uppercase tracking-widest text-cyan-400/70 flex items-center gap-2">
-        <Layers className="w-3 h-3 text-cyan-400" />
-        Node Double-Hop
-        {sessionsFetching && <Loader className="w-2.5 h-2.5 animate-spin ml-auto text-primary/30" />}
+    <div className="border border-cyan-400/20 bg-black flex flex-col">
+      {/* Fixed header */}
+      <div className="p-3 pb-0 space-y-2 shrink-0">
+        <div className="text-[10px] font-mono uppercase tracking-widest text-cyan-400/70 flex items-center gap-2">
+          <Layers className="w-3 h-3 text-cyan-400" />
+          Node Double-Hop
+          {sessionsFetching && <Loader className="w-2.5 h-2.5 animate-spin ml-auto text-primary/30" />}
+        </div>
+
+        <div className="text-[9px] font-mono text-primary/30 leading-relaxed">
+          Route each ProxhqVPN node through a VPN Gate relay for double-encrypted traffic.
+        </div>
+
+        <div className="flex items-center gap-1.5 pb-2 border-b border-cyan-400/10">
+          <span className="text-[9px] font-mono text-primary/40 shrink-0">EXIT</span>
+          <input
+            value={selectedCountry}
+            onChange={(e) => setSelectedCountry(e.target.value.toUpperCase().slice(0, 2))}
+            placeholder="ANY"
+            className="w-14 bg-black border border-primary/20 text-primary font-mono text-[9px] px-2 py-1 uppercase focus:outline-none focus:border-primary/40"
+            maxLength={2}
+          />
+          <span className="text-[8px] font-mono text-primary/20">JP · KR · DE · US…</span>
+        </div>
       </div>
 
-      <div className="text-[9px] font-mono text-primary/30 leading-relaxed">
-        Route each ProxhqVPN node through a VPN Gate relay — traffic becomes double-encrypted before reaching the internet.
-      </div>
-
-      <div className="flex items-center gap-1.5">
-        <span className="text-[9px] font-mono text-primary/40 shrink-0">EXIT COUNTRY</span>
-        <input
-          value={selectedCountry}
-          onChange={(e) => setSelectedCountry(e.target.value.toUpperCase().slice(0, 2))}
-          placeholder="ANY"
-          className="flex-1 bg-black border border-primary/20 text-primary font-mono text-[9px] px-2 py-1 uppercase w-16 focus:outline-none focus:border-primary/40"
-          maxLength={2}
-        />
-        <span className="text-[8px] font-mono text-primary/20">e.g. JP · KR · DE</span>
-      </div>
-
+      {/* Scrollable node list — shows ~4 nodes then scrolls */}
       {nodes.length === 0 ? (
-        <div className="text-[9px] font-mono text-primary/20 text-center py-3 border border-primary/10">
+        <div className="text-[9px] font-mono text-primary/20 text-center py-3 mx-3 my-2 border border-primary/10">
           No nodes online
         </div>
       ) : (
-        <div className="space-y-2 max-h-64 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-primary/20 scrollbar-track-transparent">
+        <div className="overflow-y-auto p-3 pt-2" style={{ maxHeight: "272px" }}>
+          <div className="space-y-2">
           {nodes.map((node) => {
             const session = sessionByNode[node.id];
             const st = session?.status ?? "off";
@@ -1042,6 +1047,7 @@ function NodeDoubleHopPanel() {
               </div>
             );
           })}
+          </div>
         </div>
       )}
     </div>
