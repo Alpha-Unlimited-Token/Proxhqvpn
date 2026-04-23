@@ -1,0 +1,438 @@
+<HTA:APPLICATION
+  ID="ProxhqVPN"
+  APPLICATIONNAME="ProxhqVPN Setup"
+  CAPTION="yes"
+  SHOWINTASKBAR="yes"
+  SINGLEINSTANCE="yes"
+  WINDOWSTATE="normal"
+  MINIMIZEBUTTON="no"
+  MAXIMIZEBUTTON="no"
+  SCROLL="no"
+  BORDER="thick"
+  INNERBORDER="no"
+  CONTEXTMENU="no"
+  SELECTION="no"
+/>
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>ProxhqVPN Setup</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; font-family:'Segoe UI',Arial,sans-serif; }
+body { background:#080d09; color:#fff; width:560px; height:420px; overflow:hidden; }
+
+.page { display:none; flex-direction:column; height:420px; }
+.page.active { display:flex; }
+
+.header {
+  background:#0d140e;
+  padding:14px 22px 12px;
+  border-bottom:1px solid #1a2e1c;
+  flex-shrink:0;
+}
+.header h1 { color:#00ff88; font-size:15px; font-weight:700; margin-bottom:3px; }
+.header p  { color:#00b864; font-size:9px; letter-spacing:1px; text-transform:uppercase; }
+
+.body { flex:1; padding:22px 28px; overflow:hidden; }
+.footer {
+  display:flex; align-items:center; justify-content:flex-end; gap:10px;
+  padding:12px 22px; background:#0a0f0b;
+  border-top:1px solid #1a2e1c; flex-shrink:0;
+}
+
+/* buttons */
+.btn {
+  padding:8px 22px; font-size:13px; font-weight:700; border:1px solid #3c4a3e;
+  cursor:pointer; background:#19231a; color:#fff; border-radius:3px;
+  transition:background .15s,border-color .15s;
+}
+.btn:hover { background:#223022; border-color:#557755; }
+.btn.primary { background:#00ff88; color:#000; border-color:#00ff88; }
+.btn.primary:hover { background:#00e07a; }
+.btn:disabled { opacity:.4; cursor:default; }
+
+/* welcome bullets */
+.bullet-list { margin-top:16px; }
+.bullet { display:flex; align-items:flex-start; gap:10px; margin-bottom:9px; }
+.dot { color:#00ff88; font-size:10px; margin-top:3px; flex-shrink:0; }
+.bullet-text { color:#b0b8b2; font-size:12px; line-height:1.4; }
+
+/* license */
+.lic-box {
+  width:100%; height:170px; background:#0d140e; border:1px solid #1e2e20;
+  color:#9aa09c; font-family:Consolas,monospace; font-size:10.5px;
+  padding:10px 12px; overflow-y:scroll; resize:none; outline:none;
+  margin-top:8px; scrollbar-width:thin; scrollbar-color:#00ff88 #0d140e;
+}
+.checkbox-row {
+  display:flex; align-items:center; gap:9px; margin-top:12px;
+  color:#ddd; font-size:12px; cursor:pointer;
+}
+.checkbox-row input { width:14px; height:14px; cursor:pointer; accent-color:#00ff88; }
+
+/* progress */
+.prog-wrap { margin-top:18px; }
+.prog-bar-bg { background:#0d140e; border:1px solid #1e2e20; border-radius:3px; height:20px; overflow:hidden; }
+.prog-bar    { height:100%; background:linear-gradient(90deg,#00cc6e,#00ff88); width:0%; transition:width .4s ease; }
+.prog-label  { color:#7a8a7c; font-size:11px; margin-top:8px; }
+
+/* step list during install */
+.step-done { color:#00ff88; font-size:11px; margin-bottom:4px; }
+.step-done::before { content:"✓  "; }
+
+/* finish tick */
+.finish-tick { font-size:42px; color:#00ff88; margin-bottom:10px; }
+.finish-title { font-size:17px; font-weight:700; color:#fff; margin-bottom:6px; }
+.finish-sub   { color:#8a9a8c; font-size:12px; margin-bottom:4px; line-height:1.5; }
+.launch-row   { display:flex; align-items:center; gap:9px; margin-top:18px; font-size:12px; color:#ddd; cursor:pointer; }
+.launch-row input { accent-color:#00ff88; width:14px; height:14px; cursor:pointer; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════ PAGE 1: WELCOME ═══════════════ -->
+<div id="p1" class="page active">
+  <div class="header">
+    <h1>Welcome to ProxhqVPN Setup</h1>
+    <p>Alpha Unlimited Technologies LLC</p>
+  </div>
+  <div class="body">
+    <div style="color:#ccc;font-size:12.5px;line-height:1.6;">
+      This wizard will install <strong style="color:#00ff88">ProxhqVPN</strong> on your computer.
+    </div>
+    <div class="bullet-list">
+      <div class="bullet"><div class="dot">●</div><div class="bullet-text">Military-grade WireGuard encryption</div></div>
+      <div class="bullet"><div class="dot">●</div><div class="bullet-text">Zero-logs privacy — no activity tracking ever</div></div>
+      <div class="bullet"><div class="dot">●</div><div class="bullet-text">Instant kill switch — drops internet if VPN disconnects</div></div>
+      <div class="bullet"><div class="dot">●</div><div class="bullet-text">Double-hop routing for maximum anonymity</div></div>
+      <div class="bullet"><div class="dot">●</div><div class="bullet-text">Command Center developer &amp; security toolkit</div></div>
+    </div>
+    <div style="color:#6a7a6c;font-size:11px;margin-top:18px;">Click Next to continue.</div>
+  </div>
+  <div class="footer">
+    <button class="btn" onclick="cancelInstall()">Cancel</button>
+    <button class="btn primary" onclick="goTo('p2')">Next &nbsp;›</button>
+  </div>
+</div>
+
+<!-- ═══════════════ PAGE 2: LICENSE ═══════════════ -->
+<div id="p2" class="page">
+  <div class="header">
+    <h1>License Agreement</h1>
+    <p>Please read and accept the agreement to continue</p>
+  </div>
+  <div class="body">
+    <div style="color:#ccc;font-size:12px;">Read the license agreement. You must accept before installing.</div>
+    <textarea class="lic-box" readonly>PROXHQVPN END USER LICENSE AGREEMENT
+Copyright (c) 2026 ALPHA UNLIMITED TECHNOLOGIES LLC. All rights reserved.
+
+By installing or using ProxhqVPN, you agree to the following terms:
+
+1. LICENSE GRANT
+   ALPHA UNLIMITED TECHNOLOGIES LLC grants you a limited, non-exclusive,
+   non-transferable license to install and use ProxhqVPN on devices you own.
+
+2. THIRD-PARTY SOFTWARE CONSENT
+   ProxhqVPN requires WireGuard (open-source VPN protocol, GPLv2).
+   By proceeding you authorize WireGuard to be installed on your device.
+   WireGuard is developed by Jason A. Donenfeld.
+
+3. PRIVACY - ZERO LOGS
+   ALPHA UNLIMITED TECHNOLOGIES LLC does not log, store, or monitor your
+   VPN traffic, browsing activity, or connection timestamps.
+
+4. LIMITATION OF LIABILITY
+   To the maximum extent permitted by law, ALPHA UNLIMITED TECHNOLOGIES LLC
+   shall not be liable for indirect, incidental, or consequential damages.
+
+5. GOVERNING LAW
+   This agreement is governed by the laws of the jurisdiction in which
+   ALPHA UNLIMITED TECHNOLOGIES LLC is registered.
+
+WireGuard(R) is a registered trademark of Jason A. Donenfeld.</textarea>
+    <label class="checkbox-row">
+      <input type="checkbox" id="licChk" onchange="document.getElementById('p2Next').disabled=!this.checked;">
+      I accept the terms of the license agreement
+    </label>
+  </div>
+  <div class="footer">
+    <button class="btn" onclick="goTo('p1')">‹ Back</button>
+    <button class="btn primary" id="p2Next" onclick="goTo('p3');startInstall();" disabled>Next &nbsp;›</button>
+  </div>
+</div>
+
+<!-- ═══════════════ PAGE 3: INSTALLING ═══════════════ -->
+<div id="p3" class="page">
+  <div class="header">
+    <h1>Installing ProxhqVPN</h1>
+    <p>Please wait while files are being installed</p>
+  </div>
+  <div class="body">
+    <div style="color:#ccc;font-size:12px;margin-bottom:4px;">Installing ProxhqVPN on your computer...</div>
+    <div class="prog-wrap">
+      <div class="prog-bar-bg"><div class="prog-bar" id="progBar"></div></div>
+      <div class="prog-label" id="progLabel">Preparing...</div>
+    </div>
+    <div id="stepLog" style="margin-top:16px;"></div>
+  </div>
+  <div class="footer">
+    <button class="btn primary" id="p3Next" onclick="askWireGuard()" disabled>Next &nbsp;›</button>
+  </div>
+</div>
+
+<!-- ═══════════════ PAGE 4: WIREGUARD ═══════════════ -->
+<div id="p4" class="page">
+  <div class="header">
+    <h1>Install WireGuard</h1>
+    <p>Required for encrypted VPN connections</p>
+  </div>
+  <div class="body">
+    <div style="color:#ccc;font-size:12.5px;line-height:1.7;margin-bottom:16px;">
+      <strong style="color:#00ff88">WireGuard</strong> is the open-source tunneling protocol that powers
+      ProxhqVPN's encrypted connections. It must be installed separately.
+    </div>
+    <div style="background:#0d140e;border:1px solid #1e2e20;border-radius:4px;padding:14px 16px;font-size:12px;color:#8a9a8c;line-height:1.7;">
+      <div style="color:#00ff88;font-weight:700;margin-bottom:6px;">What will happen:</div>
+      <div>● Your browser will open the official WireGuard download page</div>
+      <div>● Download and run the WireGuard installer</div>
+      <div>● Return here and click Next to finish</div>
+    </div>
+    <div style="color:#6a7a6c;font-size:11px;margin-top:14px;">
+      You can also skip this and install WireGuard later from wireguard.com
+    </div>
+  </div>
+  <div class="footer">
+    <button class="btn" onclick="goTo('p5')">Skip for now</button>
+    <button class="btn primary" onclick="downloadWG()">Download WireGuard &amp; Continue &nbsp;›</button>
+  </div>
+</div>
+
+<!-- ═══════════════ PAGE 5: FINISH ═══════════════ -->
+<div id="p5" class="page">
+  <div class="header">
+    <h1>Installation Complete</h1>
+    <p>ProxhqVPN has been installed successfully</p>
+  </div>
+  <div class="body" style="display:flex;flex-direction:column;align-items:flex-start;padding-top:28px;">
+    <div style="display:flex;align-items:center;gap:16px;margin-bottom:18px;">
+      <div class="finish-tick">✓</div>
+      <div>
+        <div class="finish-title">ProxhqVPN Installed!</div>
+        <div class="finish-sub">A desktop shortcut and Start Menu entry have been created.</div>
+        <div class="finish-sub">Sign in at <strong style="color:#00ff88">proxhqvpn.com</strong> to get your VPN config.</div>
+      </div>
+    </div>
+    <label class="launch-row">
+      <input type="checkbox" id="launchChk" checked>
+      Launch ProxhqVPN now
+    </label>
+  </div>
+  <div class="footer">
+    <button class="btn primary" onclick="finish()">Finish</button>
+  </div>
+</div>
+
+<script language="VBScript">
+' ─── System helpers ─────────────────────────────────────────────────────────
+Function Shell(cmd)
+  Dim sh : Set sh = CreateObject("WScript.Shell")
+  sh.Run cmd, 0, True
+End Function
+
+Function ShellAsync(cmd)
+  Dim sh : Set sh = CreateObject("WScript.Shell")
+  sh.Run cmd, 1, False
+End Function
+
+Function FSO()
+  Set FSO = CreateObject("Scripting.FileSystemObject")
+End Function
+
+Function AppData()
+  Dim sh : Set sh = CreateObject("WScript.Shell")
+  AppData = sh.ExpandEnvironmentStrings("%LOCALAPPDATA%")
+End Function
+
+Function Desktop()
+  Dim sh : Set sh = CreateObject("WScript.Shell")
+  Desktop = sh.SpecialFolders("Desktop")
+End Function
+
+Function StartMenu()
+  Dim sh : Set sh = CreateObject("WScript.Shell")
+  StartMenu = sh.SpecialFolders("Programs")
+End Function
+</script>
+
+<script>
+// ─── Navigation ──────────────────────────────────────────────────────────────
+function goTo(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  resizeWindow(id);
+}
+
+function resizeWindow(id) {
+  window.resizeTo(560, 420);
+  window.moveTo(
+    (screen.width  - 560) / 2,
+    (screen.height - 420) / 2
+  );
+}
+
+function cancelInstall() {
+  if (confirm('Cancel the ProxhqVPN installation?')) window.close();
+}
+
+// ─── Installation steps ──────────────────────────────────────────────────────
+var installDir = '';
+var steps = [
+  { label: 'Creating program folder',      pct: 12, fn: stepCreateDir    },
+  { label: 'Writing launcher file',         pct: 28, fn: stepWriteLauncher },
+  { label: 'Creating desktop shortcut',    pct: 48, fn: stepDesktop       },
+  { label: 'Adding to Start Menu',         pct: 66, fn: stepStartMenu     },
+  { label: 'Registering with Windows',     pct: 84, fn: stepRegistry      },
+  { label: 'Finalizing',                   pct: 100, fn: stepFinalize      }
+];
+var stepIdx = 0;
+
+function startInstall() {
+  stepIdx = 0;
+  runNextStep();
+}
+
+function runNextStep() {
+  if (stepIdx >= steps.length) {
+    document.getElementById('p3Next').disabled = false;
+    document.getElementById('progLabel').innerText = 'Installation complete!';
+    document.getElementById('progLabel').style.color = '#00ff88';
+    return;
+  }
+  var s = steps[stepIdx];
+  document.getElementById('progBar').style.width = s.pct + '%';
+  document.getElementById('progLabel').innerText = s.label + '...';
+  s.fn();
+  logStep(s.label);
+  stepIdx++;
+  setTimeout(runNextStep, 480);
+}
+
+function logStep(label) {
+  var log = document.getElementById('stepLog');
+  var d = document.createElement('div');
+  d.className = 'step-done';
+  d.innerText = label;
+  log.appendChild(d);
+}
+
+// ─── VBScript actions ────────────────────────────────────────────────────────
+function vbRun(code) {
+  // Execute VBScript via HTA's built-in VBScript engine
+  window.execScript(code, 'VBScript');
+}
+
+function stepCreateDir() {
+  try {
+    var ad = new ActiveXObject('WScript.Shell').ExpandEnvironmentStrings('%LOCALAPPDATA%');
+    installDir = ad + '\\ProxhqVPN';
+    var fso = new ActiveXObject('Scripting.FileSystemObject');
+    if (!fso.FolderExists(installDir)) fso.CreateFolder(installDir);
+  } catch(e) {}
+}
+
+function stepWriteLauncher() {
+  try {
+    var fso = new ActiveXObject('Scripting.FileSystemObject');
+    var f = fso.CreateTextFile(installDir + '\\ProxhqVPN.bat', true);
+    f.WriteLine('@echo off');
+    f.WriteLine('start "" "https://proxhqvpn.com"');
+    f.Close();
+  } catch(e) {}
+}
+
+function stepDesktop() {
+  try {
+    var sh = new ActiveXObject('WScript.Shell');
+    var desk = sh.SpecialFolders('Desktop');
+    var sc = sh.CreateShortcut(desk + '\\ProxhqVPN.lnk');
+    sc.TargetPath = installDir + '\\ProxhqVPN.bat';
+    sc.Description = 'Open ProxhqVPN';
+    sc.Save();
+  } catch(e) {}
+}
+
+function stepStartMenu() {
+  try {
+    var sh  = new ActiveXObject('WScript.Shell');
+    var fso = new ActiveXObject('Scripting.FileSystemObject');
+    var sm  = sh.SpecialFolders('Programs') + '\\ProxhqVPN';
+    if (!fso.FolderExists(sm)) fso.CreateFolder(sm);
+    var sc = sh.CreateShortcut(sm + '\\ProxhqVPN.lnk');
+    sc.TargetPath = installDir + '\\ProxhqVPN.bat';
+    sc.Save();
+  } catch(e) {}
+}
+
+function stepRegistry() {
+  try {
+    var sh  = new ActiveXObject('WScript.Shell');
+    var key = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\ProxhqVPN\\';
+    sh.RegWrite(key + 'DisplayName',    'ProxhqVPN',                      'REG_SZ');
+    sh.RegWrite(key + 'DisplayVersion', '1.0.0',                           'REG_SZ');
+    sh.RegWrite(key + 'Publisher',      'ALPHA UNLIMITED TECHNOLOGIES LLC', 'REG_SZ');
+    sh.RegWrite(key + 'URLInfoAbout',   'https://proxhqvpn.com',           'REG_SZ');
+    sh.RegWrite(key + 'UninstallString', installDir + '\\Uninstall.bat',   'REG_SZ');
+    sh.RegWrite(key + 'NoModify',       1, 'REG_DWORD');
+    sh.RegWrite(key + 'NoRepair',       1, 'REG_DWORD');
+  } catch(e) {}
+}
+
+function stepFinalize() {
+  try {
+    var fso = new ActiveXObject('Scripting.FileSystemObject');
+    var f = fso.CreateTextFile(installDir + '\\Uninstall.bat', true);
+    f.WriteLine('@echo off');
+    f.WriteLine('echo Uninstalling ProxhqVPN...');
+    f.WriteLine('reg delete "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\ProxhqVPN" /f >nul 2>&1');
+    f.WriteLine('del "%USERPROFILE%\\Desktop\\ProxhqVPN.lnk" >nul 2>&1');
+    f.WriteLine('rmdir /s /q "' + installDir + '"');
+    f.Close();
+  } catch(e) {}
+}
+
+// ─── WireGuard page ──────────────────────────────────────────────────────────
+function askWireGuard() { goTo('p4'); }
+
+function downloadWG() {
+  try {
+    var sh = new ActiveXObject('WScript.Shell');
+    sh.Run('https://download.wireguard.com/windows-client/wireguard-installer.exe', 1, false);
+  } catch(e) {
+    try {
+      var sh2 = new ActiveXObject('WScript.Shell');
+      sh2.Run('cmd /c start https://download.wireguard.com/windows-client/wireguard-installer.exe', 0, false);
+    } catch(e2) {}
+  }
+  setTimeout(function(){ goTo('p5'); }, 800);
+}
+
+// ─── Finish ──────────────────────────────────────────────────────────────────
+function finish() {
+  if (document.getElementById('launchChk').checked) {
+    try {
+      var sh = new ActiveXObject('WScript.Shell');
+      sh.Run('cmd /c start https://proxhqvpn.com', 0, false);
+    } catch(e) {}
+  }
+  window.close();
+}
+
+// ─── Init: center and size window ────────────────────────────────────────────
+window.onload = function() {
+  window.resizeTo(560, 420);
+  window.moveTo((screen.width-560)/2, (screen.height-420)/2);
+};
+</script>
+</body>
+</html>

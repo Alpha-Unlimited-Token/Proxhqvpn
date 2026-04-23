@@ -14,7 +14,9 @@ const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const WG_APK_URL      = "https://download.wireguard.com/android-client/com.wireguard.android-apk-latest.apk";
 const WG_WIN_URL      = "https://download.wireguard.com/windows-client/wireguard-installer.exe";
 const WG_APPSTORE_MAC = "https://apps.apple.com/us/app/wireguard/id1451685025";
-const PROXHQ_MAC_INSTALLER = `${BASE}/downloads/ProxhqVPN-Mac-Installer.zip`;
+const PROXHQ_MAC_INSTALLER     = `${BASE}/downloads/ProxhqVPN-Mac-Installer.zip`;
+const PROXHQ_WIN_INSTALLER     = `${BASE}/downloads/ProxhqVPN-Windows-Setup.zip`;
+const PROXHQ_LINUX_INSTALLER   = `${BASE}/downloads/ProxhqVPN-Linux-Install.zip`;
 const WG_APPSTORE_IOS = "https://apps.apple.com/us/app/wireguard/id1441195209";
 const WG_PLAY_URL     = "https://play.google.com/store/apps/details?id=com.wireguard.android";
 const WG_APPSTORE_TV  = "https://apps.apple.com/us/app/wireguard/id1451685025"; // tvOS App Store
@@ -105,54 +107,61 @@ const PLATFORMS: PlatformGroup[] = [
       {
         id: "windows", name: "Windows", os: "Windows 10 / 11",
         icon: Monitor, iconColor: "text-blue-400",
-        badge: "Direct Download", badgeColor: "text-blue-400 border-blue-500/30 bg-blue-900/10",
+        badge: "GUI Wizard Installer", badgeColor: "text-blue-400 border-blue-500/30 bg-blue-900/10",
         canInstall: true,
         downloads: [
-          { label: "Download WireGuard (.exe)", url: WG_WIN_URL, variant: "primary" },
+          { label: "Download ProxhqVPN Setup (.zip)", url: PROXHQ_WIN_INSTALLER, variant: "primary", icon: Download },
+          { label: "WireGuard standalone (.exe)", url: WG_WIN_URL, variant: "store" },
         ],
         steps: [
-          { text: "Run the downloaded WireGuard installer and follow the setup wizard." },
-          { text: "Open WireGuard → click the ▾ arrow next to Add Tunnel → Import tunnel(s) from file." },
-          { text: "In ProxhqVPN → WireGuard Config → Generate → Download .conf file." },
-          { text: "Import the .conf into WireGuard. Click Activate — status turns green." },
-          { text: "Verify you're connected:", code: "curl https://api64.ipify.org" },
+          { text: "Download the ProxhqVPN Setup .zip above and extract it — you will see 'ProxhqVPN-Windows-Setup.hta'." },
+          { text: "Double-click 'ProxhqVPN-Windows-Setup.hta' to launch the installer wizard." },
+          { text: "If Windows shows a SmartScreen warning — click 'More info' then 'Run anyway'. This appears for any installer downloaded from the internet." },
+          { text: "Follow the wizard: Welcome → License Agreement → Installing → WireGuard → Finish." },
+          { text: "The wizard creates a desktop shortcut, adds ProxhqVPN to your Start Menu, and prompts to download WireGuard." },
+          { text: "After WireGuard is installed: open ProxhqVPN → WireGuard Config → Generate → Download .conf file." },
+          { text: "In WireGuard → click ▾ next to Add Tunnel → Import tunnel(s) from file → select your .conf. Click Activate." },
         ],
-        note: "WireGuard runs as a Windows service and can auto-start at login.",
+        note: "The installer registers ProxhqVPN in Windows Add/Remove Programs for clean uninstallation.",
       },
       {
         id: "macos", name: "macOS", os: "macOS 11+  ·  Intel & Apple Silicon",
         icon: Monitor, iconColor: "text-white/90",
-        badge: "One-Click Installer", badgeColor: "text-primary border-primary/30 bg-primary/10",
+        badge: "GUI Wizard Installer", badgeColor: "text-primary border-primary/30 bg-primary/10",
         canInstall: true,
         downloads: [
           { label: "Download ProxhqVPN Installer (.zip)", url: PROXHQ_MAC_INSTALLER, variant: "primary", icon: Download },
           { label: "WireGuard on Mac App Store", url: WG_APPSTORE_MAC, variant: "store", icon: Apple },
         ],
         steps: [
-          { text: "Download the ProxhqVPN Installer above and unzip it — you will get ProxhqVPN Installer.app." },
-          { text: "Double-click ProxhqVPN Installer.app to launch the setup wizard." },
-          { text: "If macOS says unidentified developer: right-click the file, click Open, then click Open again." },
-          { text: "Follow the on-screen prompts: Welcome, License, Install Location, WireGuard, Done." },
-          { text: "The wizard installs WireGuard and adds ProxhqVPN to your Applications folder automatically." },
-          { text: "Click Launch Now at the end — ProxhqVPN opens in your browser, sign in and connect." },
+          { text: "Download the ProxhqVPN Installer .zip above and unzip it — you will get 'ProxhqVPN-Mac-Installer.app'." },
+          { text: "Double-click the app to launch the setup wizard." },
+          { text: "If macOS says 'can't be opened because it's from an unidentified developer' — this is normal for apps downloaded outside the App Store." },
+          { text: "To allow it: go to Apple Menu → System Settings → Privacy & Security → scroll to Security → click 'Open Anyway' next to ProxhqVPN." },
+          { text: "Or: right-click (Control+click) the app → Open → Open. After you allow it once, it opens normally forever." },
+          { text: "Follow the wizard: Welcome → License → Install Location (All Users or Just Me) → WireGuard → Done." },
+          { text: "The wizard installs WireGuard and adds ProxhqVPN to your Applications folder. Click 'Launch Now' to sign in." },
         ],
-        note: "The installer uses native macOS dialogs. No terminal or technical steps required.",
+        note: "No App Store required. The installer uses native macOS dialog boxes — no terminal, no commands.",
       },
       {
-        id: "linux", name: "Linux", os: "Ubuntu · Debian · Fedora · Arch",
+        id: "linux", name: "Linux", os: "Ubuntu · Debian · Fedora · Arch · More",
         icon: Monitor, iconColor: "text-orange-400",
-        badge: "Package Manager", badgeColor: "text-orange-400 border-orange-500/30 bg-orange-900/10",
+        badge: "GUI Wizard Installer", badgeColor: "text-orange-400 border-orange-500/30 bg-orange-900/10",
         canInstall: true,
-        downloads: [],
-        steps: [
-          { text: "Ubuntu / Debian:", code: "sudo apt install wireguard" },
-          { text: "Fedora / RHEL:", code: "sudo dnf install wireguard-tools" },
-          { text: "Arch Linux:", code: "sudo pacman -S wireguard-tools" },
-          { text: "Download your config from ProxhqVPN → WireGuard Config → Download .conf." },
-          { text: "Move the config:", code: "sudo mv ~/Downloads/proxhq.conf /etc/wireguard/wg0.conf" },
-          { text: "Connect:", code: "sudo wg-quick up wg0" },
-          { text: "Auto-start at boot:", code: "sudo systemctl enable --now wg-quick@wg0" },
+        downloads: [
+          { label: "Download ProxhqVPN Installer (.zip)", url: PROXHQ_LINUX_INSTALLER, variant: "primary", icon: Download },
         ],
+        steps: [
+          { text: "Download the ProxhqVPN Installer .zip above and extract it — you will get 'ProxhqVPN-Linux-Install.sh'." },
+          { text: "Make it executable: right-click → Properties → Permissions → check 'Allow executing file as program'." },
+          { text: "Double-click the file in your file manager and choose 'Run' or 'Run in Terminal'." },
+          { text: "The wizard uses your desktop's native GUI dialogs (GNOME, KDE, or terminal fallback) — Welcome → License → Install → WireGuard → Done." },
+          { text: "The installer adds a desktop shortcut, registers ProxhqVPN in your app menu, and installs WireGuard via your package manager (apt/dnf/pacman)." },
+          { text: "Or run manually in a terminal:", code: "chmod +x ProxhqVPN-Linux-Install.sh && ./ProxhqVPN-Linux-Install.sh" },
+          { text: "After install: open ProxhqVPN → WireGuard Config → Download .conf, then:", code: "sudo wg-quick up ~/Downloads/proxhq.conf" },
+        ],
+        note: "Works on all major distros. Uses zenity (GNOME), yad, or kdialog for native GUI — falls back to terminal if none available.",
       },
       {
         id: "chromebook", name: "Chromebook", os: "ChromeOS 73+",
