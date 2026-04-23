@@ -113,3 +113,15 @@ id = "WfzmhRrHi1l5Y1TnpqBx1"
 uri = "file://screenshots/ProxhqVPN-Ads-Package.zip"
 type = "unspecified"
 title = "Full Package — All 3 files zipped"
+
+[[outputs]]
+id = "LsdflO6rpNNDnqtDkg1JA"
+uri = "file://screenshots/ProxhqVPN-Commercial-WithVoice.mp4"
+type = "video"
+title = "ProxhqVPN Commercial — With Deep Raspy Voiceover (39s)"
+
+[[outputs]]
+id = "2ooDoDtgiB2FywXgmgJXb"
+uri = "file://screenshots/ProxhqVPN-Full-Package.zip"
+type = "unspecified"
+title = "Full Package — 2 PNG Ads + Commercial (no voice) + Commercial (with voice)"
