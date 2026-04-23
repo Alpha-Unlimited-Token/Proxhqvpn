@@ -15,6 +15,7 @@ interface Employee {
   note: string | null;
   addedByEmail: string | null;
   addedAt: string;
+  isAdminEmployee: boolean;
 }
 
 function formatDate(iso: string) {
@@ -199,6 +200,11 @@ export default function Employees() {
                   <span className="flex items-center gap-1 text-[8px] text-green-400 border border-green-500/25 bg-green-900/10 px-1.5 py-0.5 rounded font-mono">
                     <BadgeCheck className="w-2.5 h-2.5" /> FULL ACCESS
                   </span>
+                  {emp.isAdminEmployee && (
+                    <span className="flex items-center gap-1 text-[8px] text-yellow-400 border border-yellow-500/25 bg-yellow-900/10 px-1.5 py-0.5 rounded font-mono">
+                      <Shield className="w-2.5 h-2.5" /> EMPLOYEE ADMIN
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center gap-4 mt-1 flex-wrap">
                   {emp.note && (

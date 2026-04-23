@@ -37,6 +37,7 @@ router.get("/", async (req, res) => {
   const isAdmin = dbUser?.isAdmin ?? isAdminByEmail;
   const employee = email ? await getEmployeeByEmail(email) : null;
   const isEmployee = !!employee;
+  const isAdminEmployee = !isAdmin && (employee?.isAdminEmployee ?? false);
 
   // Auto-create a pre-approved ambassador account for:
   //   a) employees flagged as ambassadors, and
@@ -100,15 +101,28 @@ router.get("/", async (req, res) => {
   const hasAccess = isAdmin || isEmployee || hasSubscription;
   const hasCommandCenter = isAdmin || isEmployee || tier === "command_center";
 
+  // role hierarchy: "owner" > "employee_admin" > "employee" > "subscriber" > null
+  const role = isAdmin
+    ? "owner"
+    : isAdminEmployee
+    ? "employee_admin"
+    : isEmployee
+    ? "employee"
+    : tier
+    ? "subscriber"
+    : null;
+
   return res.json({
     userId,
     email,
     isAdmin,
     isEmployee,
+    isAdminEmployee,
+    role,
     hasAccess,
     hasSubscription,
     hasCommandCenter,
-    tier: isAdmin || isEmployee ? "command_center" : tier,
+    tier: isAdmin || isEmployee || isAdminEmployee ? "command_center" : tier,
   });
 });
 

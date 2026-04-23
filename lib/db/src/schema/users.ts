@@ -18,4 +18,5 @@ export const employeesTable = pgTable("employees", {
   addedAt: timestamp("added_at").defaultNow().notNull(),
   isAmbassador: boolean("is_ambassador").default(false).notNull(),
   ambassadorPromoCode: text("ambassador_promo_code"),
+  isAdminEmployee: boolean("is_admin_employee").default(false).notNull(),
 });

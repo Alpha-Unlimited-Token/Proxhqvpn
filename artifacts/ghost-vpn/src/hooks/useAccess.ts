@@ -8,6 +8,8 @@ export interface MeResponse {
   email: string | null;
   isAdmin: boolean;
   isEmployee: boolean;
+  isAdminEmployee: boolean;
+  role: "owner" | "employee_admin" | "employee" | "subscriber" | null;
   hasAccess: boolean;
   hasSubscription: boolean;
   hasCommandCenter: boolean;
@@ -33,6 +35,8 @@ export function useAccess() {
   return {
     isAdmin: query.data?.isAdmin ?? false,
     isEmployee: query.data?.isEmployee ?? false,
+    isAdminEmployee: query.data?.isAdminEmployee ?? false,
+    role: query.data?.role ?? null,
     hasAccess: query.data?.hasAccess ?? false,
     hasSubscription: query.data?.hasSubscription ?? false,
     hasCommandCenter: query.data?.hasCommandCenter ?? false,

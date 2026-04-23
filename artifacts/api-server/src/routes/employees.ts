@@ -16,6 +16,16 @@ const SEED_EMPLOYEES = [
     addedByEmail: "admin",
     isAmbassador: true,
     ambassadorPromoCode: "CHARLIE10",
+    isAdminEmployee: false,
+  },
+  {
+    email: "cartowplayer@gmail.com",
+    displayName: "Employee Admin",
+    note: "Employee admin — platform access below owner level",
+    addedByEmail: "alphaunlimitedtechnologies@gmail.com",
+    isAmbassador: false,
+    ambassadorPromoCode: null,
+    isAdminEmployee: true,
   },
 ];
 
@@ -29,6 +39,9 @@ export async function seedEmployees() {
         set: {
           isAmbassador: emp.isAmbassador ?? false,
           ambassadorPromoCode: emp.ambassadorPromoCode ?? null,
+          isAdminEmployee: emp.isAdminEmployee ?? false,
+          displayName: emp.displayName ?? null,
+          note: emp.note ?? null,
         },
       });
   }
