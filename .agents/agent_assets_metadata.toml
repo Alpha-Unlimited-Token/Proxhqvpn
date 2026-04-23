@@ -149,3 +149,9 @@ id = "eStol3hEanWyjpQAlIxAz"
 uri = "file://screenshots/ProxhqVPN-Commercial-VoiceSynced.mp4"
 type = "video"
 title = "ProxhqVPN Commercial — Voice-Synced (61s, scene cuts on natural pauses)"
+
+[[outputs]]
+id = "zW0AJaFgzxoUjjEvd_TfS"
+uri = "file://screenshots/ProxhqVPN-Commercial-Adam.mp4"
+type = "video"
+title = "ProxhqVPN Commercial — Adam Voice, Trailer Style (28s)"
