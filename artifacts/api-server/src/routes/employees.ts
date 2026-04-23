@@ -23,8 +23,8 @@ const SEED_EMPLOYEES = [
     displayName: "Employee Admin",
     note: "Employee admin — platform access below owner level",
     addedByEmail: "alphaunlimitedtechnologies@gmail.com",
-    isAmbassador: false,
-    ambassadorPromoCode: null,
+    isAmbassador: true,
+    ambassadorPromoCode: "CARTOW10",
     isAdminEmployee: true,
   },
 ];
