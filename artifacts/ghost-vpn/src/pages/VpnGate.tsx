@@ -883,7 +883,13 @@ function NodeDoubleHopPanel() {
   const { data: sessionsData, isFetching: sessionsFetching } = useQuery<{ sessions: NodeSession[] }>({
     queryKey: ["node-vpngate-sessions"],
     queryFn: () => apiFetch("/vpngate/node-sessions"),
-    refetchInterval: 8000,
+    refetchInterval: (query) => {
+      const sessions = (query.state.data as { sessions: NodeSession[] } | undefined)?.sessions ?? [];
+      const hasPending = sessions.some(
+        (s) => s.status === "pending_connect" || s.status === "pending_disconnect",
+      );
+      return hasPending ? 2000 : 8000;
+    },
   });
 
   const { data: nodesData } = useQuery<{ nodes: ProxhqNode[] }>({
@@ -905,8 +911,8 @@ function NodeDoubleHopPanel() {
       }),
     onSuccess: (data) => {
       toast({
-        title: "Double-Hop Queued",
-        description: `→ ${data.server?.country} (${data.server?.ip}) · connects within 30s`,
+        title: "Double-Hop Connecting",
+        description: `→ ${data.server?.country} (${data.server?.ip}) · will be live in seconds`,
       });
       qc.invalidateQueries({ queryKey: ["node-vpngate-sessions"] });
     },
@@ -921,7 +927,7 @@ function NodeDoubleHopPanel() {
     mutationFn: (nodeId: number) =>
       apiFetch(`/vpngate/node/${nodeId}/disable`, { method: "POST" }),
     onSuccess: () => {
-      toast({ title: "Disconnecting", description: "Double-hop will stop within 30s" });
+      toast({ title: "Disconnected", description: "Double-hop has been disabled for this node" });
       qc.invalidateQueries({ queryKey: ["node-vpngate-sessions"] });
     },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
@@ -981,8 +987,11 @@ function NodeDoubleHopPanel() {
                     <div className="text-[9px] font-mono text-primary font-bold uppercase">{node.name}</div>
                     <div className="text-[8px] font-mono text-primary/30">{node.region}</div>
                   </div>
-                  <div className={`text-[8px] font-mono px-1.5 py-0.5 border uppercase ${statusColor[st] ?? "text-primary/20 border-primary/10"}`}>
-                    {isOff ? "OFF" : st.replace("_", " ")}
+                  <div className={`text-[8px] font-mono px-1.5 py-0.5 border uppercase flex items-center gap-1 ${statusColor[st] ?? "text-primary/20 border-primary/10"}`}>
+                    {(st === "pending_connect" || st === "pending_disconnect") && (
+                      <Loader className="w-2 h-2 animate-spin" />
+                    )}
+                    {isOff ? "OFF" : st === "pending_connect" ? "CONNECTING" : st === "pending_disconnect" ? "DISCONNECTING" : st.replace(/_/g, " ")}
                   </div>
                 </div>
 
@@ -990,7 +999,11 @@ function NodeDoubleHopPanel() {
                   <div className="text-[8px] font-mono text-primary/40 space-y-0.5">
                     <div>{countryFlag(session.serverCountryCode)} {session.serverCountry} · {session.serverIp}</div>
                     {session.exitIp && <div className="text-cyan-400/60">EXIT: {session.exitIp}</div>}
-                    {session.errorMessage && <div className="text-red-400/60 truncate">{session.errorMessage}</div>}
+                    {session.errorMessage && (
+                      <div className="text-red-400/60 text-[7px] leading-relaxed border border-red-400/15 bg-red-400/5 px-1.5 py-1 mt-1">
+                        {session.errorMessage}
+                      </div>
+                    )}
                   </div>
                 )}
 

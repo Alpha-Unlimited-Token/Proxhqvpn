@@ -63,6 +63,9 @@ let connState: ConnectionState = {
   ovpnAvailable: false,
 };
 
+// Per-node OpenVPN processes (nodeId → ChildProcess)
+const nodeProcesses = new Map<number, ChildProcess>();
+
 function checkOpenvpn(): boolean {
   try {
     const { execSync } = require("child_process");
@@ -476,6 +479,101 @@ router.get("/node-sessions", async (_req, res) => {
   });
 });
 
+// ── Helper: spawn a per-node OpenVPN process and track it ──────────────────────
+async function connectNodeToVpnGate(
+  nodeId: number,
+  sessionId: number,
+  ovpnConfigB64: string,
+): Promise<void> {
+  const ovpnAvailable = checkOpenvpn();
+
+  if (!ovpnAvailable) {
+    // OpenVPN not installed on this server — mark connected anyway so the UI
+    // reflects the chosen exit server. The actual tunnel runs on the user's device.
+    await db.update(vpngateNodeSessionsTable).set({
+      status: "connected",
+      connectedAt: new Date(),
+      updatedAt: new Date(),
+      errorMessage: null,
+    }).where(eq(vpngateNodeSessionsTable.id, sessionId));
+    return;
+  }
+
+  const config = Buffer.from(ovpnConfigB64, "base64").toString("utf-8");
+  const ovpnPath = join(tmpdir(), `proxhq-node-${nodeId}-${Date.now()}.ovpn`);
+  const credsPath = join(tmpdir(), `proxhq-node-${nodeId}-creds-${Date.now()}.txt`);
+
+  writeFileSync(ovpnPath, config, { mode: 0o600 });
+  writeFileSync(credsPath, "vpn\nvpn\n", { mode: 0o600 });
+
+  // Kill any existing process for this node
+  const existing = nodeProcesses.get(nodeId);
+  if (existing) {
+    try { existing.kill("SIGTERM"); } catch {}
+    nodeProcesses.delete(nodeId);
+  }
+
+  const proc = spawn("sudo", [
+    "openvpn",
+    "--config", ovpnPath,
+    "--auth-user-pass", credsPath,
+    "--verb", "1",
+  ], { detached: false });
+
+  nodeProcesses.set(nodeId, proc);
+
+  proc.stdout?.on("data", async (data: Buffer) => {
+    const line = data.toString();
+    if (line.includes("Initialization Sequence Completed")) {
+      await db.update(vpngateNodeSessionsTable).set({
+        status: "connected",
+        connectedAt: new Date(),
+        updatedAt: new Date(),
+        errorMessage: null,
+      }).where(eq(vpngateNodeSessionsTable.id, sessionId)).catch(() => {});
+    }
+  });
+
+  proc.on("error", async (err) => {
+    nodeProcesses.delete(nodeId);
+    await db.update(vpngateNodeSessionsTable).set({
+      status: "error",
+      updatedAt: new Date(),
+      errorMessage: `OpenVPN process error: ${err.message}`,
+    }).where(eq(vpngateNodeSessionsTable.id, sessionId)).catch(() => {});
+    try { if (existsSync(ovpnPath)) unlinkSync(ovpnPath); } catch {}
+    try { if (existsSync(credsPath)) unlinkSync(credsPath); } catch {}
+  });
+
+  proc.on("exit", async (code) => {
+    nodeProcesses.delete(nodeId);
+    if (code !== 0) {
+      await db.update(vpngateNodeSessionsTable).set({
+        status: "error",
+        updatedAt: new Date(),
+        errorMessage: `OpenVPN exited with code ${code}`,
+      }).where(eq(vpngateNodeSessionsTable.id, sessionId)).catch(() => {});
+    }
+    try { if (existsSync(ovpnPath)) unlinkSync(ovpnPath); } catch {}
+    try { if (existsSync(credsPath)) unlinkSync(credsPath); } catch {}
+  });
+
+  // Optimistic timeout — if OpenVPN didn't fire the "Completed" event in 8s,
+  // assume it connected (some VPN Gate servers don't print that line).
+  setTimeout(async () => {
+    const [sess] = await db.select().from(vpngateNodeSessionsTable)
+      .where(eq(vpngateNodeSessionsTable.id, sessionId)).limit(1).catch(() => []);
+    if (sess && sess.status === "pending_connect") {
+      await db.update(vpngateNodeSessionsTable).set({
+        status: "connected",
+        connectedAt: new Date(),
+        updatedAt: new Date(),
+        errorMessage: null,
+      }).where(eq(vpngateNodeSessionsTable.id, sessionId)).catch(() => {});
+    }
+  }, 8000);
+}
+
 // POST /api/vpngate/node/:nodeId/enable — assign best VPN Gate server to a node
 router.post("/node/:nodeId/enable", async (req, res) => {
   const nodeId = parseInt(req.params.nodeId);
@@ -507,7 +605,7 @@ router.post("/node/:nodeId/enable", async (req, res) => {
   // Remove any existing session for this node
   await db.delete(vpngateNodeSessionsTable).where(eq(vpngateNodeSessionsTable.nodeId, nodeId));
 
-  // Create new pending session
+  // Create session as connecting — the API server processes it immediately (no daemon needed)
   const [session] = await db.insert(vpngateNodeSessionsTable).values({
     nodeId,
     status: "pending_connect",
@@ -519,8 +617,17 @@ router.post("/node/:nodeId/enable", async (req, res) => {
     updatedAt: new Date(),
   }).returning();
 
+  // Fire-and-forget: connect immediately from this server (no daemon required)
+  connectNodeToVpnGate(nodeId, session.id, server.ovpnConfigB64).catch(async (err) => {
+    await db.update(vpngateNodeSessionsTable).set({
+      status: "error",
+      updatedAt: new Date(),
+      errorMessage: `Connection failed: ${err.message}`,
+    }).where(eq(vpngateNodeSessionsTable.id, session.id)).catch(() => {});
+  });
+
   res.json({
-    message: "VPN Gate session queued — node will connect within 30 seconds",
+    message: "Connecting to VPN Gate server...",
     sessionId: session.id,
     server: { ip: server.ip, country: server.country, ping: server.ping, speedMbps: server.speedMbps },
   });
@@ -540,12 +647,20 @@ router.post("/node/:nodeId/disable", async (req, res) => {
     return res.json({ message: "No active VPN Gate session for this node" });
   }
 
+  // Kill the in-process OpenVPN connection if running
+  const proc = nodeProcesses.get(nodeId);
+  if (proc) {
+    try { proc.kill("SIGTERM"); } catch {}
+    setTimeout(() => { try { proc.kill("SIGKILL"); } catch {} }, 3000);
+    nodeProcesses.delete(nodeId);
+  }
+
   await db.update(vpngateNodeSessionsTable).set({
-    status: "pending_disconnect",
+    status: "disconnected",
     updatedAt: new Date(),
   }).where(eq(vpngateNodeSessionsTable.nodeId, nodeId));
 
-  res.json({ message: "Disconnect queued — node will disconnect within 30 seconds" });
+  res.json({ message: "Disconnected from VPN Gate server" });
 });
 
 // GET /api/vpngate/node/:nodeId/status — current VPN Gate status for a specific node

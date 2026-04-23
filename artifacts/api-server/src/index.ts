@@ -6,6 +6,9 @@ import { seedEmployees } from "./routes/employees";
 import { seedStripeProducts } from "./seedStripeProducts";
 import { exec, execSync } from "child_process";
 import fs from "fs";
+import { db } from "@workspace/db";
+import { vpngateNodeSessionsTable } from "@workspace/db";
+import { eq, and, lt, sql } from "drizzle-orm";
 
 /** Normalize DATABASE_URL sslmode to suppress pg-connection-string deprecation warnings.
  *  Only applied in the deployed environment where the managed Postgres supports TLS.
@@ -82,6 +85,44 @@ function ensureTor() {
   );
 }
 ensureTor();
+
+// ── Double-hop session watchdog ───────────────────────────────────────────────
+// If a node session stays in pending_connect/pending_disconnect for more than
+// 2 minutes it means the node daemon is not running or cannot reach the API.
+// Mark it as error so the UI shows a clear message instead of hanging forever.
+async function timeoutStaleSessions() {
+  try {
+    const cutoff = new Date(Date.now() - 2 * 60 * 1000); // 2 minutes ago
+    const stale = await db
+      .select()
+      .from(vpngateNodeSessionsTable)
+      .where(
+        and(
+          sql`status IN ('pending_connect', 'pending_disconnect')`,
+          lt(vpngateNodeSessionsTable.updatedAt, cutoff),
+        ),
+      );
+
+    for (const session of stale) {
+      await db
+        .update(vpngateNodeSessionsTable)
+        .set({
+          status: "error",
+          errorMessage:
+            "Node daemon not responding. Ensure proxhqd.py is running on the node server with DAEMON_PSK configured and can reach this API.",
+          updatedAt: new Date(),
+        })
+        .where(eq(vpngateNodeSessionsTable.id, session.id));
+      logger.warn({ sessionId: session.id, nodeId: session.nodeId }, "Double-hop session timed out — node daemon not responding");
+    }
+  } catch (err) {
+    logger.warn({ err }, "Session watchdog error");
+  }
+}
+
+// Run immediately on startup, then every 30 seconds
+timeoutStaleSessions();
+setInterval(timeoutStaleSessions, 30_000);
 
 const rawPort = process.env["PORT"];
 
