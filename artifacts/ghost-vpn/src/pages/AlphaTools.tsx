@@ -7,6 +7,7 @@ import {
   ArrowRight, FileText, CheckCircle,
   Upload, PackageSearch, AlertTriangle, ShieldCheck,
   FileCode2, Key, XCircle, ChevronDown, ChevronUp,
+  Network,
 } from "lucide-react";
 
 const BASE        = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -133,6 +134,18 @@ function ScannerTab({ useTor, onReportReady }: ScannerTabProps) {
     URL.revokeObjectURL(url);
   };
 
+  const exportScan = async (fmt: "txt" | "csv" | "json") => {
+    if (!currentJobId) return;
+    const r = await fetch(`${BASE}/api/alpha/scan/${currentJobId}/export?format=${fmt}`, { credentials: "include" });
+    if (!r.ok) { toast({ title: "Export failed", variant: "destructive" }); return; }
+    const blob = await r.blob();
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href = url; a.download = `proxhqvpn-scan-${currentJobId}.${fmt}`; a.click();
+    URL.revokeObjectURL(url);
+    toast({ title: `Exported as .${fmt.toUpperCase()}`, description: `proxhqvpn-scan-${currentJobId}.${fmt}` });
+  };
+
   const MODES: { id: ScanMode; label: string; desc: string }[] = [
     { id: "network",  label: "Network Scan",  desc: "Ports · services · banners" },
     { id: "security", label: "Security Audit", desc: "Misconfigs · keys · secrets" },
@@ -168,10 +181,10 @@ function ScannerTab({ useTor, onReportReady }: ScannerTabProps) {
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="flex-1">
           <label className="text-[9px] text-primary/40 font-mono uppercase block mb-1">
-            {mode === "network" || mode === "all" ? "Target IP / Hostname" : "Target Path or URL"}
+            {mode === "network" || mode === "all" ? "Target IP / CIDR Range / Hostname" : "Target Path or URL"}
           </label>
           <input value={target} onChange={e => setTarget(e.target.value)}
-            placeholder={mode === "network" || mode === "all" ? "192.168.1.1  or  example.com" : "/path/to/code  or  https://example.com"}
+            placeholder={mode === "network" || mode === "all" ? "192.168.1.1  ·  10.0.0.0/24  ·  example.com" : "/path/to/code  or  https://example.com"}
             className="w-full bg-black border border-primary/20 text-primary text-xs font-mono px-2 py-1.5 focus:outline-none focus:border-primary/50 rounded" />
         </div>
         {(mode === "network" || mode === "all") && (
@@ -220,13 +233,26 @@ function ScannerTab({ useTor, onReportReady }: ScannerTabProps) {
           <>
             <button onClick={downloadHtml}
               className="flex items-center gap-1.5 text-[9px] font-mono text-primary/60 hover:text-primary border border-primary/20 hover:border-primary/40 px-3 py-1.5 transition-colors rounded">
-              <Download className="w-3 h-3" /> Download HTML Report
+              <Download className="w-3 h-3" /> HTML Report
             </button>
             <button onClick={() => onReportReady(currentJobId)}
               className="flex items-center gap-1.5 text-[9px] font-mono text-green-400 border border-green-500/30 bg-green-900/10 hover:bg-green-900/20 px-3 py-1.5 transition-colors rounded">
               <ArrowRight className="w-3 h-3" /> Send to Verifier
             </button>
           </>
+        )}
+
+        {/* Export buttons — appear when any scan finishes (network scans especially) */}
+        {(status === "complete" || status === "error") && currentJobId && (mode === "network" || mode === "all") && (
+          <div className="flex items-center gap-1.5">
+            <span className="text-[8px] font-mono text-primary/30 uppercase tracking-widest mr-1">Export</span>
+            {(["txt", "csv", "json"] as const).map(fmt => (
+              <button key={fmt} onClick={() => exportScan(fmt)}
+                className="flex items-center gap-1 text-[9px] font-mono text-primary/50 hover:text-primary border border-primary/15 hover:border-primary/35 px-2.5 py-1.5 transition-colors rounded uppercase tracking-wide">
+                <Network className="w-2.5 h-2.5" /> {fmt}
+              </button>
+            ))}
+          </div>
         )}
 
         {(status === "complete" || status === "error" || status === "cancelled") && (

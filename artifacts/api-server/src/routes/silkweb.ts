@@ -261,7 +261,7 @@ router.post("/scan/portscan", async (req, res) => {
     ip?: string; ports?: string; flags?: string; useTor?: boolean;
   };
   if (!ip) return res.status(400).json({ error: "ip is required" });
-  const safeIp    = ip.replace(/[^0-9a-fA-F.:]/g, "").substring(0, 45);
+  const safeIp    = ip.replace(/[^0-9a-fA-F.:\-\/]/g, "").substring(0, 50); // allow CIDR slash
   const safePorts = ports.replace(/[^0-9\-,]/g, "").substring(0, 50);
   const safeFlags = flags.replace(/[^a-zA-Z0-9 \-]/g, "").substring(0, 80);
   const jobId     = crypto.randomUUID().substring(0, 8).toUpperCase();

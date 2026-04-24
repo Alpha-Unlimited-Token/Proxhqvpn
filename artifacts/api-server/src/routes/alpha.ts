@@ -130,9 +130,14 @@ router.post("/scan", (req, res) => {
     if (!targetIp && !target) return res.status(400).json({ error: "targetIp or target is required for network scan" });
   }
 
+  // Allow CIDR notation (e.g. 10.0.0.0/24) — permit slash in IP field
+  const sanitizeTarget = (raw: string) =>
+    raw.replace(/https?:\/\//i, "").replace(/[^0-9a-zA-Z.\-:\/]/g, "").substring(0, 100);
+
   if (mode === "network") {
+    const safeIp = sanitizeTarget(targetIp || target);
     args.push("--network-only");
-    args.push(`--target-ip`, targetIp || target.replace(/https?:\/\//i, "").split("/")[0]);
+    args.push(`--target-ip`, safeIp);
     if (ports) args.push("--ports", ports.replace(/[^0-9\-,]/g, "").substring(0, 50));
   } else if (mode === "security") {
     if (!target) return res.status(400).json({ error: "target path required for security scan" });
@@ -143,8 +148,7 @@ router.post("/scan", (req, res) => {
     if (lang) args.push("--lang", lang);
   } else {
     // all — network + security + exploits
-    const safeIp = (targetIp || target.replace(/https?:\/\//i, "").split("/")[0])
-      .replace(/[^0-9a-zA-Z.\-:]/g, "").substring(0, 100);
+    const safeIp = sanitizeTarget(targetIp || target);
     args.push("--network-only", "--target-ip", safeIp, "--ports", ports.replace(/[^0-9\-,]/g, "").substring(0, 50));
   }
 
@@ -191,6 +195,64 @@ router.get("/scan/:jobId/html", (req, res) => {
   if (!fs.existsSync(htmlFile)) return res.status(404).json({ error: "HTML report not ready yet" });
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.send(fs.readFileSync(htmlFile, "utf-8"));
+});
+
+// GET /api/alpha/scan/:jobId/export?format=txt|csv|json
+// Parses nmap-style output from the completed scan job into the requested format
+router.get("/scan/:jobId/export", (req, res) => {
+  const job = scanJobs.get(req.params.jobId);
+  if (!job) return res.status(404).json({ error: "Job not found" });
+  if (job.status === "running") return res.status(409).json({ error: "Scan still running" });
+  if (!job.output) return res.status(404).json({ error: "No output available" });
+
+  const fmt = (req.query.format as string ?? "txt").toLowerCase();
+  const raw = job.output;
+
+  if (fmt === "txt") {
+    res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="proxhqvpn-scan-${req.params.jobId}.txt"`);
+    return res.send(raw);
+  }
+
+  // Parse nmap output into structured records
+  // Format: "22/tcp   open  ssh     OpenSSH 8.9p1"
+  interface ScanRow { host: string; port: string; protocol: string; state: string; service: string; version: string }
+  const rows: ScanRow[] = [];
+  let currentHost = "";
+
+  for (const line of raw.split("\n")) {
+    const hostMatch = line.match(/^Nmap scan report for (.+)/);
+    if (hostMatch) { currentHost = hostMatch[1].trim(); continue; }
+    const portMatch = line.match(/^(\d+)\/(tcp|udp)\s+(\S+)\s+(\S+)\s*(.*)/);
+    if (portMatch) {
+      rows.push({
+        host:     currentHost,
+        port:     portMatch[1],
+        protocol: portMatch[2],
+        state:    portMatch[3],
+        service:  portMatch[4],
+        version:  portMatch[5].trim(),
+      });
+    }
+  }
+
+  if (fmt === "json") {
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="proxhqvpn-scan-${req.params.jobId}.json"`);
+    return res.json({ jobId: req.params.jobId, generatedAt: new Date().toISOString(), hosts: rows });
+  }
+
+  if (fmt === "csv") {
+    const header = "host,port,protocol,state,service,version";
+    const lines  = rows.map(r =>
+      [r.host, r.port, r.protocol, r.state, r.service, `"${r.version.replace(/"/g, '""')}"`].join(",")
+    );
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="proxhqvpn-scan-${req.params.jobId}.csv"`);
+    return res.send([header, ...lines].join("\n"));
+  }
+
+  return res.status(400).json({ error: "format must be txt, csv, or json" });
 });
 
 // ── Vuln Verifier ────────────────────────────────────────────────────────────
