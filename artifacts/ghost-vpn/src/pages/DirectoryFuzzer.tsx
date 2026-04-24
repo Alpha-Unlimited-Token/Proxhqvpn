@@ -43,11 +43,44 @@ export default function DirectoryFuzzer() {
   const [result, setResult]         = useState<any>(null);
   const [statusFilter, setStatusFilter] = useState<number | null>(null);
   const [wordlistInfo, setWordlistInfo] = useState<Record<WL, number> | null>(null);
+  const [showAll, setShowAll]           = useState(false);
+
+  const copyResults = (hits: any[]) => {
+    const lines = hits.map((h: any) =>
+      `[${h.status}] ${result?.baseUrl?.replace(/\/$/, "")}/${h.path}${h.size ? `  (${(h.size/1024).toFixed(1)}KB)` : ""}${h.redirectTo ? `  → ${h.redirectTo}` : ""}`
+    ).join("\n");
+    navigator.clipboard.writeText(lines).then(() =>
+      toast({ title: `Copied ${hits.length} results to clipboard` })
+    );
+  };
+
+  const downloadResults = (hits: any[], fmt: "txt" | "csv") => {
+    let content = "";
+    if (fmt === "txt") {
+      content = `ProxhqVPN Directory Fuzzer — ${result?.baseUrl}\n${"=".repeat(60)}\n`;
+      content += `Scanned: ${result?.totalTested} paths  |  Found: ${hits.length}\n\n`;
+      content += hits.map((h: any) =>
+        `[${h.status}] /${h.path}${h.redirectTo ? `  → ${h.redirectTo}` : ""}  ${h.size ? `(${(h.size/1024).toFixed(1)}KB)` : ""}  ${h.timingMs}ms`
+      ).join("\n");
+    } else {
+      content = "status,path,full_url,size_bytes,timing_ms,redirect_to\n";
+      content += hits.map((h: any) =>
+        `${h.status},${h.path},${result?.baseUrl?.replace(/\/$/, "")}/${h.path},${h.size},${h.timingMs},"${h.redirectTo ?? ""}"`
+      ).join("\n");
+    }
+    const blob = new Blob([content], { type: fmt === "csv" ? "text/csv" : "text/plain" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `fuzz-${new URL(result?.baseUrl ?? "http://x").hostname}-${Date.now()}.${fmt}`;
+    a.click();
+    toast({ title: `Downloaded as .${fmt.toUpperCase()}` });
+  };
 
   const run = async () => {
     if (!url.startsWith("http")) { toast({ title: "URL must start with http:// or https://", variant: "destructive" }); return; }
     setLoading(true);
     setResult(null);
+    setShowAll(false);
     try {
       const ext = extensions.split(",").map(s => s.trim()).filter(Boolean);
       const filt = filterCodes.split(",").map(s => parseInt(s.trim())).filter(n => !isNaN(n));
@@ -166,14 +199,14 @@ export default function DirectoryFuzzer() {
       {result && (
         <Card className="bg-black/40 border-primary/15">
           <CardContent className="p-4">
-            {/* Summary */}
+            {/* Summary + action bar */}
             <div className="flex flex-wrap items-center gap-3 mb-4 pb-3 border-b border-primary/10">
               <div className="text-xs font-mono text-primary/70">
                 <span className="text-primary/40">Tested: </span>{result.totalTested} paths
               </div>
               <div className="text-xs font-mono text-primary/70">
                 <span className="text-primary/40">Found: </span>
-                <span className={result.hits.length > 0 ? "text-green-400" : "text-primary/40"}>
+                <span className={result.hits.length > 0 ? "text-green-400 font-bold" : "text-primary/40"}>
                   {result.hits.length}
                 </span>
               </div>
@@ -184,9 +217,27 @@ export default function DirectoryFuzzer() {
                   </Badge>
                 ) : null
               )}
+
+              {/* Copy + Download */}
+              {hits.length > 0 && (
+                <div className="ml-auto flex items-center gap-2">
+                  <button onClick={() => copyResults(filtered)}
+                    className="flex items-center gap-1.5 text-[9px] font-mono text-primary/50 hover:text-primary border border-primary/15 hover:border-primary/35 px-2.5 py-1.5 rounded transition-colors">
+                    <Copy className="w-3 h-3" /> Copy
+                  </button>
+                  <button onClick={() => downloadResults(filtered, "txt")}
+                    className="flex items-center gap-1.5 text-[9px] font-mono text-primary/50 hover:text-primary border border-primary/15 hover:border-primary/35 px-2.5 py-1.5 rounded transition-colors">
+                    <Download className="w-3 h-3" /> TXT
+                  </button>
+                  <button onClick={() => downloadResults(filtered, "csv")}
+                    className="flex items-center gap-1.5 text-[9px] font-mono text-primary/50 hover:text-primary border border-primary/15 hover:border-primary/35 px-2.5 py-1.5 rounded transition-colors">
+                    <Download className="w-3 h-3" /> CSV
+                  </button>
+                </div>
+              )}
             </div>
 
-            {/* Status filter */}
+            {/* Status filter pills */}
             {hits.length > 0 && (
               <div className="flex flex-wrap gap-2 mb-3">
                 <button onClick={() => setStatusFilter(null)}
@@ -205,29 +256,53 @@ export default function DirectoryFuzzer() {
             {hits.length === 0 ? (
               <div className="text-center py-6 text-primary/30 text-sm">No paths found matching filter criteria</div>
             ) : (
-              <div className="space-y-1 max-h-[500px] overflow-y-auto">
-                {filtered.map((h: any) => {
-                  const interest = INTEREST_SCORE(h.status);
-                  return (
-                    <div key={h.path} className={`flex items-center gap-3 p-2.5 rounded-lg border ${STATUS_COLOR(h.status)} font-mono`}>
-                      <Badge variant="outline" className={`text-[10px] shrink-0 w-10 justify-center ${STATUS_COLOR(h.status)}`}>
-                        {h.status}
-                      </Badge>
-                      {interest === "high"   && <CheckCircle className="w-3 h-3 text-green-400 shrink-0" />}
-                      {interest === "medium" && <AlertCircle className="w-3 h-3 text-yellow-400 shrink-0" />}
-                      <span className="text-[11px] text-primary/70 flex-1 truncate">/{h.path}</span>
-                      {h.size > 0 && <span className="text-[10px] text-primary/30 shrink-0">{(h.size/1024).toFixed(1)}KB</span>}
-                      <span className="text-[10px] text-primary/30 shrink-0">{h.timingMs}ms</span>
-                      {h.redirectTo && (
-                        <div className="flex items-center gap-1 text-[10px] text-yellow-400/60 shrink-0">
-                          <CornerDownRight className="w-3 h-3" />
-                          <span className="max-w-[120px] truncate">{h.redirectTo}</span>
+              <>
+                <div className="space-y-1">
+                  {(showAll ? filtered : filtered.slice(0, 50)).map((h: any) => {
+                    const interest = INTEREST_SCORE(h.status);
+                    const fullUrl  = `${result.baseUrl?.replace(/\/$/, "")}/${h.path}`;
+                    return (
+                      <div key={h.path} className={`flex items-start gap-3 p-2.5 rounded-lg border ${STATUS_COLOR(h.status)} font-mono`}>
+                        <Badge variant="outline" className={`text-[10px] shrink-0 w-10 justify-center mt-0.5 ${STATUS_COLOR(h.status)}`}>
+                          {h.status}
+                        </Badge>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {interest === "high"   && <CheckCircle className="w-3 h-3 text-green-400 shrink-0" />}
+                            {interest === "medium" && <AlertCircle className="w-3 h-3 text-yellow-400 shrink-0" />}
+                            <span className="text-[11px] text-primary/80 break-all">/{h.path}</span>
+                            <a href={fullUrl} target="_blank" rel="noopener noreferrer"
+                              className="shrink-0 text-primary/30 hover:text-primary transition-colors" title={fullUrl}>
+                              <ExternalLink className="w-3 h-3" />
+                            </a>
+                          </div>
+                          {h.redirectTo && (
+                            <div className="flex items-center gap-1 text-[10px] text-yellow-400/70 mt-0.5">
+                              <CornerDownRight className="w-3 h-3 shrink-0" />
+                              <span className="break-all">{h.redirectTo}</span>
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
+                        <div className="flex flex-col items-end gap-0.5 shrink-0 text-[10px] text-primary/30">
+                          {h.size > 0 && <span>{(h.size/1024).toFixed(1)}KB</span>}
+                          <span>{h.timingMs}ms</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Show all / collapse */}
+                {filtered.length > 50 && (
+                  <button onClick={() => setShowAll(v => !v)}
+                    className="mt-3 w-full flex items-center justify-center gap-2 text-[10px] font-mono text-primary/50 hover:text-primary border border-primary/15 hover:border-primary/30 py-2 rounded transition-colors">
+                    {showAll
+                      ? <><ChevronUp className="w-3.5 h-3.5" /> Show fewer</>
+                      : <><ChevronDown className="w-3.5 h-3.5" /> Show all {filtered.length} results (showing 50 of {filtered.length})</>
+                    }
+                  </button>
+                )}
+              </>
             )}
           </CardContent>
         </Card>
