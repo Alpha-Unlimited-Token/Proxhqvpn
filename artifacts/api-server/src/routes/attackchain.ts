@@ -341,6 +341,32 @@ async function runScan(scanId: number, target: string) {
       { path: "/graphql",        type: "graphql",             severity: "medium"  as const, title: "GraphQL Endpoint Found" },
     ];
 
+    // Validate that a response is actually the expected content type, not a SPA HTML fallback.
+    // SPAs return 200 + index.html for ALL routes — this filters out those false positives.
+    function isRealContent(path: string, resp: { status: number; headers: Record<string, string>; body: string }): boolean {
+      const body  = resp.body;
+      const ct    = resp.headers["content-type"] || "";
+      const isHtml = ct.includes("text/html") || body.trimStart().startsWith("<!DOCTYPE") || body.trimStart().startsWith("<html");
+
+      // Path-specific content validation
+      if (path === "/.env")           return !isHtml && body.includes("=") && !body.includes("<");
+      if (path === "/.git/HEAD")      return /^ref:\s+refs\/|^[0-9a-f]{40}/m.test(body.trim());
+      if (path === "/phpinfo.php")    return body.includes("PHP Version") && body.includes("phpinfo");
+      if (path === "/backup.zip")     return ct.includes("zip") || ct.includes("octet-stream");
+      if (path === "/actuator")       return !isHtml && (body.includes("_links") || body.includes("\"health\""));
+      if (path === "/swagger-ui.html")return body.toLowerCase().includes("swagger") && body.toLowerCase().includes("openapi");
+      if (path === "/graphql")        return !isHtml && (body.startsWith("{") || body.includes("\"errors\"") || body.includes("\"data\""));
+      if (path === "/server-status")  return body.includes("requests currently being processed") || body.includes("Server Status");
+      if (path === "/wp-admin")       return body.includes("wp-login") || (body.includes("WordPress") && isHtml);
+      if (path === "/config.php")     return !isHtml && (body.includes("<?php") || body.includes("define("));
+      if (path === "/robots.txt")     return ct.includes("text/plain") || body.trim().startsWith("User-agent:");
+      if (path === "/sitemap.xml")    return (ct.includes("xml") && !ct.includes("html")) || body.trim().startsWith("<?xml");
+
+      // For any other path: if the server returned HTML it's a SPA catch-all, not a real hit
+      if (isHtml && !path.endsWith(".html") && !path.endsWith(".htm")) return false;
+      return true;
+    }
+
     const pathResults = await Promise.allSettled(
       sensitivePaths.map(async p => {
         const r = await fetchWithTimeout(`${baseUrl}${p.path}`, 5000);
@@ -353,7 +379,7 @@ async function runScan(scanId: number, target: string) {
       const { path, type, severity, title, resp } = result.value;
       if (!resp) continue;
 
-      if (resp.status === 200 || resp.status === 301 || resp.status === 302) {
+      if ((resp.status === 200 || resp.status === 301 || resp.status === 302) && isRealContent(path, resp)) {
         let description = "";
         let evidence = `HTTP ${resp.status} at ${baseUrl}${path}`;
         let remediation = "";
