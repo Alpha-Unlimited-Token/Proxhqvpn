@@ -27,6 +27,15 @@ const SEED_EMPLOYEES = [
     ambassadorPromoCode: "CARTOW10",
     isAdminEmployee: true,
   },
+  {
+    email: "goontv2018@gmail.com",
+    displayName: "GoonTV",
+    note: "Employee admin & ambassador",
+    addedByEmail: "alphaunlimitedtechnologies@gmail.com",
+    isAmbassador: true,
+    ambassadorPromoCode: "GOONTV10",
+    isAdminEmployee: true,
+  },
 ];
 
 export async function seedEmployees() {
