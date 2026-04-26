@@ -56,6 +56,7 @@ import canaryRouter from "./canary";
 import exploitImportRouter from "./exploitimport";
 import wafRouter from "./waf";
 import omnistrikeRouter from "./omnistrike";
+import socialAccountRouter from "./social-account";
 
 const router: IRouter = Router();
 
@@ -308,6 +309,7 @@ router.use("/canary",          requireCommandCenter, canaryRouter);
 router.use("/exploit-import",  requireCommandCenter, exploitImportRouter);
 router.use("/waf",             requireCommandCenter, wafRouter);
 router.use("/omnistrike",      requireCommandCenter, omnistrikeRouter);
+router.use("/social-account",  requireCommandCenter, socialAccountRouter);
 
 // ── Admin-only routes ─────────────────────────────────────────────────────
 router.use("/employees",      requireAdmin, employeesRouter);

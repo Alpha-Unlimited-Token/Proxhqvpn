@@ -94,6 +94,7 @@ import CanaryTokens from "@/pages/CanaryTokens";
 import ExploitImporter from "@/pages/ExploitImporter";
 import OmniStrike from "@/pages/OmniStrike";
 import WafAnalyzer from "@/pages/WafAnalyzer";
+import SocialBreach from "@/pages/SocialBreach";
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
@@ -549,6 +550,9 @@ function AppRoutes() {
           </Route>
           <Route path="/waf">
             <CcLayout><WafAnalyzer /></CcLayout>
+          </Route>
+          <Route path="/social-breach">
+            <CcLayout><SocialBreach /></CcLayout>
           </Route>
 
           {/* ── Admin-only — gated on backend; frontend shows paywall for non-admins ── */}

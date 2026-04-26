@@ -76,6 +76,7 @@ const PAGE_NAMES: Record<string, string> = {
   "/canary":               "Canary Tokens",
   "/exploit-import":       "Exploit Importer",
   "/omnistrike":           "OmniStrike",
+  "/social-breach":        "Social & Game Breach Tester",
   "/waf":                  "WAF Analyzer",
 };
 
@@ -129,6 +130,7 @@ const ADVANCED_NAV = [
   { href: "/exploit-import", label: "Exploit Importer",     icon: Upload },
   { href: "/omnistrike",    label: "OmniStrike",            icon: Zap },
   { href: "/waf",           label: "WAF Analyzer",          icon: Shield },
+  { href: "/social-breach", label: "Social & Game Breach",  icon: Globe2 },
 ];
 
 const AMBASSADOR_NAV = [
