@@ -114,6 +114,9 @@ import DedicatedIp from "@/pages/DedicatedIp";
 import Meshnet from "@/pages/Meshnet";
 import DataBrokerScan from "@/pages/DataBrokerScan";
 import OastTester from "@/pages/OastTester";
+import OastServer from "@/pages/OastServer";
+import WafBypass from "@/pages/WafBypass";
+import TransparencyReport from "@/pages/TransparencyReport";
 import DepScanner from "@/pages/DepScanner";
 import TokenSequencer from "@/pages/TokenSequencer";
 import WsTester from "@/pages/WsTester";
@@ -636,6 +639,15 @@ function AppRoutes() {
           </Route>
           <Route path="/oast-tester">
             <CcLayout><OastTester /></CcLayout>
+          </Route>
+          <Route path="/oast-server">
+            <CcLayout><OastServer /></CcLayout>
+          </Route>
+          <Route path="/waf-bypass">
+            <CcLayout><WafBypass /></CcLayout>
+          </Route>
+          <Route path="/transparency">
+            <Layout><TransparencyReport /></Layout>
           </Route>
           <Route path="/dep-scanner">
             <CcLayout><DepScanner /></CcLayout>

