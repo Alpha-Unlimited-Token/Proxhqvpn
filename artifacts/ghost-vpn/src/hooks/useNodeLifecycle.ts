@@ -91,7 +91,8 @@ export function useNodeLifecycle() {
     await new Promise((r) => setTimeout(r, DECAY_MS));
 
     try {
-      const res = await fetch(`/api/nodes/${target.id}/replace`, {
+      const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
+      const res = await fetch(`${BASE}/api/nodes/${target.id}/replace`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
       });

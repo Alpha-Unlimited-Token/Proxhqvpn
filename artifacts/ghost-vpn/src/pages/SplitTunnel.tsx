@@ -57,22 +57,25 @@ export default function SplitTunnel() {
   };
 
   const toggleRule = async (rule: SplitRule) => {
-    await fetch(`${BASE}/api/split-tunnel/rules/${rule.id}`, {
+    const r = await fetch(`${BASE}/api/split-tunnel/rules/${rule.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ enabled: !rule.enabled }),
     });
+    if (!r.ok) { toast({ title: "Failed to toggle rule", variant: "destructive" }); return; }
     load();
   };
 
   const deleteRule = async (id: string) => {
-    await fetch(`${BASE}/api/split-tunnel/rules/${id}`, { method: "DELETE" });
+    const r = await fetch(`${BASE}/api/split-tunnel/rules/${id}`, { method: "DELETE" });
+    if (!r.ok) { toast({ title: "Failed to remove rule", variant: "destructive" }); return; }
     load();
     toast({ title: "Rule removed" });
   };
 
   const resetRules = async () => {
-    await fetch(`${BASE}/api/split-tunnel/rules/reset`, { method: "POST" });
+    const r = await fetch(`${BASE}/api/split-tunnel/rules/reset`, { method: "POST" });
+    if (!r.ok) { toast({ title: "Failed to reset rules", variant: "destructive" }); return; }
     load();
     toast({ title: "Rules reset to defaults" });
   };

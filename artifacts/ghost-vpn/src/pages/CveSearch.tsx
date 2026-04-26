@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import { usePersistedState } from "@/hooks/usePersistedState";
 
+const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
+
 interface CVEItem {
   id: string;
   description: string;
@@ -67,11 +69,11 @@ export default function CveSearch() {
     setResults([]);
     try {
       const isCveId = /^CVE-\d{4}-\d+$/i.test(kw);
-      const url = isCveId
-        ? `https://services.nvd.nist.gov/rest/json/cves/2.0?cveId=${encodeURIComponent(kw.toUpperCase())}`
-        : `https://services.nvd.nist.gov/rest/json/cves/2.0?keywordSearch=${encodeURIComponent(kw)}&resultsPerPage=20`;
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`NVD API error: ${res.status}`);
+      const params = isCveId
+        ? `cveId=${encodeURIComponent(kw.toUpperCase())}`
+        : `q=${encodeURIComponent(kw)}`;
+      const res = await fetch(`${BASE}/api/cve/search?${params}`);
+      if (!res.ok) throw new Error((await res.json()).error ?? `CVE search error: ${res.status}`);
       const data = await res.json();
       setTotal(data.totalResults ?? 0);
       setResults(parseNvdResponse(data));

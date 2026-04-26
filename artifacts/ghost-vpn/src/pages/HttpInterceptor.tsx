@@ -96,8 +96,15 @@ export default function HttpInterceptor() {
     setNewFrom(""); setNewTo("");
   }
 
+  const [confirmClear, setConfirmClear] = useState(false);
+
   function clearHistory() {
-    fetch(`${BASE}/api/interceptor/history`, { method: "DELETE" }).then(() => setHistory([]));
+    if (!confirmClear) { setConfirmClear(true); return; }
+    fetch(`${BASE}/api/interceptor/history`, { method: "DELETE" }).then(() => {
+      setHistory([]);
+      setConfirmClear(false);
+      toast({ title: "History cleared" });
+    });
   }
 
   return (
@@ -245,9 +252,17 @@ export default function HttpInterceptor() {
               <RefreshCcw className="w-3 h-3 mr-1" /> Refresh
             </Button>
             {history.length > 0 && (
-              <button onClick={clearHistory} className="text-[11px] text-red-400/60 hover:text-red-400 transition-colors">
-                Clear All
-              </button>
+              confirmClear ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] text-white/50">Confirm clear?</span>
+                  <button onClick={clearHistory} className="text-[11px] text-red-400 font-bold hover:text-red-300 transition-colors">Yes, clear</button>
+                  <button onClick={() => setConfirmClear(false)} className="text-[11px] text-white/40 hover:text-white/60 transition-colors">Cancel</button>
+                </div>
+              ) : (
+                <button onClick={clearHistory} className="text-[11px] text-red-400/60 hover:text-red-400 transition-colors">
+                  Clear All
+                </button>
+              )
             )}
           </div>
 

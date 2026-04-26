@@ -197,8 +197,16 @@ async function fetchIpGeo(ip: string) {
 }
 
 async function fetchTorCheck(ip: string) {
-  // Check torproject's exit list via DNS isn't easily doable client-side; use ip-api proxy flag
-  return null;
+  try {
+    const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
+    const r = await fetch(`${BASE}/api/threatintel/tor-exits`);
+    if (!r.ok) return null;
+    const data = await r.json();
+    const exits: string[] = data.exits ?? [];
+    return { isTorExit: exits.includes(ip) };
+  } catch {
+    return null;
+  }
 }
 
 /* ── Result builders ─────────────────────────────────────── */
@@ -253,15 +261,23 @@ function buildAsnResult(data: any): ExposureResult {
 }
 
 function buildTorResult(torData: any, geoData: any): ExposureResult {
-  // ip-api doesn't specifically identify Tor exits, but proxy=true can catch some
+  if (torData?.isTorExit === true) {
+    return {
+      category: "Intelligence",
+      label: "Tor Exit Node",
+      status: "danger",
+      detail: "This IP is a confirmed Tor exit node per live Tor Project exit list.",
+      link: "https://check.torproject.org/",
+    };
+  }
   const isProxy = geoData?.proxy === true;
   return {
     category: "Intelligence",
     label: "Tor Exit Node",
     status: isProxy ? "warning" : "safe",
     detail: isProxy
-      ? "IP appears to be a proxy or possibly a Tor exit node."
-      : "IP is not listed as a known Tor exit node.",
+      ? "IP appears to be a proxy or may be a Tor exit node — not in current Tor exit list."
+      : "IP is not a known Tor exit node.",
     link: "https://check.torproject.org/",
   };
 }

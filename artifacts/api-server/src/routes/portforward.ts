@@ -2,6 +2,21 @@ import { Router } from "express";
 import { getAuth } from "@clerk/express";
 import * as net from "net";
 
+function tcpProbe(host: string, port: number, timeoutMs: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = new net.Socket();
+    let resolved = false;
+    const done = (result: boolean) => {
+      if (!resolved) { resolved = true; socket.destroy(); resolve(result); }
+    };
+    socket.setTimeout(timeoutMs);
+    socket.on("connect", () => done(true));
+    socket.on("error", () => done(false));
+    socket.on("timeout", () => done(false));
+    socket.connect(port, host);
+  });
+}
+
 const router = Router();
 
 type Protocol = "TCP" | "UDP" | "TCP+UDP";
@@ -94,9 +109,11 @@ router.post("/check/:id", async (req, res) => {
 
   rule.lastChecked = new Date().toISOString();
 
-  // Simulate port reachability check
-  await new Promise(r => setTimeout(r, 800 + Math.random() * 600));
-  rule.reachable = rule.status === "active" && Math.random() > 0.3;
+  if (rule.status !== "active") {
+    rule.reachable = false;
+  } else {
+    rule.reachable = await tcpProbe("127.0.0.1", rule.externalPort, 3000);
+  }
 
   rulesStore.set(userId, rules);
   res.json({ ok: true, rule });

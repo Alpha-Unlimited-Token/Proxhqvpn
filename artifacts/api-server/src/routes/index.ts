@@ -77,6 +77,7 @@ import depScannerRouter from "./depscanner";
 import tokenSequencerRouter from "./tokensequencer";
 import wsTesterRouter from "./wstester";
 import sastRouter from "./sast";
+import cveSearchRouter from "./cvesearch";
 
 const router: IRouter = Router();
 
@@ -316,6 +317,8 @@ router.use("/daita",      requireAccess, daitaRouter);      // Defense Against A
 router.use("/darkweb",    requireAccess, darkwebRouter);    // Dark Web Breach Monitor
 router.use("/altid",      requireAccess, altidRouter);      // Alternative Identity Generator
 router.use("/iprotator",  requireAccess, iprotatorRouter);  // IP Rotator
+
+router.use("/cve",            requireAccess, cveSearchRouter);         // CVE search proxy (avoids client-side CORS)
 
 // ── Command Center Pro routes — requires command_center tier (or admin/employee)
 router.use("/threatintel",     requireCommandCenter, threatintelRouter);
