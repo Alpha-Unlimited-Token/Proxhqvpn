@@ -1,10 +1,12 @@
 import { Router } from "express";
 import { z } from "zod";
+import { createHash } from "crypto";
 
 const router = Router();
 
 const HIBP_API_KEY = process.env.HIBP_API_KEY ?? "";
 const HIBP_BASE    = "https://haveibeenpwned.com/api/v3";
+const PWNED_PASS_BASE = "https://api.pwnedpasswords.com";
 
 interface MonitoredEmail {
   email: string;
@@ -64,6 +66,30 @@ async function checkEmailBreaches(email: string): Promise<{ breaches: HibpBreach
     return { breaches: [], error: e.message };
   }
 }
+
+// POST /darkweb/pwned-password — FREE k-anonymity password breach check (no API key required)
+router.post("/pwned-password", async (req, res) => {
+  const { password } = z.object({ password: z.string().min(1) }).parse(req.body);
+  const sha1 = createHash("sha1").update(password).digest("hex").toUpperCase();
+  const prefix = sha1.slice(0, 5);
+  const suffix = sha1.slice(5);
+  try {
+    const r = await fetch(`${PWNED_PASS_BASE}/range/${prefix}`, {
+      headers: { "Add-Padding": "true", "User-Agent": "ProxhqVPN-DarkWebMonitor/1.0" },
+    });
+    if (!r.ok) return res.status(r.status).json({ error: `HIBP Passwords API error: ${r.status}` });
+    const text = await r.text();
+    const lines = text.split("\r\n");
+    let count = 0;
+    for (const line of lines) {
+      const [lineSuffix, lineCount] = line.split(":");
+      if (lineSuffix === suffix) { count = parseInt(lineCount, 10); break; }
+    }
+    res.json({ pwned: count > 0, count, prefix });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
 
 // GET /darkweb/status — API config status + email list
 router.get("/status", (req, res) => {
