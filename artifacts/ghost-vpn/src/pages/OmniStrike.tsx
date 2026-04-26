@@ -16,7 +16,8 @@ import {
 
 const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
 
-const API = "/api/omnistrike";
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+const API = `${BASE}/api/omnistrike`;
 
 const CATEGORIES = [
   { id: "sqli",          label: "SQL Injection",         icon: "💉", desc: "Boolean-blind, UNION, time-based, error-based, stacked queries" },
