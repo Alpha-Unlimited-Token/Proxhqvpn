@@ -13,3 +13,5 @@ export * from "./ghosttrace";
 export * from "./attackchain";
 export * from "./sinkhole";
 export * from "./canary";
+export * from "./waf";
+export * from "./omnistrike";

@@ -54,6 +54,8 @@ import siemRouter from "./siem";
 import osintRouter from "./osint";
 import canaryRouter from "./canary";
 import exploitImportRouter from "./exploitimport";
+import wafRouter from "./waf";
+import omnistrikeRouter from "./omnistrike";
 
 const router: IRouter = Router();
 
@@ -304,6 +306,8 @@ router.use("/siem",            requireCommandCenter, siemRouter);
 router.use("/osint",           requireCommandCenter, osintRouter);
 router.use("/canary",          requireCommandCenter, canaryRouter);
 router.use("/exploit-import",  requireCommandCenter, exploitImportRouter);
+router.use("/waf",             requireCommandCenter, wafRouter);
+router.use("/omnistrike",      requireCommandCenter, omnistrikeRouter);
 
 // ── Admin-only routes ─────────────────────────────────────────────────────
 router.use("/employees",      requireAdmin, employeesRouter);

@@ -75,6 +75,8 @@ const PAGE_NAMES: Record<string, string> = {
   "/osint":                "OSINT Recon",
   "/canary":               "Canary Tokens",
   "/exploit-import":       "Exploit Importer",
+  "/omnistrike":           "OmniStrike",
+  "/waf":                  "WAF Analyzer",
 };
 
 const USER_NAV = [
@@ -125,6 +127,8 @@ const ADVANCED_NAV = [
   { href: "/osint",         label: "OSINT Recon",           icon: Fingerprint },
   { href: "/canary",        label: "Canary Tokens",         icon: Bell },
   { href: "/exploit-import", label: "Exploit Importer",     icon: Upload },
+  { href: "/omnistrike",    label: "OmniStrike",            icon: Zap },
+  { href: "/waf",           label: "WAF Analyzer",          icon: Shield },
 ];
 
 const AMBASSADOR_NAV = [
