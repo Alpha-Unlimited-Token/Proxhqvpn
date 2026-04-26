@@ -109,6 +109,43 @@ interface ExceptionRule {
   source: "manual" | "vpn-profile" | "auto";
   addedAt: string;
 }
+
+// ─── Security Tool Exception Store ─────────────────────────────────────────
+interface ToolExceptionRule {
+  id: string;
+  tool: string;
+  toolLabel: string;
+  outboundBypass: boolean;
+  inboundBypass: boolean;
+  ports: string;
+  protocols: string[];
+  cidr: string;
+  enabled: boolean;
+  note: string;
+  addedAt: string;
+}
+
+const TOOL_DEFAULTS: Omit<ToolExceptionRule, "id" | "addedAt">[] = [
+  { tool: "http-probe",     toolLabel: "HTTP Probe",          outboundBypass: true, inboundBypass: true,  ports: "80,443,8080,8443",        protocols: ["tcp"],       cidr: "*", enabled: true,  note: "HTTP/HTTPS reconnaissance — allow outbound requests and return traffic" },
+  { tool: "intruder",       toolLabel: "Intruder",            outboundBypass: true, inboundBypass: true,  ports: "80,443,8080",             protocols: ["tcp"],       cidr: "*", enabled: true,  note: "Intruder attack traffic — bypass kill switch for target connections" },
+  { tool: "dir-fuzzer",     toolLabel: "Directory Fuzzer",    outboundBypass: true, inboundBypass: true,  ports: "80,443,8080,8443",        protocols: ["tcp"],       cidr: "*", enabled: true,  note: "Directory/path fuzzing — high-volume outbound HTTP traffic" },
+  { tool: "sqlmap",         toolLabel: "SQLmap Scanner",      outboundBypass: true, inboundBypass: true,  ports: "80,443,3306,5432,1433",   protocols: ["tcp"],       cidr: "*", enabled: true,  note: "SQL injection testing — allow DB port responses through" },
+  { tool: "alpha",          toolLabel: "Alpha Toolkit",       outboundBypass: true, inboundBypass: true,  ports: "*",                       protocols: ["tcp","udp"], cidr: "*", enabled: true,  note: "Alpha Toolkit full bypass — multi-protocol offensive operations" },
+  { tool: "osint",          toolLabel: "OSINT Engine",        outboundBypass: true, inboundBypass: true,  ports: "80,443",                  protocols: ["tcp"],       cidr: "*", enabled: true,  note: "OSINT queries — allow external API and web traffic" },
+  { tool: "waf",            toolLabel: "WAF Analyzer",        outboundBypass: true, inboundBypass: true,  ports: "80,443,8080,8443",        protocols: ["tcp"],       cidr: "*", enabled: true,  note: "WAF probe traffic — allow bypass and evasion test connections" },
+  { tool: "subdomain-scan", toolLabel: "Subdomain Scanner",   outboundBypass: true, inboundBypass: true,  ports: "80,443,53",               protocols: ["tcp","udp"], cidr: "*", enabled: true,  note: "DNS resolution + HTTP probes for subdomain discovery" },
+  { tool: "ghost-trace",    toolLabel: "Ghost Trace",         outboundBypass: true, inboundBypass: true,  ports: "*",                       protocols: ["icmp","udp","tcp"], cidr: "*", enabled: true,  note: "Traceroute/ICMP probes — allow all ICMP and TTL packets" },
+  { tool: "omnistrike",     toolLabel: "OmniStrike",          outboundBypass: true, inboundBypass: true,  ports: "*",                       protocols: ["tcp","udp"], cidr: "*", enabled: true,  note: "OmniStrike coordinated attack — full outbound/inbound bypass" },
+  { tool: "exploit-import", toolLabel: "Exploit Import",      outboundBypass: true, inboundBypass: false, ports: "80,443",                  protocols: ["tcp"],       cidr: "*", enabled: true,  note: "Exploit downloads — allow outbound; block unsolicited inbound" },
+  { tool: "attack-chain",   toolLabel: "Attack Chain",        outboundBypass: true, inboundBypass: true,  ports: "*",                       protocols: ["tcp","udp"], cidr: "*", enabled: true,  note: "Attack chain orchestration — allow all tool traffic during chain execution" },
+];
+
+const toolExceptions: ToolExceptionRule[] = TOOL_DEFAULTS.map((t, i) => ({
+  ...t,
+  id: `tool-exc-${i + 1}`,
+  addedAt: new Date().toISOString(),
+}));
+
 const exceptions: ExceptionRule[] = [
   {
     id: "exc-1",
@@ -607,6 +644,175 @@ router.post("/mtu-optimize", (req, res) => {
       windows: `netsh interface ipv4 set subinterface "ProxhqVPN" mtu=${recommended} store=persistent`,
     },
     warning: recommended < 1280 ? "MTU below 1280 may cause IPv6 connectivity issues." : null,
+  });
+});
+
+// GET /api/vpn-coexist/security-tool-exceptions
+router.get("/security-tool-exceptions", (_req, res) => {
+  res.json({ rules: toolExceptions, count: toolExceptions.length });
+});
+
+// POST /api/vpn-coexist/security-tool-exceptions
+router.post("/security-tool-exceptions", (req, res) => {
+  const schema = z.object({
+    tool: z.string().min(1).max(60),
+    toolLabel: z.string().min(1).max(60),
+    outboundBypass: z.boolean().default(true),
+    inboundBypass: z.boolean().default(true),
+    ports: z.string().default("*"),
+    protocols: z.array(z.string()).default(["tcp"]),
+    cidr: z.string().default("*"),
+    note: z.string().default(""),
+  });
+  const body = schema.safeParse(req.body);
+  if (!body.success) return res.status(400).json({ error: body.error.flatten() });
+  const rule: ToolExceptionRule = {
+    ...body.data,
+    id: `tool-exc-${Date.now()}`,
+    enabled: true,
+    addedAt: new Date().toISOString(),
+  };
+  toolExceptions.push(rule);
+  res.status(201).json({ added: rule });
+});
+
+// PUT /api/vpn-coexist/security-tool-exceptions/:id
+router.put("/security-tool-exceptions/:id", (req, res) => {
+  const idx = toolExceptions.findIndex(e => e.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: "Rule not found" });
+  const schema = z.object({
+    outboundBypass: z.boolean().optional(),
+    inboundBypass: z.boolean().optional(),
+    ports: z.string().optional(),
+    protocols: z.array(z.string()).optional(),
+    cidr: z.string().optional(),
+    note: z.string().optional(),
+    enabled: z.boolean().optional(),
+  });
+  const body = schema.safeParse(req.body);
+  if (!body.success) return res.status(400).json({ error: body.error.flatten() });
+  toolExceptions[idx] = { ...toolExceptions[idx], ...body.data };
+  res.json({ updated: toolExceptions[idx] });
+});
+
+// DELETE /api/vpn-coexist/security-tool-exceptions/:id
+router.delete("/security-tool-exceptions/:id", (req, res) => {
+  const idx = toolExceptions.findIndex(e => e.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: "Rule not found" });
+  const [removed] = toolExceptions.splice(idx, 1);
+  res.json({ removed });
+});
+
+// POST /api/vpn-coexist/security-tool-exceptions/generate-rules
+router.post("/security-tool-exceptions/generate-rules", (req, res) => {
+  const { proxhqIface = "ghostnet0", fwmark: rawFwmark } = (req.body ?? {}) as { proxhqIface?: string; fwmark?: unknown };
+  const auditMark = typeof rawFwmark === "number" ? rawFwmark : 0x5050;
+  const markHex = `0x${auditMark.toString(16)}`;
+
+  const enabled = toolExceptions.filter(r => r.enabled);
+  const outbound = enabled.filter(r => r.outboundBypass);
+  const inbound  = enabled.filter(r => r.inboundBypass);
+
+  const iptables: string[] = [
+    `# ProxhqVPN Security Tool Firewall Exceptions — iptables`,
+    `# Generated ${new Date().toISOString()}`,
+    `# Audit fwmark: ${markHex} — marks tool traffic so it bypasses the kill switch`,
+    ``,
+    `# ── MANGLE: mark outbound tool traffic ────────────────────────────────`,
+    `iptables -t mangle -N PROXHQ_AUDIT 2>/dev/null || iptables -t mangle -F PROXHQ_AUDIT`,
+    `iptables -t mangle -C OUTPUT -j PROXHQ_AUDIT 2>/dev/null || iptables -t mangle -A OUTPUT -j PROXHQ_AUDIT`,
+    ``,
+    `# Outbound per-tool marks`,
+    ...outbound.map(r => {
+      const proto = r.protocols.includes("any") ? "" : `-p ${r.protocols[0]}`;
+      const ports = r.ports === "*" ? "" : `-m multiport --dports ${r.ports}`;
+      const dst   = r.cidr !== "*" ? `-d ${r.cidr}` : "";
+      return `iptables -t mangle -A PROXHQ_AUDIT ${proto} ${dst} ${ports} -j MARK --set-mark ${markHex}  # ${r.toolLabel}`.replace(/\s+/g, " ").trim();
+    }),
+    ``,
+    `# ── FILTER: allow marked traffic through kill switch ──────────────────`,
+    `iptables -N PROXHQ_AUDIT_ALLOW 2>/dev/null || iptables -F PROXHQ_AUDIT_ALLOW`,
+    `iptables -C OUTPUT -j PROXHQ_AUDIT_ALLOW 2>/dev/null || iptables -A OUTPUT -j PROXHQ_AUDIT_ALLOW`,
+    `iptables -A PROXHQ_AUDIT_ALLOW -m mark --mark ${markHex} -j ACCEPT`,
+    ``,
+    `# ── INPUT: allow inbound responses for active tool sessions ───────────`,
+    `iptables -N PROXHQ_AUDIT_IN 2>/dev/null || iptables -F PROXHQ_AUDIT_IN`,
+    `iptables -C INPUT -j PROXHQ_AUDIT_IN 2>/dev/null || iptables -A INPUT -j PROXHQ_AUDIT_IN`,
+    ...inbound.map(r => {
+      const proto = r.protocols.includes("any") ? "" : `-p ${r.protocols[0]}`;
+      const ports = r.ports === "*" ? "" : `-m multiport --sports ${r.ports}`;
+      return `iptables -A PROXHQ_AUDIT_IN ${proto} ${ports} -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT  # ${r.toolLabel}`.replace(/\s+/g, " ").trim();
+    }),
+    ``,
+    `# ── Cleanup (run to revert) ────────────────────────────────────────────`,
+    `# iptables -t mangle -F PROXHQ_AUDIT && iptables -t mangle -D OUTPUT -j PROXHQ_AUDIT`,
+    `# iptables -F PROXHQ_AUDIT_ALLOW && iptables -D OUTPUT -j PROXHQ_AUDIT_ALLOW`,
+    `# iptables -F PROXHQ_AUDIT_IN && iptables -D INPUT -j PROXHQ_AUDIT_IN`,
+  ];
+
+  const nftables: string[] = [
+    `#!/usr/sbin/nft -f`,
+    `# ProxhqVPN Audit Exemption Rules (nftables)`,
+    `# Generated ${new Date().toISOString()}`,
+    `table inet proxhq_audit {`,
+    `  chain mangle_output {`,
+    `    type filter hook output priority mangle; policy accept;`,
+    ...outbound.map(r => {
+      const proto = r.protocols.includes("any") ? "" : `${r.protocols[0]} `;
+      const ports = r.ports === "*" ? "" : `dport { ${r.ports} } `;
+      return `    ${proto}${ports}meta mark set ${markHex}  # ${r.toolLabel}`;
+    }),
+    `    meta mark ${markHex} accept`,
+    `  }`,
+    `  chain filter_input {`,
+    `    type filter hook input priority filter; policy accept;`,
+    ...inbound.map(r => {
+      const proto = r.protocols.includes("any") ? "" : `${r.protocols[0]} `;
+      const ports = r.ports === "*" ? "" : `sport { ${r.ports} } `;
+      return `    ${proto}${ports}ct state established,related accept  # ${r.toolLabel}`;
+    }),
+    `  }`,
+    `}`,
+  ];
+
+  const wgKillSwitch = [
+    `# Add to [Interface] section of your WireGuard config (wg0.conf / ghostnet.conf)`,
+    `# This creates an exception so ProxhqVPN security tools work through the kill switch`,
+    ``,
+    `PostUp   = iptables -t mangle -N PROXHQ_AUDIT 2>/dev/null; \\`,
+    `           iptables -t mangle -A OUTPUT -j PROXHQ_AUDIT; \\`,
+    `           iptables -t mangle -A PROXHQ_AUDIT -s 10.99.0.0/24 -j MARK --set-mark ${markHex}; \\`,
+    `           iptables -A OUTPUT -m mark --mark ${markHex} -j ACCEPT; \\`,
+    `           iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT`,
+    ``,
+    `PostDown = iptables -t mangle -F PROXHQ_AUDIT 2>/dev/null; \\`,
+    `           iptables -t mangle -D OUTPUT -j PROXHQ_AUDIT 2>/dev/null; \\`,
+    `           iptables -D OUTPUT -m mark --mark ${markHex} -j ACCEPT 2>/dev/null; \\`,
+    `           iptables -D INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null`,
+  ];
+
+  const pf_rules = [
+    `# macOS pf anchor — ProxhqVPN audit exceptions`,
+    `# Add to /etc/pf.anchors/proxhq_audit then load with: sudo pfctl -a proxhq_audit -f /etc/pf.anchors/proxhq_audit`,
+    `pass out on ${proxhqIface} all flags S/SA keep state`,
+    `pass in  on ${proxhqIface} all keep state`,
+    ...outbound.map(r => {
+      const proto = r.protocols[0] === "any" ? "tcp" : r.protocols[0];
+      const ports = r.ports === "*" ? "" : `port { ${r.ports} }`;
+      return `pass out proto ${proto} to any ${ports} keep state  # ${r.toolLabel}`;
+    }),
+  ];
+
+  res.json({
+    iptables: iptables.join("\n"),
+    nftables: nftables.join("\n"),
+    wireguardKillSwitchException: wgKillSwitch.join("\n"),
+    pfRules: pf_rules.join("\n"),
+    auditFwmark: markHex,
+    enabledRules: enabled.length,
+    outboundRules: outbound.length,
+    inboundRules: inbound.length,
+    generatedAt: new Date().toISOString(),
   });
 });
 

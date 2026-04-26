@@ -9,7 +9,18 @@ const router = Router();
 const probeTypes = ["ping", "port_scan", "traceroute", "packet_sniff", "tunnel_probe"] as const;
 const severities = ["low", "medium", "high", "critical"] as const;
 
-function severityForProbe(probeType: typeof probeTypes[number]): typeof severities[number] {
+// ── Audit session validation ────────────────────────────────────────────────
+// Traffic from ProxhqVPN's own security tools carries X-Proxhq-Audit-Session: userId:sessionId
+// Valid sessions are classified as "audit" (low severity, logged-only) not real attacks.
+function parseAuditSession(header: string | undefined): { valid: boolean; userId?: string; sessionId?: string } {
+  if (!header) return { valid: false };
+  const match = header.match(/^([a-zA-Z0-9_\-]+):([a-zA-Z0-9_\-]+)$/);
+  if (!match) return { valid: false };
+  return { valid: true, userId: match[1], sessionId: match[2] };
+}
+
+function severityForProbe(probeType: typeof probeTypes[number], isAudit = false): typeof severities[number] {
+  if (isAudit) return "low";
   switch (probeType) {
     case "ping":         return "low";
     case "traceroute":   return "medium";
@@ -19,7 +30,10 @@ function severityForProbe(probeType: typeof probeTypes[number]): typeof severiti
   }
 }
 
-function fingerprintForProbe(probeType: typeof probeTypes[number], ip: string): string {
+function fingerprintForProbe(probeType: typeof probeTypes[number], ip: string, isAudit = false, auditUserId?: string): string {
+  if (isAudit) {
+    return `AUDIT|IP:${ip}|Probe:${probeType}|User:${auditUserId ?? "unknown"}|Sig:ProxhqVPN authenticated tool traffic`;
+  }
   const knownScanners: Record<string, string> = {
     "ping":         "ICMP echo probe — likely automated scanner",
     "port_scan":    "TCP SYN stealth scan — nmap/masscan signature",
@@ -56,8 +70,13 @@ router.post("/trigger", async (req, res) => {
   const [node] = await db.select().from(nodesTable).where(eq(nodesTable.id, body.nodeId));
   if (!node) return res.status(404).json({ error: "Node not found" });
 
-  const severity = body.severity ?? severityForProbe(body.probeType);
-  const fingerprint = body.fingerprint ?? fingerprintForProbe(body.probeType, body.attackerIp);
+  // Classify traffic: authenticated ProxhqVPN tool audit vs real external attack
+  const auditHeader = req.headers["x-proxhq-audit-session"] as string | undefined;
+  const auditSession = parseAuditSession(auditHeader);
+  const isAudit = auditSession.valid;
+
+  const severity = body.severity ?? severityForProbe(body.probeType, isAudit);
+  const fingerprint = body.fingerprint ?? fingerprintForProbe(body.probeType, body.attackerIp, isAudit, auditSession.userId);
 
   const [alert] = await db.insert(beaconAlertsTable).values({
     nodeId: body.nodeId,
@@ -67,18 +86,27 @@ router.post("/trigger", async (req, res) => {
     attackerFingerprint: fingerprint,
     probeType: body.probeType,
     severity,
-    status: "active",
+    status: isAudit ? "dismissed" : "active",
     silkWebTrapped: false,
     rawData: JSON.stringify({
       timestamp: new Date().toISOString(),
       ip: body.attackerIp,
       probe: body.probeType,
       node: node.name,
+      classification: isAudit ? "audit" : "attack",
+      auditUserId: auditSession.userId ?? null,
+      auditSessionId: auditSession.sessionId ?? null,
     }),
     detectedAt: new Date(),
   }).returning();
 
-  res.status(201).json(alert);
+  res.status(201).json({
+    ...alert,
+    classification: isAudit ? "audit" : "attack",
+    message: isAudit
+      ? `Audit traffic from ProxhqVPN tool session ${auditSession.sessionId} — logged, not blocked.`
+      : `Attack detected from ${body.attackerIp} — alert raised.`,
+  });
 });
 
 router.post("/:id/dismiss", async (req, res) => {

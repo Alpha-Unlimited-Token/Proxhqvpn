@@ -149,6 +149,78 @@ router.post("/blocked-ips/:id/unblock", async (req, res) => {
   res.json(row);
 });
 
+// GET /api/firewall/audit-exemptions
+// Returns pre-built iptables/nftables/WireGuard rules that exempt audit-tagged tool
+// traffic (fwmark 0x5050) from the kill switch — distinguishes tools from real attacks
+router.get("/audit-exemptions", (_req, res) => {
+  const fwmark = "0x5050";
+  const iptablesRules = [
+    `# ProxhqVPN Audit Exemption — iptables`,
+    `# Audit fwmark ${fwmark} is set by the API server on all outbound security tool requests.`,
+    `# Marked traffic bypasses the kill switch so tools can operate through the VPN tunnel.`,
+    ``,
+    `# Allow audit-marked outbound traffic through the kill switch`,
+    `iptables -A OUTPUT -m mark --mark ${fwmark} -j ACCEPT`,
+    ``,
+    `# Allow established/related inbound (responses to tool requests)`,
+    `iptables -A INPUT  -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT`,
+    ``,
+    `# Block anything else inbound that is NOT an established session (real attacks)`,
+    `iptables -A INPUT  -m conntrack --ctstate INVALID -j DROP`,
+  ].join("\n");
+
+  const nftablesRules = [
+    `#!/usr/sbin/nft -f`,
+    `# ProxhqVPN Audit Exemption — nftables`,
+    `table inet proxhq_audit {`,
+    `  chain output {`,
+    `    type filter hook output priority filter;`,
+    `    meta mark ${fwmark} accept comment "audit-tagged tool traffic"`,
+    `  }`,
+    `  chain input {`,
+    `    type filter hook input priority filter;`,
+    `    ct state established,related accept comment "responses to audit sessions"`,
+    `    ct state invalid drop comment "block invalid — real attacks"`,
+    `  }`,
+    `}`,
+  ].join("\n");
+
+  const wireguardPostUp = `PostUp = iptables -A OUTPUT -m mark --mark ${fwmark} -j ACCEPT; iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT`;
+  const wireguardPostDown = `PostDown = iptables -D OUTPUT -m mark --mark ${fwmark} -j ACCEPT 2>/dev/null; iptables -D INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null`;
+
+  const classificationRules = {
+    auditTraffic: {
+      detection: `Header X-Proxhq-Audit-Session: <userId>:<sessionId> present and valid`,
+      severity: "info",
+      action: "log only — do not block",
+      fwmark,
+    },
+    attackTraffic: {
+      detection: "No audit session header, or header fails validation",
+      severity: "low → critical based on probe type",
+      action: "block + alert + honeypot trap if SilkWeb active",
+    },
+  };
+
+  res.json({
+    description: "Rules to allow ProxhqVPN security tools through the kill switch without being blocked. Audit traffic is tagged with fwmark 0x5050 at the API layer before packets leave the server.",
+    auditFwmark: fwmark,
+    iptablesRules,
+    nftablesRules,
+    wireguardPostUp,
+    wireguardPostDown,
+    classificationRules,
+    setupInstructions: [
+      "1. Apply iptables rules above on your VPN server (run as root).",
+      "2. If using WireGuard kill switch, add PostUp/PostDown lines to your [Interface] block.",
+      "3. All ProxhqVPN security tool traffic is automatically tagged — no client changes needed.",
+      "4. Untagged inbound traffic is still processed normally and triggers beacon alerts if suspicious.",
+      "5. To verify: run 'iptables -L -n -v | grep AUDIT' — you should see the rule with hit counters.",
+    ],
+    generatedAt: new Date().toISOString(),
+  });
+});
+
 router.post("/generate-iptables", async (req, res) => {
   const rules = await db.select().from(firewallRulesTable).where(eq(firewallRulesTable.enabled, true));
   const blocked = await db.select().from(blockedIpsTable);
