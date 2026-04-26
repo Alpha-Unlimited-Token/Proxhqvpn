@@ -432,6 +432,7 @@ const NODE_LOCATIONS = [
   { city: "Chicago",        country: "USA",    flag: "🇺🇸", latency: "12ms",  status: "online" },
   { city: "Los Angeles",    country: "USA",    flag: "🇺🇸", latency: "22ms",  status: "online" },
   { city: "Tokyo",          country: "Japan",  flag: "🇯🇵", latency: "38ms",  status: "online" },
+  { city: "Seattle",        country: "USA",    flag: "🇺🇸", latency: "18ms",  status: "online" },
 ];
 
 function useLiveStats() {
@@ -489,7 +490,7 @@ export default function Home() {
             <div className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-full px-4 py-1.5">
               <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
               <span className="text-xs text-primary font-medium">
-                4 Nodes Online — Chicago · LA · Tokyo · US-West
+                4 Nodes Online — Chicago · LA · Tokyo · Seattle
               </span>
             </div>
             <div className="inline-flex items-center gap-2 bg-blue-400/10 border border-blue-400/25 rounded-full px-4 py-1.5">
