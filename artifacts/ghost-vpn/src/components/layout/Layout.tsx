@@ -252,8 +252,8 @@ function NavSection({ label, items, onNav, isOpen, onToggle }: {
         } ${isOpen ? "rotate-180" : "rotate-0"}`} />
       </button>
 
-      <div className={`overflow-hidden transition-all duration-200 ease-in-out ${
-        isOpen ? "max-h-[600px] opacity-100" : "max-h-0 opacity-0"
+      <div className={`overflow-hidden transition-all duration-300 ease-in-out ${
+        isOpen ? "max-h-[3000px] opacity-100" : "max-h-0 opacity-0"
       }`}>
         <div className="space-y-0.5 pb-1">
           {items.map((item) => (

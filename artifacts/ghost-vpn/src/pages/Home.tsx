@@ -498,7 +498,7 @@ export default function Home() {
             </div>
           </div>
 
-          <h1 className="text-5xl md:text-7xl font-bold tracking-tight mb-6 leading-[1.05]">
+          <h1 className="text-4xl sm:text-5xl md:text-7xl font-bold tracking-tight mb-6 leading-[1.05]">
             Privacy you{" "}
             <span className="text-primary drop-shadow-[0_0_30px_rgba(0,255,136,0.4)]">actually</span>
             <br />own.
