@@ -801,10 +801,120 @@ export default function OmniStrike() {
   const [showDesktop, setShowDesktop] = useState(false);
   const logRef = useRef<HTMLDivElement>(null);
 
+  // Operator command console
+  type OpEntry = { input: string; output: string; ts: string };
+  const [opInput, setOpInput] = useState("");
+  const [opLog, setOpLog] = useState<OpEntry[]>([{
+    input: "",
+    output: "OmniStrike Operator Console v1.0 — type \`help\` for available commands",
+    ts: new Date().toLocaleTimeString(),
+  }]);
+  const [opHistoryIdx, setOpHistoryIdx] = useState(-1);
+  const opConsoleRef = useRef<HTMLDivElement>(null);
+  const opInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => { loadScans(); }, []);
   useEffect(() => {
     if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
   }, [activeScan?.log]);
+  useEffect(() => {
+    if (opConsoleRef.current) opConsoleRef.current.scrollTop = opConsoleRef.current.scrollHeight;
+  }, [opLog]);
+
+  const processOpCmd = (raw: string) => {
+    const cmd = raw.trim();
+    if (!cmd) return;
+    const ts = new Date().toLocaleTimeString();
+    const parts = cmd.split(/\s+/);
+    const verb = parts[0].toLowerCase();
+
+    let output = "";
+
+    if (verb === "help") {
+      output = [
+        "Available commands:",
+        "  help                     — show this list",
+        "  status                   — current engine state, target, and settings",
+        "  target <url>             — set the attack target URL",
+        "  set tamper <0-7>         — set tamper/evasion level (0 = none, 7 = max)",
+        "  set stealth on|off       — toggle stealth mode",
+        "  set auto on|off          — toggle full-auto breach mode",
+        "  modules                  — list all available attack modules",
+        "  stop                     — abort the running scan or chain",
+        "  clear                    — clear this console",
+      ].join("\n");
+    } else if (verb === "status") {
+      const findings = orchMode === "chain"
+        ? chainScans.flatMap(s => s.findings ?? [])
+        : (activeScan?.findings ?? []);
+      const bypassed = findings.filter(f => f.bypassed).length;
+      output = [
+        `Target     : ${target || "(none set)"}`,
+        `Mode       : ${orchMode.toUpperCase()}`,
+        `Tamper     : Level ${tamperLevel}`,
+        `Stealth    : ${stealthMode ? "ON" : "OFF"}`,
+        `Full Auto  : ${fullAuto ? "ON" : "OFF"}`,
+        `Engine     : ${isRunning ? "RUNNING" : activeScan ? "IDLE (scan loaded)" : "IDLE"}`,
+        `Findings   : ${findings.length} total / ${bypassed} bypassed`,
+        activeScan ? `Scan ID    : #${activeScan.id} — ${activeScan.status}` : "",
+      ].filter(Boolean).join("\n");
+    } else if (verb === "target") {
+      const url = parts.slice(1).join(" ");
+      if (!url) { output = "Usage: target <url>"; }
+      else { setTarget(url); output = `Target set → ${url}`; }
+    } else if (verb === "set") {
+      const prop = parts[1]?.toLowerCase();
+      const val  = parts[2]?.toLowerCase();
+      if (prop === "tamper") {
+        const n = parseInt(val, 10);
+        if (isNaN(n) || n < 0 || n > 7) { output = "Usage: set tamper <0-7>"; }
+        else { setTamperLevel(n); output = `Tamper level set to ${n}`; }
+      } else if (prop === "stealth") {
+        if (val === "on") { setStealthMode(true);  output = "Stealth mode ON"; }
+        else if (val === "off") { setStealthMode(false); output = "Stealth mode OFF"; }
+        else { output = "Usage: set stealth on|off"; }
+      } else if (prop === "auto") {
+        if (val === "on") { setFullAuto(true);  output = "Full-auto breach ON"; }
+        else if (val === "off") { setFullAuto(false); output = "Full-auto breach OFF"; }
+        else { output = "Usage: set auto on|off"; }
+      } else {
+        output = `Unknown property "${prop}". Try: tamper | stealth | auto`;
+      }
+    } else if (verb === "modules") {
+      output = CATEGORIES.map(c => `  ${c.icon} ${c.id.padEnd(14)} ${c.label}`).join("\n");
+    } else if (verb === "stop") {
+      if (!isRunning) { output = "No scan is currently running."; }
+      else { stop(); output = "Abort signal sent — stopping scan…"; }
+    } else if (verb === "clear") {
+      setOpLog([]);
+      setOpHistoryIdx(-1);
+      return;
+    } else {
+      output = `Unknown command: "${verb}". Type \`help\` for available commands.`;
+    }
+
+    setOpLog(prev => [...prev, { input: cmd, output, ts }]);
+    setOpHistoryIdx(-1);
+  };
+
+  const handleOpKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    const cmds = opLog.filter(e => e.input).map(e => e.input);
+    if (e.key === "Enter") {
+      const val = opInput;
+      setOpInput("");
+      processOpCmd(val);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      const newIdx = Math.min(opHistoryIdx + 1, cmds.length - 1);
+      setOpHistoryIdx(newIdx);
+      setOpInput(cmds[cmds.length - 1 - newIdx] ?? "");
+    } else if (e.key === "ArrowDown") {
+      e.preventDefault();
+      const newIdx = Math.max(opHistoryIdx - 1, -1);
+      setOpHistoryIdx(newIdx);
+      setOpInput(newIdx === -1 ? "" : (cmds[cmds.length - 1 - newIdx] ?? ""));
+    }
+  };
 
   const loadScans = async () => {
     try { const r = await fetch(`${API}/scans`); const d = await r.json(); setScans(d.scans ?? []); } catch {}
@@ -1642,6 +1752,71 @@ export default function OmniStrike() {
                   )}
                 </div>
               )}
+
+              {/* ── Operator Command Console ─────────────────────────── */}
+              <div className="bg-gray-950 border border-green-900/60 rounded-lg overflow-hidden">
+                <div
+                  className="bg-gray-900/80 border-b border-green-900/40 px-4 py-2 flex items-center gap-2 cursor-pointer select-none"
+                  onClick={() => opInputRef.current?.focus()}
+                >
+                  <Terminal className="h-3.5 w-3.5 text-green-500" />
+                  <span className="text-xs font-mono font-semibold text-green-400 uppercase tracking-widest">Operator Console</span>
+                  <span className="ml-auto text-[10px] text-gray-600 font-mono">type `help` for commands</span>
+                </div>
+
+                <div
+                  ref={opConsoleRef}
+                  className="bg-black p-3 font-mono text-xs max-h-[260px] overflow-y-auto"
+                  onClick={() => opInputRef.current?.focus()}
+                >
+                  {opLog.map((entry, i) => (
+                    <div key={i} className="mb-2">
+                      {entry.input && (
+                        <div className="flex items-start gap-1">
+                          <span className="text-green-500 shrink-0">omnistrike&gt;</span>
+                          <span className="text-green-300 ml-1">{entry.input}</span>
+                          <span className="ml-auto text-gray-700 text-[10px] shrink-0">{entry.ts}</span>
+                        </div>
+                      )}
+                      {entry.output && (
+                        <div className="mt-0.5 ml-0">
+                          {entry.output.split("\n").map((line, j) => (
+                            <div
+                              key={j}
+                              className={
+                                line.startsWith("  ") ? "text-gray-400 whitespace-pre" :
+                                line.includes("ERROR") || line.includes("Unknown") ? "text-red-400" :
+                                line.includes("ON") || line.includes("set →") || line.includes("set to") ? "text-cyan-400" :
+                                line.includes("OFF") || line.includes("stop") ? "text-yellow-400" :
+                                line.includes("OmniStrike") ? "text-green-600" :
+                                "text-gray-300"
+                              }
+                            >
+                              {line || "\u00a0"}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  <div className="flex items-center gap-1 mt-1">
+                    <span className="text-green-500 shrink-0">omnistrike&gt;</span>
+                    <input
+                      ref={opInputRef}
+                      value={opInput}
+                      onChange={e => setOpInput(e.target.value)}
+                      onKeyDown={handleOpKey}
+                      className="flex-1 bg-transparent outline-none text-green-300 caret-green-400 ml-1 min-w-0"
+                      spellCheck={false}
+                      autoComplete="off"
+                      autoCorrect="off"
+                      autoCapitalize="off"
+                      placeholder=""
+                    />
+                    {isRunning && <span className="animate-pulse text-green-500 text-[10px]">● LIVE</span>}
+                  </div>
+                </div>
+              </div>
 
               {!displayScan && !chainRunning && phaseStatuses.length === 0 && (
                 <div className="bg-gray-900 border border-gray-800 rounded-lg p-12 text-center">
