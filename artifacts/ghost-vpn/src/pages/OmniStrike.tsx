@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { usePersistedState } from "@/hooks/usePersistedState";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -748,8 +749,8 @@ async function pollUntilDone(
 export default function OmniStrike() {
   const { toast } = useToast();
 
-  // Target / evasion
-  const [target, setTarget] = useState("");
+  // Target / evasion — persisted across navigation for multitasking
+  const [target, setTarget] = usePersistedState<string>("omnistrike-target", "");
   const [tamperLevel, setTamperLevel] = useState(4);
   const [stealthMode, setStealthMode] = useState(false);
   const [fullAuto, setFullAuto] = useState(false);
@@ -790,11 +791,11 @@ export default function OmniStrike() {
   const [chainScans, setChainScans] = useState<Scan[]>([]);
   const abortRef = useRef(false);
 
-  // UI
-  const [scans, setScans] = useState<Scan[]>([]);
+  // UI — key state persisted across navigation for multitasking
+  const [scans, setScans] = usePersistedState<Scan[]>("omnistrike-scans", []);
   const [expandedFindings, setExpandedFindings] = useState<Set<number>>(new Set());
   const [showLog, setShowLog] = useState(true);
-  const [mainTab, setMainTab] = useState<"run"|"history">("run");
+  const [mainTab, setMainTab] = usePersistedState<"run"|"history">("omnistrike-maintab", "run");
   const [sessionData, setSessionData] = useState<ExploitSession | null>(null);
   const [showDesktop, setShowDesktop] = useState(false);
   const logRef = useRef<HTMLDivElement>(null);

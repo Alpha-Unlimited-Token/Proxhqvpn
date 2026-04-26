@@ -1,5 +1,6 @@
 // Copyright © 2025 ALPHA UNLIMITED TECHNOLOGIES LLC — legal@alphauntechnologies.com
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { usePersistedState } from "@/hooks/usePersistedState";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -170,10 +171,10 @@ export default function SocialBreach() {
   const { toast } = useToast();
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
-  // UI state
-  const [tab, setTab] = useState<"social" | "gaming" | "games" | "legacy">("social");
+  // UI state — tab and selected platform persisted for multitasking
+  const [tab, setTab] = usePersistedState<"social" | "gaming" | "games" | "legacy">("socialbreach-tab", "social");
   const [search, setSearch] = useState("");
-  const [selected, setSelected] = useState<PlatformDef | null>(null);
+  const [selected, setSelected] = usePersistedState<PlatformDef | null>("socialbreach-platform", null);
 
   // Credential form
   const [username, setUsername] = useState("");
@@ -185,11 +186,11 @@ export default function SocialBreach() {
   const [status, setStatus] = useState<BreachStatus>("idle");
   const [statusMsg, setStatusMsg] = useState("");
 
-  // Active session / browser
-  const [session, setSession] = useState<ActiveSession | null>(null);
-  const [navUrl, setNavUrl] = useState("");
-  const [navHistory, setNavHistory] = useState<string[]>([]);
-  const [navIndex, setNavIndex] = useState(-1);
+  // Active session / browser — persisted for multitasking across navigation
+  const [session, setSession] = usePersistedState<ActiveSession | null>("socialbreach-session", null);
+  const [navUrl, setNavUrl] = usePersistedState<string>("socialbreach-navurl", "");
+  const [navHistory, setNavHistory] = usePersistedState<string[]>("socialbreach-navhistory", []);
+  const [navIndex, setNavIndex] = usePersistedState<number>("socialbreach-navindex", -1);
   const [sessions, setSessions] = useState<ActiveSession[]>([]);
 
   // Load active sessions on mount

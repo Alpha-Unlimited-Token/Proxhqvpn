@@ -710,6 +710,53 @@ function rewriteHtml(html: string, baseUrl: string, sid: string, platformName: s
   return out;
 }
 
+// ── SSRF Protection — blocks requests to private/internal infrastructure ──────
+const PRIVATE_IP_RANGES = [
+  /^127\./,               // loopback
+  /^10\./,               // RFC 1918
+  /^172\.(1[6-9]|2\d|3[01])\./,  // RFC 1918
+  /^192\.168\./,         // RFC 1918
+  /^169\.254\./,         // link-local / AWS metadata
+  /^::1$/,               // IPv6 loopback
+  /^fc00:/,              // IPv6 ULA
+  /^fe80:/,              // IPv6 link-local
+  /^0\./,                // 0.0.0.0/8 "this" network
+];
+
+const BLOCKED_HOSTNAMES = new Set([
+  "localhost",
+  "metadata.google.internal",
+  "metadata.gcp.internal",
+  "instance-data",
+]);
+
+function isUrlAllowed(raw: string): { ok: boolean; reason?: string } {
+  let parsed: URL;
+  try { parsed = new URL(raw); } catch { return { ok: false, reason: "Invalid URL" }; }
+
+  if (!["http:", "https:"].includes(parsed.protocol)) {
+    return { ok: false, reason: "Only HTTP/HTTPS allowed" };
+  }
+
+  const hostname = parsed.hostname.toLowerCase().replace(/^\[/, "").replace(/\]$/, "");
+
+  if (BLOCKED_HOSTNAMES.has(hostname)) {
+    return { ok: false, reason: "Access to that host is not permitted" };
+  }
+
+  if (hostname.endsWith(".local") || hostname.endsWith(".internal") || hostname.endsWith(".corp")) {
+    return { ok: false, reason: "Internal hostnames are not permitted" };
+  }
+
+  for (const pattern of PRIVATE_IP_RANGES) {
+    if (pattern.test(hostname)) {
+      return { ok: false, reason: "Private/internal IP ranges are not permitted" };
+    }
+  }
+
+  return { ok: true };
+}
+
 // ── Routes ───────────────────────────────────────────────────────────────────
 
 // POST /social-account/login
@@ -727,6 +774,9 @@ router.post("/login", async (req: Request, res: Response) => {
 router.get("/navigate", async (req: Request, res: Response) => {
   const { sid, url } = req.query as Record<string, string>;
   if (!sid || !url) return res.status(400).json({ error: "sid and url required" });
+
+  const urlCheck = isUrlAllowed(url);
+  if (!urlCheck.ok) return res.status(403).json({ error: urlCheck.reason });
 
   const session = sessions.get(sid);
   if (!session) return res.status(404).json({ error: "Session not found or expired" });
@@ -768,6 +818,8 @@ router.get("/navigate", async (req: Request, res: Response) => {
 // POST /social-account/navigate — proxy a form POST
 router.post("/navigate", async (req: Request, res: Response) => {
   const { sid, url } = req.query as Record<string, string>;
+  const urlCheck = isUrlAllowed(url || "");
+  if (!urlCheck.ok) return res.status(403).json({ error: urlCheck.reason });
   const session = sessions.get(sid);
   if (!session) return res.status(404).json({ error: "Session not found" });
 
@@ -804,6 +856,8 @@ router.post("/navigate", async (req: Request, res: Response) => {
 router.get("/resource", async (req: Request, res: Response) => {
   const { url } = req.query as Record<string, string>;
   if (!url) return res.status(400).end();
+  const urlCheck = isUrlAllowed(url);
+  if (!urlCheck.ok) return res.status(403).end();
   try {
     const r = await fetch(url, { headers: { "User-Agent": UA, "Accept": "*/*", "Accept-Language": "en-US,en;q=0.9" }, redirect: "follow" });
     const ct = r.headers.get("content-type") || "application/octet-stream";

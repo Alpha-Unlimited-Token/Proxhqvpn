@@ -79,6 +79,7 @@ const PAGE_NAMES: Record<string, string> = {
   "/social-breach":        "Social & Game Breach Tester",
   "/bug-bounty":           "Bug Bounty Research Hub",
   "/waf":                  "WAF Analyzer",
+  "/manuals":              "ProxhqVPN Manuals",
 };
 
 const USER_NAV = [
@@ -88,6 +89,7 @@ const USER_NAV = [
   { href: "/downloads",     label: "Download App",    icon: Download },
   { href: "/platforms",     label: "Setup Guide",     icon: BookOpen },
   { href: "/guide",         label: "User Guide",      icon: FileText },
+  { href: "/manuals",       label: "Manuals Download", icon: BookMarked },
 ];
 
 const PROTECTION_NAV = [

@@ -143,6 +143,14 @@ const ambassadorLimiter = rateLimit({
   message: { error: "Too many ambassador requests — please wait a moment." },
 });
 
+const socialAccountLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 40,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: { error: "Social Breach rate limit: max 40 requests/minute." },
+});
+
 app.use(globalLimiter);
 
 app.use(express.json({ limit: "64kb", strict: true }));
@@ -244,6 +252,7 @@ app.use("/api/firewall", (req: Request, res: Response, next: NextFunction) => {
   next();
 });
 // Strict rate limit on ambassador write operations to prevent abuse
+app.use("/api/social-account", socialAccountLimiter);
 app.use("/api/ambassadors/apply", ambassadorLimiter);
 app.use("/api/ambassadors/record-referral", ambassadorLimiter);
 app.use("/api/ambassadors/me/videos", (req: Request, res: Response, next: NextFunction) => {

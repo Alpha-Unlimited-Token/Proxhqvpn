@@ -314,6 +314,133 @@ ss -tupn | grep LISTEN          # Listening ports`}</CB>
     ),
   },
   {
+    id: "social-breach", title: "Social & Game Breach Tester", icon: Shield,
+    content: (
+      <div className="space-y-3">
+        <p>The Social & Game Account Breach Tester is a Command Center Pro feature that provides an authenticated proxy browser for auditing account security across 80+ platforms. All traffic is VPN-routed.</p>
+        <Note type="danger">This tool is for authorized testing only. Employees must only use it against accounts they own or have explicit written permission to audit. Unauthorized credential testing violates the CFAA and is grounds for immediate termination.</Note>
+        <h4 className="font-bold text-primary text-[11px]">Platform Coverage</h4>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {[
+            { cat: "Social Media", count: "35+ platforms", ex: "Instagram, Discord, GitHub, Reddit, Twitter/X, Telegram, LinkedIn" },
+            { cat: "Gaming Launchers", count: "10+ platforms", ex: "Steam (RSA login), Epic Games, Blizzard, GOG, Ubisoft, EA/Origin" },
+            { cat: "Game Titles", count: "15+ games", ex: "Roblox, Fortnite, Valorant, League of Legends, Apex Legends, GTA" },
+            { cat: "Legacy Platforms", count: "10+ platforms", ex: "Xbox Live, PlayStation, Nintendo, 2K, Konami, Sega" },
+          ].map(({ cat, count, ex }) => (
+            <div key={cat} className="border border-primary/10 rounded px-2.5 py-2">
+              <div className="flex items-center justify-between mb-0.5">
+                <div className="text-[10px] font-mono font-bold text-primary">{cat}</div>
+                <code className="text-[8px] text-primary/40">{count}</code>
+              </div>
+              <div className="text-[9px] font-mono text-primary/83">{ex}</div>
+            </div>
+          ))}
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Login Strategies</h4>
+        <div className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <div>• <strong>Auto (API-based)</strong> — Discord, Steam (with RSA decryption), Reddit, GitHub, Roblox, Twitch, Instagram, Epic, GOG. Credentials are sent to the platform API and session cookies returned automatically.</div>
+          <div>• <strong>Manual (proxy browser)</strong> — All other platforms. The real platform login page is loaded in the embedded proxy browser, credentials are entered normally, and the resulting session is captured.</div>
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Session Management</h4>
+        <div className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <div>• Sessions are stored in-memory on the API server with a 4-hour TTL from last activity.</div>
+          <div>• The proxy browser injects session cookies automatically into all page loads.</div>
+          <div>• Navigation history is tracked with Back/Forward controls and persistent state across sidebar navigation.</div>
+          <div>• Sessions can be manually terminated from the Active Sessions panel in the tool.</div>
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Security Hardening</h4>
+        <div className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <div>• <strong>SSRF Protection</strong>: All proxy URLs are validated to block private IP ranges (10.x, 192.168.x, 172.16-31.x, 127.x, 169.254.x) and internal hostnames (.local, .internal, localhost, GCP/AWS metadata).</div>
+          <div>• <strong>Rate Limiting</strong>: 40 requests/minute per IP on all /api/social-account endpoints.</div>
+          <div>• <strong>HTTP/HTTPS only</strong>: Other protocols are rejected at the proxy layer.</div>
+        </div>
+      </div>
+    ),
+  },
+  {
+    id: "bug-bounty", title: "Bug Bounty Research Hub", icon: Shield,
+    content: (
+      <div className="space-y-3">
+        <p>The Bug Bounty Research Hub is a Command Center Pro tool providing a reference center and tooling integration for authorized security research across 19 major gaming, social, and developer platform bug bounty programs.</p>
+        <Note type="warn">Employees using the Bug Bounty Hub for personal research must register with the applicable bug bounty platform before any testing. Do not mix work tasks with personal bug bounty activity.</Note>
+        <h4 className="font-bold text-primary text-[11px]">Program Coverage</h4>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {[
+            { program: "PlayStation / Sony", platform: "HackerOne", max: "$50,000" },
+            { program: "Xbox / Microsoft (MSRC)", platform: "MSRC", max: "$60,000" },
+            { program: "Meta (FB/IG/WA)", platform: "Meta Whitehat", max: "$750,000" },
+            { program: "Google / YouTube", platform: "Google VRP", max: "$500,000" },
+            { program: "Epic Games", platform: "HackerOne", max: "$20,000" },
+            { program: "Steam / Valve", platform: "HackerOne", max: "$30,000" },
+            { program: "GitHub", platform: "HackerOne", max: "$30,000" },
+            { program: "Discord", platform: "HackerOne", max: "$10,000" },
+          ].map(({ program, platform, max }) => (
+            <div key={program} className="border border-primary/10 rounded px-2.5 py-2">
+              <div className="flex items-center justify-between mb-0.5">
+                <div className="text-[10px] font-mono font-bold text-primary">{program}</div>
+                <code className="text-[8px] text-green-400">{max}</code>
+              </div>
+              <div className="text-[9px] font-mono text-primary/83">{platform}</div>
+            </div>
+          ))}
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Hub Features</h4>
+        <div className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <div>• <strong>Program Cards</strong> — Scope, payout table, testing methodology, and link to the official program page for each of 19 programs.</div>
+          <div>• <strong>OmniStrike Integration</strong> — "Launch in OmniStrike" button opens OmniStrike pre-configured for the program's target domain.</div>
+          <div>• <strong>Report Generator</strong> — Fills in a standard HackerOne-format vulnerability disclosure report. Select severity, enter details, copy with one click.</div>
+          <div>• <strong>Platform Filters</strong> — Filter programs by platform (HackerOne, Bugcrowd, MSRC, Google VRP, Intigriti) and payout range.</div>
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Employee Policy on Bug Bounty</h4>
+        <div className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <div>• Personal bug bounty research is permitted on personal time using personal equipment.</div>
+          <div>• Never use company infrastructure (servers, VPN nodes) for personal bug bounty research without approval.</div>
+          <div>• Any findings affecting ProxhqVPN platform itself must be reported to security@proxhqvpn.com immediately, not to an external bounty platform.</div>
+        </div>
+      </div>
+    ),
+  },
+  {
+    id: "manuals", title: "Manuals & Documentation", icon: Shield,
+    content: (
+      <div className="space-y-3">
+        <p>The ProxhqVPN Manuals page (<code>/manuals</code>) provides downloadable plain-text documentation for every platform feature. It is accessible to all active subscribers (VPN Basic and above).</p>
+        <h4 className="font-bold text-primary text-[11px]">Available Manuals</h4>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {[
+            { title: "Getting Started Guide", tier: "All Plans", desc: "Installation, first connection, WireGuard config, Kill Switch, DNS, devices." },
+            { title: "WireGuard Advanced Config", tier: "All Plans", desc: "Split tunneling, double-hop, obfuscation, router setup, SmartDNS." },
+            { title: "OmniStrike Suite", tier: "Pro", desc: "All 13 attack modules, orchestration modes, post-exploitation, stealth." },
+            { title: "WAF Analyzer", tier: "Pro", desc: "WAF detection, bypass testing suite, 25+ vendor signatures." },
+            { title: "Social & Game Breach Tester", tier: "Pro", desc: "Platform coverage, login strategies, session management, SSRF protection." },
+            { title: "Bug Bounty Research Hub", tier: "Pro", desc: "19 programs, testing methodology, report generator, best practices." },
+            { title: "OSINT Recon Engine", tier: "Pro", desc: "15+ intelligence sources, recon methodology, bug bounty integration." },
+            { title: "Canary Token Generator", tier: "Pro", desc: "Token types, deployment strategies, forensic data, use cases." },
+            { title: "SIEM Security Event Log", tier: "Pro", desc: "Event sources, filtering, correlation, export and reporting." },
+            { title: "Employee Procedures", tier: "All Plans", desc: "Admin tools, node management, incident response, escalation paths." },
+          ].map(({ title, tier, desc }) => (
+            <div key={title} className="border border-primary/10 rounded px-2.5 py-2">
+              <div className="flex items-center justify-between mb-0.5">
+                <div className="text-[10px] font-mono font-bold text-primary">{title}</div>
+                <code className={`text-[8px] ${tier === "Pro" ? "text-red-400" : "text-green-400"}`}>{tier}</code>
+              </div>
+              <div className="text-[9px] font-mono text-primary/83">{desc}</div>
+            </div>
+          ))}
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Subscriber Access</h4>
+        <div className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <div>• All manuals are accessible to VPN Basic subscribers and above.</div>
+          <div>• The page is gated by <code>ToolLayout</code> which requires an active subscription.</div>
+          <div>• Downloads are plain text files (.txt) with version numbers in the filename.</div>
+          <div>• The "Download All Manuals" button triggers all 10 downloads with staggered 300ms delays to prevent browser blocking.</div>
+          <div>• A preview pane (first 2,000 chars) is shown before downloading each manual.</div>
+        </div>
+        <Note type="info">Manuals are subscriber-proprietary documentation. Do not redistribute or share links to the /manuals page with non-subscribers. Direct any documentation requests to support@proxhqvpn.com.</Note>
+      </div>
+    ),
+  },
+  {
     id: "escalation", title: "Escalation & Emergency Procedures", icon: Bell,
     content: (
       <div className="space-y-3">

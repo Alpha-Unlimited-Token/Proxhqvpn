@@ -1385,6 +1385,187 @@ Table: metadata      → Crawl session info, start time, depth`}</CB>
       </div>
     ),
   },
+
+  // ── Security Tool Sections (Command Center Pro) ────────────────────────────
+  {
+    id: "waf-analyzer",
+    title: "WAF Analyzer",
+    icon: Shield,
+    content: (
+      <div className="space-y-3">
+        <p>The <strong>WAF Analyzer</strong> detects, fingerprints, and tests bypass techniques for Web Application Firewalls protecting a target URL. Available on Command Center Pro.</p>
+        <Note type="warn">Only analyze targets you own or have explicit written authorization to test. WAF bypass testing on unauthorized targets is illegal.</Note>
+        <h4 className="font-bold text-primary text-[11px]">How to Run an Analysis</h4>
+        <ol className="list-decimal ml-4 space-y-1 text-[10px] font-mono text-primary/83">
+          <li>Navigate to <code>/waf</code> in the sidebar (Command Center Pro).</li>
+          <li>Enter the target URL (include the full scheme, e.g., <code>https://target.example.com</code>).</li>
+          <li>Click <strong>Analyze</strong>. The engine sends baseline and attack probe requests.</li>
+          <li>View the detected WAF vendor, confidence level, and response fingerprint.</li>
+          <li>Review the Bypass Results table — each bypass technique is shown as Pass/Fail/Uncertain.</li>
+        </ol>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Detection Signals</h4>
+        <div className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <div>• <strong>Status code change</strong> — 200 on baseline, 403/406/429 on attack payload</div>
+          <div>• <strong>WAF-specific headers</strong> — CF-RAY (Cloudflare), X-Sucuri-ID, X-CDN, etc.</div>
+          <div>• <strong>Response body markers</strong> — "Access Denied," Cloudflare block pages, Akamai reference IDs</div>
+          <div>• <strong>Timing anomalies</strong> — Challenge page delays vs. baseline response time</div>
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Bypass Techniques Tested</h4>
+        <div className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <div>• Encoding: double URL encode, Unicode normalization, HTML entity</div>
+          <div>• Case manipulation: mixed case keywords (SeLeCt, UnIoN)</div>
+          <div>• Comment insertion: <code>UN/**/ION SE/**/LECT</code></div>
+          <div>• HTTP-level: chunked transfer encoding, HTTP parameter pollution</div>
+          <div>• Content-Type confusion (JSON in form-encoded bodies)</div>
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Supported WAF Vendors (25+)</h4>
+        <div className="text-[10px] font-mono text-primary/83">
+          Cloudflare, AWS WAF, Akamai, Imperva, Sucuri, ModSecurity, F5 BIG-IP, Barracuda, Fortinet FortiWeb, Radware, Wallarm, Fastly, CloudFront, Nginx+ModSec, and more.
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">OmniStrike Integration</h4>
+        <div className="text-[10px] font-mono text-primary/83">
+          When a WAF is detected, OmniStrike automatically increases tamper level to 5 and wraps all subsequent payloads with the detected bypass techniques.
+        </div>
+      </div>
+    ),
+  },
+  {
+    id: "social-breach",
+    title: "Social & Game Breach Tester",
+    icon: Gamepad2,
+    content: (
+      <div className="space-y-3">
+        <p>The <strong>Social &amp; Game Account Breach Tester</strong> provides an authenticated proxy browser for auditing account security across 80+ platforms. Available on Command Center Pro.</p>
+        <Note type="danger">Use only against accounts you own or have explicit written permission to audit. Unauthorized credential testing is illegal under the CFAA and equivalent laws.</Note>
+        <h4 className="font-bold text-primary text-[11px]">Platform Tabs</h4>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {[
+            { tab: "Social Media", count: "35+", ex: "Instagram, Discord, GitHub, Reddit, Twitter/X, TikTok, LinkedIn, Telegram, Slack" },
+            { tab: "Gaming Launchers", count: "10+", ex: "Steam, Epic Games, Blizzard, GOG, Ubisoft Connect, EA/Origin, Rockstar, HoYoverse" },
+            { tab: "Game Titles", count: "15+", ex: "Roblox, Fortnite, Valorant, League of Legends, Apex Legends, GTA Online, Call of Duty" },
+            { tab: "Legacy Systems", count: "10+", ex: "Xbox Live, PlayStation, Nintendo, 2K, Konami, Sega, NCSoft" },
+          ].map(({ tab, count, ex }) => (
+            <div key={tab} className="border border-primary/10 rounded px-2.5 py-2">
+              <div className="flex items-center justify-between mb-0.5">
+                <div className="text-[10px] font-mono font-bold text-primary">{tab}</div>
+                <code className="text-[8px] text-primary/40">{count} platforms</code>
+              </div>
+              <div className="text-[9px] font-mono text-primary/83">{ex}</div>
+            </div>
+          ))}
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">How to Use</h4>
+        <ol className="list-decimal ml-4 space-y-1 text-[10px] font-mono text-primary/83">
+          <li>Navigate to <code>/social-breach</code> in the sidebar.</li>
+          <li>Select a tab (Social / Gaming / Games / Legacy).</li>
+          <li>Search for or click a platform to open its detail panel.</li>
+          <li>Enter credentials for the account you are authorized to test.</li>
+          <li>Click <strong>Test Login</strong>. Auto platforms return a session immediately. Manual platforms load the real login page in the proxy browser.</li>
+          <li>Use the proxy browser's Back/Forward/Navigate controls to audit the logged-in session.</li>
+          <li>Close the session from the Active Sessions panel when done.</li>
+        </ol>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Session Persistence</h4>
+        <div className="text-[10px] font-mono text-primary/83">
+          Your selected tab, active platform, session, and navigation history are preserved when you navigate away in the app and return. Sessions expire after 4 hours of inactivity on the server.
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Security Notes</h4>
+        <div className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <div>• All proxy traffic is routed through your ProxhqVPN tunnel.</div>
+          <div>• The proxy blocks all private IP ranges to prevent SSRF attacks.</div>
+          <div>• Rate limited to 40 requests per minute to prevent abuse.</div>
+          <div>• Credentials are never stored — they are sent directly to the target platform.</div>
+        </div>
+      </div>
+    ),
+  },
+  {
+    id: "bug-bounty-hub",
+    title: "Bug Bounty Research Hub",
+    icon: ShieldAlert,
+    content: (
+      <div className="space-y-3">
+        <p>The <strong>Bug Bounty Research Hub</strong> is a Command Center Pro reference center for authorized security research across 19 major gaming, social, and developer platform bug bounty programs.</p>
+        <Note type="warn">You MUST register with the bug bounty platform (HackerOne, Bugcrowd, etc.) and read the full program policy BEFORE any testing. Testing without registration can result in legal action.</Note>
+        <h4 className="font-bold text-primary text-[11px]">How to Use</h4>
+        <ol className="list-decimal ml-4 space-y-1 text-[10px] font-mono text-primary/83">
+          <li>Navigate to <code>/bug-bounty</code> in the sidebar.</li>
+          <li>Browse the 19 program cards. Filter by platform or payout range.</li>
+          <li>Click a program to expand it — view scope, payout table, and testing methodology.</li>
+          <li>Click <strong>View Program</strong> to open the official bounty platform page.</li>
+          <li>Register with the program before any testing.</li>
+          <li>Click <strong>Launch in OmniStrike</strong> to open OmniStrike pre-configured for in-scope testing.</li>
+          <li>After finding a valid vulnerability, use the <strong>Report Generator</strong> to create a disclosure report.</li>
+        </ol>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Program Summary (19 programs)</h4>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {[
+            { p: "PlayStation / Sony", max: "$50,000", platform: "HackerOne" },
+            { p: "Xbox / Microsoft", max: "$60,000", platform: "MSRC" },
+            { p: "Meta (FB/IG/WA)", max: "$750,000", platform: "Meta Whitehat" },
+            { p: "Google / YouTube", max: "$500,000", platform: "Google VRP" },
+            { p: "Epic Games", max: "$20,000", platform: "HackerOne" },
+            { p: "GitHub", max: "$30,000", platform: "HackerOne" },
+          ].map(({ p, max, platform }) => (
+            <div key={p} className="border border-primary/10 rounded px-2.5 py-2">
+              <div className="flex items-center justify-between mb-0.5">
+                <div className="text-[10px] font-mono font-bold text-primary">{p}</div>
+                <code className="text-[8px] text-green-400">{max}</code>
+              </div>
+              <div className="text-[9px] font-mono text-primary/83">{platform}</div>
+            </div>
+          ))}
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Report Generator</h4>
+        <div className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <div>The built-in report generator creates HackerOne-format vulnerability disclosures:</div>
+          <ol className="list-decimal ml-4 space-y-0.5">
+            <li>Select severity (Critical / High / Medium / Low)</li>
+            <li>Enter vulnerability type, affected endpoint, description, and steps to reproduce</li>
+            <li>Click <strong>Copy Report</strong> — paste directly into your HackerOne/Bugcrowd submission</li>
+          </ol>
+        </div>
+      </div>
+    ),
+  },
+  {
+    id: "manuals-download",
+    title: "Manuals Download Center",
+    icon: FileText,
+    content: (
+      <div className="space-y-3">
+        <p>The <strong>Manuals Download Center</strong> (<code>/manuals</code>) provides 10 comprehensive plain-text manuals covering every feature of the ProxhqVPN platform. Available to all active subscribers.</p>
+        <h4 className="font-bold text-primary text-[11px]">How to Access</h4>
+        <ol className="list-decimal ml-4 space-y-1 text-[10px] font-mono text-primary/83">
+          <li>Click <strong>Manuals Download</strong> in the sidebar (under your account navigation).</li>
+          <li>Browse manuals by category: VPN &amp; Privacy, Security Tools, Intelligence &amp; Monitoring, Employee &amp; Administration.</li>
+          <li>Click <strong>Preview</strong> to see the first 2,000 characters of any manual inline.</li>
+          <li>Click <strong>Download</strong> to save the full manual as a <code>.txt</code> file.</li>
+          <li>Click <strong>Download All Manuals</strong> to download the complete set.</li>
+        </ol>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Available Manuals</h4>
+        <div className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          {[
+            { t: "Getting Started Guide", tier: "All", pages: 24 },
+            { t: "WireGuard Advanced Configuration", tier: "All", pages: 32 },
+            { t: "OmniStrike Penetration Testing Suite", tier: "Pro", pages: 48 },
+            { t: "WAF Analyzer", tier: "Pro", pages: 18 },
+            { t: "Social & Game Account Breach Tester", tier: "Pro", pages: 28 },
+            { t: "Bug Bounty Research Hub", tier: "Pro", pages: 22 },
+            { t: "OSINT Recon Engine", tier: "Pro", pages: 20 },
+            { t: "Canary Token Generator", tier: "Pro", pages: 16 },
+            { t: "SIEM Security Event Log", tier: "Pro", pages: 14 },
+            { t: "Employee Procedures & Platform Administration", tier: "All", pages: 20 },
+          ].map(({ t, tier, pages }) => (
+            <div key={t} className="flex items-center justify-between border border-primary/10 rounded px-2.5 py-1.5">
+              <span className="text-primary">{t}</span>
+              <span className={`text-[8px] ${tier === "Pro" ? "text-red-400" : "text-green-400"}`}>{pages}pp · {tier}</span>
+            </div>
+          ))}
+        </div>
+        <Note type="info">Manuals are proprietary documentation of ALPHA UNLIMITED TECHNOLOGIES LLC. Downloaded files are for your personal reference only — do not share with non-subscribers.</Note>
+      </div>
+    ),
+  },
 ];
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
