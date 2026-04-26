@@ -13,6 +13,7 @@ import {
   Code2, GitCompare, Swords, Bug, Eye, BookMarked,
   GitMerge, Ban, Bell, Fingerprint, Upload, ChevronDown,
   Lock, Shuffle, UserX, RefreshCcw,
+  ShieldCheck, Key, FileCode2, Filter, FlaskConical,
 } from "lucide-react";
 import { useAccess } from "@/hooks/useAccess";
 
@@ -86,6 +87,11 @@ const PAGE_NAMES: Record<string, string> = {
   "/dark-web":             "Dark Web Monitor",
   "/alt-id":               "Alternative Identity",
   "/ip-rotator":           "IP Rotator",
+  "/ssl-tls":              "SSL/TLS Analyzer",
+  "/jwt-analyzer":         "JWT Analyzer",
+  "/iac-scan":             "IaC Scanner",
+  "/http-interceptor":     "HTTP Interceptor",
+  "/api-tester":           "API Security Tester",
 };
 
 const USER_NAV = [
@@ -147,8 +153,13 @@ const ADVANCED_NAV = [
   { href: "/exploit-import", label: "Exploit Importer",     icon: Upload },
   { href: "/omnistrike",    label: "OmniStrike",            icon: Zap },
   { href: "/waf",           label: "WAF Analyzer",          icon: Shield },
-  { href: "/social-breach", label: "Social & Game Breach",  icon: Globe2 },
-  { href: "/bug-bounty",    label: "Bug Bounty Hub",        icon: Award },
+  { href: "/social-breach",      label: "Social & Game Breach",   icon: Globe2 },
+  { href: "/bug-bounty",         label: "Bug Bounty Hub",         icon: Award },
+  { href: "/ssl-tls",            label: "SSL/TLS Analyzer",       icon: ShieldCheck },
+  { href: "/jwt-analyzer",       label: "JWT Analyzer",           icon: Key },
+  { href: "/iac-scan",           label: "IaC Scanner",            icon: FileCode2 },
+  { href: "/http-interceptor",   label: "HTTP Interceptor",       icon: Filter },
+  { href: "/api-tester",         label: "API Security Tester",    icon: FlaskConical },
 ];
 
 const AMBASSADOR_NAV = [

@@ -62,6 +62,11 @@ import daitaRouter from "./daita";
 import darkwebRouter from "./darkweb";
 import altidRouter from "./altid";
 import iprotatorRouter from "./iprotator";
+import sslTlsRouter from "./ssltls";
+import jwtAnalyzerRouter from "./jwtanalyzer";
+import iacScanRouter from "./iacscan";
+import interceptorRouter from "./interceptor";
+import apiTesterRouter from "./apitester";
 
 const router: IRouter = Router();
 
@@ -322,6 +327,11 @@ router.use("/exploit-import",  requireCommandCenter, exploitImportRouter);
 router.use("/waf",             requireCommandCenter, wafRouter);
 router.use("/omnistrike",      requireCommandCenter, omnistrikeRouter);
 router.use("/social-account",  requireCommandCenter, socialAccountRouter);
+router.use("/ssl-tls",         requireCommandCenter, sslTlsRouter);
+router.use("/jwt-analyzer",    requireCommandCenter, jwtAnalyzerRouter);
+router.use("/iac-scan",        requireCommandCenter, iacScanRouter);
+router.use("/interceptor",     requireCommandCenter, interceptorRouter);
+router.use("/api-tester",      requireCommandCenter, apiTesterRouter);
 
 // ── Admin-only routes ─────────────────────────────────────────────────────
 router.use("/employees",      requireAdmin, employeesRouter);

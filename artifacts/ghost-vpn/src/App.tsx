@@ -102,6 +102,11 @@ import Daita from "@/pages/Daita";
 import DarkWebMonitor from "@/pages/DarkWebMonitor";
 import AltIdentity from "@/pages/AltIdentity";
 import IpRotator from "@/pages/IpRotator";
+import SslTlsAnalyzer from "@/pages/SslTlsAnalyzer";
+import JwtAnalyzer from "@/pages/JwtAnalyzer";
+import IacScanner from "@/pages/IacScanner";
+import HttpInterceptor from "@/pages/HttpInterceptor";
+import ApiSecurityTester from "@/pages/ApiSecurityTester";
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
@@ -583,6 +588,23 @@ function AppRoutes() {
           </Route>
           <Route path="/ip-rotator">
             <ToolLayout><IpRotator /></ToolLayout>
+          </Route>
+
+          {/* ── Dev Security Tools — Command Center Pro ── */}
+          <Route path="/ssl-tls">
+            <CcLayout><SslTlsAnalyzer /></CcLayout>
+          </Route>
+          <Route path="/jwt-analyzer">
+            <CcLayout><JwtAnalyzer /></CcLayout>
+          </Route>
+          <Route path="/iac-scan">
+            <CcLayout><IacScanner /></CcLayout>
+          </Route>
+          <Route path="/http-interceptor">
+            <CcLayout><HttpInterceptor /></CcLayout>
+          </Route>
+          <Route path="/api-tester">
+            <CcLayout><ApiSecurityTester /></CcLayout>
           </Route>
 
           {/* ── Admin-only — gated on backend; frontend shows paywall for non-admins ── */}
