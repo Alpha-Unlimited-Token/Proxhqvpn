@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,26 +7,97 @@ import {
   Zap, Square, Trash2, ChevronDown, ChevronUp, Download,
   ShieldAlert, AlertTriangle, Info, RefreshCw, Copy, Terminal,
   Folder, File, FolderOpen, ChevronRight, Home, ArrowLeft,
-  Mouse, Lock, Unlock, Search,
+  Mouse, Lock, Unlock, Search, PlayCircle, Layers, Settings2,
+  ChevronUp as Up, ChevronDown as Dn, CheckCircle2, Clock, Circle,
+  SkipForward, ListOrdered, Swords, Crosshair,
 } from "lucide-react";
 
 const API = "/api/omnistrike";
 
 const CATEGORIES = [
-  { id: "sqli",          label: "SQL Injection",          desc: "Boolean-blind, UNION, time-based, error-based, stacked queries" },
-  { id: "xss",           label: "XSS",                    desc: "Reflected and DOM-based cross-site scripting" },
-  { id: "lfi",           label: "LFI / Path Traversal",   desc: "File inclusion, directory traversal, PHP wrappers" },
-  { id: "cmdi",          label: "Command Injection",       desc: "OS command chaining, reverse shell patterns, eval injection" },
-  { id: "ssrf",          label: "SSRF",                    desc: "Internal IP, localhost, cloud metadata probing" },
-  { id: "xxe",           label: "XXE",                     desc: "XML external entity with file:// and HTTP entities" },
-  { id: "ssti",          label: "SSTI",                    desc: "Jinja2, Twig, Freemarker, Python/Ruby template injection" },
-  { id: "headers",       label: "Header Injection",        desc: "Host, X-Forwarded, X-Original-URL auth bypass" },
-  { id: "cors",          label: "CORS Misconfiguration",   desc: "Permissive ACAO header detection across origins" },
-  { id: "auth",          label: "Auth Brute Force",        desc: "Default creds against login, admin, wp-login, api/auth" },
-  { id: "nosql",         label: "NoSQL Injection",         desc: "MongoDB operator injection ($ne, $gt, $regex, $where)" },
-  { id: "quantumbreach", label: "⚛ QuantumBreach",         desc: "Cache poisoning · GraphQL · CRLF · Mass assignment · JWT alg confusion · Timing side-channel · Open redirect chains · Quantum-weak crypto detection" },
-  { id: "shadowvector",  label: "👻 ShadowVector",          desc: "Novel unreported vectors — Ghost Parameter Injection · Path Desync · Prototype Pollution · Schema Oracle · Temporal Race Attack. Patent pending © ALPHA UNLIMITED TECHNOLOGIES LLC" },
+  { id: "sqli",          label: "SQL Injection",         icon: "💉", desc: "Boolean-blind, UNION, time-based, error-based, stacked queries" },
+  { id: "xss",           label: "XSS",                   icon: "🌐", desc: "Reflected and DOM-based cross-site scripting" },
+  { id: "lfi",           label: "LFI / Path Traversal",  icon: "📂", desc: "File inclusion, directory traversal, PHP wrappers" },
+  { id: "cmdi",          label: "Command Injection",      icon: "💀", desc: "OS command chaining, reverse shell patterns, eval injection" },
+  { id: "ssrf",          label: "SSRF",                   icon: "🔄", desc: "Internal IP, localhost, cloud metadata probing" },
+  { id: "xxe",           label: "XXE",                    icon: "📄", desc: "XML external entity with file:// and HTTP entities" },
+  { id: "ssti",          label: "SSTI",                   icon: "🧩", desc: "Jinja2, Twig, Freemarker, Python/Ruby template injection" },
+  { id: "headers",       label: "Header Injection",       icon: "📡", desc: "Host, X-Forwarded, X-Original-URL auth bypass" },
+  { id: "cors",          label: "CORS Misconfiguration",  icon: "🌍", desc: "Permissive ACAO header detection across origins" },
+  { id: "auth",          label: "Auth Brute Force",       icon: "🔑", desc: "Default creds against login, admin, wp-login, api/auth" },
+  { id: "nosql",         label: "NoSQL Injection",        icon: "🗃️", desc: "MongoDB operator injection ($ne, $gt, $regex, $where)" },
+  { id: "quantumbreach", label: "⚛ QuantumBreach",        icon: "⚛", desc: "Cache poisoning · GraphQL · CRLF · Mass assignment · JWT alg confusion · Timing side-channel · Open redirect chains · Quantum-weak crypto" },
+  { id: "shadowvector",  label: "👻 ShadowVector",         icon: "👻", desc: "Novel unreported vectors — Ghost Param Injection · Path Desync · Prototype Pollution · Schema Oracle · Temporal Race Attack" },
 ];
+
+const PHASES = [
+  {
+    id: "recon",
+    label: "Phase 1 — Recon",
+    icon: "🔭",
+    color: "blue",
+    modules: ["cors", "headers"],
+    rationale: "Fingerprint CORS policy and discover auth-bypass headers before firing any payloads. Low-noise — won't trigger WAF alerts.",
+  },
+  {
+    id: "auth_access",
+    label: "Phase 2 — Auth & Access",
+    icon: "🔑",
+    color: "yellow",
+    modules: ["auth", "lfi", "xxe"],
+    rationale: "Try default credentials on discovered endpoints, then attempt file inclusion and XML entity injection for file read access.",
+  },
+  {
+    id: "injection",
+    label: "Phase 3 — Injection",
+    icon: "💉",
+    color: "orange",
+    modules: ["sqli", "nosql", "ssrf"],
+    rationale: "Database injection and server-side request forgery. Uses CORS/header findings from Phase 1 to bypass filters.",
+  },
+  {
+    id: "execution",
+    label: "Phase 4 — Code Execution",
+    icon: "💀",
+    color: "red",
+    modules: ["cmdi", "ssti"],
+    rationale: "Command injection and template engine exploitation. Highest privilege outcome — full RCE if successful.",
+  },
+  {
+    id: "client",
+    label: "Phase 5 — Client-Side",
+    icon: "🌐",
+    color: "purple",
+    modules: ["xss"],
+    rationale: "Cross-site scripting for session hijacking, account takeover, and client-side pivots.",
+  },
+  {
+    id: "advanced",
+    label: "Phase 6 — Advanced Sweep",
+    icon: "⚛",
+    color: "pink",
+    modules: ["quantumbreach", "shadowvector"],
+    rationale: "QuantumBreach cache poisoning/JWT/GraphQL + ShadowVector novel patent-pending vectors. Final deep-dive sweep.",
+  },
+];
+
+const PHASE_COLORS: Record<string, string> = {
+  blue:   "border-blue-700 bg-blue-950/40",
+  yellow: "border-yellow-700 bg-yellow-950/40",
+  orange: "border-orange-700 bg-orange-950/40",
+  red:    "border-red-700 bg-red-950/40",
+  purple: "border-purple-700 bg-purple-950/40",
+  pink:   "border-pink-700 bg-pink-950/40",
+};
+const PHASE_LABEL_COLORS: Record<string, string> = {
+  blue: "text-blue-300", yellow: "text-yellow-300", orange: "text-orange-300",
+  red: "text-red-300", purple: "text-purple-300", pink: "text-pink-300",
+};
+const PHASE_BADGE_COLORS: Record<string, string> = {
+  blue: "bg-blue-900 text-blue-200", yellow: "bg-yellow-900 text-yellow-200",
+  orange: "bg-orange-900 text-orange-200", red: "bg-red-900 text-red-200",
+  purple: "bg-purple-900 text-purple-200", pink: "bg-pink-900 text-pink-200",
+};
 
 type Finding = {
   category: string; technique: string; payload: string; url: string;
@@ -50,11 +121,22 @@ type ExploitSession = {
 
 type DirItem = { name: string; isDir: boolean; perms: string; size: string; modified: string };
 
+type PhaseStatus = {
+  phaseIdx: number;
+  status: "waiting" | "running" | "done" | "skipped";
+  scanId?: number;
+  scan?: Scan;
+  findings: number;
+  confirmed: number;
+};
+
+type CustomModule = { id: string; enabled: boolean };
+
 const SEV_COLORS: Record<string,string> = {
   critical: "bg-red-600 text-white", high: "bg-orange-500 text-white",
   medium: "bg-yellow-500 text-black", low: "bg-blue-500 text-white",
 };
-const SEV_ICON: Record<string,JSX.Element> = {
+const SEV_ICON: Record<string, React.ReactElement> = {
   critical: <ShieldAlert className="h-4 w-4 text-red-400" />,
   high: <AlertTriangle className="h-4 w-4 text-orange-400" />,
   medium: <AlertTriangle className="h-4 w-4 text-yellow-400" />,
@@ -73,7 +155,6 @@ function ExploitDesktop({ scanId, session }: { scanId: number; session: ExploitS
   const [loadingDir, setLoadingDir] = useState(false);
   const [loadingFile, setLoadingFile] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  // Terminal
   const [cmdHistory, setCmdHistory] = useState<Array<{cmd:string;out:string;url:string}>>([]);
   const [cmdInput, setCmdInput] = useState("");
   const [execing, setExecing] = useState(false);
@@ -187,7 +268,6 @@ function ExploitDesktop({ scanId, session }: { scanId: number; session: ExploitS
 
   return (
     <div className="bg-gray-950 border-2 border-red-700 rounded-lg overflow-hidden shadow-2xl shadow-red-900/30">
-      {/* Title bar */}
       <div className="bg-red-900/80 px-4 py-2 flex items-center gap-3 border-b border-red-700">
         <div className="flex gap-1.5">
           <div className="w-3 h-3 rounded-full bg-red-500" />
@@ -208,7 +288,6 @@ function ExploitDesktop({ scanId, session }: { scanId: number; session: ExploitS
         </div>
       </div>
 
-      {/* Session info bar */}
       <div className="bg-gray-900 px-4 py-1.5 flex flex-wrap gap-4 text-xs font-mono border-b border-gray-800">
         <span className="text-gray-400">user: <span className="text-green-400">{session.user}</span></span>
         <span className="text-gray-400">host: <span className="text-cyan-400">{session.hostname}</span></span>
@@ -216,7 +295,6 @@ function ExploitDesktop({ scanId, session }: { scanId: number; session: ExploitS
         <span className="text-gray-400">confirmed: <span className="text-yellow-400">{new Date(session.confirmedAt).toLocaleTimeString()}</span></span>
       </div>
 
-      {/* Tabs */}
       <div className="flex border-b border-gray-800">
         {[["files", "File Browser", Folder], ["terminal", isRce ? "Command Shell" : "Read Files", Terminal]].map(([id, label, Icon]) => (
           <button key={id as string} onClick={() => setTab(id as any)}
@@ -230,7 +308,6 @@ function ExploitDesktop({ scanId, session }: { scanId: number; session: ExploitS
         </div>
       </div>
 
-      {/* Main desktop area — mouse capture zone */}
       <div
         ref={panelRef}
         onMouseEnter={() => setCaptured(true)}
@@ -238,7 +315,6 @@ function ExploitDesktop({ scanId, session }: { scanId: number; session: ExploitS
         className={`relative min-h-[420px] ${captured ? "cursor-default ring-2 ring-red-500 ring-inset" : "cursor-pointer"}`}
         style={{ userSelect: captured ? "text" : "none" }}
       >
-        {/* Capture indicator overlay */}
         {!captured && (
           <div className="absolute inset-0 bg-black/40 flex items-center justify-center z-10 pointer-events-none">
             <div className="text-center">
@@ -249,22 +325,14 @@ function ExploitDesktop({ scanId, session }: { scanId: number; session: ExploitS
           </div>
         )}
 
-        {/* ── FILE BROWSER TAB ─────────────────────────────────────────────── */}
         {tab === "files" && (
           <div className="flex h-[420px] bg-gray-950">
-            {/* Sidebar */}
             <div className="w-48 border-r border-gray-800 bg-gray-900 flex flex-col">
               <div className="px-3 py-2 text-xs text-gray-500 font-mono border-b border-gray-800">QUICK ACCESS</div>
               {[
-                ["/", "/ Root"],
-                ["/etc", "/etc"],
-                ["/etc/nginx", "nginx config"],
-                ["/var/www/html", "web root"],
-                ["/var/log", "logs"],
-                ["/home", "/home"],
-                ["/root", "/root"],
-                ["/proc", "/proc"],
-                ["/tmp", "/tmp"],
+                ["/", "/ Root"], ["/etc", "/etc"], ["/etc/nginx", "nginx config"],
+                ["/var/www/html", "web root"], ["/var/log", "logs"],
+                ["/home", "/home"], ["/root", "/root"], ["/proc", "/proc"], ["/tmp", "/tmp"],
               ].map(([path, label]) => (
                 <button key={path} onClick={() => captured && loadDir(path)}
                   className={`flex items-center gap-2 px-3 py-1.5 text-xs text-left transition-colors ${captured ? "hover:bg-gray-800 cursor-pointer" : "cursor-not-allowed"} ${currentPath === path ? "bg-gray-800 text-white" : "text-gray-400"}`}>
@@ -274,9 +342,7 @@ function ExploitDesktop({ scanId, session }: { scanId: number; session: ExploitS
               ))}
             </div>
 
-            {/* Main area */}
             <div className="flex-1 flex flex-col overflow-hidden">
-              {/* Toolbar */}
               <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-800 bg-gray-900">
                 <button onClick={goBack} disabled={!captured || (pathHistory.length === 0 && !openFile)}
                   className="text-gray-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed">
@@ -296,7 +362,6 @@ function ExploitDesktop({ scanId, session }: { scanId: number; session: ExploitS
                 </div>
               </div>
 
-              {/* Content */}
               <div className="flex-1 overflow-auto p-2">
                 {loadingDir || loadingFile ? (
                   <div className="flex items-center gap-2 p-4 text-xs text-green-400 font-mono">
@@ -341,10 +406,8 @@ function ExploitDesktop({ scanId, session }: { scanId: number; session: ExploitS
           </div>
         )}
 
-        {/* ── TERMINAL TAB ──────────────────────────────────────────────────── */}
         {tab === "terminal" && (
           <div className="flex flex-col h-[420px] bg-black">
-            {/* Output */}
             <div ref={termRef} className="flex-1 overflow-auto p-3 font-mono text-xs">
               <div className="text-green-500 mb-3">
                 {'OmniStrike Post-Exploitation Shell'}<br />
@@ -385,7 +448,6 @@ function ExploitDesktop({ scanId, session }: { scanId: number; session: ExploitS
               )}
             </div>
 
-            {/* Input line */}
             <div className={`flex items-center gap-2 px-3 py-2 border-t border-gray-800 bg-gray-950 ${!captured ? "opacity-50" : ""}`}>
               <span className="text-cyan-500 font-mono text-xs shrink-0">{session.user}@{session.hostname}:{session.cwd}$</span>
               <input
@@ -403,7 +465,6 @@ function ExploitDesktop({ scanId, session }: { scanId: number; session: ExploitS
         )}
       </div>
 
-      {/* Footer */}
       <div className="bg-gray-900 border-t border-gray-800 px-4 py-2 flex items-center gap-4 text-xs text-gray-500 font-mono">
         <span>Working payload: <span className="text-red-400">{session.workingPayload.substring(0,50)}{session.workingPayload.length > 50 ? "..." : ""}</span></span>
         <span className="ml-auto">param: <span className="text-cyan-400">?{session.param}</span></span>
@@ -412,14 +473,59 @@ function ExploitDesktop({ scanId, session }: { scanId: number; session: ExploitS
   );
 }
 
+// ── Helper: poll a scan until it completes ───────────────────────────────────
+async function pollUntilDone(
+  scanId: number,
+  onTick: (scan: Scan) => void,
+  abortRef: React.MutableRefObject<boolean>,
+): Promise<Scan> {
+  return new Promise((resolve, reject) => {
+    const iv = setInterval(async () => {
+      if (abortRef.current) { clearInterval(iv); reject(new Error("aborted")); return; }
+      try {
+        const r = await fetch(`${API}/scan/${scanId}`);
+        const scan: Scan = await r.json();
+        onTick(scan);
+        if (scan.status !== "running") { clearInterval(iv); resolve(scan); }
+      } catch (e) { clearInterval(iv); reject(e); }
+    }, 1500);
+  });
+}
+
 // ── Main OmniStrike Page ─────────────────────────────────────────────────────
 export default function OmniStrike() {
   const { toast } = useToast();
+
+  // Target / evasion
   const [target, setTarget] = useState("");
-  const [categories, setCategories] = useState<string[]>(CATEGORIES.map(c => c.id));
   const [tamperLevel, setTamperLevel] = useState(4);
   const [stealthMode, setStealthMode] = useState(false);
+
+  // Orchestrator mode
+  const [orchMode, setOrchMode] = useState<"salvo" | "chain" | "custom">("chain");
+
+  // Salvo: which categories are checked
+  const [salvoCategories, setSalvoCategories] = useState<string[]>(CATEGORIES.map(c => c.id));
+
+  // Custom: ordered + toggled modules
+  const [customModules, setCustomModules] = useState<CustomModule[]>(
+    CATEGORIES.map(c => ({ id: c.id, enabled: true }))
+  );
+
+  // Chain: which phases are enabled
+  const [enabledPhases, setEnabledPhases] = useState<boolean[]>(PHASES.map(() => true));
+
+  // Active single scan (salvo / custom)
   const [activeScan, setActiveScan] = useState<Scan | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Chain execution state
+  const [chainRunning, setChainRunning] = useState(false);
+  const [phaseStatuses, setPhaseStatuses] = useState<PhaseStatus[]>([]);
+  const [chainScans, setChainScans] = useState<Scan[]>([]);
+  const abortRef = useRef(false);
+
+  // UI
   const [scans, setScans] = useState<Scan[]>([]);
   const [expandedFindings, setExpandedFindings] = useState<Set<number>>(new Set());
   const [showLog, setShowLog] = useState(true);
@@ -427,7 +533,6 @@ export default function OmniStrike() {
   const [sessionData, setSessionData] = useState<ExploitSession | null>(null);
   const [showDesktop, setShowDesktop] = useState(false);
   const logRef = useRef<HTMLDivElement>(null);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => { loadScans(); }, []);
   useEffect(() => {
@@ -451,15 +556,16 @@ export default function OmniStrike() {
     }, 1500);
   };
 
-  const startScan = async () => {
-    if (!target.trim()) return toast({ title: "Enter a target URL", variant: "destructive" });
-    if (categories.length === 0) return toast({ title: "Select at least one category", variant: "destructive" });
+  // ── SALVO / CUSTOM: single scan ──────────────────────────────────────────
+  const launchSingleScan = async (cats: string[]): Promise<void> => {
+    if (!target.trim()) { toast({ title: "Enter a target URL", variant: "destructive" }); return; }
+    if (cats.length === 0) { toast({ title: "Enable at least one module", variant: "destructive" }); return; }
     let url = target.trim();
     if (!/^https?:\/\//i.test(url)) url = "https://" + url;
     try {
       const r = await fetch(`${API}/scan`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ target: url, categories, tamperLevel, stealthMode }),
+        body: JSON.stringify({ target: url, categories: cats, tamperLevel, stealthMode }),
       });
       if (!r.ok) { const e = await r.json(); return toast({ title: "Launch failed", description: e.error, variant: "destructive" }); }
       const { scanId } = await r.json();
@@ -467,7 +573,7 @@ export default function OmniStrike() {
       const scan = await sr.json();
       setActiveScan(scan); setSessionData(null); setShowDesktop(false);
       setMainTab("run"); startPoll(scanId);
-      toast({ title: "OmniStrike launched", description: `Targeting ${url}` });
+      toast({ title: orchMode === "salvo" ? "Full Salvo launched" : "Custom run launched", description: `Targeting ${url} · ${cats.length} modules` });
     } catch (e: any) { toast({ title: "Error", description: e.message, variant: "destructive" }); }
   };
 
@@ -478,11 +584,140 @@ export default function OmniStrike() {
     toast({ title: "Scan stopped" });
   };
 
-  const deleteScan = async (id: number) => {
-    await fetch(`${API}/scan/${id}`, { method: "DELETE" });
-    if (activeScan?.id === id) { setActiveScan(null); setSessionData(null); setShowDesktop(false); }
+  // ── AUTO-CHAIN: sequential phase execution ───────────────────────────────
+  const launchChain = async (): Promise<void> => {
+    if (!target.trim()) { toast({ title: "Enter a target URL", variant: "destructive" }); return; }
+    let url = target.trim();
+    if (!/^https?:\/\//i.test(url)) url = "https://" + url;
+
+    const activePhases = PHASES.filter((_, i) => enabledPhases[i]);
+    if (activePhases.length === 0) { toast({ title: "Enable at least one phase", variant: "destructive" }); return; }
+
+    abortRef.current = false;
+    setChainRunning(true);
+    setChainScans([]);
+    setSessionData(null); setShowDesktop(false);
+    setActiveScan(null);
+    setMainTab("run");
+
+    const initialStatuses: PhaseStatus[] = PHASES.map((_, i) => ({
+      phaseIdx: i,
+      status: enabledPhases[i] ? "waiting" : "skipped",
+      findings: 0,
+      confirmed: 0,
+    }));
+    setPhaseStatuses(initialStatuses);
+
+    const allChainScans: Scan[] = [];
+
+    for (let i = 0; i < PHASES.length; i++) {
+      if (!enabledPhases[i]) continue;
+      if (abortRef.current) break;
+
+      // Mark phase as running
+      setPhaseStatuses(prev => prev.map((p, idx) => idx === i ? { ...p, status: "running" } : p));
+
+      try {
+        const r = await fetch(`${API}/scan`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ target: url, categories: PHASES[i].modules, tamperLevel, stealthMode }),
+        });
+        if (!r.ok) {
+          setPhaseStatuses(prev => prev.map((p, idx) => idx === i ? { ...p, status: "done", findings: 0, confirmed: 0 } : p));
+          continue;
+        }
+        const { scanId } = await r.json();
+
+        // Update active scan display
+        const initialScan = await (await fetch(`${API}/scan/${scanId}`)).json();
+        setActiveScan(initialScan);
+
+        const completedScan = await pollUntilDone(
+          scanId,
+          (scan) => {
+            setActiveScan(scan);
+            if (scan.session) setSessionData(scan.session);
+          },
+          abortRef,
+        );
+
+        allChainScans.push(completedScan);
+        setChainScans([...allChainScans]);
+
+        const confirmed = (completedScan.findings ?? []).filter((f: Finding) => f.bypassed).length;
+        setPhaseStatuses(prev => prev.map((p, idx) =>
+          idx === i ? { ...p, status: "done", scanId, scan: completedScan, findings: (completedScan.findings ?? []).length, confirmed } : p
+        ));
+
+        // If we found an RCE/LFI in this phase, open the console automatically
+        if (completedScan.session) {
+          setSessionData(completedScan.session);
+          setShowDesktop(true);
+        }
+
+      } catch (e: any) {
+        if (e.message === "aborted") break;
+        setPhaseStatuses(prev => prev.map((p, idx) => idx === i ? { ...p, status: "done" } : p));
+      }
+    }
+
+    setChainRunning(false);
     loadScans();
+
+    const totalConfirmed = allChainScans.reduce((acc, s) => acc + (s.findings ?? []).filter((f: Finding) => f.bypassed).length, 0);
+    toast({
+      title: abortRef.current ? "Chain aborted" : "Attack chain complete",
+      description: `${allChainScans.length} phases run · ${totalConfirmed} confirmed vulnerabilities`,
+    });
   };
+
+  const stopChain = () => {
+    abortRef.current = true;
+    setChainRunning(false);
+    toast({ title: "Chain aborted" });
+  };
+
+  // ── Main launch dispatcher ───────────────────────────────────────────────
+  const launch = () => {
+    if (orchMode === "salvo") launchSingleScan(salvoCategories);
+    else if (orchMode === "custom") launchSingleScan(customModules.filter(m => m.enabled).map(m => m.id));
+    else launchChain();
+  };
+
+  const isRunning = activeScan?.status === "running" || chainRunning;
+
+  const stop = () => {
+    if (chainRunning) stopChain();
+    else stopScan();
+  };
+
+  // Custom module ordering helpers
+  const moveCustomModule = (idx: number, dir: -1 | 1) => {
+    const next = idx + dir;
+    if (next < 0 || next >= customModules.length) return;
+    setCustomModules(prev => {
+      const arr = [...prev];
+      [arr[idx], arr[next]] = [arr[next], arr[idx]];
+      return arr;
+    });
+  };
+
+  const toggleCustomModule = (id: string) => {
+    setCustomModules(prev => prev.map(m => m.id === id ? { ...m, enabled: !m.enabled } : m));
+  };
+
+  // Aggregated findings across all chain scans + active scan
+  const allFindings: Finding[] = orchMode === "chain"
+    ? chainScans.flatMap(s => s.findings ?? [])
+    : (activeScan?.findings ?? []);
+  const confirmedFindings = allFindings.filter(f => f.bypassed);
+
+  // Display scan (the most recent active)
+  const displayScan = activeScan;
+  const stats = displayScan?.stats;
+
+  const hasSession = !!(displayScan?.session || sessionData);
+  const canGetSession = !isRunning && allFindings.some(f => f.bypassed && (f.canExec || f.canRead));
 
   const loadScan = async (id: number) => {
     const r = await fetch(`${API}/scan/${id}`);
@@ -493,118 +728,81 @@ export default function OmniStrike() {
     if (scan.status === "running") startPoll(id);
   };
 
-  const loadSession = async (id: number) => {
+  const deleteScan = async (id: number) => {
+    await fetch(`${API}/scan/${id}`, { method: "DELETE" });
+    loadScans();
+    if (activeScan?.id === id) setActiveScan(null);
+    toast({ title: "Scan deleted" });
+  };
+
+  const loadSession = async (id: number): Promise<void> => {
     try {
       const r = await fetch(`${API}/console/${id}/session`);
-      if (!r.ok) { const e = await r.json(); return toast({ title: "No session available", description: e.error, variant: "destructive" }); }
+      if (!r.ok) { const e = await r.json(); toast({ title: "No session available", description: e.error, variant: "destructive" }); return; }
       const sess = await r.json();
       setSessionData(sess); setShowDesktop(true);
     } catch (e: any) { toast({ title: "Error", description: e.message, variant: "destructive" }); }
   };
 
   const exportReport = useCallback(() => {
-    if (!activeScan) return;
-    const findings: Finding[] = activeScan.findings ?? [];
-    const stats = activeScan.stats ?? {};
+    const scanList = orchMode === "chain" ? chainScans : (activeScan ? [activeScan] : []);
+    if (scanList.length === 0) return;
+    const allF = scanList.flatMap(s => s.findings ?? []);
     const lines = [
       `# OmniStrike Penetration Test Report`,
-      `## Target: ${activeScan.target}`,
-      `**Date:** ${new Date(activeScan.startedAt).toLocaleString()}`,
-      `**Status:** ${activeScan.status}`,
-      `**Total Tests:** ${stats.tested ?? "N/A"}`,
-      `**Total Findings:** ${findings.length}`,
-      `**Bypass Rate:** ${activeScan.successRate ?? 0}%`,
-      `**Critical:** ${stats.critical ?? 0} | **High:** ${stats.high ?? 0} | **Medium:** ${stats.medium ?? 0}`,
-      ``,
-      `---`,
-      `## Summary`,
-      `OmniStrike performed ${stats.tested ?? 0} individual attack tests against ${activeScan.target} across ${(activeScan.categories ?? []).join(", ")}.`,
-      `A total of **${findings.filter(f=>f.bypassed).length} vulnerabilities were confirmed exploitable** with a **${activeScan.successRate ?? 0}% bypass rate**.`,
+      `## Target: ${target}`,
+      `**Mode:** ${orchMode === "chain" ? "Auto-Chain (Strategic Order)" : orchMode === "salvo" ? "Full Salvo" : "Custom"}`,
+      `**Date:** ${new Date().toLocaleString()}`,
+      `**Phases / Scans:** ${scanList.length}`,
+      `**Total Findings:** ${allF.length}`,
+      `**Confirmed Exploitable:** ${allF.filter(f=>f.bypassed).length}`,
       ``,
       `---`,
       `## Confirmed Findings`,
-      ...findings.filter(f => f.bypassed).map((f, i) => [
+      ...allF.filter(f => f.bypassed).map((f, i) => [
         ``,
         `### ${i + 1}. [${f.severity.toUpperCase()}] ${f.category} — ${f.technique}`,
         `| Field | Value |`,
         `|-------|-------|`,
         `| URL | \`${f.url}\` |`,
         `| Parameter | \`${f.param}\` |`,
-        `| Method | ${f.statusCode >= 500 ? "Error triggered" : "Successful bypass"} |`,
         `| HTTP Status | ${f.statusCode} |`,
         `| Response Time | ${f.responseTime}ms |`,
         `| Severity | **${f.severity.toUpperCase()}** |`,
         ``,
-        `**Exact payload that broke through:**`,
+        `**Payload:**`,
         `\`\`\``,
         f.payload,
         `\`\`\``,
-        ``,
-        `**Evidence:**`,
-        `\`\`\``,
-        f.evidence,
-        `\`\`\``,
-        ``,
-        `**Exploit URL:**`,
-        `\`\`\``,
-        f.url,
-        `\`\`\``,
-        ``,
-        `**Recommended Fix:** ${
-          f.category.includes("SQL") ? "Use parameterized queries / prepared statements. NEVER concatenate user input into SQL strings." :
-          f.category.includes("XSS") ? "HTML-encode all user output. Implement a strict Content-Security-Policy." :
-          f.category.includes("LFI") ? "Use an allowlist for file paths. Never pass user input to file functions." :
-          f.category.includes("Command") ? "NEVER pass user input to shell commands. Use language-native APIs." :
-          f.category.includes("SSRF") ? "Validate and whitelist all URL targets. Block RFC1918 ranges at the network level." :
-          f.category.includes("JWT") ? "Verify algorithm explicitly. Never accept 'none'. Validate signature server-side." :
-          f.category.includes("Cache") ? "Mark all user-controlled headers as cache keys or strip them." :
-          "See OWASP Top 10 for remediation guidance."
-        }`,
+        `**Evidence:** ${f.evidence}`,
+        `**Exploit URL:** \`${f.url}\``,
       ].join("\n")),
       ``,
       `---`,
-      `## Informational Findings`,
-      ...findings.filter(f => !f.bypassed).map((f, i) => [
-        `${i + 1}. **${f.category}** — ${f.evidence}`,
-      ].join("")),
-      ``,
-      `---`,
-      `## Full Scan Log`,
-      `\`\`\``,
-      ...(activeScan.log ?? []),
-      `\`\`\``,
-      ``,
-      `---`,
-      `*Report generated by OmniStrike — ProxhqVPN Command Center Pro*`,
-      `*Target: ${activeScan.target} | Scan ID: ${activeScan.id}*`,
+      `*Generated by OmniStrike — ProxhqVPN Command Center Pro*`,
+      `*© 2024–2026 ALPHA UNLIMITED TECHNOLOGIES LLC*`,
     ];
     const blob = new Blob([lines.join("\n")], { type: "text/markdown" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = `omnistrike-report-${activeScan.id}-${activeScan.target.replace(/[^a-z0-9]/gi,"_").substring(0,30)}.md`;
+    a.download = `omnistrike-report-${Date.now()}.md`;
     a.click();
-    toast({ title: "Report downloaded", description: "Full payload list, exact exploit URLs, and evidence included" });
-  }, [activeScan]);
-
-  const isRunning = activeScan?.status === "running";
-  const findings: Finding[] = activeScan?.findings ?? [];
-  const stats = activeScan?.stats;
-  const confirmedFindings = findings.filter(f => f.bypassed);
-  const hasSession = !!(activeScan?.session || sessionData);
-  const canGetSession = !isRunning && findings.some(f => f.bypassed && (f.canExec || f.canRead));
+    toast({ title: "Report downloaded" });
+  }, [activeScan, chainScans, orchMode, target]);
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-gray-100 p-4 md:p-6">
       {/* Header */}
       <div className="mb-6">
-        <div className="flex items-center gap-3 mb-1">
+        <div className="flex flex-wrap items-center gap-3 mb-1">
           <Zap className="h-7 w-7 text-red-400" />
           <h1 className="text-2xl font-bold text-white">OmniStrike</h1>
           <Badge className="bg-red-900 text-red-300 border-red-700">Automated Attack Engine</Badge>
           <Badge className="bg-purple-900 text-purple-300 border-purple-700">⚛ QuantumBreach</Badge>
+          <Badge className="bg-gray-800 text-gray-400 border-gray-700">👻 ShadowVector</Badge>
         </div>
         <p className="text-gray-400 text-sm">
-          Multi-vector penetration testing engine — real HTTP attacks against live targets with post-exploitation file browser and command shell. Authorized testing only.
+          Multi-vector penetration testing engine with Attack Orchestrator — run all at once, chain strategically, or build your own sequence.
         </p>
       </div>
 
@@ -621,21 +819,35 @@ export default function OmniStrike() {
       {mainTab === "run" && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-            {/* Config */}
+
+            {/* ── LEFT COLUMN: Config ────────────────────────────────────── */}
             <div className="space-y-4">
+
+              {/* Target */}
               <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
                 <h2 className="text-sm font-semibold text-gray-300 mb-3 uppercase tracking-wider">Target</h2>
                 <Input value={target} onChange={e => setTarget(e.target.value)} placeholder="https://target.com"
                   className="bg-gray-800 border-gray-700 text-white font-mono text-sm mb-3"
-                  onKeyDown={e => e.key === "Enter" && !isRunning && startScan()} />
+                  onKeyDown={e => e.key === "Enter" && !isRunning && launch()} />
                 <div className="flex gap-2">
-                  <Button onClick={startScan} disabled={isRunning} className="flex-1 bg-red-600 hover:bg-red-700 text-white">
-                    <Zap className="h-4 w-4 mr-2" />{isRunning ? "Attacking..." : "Launch"}
+                  <Button onClick={launch} disabled={isRunning}
+                    className={`flex-1 text-white font-bold ${orchMode === "chain" ? "bg-amber-600 hover:bg-amber-700" : orchMode === "salvo" ? "bg-red-600 hover:bg-red-700" : "bg-blue-700 hover:bg-blue-800"}`}>
+                    {orchMode === "chain"
+                      ? <><ListOrdered className="h-4 w-4 mr-2" />{isRunning ? "Running Chain..." : "Run Chain"}</>
+                      : orchMode === "salvo"
+                      ? <><Swords className="h-4 w-4 mr-2" />{isRunning ? "Attacking..." : "Full Salvo"}</>
+                      : <><Crosshair className="h-4 w-4 mr-2" />{isRunning ? "Running..." : "Launch Custom"}</>
+                    }
                   </Button>
-                  {isRunning && <Button onClick={stopScan} variant="outline" className="border-gray-600 text-gray-300"><Square className="h-4 w-4" /></Button>}
+                  {isRunning && (
+                    <Button onClick={stop} variant="outline" className="border-gray-600 text-gray-300">
+                      <Square className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
               </div>
 
+              {/* Evasion */}
               <div className="bg-gray-900 border border-gray-800 rounded-lg p-4 space-y-4">
                 <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wider">Evasion</h2>
                 <div>
@@ -658,43 +870,217 @@ export default function OmniStrike() {
                 </label>
               </div>
 
+              {/* ── ATTACK ORCHESTRATOR ────────────────────────────────── */}
               <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wider">Attack Categories</h2>
-                  <div className="flex gap-2">
-                    <button className="text-xs text-red-400" onClick={() => setCategories(CATEGORIES.map(c => c.id))}>All</button>
-                    <button className="text-xs text-gray-400" onClick={() => setCategories([])}>None</button>
-                  </div>
-                </div>
-                <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-                  {CATEGORIES.map(cat => (
-                    <label key={cat.id} className="flex items-start gap-3 cursor-pointer group">
-                      <input type="checkbox" checked={categories.includes(cat.id)}
-                        onChange={() => setCategories(prev => prev.includes(cat.id) ? prev.filter(c => c !== cat.id) : [...prev, cat.id])}
-                        className="mt-0.5 accent-red-500" />
-                      <div>
-                        <div className={`text-sm group-hover:text-white ${cat.id === "quantumbreach" ? "text-purple-300" : "text-gray-200"}`}>{cat.label}</div>
-                        <div className="text-xs text-gray-500">{cat.desc}</div>
-                      </div>
-                    </label>
+                <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-3 flex items-center gap-2">
+                  <Layers className="h-4 w-4 text-amber-400" /> Attack Orchestrator
+                </h2>
+
+                {/* Mode selector */}
+                <div className="grid grid-cols-3 gap-1 mb-4 bg-gray-800 rounded-lg p-1">
+                  {([
+                    ["chain",  "Auto-Chain", ListOrdered, "amber"],
+                    ["salvo",  "Full Salvo", Swords,      "red"],
+                    ["custom", "Custom",     Settings2,   "blue"],
+                  ] as const).map(([mode, label, Icon, color]) => (
+                    <button key={mode} onClick={() => setOrchMode(mode)}
+                      className={`flex flex-col items-center gap-1 py-2 rounded-md text-xs font-semibold transition-all ${
+                        orchMode === mode
+                          ? color === "amber" ? "bg-amber-700/60 text-amber-200 shadow" : color === "red" ? "bg-red-700/60 text-red-200 shadow" : "bg-blue-700/60 text-blue-200 shadow"
+                          : "text-gray-400 hover:text-gray-200"
+                      }`}>
+                      <Icon className="h-4 w-4" />
+                      {label}
+                    </button>
                   ))}
                 </div>
+
+                {/* Mode description */}
+                <p className="text-xs text-gray-500 mb-4 leading-relaxed">
+                  {orchMode === "chain"
+                    ? "Runs 6 strategic phases in order: Recon → Auth → Injection → Execution → Client-Side → Advanced Sweep. Each phase informs the next."
+                    : orchMode === "salvo"
+                    ? "Fire all selected modules simultaneously in a single scan. Maximum noise, maximum speed."
+                    : "Pick exactly which modules to run and the order they run in. Full operator control."}
+                </p>
+
+                {/* ── CHAIN: phase list ─────────────────────────────────── */}
+                {orchMode === "chain" && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs text-gray-400">Toggle phases on/off</span>
+                      <div className="flex gap-2">
+                        <button className="text-xs text-amber-400" onClick={() => setEnabledPhases(PHASES.map(() => true))}>All</button>
+                        <button className="text-xs text-gray-500" onClick={() => setEnabledPhases(PHASES.map(() => false))}>None</button>
+                      </div>
+                    </div>
+                    {PHASES.map((phase, i) => (
+                      <div key={phase.id} className={`border rounded-lg p-2.5 transition-all ${enabledPhases[i] ? PHASE_COLORS[phase.color] : "border-gray-800 bg-gray-900/40 opacity-50"}`}>
+                        <div className="flex items-center gap-2">
+                          <input type="checkbox" checked={enabledPhases[i]} onChange={() => setEnabledPhases(prev => { const a = [...prev]; a[i] = !a[i]; return a; })}
+                            className="accent-amber-500 shrink-0" />
+                          <span className="text-base">{phase.icon}</span>
+                          <span className={`text-xs font-semibold ${enabledPhases[i] ? PHASE_LABEL_COLORS[phase.color] : "text-gray-500"}`}>{phase.label}</span>
+                        </div>
+                        {enabledPhases[i] && (
+                          <>
+                            <div className="flex flex-wrap gap-1 mt-2 ml-6">
+                              {phase.modules.map(m => {
+                                const cat = CATEGORIES.find(c => c.id === m);
+                                return <span key={m} className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${PHASE_BADGE_COLORS[phase.color]}`}>{cat?.icon} {cat?.label ?? m}</span>;
+                              })}
+                            </div>
+                            <p className="text-[10px] text-gray-500 mt-1.5 ml-6 leading-relaxed">{phase.rationale}</p>
+                          </>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* ── SALVO: module toggle grid ────────────────────────── */}
+                {orchMode === "salvo" && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs text-gray-400">{salvoCategories.length} of {CATEGORIES.length} selected</span>
+                      <div className="flex gap-2">
+                        <button className="text-xs text-red-400" onClick={() => setSalvoCategories(CATEGORIES.map(c => c.id))}>All</button>
+                        <button className="text-xs text-gray-400" onClick={() => setSalvoCategories([])}>None</button>
+                      </div>
+                    </div>
+                    <div className="space-y-1.5 max-h-72 overflow-y-auto pr-1">
+                      {CATEGORIES.map(cat => (
+                        <label key={cat.id} className="flex items-start gap-3 cursor-pointer group">
+                          <input type="checkbox" checked={salvoCategories.includes(cat.id)}
+                            onChange={() => setSalvoCategories(prev => prev.includes(cat.id) ? prev.filter(c => c !== cat.id) : [...prev, cat.id])}
+                            className="mt-0.5 accent-red-500 shrink-0" />
+                          <div>
+                            <div className={`text-xs font-medium group-hover:text-white ${cat.id === "quantumbreach" ? "text-purple-300" : cat.id === "shadowvector" ? "text-gray-300" : "text-gray-300"}`}>
+                              {cat.icon} {cat.label}
+                            </div>
+                            <div className="text-[10px] text-gray-600 leading-tight">{cat.desc}</div>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* ── CUSTOM: ordered module list ──────────────────────── */}
+                {orchMode === "custom" && (
+                  <div className="space-y-1.5 max-h-96 overflow-y-auto pr-1">
+                    <p className="text-[10px] text-gray-500 mb-2">Drag order with ↑↓. Unchecked modules are skipped.</p>
+                    {customModules.map((mod, i) => {
+                      const cat = CATEGORIES.find(c => c.id === mod.id)!;
+                      return (
+                        <div key={mod.id}
+                          className={`flex items-center gap-2 bg-gray-800 border rounded-lg px-2.5 py-2 transition-all ${mod.enabled ? "border-blue-900/60" : "border-gray-800 opacity-50"}`}>
+                          <span className="text-[10px] text-gray-600 font-mono w-4 text-right shrink-0">{i + 1}</span>
+                          <input type="checkbox" checked={mod.enabled} onChange={() => toggleCustomModule(mod.id)}
+                            className="accent-blue-500 shrink-0" />
+                          <span className="text-base shrink-0">{cat.icon}</span>
+                          <span className={`text-xs flex-1 font-medium truncate ${mod.enabled ? "text-gray-200" : "text-gray-500"}`}>{cat.label}</span>
+                          <div className="flex flex-col gap-0.5 shrink-0">
+                            <button onClick={() => moveCustomModule(i, -1)} disabled={i === 0}
+                              className="text-gray-500 hover:text-gray-200 disabled:opacity-20">
+                              <Up className="h-3 w-3" />
+                            </button>
+                            <button onClick={() => moveCustomModule(i, 1)} disabled={i === customModules.length - 1}
+                              className="text-gray-500 hover:text-gray-200 disabled:opacity-20">
+                              <Dn className="h-3 w-3" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* Results */}
+            {/* ── RIGHT COLUMN: Results ──────────────────────────────────── */}
             <div className="xl:col-span-2 space-y-4">
-              {/* Stats */}
-              {activeScan && (
+
+              {/* Phase Timeline (chain mode) */}
+              {orchMode === "chain" && (phaseStatuses.length > 0 || chainRunning) && (
+                <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
+                  <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                    <ListOrdered className="h-4 w-4 text-amber-400" />
+                    Chain Progress
+                    {chainRunning && <RefreshCw className="h-3 w-3 animate-spin text-amber-400 ml-1" />}
+                  </h3>
+                  <div className="space-y-2">
+                    {PHASES.map((phase, i) => {
+                      const ps = phaseStatuses[i];
+                      if (!ps) return null;
+                      const isRunningPhase = ps.status === "running";
+                      const isDone = ps.status === "done";
+                      const isSkipped = ps.status === "skipped";
+                      const isWaiting = ps.status === "waiting";
+                      return (
+                        <div key={phase.id} className={`flex items-center gap-3 rounded-lg px-3 py-2 border transition-all ${
+                          isRunningPhase ? `${PHASE_COLORS[phase.color]} border-opacity-100 shadow-lg` :
+                          isDone ? "bg-gray-800/60 border-gray-700" :
+                          isSkipped ? "bg-gray-900/30 border-gray-800 opacity-40" :
+                          "bg-gray-900/30 border-gray-800"
+                        }`}>
+                          <div className="shrink-0 w-5 h-5 flex items-center justify-center">
+                            {isRunningPhase && <RefreshCw className="h-4 w-4 animate-spin text-amber-400" />}
+                            {isDone && <CheckCircle2 className={`h-4 w-4 ${ps.confirmed > 0 ? "text-red-400" : "text-green-600"}`} />}
+                            {isSkipped && <SkipForward className="h-4 w-4 text-gray-600" />}
+                            {isWaiting && <Circle className="h-4 w-4 text-gray-700" />}
+                          </div>
+                          <span className="text-base">{phase.icon}</span>
+                          <div className="flex-1 min-w-0">
+                            <div className={`text-xs font-semibold ${isRunningPhase ? PHASE_LABEL_COLORS[phase.color] : isDone ? "text-gray-200" : "text-gray-600"}`}>
+                              {phase.label}
+                            </div>
+                            <div className="text-[10px] text-gray-500">
+                              {phase.modules.map(m => CATEGORIES.find(c => c.id === m)?.label ?? m).join(" · ")}
+                            </div>
+                          </div>
+                          {isDone && (
+                            <div className="text-right shrink-0">
+                              <div className={`text-xs font-bold ${ps.confirmed > 0 ? "text-red-400" : "text-gray-500"}`}>{ps.confirmed} confirmed</div>
+                              <div className="text-[10px] text-gray-600">{ps.findings} total</div>
+                            </div>
+                          )}
+                          {isRunningPhase && (
+                            <div className="text-xs text-amber-400 font-mono shrink-0 animate-pulse">LIVE</div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {chainScans.length > 0 && (
+                    <div className="mt-3 pt-3 border-t border-gray-800 grid grid-cols-4 gap-2">
+                      {[
+                        { label: "Critical", value: chainScans.flatMap(s=>s.findings??[]).filter(f=>f.severity==="critical"&&f.bypassed).length, color: "text-red-400" },
+                        { label: "High",     value: chainScans.flatMap(s=>s.findings??[]).filter(f=>f.severity==="high"&&f.bypassed).length,     color: "text-orange-400" },
+                        { label: "Confirmed",value: confirmedFindings.length, color: confirmedFindings.length > 0 ? "text-red-400" : "text-green-500" },
+                        { label: "Findings", value: allFindings.length,       color: "text-gray-300" },
+                      ].map(s => (
+                        <div key={s.label} className="bg-gray-800 rounded p-2 text-center">
+                          <div className={`text-lg font-bold ${s.color}`}>{s.value}</div>
+                          <div className="text-[10px] text-gray-500">{s.label}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Single-scan stats */}
+              {orchMode !== "chain" && displayScan && (
                 <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
                   <div className="flex flex-wrap items-center gap-3 mb-3">
-                    <span className="text-sm font-mono text-white truncate max-w-[250px]">{activeScan.target}</span>
-                    <div className={`px-2 py-0.5 rounded text-xs font-medium ${isRunning ? "bg-yellow-900 text-yellow-300" : activeScan.status === "completed" ? "bg-green-900 text-green-300" : "bg-gray-700 text-gray-300"}`}>
-                      {isRunning && <RefreshCw className="h-3 w-3 inline mr-1 animate-spin" />}{activeScan.status}
+                    <span className="text-sm font-mono text-white truncate max-w-[250px]">{displayScan.target}</span>
+                    <div className={`px-2 py-0.5 rounded text-xs font-medium ${isRunning ? "bg-yellow-900 text-yellow-300" : displayScan.status === "completed" ? "bg-green-900 text-green-300" : "bg-gray-700 text-gray-300"}`}>
+                      {isRunning && <RefreshCw className="h-3 w-3 inline mr-1 animate-spin" />}{displayScan.status}
                     </div>
                     <div className="ml-auto flex gap-2">
                       {canGetSession && !showDesktop && (
-                        <Button onClick={() => loadSession(activeScan.id)} size="sm" className="bg-red-800 hover:bg-red-700 text-sm">
+                        <Button onClick={() => loadSession(displayScan.id)} size="sm" className="bg-red-800 hover:bg-red-700 text-sm">
                           <Terminal className="h-3 w-3 mr-1" /> Open Console
                         </Button>
                       )}
@@ -713,9 +1099,9 @@ export default function OmniStrike() {
                   <div className="grid grid-cols-4 gap-3">
                     {[
                       { label: "Critical", value: stats?.critical ?? 0, color: "text-red-400" },
-                      { label: "High", value: stats?.high ?? 0, color: "text-orange-400" },
-                      { label: "Medium", value: stats?.medium ?? 0, color: "text-yellow-400" },
-                      { label: "Bypass%", value: `${activeScan.successRate ?? 0}%`, color: (activeScan.successRate ?? 0) >= 50 ? "text-red-400" : "text-green-400" },
+                      { label: "High",     value: stats?.high ?? 0,     color: "text-orange-400" },
+                      { label: "Medium",   value: stats?.medium ?? 0,   color: "text-yellow-400" },
+                      { label: "Bypass%",  value: `${displayScan.successRate ?? 0}%`, color: (displayScan.successRate ?? 0) >= 50 ? "text-red-400" : "text-green-400" },
                     ].map(s => (
                       <div key={s.label} className="bg-gray-800 rounded p-2 text-center">
                         <div className={`text-xl font-bold ${s.color}`}>{s.value}</div>
@@ -723,18 +1109,38 @@ export default function OmniStrike() {
                       </div>
                     ))}
                   </div>
-                  {stats && <div className="mt-2 text-xs text-gray-400">Tests: {stats.tested} | Findings: {findings.length} | Confirmed: {confirmedFindings.length}</div>}
+                  {stats && <div className="mt-2 text-xs text-gray-400">Tests: {stats.tested} | Findings: {allFindings.length} | Confirmed: {confirmedFindings.length}</div>}
+                </div>
+              )}
+
+              {/* Chain export button */}
+              {orchMode === "chain" && chainScans.length > 0 && !chainRunning && (
+                <div className="flex gap-2">
+                  {(sessionData || displayScan?.session) && !showDesktop && (
+                    <Button onClick={() => { if (displayScan) loadSession(displayScan.id); else setShowDesktop(true); }}
+                      size="sm" className="bg-red-800 hover:bg-red-700">
+                      <Terminal className="h-3 w-3 mr-1" /> Open Console
+                    </Button>
+                  )}
+                  {showDesktop && (
+                    <Button onClick={() => setShowDesktop(false)} size="sm" variant="outline" className="border-gray-600 text-gray-300 text-xs">
+                      Hide Console
+                    </Button>
+                  )}
+                  <Button onClick={exportReport} size="sm" variant="outline" className="border-gray-600 text-gray-300 text-xs ml-auto">
+                    <Download className="h-3 w-3 mr-1" /> Full Chain Report
+                  </Button>
                 </div>
               )}
 
               {/* Findings */}
-              {findings.length > 0 && (
+              {allFindings.length > 0 && (
                 <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
                   <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-3">
-                    Findings ({findings.length}) — {confirmedFindings.length} exploitable
+                    Findings ({allFindings.length}) — {confirmedFindings.length} exploitable
                   </h3>
                   <div className="space-y-2 max-h-[380px] overflow-y-auto pr-1">
-                    {findings.map((f, i) => (
+                    {allFindings.map((f, i) => (
                       <div key={i} className={`bg-gray-800 border rounded-lg overflow-hidden ${f.bypassed ? "border-red-900/50" : "border-gray-700"}`}>
                         <button className="w-full flex items-center gap-2 p-3 text-left hover:bg-gray-750"
                           onClick={() => setExpandedFindings(prev => { const s = new Set(prev); s.has(i) ? s.delete(i) : s.add(i); return s; })}>
@@ -771,17 +1177,20 @@ export default function OmniStrike() {
               )}
 
               {/* Live log */}
-              {activeScan && (
+              {displayScan && (
                 <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
                   <button className="flex items-center gap-2 text-sm font-semibold text-gray-300 uppercase tracking-wider mb-3 w-full text-left"
                     onClick={() => setShowLog(p => !p)}>
                     {showLog ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                    Live Attack Log ({activeScan.log?.length ?? 0} lines)
+                    Live Attack Log ({displayScan.log?.length ?? 0} lines)
+                    {orchMode === "chain" && chainScans.length > 1 && (
+                      <span className="text-xs text-gray-500 font-normal">— showing most recent phase</span>
+                    )}
                   </button>
                   {showLog && (
                     <div ref={logRef} className="bg-black rounded p-3 font-mono text-xs max-h-[280px] overflow-y-auto whitespace-pre-wrap">
-                      {(activeScan.log ?? []).length === 0 ? <span className="text-gray-600">Initializing...</span> :
-                        activeScan.log.map((line, i) => (
+                      {(displayScan.log ?? []).length === 0 ? <span className="text-gray-600">Initializing...</span> :
+                        displayScan.log.map((line, i) => (
                           <div key={i} className={
                             line.includes("🔴") ? "text-red-400" :
                             line.includes("🟡") ? "text-yellow-400" :
@@ -798,10 +1207,16 @@ export default function OmniStrike() {
                 </div>
               )}
 
-              {!activeScan && (
+              {!displayScan && !chainRunning && phaseStatuses.length === 0 && (
                 <div className="bg-gray-900 border border-gray-800 rounded-lg p-12 text-center">
-                  <Zap className="h-12 w-12 text-gray-700 mx-auto mb-3" />
-                  <p className="text-gray-400">Configure target and attack categories, then launch OmniStrike</p>
+                  <Layers className="h-12 w-12 text-gray-700 mx-auto mb-3" />
+                  <p className="text-gray-400">
+                    {orchMode === "chain"
+                      ? "Configure target and phases, then run the attack chain"
+                      : orchMode === "salvo"
+                      ? "Select modules and fire the full salvo"
+                      : "Build your custom attack sequence and launch"}
+                  </p>
                   <p className="text-gray-600 text-sm mt-2">Only test systems you own or have written authorization to test</p>
                 </div>
               )}
@@ -809,13 +1224,13 @@ export default function OmniStrike() {
           </div>
 
           {/* Post-Exploitation Desktop */}
-          {showDesktop && sessionData && activeScan && (
+          {showDesktop && sessionData && displayScan && (
             <div>
               <h2 className="text-lg font-bold text-red-400 mb-3 flex items-center gap-2">
                 <Terminal className="h-5 w-5" /> Post-Exploitation Console
                 <span className="text-sm text-gray-400 font-normal ml-2">— Live access via confirmed exploit</span>
               </h2>
-              <ExploitDesktop scanId={activeScan.id} session={sessionData} />
+              <ExploitDesktop scanId={displayScan.id} session={sessionData} />
             </div>
           )}
         </div>
