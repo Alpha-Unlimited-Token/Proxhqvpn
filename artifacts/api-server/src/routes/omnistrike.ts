@@ -387,6 +387,24 @@ async function runOmniStrike(scanId: number, target: string, categories: string[
   const baseLen = baseline.body.length;
   if (stealthMode) await delay(400 + Math.random() * 400);
 
+  // ── SPA / HTML detection helpers ──────────────────────────────────────────
+  // SPAs return HTTP 200 + full HTML for every route by design.
+  // Before marking anything as "bypassed", confirm the response is NOT just
+  // the app's standard HTML shell being served for an unmatched route.
+  const SPA_MARKERS = ["<!doctype html", "<html", "<head>", "<meta charset", "text/html"];
+  const isSpaHtml = (body: string): boolean =>
+    SPA_MARKERS.some(m => body.toLowerCase().includes(m));
+
+  // A response is "likely JSON" when it starts with { or [ after whitespace.
+  const isJson = (body: string): boolean => /^\s*[{[]/.test(body);
+
+  // Returns true when the response is just the same SPA shell as baseline.
+  const isSamePageAsBaseline = (body: string): boolean =>
+    isSpaHtml(body) && Math.abs(body.length - baseLen) < baseLen * 0.05;
+
+  const baseSpa = isSpaHtml(baseline.body);
+  if (baseSpa) await addLog(`ℹ️  Baseline is an HTML SPA — strict confirmation mode enabled (HTTP 200 alone ≠ bypass)`);
+
   // Auto-discover parameters
   const paramRegex = /[?&]([a-zA-Z_][a-zA-Z0-9_]*)=/g;
   const formInputRegex = /name=['"]([\w-]+)['"]/g;
@@ -507,7 +525,12 @@ async function runOmniStrike(scanId: number, target: string, categories: string[
         const url = `${baseUrl}?${param}=${encodeURIComponent(p)}`;
         const r = await probe(url);
         tested++;
-        const hit = !!(r.body.match(/ami-id|instance-id|iam|169\.254|metadata|root:|localhost/) || (r.status === 200 && baseStatus !== 200));
+        // SSRF confirmed only when the response contains specific internal-network
+        // or cloud-metadata content. Generic words like "localhost" or "root:"
+        // can appear in SPA bundles; require specific cloud/metadata patterns.
+        const ssrfKeywords = r.body.match(/ami-id|instance-id|iam\/security-credentials|169\.254\.169\.254|metadata\.google\.internal|aws_access_key_id/i);
+        const statusEscalation = r.status === 200 && baseStatus !== 200;
+        const hit = !!(ssrfKeywords || statusEscalation);
         if (hit) {
           recordFinding({ category: "SSRF", technique: "Server-Side Request Forgery", payload: p, url, baseUrl, param, statusCode: r.status, responseTime: r.time, evidence: r.body.substring(0, 300), severity: "critical", bypassed: true });
           await addLog(`🔴 [SSRF] Internal resource accessible via ?${param}`);
@@ -525,7 +548,9 @@ async function runOmniStrike(scanId: number, target: string, categories: string[
       if (ctrl.stop) break;
       const r = await probe(baseUrl, { method: "POST", headers: { "Content-Type": "application/xml" }, body: p });
       tested++;
-      const hit = !!(r.body.match(/root:|www-data|daemon:|shadow/) || (r.status === 200 && r.body.length > baseLen + 100));
+      // Only flag XXE if actual file content is returned — never use response
+      // length alone, which fires on SPAs that serve longer HTML pages.
+      const hit = !!(r.body.match(/root:.*:0:0:|www-data:.*:/i) || r.body.includes("bin/bash") || r.body.includes("/etc/shadow"));
       if (hit) {
         recordFinding({ category: "XXE", technique: "XML External Entity", payload: p.substring(0, 100), url: baseUrl, baseUrl, param: "XML body", statusCode: r.status, responseTime: r.time, evidence: r.body.substring(0, 300), severity: "critical", bypassed: true, canRead: true });
         await addLog(`🔴 [XXE] External entity data exfiltrated!`);
@@ -563,7 +588,13 @@ async function runOmniStrike(scanId: number, target: string, categories: string[
       if (ctrl.stop) break;
       const r = await probe(baseUrl, { headers: h });
       tested++;
-      const hit = (r.status !== baseStatus && r.status < 400) || !!(r.body.match(/admin|dashboard|internal|dev|management/i));
+      // Real header auth bypass: status must actually change, AND the new
+      // status must not be the same SPA 200-for-everything pattern.
+      // Body keyword matching alone is NOT enough — SPA JS bundles contain
+      // "admin", "dashboard", "internal" etc. throughout their source.
+      const statusShifted = r.status !== baseStatus && r.status < 400;
+      const unexpectedJson = !isSpaHtml(r.body) && isJson(r.body) && !!(r.body.match(/admin|dashboard|internal/i));
+      const hit = statusShifted || unexpectedJson;
       if (hit) {
         const hName = Object.keys(h)[0];
         recordFinding({ category: "Header Injection", technique: `${hName} Auth Bypass`, payload: JSON.stringify(h), url: baseUrl, baseUrl, param: hName, statusCode: r.status, responseTime: r.time, evidence: `Status changed: ${baseStatus}→${r.status}`, severity: "high", bypassed: true });
@@ -599,7 +630,16 @@ async function runOmniStrike(scanId: number, target: string, categories: string[
     for (const lpath of loginPaths) {
       if (ctrl.stop) break;
       const r = await probe(`${baseUrl}${lpath}`);
-      if (r.status === 200 || r.status === 401) {
+      // A real login endpoint must NOT return the SPA shell (200+HTML).
+      // SPAs serve index.html for every unmatched route — that is not a login form.
+      // Only treat as a real endpoint if: HTTP 401/403/405, or JSON body, or
+      // HTML with an explicit <form> and password input.
+      const looksLikeLoginEndpoint =
+        r.status === 401 || r.status === 403 || r.status === 405 ||
+        (r.status === 200 && isJson(r.body)) ||
+        (r.status === 200 && !isSpaHtml(r.body)) ||
+        (r.status === 200 && isSpaHtml(r.body) && r.body.match(/type=["']password["']/i) && !isSamePageAsBaseline(r.body));
+      if (looksLikeLoginEndpoint) {
         await addLog(`📍 Login endpoint found: ${lpath} (HTTP ${r.status})`);
         for (const cred of PAYLOADS.auth_brute.slice(0, 10)) {
           if (ctrl.stop) break;
@@ -609,9 +649,18 @@ async function runOmniStrike(scanId: number, target: string, categories: string[
             body: `username=${encodeURIComponent(cred.u)}&password=${encodeURIComponent(cred.p)}`,
           });
           tested++;
-          const hit = lr.status === 200 && !lr.body.match(/invalid|incorrect|failed|wrong|error|denied/i);
+          // Confirming valid credentials requires real auth signals:
+          // • Response is JSON (not an HTML SPA page), AND
+          // • No error keywords, AND
+          // • At least one positive indicator: session cookie, token/JWT in body,
+          //   or status changed from 401→200
+          const hasSessionCookie = !!(lr.headers["set-cookie"]?.match(/session|token|auth|jwt/i));
+          const hasTokenBody = !!(lr.body.match(/"(token|access_token|jwt|session|success)"\s*:/i));
+          const statusElevated = r.status === 401 && lr.status === 200;
+          const noErrorWords = !lr.body.match(/invalid|incorrect|failed|wrong|error|denied|unauthorized/i);
+          const hit = !isSpaHtml(lr.body) && noErrorWords && (hasSessionCookie || hasTokenBody || statusElevated);
           if (hit) {
-            recordFinding({ category: "Auth Brute Force", technique: "Default Credentials", payload: `${cred.u}:${cred.p}`, url: `${baseUrl}${lpath}`, baseUrl, param: "username/password", statusCode: lr.status, responseTime: lr.time, evidence: "HTTP 200 response without error", severity: "critical", bypassed: true });
+            recordFinding({ category: "Auth Brute Force", technique: "Default Credentials", payload: `${cred.u}:${cred.p}`, url: `${baseUrl}${lpath}`, baseUrl, param: "username/password", statusCode: lr.status, responseTime: lr.time, evidence: hasSessionCookie ? "Session cookie set in response" : hasTokenBody ? "Auth token returned in JSON body" : "HTTP 401→200 status change", severity: "critical", bypassed: true });
             await addLog(`🔴 [Auth] VALID CREDENTIALS: ${cred.u}:${cred.p} → ${lpath}`);
           }
           if (stealthMode) await delay(300 + Math.random() * 200);
@@ -667,12 +716,16 @@ async function runOmniStrike(scanId: number, target: string, categories: string[
       for (const q of PAYLOADS.graphql.slice(0, 4)) {
         const r = await probe(`${baseUrl}${ep}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: q });
         tested++;
-        if (r.status === 200 && r.body.includes("__schema")) {
+        // GraphQL must respond with JSON and include actual GraphQL structure.
+        // An HTML SPA response (even with HTTP 200) is never a GraphQL hit —
+        // /graphql doesn't exist on the target so the SPA catches the route.
+        if (r.status === 200 && isJson(r.body) && r.body.includes('"__schema"')) {
           recordFinding({ category: "GraphQL Exposure", technique: "Schema Introspection", payload: q, url: `${baseUrl}${ep}`, baseUrl, param: ep, statusCode: r.status, responseTime: r.time, evidence: r.body.substring(0, 300), severity: "high", bypassed: true });
           await addLog(`🔴 [QBreach] GraphQL introspection ENABLED at ${ep}`);
           break;
         }
-        if (r.status === 200 && r.body.match(/data|users|email|password/i)) {
+        // Data leak: must be JSON with actual field values, not SPA HTML
+        if (r.status === 200 && isJson(r.body) && !isSpaHtml(r.body) && r.body.match(/"(users|email|password|token)"\s*:\s*[^n]/i)) {
           recordFinding({ category: "GraphQL Data Leak", technique: "Unauthorized Data Access", payload: q, url: `${baseUrl}${ep}`, baseUrl, param: ep, statusCode: r.status, responseTime: r.time, evidence: r.body.substring(0, 300), severity: "critical", bypassed: true });
           await addLog(`🔴 [QBreach] GraphQL data leak at ${ep}`);
           break;
@@ -723,7 +776,9 @@ async function runOmniStrike(scanId: number, target: string, categories: string[
       if (ctrl.stop) break;
       const r = await probe(`${baseUrl}${ep}`, { headers: { Authorization: `Bearer ${fakeJwt}` } });
       tested++;
-      if (r.status === 200 && r.body.match(/admin|user|profile|email/i)) {
+      // JWT bypass confirmed only if the server returns a real JSON user/session
+      // object — not just the SPA's HTML page (which matches /user|email/ trivially).
+      if (r.status === 200 && isJson(r.body) && !isSpaHtml(r.body) && r.body.match(/"(admin|user|profile|email|sub|role)"\s*:/i)) {
         recordFinding({ category: "JWT Vulnerability", technique: "Algorithm None Bypass", payload: `Bearer ${fakeJwt.substring(0,50)}...`, url: `${baseUrl}${ep}`, baseUrl, param: "Authorization header", statusCode: r.status, responseTime: r.time, evidence: `Server accepted JWT with 'none' algorithm at ${ep}`, severity: "critical", bypassed: true });
         await addLog(`🔴 [QBreach] JWT alg=none accepted at ${ep} — admin access granted!`);
       }
@@ -748,7 +803,9 @@ async function runOmniStrike(scanId: number, target: string, categories: string[
     // Timing-based username enumeration
     await addLog(`  🔬 Timing side-channel username enumeration...`);
     const loginR = await probe(`${baseUrl}/login`);
-    if (loginR.status === 200 || loginR.status === 401) {
+    // SPA returns 200+HTML for /login even when no login route exists.
+    // Only attempt timing measurement when there's a real endpoint.
+    if (loginR.status === 401 || (loginR.status === 200 && !isSamePageAsBaseline(loginR.body))) {
       const times: Array<{ user: string; time: number }> = [];
       for (const u of PAYLOADS.timing_enum.slice(0, 6)) {
         if (ctrl.stop) break;
@@ -822,7 +879,7 @@ async function runOmniStrike(scanId: number, target: string, categories: string[
           recordFinding({ category: "ShadowVector — ORM Field Expansion", technique: `Hidden expand/fields param: ${k}`, payload: `?${k}=${v}`, url, baseUrl, param: k, statusCode: r.status, responseTime: r.time, evidence: `Sensitive fields exposed: ${(r.body.match(/password|token|secret|key/gi) ?? []).join(",")}`, severity: "critical", bypassed: true, canRead: true });
           await addLog(`🔴 [Shadow] ORM field expansion via ?${k} — PASSWORD/TOKEN fields leaked!`);
         }
-      } else if ((k.includes("debug") || k === "XDEBUG_SESSION_START") && (bodyChange || statusChange)) {
+      } else if ((k.includes("debug") || k === "XDEBUG_SESSION_START") && (statusChange || (bodyChange && !isSpaHtml(r.body)))) {
         recordFinding({ category: "ShadowVector — Debug Mode Activation", technique: `Remote Debug Trigger: ${k}`, payload: `?${k}=${v}`, url, baseUrl, param: k, statusCode: r.status, responseTime: r.time, evidence: `Debug mode activated via ${k} — stack traces and config may be exposed`, severity: "high", bypassed: true });
         await addLog(`🔴 [Shadow] DEBUG MODE activated via ?${k} — internal state exposed!`);
       } else if (k.includes("class.module") || k.includes("class[module]")) {
@@ -845,7 +902,9 @@ async function runOmniStrike(scanId: number, target: string, categories: string[
       const normalR = await probe(`${baseUrl}/admin`);
       tested++;
       const desyncHit = rawR.status === 200 && normalR.status !== 200;
-      const contentMatch = rawR.body.match(/admin|dashboard|panel|control|manage/i) && rawR.status < 400;
+      // Content match must exclude SPA HTML — keyword presence in a React bundle
+      // is not evidence of path desync; require non-HTML JSON or API response.
+      const contentMatch = !isSpaHtml(rawR.body) && isJson(rawR.body) && !!(rawR.body.match(/admin|dashboard|panel|control|manage/i)) && rawR.status < 400;
       if (desyncHit || contentMatch) {
         pathResults.push(path);
         recordFinding({ category: "ShadowVector — Path Desync", technique: `Parser Disagreement: ${path.substring(0, 40)}`, payload: path, url, baseUrl, param: "URL path", statusCode: rawR.status, responseTime: rawR.time, evidence: `WAF would inspect: ${path} | Backend routes to: /admin | Status: ${rawR.status}`, severity: "critical", bypassed: true });
