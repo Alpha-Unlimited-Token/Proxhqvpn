@@ -12,62 +12,186 @@ const router = Router();
 
 const WORDLISTS: Record<string, string[]> = {
   common: [
-    "admin","login","dashboard","api","v1","v2","v3","status","health","config",
+    // Core pages & structure
+    "admin","login","dashboard","api","v1","v2","v3","v4","status","health","config",
     "backup","db","database","logs","log","data","files","uploads","images","static",
     "assets","css","js","media","docs","documentation","help","support","about",
     "contact","home","index","default","robots.txt","sitemap.xml","security.txt",
     "wp-admin","wp-login","phpmyadmin","cpanel","webmail","mail","ftp","ssh",
     "console","panel","portal","management","manager","admin.php","login.php",
-    "register","signup","signin","logout","auth","oauth","token","refresh",
+    "register","signup","signin","logout","auth","oauth","token","refresh","reset",
     "graphql","rest","soap","swagger","openapi","api-docs","redoc","metrics",
-    "prometheus","kibana","grafana","jenkins","gitlab","github","bitbucket",
+    "prometheus","kibana","grafana","jenkins","gitlab","github","bitbucket","sonar",
     ".git","/.git/HEAD","/.env",".env","env","environment","secrets","credentials",
     "private","hidden","test","debug","dev","development","staging","production",
     "tmp","temp","cache","session","cookie","users","user","accounts","account",
     "profile","settings","preferences","billing","payment","checkout","cart",
     "store","shop","product","products","order","orders","invoice","invoices",
+    // Common web frameworks
+    "wp-content","wp-includes","wp-json","xmlrpc.php","feed","rss","atom",
+    "drupal","joomla","magento","prestashop","opencart","typo3","laravel",
+    // Server-side files
+    "server-status","server-info","info.php","phpinfo.php","test.php","debug.php",
+    "install.php","setup.php","upgrade.php","update.php","migrate.php",
+    // Common endpoints
+    "ping","pong","alive","ok","ready","version","info","about.json","health.json",
+    "error","404","500","403","503","maintenance","coming-soon","error.php",
+    // Monitoring / metrics
+    "actuator","actuator/health","actuator/info","actuator/env","actuator/metrics",
+    "actuator/beans","actuator/mappings","actuator/threaddump","actuator/heapdump",
+    "trace","tracing","jaeger","zipkin","lightstep",
+    // Node / Express
+    "node_modules","package.json","package-lock.json","yarn.lock",".npmrc",
+    // Python / Django / Flask
+    "requirements.txt","Pipfile","Pipfile.lock","manage.py","wsgi.py","asgi.py",
+    "settings.py","urls.py","admin/","django-admin",
+    // Java / Spring Boot
+    "WEB-INF","WEB-INF/web.xml","META-INF","spring","struts","seam",
+    // Miscellaneous
+    "crossdomain.xml","clientaccesspolicy.xml","browserconfig.xml","manifest.json",
+    ".well-known","/.well-known/security.txt","/.well-known/acme-challenge",
+    "humans.txt","ads.txt","app-ads.txt","sellers.json",
   ],
   api: [
-    "api/v1","api/v2","api/v3","api/users","api/auth","api/token","api/login",
-    "api/register","api/me","api/profile","api/admin","api/config","api/health",
-    "api/status","api/metrics","api/logs","api/backup","api/export","api/import",
-    "api/search","api/upload","api/download","api/keys","api/secrets","api/keys",
-    "v1/users","v1/auth","v1/login","v1/admin","v2/users","v2/auth","v2/admin",
-    "graphql","rest/v1","rest/v2","rpc","json-rpc","xml-rpc","soap","wsdl",
+    // REST versioned
+    "api/v1","api/v2","api/v3","api/v4","api/v5",
+    "api/v1/users","api/v1/auth","api/v1/login","api/v1/admin","api/v1/config",
+    "api/v1/health","api/v1/status","api/v1/metrics","api/v1/logs",
+    "api/v2/users","api/v2/auth","api/v2/login","api/v2/admin",
+    "api/users","api/auth","api/token","api/login","api/logout","api/register",
+    "api/me","api/profile","api/admin","api/config","api/health","api/status",
+    "api/metrics","api/logs","api/backup","api/export","api/import","api/debug",
+    "api/search","api/upload","api/download","api/keys","api/secrets","api/reset",
+    "api/ping","api/info","api/version","api/swagger","api/docs","api/openapi",
+    // Spring Boot / Java
+    "api/actuator","api/actuator/health","api/actuator/env","api/actuator/beans",
+    "api/actuator/heapdump","api/actuator/threaddump","api/actuator/metrics",
+    // GraphQL
+    "graphql","graphiql","api/graphql","graphql/console","graph","gql",
+    // Protocol endpoints
+    "rest/v1","rest/v2","rpc","json-rpc","xml-rpc","soap","wsdl","wsdl?wsdl",
+    "jsonrpc","trpc","grpc","websocket","ws","wss",
+    // Webhooks / callbacks
     "webhook","webhooks","callback","callbacks","notify","notification","push",
+    "events","event","stream","streaming","poll","polling","subscribe","hook",
+    // Internal API paths
+    "internal/api","private/api","api/internal","api/private","api/admin/users",
+    "api/admin/settings","api/system","api/platform","api/service","api/backend",
+    // Auth-specific
+    "oauth","oauth2","oauth/authorize","oauth/token","oauth/callback","oauth/revoke",
+    "saml","saml2","saml/login","saml/acs","saml/logout","saml/metadata",
+    "auth","auth/login","auth/logout","auth/refresh","auth/token","auth/callback",
+    "auth/register","auth/forgot-password","auth/reset-password","auth/verify",
+    "sso","sso/login","sso/callback","sso/logout","sso/saml","sso/oidc",
   ],
   admin: [
+    // Generic admin panels
     "admin","administrator","admin/login","admin/dashboard","admin/users",
     "admin/config","admin/settings","admin/panel","adminpanel","admin-panel",
-    "wp-admin","phpmyadmin","adminer","manage","management","control",
-    "controlpanel","cpanel","webadmin","siteadmin","superadmin","root",
-    "backend","backoffice","cms","oms","erp","crm","dashboard","portal",
-    "secret","hidden","private","internal","intranet","staff","employee",
+    "admin.php","admin.html","admin.asp","admin.aspx","admin.jsp","admin.do",
+    // CMS panels
+    "wp-admin","wp-admin/","wp-login.php","wp-json/wp/v2/users",
+    "phpmyadmin","phpmyadmin/","pma","pma/","adminer","adminer.php",
+    "drupal","drupal/admin","joomla/administrator","typo3/","magento/admin",
+    "opencart/admin","prestashop/admin","craft/admin","ghost/ghost","strapi/admin",
+    // Server management
+    "cpanel","cpanel/","whm","plesk","directadmin","vesta","kloxo","aaPanel",
+    "webmin","virtualmin","monit","supervisord","pm2","passenger",
+    // Internal management
+    "manage","management","control","controlpanel","console","portal","backend",
+    "backoffice","ops","operations","sysadmin","superadmin","root","webmaster",
+    "master","master/","internal","intranet","staff","employees","hr","helpdesk",
+    // Databases
+    "adminer","dbadmin","db-admin","myadmin","mysql-admin","pgadmin","pgadmin4",
+    "redis-commander","mongo-express","elastichead","kibana",
+    // DevOps / CI
+    "jenkins","jenkins/","gitlab","gitlab-ci","teamcity","bamboo","drone",
+    "argo","argocd","spinnaker","concourse","gocd","rundeck","ansible-tower",
+    // Secrets / Config
+    "vault","consul","secrets","config-server","spring-config","etcd",
+    // Monitoring
+    "grafana","prometheus","alertmanager","nagios","zabbix","prtg","icinga",
+    "newrelic","datadog","splunk","graylog","elk","opensearch-dashboards",
   ],
   backup: [
-    "backup","backups","bak","old","archive","archives","dump","dumps",
-    "db.sql","database.sql","backup.sql","dump.sql","backup.zip","backup.tar.gz",
-    "backup.tar","backup.tgz","site.zip","www.zip","website.zip","data.zip",
-    ".backup","_backup","backup_old","old_backup","site_backup","db_backup",
+    // Backup directories
+    "backup","backups","bak","old","archive","archives","dump","dumps","snap",
+    "snapshots","restore","history","previous","latest","recent",
+    // SQL dumps
+    "db.sql","database.sql","backup.sql","dump.sql","full.sql","data.sql",
+    "users.sql","admin.sql","wordpress.sql","joomla.sql","drupal.sql",
+    "db_backup.sql","prod.sql","production.sql","staging.sql","dev.sql",
+    // Archives
+    "backup.zip","backup.tar.gz","backup.tar","backup.tgz","backup.7z",
+    "site.zip","www.zip","website.zip","web.zip","data.zip","files.zip",
+    "public_html.zip","htdocs.zip","wwwroot.zip","html.zip",
+    "site.tar.gz","www.tar.gz","website.tar.gz","public.tar.gz",
+    "_backup","_old","_archive","backup_old","old_backup","site_backup","db_backup",
+    "backup_2023","backup_2024","backup_2025","db_2024","db_2025",
+    // WordPress-specific
     "wp-content/backup-db","wp-content/backups","wp-content/uploads",
+    "wp-content/debug.log","wp-content/uploads/backup",
+    // Config backups
     "config.php.bak","config.bak","settings.bak","web.config.bak",
+    "config.php.old","config.php~","settings.php.bak","database.php.bak",
+    ".htaccess.bak","nginx.conf.bak","apache2.conf.bak","httpd.conf.bak",
+    // Miscellaneous backup artifacts
     ".DS_Store","Thumbs.db","desktop.ini","thumbs.db",".htaccess",".htpasswd",
+    "error_log","access_log","php_errors.log","laravel.log","debug.log",
+    "npm-debug.log","yarn-error.log","pip-log.txt",
   ],
   sensitive: [
+    // Environment files
     ".env",".env.local",".env.production",".env.staging",".env.development",
-    ".env.backup",".env.bak","env.json","config.json","config.yaml","config.yml",
-    "secrets.json","secrets.yaml","credentials.json","credentials.yaml",
+    ".env.test",".env.backup",".env.bak",".env.old",".env.example",".env.sample",
+    ".env.default",".env.docker",".env.ci",".env.prod",".env.dev",
+    "env.json","config.json","config.yaml","config.yml","config.toml","config.ini",
+    "app.config","appsettings.json","appsettings.Development.json",
+    "application.properties","application.yml","application.yaml",
+    // Secrets / credentials
+    "secrets.json","secrets.yaml","secrets.yml","credentials.json","credentials.yaml",
+    "credentials","keyfile.json","service-account.json","sa.json","gcp-key.json",
+    "aws-credentials","~/.aws/credentials","cloud-config.yml",
+    // Git internals (source code leak)
     ".git/config",".git/HEAD",".git/COMMIT_EDITMSG",".git/description",
-    ".ssh/authorized_keys",".ssh/id_rsa","id_rsa","private.pem","private.key",
-    "server.key","server.pem","certificate.pem","cert.pem","ssl.key","ssl.crt",
-    "wp-config.php","wp-config-sample.php","wp-config.php.bak",
+    ".git/index",".git/packed-refs",".git/refs/heads/master",
+    ".git/refs/heads/main",".git/logs/HEAD",".git/FETCH_HEAD",
+    ".gitignore",".gitconfig",".gitmodules",
+    // SSH keys
+    ".ssh/authorized_keys",".ssh/id_rsa",".ssh/id_rsa.pub",".ssh/id_ed25519",
+    ".ssh/id_ecdsa","id_rsa","id_ed25519","id_ecdsa","known_hosts",
+    // SSL/TLS
+    "private.pem","private.key","server.key","server.pem","certificate.pem",
+    "cert.pem","ssl.key","ssl.crt","ssl.pem","ca.pem","ca.key","ca.crt",
+    "wildcard.pem","star.key","fullchain.pem","privkey.pem",
+    // PHP configs
+    "wp-config.php","wp-config-sample.php","wp-config.php.bak","wp-config.php.old",
     "config.php","configuration.php","settings.php","database.php","db.php",
+    "db_connect.php","connection.php","conf.php","define.php","init.php",
+    // Web server
     ".htaccess",".htpasswd","passwd","shadow","hosts","resolv.conf",
-    "package.json","composer.json","requirements.txt","Gemfile","Pipfile",
-    "docker-compose.yml","docker-compose.yaml","Dockerfile","kubernetes.yml",
-    "terraform.tfstate","terraform.tfvars","ansible.cfg","inventory.ini",
-    "README.md","CHANGELOG.md","INSTALL.md","TODO.md","NOTES.txt",
+    "nginx.conf","apache2.conf","httpd.conf","lighttpd.conf","caddy.json",
+    "mime.types","ssl.conf",
+    // Package managers / deps
+    "package.json","package-lock.json","yarn.lock","composer.json","composer.lock",
+    "requirements.txt","Gemfile","Gemfile.lock","Pipfile","Pipfile.lock",
+    "go.mod","go.sum","Cargo.toml","Cargo.lock","pom.xml","build.gradle",
+    // Container / IaC
+    "docker-compose.yml","docker-compose.yaml","Dockerfile",
+    "kubernetes.yml","kubernetes.yaml","k8s.yml","k8s.yaml","helm-values.yaml",
+    "terraform.tfstate","terraform.tfstate.backup","terraform.tfvars",".terraform",
+    "ansible.cfg","inventory.ini","inventory.yaml","playbook.yml",
+    "Vagrantfile","packer.json","vault.yml",
+    // CI/CD
+    ".travis.yml",".circleci/config.yml","Jenkinsfile",".drone.yml",
+    ".github/workflows/","bitbucket-pipelines.yml","azure-pipelines.yml",
+    "cloudbuild.yaml","appspec.yml","buildspec.yml",
+    // Misc sensitive
+    "README.md","CHANGELOG.md","INSTALL.md","TODO.md","NOTES.txt","SECURITY.md",
     "crossdomain.xml","clientaccesspolicy.xml","browserconfig.xml",
+    "dump.rdb","appendonly.aof","mongodump",
+    "id_tokens","refresh_tokens","session_tokens","auth_tokens",
+    "private_key.json","keystore.jks","truststore.jks",".p12",".pfx",
   ],
 };
 

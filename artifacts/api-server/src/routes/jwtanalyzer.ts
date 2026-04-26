@@ -19,12 +19,39 @@ function decodeJwt(token: string) {
 
 // Weak secrets wordlist for HS* brute-force
 const COMMON_SECRETS = [
+  // Most common
   "secret", "password", "123456", "changeme", "jwt_secret",
   "supersecret", "mysecret", "test", "key", "abc123",
   "qwerty", "admin", "letmein", "welcome", "pass123",
   "secret123", "jwtkey", "signing_key", "app_secret", "token_secret",
   "your-256-bit-secret", "your-512-bit-secret", "my_secret_key",
   "HS256", "HS512", "development", "dev_secret", "prod_secret",
+  // Common dev/demo values
+  "1234567890", "password1", "Password1", "P@ssw0rd", "passw0rd",
+  "admin123", "admin1234", "root", "toor", "qwerty123", "letmein1",
+  "iloveyou", "monkey", "dragon", "master", "sunshine", "princess",
+  "football", "baseball", "batman", "superman", "trustno1",
+  // Framework defaults
+  "keyboard cat", "keyboard_cat", "shhhhh", "ultra secret",
+  "unsafe", "weak_secret", "change_this", "replace_me", "fixme",
+  "placeholder", "example", "sample", "demo", "testing",
+  "development_secret", "staging_secret", "production_secret",
+  // Common env var names used as values
+  "JWT_SECRET", "JWT_KEY", "TOKEN_SECRET", "APP_SECRET", "API_KEY",
+  "SECRET_KEY", "AUTH_SECRET", "SESSION_SECRET", "ENCRYPTION_KEY",
+  // Short numeric
+  "123", "1234", "12345", "123456789", "0000", "1111", "9999",
+  // Framework/library defaults
+  "express-session-secret", "cookie-secret", "rails-secret",
+  "laravel-secret", "django-secret-key", "flask-secret",
+  "nextjs-secret", "nuxt-secret", "gatsby-secret",
+  // Company/product names (common in CTFs/bug bounties)
+  "company", "myapp", "webapp", "website", "application",
+  "api", "service", "backend", "frontend", "server",
+  // Random looking but common
+  "abcdef", "abcdefgh", "abcdefghij", "abcdefghijklmno",
+  "aaaaaa", "aaaaaaaaaa", "xxxxxxxx", "zzzzzzzz",
+  "s3cr3t", "p4ssw0rd", "secr3t", "passw0rd",
 ];
 
 function hmacSign(data: string, secret: string, alg: string): string {

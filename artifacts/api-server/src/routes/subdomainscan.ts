@@ -18,20 +18,69 @@ const ScanSchema = z.object({
 });
 
 const COMMON_PREFIXES = [
-  "www","mail","smtp","pop","pop3","imap","ftp","ssh","vpn","remote","cdn",
-  "api","api2","v1","v2","dev","staging","stage","test","qa","uat","beta",
-  "prod","production","admin","dashboard","portal","panel","app","web","mobile",
-  "m","static","assets","media","img","images","upload","uploads","download",
-  "downloads","blog","shop","store","checkout","payment","billing","invoice",
-  "auth","login","signup","register","oauth","sso","id","identity","account",
-  "accounts","user","users","profile","support","help","docs","documentation",
-  "status","health","monitor","metrics","analytics","tracking","log","logs",
-  "db","database","mysql","postgres","redis","mongo","es","elasticsearch",
-  "git","gitlab","github","jenkins","ci","cd","deploy","k8s","kubernetes",
-  "docker","registry","artifacts","repo","repository","npm","pypi",
-  "ns1","ns2","mx1","mx2","smtp1","smtp2","mail1","mail2",
-  "gateway","proxy","lb","loadbalancer","edge","node","cluster",
-  "backup","archive","old","legacy","internal","intranet","corp","office",
+  // ── TIER 1: Universal ──────────────────────────────────────────────────────
+  "www","www2","www3","web","web1","web2","mail","email","webmail",
+  "smtp","smtp1","smtp2","pop","pop3","imap","ftp","sftp","ssh","vpn",
+  "api","app","apps","mobile","m",
+  // ── TIER 2: Dev / Staging / QA ─────────────────────────────────────────────
+  "dev","dev1","dev2","dev3","development","staging","stage","stg","stg1",
+  "uat","qa","qa1","qa2","test","test1","test2","testing","sandbox","demo",
+  "preview","beta","alpha","pre","prep","preprod","nightly","rc","release",
+  "local","localhost",
+  // ── TIER 3: Admin / Management ─────────────────────────────────────────────
+  "admin","administrator","administrador","panel","cpanel","whm","plesk",
+  "webadmin","webmaster","siteadmin","superadmin","root","manager","manage",
+  "management","dashboard","portal","control","console","backend","backoffice",
+  "ops","operations","helpdesk","servicedesk","staff","employee","employees",
+  "hr","crm","erp","oms","cms","wiki","confluence","jira","redmine","mantis",
+  // ── TIER 4: Auth / Identity ─────────────────────────────────────────────────
+  "auth","oauth","sso","id","identity","login","signin","signup","register",
+  "account","accounts","user","users","profile","profiles","me","my",
+  "saml","ldap","openid","passport","keycloak","okta","ping","adfs","sts",
+  // ── TIER 5: API / Services ──────────────────────────────────────────────────
+  "api","api2","api3","api-v1","api-v2","v1","v2","v3","v4","rest","graphql",
+  "rpc","soap","webhook","webhooks","callback","service","services","microservice",
+  "gateway","proxy","lb","loadbalancer","edge","cdn","cdn2","static","assets",
+  // ── TIER 6: Storage / Data ─────────────────────────────────────────────────
+  "db","database","db1","db2","mysql","postgres","postgresql","redis","mongo",
+  "mongodb","elasticsearch","es","kibana","cassandra","kafka","rabbitmq",
+  "storage","files","media","img","images","upload","uploads","download",
+  "downloads","blob","s3","minio","object","cdn-assets","img2","pic","pics",
+  // ── TIER 7: Monitoring / DevOps ─────────────────────────────────────────────
+  "status","health","monitor","monitoring","metrics","prometheus","grafana",
+  "analytics","tracking","log","logs","logging","logstash","siem","splunk",
+  "newrelic","datadog","zabbix","nagios","prtg","opsgenie","alertmanager",
+  "ci","cd","jenkins","gitlab","github","bitbucket","travis","circleci",
+  "sonar","sonarqube","nexus","artifactory","registry","harbor","docker",
+  "k8s","kubernetes","rancher","openshift","helm","argocd","flux","spinnaker",
+  // ── TIER 8: Network / Infrastructure ────────────────────────────────────────
+  "ns1","ns2","ns3","ns4","mx1","mx2","mx3","smtp1","smtp2","mail1","mail2",
+  "relay","mta","mx","imap","pop","calendar","contacts","calendar2",
+  "node","node1","node2","cluster","cluster1","worker","worker1","worker2",
+  "master","slave","primary","secondary","replica","failover","standby",
+  "firewall","waf","ips","ids","vpn2","remote","rdp","citrix","openvpn",
+  "router","switch","dhcp","dns","dns1","dns2","ntp","radius","tacacs",
+  // ── TIER 9: Payments / Commerce ─────────────────────────────────────────────
+  "pay","payment","payments","checkout","billing","invoice","invoices",
+  "shop","store","ecommerce","cart","order","orders","pos","stripe","paypal",
+  // ── TIER 10: Communication / Collaboration ───────────────────────────────────
+  "chat","slack","teams","meet","video","conference","webrtc","zoom","voice",
+  "sip","pbx","voip","twilio","support","helpdesk","zendesk","freshdesk",
+  "ticket","tickets","community","forum","blog","news","press","media",
+  // ── TIER 11: Backup / Archive / Legacy ──────────────────────────────────────
+  "backup","backups","bak","archive","archives","old","legacy","deprecated",
+  "mirror","repo","repository","snapshot","vault","archive1","backup1",
+  // ── TIER 12: Internal / Corporate ───────────────────────────────────────────
+  "internal","intranet","corp","corporate","office","extranet","partner",
+  "vendor","supplier","client","clients","vpn-internal","dmz","bastion",
+  "jump","jumpbox","jumphost","bastion","dev-internal","staging-internal",
+  // ── TIER 13: Cloud / SaaS ───────────────────────────────────────────────────
+  "cloud","aws","azure","gcp","heroku","digitalocean","linode","vultr",
+  "terraform","ansible","puppet","chef","vagrant","packer","consul","vault",
+  // ── TIER 14: Security-specific (honeypots/misconfig targets) ─────────────────
+  "secret","secrets","private","hidden","test-api","debug","dev-api","dev-db",
+  "test-db","qa-db","staging-db","temp","tmp","cache","session","sessions",
+  "token","tokens","key","keys","credential","credentials","config","configs",
 ];
 
 function httpsGet(url: string, timeoutMs: number): Promise<string> {
