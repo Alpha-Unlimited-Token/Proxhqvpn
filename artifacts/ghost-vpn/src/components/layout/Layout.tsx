@@ -77,6 +77,7 @@ const PAGE_NAMES: Record<string, string> = {
   "/exploit-import":       "Exploit Importer",
   "/omnistrike":           "OmniStrike",
   "/social-breach":        "Social & Game Breach Tester",
+  "/bug-bounty":           "Bug Bounty Research Hub",
   "/waf":                  "WAF Analyzer",
 };
 
@@ -131,6 +132,7 @@ const ADVANCED_NAV = [
   { href: "/omnistrike",    label: "OmniStrike",            icon: Zap },
   { href: "/waf",           label: "WAF Analyzer",          icon: Shield },
   { href: "/social-breach", label: "Social & Game Breach",  icon: Globe2 },
+  { href: "/bug-bounty",    label: "Bug Bounty Hub",        icon: Award },
 ];
 
 const AMBASSADOR_NAV = [
