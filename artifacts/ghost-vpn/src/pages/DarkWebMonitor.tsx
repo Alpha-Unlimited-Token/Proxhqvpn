@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
   AlertTriangle, CheckCircle2, Search, Plus, Trash2,
-  Globe, Lock, RefreshCw, Info, ShieldAlert, Eye,
+  Globe, RefreshCw, ShieldAlert, Eye, Clock, Lock, Zap,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
+import { useLocation } from "wouter";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const api  = (path: string, opts?: RequestInit) =>
@@ -23,6 +23,135 @@ interface StatusData {
   info: { provider: string; description: string; dataClasses: string[] };
 }
 interface CheckResult { email: string; breaches: HibpBreach[]; checkedAt: string; error?: string; }
+interface SubData { subscription: { status: string } | null; isEmployee?: boolean; tier?: string | null; }
+
+function UpgradeGate() {
+  const [, setLocation] = useLocation();
+  return (
+    <div className="space-y-6 max-w-4xl">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tighter uppercase flex items-center gap-2">
+            <Eye className="w-6 h-6" /> Dark Web Monitor
+          </h2>
+          <p className="text-sm text-primary/50 mt-1 font-mono">
+            Scan the dark web for leaked credentials tied to your email addresses
+          </p>
+        </div>
+        <Badge variant="outline" className="text-xs font-mono border-yellow-500/40 text-yellow-400/70">
+          PAID FEATURE
+        </Badge>
+      </div>
+
+      <div className="border border-yellow-500/30 bg-yellow-500/5 p-6 space-y-4">
+        <div className="flex items-center gap-3">
+          <Lock className="w-5 h-5 text-yellow-400 shrink-0" />
+          <span className="text-sm font-mono font-bold text-yellow-400 uppercase tracking-widest">Subscription Required</span>
+        </div>
+        <p className="text-[12px] font-mono text-primary/60 leading-relaxed">
+          Dark Web Monitor scans over 13 billion compromised accounts across 700+ data breaches to check
+          if your email addresses have been exposed. This feature is included with all paid ProxhqVPN plans.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+          {[
+            { label: "13B+", desc: "Compromised accounts" },
+            { label: "700+", desc: "Known data breaches" },
+            { label: "Real-Time", desc: "Breach alerts" },
+          ].map(s => (
+            <div key={s.label} className="border border-primary/15 bg-black p-3 text-center">
+              <div className="text-lg font-mono font-bold text-primary">{s.label}</div>
+              <div className="text-[9px] font-mono text-primary/35 mt-1">{s.desc}</div>
+            </div>
+          ))}
+        </div>
+        <button
+          onClick={() => setLocation("/pricing")}
+          className="flex items-center gap-2 px-5 py-2 bg-primary text-black text-xs font-mono font-bold uppercase rounded hover:bg-primary/80 transition-colors mt-2"
+        >
+          <Zap className="w-3.5 h-3.5" /> Upgrade to Unlock
+        </button>
+      </div>
+
+      <div className="border border-primary/10 p-4 space-y-2">
+        <div className="text-[10px] font-mono text-primary/40 tracking-widest">WHAT YOU GET WITH A PLAN</div>
+        {[
+          "Continuous dark web monitoring for unlimited emails",
+          "Instant breach alerts with full breach details",
+          "Exposed data class breakdown (passwords, cards, IDs, etc.)",
+          "Remediation guidance for each breach",
+          "Access to 700+ breach database history",
+        ].map(f => (
+          <div key={f} className="flex gap-2 text-[10px] font-mono text-primary/45">
+            <CheckCircle2 className="w-3 h-3 text-primary/40 shrink-0 mt-0.5" /> {f}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PendingActivation() {
+  return (
+    <div className="space-y-6 max-w-4xl">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tighter uppercase flex items-center gap-2">
+            <Eye className="w-6 h-6" /> Dark Web Monitor
+          </h2>
+          <p className="text-sm text-primary/50 mt-1 font-mono">
+            Scan the dark web for leaked credentials tied to your email addresses
+          </p>
+        </div>
+        <Badge variant="outline" className="text-xs font-mono border-blue-400/40 text-blue-400/70 animate-pulse">
+          ACTIVATING
+        </Badge>
+      </div>
+
+      <div className="border border-blue-400/30 bg-blue-400/5 p-6 space-y-4">
+        <div className="flex items-center gap-3">
+          <Clock className="w-5 h-5 text-blue-400 shrink-0 animate-pulse" />
+          <span className="text-sm font-mono font-bold text-blue-400 uppercase tracking-widest">New Feature — Pending Activation</span>
+        </div>
+        <div className="space-y-3 text-[12px] font-mono text-primary/60 leading-relaxed">
+          <p>
+            <span className="text-primary/80 font-bold">Dark Web Monitor</span> is a newly added feature on ProxhqVPN
+            and your subscription includes full access.
+          </p>
+          <p>
+            We are in the process of activating this feature on our end. This typically completes within
+            <span className="text-blue-400 font-bold"> 2 to 3 hours</span>, but may take up to
+            <span className="text-blue-400 font-bold"> 24 to 48 hours</span> in some cases.
+          </p>
+          <p>
+            No action is required from you — once activation is complete this page will automatically unlock
+            and you will have full access to real-time dark web breach scanning for all your email addresses.
+          </p>
+        </div>
+
+        <div className="border border-blue-400/20 bg-black p-4 space-y-2 mt-2">
+          <div className="text-[9px] font-mono text-primary/30 tracking-widest">WHAT TO EXPECT AFTER ACTIVATION</div>
+          {[
+            "Enter any email address and instantly check against 13B+ compromised accounts",
+            "Add emails to continuous monitoring — get alerted on new breaches",
+            "See exactly what data was exposed in each breach",
+            "Actionable steps to secure compromised accounts",
+          ].map(f => (
+            <div key={f} className="flex gap-2 text-[10px] font-mono text-primary/40">
+              <span className="text-blue-400/50 shrink-0">→</span> {f}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="border border-primary/10 p-4">
+        <div className="text-[10px] font-mono text-primary/30 leading-relaxed">
+          If this feature has not activated after 48 hours, please contact ProxhqVPN support. Your subscription
+          is active and you will not be charged for any delay period.
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function DarkWebMonitor() {
   const { toast } = useToast();
@@ -31,6 +160,11 @@ export default function DarkWebMonitor() {
   const [checkEmail, setCheckEmail]     = useState("");
   const [checkResult, setCheckResult]   = useState<CheckResult | null>(null);
   const [expandedBreach, setExpanded]   = useState<string | null>(null);
+
+  const { data: sub, isLoading: subLoading } = useQuery<SubData>({
+    queryKey: ["subscription"],
+    queryFn: () => fetch(`${BASE}/api/stripe/subscription`, { credentials: "include" }).then(r => r.json()),
+  });
 
   const { data: status } = useQuery<StatusData>({
     queryKey: ["darkweb-status"],
@@ -66,12 +200,28 @@ export default function DarkWebMonitor() {
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
-  const totalBreaches = status?.totalBreaches ?? 0;
+  if (subLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[40vh]">
+        <div className="flex items-center gap-2 text-primary/40 font-mono text-xs">
+          <RefreshCw className="w-4 h-4 animate-spin" /> Loading...
+        </div>
+      </div>
+    );
+  }
+
+  const isActive = sub?.subscription?.status === "active" || sub?.subscription?.status === "trialing" || sub?.isEmployee;
+
+  if (!isActive) return <UpgradeGate />;
+
   const apiOk = status?.apiConfigured;
+
+  if (!apiOk) return <PendingActivation />;
+
+  const totalBreaches = status?.totalBreaches ?? 0;
 
   return (
     <div className="space-y-6 max-w-4xl">
-      {/* Header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h2 className="text-2xl font-bold tracking-tighter uppercase flex items-center gap-2">
@@ -85,35 +235,14 @@ export default function DarkWebMonitor() {
           <Badge variant="outline" className={`text-xs font-mono ${totalBreaches > 0 ? "border-red-500/50 text-red-400" : "border-primary/30 text-primary/50"}`}>
             {totalBreaches} BREACH{totalBreaches !== 1 ? "ES" : ""}
           </Badge>
-          <Badge variant="outline" className={`text-xs font-mono ${apiOk ? "border-primary/40 text-primary/60" : "border-yellow-500/40 text-yellow-400/70"}`}>
-            {apiOk ? "HIBP LIVE" : "API KEY NEEDED"}
+          <Badge variant="outline" className="text-xs font-mono border-primary/40 text-primary/60">
+            HIBP LIVE
           </Badge>
         </div>
       </div>
 
-      {/* API key notice */}
-      {!apiOk && (
-        <div className="border border-yellow-500/30 bg-yellow-500/5 p-4 space-y-2">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-yellow-400 shrink-0" />
-            <span className="text-xs font-mono font-bold text-yellow-400">HIBP API KEY REQUIRED</span>
-          </div>
-          <p className="text-[11px] font-mono text-primary/50 leading-relaxed">
-            Live dark web breach monitoring requires a Have I Been Pwned API key. Get your key at{" "}
-            <a href="https://haveibeenpwned.com/API/Key" target="_blank" rel="noopener noreferrer" className="text-primary underline">
-              haveibeenpwned.com/API/Key
-            </a>, then add <code className="text-primary/70">HIBP_API_KEY</code> to your environment secrets.
-          </p>
-          <p className="text-[10px] font-mono text-primary/40">
-            Without a key, breach checking returns simulated results for testing the UI.
-          </p>
-        </div>
-      )}
-
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Left: Monitor list + add email */}
         <div className="space-y-4">
-          {/* Monitored emails */}
           <div className="border border-primary/20 bg-black p-4 space-y-3">
             <div className="text-[10px] font-mono text-primary/40 tracking-widest">MONITORED EMAILS ({status?.monitoredCount ?? 0})</div>
             {status?.emails.length ? (
@@ -143,8 +272,6 @@ export default function DarkWebMonitor() {
             ) : (
               <div className="text-[10px] font-mono text-primary/25 py-3 text-center">No emails monitored yet</div>
             )}
-
-            {/* Add email form */}
             <div className="flex gap-2 pt-2 border-t border-primary/10">
               <input
                 value={newEmail} onChange={e => setNewEmail(e.target.value)}
@@ -160,7 +287,6 @@ export default function DarkWebMonitor() {
             </div>
           </div>
 
-          {/* Quick check any email */}
           <div className="border border-primary/20 bg-black p-4 space-y-3">
             <div className="text-[10px] font-mono text-primary/40 tracking-widest">CHECK ANY EMAIL</div>
             <div className="flex gap-2">
@@ -180,7 +306,6 @@ export default function DarkWebMonitor() {
             </div>
           </div>
 
-          {/* Provider info */}
           <div className="border border-primary/10 p-4 space-y-2">
             <div className="flex items-center gap-2 text-[10px] font-mono text-primary/40 tracking-widest">
               <Globe className="w-3.5 h-3.5" /> DATA SOURCE
@@ -195,7 +320,6 @@ export default function DarkWebMonitor() {
           </div>
         </div>
 
-        {/* Right: Breach results */}
         <div className="space-y-4">
           {checkResult ? (
             <div className="border border-primary/20 bg-black p-4 space-y-3">
@@ -203,7 +327,6 @@ export default function DarkWebMonitor() {
                 <div className="text-[10px] font-mono text-primary/40 tracking-widest">SCAN RESULTS</div>
                 <button onClick={() => setCheckResult(null)} className="text-[9px] font-mono text-primary/30 hover:text-primary">CLEAR</button>
               </div>
-
               <div className="text-[10px] font-mono text-primary truncate">{checkResult.email}</div>
 
               {checkResult.error && (
@@ -259,7 +382,6 @@ export default function DarkWebMonitor() {
                       </div>
                     ))}
                   </div>
-
                   <div className="border border-yellow-500/20 bg-yellow-500/5 p-3 space-y-1.5">
                     <div className="text-[9px] font-mono text-yellow-400 font-bold">RECOMMENDED ACTIONS</div>
                     {["Change passwords for all affected accounts immediately", "Enable two-factor authentication everywhere", "Check if you reused these passwords on other services", "Consider using a unique password manager-generated password"].map(a => (
@@ -285,7 +407,6 @@ export default function DarkWebMonitor() {
             </div>
           )}
 
-          {/* Stats */}
           {status && (
             <div className="border border-primary/20 bg-black p-4">
               <div className="text-[10px] font-mono text-primary/40 tracking-widest mb-3">MONITORING SUMMARY</div>
@@ -293,7 +414,7 @@ export default function DarkWebMonitor() {
                 {[
                   { label: "Emails", val: status.monitoredCount },
                   { label: "Breaches", val: status.totalBreaches },
-                  { label: "Status", val: apiOk ? "Live" : "Demo" },
+                  { label: "Status", val: "Live" },
                 ].map(s => (
                   <div key={s.label} className="border border-primary/10 p-2 text-center">
                     <div className={`text-sm font-mono font-bold ${s.label === "Breaches" && (s.val as number) > 0 ? "text-red-400" : "text-primary"}`}>{s.val}</div>
