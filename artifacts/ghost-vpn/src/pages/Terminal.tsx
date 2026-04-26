@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { usePersistedState } from "@/hooks/usePersistedState";
 import { Terminal as TerminalIcon, Wifi, Scan, FileText, Zap, Globe } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -17,7 +18,7 @@ const COMMON_PORTS = [21,22,23,25,53,80,110,143,443,445,993,995,1433,3306,3389,5
 
 export default function Terminal() {
   const { toast } = useToast();
-  const [tab, setTab]             = useState<TabType>("shell");
+  const [tab, setTab]             = usePersistedState<TabType>("terminal-tab", "shell");
   const [history, setHistory]     = useState<HistoryItem[]>([]);
   const [input, setInput]         = useState("");
   const [cmdHistory, setCmdHistory] = useState<string[]>([]);

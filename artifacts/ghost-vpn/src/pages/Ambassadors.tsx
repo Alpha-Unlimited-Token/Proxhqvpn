@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { usePersistedState } from "@/hooks/usePersistedState";
 import { useLocation } from "wouter";
 import { useUser } from "@clerk/react";
 import { PageSEO } from "@/components/PageSEO";
@@ -183,7 +184,7 @@ function AmbassadorCard({ amb }: { amb: Ambassador }) {
 export default function Ambassadors() {
   const [ambassadors, setAmbassadors] = useState<Ambassador[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = usePersistedState<string>("ambassadors-search", "");
   const [, setLocation] = useLocation();
   const { isSignedIn } = useUser();
 

@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from "react";
+import { usePersistedState } from "@/hooks/usePersistedState";
 
 interface DiffSpan {
   text: string;
@@ -62,9 +63,9 @@ function DiffPanel({ spans, side }: { spans: DiffSpan[]; side: "left"|"right" })
 }
 
 export default function Comparer() {
-  const [left, setLeft]     = useState("");
-  const [right, setRight]   = useState("");
-  const [mode, setMode]     = useState<"line"|"char">("line");
+  const [left, setLeft]     = usePersistedState<string>("comparer-left", "");
+  const [right, setRight]   = usePersistedState<string>("comparer-right", "");
+  const [mode, setMode]     = usePersistedState<"line"|"char">("comparer-mode", "line");
   const [compared, setCompared] = useState(false);
   const [diff, setDiff]     = useState<{ left: DiffSpan[]; right: DiffSpan[] } | null>(null);
 

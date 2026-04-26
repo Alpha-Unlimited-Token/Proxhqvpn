@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { usePersistedState } from "@/hooks/usePersistedState";
 import { useNodeLifecycle } from "@/hooks/useNodeLifecycle";
 import { useVpnGateInner } from "@/hooks/useVpnGateInner";
 import { NodeCard } from "@/components/nodes/NodeCard";
@@ -99,7 +100,7 @@ export default function NodeManager() {
   const { toast } = useToast();
   const createNode = useCreateNode();
 
-  const [layerFilter, setLayerFilter] = useState<LayerFilter>("all");
+  const [layerFilter, setLayerFilter] = usePersistedState<LayerFilter>("nodemanager-filter", "all");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [newNodeForm, setNewNodeForm] = useState({ name: "", layer: "outer", region: "" });
   const [innerDisplayLimit, setInnerDisplayLimit] = useState(200);

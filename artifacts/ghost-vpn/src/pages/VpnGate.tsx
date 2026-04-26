@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { usePersistedState } from "@/hooks/usePersistedState";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Globe, RefreshCw, Zap, Users, Clock,
@@ -195,10 +196,10 @@ const LOG_TYPES = [
 ];
 
 export default function VpnGate() {
-  const [countryFilter, setCountryFilter] = useState("");
-  const [maxPingFilter, setMaxPingFilter] = useState("");
-  const [minSpeedFilter, setMinSpeedFilter] = useState("");
-  const [logTypeFilter, setLogTypeFilter] = useState("all");
+  const [countryFilter, setCountryFilter] = usePersistedState<string>("vpngate-country", "");
+  const [maxPingFilter, setMaxPingFilter] = usePersistedState<string>("vpngate-ping", "");
+  const [minSpeedFilter, setMinSpeedFilter] = usePersistedState<string>("vpngate-speed", "");
+  const [logTypeFilter, setLogTypeFilter] = usePersistedState<string>("vpngate-logtype", "all");
   const [showCountryPicker, setShowCountryPicker] = useState(false);
   const [showLogPicker, setShowLogPicker] = useState(false);
   const [bestIp, setBestIp] = useState<string | null>(null);

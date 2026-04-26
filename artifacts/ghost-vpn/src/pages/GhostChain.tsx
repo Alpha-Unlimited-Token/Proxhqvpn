@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { usePersistedState } from "@/hooks/usePersistedState";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -416,9 +417,9 @@ function FindingCard({ finding }: { finding: Finding }) {
 export default function GhostChain() {
   const { toast } = useToast();
   const qc = useQueryClient();
-  const [target, setTarget] = useState("");
-  const [activeScanId, setActiveScanId] = useState<number | null>(null);
-  const [filterSev, setFilterSev] = useState<Severity | "all">("all");
+  const [target, setTarget] = usePersistedState<string>("ghostchain-target", "");
+  const [activeScanId, setActiveScanId] = usePersistedState<number | null>("ghostchain-scanid", null);
+  const [filterSev, setFilterSev] = usePersistedState<Severity | "all">("ghostchain-sev", "all");
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const { data: scans = [], refetch: refetchScans } = useQuery<ScanListItem[]>({

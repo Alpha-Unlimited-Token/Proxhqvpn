@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { usePersistedState } from "@/hooks/usePersistedState";
 import JSZip from "jszip";
 import { PageSEO } from "@/components/PageSEO";
 import {
@@ -606,7 +607,7 @@ const QUICK_PICKS = [
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function Downloads() {
-  const [search, setSearch]                 = useState("");
+  const [search, setSearch]                 = usePersistedState<string>("downloads-search", "");
   const [platform, setPlatform]             = useState<string | null>(null);
   const [isFireOS, setIsFireOS]             = useState(false);
   const [detectedPlatform, setDetectedPlatform] = useState<string | null>(null);

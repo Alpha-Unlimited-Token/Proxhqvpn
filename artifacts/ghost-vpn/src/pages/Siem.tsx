@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { usePersistedState } from "@/hooks/usePersistedState";
 import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -59,9 +60,9 @@ function timeAgo(ts: string) {
 }
 
 export default function Siem() {
-  const [sevFilter, setSevFilter] = useState<string>("all");
-  const [sourceFilter, setSourceFilter] = useState<string>("all");
-  const [search, setSearch] = useState("");
+  const [sevFilter, setSevFilter] = usePersistedState<string>("siem-sev", "all");
+  const [sourceFilter, setSourceFilter] = usePersistedState<string>("siem-source", "all");
+  const [search, setSearch] = usePersistedState<string>("siem-search", "");
   const [expanded, setExpanded] = useState<string | null>(null);
 
   const { data: events = [], isLoading, refetch } = useQuery<SiemEvent[]>({

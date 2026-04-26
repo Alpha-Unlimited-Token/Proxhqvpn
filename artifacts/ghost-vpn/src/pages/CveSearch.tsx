@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { usePersistedState } from "@/hooks/usePersistedState";
 
 interface CVEItem {
   id: string;
@@ -51,7 +52,7 @@ const QUICK_SEARCHES = [
 ];
 
 export default function CveSearch() {
-  const [query, setQuery]     = useState("");
+  const [query, setQuery]     = usePersistedState<string>("cvesearch-query", "");
   const [results, setResults] = useState<CVEItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState("");

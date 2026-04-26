@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { usePersistedState } from "@/hooks/usePersistedState";
 import { PageSEO } from "@/components/PageSEO";
 import {
   Users, ChevronRight, Shield, Terminal, Database,
@@ -472,7 +473,7 @@ ss -tupn | grep LISTEN          # Listening ports`}</CB>
 ];
 
 export default function EmployeeHandbook() {
-  const [active, setActive] = useState("welcome");
+  const [active, setActive] = usePersistedState<string>("handbook-active", "welcome");
   const section = SECTIONS.find(s => s.id === active) ?? SECTIONS[0];
 
   return (

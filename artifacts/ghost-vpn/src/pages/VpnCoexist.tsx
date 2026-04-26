@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { usePersistedState } from "@/hooks/usePersistedState";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Wifi, WifiOff, AlertTriangle, CheckCircle2, Plus, Trash2,
@@ -50,7 +51,7 @@ export default function VpnCoexist() {
 
   const [selectedProfile, setSelectedProfile] = useState("wireguard-generic");
   const [selectedMode, setSelectedMode] = useState("fwmark");
-  const [targetOs, setTargetOs] = useState<"linux" | "macos" | "windows">("linux");
+  const [targetOs, setTargetOs] = usePersistedState<"linux" | "macos" | "windows">("vpncoexist-os", "linux");
   const [detectedIface, setDetectedIface] = useState("tun0");
   const [proxhqIface, setProxhqIface] = useState("proxhq0");
   const [fwmark, setFwmark] = useState(100);
@@ -59,7 +60,7 @@ export default function VpnCoexist() {
   const [scriptNotes, setScriptNotes] = useState<string[]>([]);
   const [showScript, setShowScript] = useState(false);
   const [showDisable, setShowDisable] = useState(false);
-  const [activeTab, setActiveTab] = useState<"overview" | "exceptions" | "mtu" | "scripts">("overview");
+  const [activeTab, setActiveTab] = usePersistedState<"overview" | "exceptions" | "mtu" | "scripts">("vpncoexist-tab", "overview");
 
   // exception form
   const [newCidr, setNewCidr] = useState("");

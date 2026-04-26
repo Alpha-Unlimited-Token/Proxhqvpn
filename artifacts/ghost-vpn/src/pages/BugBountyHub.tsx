@@ -1,6 +1,7 @@
 // Copyright © 2025 ALPHA UNLIMITED TECHNOLOGIES LLC — legal@alphauntechnologies.com
 // Bug Bounty Research Hub — authorized security research across major platforms
 import React, { useState, useMemo } from "react";
+import { usePersistedState } from "@/hooks/usePersistedState";
 import { useLocation } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -1158,11 +1159,11 @@ ${impact || "[Describe what an attacker could do — account takeover, data thef
 // ── Main component ───────────────────────────────────────────────────────────
 export default function BugBountyHub() {
   const [, navigate] = useLocation();
-  const [search, setSearch] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState<string>("all");
-  const [platformFilter, setPlatformFilter] = useState<string>("all");
+  const [search, setSearch] = usePersistedState<string>("bugbounty-search", "");
+  const [categoryFilter, setCategoryFilter] = usePersistedState<string>("bugbounty-category", "all");
+  const [platformFilter, setPlatformFilter] = usePersistedState<string>("bugbounty-platform", "all");
   const [selectedProgram, setSelectedProgram] = useState<BountyProgram | null>(null);
-  const [activeTab, setActiveTab] = useState<"overview" | "scope" | "testing" | "report">("overview");
+  const [activeTab, setActiveTab] = usePersistedState<"overview" | "scope" | "testing" | "report">("bugbounty-tab", "overview");
   const [expandedSection, setExpandedSection] = useState<string | null>("bugs");
   const [copied, setCopied] = useState(false);
 

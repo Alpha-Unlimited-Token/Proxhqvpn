@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { usePersistedState } from "@/hooks/usePersistedState";
 
 interface PayloadCategory {
   key: string;
@@ -166,8 +167,8 @@ const CATEGORIES: PayloadCategory[] = [
 ];
 
 export default function PayloadGen() {
-  const [activeKey, setActiveKey]   = useState(CATEGORIES[0].key);
-  const [search, setSearch]         = useState("");
+  const [activeKey, setActiveKey]   = usePersistedState<string>("payloadgen-key", CATEGORIES[0].key);
+  const [search, setSearch]         = usePersistedState<string>("payloadgen-search", "");
   const [copied, setCopied]         = useState<string | null>(null);
 
   const active = CATEGORIES.find(c => c.key === activeKey)!;

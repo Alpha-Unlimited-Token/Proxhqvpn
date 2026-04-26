@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { usePersistedState } from "@/hooks/usePersistedState";
 import { useGetNodeWireguardConfig, useListNodes } from "@workspace/api-client-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Settings2 } from "lucide-react";
 
 export default function WireGuardConfig() {
   const { data: nodes } = useListNodes();
-  const [selectedNode, setSelectedNode] = useState<string>("");
+  const [selectedNode, setSelectedNode] = usePersistedState<string>("wireguard-node", "");
   
   const { data: config, isLoading } = useGetNodeWireguardConfig(Number(selectedNode), {
     query: { enabled: !!selectedNode } as any

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { usePersistedState } from "@/hooks/usePersistedState";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -25,7 +26,7 @@ export default function SubdomainScan() {
   const [bruteForce, setBrute]      = useState(false);
   const [loading, setLoading]       = useState(false);
   const [result, setResult]         = useState<any>(null);
-  const [filter, setFilter]         = useState<"all"|"http"|"https"|"dns">("all");
+  const [filter, setFilter]         = usePersistedState<"all"|"http"|"https"|"dns">("subdomain-filter", "all");
 
   const scan = async () => {
     const d = domain.trim().replace(/^https?:\/\//, "").replace(/\/.*/, "");

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { usePersistedState } from "@/hooks/usePersistedState";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -78,12 +79,12 @@ type Stats = {
 
 export default function WafAnalyzer() {
   const { toast } = useToast();
-  const [tab, setTab] = useState<"rules" | "analyze" | "events" | "export">("rules");
+  const [tab, setTab] = usePersistedState<"rules" | "analyze" | "events" | "export">("waf-tab", "rules");
   const [rules, setRules] = useState<WafRule[]>([]);
   const [events, setEvents] = useState<WafEvent[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
-  const [filter, setFilter] = useState("");
-  const [filterType, setFilterType] = useState("all");
+  const [filter, setFilter] = usePersistedState<string>("waf-filter", "");
+  const [filterType, setFilterType] = usePersistedState<string>("waf-filtertype", "all");
   const [seeding, setSeeding] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [wafConfig, setWafConfig] = useState<any>(null);

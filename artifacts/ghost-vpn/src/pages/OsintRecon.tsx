@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { usePersistedState } from "@/hooks/usePersistedState";
 import { useMutation } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -55,7 +56,7 @@ function KV({ k, v, highlight }: { k: string; v: React.ReactNode; highlight?: st
 
 export default function OsintRecon() {
   const { toast } = useToast();
-  const [target, setTarget] = useState("");
+  const [target, setTarget] = usePersistedState<string>("osint-target", "");
   const [result, setResult] = useState<any>(null);
 
   const lookupMut = useMutation({

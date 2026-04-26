@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { usePersistedState } from "@/hooks/usePersistedState";
 import { Database, Play, Plus, Trash2, Globe, Table, RefreshCw, Link, Unlink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -16,7 +17,7 @@ interface Schema { tables: { table_schema: string; table_name: string; table_typ
 export default function SqlInterface() {
   const { toast }         = useToast();
   const [mode, setMode]   = useState<Mode>("local");
-  const [query, setQuery] = useState("SELECT * FROM nodes LIMIT 10;");
+  const [query, setQuery] = usePersistedState<string>("sqlinterface-query", "SELECT * FROM nodes LIMIT 10;");
   const [result, setResult] = useState<any>(null);
   const [running, setRunning] = useState(false);
 

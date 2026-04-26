@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback, DragEvent } from "react";
+import { usePersistedState } from "@/hooks/usePersistedState";
 import { useToast } from "@/hooks/use-toast";
 import {
   ScanSearch, ShieldAlert, Globe2,
@@ -57,7 +58,7 @@ interface ScannerTabProps {
 function ScannerTab({ useTor, onReportReady }: ScannerTabProps) {
   const { toast }   = useToast();
   const [mode, setMode]         = useState<ScanMode>("network");
-  const [target, setTarget]     = useState("");
+  const [target, setTarget]     = usePersistedState<string>("alphatools-target", "");
   const [ports, setPorts]       = useState("1-10000");
   const [extraFlags, setExtra]  = useState("");
   const [status, setStatus]     = useState<JobStatus>("idle");
@@ -882,7 +883,7 @@ function AppScannerTab() {
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function AlphaTools() {
-  const [tab, setTab]             = useState<Tab>("scanner");
+  const [tab, setTab]             = usePersistedState<Tab>("alphatools-tab", "scanner");
   const [useTor, setUseTor]       = useState(false);
   const [torStatus, setTorStatus] = useState<TorStatus | null>(null);
   // Scanner → Verifier handoff: jobId that has a fresh HTML report

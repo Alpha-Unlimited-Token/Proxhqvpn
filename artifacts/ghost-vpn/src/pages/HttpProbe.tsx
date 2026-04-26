@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { usePersistedState } from "@/hooks/usePersistedState";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -45,7 +46,7 @@ export default function HttpProbe() {
   const [result, setResult]         = useState<any>(null);
   const [showRaw, setShowRaw]       = useState(false);
   const [showHeaders, setShowHeaders] = useState(true);
-  const [tab, setTab]               = useState<"body"|"headers"|"redirect">("body");
+  const [tab, setTab]               = usePersistedState<"body"|"headers"|"redirect">("httpprobe-tab", "body");
 
   const addHeader = () => setHeaders(h => [...h, { key: "", val: "" }]);
   const removeHeader = (i: number) => setHeaders(h => h.filter((_, j) => j !== i));

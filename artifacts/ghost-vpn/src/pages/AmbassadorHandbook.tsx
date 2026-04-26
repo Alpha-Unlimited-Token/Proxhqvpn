@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { usePersistedState } from "@/hooks/usePersistedState";
 import { PageSEO } from "@/components/PageSEO";
 import {
   Award, ChevronRight, DollarSign, Users, Share2,
@@ -311,7 +312,7 @@ const SECTIONS: Section[] = [
 ];
 
 export default function AmbassadorHandbook() {
-  const [active, setActive] = useState("welcome");
+  const [active, setActive] = usePersistedState<string>("ambhandbook-active", "welcome");
   const section = SECTIONS.find(s => s.id === active) ?? SECTIONS[0];
 
   return (

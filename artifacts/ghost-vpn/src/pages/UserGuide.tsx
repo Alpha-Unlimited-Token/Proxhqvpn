@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { usePersistedState } from "@/hooks/usePersistedState";
 import { PageSEO } from "@/components/PageSEO";
 import {
   BookOpen, Wifi, Shield, Globe, Server, Terminal, Database,
@@ -1571,8 +1572,8 @@ Table: metadata      → Crawl session info, start time, depth`}</CB>
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 export default function UserGuide() {
-  const [active, setActive] = useState("overview");
-  const [search, setSearch] = useState("");
+  const [active, setActive] = usePersistedState<string>("userguide-active", "overview");
+  const [search, setSearch] = usePersistedState<string>("userguide-search", "");
   const contentRef = useRef<HTMLDivElement>(null);
 
   const filtered = search

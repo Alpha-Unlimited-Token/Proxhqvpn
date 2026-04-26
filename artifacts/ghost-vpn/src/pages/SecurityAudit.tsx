@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { usePersistedState } from "@/hooks/usePersistedState";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -37,7 +38,7 @@ export default function SecurityAudit() {
   const [headerUrl, setHeaderUrl] = useState("https://example.com");
   const [headerResult, setHeaderResult] = useState<HeaderResult | null>(null);
   const [headerRunning, setHeaderRunning] = useState(false);
-  const [whoisTarget, setWhoisTarget] = useState("example.com");
+  const [whoisTarget, setWhoisTarget] = usePersistedState<string>("secaudit-whois", "example.com");
   const [whoisResult, setWhoisResult] = useState<any>(null);
   const [whoisRunning, setWhoisRunning] = useState(false);
 

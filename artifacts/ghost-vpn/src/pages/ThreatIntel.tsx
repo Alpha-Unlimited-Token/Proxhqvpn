@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { usePersistedState } from "@/hooks/usePersistedState";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -30,7 +31,7 @@ export default function ThreatIntel() {
   const [summary, setSummary]     = useState<Summary | null>(null);
   const [feeds, setFeeds]         = useState<Feed[]>([]);
   const [blocklist, setBlocklist] = useState<BLEntry[]>([]);
-  const [checkIp, setCheckIp]     = useState("");
+  const [checkIp, setCheckIp]     = usePersistedState<string>("threatintel-ip", "");
   const [checkResult, setCheckResult] = useState<CheckResult | null>(null);
   const [addIp, setAddIp]         = useState("");
   const [addNotes, setAddNotes]   = useState("");

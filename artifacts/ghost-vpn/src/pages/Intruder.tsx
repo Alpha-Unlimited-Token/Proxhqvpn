@@ -1,4 +1,5 @@
 import React, { useState, useRef } from "react";
+import { usePersistedState } from "@/hooks/usePersistedState";
 
 const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
 
@@ -25,8 +26,8 @@ function statusColor(code: number): string {
 
 export default function Intruder() {
   const [method, setMethod]       = useState<string>("GET");
-  const [urlTpl, setUrlTpl]       = useState("");
-  const [bodyTpl, setBodyTpl]     = useState("");
+  const [urlTpl, setUrlTpl]       = usePersistedState<string>("intruder-url", "");
+  const [bodyTpl, setBodyTpl]     = usePersistedState<string>("intruder-body", "");
   const [headers, setHeaders]     = useState("Content-Type: application/json");
   const [wordlist, setWordlist]   = useState(SAMPLE_WORDLIST);
   const [timeoutMs, setTimeoutMs] = useState(8000);
@@ -34,7 +35,7 @@ export default function Intruder() {
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState("");
   const [expanded, setExpanded]   = useState<number | null>(null);
-  const [filterStatus, setFilterStatus] = useState<string>("");
+  const [filterStatus, setFilterStatus] = usePersistedState<string>("intruder-filter", "");
   const abortRef = useRef<AbortController | null>(null);
 
   const payloads = wordlist.split("\n").map(l => l.trim()).filter(Boolean);

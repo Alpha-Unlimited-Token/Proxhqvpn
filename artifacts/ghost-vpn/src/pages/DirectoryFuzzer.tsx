@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { usePersistedState } from "@/hooks/usePersistedState";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -37,7 +38,7 @@ export default function DirectoryFuzzer() {
   const [wordlist, setWordlist]      = useState<WL>("common");
   const [extensions, setExtensions] = useState("");
   const [threads, setThreads]       = useState(10);
-  const [filterCodes, setFilter]    = useState("404");
+  const [filterCodes, setFilter]    = usePersistedState<string>("dirfuzzer-filter", "404");
   const [followRedirs, setFollow]   = useState(false);
   const [loading, setLoading]       = useState(false);
   const [result, setResult]         = useState<any>(null);

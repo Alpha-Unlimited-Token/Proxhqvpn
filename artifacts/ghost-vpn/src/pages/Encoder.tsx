@@ -1,4 +1,5 @@
 import React, { useState, useCallback } from "react";
+import { usePersistedState } from "@/hooks/usePersistedState";
 
 type Mode = "encode" | "decode";
 
@@ -97,9 +98,9 @@ const HASH_ALGOS = [
 ];
 
 export default function Encoder() {
-  const [input, setInput]         = useState("");
+  const [input, setInput]         = usePersistedState<string>("encoder-input", "");
   const [output, setOutput]       = useState("");
-  const [mode, setMode]           = useState<Mode>("encode");
+  const [mode, setMode]           = usePersistedState<Mode>("encoder-mode", "encode");
   const [transform, setTransform] = useState("url");
   const [hashAlgo, setHashAlgo]   = useState("SHA-256");
   const [hashOut, setHashOut]     = useState("");

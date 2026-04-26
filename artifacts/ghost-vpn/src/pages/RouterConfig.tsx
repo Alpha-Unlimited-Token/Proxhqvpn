@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { usePersistedState } from "@/hooks/usePersistedState";
 import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Router, Copy, CheckCheck, Download, RefreshCw } from "lucide-react";
@@ -25,7 +26,7 @@ export default function RouterConfig() {
   const [config, setConfig] = useState<GeneratedConfig | null>(null);
   const [generating, setGenerating] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"commands"|"conf"|"steps">("commands");
+  const [activeTab, setActiveTab] = usePersistedState<"commands"|"conf"|"steps">("routerconfig-tab", "commands");
 
   useEffect(() => {
     fetch(`${BASE}/api/router-config/firmwares`).then(r => r.json()).then(setFirmwares).catch(() => null);

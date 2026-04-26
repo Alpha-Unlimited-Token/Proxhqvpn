@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { usePersistedState } from "@/hooks/usePersistedState";
 import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -40,7 +41,7 @@ const PROTO_COLOR: Record<string, string> = {
 };
 
 export default function NetworkMonitor() {
-  const [activeTab, setActiveTab] = useState<"flows" | "protocols" | "countries">("flows");
+  const [activeTab, setActiveTab] = usePersistedState<"flows" | "protocols" | "countries">("netmonitor-tab", "flows");
 
   const { data: stats, refetch: refetchStats } = useQuery({
     queryKey: ["netmon-stats"],

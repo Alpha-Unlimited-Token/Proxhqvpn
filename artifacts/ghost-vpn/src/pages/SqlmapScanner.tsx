@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { usePersistedState } from "@/hooks/usePersistedState";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -93,7 +94,7 @@ export default function SqlmapScanner() {
   const [step, setStep] = useState(0);
   const [scanId, setScanId] = useState<string | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [activeTab, setActiveTab] = useState<"sqli" | "ports">("sqli");
+  const [activeTab, setActiveTab] = usePersistedState<"sqli" | "ports">("sqlmap-tab", "sqli");
   const sqlRef = useRef<HTMLDivElement>(null);
   const portRef = useRef<HTMLDivElement>(null);
 
