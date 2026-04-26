@@ -149,8 +149,8 @@ export default function WafAnalyzer() {
   };
 
   const createRule = async () => {
-    if (!newRule.name || !newRule.pattern) return toast({ title: "Name and pattern required", variant: "destructive" });
-    try { new RegExp(newRule.pattern); } catch { return toast({ title: "Invalid regex pattern", variant: "destructive" }); }
+    if (!newRule.name || !newRule.pattern) { toast({ title: "Name and pattern required", variant: "destructive" }); return; }
+    try { new RegExp(newRule.pattern); } catch { toast({ title: "Invalid regex pattern", variant: "destructive" }); return; }
     const r = await fetch(`${API}/rules`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
