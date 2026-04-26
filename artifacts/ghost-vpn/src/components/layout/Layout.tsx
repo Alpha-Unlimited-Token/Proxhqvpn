@@ -275,6 +275,7 @@ export function Layout({ children }: LayoutProps) {
   const { signOut } = useClerk();
   const { isAdmin, hasAccess, hasCommandCenter, tier } = useAccess();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [pendingUpdate, setPendingUpdate] = useState<UpdateInfo | null>(null);
   const [updateDismissed, setUpdateDismissed] = useState(false);
   const [restarting, setRestarting] = useState(false);
@@ -468,8 +469,65 @@ export function Layout({ children }: LayoutProps) {
             </button>
             <span className="text-[13px] font-semibold text-white/88 tracking-tight">{pageName}</span>
           </div>
-          <div className="text-[11px] text-white/70 tabular-nums font-mono">
-            {new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+          <div className="flex items-center gap-3">
+            <div className="hidden sm:block text-[11px] text-white/70 tabular-nums font-mono">
+              {new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+            </div>
+            {user && (
+              <div className="relative">
+                <button
+                  onClick={() => setUserMenuOpen(v => !v)}
+                  className="w-7 h-7 rounded-full bg-primary/15 border border-primary/25 flex items-center justify-center hover:bg-primary/25 transition-all"
+                  title="Account menu"
+                >
+                  <span className="text-primary text-[11px] font-bold leading-none">
+                    {(user.firstName?.[0] ?? user.username?.[0] ?? "U").toUpperCase()}
+                  </span>
+                </button>
+                {userMenuOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setUserMenuOpen(false)} />
+                    <div className="absolute right-0 top-full mt-2 w-56 bg-[#0d1a0f] border border-white/[0.08] rounded-xl shadow-2xl shadow-black/70 z-50 overflow-hidden">
+                      <div className="px-3 py-2.5 border-b border-white/[0.06]">
+                        <div className="text-[12px] font-semibold text-white/90 truncate leading-tight">
+                          {user.firstName
+                            ? `${user.firstName} ${user.lastName ?? ""}`.trim()
+                            : (user.username ?? "User")}
+                        </div>
+                        <div className="text-[10px] text-white/83 truncate mt-0.5">
+                          {user.primaryEmailAddress?.emailAddress ?? ""}
+                        </div>
+                        <div className="mt-1.5">
+                          {tier === "command_center" && (
+                            <span className="text-[9px] font-bold uppercase tracking-widest text-yellow-400 bg-yellow-500/10 px-1.5 py-0.5 rounded-full">Pro</span>
+                          )}
+                          {tier === "vpn" && (
+                            <span className="text-[9px] font-bold uppercase tracking-widest text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">VPN Basic</span>
+                          )}
+                          {!tier && (
+                            <span className="text-[9px] font-bold uppercase tracking-widest text-white/40 bg-white/5 px-1.5 py-0.5 rounded-full">No Plan</span>
+                          )}
+                        </div>
+                      </div>
+                      <Link
+                        href="/account"
+                        onClick={() => { setUserMenuOpen(false); closeSidebar(); }}
+                        className="flex items-center gap-2.5 w-full px-3 py-2.5 text-[12px] text-white/78 hover:text-white hover:bg-white/[0.05] transition-colors"
+                      >
+                        <User className="w-3.5 h-3.5 shrink-0" /> Account Settings
+                      </Link>
+                      <div className="border-t border-white/[0.06]" />
+                      <button
+                        onClick={() => { setUserMenuOpen(false); signOut(); }}
+                        className="flex items-center gap-2.5 w-full px-3 py-2.5 text-[12px] text-white/78 hover:text-red-400 hover:bg-red-900/[0.12] transition-colors"
+                      >
+                        <LogOut className="w-3.5 h-3.5 shrink-0" /> Sign Out
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
           </div>
         </header>
 
