@@ -5,6 +5,8 @@ import {
   Shield, Zap, Lock, Globe, Eye, Network, Check, ChevronDown, ChevronUp,
   ArrowRight, Menu, X, Wifi, Server, Clock, Star, Bug, AlertTriangle,
   MapPin, Share2, Database, Code2, KeyRound, Swords, ShieldCheck,
+  Terminal, Fingerprint, FlaskConical, ScanSearch, Layers, Bell,
+  GitMerge, FileCode2, Filter, Crosshair, Package,
 } from "lucide-react";
 
 const BASE_API = import.meta.env.BASE_URL.replace(/\/$/, "") + "/api";
@@ -741,6 +743,152 @@ export default function Home() {
                   <p className="text-xs text-white/78 leading-relaxed">{body}</p>
                 </div>
               ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── COMMAND CENTER PRO PROMO ── */}
+      <section className="py-24 px-6 border-t border-white/[0.05] bg-[#080d09] relative overflow-hidden">
+        {/* Background accent */}
+        <div className="absolute inset-0 bg-gradient-to-br from-red-900/[0.04] via-transparent to-yellow-900/[0.03] pointer-events-none" />
+        <div className="absolute top-0 right-0 w-[600px] h-[400px] bg-red-500/[0.03] rounded-full blur-3xl pointer-events-none" />
+
+        <div className="max-w-6xl mx-auto relative">
+          {/* Header */}
+          <div className="text-center mb-14">
+            <div className="inline-flex items-center gap-2 bg-red-400/10 border border-red-400/20 rounded-full px-4 py-1.5 mb-5">
+              <Swords className="w-3.5 h-3.5 text-red-400" />
+              <span className="text-xs text-red-300 font-semibold uppercase tracking-widest">Command Center Pro</span>
+            </div>
+            <h2 className="text-4xl md:text-5xl font-bold tracking-tight mb-5">
+              Not just a VPN.{" "}
+              <span className="text-red-400 drop-shadow-[0_0_20px_rgba(248,113,113,0.3)]">A full security platform.</span>
+            </h2>
+            <p className="text-white/78 text-lg max-w-3xl mx-auto leading-relaxed">
+              Command Center Pro gives developers, security researchers, and IT professionals a complete
+              offensive and defensive toolkit built directly into their VPN. Test your own apps, audit
+              client infrastructure, hunt vulnerabilities, and monitor for threats — all from one dashboard,
+              protected by the same private tunnel you use every day.
+            </p>
+          </div>
+
+          {/* Who it's for */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-14">
+            {[
+              { icon: Code2,       label: "Software Developers" },
+              { icon: Globe,       label: "Web & App Builders" },
+              { icon: Shield,      label: "Security Auditors" },
+              { icon: Swords,      label: "Penetration Testers" },
+              { icon: Terminal,    label: "DevOps & SysAdmins" },
+              { icon: ShieldCheck, label: "Firewall Engineers" },
+            ].map(({ icon: Icon, label }) => (
+              <div key={label} className="flex flex-col items-center gap-2 bg-white/[0.02] border border-white/[0.06] rounded-2xl p-4 text-center hover:border-red-400/15 transition-all">
+                <Icon className="w-5 h-5 text-red-400/70" />
+                <span className="text-[10px] text-white/60 font-medium leading-tight">{label}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Tool categories */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-12">
+            {[
+              {
+                category: "Offensive Testing",
+                color: "red",
+                desc: "Professional-grade tools for ethical hacking and penetration testing.",
+                tools: [
+                  { icon: Swords,    name: "OmniStrike",        detail: "Multi-vector exploit orchestration" },
+                  { icon: ScanSearch, name: "SQLmap Scanner",   detail: "Automated SQL injection & DB takeover" },
+                  { icon: Bug,       name: "Directory Fuzzer",   detail: "Brute-force hidden paths & endpoints" },
+                  { icon: Layers,    name: "Ghost Chain",        detail: "Chained exploit delivery arsenal" },
+                ],
+              },
+              {
+                category: "Recon & Intelligence",
+                color: "orange",
+                desc: "Map your target's full attack surface before a single packet is sent.",
+                tools: [
+                  { icon: Fingerprint, name: "OSINT Recon",     detail: "15+ source open-source intelligence" },
+                  { icon: Globe,      name: "Subdomain Scout",   detail: "Automated subdomain enumeration" },
+                  { icon: Eye,        name: "HTTP Probe",        detail: "Live endpoint fingerprinting" },
+                  { icon: Database,   name: "CVE Lookup",        detail: "Real-time vulnerability database" },
+                ],
+              },
+              {
+                category: "Developer Security",
+                color: "yellow",
+                desc: "Integrate security into your dev workflow — catch issues before they ship.",
+                tools: [
+                  { icon: FileCode2,  name: "SAST Analyzer",    detail: "Static code analysis for 35+ languages" },
+                  { icon: Package,    name: "Dependency Scanner", detail: "Find vulnerable packages before prod" },
+                  { icon: Crosshair,  name: "OAST Tester",      detail: "Blind injection via async callbacks" },
+                  { icon: FlaskConical, name: "API Security Tester", detail: "Auth, injection, and logic flaws" },
+                ],
+              },
+              {
+                category: "Defense & Monitoring",
+                color: "green",
+                desc: "Detect, log, and respond to threats against your own infrastructure.",
+                tools: [
+                  { icon: Bell,       name: "Canary Tokens",    detail: "Tripwire alerts for file & link access" },
+                  { icon: Database,   name: "SIEM Event Log",   detail: "Centralized security event correlation" },
+                  { icon: Filter,     name: "HTTP Interceptor", detail: "Inspect & modify live HTTP traffic" },
+                  { icon: Shield,     name: "WAF Analyzer",     detail: "Identify & test firewall bypass vectors" },
+                ],
+              },
+            ].map(({ category, color, desc, tools }) => {
+              const borderColor = { red: "border-red-400/15 hover:border-red-400/30", orange: "border-orange-400/15 hover:border-orange-400/30", yellow: "border-yellow-400/15 hover:border-yellow-400/30", green: "border-primary/15 hover:border-primary/30" }[color];
+              const labelColor  = { red: "text-red-400", orange: "text-orange-400", yellow: "text-yellow-400", green: "text-primary" }[color];
+              const bgColor     = { red: "bg-red-400/8", orange: "bg-orange-400/8", yellow: "bg-yellow-400/8", green: "bg-primary/8" }[color];
+              return (
+                <div key={category} className={`bg-[#0d1610] border ${borderColor} rounded-2xl p-5 transition-all`}>
+                  <div className={`text-[9px] font-bold uppercase tracking-widest ${labelColor} mb-1`}>{category}</div>
+                  <p className="text-[10px] text-white/50 mb-4 leading-relaxed">{desc}</p>
+                  <div className="space-y-2.5">
+                    {tools.map(({ icon: Icon, name, detail }) => (
+                      <div key={name} className="flex items-start gap-2.5">
+                        <div className={`w-6 h-6 rounded-lg ${bgColor} flex items-center justify-center shrink-0 mt-0.5`}>
+                          <Icon className={`w-3 h-3 ${labelColor}`} />
+                        </div>
+                        <div>
+                          <div className="text-[11px] font-semibold text-white/90">{name}</div>
+                          <div className="text-[9px] text-white/40 leading-tight">{detail}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Bottom CTA banner */}
+          <div className="bg-gradient-to-r from-[#0d1610] via-[#0f1a10] to-[#0d1610] border border-red-400/15 rounded-2xl p-8 flex flex-col md:flex-row items-center gap-8">
+            <div className="flex-1 text-center md:text-left">
+              <div className="text-xl font-bold text-white mb-2">
+                Everything you need. One subscription. One platform.
+              </div>
+              <p className="text-sm text-white/60 leading-relaxed max-w-xl">
+                Command Center Pro includes every tool listed above plus the full VPN Basic plan — WireGuard
+                encryption, kill switch, GPS spoofing, meshnet networking, and data broker opt-out scanning.
+                No separate subscriptions. No tool limits. Starting at{" "}
+                <span className="text-white/90 font-semibold">$39.99/month</span>.
+              </p>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-3 shrink-0">
+              <button
+                onClick={() => document.getElementById("pricing")?.scrollIntoView({ behavior: "smooth" })}
+                className="px-6 py-3 border border-white/[0.1] text-white/88 hover:text-white hover:border-white/20 rounded-xl transition-all text-sm font-medium"
+              >
+                See Pricing
+              </button>
+              <Link
+                href="/sign-up"
+                className="flex items-center justify-center gap-2 px-6 py-3 bg-red-500 text-white font-semibold rounded-xl hover:bg-red-400 transition-all text-sm shadow-[0_0_30px_rgba(239,68,68,0.2)]"
+              >
+                Get Command Center <ArrowRight className="w-4 h-4" />
+              </Link>
             </div>
           </div>
         </div>
