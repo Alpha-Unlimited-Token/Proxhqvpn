@@ -137,8 +137,8 @@ table.data tr:hover td{background:var(--bg2)}
       <div class="col" style="flex:1">
         <label>Mode</label>
         <select id="mode">
-          <option value="single">Single Page</option>
-          <option value="crawl">Crawl Site (BFS)</option>
+          <option value="single">Single Page Only</option>
+          <option value="crawl" selected>Crawl All Pages (BFS)</option>
         </select>
       </div>
     </div>
@@ -147,8 +147,8 @@ table.data tr:hover td{background:var(--bg2)}
   <div class="card">
     <h2>2 · Crawl Options</h2>
     <div class="row">
-      <div class="col"><label>Max Pages (1-200)</label><input type="number" id="maxPages" value="25" min="1" max="200"></div>
-      <div class="col"><label>Max Depth (0-5)</label><input type="number" id="maxDepth" value="1" min="0" max="5"></div>
+      <div class="col"><label>Max Pages (1-200)</label><input type="number" id="maxPages" value="100" min="1" max="500"></div>
+      <div class="col"><label>Max Depth (0-5)</label><input type="number" id="maxDepth" value="3" min="0" max="10"></div>
       <div class="col"><label>Delay (ms)</label><input type="number" id="delayMs" value="250" min="0" max="10000"></div>
       <div class="col"><label>Timeout (ms)</label><input type="number" id="timeoutMs" value="15000" min="2000" max="60000"></div>
     </div>
