@@ -25,6 +25,7 @@ const CATEGORIES = [
   { id: "auth",          label: "Auth Brute Force",        desc: "Default creds against login, admin, wp-login, api/auth" },
   { id: "nosql",         label: "NoSQL Injection",         desc: "MongoDB operator injection ($ne, $gt, $regex, $where)" },
   { id: "quantumbreach", label: "⚛ QuantumBreach",         desc: "Cache poisoning · GraphQL · CRLF · Mass assignment · JWT alg confusion · Timing side-channel · Open redirect chains · Quantum-weak crypto detection" },
+  { id: "shadowvector",  label: "👻 ShadowVector",          desc: "Novel unreported vectors — Ghost Parameter Injection · Path Desync · Prototype Pollution · Schema Oracle · Temporal Race Attack. Patent pending © ALPHA UNLIMITED TECHNOLOGIES LLC" },
 ];
 
 type Finding = {

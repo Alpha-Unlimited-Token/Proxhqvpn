@@ -1,3 +1,8 @@
+/**
+ * WAF Analyzer — OWASP Rules Engine
+ * Copyright © 2024–2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+ * All rights reserved. Unauthorized reproduction or distribution prohibited.
+ */
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { wafRulesTable, wafEventsTable } from "@workspace/db";

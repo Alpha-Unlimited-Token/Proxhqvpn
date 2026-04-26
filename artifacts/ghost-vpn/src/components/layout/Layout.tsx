@@ -488,6 +488,16 @@ export function Layout({ children }: LayoutProps) {
           </div>
         </div>
       )}
+
+      {/* Copyright footer — always visible at bottom of sidebar */}
+      <div className="fixed bottom-0 left-0 w-[260px] bg-gray-950/95 border-t border-white/5 px-3 py-2 z-50 hidden md:block">
+        <p className="text-[9px] text-gray-600 leading-tight">
+          © 2024–2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+        </p>
+        <p className="text-[9px] text-gray-700 leading-tight">
+          All rights reserved. Patent pending.
+        </p>
+      </div>
     </div>
   );
 }
