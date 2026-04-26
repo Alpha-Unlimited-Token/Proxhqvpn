@@ -4,7 +4,7 @@ import { PageSEO } from "@/components/PageSEO";
 import {
   Shield, Zap, Lock, Globe, Eye, Network, Check, ChevronDown, ChevronUp,
   ArrowRight, Menu, X, Wifi, Server, Clock, Star, Bug, AlertTriangle,
-  MapPin, Share2, Database, Code2,
+  MapPin, Share2, Database, Code2, KeyRound, Swords, ShieldCheck,
 } from "lucide-react";
 
 const BASE_API = import.meta.env.BASE_URL.replace(/\/$/, "") + "/api";
@@ -483,11 +483,17 @@ export default function Home() {
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-primary/[0.04] rounded-full blur-3xl pointer-events-none" />
 
         <div className="max-w-4xl mx-auto text-center relative">
-          <div className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-full px-4 py-1.5 mb-8">
-            <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-            <span className="text-xs text-primary font-medium">
-              4 Nodes Online — Chicago · LA · Tokyo · US-West
-            </span>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-2 mb-8">
+            <div className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-full px-4 py-1.5">
+              <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+              <span className="text-xs text-primary font-medium">
+                4 Nodes Online — Chicago · LA · Tokyo · US-West
+              </span>
+            </div>
+            <div className="inline-flex items-center gap-2 bg-blue-400/10 border border-blue-400/25 rounded-full px-4 py-1.5">
+              <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+              <span className="text-xs text-blue-300 font-medium">New — Dark Web Monitor &amp; OmniStrike Now Live</span>
+            </div>
           </div>
 
           <h1 className="text-5xl md:text-7xl font-bold tracking-tight mb-6 leading-[1.05]">
@@ -497,8 +503,8 @@ export default function Home() {
           </h1>
 
           <p className="text-white/83 text-lg md:text-xl max-w-2xl mx-auto mb-10 leading-relaxed">
-            ProxhqVPN uses WireGuard encryption, automatic peer registration, and real-time intrusion detection 
-            to protect your privacy — without a shared data center or a corporation between you and your data.
+            ProxhqVPN combines self-hosted WireGuard privacy, real-time intrusion defense, and a full
+            professional security toolkit — so you protect yourself and strike back, all from one platform.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16">
@@ -563,6 +569,76 @@ export default function Home() {
                 <p className="text-xs text-white/78 leading-relaxed">{desc}</p>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── WHAT'S NEW PROMO STRIP ── */}
+      <section className="py-16 px-6 border-t border-white/[0.05] bg-gradient-to-b from-[#080d09] to-[#0a1210]">
+        <div className="max-w-6xl mx-auto">
+          <div className="flex items-center gap-3 mb-8">
+            <div className="h-px flex-1 bg-white/[0.05]" />
+            <div className="flex items-center gap-2 bg-blue-400/10 border border-blue-400/20 rounded-full px-4 py-1">
+              <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+              <span className="text-[11px] text-blue-300 font-semibold uppercase tracking-widest">Recently Added</span>
+            </div>
+            <div className="h-px flex-1 bg-white/[0.05]" />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            {/* Dark Web Monitor */}
+            <Link href="/sign-up" className="group bg-[#0d1610] border border-white/[0.07] rounded-2xl p-6 hover:border-primary/25 hover:shadow-[0_0_30px_rgba(0,255,136,0.06)] transition-all">
+              <div className="flex items-start justify-between mb-4">
+                <div className="w-11 h-11 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center group-hover:bg-primary/15 transition-colors">
+                  <KeyRound className="w-5 h-5 text-primary" />
+                </div>
+                <span className="text-[9px] font-bold uppercase tracking-widest bg-primary/15 text-primary border border-primary/25 rounded-full px-2.5 py-1">Free + Pro</span>
+              </div>
+              <h3 className="text-base font-bold text-white mb-2">Dark Web Monitor</h3>
+              <p className="text-xs text-white/70 leading-relaxed mb-4">
+                Check any password against billions of breached credentials for free — no account needed.
+                Upgrade to scan email addresses across 700+ data breaches and enable continuous monitoring.
+              </p>
+              <div className="flex items-center gap-1.5 text-xs text-primary/70 group-hover:text-primary transition-colors font-medium">
+                Try it free <ArrowRight className="w-3.5 h-3.5" />
+              </div>
+            </Link>
+
+            {/* OmniStrike */}
+            <Link href="/sign-up" className="group bg-[#0d1610] border border-white/[0.07] rounded-2xl p-6 hover:border-red-400/25 hover:shadow-[0_0_30px_rgba(248,113,113,0.05)] transition-all">
+              <div className="flex items-start justify-between mb-4">
+                <div className="w-11 h-11 rounded-xl bg-red-400/10 border border-red-400/20 flex items-center justify-center group-hover:bg-red-400/15 transition-colors">
+                  <Swords className="w-5 h-5 text-red-400" />
+                </div>
+                <span className="text-[9px] font-bold uppercase tracking-widest bg-red-400/10 text-red-400 border border-red-400/20 rounded-full px-2.5 py-1">Command Center</span>
+              </div>
+              <h3 className="text-base font-bold text-white mb-2">OmniStrike</h3>
+              <p className="text-xs text-white/70 leading-relaxed mb-4">
+                Multi-vector offensive security platform built for penetration testers. Orchestrate exploit chains,
+                manage payloads, and coordinate attacks across your full target surface from a single panel.
+              </p>
+              <div className="flex items-center gap-1.5 text-xs text-red-400/70 group-hover:text-red-400 transition-colors font-medium">
+                Unlock with Command Center <ArrowRight className="w-3.5 h-3.5" />
+              </div>
+            </Link>
+
+            {/* Developer Suite */}
+            <Link href="/sign-up" className="group bg-[#0d1610] border border-white/[0.07] rounded-2xl p-6 hover:border-yellow-400/25 hover:shadow-[0_0_30px_rgba(250,204,21,0.04)] transition-all">
+              <div className="flex items-start justify-between mb-4">
+                <div className="w-11 h-11 rounded-xl bg-yellow-400/10 border border-yellow-400/20 flex items-center justify-center group-hover:bg-yellow-400/15 transition-colors">
+                  <ShieldCheck className="w-5 h-5 text-yellow-400" />
+                </div>
+                <span className="text-[9px] font-bold uppercase tracking-widest bg-yellow-400/10 text-yellow-400 border border-yellow-400/20 rounded-full px-2.5 py-1">5 New Tools</span>
+              </div>
+              <h3 className="text-base font-bold text-white mb-2">Developer Security Suite</h3>
+              <p className="text-xs text-white/70 leading-relaxed mb-4">
+                Five new tools just landed: OAST blind injection tester, dependency vulnerability scanner,
+                JWT token sequence analyzer, WebSocket security tester, and SAST static code analysis.
+              </p>
+              <div className="flex items-center gap-1.5 text-xs text-yellow-400/70 group-hover:text-yellow-400 transition-colors font-medium">
+                Explore the suite <ArrowRight className="w-3.5 h-3.5" />
+              </div>
+            </Link>
           </div>
         </div>
       </section>
