@@ -1384,7 +1384,7 @@ export default function OmniStrike() {
                         <button className="text-xs text-gray-400" onClick={() => setSalvoCategories([])}>None</button>
                       </div>
                     </div>
-                    <div className="space-y-1.5 max-h-72 overflow-y-auto pr-1">
+                    <div className="space-y-1.5">
                       {CATEGORIES.map(cat => (
                         <label key={cat.id} className="flex items-start gap-3 cursor-pointer group">
                           <input type="checkbox" checked={salvoCategories.includes(cat.id)}
@@ -1404,7 +1404,7 @@ export default function OmniStrike() {
 
                 {/* ── CUSTOM: ordered module list ──────────────────────── */}
                 {orchMode === "custom" && (
-                  <div className="space-y-1.5 max-h-96 overflow-y-auto pr-1">
+                  <div className="space-y-1.5">
                     <p className="text-[10px] text-gray-500 mb-2">Drag order with ↑↓. Unchecked modules are skipped.</p>
                     {customModules.map((mod, i) => {
                       const cat = CATEGORIES.find(c => c.id === mod.id)!;
