@@ -12,6 +12,7 @@ import {
   Send, FolderSearch, Radar, Award, BarChart2,
   Code2, GitCompare, Swords, Bug, Eye, BookMarked,
   GitMerge, Ban, Bell, Fingerprint, Upload, ChevronDown,
+  Lock, Shuffle, UserX, RefreshCcw,
 } from "lucide-react";
 import { useAccess } from "@/hooks/useAccess";
 
@@ -80,6 +81,11 @@ const PAGE_NAMES: Record<string, string> = {
   "/bug-bounty":           "Bug Bounty Research Hub",
   "/waf":                  "WAF Analyzer",
   "/manuals":              "ProxhqVPN Manuals",
+  "/pqc":                  "Post-Quantum Encryption",
+  "/daita":                "DAITA — Traffic Analysis Defense",
+  "/dark-web":             "Dark Web Monitor",
+  "/alt-id":               "Alternative Identity",
+  "/ip-rotator":           "IP Rotator",
 };
 
 const USER_NAV = [
@@ -101,6 +107,14 @@ const PROTECTION_NAV = [
   { href: "/obfuscation",        label: "Stealth Protocol",    icon: EyeOff },
   { href: "/ip-exposure",        label: "IP Exposure Scan",    icon: Eye },
   { href: "/ghost-trace",        label: "Ghost Trace",         icon: Radar },
+];
+
+const PRIVACY_SUITE_NAV = [
+  { href: "/pqc",        label: "Post-Quantum Encryption", icon: Lock },
+  { href: "/daita",      label: "DAITA Shield",            icon: EyeOff },
+  { href: "/dark-web",   label: "Dark Web Monitor",        icon: Eye },
+  { href: "/alt-id",     label: "Alternative Identity",    icon: UserX },
+  { href: "/ip-rotator", label: "IP Rotator",              icon: RefreshCcw },
 ];
 
 const NETWORK_NAV = [
@@ -263,6 +277,7 @@ export function Layout({ children }: LayoutProps) {
       if (USER_NAV.some((i) => i.href === location)) return "myvpn";
       if (AMBASSADOR_NAV.some((i) => i.href === location)) return "ambassadors";
       if (PROTECTION_NAV.some((i) => i.href === location)) return "protection";
+      if (PRIVACY_SUITE_NAV.some((i) => i.href === location)) return "privacysuite";
       if (NETWORK_NAV.some((i) => i.href === location)) return "network";
       if (ADVANCED_NAV.some((i) => i.href === location)) return "commandcenter";
       if (ADMIN_NAV.some((i) => i.href === location)) return "admin";
@@ -301,8 +316,9 @@ export function Layout({ children }: LayoutProps) {
         <NavSection label="Ambassadors" items={AMBASSADOR_NAV} onNav={closeSidebar} isOpen={openSection === "ambassadors"} onToggle={() => toggle("ambassadors")} />
         {hasAccess && (
           <>
-            <NavSection label="Protection" items={PROTECTION_NAV} onNav={closeSidebar} isOpen={openSection === "protection"} onToggle={() => toggle("protection")} />
-            <NavSection label="Network"    items={NETWORK_NAV}    onNav={closeSidebar} isOpen={openSection === "network"}    onToggle={() => toggle("network")} />
+            <NavSection label="Protection"    items={PROTECTION_NAV}    onNav={closeSidebar} isOpen={openSection === "protection"}    onToggle={() => toggle("protection")} />
+            <NavSection label="Privacy Suite" items={PRIVACY_SUITE_NAV} onNav={closeSidebar} isOpen={openSection === "privacysuite"} onToggle={() => toggle("privacysuite")} />
+            <NavSection label="Network"       items={NETWORK_NAV}       onNav={closeSidebar} isOpen={openSection === "network"}       onToggle={() => toggle("network")} />
           </>
         )}
         {hasCommandCenter && (

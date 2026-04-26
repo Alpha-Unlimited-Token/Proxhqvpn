@@ -97,6 +97,11 @@ import WafAnalyzer from "@/pages/WafAnalyzer";
 import SocialBreach from "@/pages/SocialBreach";
 import BugBountyHub from "@/pages/BugBountyHub";
 import Manuals from "@/pages/Manuals";
+import PostQuantum from "@/pages/PostQuantum";
+import Daita from "@/pages/Daita";
+import DarkWebMonitor from "@/pages/DarkWebMonitor";
+import AltIdentity from "@/pages/AltIdentity";
+import IpRotator from "@/pages/IpRotator";
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
@@ -561,6 +566,23 @@ function AppRoutes() {
           </Route>
           <Route path="/manuals">
             <ToolLayout><Manuals /></ToolLayout>
+          </Route>
+
+          {/* ── Privacy Suite — post-quantum, DAITA, dark web, alt-identity, IP rotation ── */}
+          <Route path="/pqc">
+            <ToolLayout><PostQuantum /></ToolLayout>
+          </Route>
+          <Route path="/daita">
+            <ToolLayout><Daita /></ToolLayout>
+          </Route>
+          <Route path="/dark-web">
+            <ToolLayout><DarkWebMonitor /></ToolLayout>
+          </Route>
+          <Route path="/alt-id">
+            <ToolLayout><AltIdentity /></ToolLayout>
+          </Route>
+          <Route path="/ip-rotator">
+            <ToolLayout><IpRotator /></ToolLayout>
           </Route>
 
           {/* ── Admin-only — gated on backend; frontend shows paywall for non-admins ── */}

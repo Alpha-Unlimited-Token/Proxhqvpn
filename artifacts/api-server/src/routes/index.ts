@@ -57,6 +57,11 @@ import exploitImportRouter from "./exploitimport";
 import wafRouter from "./waf";
 import omnistrikeRouter from "./omnistrike";
 import socialAccountRouter from "./social-account";
+import pqcRouter from "./pqc";
+import daitaRouter from "./daita";
+import darkwebRouter from "./darkweb";
+import altidRouter from "./altid";
+import iprotatorRouter from "./iprotator";
 
 const router: IRouter = Router();
 
@@ -289,6 +294,13 @@ router.use("/wireguard",      requireAccess, wireguardRouter);
 router.use("/threat-protection", requireAccess, threatProtectionRouter);
 // Onion Browser (Tor) — included in VPN Basic; users can Tor over VPN or standalone
 router.use("/proxy-browser",  requireAccess, proxyBrowserRouter);
+
+// ── Privacy Suite — new features closing the gap with top-5 VPNs ────────────
+router.use("/pqc",        requireAccess, pqcRouter);        // Post-Quantum Encryption
+router.use("/daita",      requireAccess, daitaRouter);      // Defense Against AI Traffic Analysis
+router.use("/darkweb",    requireAccess, darkwebRouter);    // Dark Web Breach Monitor
+router.use("/altid",      requireAccess, altidRouter);      // Alternative Identity Generator
+router.use("/iprotator",  requireAccess, iprotatorRouter);  // IP Rotator
 
 // ── Command Center Pro routes — requires command_center tier (or admin/employee)
 router.use("/threatintel",     requireCommandCenter, threatintelRouter);
