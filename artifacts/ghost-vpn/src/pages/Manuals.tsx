@@ -1,4 +1,4 @@
-// Copyright © 2025 ALPHA UNLIMITED TECHNOLOGIES LLC — legal@alphauntechnologies.com
+// Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC — legal@alphauntechnologies.com
 // ProxhqVPN Manuals Download Center — subscription-gated comprehensive guides
 import React, { useState } from "react";
 import { PageSEO } from "@/components/PageSEO";
@@ -8,6 +8,7 @@ import {
   Search, Zap, Globe, Lock, Eye, Radio, Award,
   Gamepad2, FileText, Network, Cpu, Server, Settings,
   CheckCircle2, ChevronDown, ChevronUp, BookMarked,
+  MapPin, Code,
 } from "lucide-react";
 
 // ── Manual Definitions ────────────────────────────────────────────────────────
@@ -35,7 +36,7 @@ const MANUALS: Manual[] = [
     iconColor: "text-green-400",
     tier: "both",
     content: `ProxhqVPN Getting Started Guide
-Version 3.2 — Copyright © 2025 ALPHA UNLIMITED TECHNOLOGIES LLC
+Version 3.2 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
 legal@alphauntechnologies.com | proxhqvpn.com
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -140,7 +141,7 @@ TABLE OF CONTENTS
   → Try ChaCha20-Poly1305 cipher if on mobile.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Copyright © 2025 ALPHA UNLIMITED TECHNOLOGIES LLC
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
 All rights reserved. Unauthorized distribution prohibited.`,
   },
   {
@@ -153,7 +154,7 @@ All rights reserved. Unauthorized distribution prohibited.`,
     iconColor: "text-blue-400",
     tier: "both",
     content: `WireGuard Advanced Configuration Manual
-Version 2.1 — Copyright © 2025 ALPHA UNLIMITED TECHNOLOGIES LLC
+Version 2.1 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -231,7 +232,7 @@ TABLE OF CONTENTS
      dscacheutil -flushcache (macOS).
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Copyright © 2025 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
   },
   // ── SECURITY TOOLS ───────────────────────────────────────────────────────
   {
@@ -244,7 +245,7 @@ Copyright © 2025 ALPHA UNLIMITED TECHNOLOGIES LLC`,
     iconColor: "text-red-400",
     tier: "pro",
     content: `OmniStrike Penetration Testing Suite — User Manual
-Version 4.0 — Copyright © 2025 ALPHA UNLIMITED TECHNOLOGIES LLC
+Version 4.0 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
 Command Center Pro Feature
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -446,7 +447,7 @@ TABLE OF CONTENTS
   Register with the bug bounty program before any testing.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Copyright © 2025 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
   },
   {
     id: "waf-analyzer-manual",
@@ -458,7 +459,7 @@ Copyright © 2025 ALPHA UNLIMITED TECHNOLOGIES LLC`,
     iconColor: "text-blue-400",
     tier: "pro",
     content: `WAF Analyzer Manual
-Version 1.4 — Copyright © 2025 ALPHA UNLIMITED TECHNOLOGIES LLC
+Version 1.4 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
 Command Center Pro Feature
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -540,7 +541,7 @@ TABLE OF CONTENTS
   as payload wrappers for all subsequent module runs.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Copyright © 2025 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
   },
   {
     id: "social-breach-manual",
@@ -552,7 +553,7 @@ Copyright © 2025 ALPHA UNLIMITED TECHNOLOGIES LLC`,
     iconColor: "text-purple-400",
     tier: "pro",
     content: `Social & Game Account Breach Tester — User Manual
-Version 1.2 — Copyright © 2025 ALPHA UNLIMITED TECHNOLOGIES LLC
+Version 1.2 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
 Command Center Pro Feature
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -676,7 +677,7 @@ TABLE OF CONTENTS
   cleared when the API server restarts.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Copyright © 2025 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
   },
   {
     id: "bug-bounty-hub-manual",
@@ -688,7 +689,7 @@ Copyright © 2025 ALPHA UNLIMITED TECHNOLOGIES LLC`,
     iconColor: "text-yellow-400",
     tier: "pro",
     content: `Bug Bounty Research Hub — User Manual
-Version 1.0 — Copyright © 2025 ALPHA UNLIMITED TECHNOLOGIES LLC
+Version 1.0 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
 Command Center Pro Feature
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -803,7 +804,7 @@ TABLE OF CONTENTS
   ✗ Submit duplicate reports
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Copyright © 2025 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
   },
   {
     id: "osint-recon-manual",
@@ -815,7 +816,7 @@ Copyright © 2025 ALPHA UNLIMITED TECHNOLOGIES LLC`,
     iconColor: "text-cyan-400",
     tier: "pro",
     content: `OSINT Recon Engine — User Manual
-Version 2.3 — Copyright © 2025 ALPHA UNLIMITED TECHNOLOGIES LLC
+Version 2.3 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
 Command Center Pro Feature
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -890,7 +891,7 @@ TABLE OF CONTENTS
   4. Prioritize in-scope assets for further testing with OmniStrike.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Copyright © 2025 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
   },
   {
     id: "canary-tokens-manual",
@@ -902,7 +903,7 @@ Copyright © 2025 ALPHA UNLIMITED TECHNOLOGIES LLC`,
     iconColor: "text-amber-400",
     tier: "pro",
     content: `Canary Token Generator — User Manual
-Version 1.8 — Copyright © 2025 ALPHA UNLIMITED TECHNOLOGIES LLC
+Version 1.8 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
 Command Center Pro Feature
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1010,7 +1011,7 @@ TABLE OF CONTENTS
     comprehensive attacker tracking.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Copyright © 2025 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
   },
   {
     id: "siem-manual",
@@ -1022,7 +1023,7 @@ Copyright © 2025 ALPHA UNLIMITED TECHNOLOGIES LLC`,
     iconColor: "text-emerald-400",
     tier: "pro",
     content: `SIEM Security Event Log — User Manual
-Version 2.0 — Copyright © 2025 ALPHA UNLIMITED TECHNOLOGIES LLC
+Version 2.0 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
 Command Center Pro Feature
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1109,7 +1110,7 @@ TABLE OF CONTENTS
   Automated daily and weekly reports can be configured in Settings.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Copyright © 2025 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
   },
   {
     id: "employee-procedures",
@@ -1121,7 +1122,7 @@ Copyright © 2025 ALPHA UNLIMITED TECHNOLOGIES LLC`,
     iconColor: "text-green-400",
     tier: "both",
     content: `Employee Procedures & Platform Administration
-Version 1.5 — Copyright © 2025 ALPHA UNLIMITED TECHNOLOGIES LLC
+Version 1.5 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
 INTERNAL USE ONLY — DO NOT DISTRIBUTE
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1243,7 +1244,407 @@ TABLE OF CONTENTS
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 INTERNAL DOCUMENT — DO NOT DISTRIBUTE
-Copyright © 2025 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+
+  // ── VPN PRIVACY SUITE TOOLS ───────────────────────────────────────────────
+  {
+    id: "privacy-suite-tools",
+    title: "VPN Privacy Suite Tools",
+    subtitle: "GPS Spoofing, Port Forwarding, Dedicated IP, Meshnet, Data Broker Opt-Out",
+    version: "1.0",
+    pages: 18,
+    icon: MapPin,
+    iconColor: "text-green-400",
+    tier: "both",
+    content: `ProxhqVPN: VPN Privacy Suite Tools
+Version 1.0 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+legal@alphauntechnologies.com | proxhqvpn.com
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TABLE OF CONTENTS
+
+1. GPS Spoofing (/gps-spoof)
+2. Port Forwarding (/port-forward)
+3. Dedicated Static IP (/dedicated-ip)
+4. Meshnet (/meshnet)
+5. Data Broker Opt-Out (/data-broker)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. GPS SPOOFING (/gps-spoof)
+
+  Overview:
+  GPS Spoofing lets you broadcast a fake GPS location at the VPN tunnel
+  level, overriding your device's actual physical coordinates. All apps
+  reading location data receive the spoofed coordinates.
+
+  Use Cases:
+  • Bypass geo-locked apps and streaming libraries by region
+  • Security testing: validate location-based access controls
+  • Privacy: prevent location-based profiling and tracking
+  • QA testing: simulate users from different geographic regions
+
+  How to Use:
+  1. Navigate to /gps-spoof in the Command Center.
+  2. Enter target latitude and longitude manually, or search by city/country.
+  3. Set accuracy radius (meters) — lower values appear more realistic.
+  4. Click "Apply Location Override."
+  5. All subsequent app location reads return the spoofed coordinates.
+  6. Click "Reset to Real Location" to restore actual GPS data.
+
+  Supported Platforms:
+  • Web browser (JavaScript navigator.geolocation API spoofing)
+  • Android (via ADB mock location injection when developer mode enabled)
+  • iOS (via provisioning profile — see setup guide at /guide)
+  • Windows/Linux/macOS (via WireGuard tunnel metadata injection)
+
+  Notes:
+  • Some apps have secondary location signals (Wi-Fi triangulation, cell tower)
+    that may override GPS. Enable full VPN routing to eliminate these.
+  • Accuracy values below 5m may trigger anti-cheat systems in apps.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2. PORT FORWARDING (/port-forward)
+
+  Overview:
+  Port Forwarding lets you expose services running on your local machine
+  through the VPN tunnel, making them reachable from the public internet
+  via your ProxhqVPN exit IP. Supports TCP, UDP, and dual-stack.
+
+  Use Cases:
+  • Host a game server, web server, or dev environment behind VPN
+  • Remote access to home lab equipment without exposing your real IP
+  • Penetration testing: expose listener ports for reverse shells
+  • Run local services accessible to a specific team IP range
+
+  How to Configure:
+  1. Navigate to /port-forward.
+  2. Click "Add Rule."
+  3. Select protocol: TCP, UDP, or Both.
+  4. Enter local port (on your machine) and external port (on the VPN exit IP).
+  5. Optionally restrict by source IP CIDR (e.g., 10.0.0.0/8 for LAN only).
+  6. Click "Save Rule" — the rule activates within 30 seconds.
+  7. Test by connecting to [your-exit-ip]:[external-port] from another machine.
+
+  Security Guidance:
+  • Never expose RDP (3389), SMB (445), or database ports to 0.0.0.0/0.
+  • Always restrict source CIDRs where possible.
+  • Rules persist across VPN reconnections but are removed on plan expiry.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3. DEDICATED STATIC IP (/dedicated-ip)
+
+  Overview:
+  Dedicated IP gives your account a fixed, exclusive VPN exit IP address
+  that only you use. This IP never changes, unlike shared pool IPs.
+
+  Benefits:
+  • Maintain IP reputation for email sending and payment processors
+  • Whitelist your VPN IP in client/partner firewall rules
+  • Session persistence for platforms that fingerprint by IP
+  • Avoid CAPTCHAs caused by shared pool IPs flagged by other users
+
+  How to Activate:
+  1. Navigate to /dedicated-ip.
+  2. Select your preferred exit region (e.g., US-East, EU-West, AP-Southeast).
+  3. Click "Request Dedicated IP."
+  4. Your static IP is provisioned within 60 seconds and displayed.
+  5. Reconnect your WireGuard tunnel — all traffic now exits via your static IP.
+
+  Notes:
+  • Dedicated IPs are tied to your account subscription.
+  • Cancelling your subscription releases the IP back to the pool.
+  • IP is not shared with any other user for the duration of your subscription.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4. MESHNET (/meshnet)
+
+  Overview:
+  Meshnet creates a peer-to-peer encrypted overlay network connecting all
+  of your authorized devices into a private mesh. Traffic between devices
+  on the mesh never touches external servers.
+
+  Use Cases:
+  • Secure team communication across geographically distributed devices
+  • Share files and services between your own devices without a VPN server hop
+  • Penetration testing lab: connect Kali, target VMs, and C2 in a private mesh
+  • Home lab: give every device a stable private IP regardless of location
+
+  How to Set Up:
+  1. Navigate to /meshnet.
+  2. Click "Enable Meshnet" — your device joins the mesh with a static mesh IP.
+  3. On each additional device, sign in to ProxhqVPN and enable Meshnet.
+  4. All mesh-enabled devices appear in the "Connected Peers" panel.
+  5. Reach any peer by their mesh IP (e.g., 100.x.x.x).
+  6. Optionally, authorize external peers by sharing a Meshnet invite link.
+
+  Routing Modes:
+  • Direct: P2P connection (fastest, works when peers can reach each other)
+  • Relayed: Traffic relayed through ProxhqVPN node (fallback for NAT/CGNAT)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+5. DATA BROKER OPT-OUT (/data-broker)
+
+  Overview:
+  Data brokers collect and sell your personal information — name, address,
+  phone number, relatives, income estimates, and more. This tool automates
+  opt-out requests to 180+ known data broker databases.
+
+  Use Cases:
+  • Remove your personal data from people-search sites (Spokeo, BeenVerified, etc.)
+  • Reduce spam calls, emails, and physical mail
+  • Protect your identity and reduce social engineering attack surface
+  • Comply with GDPR/CCPA deletion rights
+
+  How to Use:
+  1. Navigate to /data-broker.
+  2. Enter your full name, current and past addresses, email addresses, and
+     phone numbers you want removed.
+  3. Click "Run Opt-Out Sweep."
+  4. The tool submits removal requests to all 180+ covered brokers.
+  5. Track status in the "Request Log" — each broker shows: Pending / Submitted / Confirmed.
+  6. Re-run quarterly — brokers re-aggregate data from public records over time.
+
+  Covered Broker Categories:
+  • People search (Spokeo, Intelius, BeenVerified, PeopleFinder, Whitepages)
+  • Marketing databases (Acxiom, Experian Consumer, LexisNexis, Oracle Data Cloud)
+  • Background check services (Checkr, HireRight, Sterling)
+  • Aggregators (Data.com, ZoomInfo, Clearbit)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+INTERNAL DOCUMENT — DO NOT DISTRIBUTE
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+
+  // ── DEV SECURITY TOOLS V2 ─────────────────────────────────────────────────
+  {
+    id: "dev-security-tools-v2",
+    title: "Dev Security Tools v2",
+    subtitle: "OAST Tester, Dependency Scanner, Token Sequencer, WebSocket Tester, SAST Scanner",
+    version: "1.0",
+    pages: 22,
+    icon: Code,
+    iconColor: "text-red-400",
+    tier: "pro",
+    content: `ProxhqVPN: Dev Security Tools v2
+Version 1.0 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+legal@alphauntechnologies.com | proxhqvpn.com
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TABLE OF CONTENTS
+
+1. OAST Tester (/oast-tester)
+2. Dependency Scanner (/dep-scanner)
+3. Token Sequencer (/token-seq)
+4. WebSocket Tester (/ws-tester)
+5. SAST Scanner (/sast)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OAST TESTER (/oast-tester)
+   Out-of-Band Application Security Testing
+
+  Overview:
+  OAST Tester generates unique callback payloads (DNS, HTTP, SMTP) that
+  your target application triggers when vulnerable to blind injection.
+  Integrates with interactsh for real-time callback monitoring.
+
+  What It Detects:
+  • Blind SSRF (Server-Side Request Forgery) — server fetches your callback URL
+  • Blind XXE (XML External Entity) — parser resolves your DNS/HTTP callback
+  • Blind command injection — server executes curl/nslookup to your endpoint
+  • Blind SQL injection (OOB via DNS) — database resolves DNS lookup
+  • Log4Shell and similar JNDI injection vulnerabilities
+
+  How to Use:
+  1. Navigate to /oast-tester.
+  2. Click "Generate Callback" — a unique interactsh subdomain is created.
+     Example: abc123.oast.proxhqvpn.com
+  3. Copy the generated payload for your target injection point:
+     • HTTP URL: http://abc123.oast.proxhqvpn.com
+     • DNS payload: \${IFS}nslookup abc123.oast.proxhqvpn.com
+     • JNDI: \${jndi:ldap://abc123.oast.proxhqvpn.com/a}
+  4. Inject the payload into the target application (URL param, header, XML body, etc.).
+  5. Watch the "Live Interactions" panel — any callback from the server appears
+     within seconds showing: timestamp, source IP, interaction type, raw payload.
+  6. A callback confirms the vulnerability is exploitable out-of-band.
+
+  Payload Types Available:
+  • HTTP GET / POST callback URLs
+  • DNS resolution payloads (nslookup, dig, curl variants)
+  • SMTP callback addresses
+  • JNDI LDAP injection strings (Log4Shell variants)
+  • Burp Collaborator-compatible format
+
+  Legal Note:
+  OAST payloads must only be injected into systems you own or have written
+  authorization to test. All interactions are logged with timestamp and source IP.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2. DEPENDENCY SCANNER (/dep-scanner)
+
+  Overview:
+  Scans project dependency manifests for known CVEs across all major
+  package ecosystems. Results are severity-ranked with fix guidance.
+
+  Supported Package Managers:
+  • npm / yarn / pnpm (package.json, package-lock.json, yarn.lock)
+  • pip / poetry (requirements.txt, pyproject.toml, Pipfile)
+  • Cargo (Cargo.toml, Cargo.lock)
+  • Go modules (go.mod, go.sum)
+  • Maven / Gradle (pom.xml, build.gradle)
+  • Composer (composer.json, composer.lock)
+  • RubyGems (Gemfile, Gemfile.lock)
+  • NuGet (.csproj, packages.config)
+
+  How to Use:
+  1. Navigate to /dep-scanner.
+  2. Upload your manifest file(s) or paste the contents directly.
+  3. Click "Scan Dependencies."
+  4. Results appear within 10–30 seconds, grouped by severity:
+     CRITICAL → HIGH → MEDIUM → LOW → INFO
+  5. Each finding shows:
+     • Package name and vulnerable version
+     • CVE ID(s) with CVSS score
+     • Description of the vulnerability
+     • Fixed version (if available)
+     • Direct upgrade command (npm install pkg@x.y.z, etc.)
+  6. Click "Export Report" to download findings as CSV or JSON.
+
+  Data Sources:
+  • NVD (National Vulnerability Database)
+  • GitHub Advisory Database
+  • OSV (Open Source Vulnerabilities)
+  • Snyk Vulnerability DB
+  • npm audit / pip-audit native APIs
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3. TOKEN SEQUENCER (/token-seq)
+
+  Overview:
+  Token Sequencer captures session tokens or other application-generated
+  values and performs statistical entropy analysis to detect predictability
+  weaknesses that could allow an attacker to forge valid tokens.
+
+  What It Tests:
+  • Randomness quality of session IDs, CSRF tokens, API keys, password reset tokens
+  • Entropy (bits of randomness) — OWASP recommends ≥ 128 bits
+  • Pattern detection: sequential IDs, timestamp-based tokens, base64-encoded integers
+  • Prediction feasibility: can the next token be guessed from previous samples?
+
+  How to Use:
+  1. Navigate to /token-seq.
+  2. Paste a list of token samples (minimum 100, ideally 500+).
+     Collect from: login cookies, response headers, CSRF input fields.
+  3. Click "Analyze."
+  4. Results show:
+     • Entropy estimate (bits)
+     • Character space analysis
+     • Pattern signature (sequential / timestamp-based / random)
+     • Prediction risk rating: SAFE / WEAK / VULNERABLE
+  5. For WEAK or VULNERABLE tokens: use the "Prediction Attack" tab to generate
+     candidate tokens from the observed pattern for authorized testing.
+
+  Interpretation:
+  • > 128 bits entropy: Generally safe for session tokens
+  • 64–128 bits: Marginal — acceptable only for low-risk tokens
+  • < 64 bits: High risk — predictable under targeted attack
+  • Sequential integers / timestamps: Immediately vulnerable
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4. WEBSOCKET TESTER (/ws-tester)
+
+  Overview:
+  WebSocket Tester is a full WebSocket client with intercept, replay,
+  and fuzzing capabilities — equivalent to Burp Suite's WebSocket tab.
+
+  Use Cases:
+  • Test real-time applications (chat, trading, gaming, live data feeds)
+  • Identify authentication/authorization flaws in WS connections
+  • Fuzz WebSocket message payloads for injection vulnerabilities
+  • Replay captured frames to test business logic
+
+  How to Use:
+  1. Navigate to /ws-tester.
+  2. Enter the target WebSocket URL: ws:// or wss://
+  3. Add custom headers (e.g., Authorization: Bearer <token>) if required.
+  4. Click "Connect" — the connection status and handshake headers are displayed.
+  5. In the "Messages" panel, type any payload and click "Send."
+  6. All sent and received frames appear in the message log with timestamps.
+  7. Click any received frame and "Send to Repeater" to modify and replay it.
+  8. Use the "Fuzzer" tab to automatically iterate payloads from a wordlist
+     against a selected message template.
+
+  Common Test Payloads:
+  • XSS in message body: <img src=x onerror=alert(1)>
+  • IDOR: change user_id field to another user's ID
+  • Privilege escalation: modify role/permission fields in JSON payloads
+  • SQL injection: inject ' OR 1=1 -- into query parameters in the WS message
+
+  Legal Note:
+  Only test WebSocket endpoints on systems you own or have authorization to test.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+5. SAST SCANNER (/sast)
+   Static Application Security Testing
+
+  Overview:
+  SAST Scanner performs source code analysis without execution, identifying
+  security vulnerabilities in your codebase by pattern-matching against
+  35+ vulnerability signatures across 12 languages.
+
+  Supported Languages:
+  JavaScript / TypeScript, Python, Java, Go, PHP, Ruby, C/C++,
+  C#/.NET, Rust, Bash/Shell, SQL, Dockerfile / YAML configs
+
+  Vulnerability Patterns Detected (35+):
+  • Injection: SQL injection, command injection, LDAP injection, XPath injection
+  • XSS: reflected, stored, DOM (unsanitized innerHTML, document.write)
+  • Secrets: hardcoded API keys, passwords, tokens, private keys
+  • Insecure crypto: MD5/SHA-1 usage, ECB mode, hardcoded IV
+  • Path traversal: unsanitized file paths, directory traversal
+  • Deserialization: unsafe pickle, Java ObjectInputStream, PHP unserialize
+  • SSRF: unvalidated URL inputs passed to HTTP clients
+  • Prototype pollution: recursive merge patterns in JavaScript
+  • Weak authentication: JWT alg:none, missing expiry, hardcoded secrets
+  • Insecure dependencies: cross-references with dep-scanner CVE data
+  • CORS misconfiguration: wildcard origin with credentials
+  • Insecure direct object reference patterns: unvalidated ID parameters
+
+  How to Use:
+  1. Navigate to /sast.
+  2. Upload a ZIP of your source code, paste a code snippet, or connect
+     a GitHub repository (OAuth required).
+  3. Select languages to scan (or use auto-detect).
+  4. Click "Run SAST Scan."
+  5. Results appear in 15–120 seconds depending on codebase size.
+  6. Each finding shows:
+     • File path, line number, code snippet
+     • Vulnerability class and severity (CRITICAL/HIGH/MEDIUM/LOW)
+     • Description and remediation guidance
+     • CWE ID and OWASP Top 10 mapping
+  7. Click "Export" to download findings as SARIF, JSON, or CSV.
+  8. Use "Fix Suggestions" tab for AI-generated remediation code diffs.
+
+  False Positive Management:
+  • Mark false positives inline — they are excluded from future scans of the
+    same file/line.
+  • Adjust sensitivity (LOW / MEDIUM / HIGH) to balance coverage vs. noise.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+INTERNAL DOCUMENT — DO NOT DISTRIBUTE
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
   },
 ];
 
@@ -1254,14 +1655,14 @@ const CATEGORIES = [
     color: "text-green-400",
     border: "border-green-900",
     bg: "bg-green-950/20",
-    ids: ["vpn-getting-started", "wireguard-advanced"],
+    ids: ["vpn-getting-started", "wireguard-advanced", "privacy-suite-tools"],
   },
   {
     label: "Command Center Pro — Security Tools",
     color: "text-red-400",
     border: "border-red-900",
     bg: "bg-red-950/20",
-    ids: ["omnistrike-manual", "waf-analyzer-manual", "social-breach-manual", "bug-bounty-hub-manual"],
+    ids: ["omnistrike-manual", "waf-analyzer-manual", "social-breach-manual", "bug-bounty-hub-manual", "dev-security-tools-v2"],
   },
   {
     label: "Intelligence & Monitoring",
@@ -1334,7 +1735,7 @@ export default function Manuals() {
           </button>
           <div className="flex items-center gap-2 bg-amber-950/30 border border-amber-900/50 rounded-lg px-4 py-2 text-xs text-amber-400">
             <FileText className="h-3.5 w-3.5 shrink-0" />
-            <span>Copyright © 2025 ALPHA UNLIMITED TECHNOLOGIES LLC — For authorized subscribers only</span>
+            <span>Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC — For authorized subscribers only</span>
           </div>
         </div>
       </div>

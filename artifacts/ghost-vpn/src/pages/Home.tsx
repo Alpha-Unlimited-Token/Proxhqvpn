@@ -3,7 +3,8 @@ import { Link } from "wouter";
 import { PageSEO } from "@/components/PageSEO";
 import {
   Shield, Zap, Lock, Globe, Eye, Network, Check, ChevronDown, ChevronUp,
-  ArrowRight, Menu, X, Wifi, Server, Clock, Star, Bug, AlertTriangle
+  ArrowRight, Menu, X, Wifi, Server, Clock, Star, Bug, AlertTriangle,
+  MapPin, Share2, Database, Code2,
 } from "lucide-react";
 
 const BASE_API = import.meta.env.BASE_URL.replace(/\/$/, "") + "/api";
@@ -59,6 +60,26 @@ const FEATURES = [
     title: "SilkWeb Threat Defense",
     desc: "Our proprietary honeypot mesh detects and fingerprints anyone probing your tunnel — hackers, bots, and port scanners get identified and blocked in real time.",
   },
+  {
+    icon: MapPin,
+    title: "GPS Location Spoofing",
+    desc: "Broadcast fake GPS coordinates on any device without leaving your real location. Built-in preset locations and custom lat/lng support — essential for mobile privacy and location-based geo-unblocking.",
+  },
+  {
+    icon: Share2,
+    title: "Meshnet Peer Networking",
+    desc: "Create private encrypted peer-to-peer networks between your own devices. Direct WireGuard tunnels between peers — no central relay, no external routing, no data leaving your control.",
+  },
+  {
+    icon: Database,
+    title: "Data Broker Opt-Out",
+    desc: "Scan and remove your personal information from 200+ data brokers, people-search engines, and marketing databases with automated opt-out requests and real-time verification tracking.",
+  },
+  {
+    icon: Code2,
+    title: "Developer Security Suite",
+    desc: "Command Center Pro adds OAST injection testing, dependency vulnerability scanning, JWT/API token sequence analysis, WebSocket security testing, and static code analysis — professional pentest tools in one platform.",
+  },
 ];
 
 const SECURITY = [
@@ -84,8 +105,13 @@ const PRICING_PLANS = [
       "WireGuard AES-256 encryption",
       "Kill switch & DNS leak protection",
       "Double-hop routing",
-      "Split tunneling",
+      "Split tunneling & Smart DNS",
       "SilkWeb threat detection",
+      "GPS location spoofing",
+      "Port forwarding",
+      "Dedicated IP address",
+      "Meshnet peer networking",
+      "Data broker opt-out scanner",
       "Unlimited devices",
       "No logs policy",
       "30-day money-back guarantee",
@@ -102,13 +128,21 @@ const PRICING_PLANS = [
     badge: "MOST POPULAR",
     features: [
       "Everything in VPN Basic",
-      "Threat intelligence dashboard",
-      "Security audit tools",
+      "Alpha Toolkit (35+ languages, 200+ vuln patterns)",
       "SQLmap vulnerability scanner",
       "HTTP probe & directory fuzzer",
-      "Subdomain scanner",
-      "Alpha Toolkit (advanced recon)",
-      "Admin node management",
+      "Subdomain Scout & Intruder",
+      "Ghost Chain Exploit Arsenal",
+      "Exploit Importer + 24 vuln guides",
+      "OSINT Recon Engine (15+ sources)",
+      "OAST injection tester",
+      "Dependency vulnerability scanner",
+      "JWT / API token sequence analyzer",
+      "WebSocket security tester",
+      "Static code analysis (SAST)",
+      "WAF Analyzer & bypass testing",
+      "SIEM, Canary Tokens, Threat Intel",
+      "SilkWeb honeypot + Firewall Manager",
     ],
   },
 ];
@@ -118,6 +152,11 @@ const PLAN_FEATURES = [
   "Unlimited devices",
   "Kill switch & DNS protection",
   "Double-hop routing",
+  "GPS location spoofing",
+  "Port forwarding",
+  "Dedicated IP address",
+  "Meshnet peer networking",
+  "Data broker opt-out scanner",
   "Threat detection & alerts",
   "SilkWeb intrusion defense",
   "No logs policy",
@@ -155,7 +194,7 @@ const FAQS = [
   },
   {
     q: "What is the difference between VPN Basic and Command Center Pro?",
-    a: "VPN Basic ($6.99/mo) gives you full privacy protection — WireGuard encryption, kill switch, DNS shield, double-hop routing, split tunneling, and SilkWeb threat detection. Command Center Pro ($39.99/mo) adds the full professional security suite: threat intelligence, security audits, vulnerability scanning (SQLmap), HTTP probing, subdomain scanning, directory fuzzing, and the Alpha Toolkit — everything a security researcher or power user needs.",
+    a: "VPN Basic ($6.99/mo) gives you full privacy protection — WireGuard encryption, kill switch, DNS shield, double-hop routing, split tunneling, GPS spoofing, port forwarding, dedicated IP, meshnet networking, and data broker opt-out scanning. Command Center Pro ($39.99/mo) adds the full professional security suite: Alpha Toolkit, SQLmap, HTTP Probe, Directory Fuzzer, Subdomain Scout, Ghost Chain Exploit Arsenal, Exploit Importer (24 step-by-step vuln guides), OSINT Recon, OAST injection tester, dependency vulnerability scanner, JWT/API token sequence analyzer, WebSocket security tester, SAST static code analysis, WAF Analyzer, SIEM, Canary Tokens, and SilkWeb honeypot control — everything a security researcher, pentester, or developer needs.",
   },
 ];
 

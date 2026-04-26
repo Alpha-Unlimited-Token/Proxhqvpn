@@ -1301,6 +1301,299 @@ Table: metadata      → Crawl session info, start time, depth`}</CB>
     ),
   },
   {
+    id: "gps-spoof", title: "GPS Spoofing", icon: MapPin,
+    content: (
+      <div className="space-y-3">
+        <p>GPS Spoofing lets you override your device's reported GPS coordinates at the VPN tunnel level. Every app reading location data will see the spoofed position instead of your real one.</p>
+        <Note type="warn">GPS Spoofing is for privacy protection and authorized testing only. Do not use it to circumvent location-locked legal agreements or cheat in location-based games on platforms where that violates their terms of service.</Note>
+        <h4 className="font-bold text-primary text-[11px]">Use Cases</h4>
+        <div className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <div>• <strong>Streaming geo-blocks</strong>: Access region-locked content libraries by spoofing to that country.</div>
+          <div>• <strong>Location-based access control testing</strong>: Validate that your app enforces geo-restrictions correctly.</div>
+          <div>• <strong>Privacy</strong>: Prevent apps from tracking your real physical location over time.</div>
+          <div>• <strong>QA / testing</strong>: Simulate users in different regions without traveling.</div>
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">How to Use</h4>
+        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <li><span className="text-primary/30">1.</span> Navigate to <strong>GPS Spoofing</strong> (<code>/gps-spoof</code>).</li>
+          <li><span className="text-primary/30">2.</span> Search for a city/country or enter exact latitude and longitude coordinates.</li>
+          <li><span className="text-primary/30">3.</span> Set the accuracy radius in meters (10–100m is realistic; &lt;5m may trigger anti-cheat flags).</li>
+          <li><span className="text-primary/30">4.</span> Click <strong>Apply Location Override</strong>.</li>
+          <li><span className="text-primary/30">5.</span> All browser-based location reads now return the spoofed position.</li>
+          <li><span className="text-primary/30">6.</span> Click <strong>Reset to Real Location</strong> when done.</li>
+        </ol>
+        <Note type="info">For mobile app GPS spoofing, enable developer mode on your device and install the ProxhqVPN mobile app. The app injects the mock location at the OS level, affecting all apps.</Note>
+      </div>
+    ),
+  },
+  {
+    id: "port-forward", title: "Port Forwarding", icon: Network,
+    content: (
+      <div className="space-y-3">
+        <p>Port Forwarding exposes services running on your local machine through the ProxhqVPN tunnel. Anyone with your VPN exit IP can reach the specified port, without your real IP being revealed.</p>
+        <h4 className="font-bold text-primary text-[11px]">Use Cases</h4>
+        <div className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <div>• Host a game server, web server, or dev environment reachable from anywhere.</div>
+          <div>• Remote access to home lab equipment using a stable VPN IP instead of dynamic ISP IP.</div>
+          <div>• Penetration testing: expose listener ports for reverse shells (with VPN-level anonymity).</div>
+          <div>• Team collaboration: share a local dev server with colleagues over the tunnel.</div>
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">How to Configure</h4>
+        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <li><span className="text-primary/30">1.</span> Navigate to <strong>Port Forwarding</strong> (<code>/port-forward</code>).</li>
+          <li><span className="text-primary/30">2.</span> Click <strong>Add Rule</strong>.</li>
+          <li><span className="text-primary/30">3.</span> Select protocol: TCP, UDP, or Both.</li>
+          <li><span className="text-primary/30">4.</span> Enter your <strong>local port</strong> (on your machine) and the <strong>external port</strong> (on the VPN exit IP).</li>
+          <li><span className="text-primary/30">5.</span> Optionally restrict by source IP CIDR (e.g., <code>10.0.0.0/8</code>) to limit who can connect.</li>
+          <li><span className="text-primary/30">6.</span> Click <strong>Save Rule</strong> — the port mapping activates within 30 seconds.</li>
+          <li><span className="text-primary/30">7.</span> Test by connecting to <code>[your-vpn-exit-ip]:[external-port]</code> from an outside machine.</li>
+        </ol>
+        <Note type="danger">Never expose RDP (3389), SMB (445), or database ports (3306, 5432, 27017) to 0.0.0.0/0 without source IP restrictions. These are actively scanned by attackers around the clock.</Note>
+      </div>
+    ),
+  },
+  {
+    id: "dedicated-ip", title: "Dedicated Static IP", icon: Globe,
+    content: (
+      <div className="space-y-3">
+        <p>Dedicated IP gives you a fixed, exclusive VPN exit IP address assigned only to your account. Unlike shared pool IPs, your dedicated IP never changes and is never used by other subscribers.</p>
+        <h4 className="font-bold text-primary text-[11px]">Why Use a Dedicated IP?</h4>
+        <div className="space-y-2">
+          {[
+            { t: "Clean IP Reputation", d: "Shared pool IPs can get flagged by spam or abuse from other users. Your dedicated IP maintains its own reputation." },
+            { t: "Firewall Whitelisting", d: "Whitelist your single static IP in client or partner firewall rules — no more updating rules when the pool IP rotates." },
+            { t: "Payment & Email Services", d: "Payment processors and email delivery services (Mailgun, SendGrid) benefit from a consistent IP with established history." },
+            { t: "Session Persistence", d: "Apps that fingerprint by IP (banking apps, admin panels) won't flag you for IP changes mid-session." },
+          ].map(({ t, d }) => (
+            <div key={t} className="border border-primary/10 rounded px-3 py-2">
+              <div className="text-[10px] font-mono font-bold text-primary">{t}</div>
+              <div className="text-[9px] font-mono text-primary/83 mt-0.5">{d}</div>
+            </div>
+          ))}
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">How to Activate</h4>
+        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <li><span className="text-primary/30">1.</span> Navigate to <strong>Dedicated IP</strong> (<code>/dedicated-ip</code>).</li>
+          <li><span className="text-primary/30">2.</span> Select your preferred exit region (US-East, EU-West, AP-Southeast, etc.).</li>
+          <li><span className="text-primary/30">3.</span> Click <strong>Request Dedicated IP</strong>.</li>
+          <li><span className="text-primary/30">4.</span> Your static IP is provisioned within 60 seconds and displayed on screen.</li>
+          <li><span className="text-primary/30">5.</span> Reconnect your WireGuard tunnel — all traffic now exits via your exclusive static IP.</li>
+        </ol>
+        <Note type="info">Your dedicated IP is held exclusively for the duration of your active subscription. If your subscription lapses, the IP returns to the shared pool.</Note>
+      </div>
+    ),
+  },
+  {
+    id: "meshnet", title: "Meshnet", icon: Cpu,
+    content: (
+      <div className="space-y-3">
+        <p>Meshnet creates an encrypted peer-to-peer overlay network connecting all your authorized devices into a private mesh. Traffic between mesh devices never routes through external servers — it's direct device-to-device or relayed only when NAT requires it.</p>
+        <h4 className="font-bold text-primary text-[11px]">Use Cases</h4>
+        <div className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <div>• <strong>Secure team networks</strong>: Connect distributed team devices into a private overlay with stable mesh IPs.</div>
+          <div>• <strong>Home lab access</strong>: Reach your home machines from anywhere using their fixed mesh IP.</div>
+          <div>• <strong>Pentest lab</strong>: Connect Kali, target VMs, and C2 infrastructure in an isolated private mesh.</div>
+          <div>• <strong>File sharing</strong>: Transfer files between personal devices without cloud storage intermediaries.</div>
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">How to Set Up</h4>
+        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <li><span className="text-primary/30">1.</span> Navigate to <strong>Meshnet</strong> (<code>/meshnet</code>).</li>
+          <li><span className="text-primary/30">2.</span> Click <strong>Enable Meshnet</strong> — your device joins the mesh with an assigned mesh IP (100.x.x.x range).</li>
+          <li><span className="text-primary/30">3.</span> On each additional device, sign in to ProxhqVPN and enable Meshnet from that device's dashboard.</li>
+          <li><span className="text-primary/30">4.</span> All mesh-enabled devices appear in the <strong>Connected Peers</strong> panel.</li>
+          <li><span className="text-primary/30">5.</span> Reach any peer by its mesh IP — no additional VPN configuration needed.</li>
+          <li><span className="text-primary/30">6.</span> To invite external collaborators, generate a <strong>Meshnet Invite Link</strong> from the panel.</li>
+        </ol>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Routing Modes</h4>
+        <div className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <div>• <strong>Direct</strong>: P2P connection between peers (fastest — used when both devices can reach each other).</div>
+          <div>• <strong>Relayed</strong>: Traffic is relayed through a ProxhqVPN node (fallback for NAT/CGNAT environments).</div>
+        </div>
+      </div>
+    ),
+  },
+  {
+    id: "data-broker", title: "Data Broker Opt-Out", icon: Database,
+    content: (
+      <div className="space-y-3">
+        <p>Data brokers collect and sell your personal information — name, address, phone number, relatives, income estimates, and more. This tool automates opt-out requests to 180+ known data broker databases, reducing your public exposure and attack surface.</p>
+        <h4 className="font-bold text-primary text-[11px]">What Gets Removed</h4>
+        <div className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <div>• <strong>People-search sites</strong>: Spokeo, BeenVerified, Intelius, Whitepages, PeopleFinder, FastPeopleSearch.</div>
+          <div>• <strong>Marketing databases</strong>: Acxiom, Experian Consumer, LexisNexis, Oracle Data Cloud.</div>
+          <div>• <strong>Background check services</strong>: Checkr, HireRight, Sterling Talent Solutions.</div>
+          <div>• <strong>Business aggregators</strong>: ZoomInfo, Clearbit, Data.com.</div>
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">How to Run an Opt-Out Sweep</h4>
+        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <li><span className="text-primary/30">1.</span> Navigate to <strong>Data Broker Opt-Out</strong> (<code>/data-broker</code>).</li>
+          <li><span className="text-primary/30">2.</span> Enter your full name, current and past addresses, email addresses, and phone numbers to remove.</li>
+          <li><span className="text-primary/30">3.</span> Click <strong>Run Opt-Out Sweep</strong>.</li>
+          <li><span className="text-primary/30">4.</span> The tool submits removal requests to all 180+ covered brokers automatically.</li>
+          <li><span className="text-primary/30">5.</span> Track each broker's status in the <strong>Request Log</strong>: Pending → Submitted → Confirmed.</li>
+        </ol>
+        <Note type="info">Re-run this sweep quarterly. Data brokers continuously re-aggregate information from public records, voter rolls, and social media — removal is not permanent without ongoing maintenance.</Note>
+      </div>
+    ),
+  },
+  {
+    id: "oast-tester", title: "OAST Tester", icon: Crosshair,
+    content: (
+      <div className="space-y-3">
+        <p><strong>Out-of-Band Application Security Testing.</strong> OAST Tester generates unique callback payloads that a vulnerable target application will contact, proving blind injection vulnerabilities that produce no visible output. Powered by interactsh.</p>
+        <Note type="danger">OAST payloads must only be injected into systems you own or have explicit written authorization to test. Unauthorized testing violates the CFAA and Computer Misuse Act.</Note>
+        <h4 className="font-bold text-primary text-[11px]">What It Detects</h4>
+        <div className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <div>• <strong>Blind SSRF</strong>: Server fetches your callback URL when processing user input.</div>
+          <div>• <strong>Blind XXE</strong>: XML parser resolves your DNS/HTTP callback entity.</div>
+          <div>• <strong>Blind command injection</strong>: Server executes <code>curl</code> or <code>nslookup</code> to your endpoint.</div>
+          <div>• <strong>Blind SQL injection (OOB)</strong>: Database resolves DNS lookups (SQL Server <code>xp_dirtree</code>, MySQL DNS UDF).</div>
+          <div>• <strong>Log4Shell / JNDI injection</strong>: JNDI LDAP callback proves exploitation.</div>
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">How to Use</h4>
+        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <li><span className="text-primary/30">1.</span> Navigate to <strong>OAST Tester</strong> (<code>/oast-tester</code>).</li>
+          <li><span className="text-primary/30">2.</span> Click <strong>Generate Callback</strong> — a unique interactsh subdomain is created (e.g., <code>abc123.oast.proxhqvpn.com</code>).</li>
+          <li><span className="text-primary/30">3.</span> Copy the payload for your injection point: HTTP URL, DNS nslookup, JNDI string, or SMTP address.</li>
+          <li><span className="text-primary/30">4.</span> Inject the payload into the target (URL parameter, header, XML body, JSON field, etc.).</li>
+          <li><span className="text-primary/30">5.</span> Watch the <strong>Live Interactions</strong> panel — any callback appears within seconds with timestamp, source IP, and raw payload.</li>
+          <li><span className="text-primary/30">6.</span> A live callback confirms the vulnerability is exploitable out-of-band.</li>
+        </ol>
+      </div>
+    ),
+  },
+  {
+    id: "dep-scanner", title: "Dependency Scanner", icon: GitMerge,
+    content: (
+      <div className="space-y-3">
+        <p>Dependency Scanner checks your project's package manifests against CVE databases across all major ecosystems. Results are severity-ranked (CRITICAL → HIGH → MEDIUM → LOW) with direct upgrade commands for each finding.</p>
+        <h4 className="font-bold text-primary text-[11px]">Supported Package Managers</h4>
+        <div className="grid grid-cols-2 gap-1.5">
+          {[
+            "npm / yarn / pnpm (package.json, lock files)",
+            "pip / poetry (requirements.txt, pyproject.toml)",
+            "Cargo (Cargo.toml, Cargo.lock)",
+            "Go modules (go.mod, go.sum)",
+            "Maven / Gradle (pom.xml, build.gradle)",
+            "Composer (composer.json, composer.lock)",
+            "RubyGems (Gemfile, Gemfile.lock)",
+            "NuGet (.csproj, packages.config)",
+          ].map(v => (
+            <div key={v} className="text-[9px] font-mono text-primary/83 border border-primary/8 rounded px-2 py-1">• {v}</div>
+          ))}
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">How to Use</h4>
+        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <li><span className="text-primary/30">1.</span> Navigate to <strong>Dependency Scanner</strong> (<code>/dep-scanner</code>).</li>
+          <li><span className="text-primary/30">2.</span> Upload your manifest file(s) or paste the contents directly.</li>
+          <li><span className="text-primary/30">3.</span> Click <strong>Scan Dependencies</strong>.</li>
+          <li><span className="text-primary/30">4.</span> Results appear in 10–30 seconds, showing: package name, vulnerable version, CVE IDs + CVSS score, description, fixed version, and upgrade command.</li>
+          <li><span className="text-primary/30">5.</span> Click <strong>Export Report</strong> to download findings as CSV or JSON.</li>
+        </ol>
+        <Note type="info">Data sources include NVD, GitHub Advisory Database, OSV (Open Source Vulnerabilities), and Snyk Vulnerability DB — cross-referenced for maximum coverage.</Note>
+      </div>
+    ),
+  },
+  {
+    id: "token-seq", title: "Token Sequencer", icon: Key,
+    content: (
+      <div className="space-y-3">
+        <p>Token Sequencer captures session tokens or other application-generated values and performs statistical entropy analysis to detect predictability weaknesses that could allow token forgery.</p>
+        <h4 className="font-bold text-primary text-[11px]">What It Tests</h4>
+        <div className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <div>• <strong>Randomness quality</strong>: Measures bits of entropy (OWASP recommends ≥128 bits for session tokens).</div>
+          <div>• <strong>Pattern detection</strong>: Detects sequential IDs, timestamp-based tokens, and base64-encoded integers.</div>
+          <div>• <strong>Character space analysis</strong>: Identifies if the token alphabet limits effective entropy.</div>
+          <div>• <strong>Prediction feasibility</strong>: For weak tokens, estimates how many attempts are needed to guess a valid token.</div>
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">How to Use</h4>
+        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <li><span className="text-primary/30">1.</span> Navigate to <strong>Token Sequencer</strong> (<code>/token-seq</code>).</li>
+          <li><span className="text-primary/30">2.</span> Collect token samples from your target: session cookies, CSRF tokens, API keys, password reset tokens. Minimum 100 samples; 500+ recommended.</li>
+          <li><span className="text-primary/30">3.</span> Paste the token list (one per line) and click <strong>Analyze</strong>.</li>
+          <li><span className="text-primary/30">4.</span> Review the entropy estimate, pattern signature, and risk rating: <strong>SAFE / WEAK / VULNERABLE</strong>.</li>
+          <li><span className="text-primary/30">5.</span> For WEAK or VULNERABLE tokens, use the <strong>Prediction Attack</strong> tab to generate candidate tokens from the observed pattern (authorized testing only).</li>
+        </ol>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Interpretation Guide</h4>
+        <div className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <div>• <span className="text-green-400">&gt;128 bits</span>: Safe for session tokens.</div>
+          <div>• <span className="text-amber-400">64–128 bits</span>: Marginal — acceptable only for low-risk tokens.</div>
+          <div>• <span className="text-red-400">&lt;64 bits</span>: High risk — predictable under targeted attack.</div>
+          <div>• <span className="text-red-400">Sequential / timestamp-based</span>: Immediately vulnerable — report as CRITICAL.</div>
+        </div>
+      </div>
+    ),
+  },
+  {
+    id: "ws-tester", title: "WebSocket Tester", icon: Activity,
+    content: (
+      <div className="space-y-3">
+        <p>WebSocket Tester is a full WebSocket client with intercept, replay, and fuzzing capabilities — the equivalent of Burp Suite's WebSocket tab. Test real-time applications for injection, IDOR, privilege escalation, and business logic flaws in WS frames.</p>
+        <Note type="danger">Only test WebSocket endpoints on systems you own or have explicit written authorization to test.</Note>
+        <h4 className="font-bold text-primary text-[11px]">How to Use</h4>
+        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <li><span className="text-primary/30">1.</span> Navigate to <strong>WebSocket Tester</strong> (<code>/ws-tester</code>).</li>
+          <li><span className="text-primary/30">2.</span> Enter the target WebSocket URL (<code>ws://</code> or <code>wss://</code>).</li>
+          <li><span className="text-primary/30">3.</span> Add custom headers (e.g., <code>Authorization: Bearer &lt;token&gt;</code>) if required for authentication.</li>
+          <li><span className="text-primary/30">4.</span> Click <strong>Connect</strong> — connection status and handshake headers are displayed.</li>
+          <li><span className="text-primary/30">5.</span> Type any payload in the message field and click <strong>Send</strong>.</li>
+          <li><span className="text-primary/30">6.</span> All sent and received frames appear in the message log with timestamps and direction indicators.</li>
+          <li><span className="text-primary/30">7.</span> Click any received frame and <strong>Send to Repeater</strong> to modify and replay it.</li>
+          <li><span className="text-primary/30">8.</span> Use the <strong>Fuzzer</strong> tab to automatically iterate payloads from a wordlist against a selected message template.</li>
+        </ol>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Common Test Payloads</h4>
+        <div className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <div>• <strong>XSS in message body</strong>: <code>&lt;img src=x onerror=alert(1)&gt;</code></div>
+          <div>• <strong>IDOR</strong>: Modify <code>user_id</code> fields to another user's ID in JSON payloads.</div>
+          <div>• <strong>Privilege escalation</strong>: Modify <code>role</code> or <code>permission</code> fields in WS messages.</div>
+          <div>• <strong>SQL injection</strong>: Inject <code>' OR 1=1 --</code> into query parameters embedded in the WS frame.</div>
+        </div>
+      </div>
+    ),
+  },
+  {
+    id: "sast", title: "SAST Scanner", icon: Code2,
+    content: (
+      <div className="space-y-3">
+        <p><strong>Static Application Security Testing.</strong> SAST Scanner analyzes source code without execution, identifying security vulnerabilities by pattern-matching across 35+ vulnerability signatures in 12 supported languages.</p>
+        <h4 className="font-bold text-primary text-[11px]">Supported Languages</h4>
+        <div className="text-[10px] font-mono text-primary/83 border border-primary/10 rounded px-3 py-2">
+          JavaScript / TypeScript, Python, Java, Go, PHP, Ruby, C/C++, C#/.NET, Rust, Bash/Shell, SQL, Dockerfile / YAML configs
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Vulnerability Categories Detected</h4>
+        <div className="grid grid-cols-2 gap-1.5">
+          {[
+            "SQL / command / LDAP / XPath injection",
+            "XSS: reflected, stored, DOM-based",
+            "Hardcoded secrets, API keys, tokens",
+            "Insecure crypto: MD5, SHA-1, ECB mode",
+            "Path traversal / directory traversal",
+            "Unsafe deserialization (pickle, PHP unserialize)",
+            "SSRF: unvalidated URL inputs to HTTP clients",
+            "Prototype pollution (JS recursive merge)",
+            "Weak JWT: alg:none, no expiry, hardcoded secret",
+            "CORS wildcard with credentials",
+            "Insecure direct object reference patterns",
+            "Spring Boot actuator, debug endpoint exposure",
+          ].map(v => (
+            <div key={v} className="text-[9px] font-mono text-primary/83 border border-primary/8 rounded px-2 py-1">• {v}</div>
+          ))}
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">How to Use</h4>
+        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <li><span className="text-primary/30">1.</span> Navigate to <strong>SAST Scanner</strong> (<code>/sast</code>).</li>
+          <li><span className="text-primary/30">2.</span> Upload a ZIP of your source code, paste a code snippet, or connect a GitHub repository (OAuth required).</li>
+          <li><span className="text-primary/30">3.</span> Select languages to scan or use <strong>Auto-Detect</strong>.</li>
+          <li><span className="text-primary/30">4.</span> Click <strong>Run SAST Scan</strong> — results appear in 15–120 seconds depending on codebase size.</li>
+          <li><span className="text-primary/30">5.</span> Each finding shows: file path, line number, code snippet, vulnerability class, severity (CRITICAL/HIGH/MEDIUM/LOW), CWE ID, OWASP Top 10 mapping, and remediation guidance.</li>
+          <li><span className="text-primary/30">6.</span> Click <strong>Export</strong> to download findings as SARIF, JSON, or CSV.</li>
+          <li><span className="text-primary/30">7.</span> Use the <strong>Fix Suggestions</strong> tab for AI-generated remediation code diffs.</li>
+        </ol>
+        <Note type="info">Mark false positives inline — they are excluded from future scans of the same file and line. Adjust scan sensitivity (LOW / MEDIUM / HIGH) to balance coverage versus noise for your codebase.</Note>
+      </div>
+    ),
+  },
+  {
     id: "subscription", title: "Subscription & Billing", icon: BarChart2,
     content: (
       <div className="space-y-3">
@@ -1308,8 +1601,8 @@ Table: metadata      → Crawl session info, start time, depth`}</CB>
         <h4 className="font-bold text-primary text-[11px]">Plan Pricing</h4>
         <div className="space-y-2">
           {[
-            { t: "VPN Basic", p: "$6.99/mo — $59.99/yr", d: "WireGuard VPN, Kill Switch, Leak Detection, DNS Shield, DNS Sinkhole, Network Traffic Monitor, Smart DNS, Split Tunneling, VPN Gate, Onion Browser, Router Config, IP Exposure Scanner, Obfuscation (Stealth Mode), Device Manager." },
-            { t: "Command Center Pro", p: "$39.99/mo — $349.99/yr", d: "Everything in Basic plus: Alpha Toolkit, SQLmap, SilkWeb Honeypot, Firewall Manager, Threat Monitor, SIEM, OSINT Recon, Canary Tokens, Ghost Chain Exploit Arsenal, Exploit Importer, Remote Terminal, Security Audit, Threat Intelligence, HTTP Probe, Directory Fuzzer, Subdomain Scout, Intruder, Encoder, CVE Lookup, Payload Generator, Request Comparer." },
+            { t: "VPN Basic", p: "$6.99/mo — $59.99/yr", d: "WireGuard VPN, Kill Switch, Leak Detection, DNS Shield, DNS Sinkhole, Network Traffic Monitor, Smart DNS, Split Tunneling, VPN Gate, Onion Browser, Router Config, IP Exposure Scanner, Obfuscation (Stealth Mode), Device Manager, GPS Spoofing, Port Forwarding, Dedicated Static IP, Meshnet, Data Broker Opt-Out." },
+            { t: "Command Center Pro", p: "$39.99/mo — $349.99/yr", d: "Everything in Basic plus: Alpha Toolkit, SQLmap, SilkWeb Honeypot, Firewall Manager, Threat Monitor, SIEM, OSINT Recon, Canary Tokens, Ghost Chain Exploit Arsenal, Exploit Importer, Remote Terminal, Security Audit, Threat Intelligence, HTTP Probe, Directory Fuzzer, Subdomain Scout, Intruder, Encoder, CVE Lookup, Payload Generator, Request Comparer, OAST Tester, Dependency Scanner, Token Sequencer, WebSocket Tester, SAST Scanner." },
           ].map(({ t, p, d }) => (
             <div key={t} className="border border-primary/10 rounded px-3 py-2">
               <div className="text-[10px] font-mono font-bold text-primary">{t} <span className="text-green-400 ml-1">{p}</span></div>

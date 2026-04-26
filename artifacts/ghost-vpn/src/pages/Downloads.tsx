@@ -882,7 +882,9 @@ VPN Basic includes:
   Network Traffic Monitor, Leak Detection, Smart DNS,
   Split Tunneling, VPN Gate (double-hop), Onion Browser (Tor over VPN),
   Obfuscation (Stealth Mode), Router Config, VPN Coexistence,
-  Device Manager, IP Exposure Scanner
+  Device Manager, IP Exposure Scanner, GPS Spoofing,
+  Port Forwarding, Dedicated Static IP, Meshnet,
+  Data Broker Opt-Out (180+ brokers)
 
 Command Center Pro (everything in Basic plus):
   Alpha Toolkit (Universal Scanner + Verifier + Web Scraper),
@@ -892,7 +894,9 @@ Command Center Pro (everything in Basic plus):
   Database Interface, SilkWeb Honeypot, Encoder/Decoder,
   Request Comparer, Payload Generator, CVE Lookup, Intruder,
   SIEM (Security Event Log), OSINT Recon, Canary Tokens,
-  Ghost Chain Exploit Arsenal, Exploit Importer
+  Ghost Chain Exploit Arsenal, Exploit Importer,
+  OAST Tester, Dependency Scanner, Token Sequencer,
+  WebSocket Tester, SAST Scanner
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 VPN CONNECTION (/my-vpn)
@@ -1957,7 +1961,7 @@ const VERSION_TXT = `ProxhqVPN — Version Information
 =================================
 Product:   ProxhqVPN
 Version:   4.0
-Release:   2025
+Release:   2026
 Company:   ALPHA UNLIMITED TECHNOLOGIES LLC
 Website:   https://proxhqvpn.com
 Support:   support@proxhqvpn.com

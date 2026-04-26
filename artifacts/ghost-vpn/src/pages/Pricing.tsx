@@ -6,6 +6,7 @@ import {
   Check, Shield, Zap, Loader2, Star, AlertCircle,
   Lock, Cpu, Globe, ShieldCheck, Server, Terminal as TerminalIcon,
   ScanSearch, Globe2, Network, Activity, Send, FolderSearch, Radar,
+  MapPin, Database, Code, Package, Key,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAccess } from "@/hooks/useAccess";
@@ -39,6 +40,11 @@ const VPN_FEATURES = [
   { icon: Server, text: "Unlimited simultaneous devices" },
   { icon: Globe2, text: "Split tunneling & Smart DNS" },
   { icon: Globe2, text: "Onion Browser — Tor over VPN private browsing" },
+  { icon: MapPin, text: "GPS Spoofing — mask your real GPS coordinates" },
+  { icon: Network, text: "Port Forwarding — expose services through the VPN tunnel" },
+  { icon: Globe, text: "Dedicated Static IP — consistent VPN exit identity" },
+  { icon: Cpu, text: "Meshnet — encrypted peer-to-peer device mesh" },
+  { icon: Database, text: "Data Broker Opt-Out — remove your data from 180+ brokers" },
 ];
 
 const PRO_EXTRAS = [
@@ -51,6 +57,11 @@ const PRO_EXTRAS = [
   { icon: TerminalIcon, text: "Alpha Toolkit — network/security/exploit scanner" },
   { icon: ShieldCheck, text: "Security Audit — TLS grader, HTTP headers, WHOIS" },
   { icon: Server,     text: "SilkWeb honeypot decoy network + Beacon intrusion alerts" },
+  { icon: Code,       text: "OAST Tester — out-of-band application security testing via interactsh" },
+  { icon: Package,    text: "Dependency Scanner — CVE checks across npm/pip/cargo/go/maven/composer" },
+  { icon: Key,        text: "Token Sequencer — session token entropy analysis and prediction testing" },
+  { icon: Activity,   text: "WebSocket Tester — intercept, replay, and fuzz WS frames (Burp WS equivalent)" },
+  { icon: ShieldCheck, text: "SAST Scanner — static code analysis across 35+ vulnerability patterns" },
 ];
 
 function formatUSD(cents: number) {

@@ -265,6 +265,11 @@ ss -tupn | grep LISTEN          # Listening ports`}</CB>
             { tool: "Ghost Chain Arsenal", path: "/ghost-chain", desc: "200+ categorized exploits with Details tab (CVEs, technique explanation) and PoC code tab. Integrates with HTTP Probe and Intruder." },
             { tool: "Exploit Importer", path: "/exploit-import", desc: "Upload Nessus/Burp/ZAP/Nikto/OpenVAS reports. Auto-extracts findings, CVE IDs, severity. Three result tabs: Details · Instructions · PoC Code. Download Full Report as .md." },
             { tool: "OSINT Recon", path: "/osint-recon", desc: "Aggregates 15+ passive intel sources: Shodan, Censys, AbuseIPDB, VirusTotal, GreyNoise, WHOIS, DNSDumpster, crt.sh, HaveIBeenPwned. All VPN-routed." },
+            { tool: "GPS Spoofing", path: "/gps-spoof", desc: "Fake your GPS coordinates at the VPN tunnel level. Bypass geo-restricted apps, spoof device location for testing, and mask real physical position." },
+            { tool: "OAST Tester", path: "/oast-tester", desc: "Out-of-band application security testing via interactsh. Generate DNS/HTTP/SMTP callback payloads and monitor live hits for blind SSRF, XXE, and injection detection." },
+            { tool: "Token Sequencer", path: "/token-seq", desc: "Capture and analyze session tokens for entropy weakness. Perform statistical analysis and attempt prediction attacks on low-entropy token generators." },
+            { tool: "WebSocket Tester", path: "/ws-tester", desc: "Connect, intercept, replay, and fuzz WebSocket frames. Equivalent to Burp Suite WebSocket testing. Supports ws:// and wss:// with auth header injection." },
+            { tool: "Dependency Scanner", path: "/dep-scanner", desc: "Scan any project directory or package manifest (npm/pip/cargo/go/maven/composer) for known CVEs. Severity-ranked results with remediation guidance." },
           ].map(({ tool, path, desc }) => (
             <div key={tool} className="border border-primary/10 rounded px-2.5 py-2">
               <div className="flex items-center justify-between mb-0.5">
@@ -288,6 +293,11 @@ ss -tupn | grep LISTEN          # Listening ports`}</CB>
             { tool: "Security Audit", path: "/security-audit", desc: "Self-audit of ProxhqVPN platform — TLS grade, open ports, WireGuard key strength, firewall rules, CORS, CSP headers." },
             { tool: "Encoder / Decoder", path: "/encoder", desc: "Base64, URL, HTML entity, hex, MD5/SHA-256/SHA-512, HMAC, bcrypt, JWT decode, auto-detect mode." },
             { tool: "Request Comparer", path: "/comparer", desc: "Side-by-side diff of two HTTP requests/responses — Words, Lines, Bytes. Useful for auth bypass and IDOR verification." },
+            { tool: "Port Forwarding", path: "/port-forward", desc: "Securely expose internal services through the VPN tunnel. Configure per-device rules, TCP/UDP, and port mapping for remote access and penetration testing environments." },
+            { tool: "Dedicated IP", path: "/dedicated-ip", desc: "Assign a static VPN exit IP to your account. Useful for whitelisting in firewalls, maintaining session persistence, and consistent identity in testing engagements." },
+            { tool: "Meshnet", path: "/meshnet", desc: "Encrypted peer-to-peer device mesh. Connect all team devices into a private overlay network for secure internal communication without routing through external servers." },
+            { tool: "Data Broker Opt-Out", path: "/data-broker", desc: "Remove employee and operator personal data from 180+ data broker databases. Automated submission and status tracking for each broker request." },
+            { tool: "SAST Scanner", path: "/sast", desc: "Static application security testing for ProxhqVPN platform code. Identifies vulnerabilities in-repo: hardcoded secrets, injection sinks, insecure dependencies, CORS misconfigurations." },
           ].map(({ tool, path, desc }) => (
             <div key={tool} className="border border-primary/10 rounded px-2.5 py-2">
               <div className="flex items-center justify-between mb-0.5">
@@ -419,6 +429,8 @@ ss -tupn | grep LISTEN          # Listening ports`}</CB>
             { title: "Canary Token Generator", tier: "Pro", desc: "Token types, deployment strategies, forensic data, use cases." },
             { title: "SIEM Security Event Log", tier: "Pro", desc: "Event sources, filtering, correlation, export and reporting." },
             { title: "Employee Procedures", tier: "All Plans", desc: "Admin tools, node management, incident response, escalation paths." },
+            { title: "VPN Privacy Suite Tools", tier: "All Plans", desc: "GPS Spoofing, Port Forwarding, Dedicated IP, Meshnet, Data Broker Opt-Out — setup and usage." },
+            { title: "Dev Security Tools v2", tier: "Pro", desc: "OAST Tester, Dependency Scanner, Token Sequencer, WebSocket Tester, SAST Scanner — complete reference." },
           ].map(({ title, tier, desc }) => (
             <div key={title} className="border border-primary/10 rounded px-2.5 py-2">
               <div className="flex items-center justify-between mb-0.5">
@@ -434,7 +446,7 @@ ss -tupn | grep LISTEN          # Listening ports`}</CB>
           <div>• All manuals are accessible to VPN Basic subscribers and above.</div>
           <div>• The page is gated by <code>ToolLayout</code> which requires an active subscription.</div>
           <div>• Downloads are plain text files (.txt) with version numbers in the filename.</div>
-          <div>• The "Download All Manuals" button triggers all 10 downloads with staggered 300ms delays to prevent browser blocking.</div>
+          <div>• The "Download All Manuals" button triggers all 12 downloads with staggered 300ms delays to prevent browser blocking.</div>
           <div>• A preview pane (first 2,000 chars) is shown before downloading each manual.</div>
         </div>
         <Note type="info">Manuals are subscriber-proprietary documentation. Do not redistribute or share links to the /manuals page with non-subscribers. Direct any documentation requests to support@proxhqvpn.com.</Note>
