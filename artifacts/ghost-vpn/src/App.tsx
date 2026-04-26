@@ -108,6 +108,17 @@ import IacScanner from "@/pages/IacScanner";
 import HttpInterceptor from "@/pages/HttpInterceptor";
 import ApiSecurityTester from "@/pages/ApiSecurityTester";
 
+import GpsSpoofing from "@/pages/GpsSpoofing";
+import PortForwarding from "@/pages/PortForwarding";
+import DedicatedIp from "@/pages/DedicatedIp";
+import Meshnet from "@/pages/Meshnet";
+import DataBrokerScan from "@/pages/DataBrokerScan";
+import OastTester from "@/pages/OastTester";
+import DepScanner from "@/pages/DepScanner";
+import TokenSequencer from "@/pages/TokenSequencer";
+import WsTester from "@/pages/WsTester";
+import SastAnalyzer from "@/pages/SastAnalyzer";
+
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -590,6 +601,23 @@ function AppRoutes() {
             <ToolLayout><IpRotator /></ToolLayout>
           </Route>
 
+          {/* ── VPN Gap Features — any active subscription ── */}
+          <Route path="/gps-spoof">
+            <ToolLayout><GpsSpoofing /></ToolLayout>
+          </Route>
+          <Route path="/port-forward">
+            <ToolLayout><PortForwarding /></ToolLayout>
+          </Route>
+          <Route path="/dedicated-ip">
+            <ToolLayout><DedicatedIp /></ToolLayout>
+          </Route>
+          <Route path="/meshnet">
+            <ToolLayout><Meshnet /></ToolLayout>
+          </Route>
+          <Route path="/data-broker">
+            <ToolLayout><DataBrokerScan /></ToolLayout>
+          </Route>
+
           {/* ── Dev Security Tools — Command Center Pro ── */}
           <Route path="/ssl-tls">
             <CcLayout><SslTlsAnalyzer /></CcLayout>
@@ -605,6 +633,21 @@ function AppRoutes() {
           </Route>
           <Route path="/api-tester">
             <CcLayout><ApiSecurityTester /></CcLayout>
+          </Route>
+          <Route path="/oast-tester">
+            <CcLayout><OastTester /></CcLayout>
+          </Route>
+          <Route path="/dep-scanner">
+            <CcLayout><DepScanner /></CcLayout>
+          </Route>
+          <Route path="/token-seq">
+            <CcLayout><TokenSequencer /></CcLayout>
+          </Route>
+          <Route path="/ws-tester">
+            <CcLayout><WsTester /></CcLayout>
+          </Route>
+          <Route path="/sast">
+            <CcLayout><SastAnalyzer /></CcLayout>
           </Route>
 
           {/* ── Admin-only — gated on backend; frontend shows paywall for non-admins ── */}

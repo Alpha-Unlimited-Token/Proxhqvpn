@@ -67,6 +67,16 @@ import jwtAnalyzerRouter from "./jwtanalyzer";
 import iacScanRouter from "./iacscan";
 import interceptorRouter from "./interceptor";
 import apiTesterRouter from "./apitester";
+import gpsSpoofRouter from "./gpsspoof";
+import portForwardRouter from "./portforward";
+import dedicatedIpRouter from "./dedicatedip";
+import meshnetRouter from "./meshnet";
+import dataBrokerRouter from "./databroker";
+import oastTesterRouter from "./oasttester";
+import depScannerRouter from "./depscanner";
+import tokenSequencerRouter from "./tokensequencer";
+import wsTesterRouter from "./wstester";
+import sastRouter from "./sast";
 
 const router: IRouter = Router();
 
@@ -332,6 +342,18 @@ router.use("/jwt-analyzer",    requireCommandCenter, jwtAnalyzerRouter);
 router.use("/iac-scan",        requireCommandCenter, iacScanRouter);
 router.use("/interceptor",     requireCommandCenter, interceptorRouter);
 router.use("/api-tester",      requireCommandCenter, apiTesterRouter);
+// ── Dev Security Gap-Closers vs Burp Suite / ZAP / Snyk ─────────────────
+router.use("/oast-tester",     requireCommandCenter, oastTesterRouter);
+router.use("/dep-scanner",     requireCommandCenter, depScannerRouter);
+router.use("/token-seq",       requireCommandCenter, tokenSequencerRouter);
+router.use("/ws-tester",       requireCommandCenter, wsTesterRouter);
+router.use("/sast",            requireCommandCenter, sastRouter);
+// ── VPN Gap-Closers vs NordVPN / Mullvad / Surfshark / ExpressVPN ────────
+router.use("/gps-spoof",       requireAccess, gpsSpoofRouter);
+router.use("/port-forward",    requireAccess, portForwardRouter);
+router.use("/dedicated-ip",    requireAccess, dedicatedIpRouter);
+router.use("/meshnet",         requireAccess, meshnetRouter);
+router.use("/data-broker",     requireAccess, dataBrokerRouter);
 
 // ── Admin-only routes ─────────────────────────────────────────────────────
 router.use("/employees",      requireAdmin, employeesRouter);

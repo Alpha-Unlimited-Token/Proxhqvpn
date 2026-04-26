@@ -14,6 +14,7 @@ import {
   GitMerge, Ban, Bell, Fingerprint, Upload, ChevronDown,
   Lock, Shuffle, UserX, RefreshCcw,
   ShieldCheck, Key, FileCode2, Filter, FlaskConical,
+  MapPin, ArrowLeftRight, Share2, Crosshair, Package, Plug, FileSearch,
 } from "lucide-react";
 import { useAccess } from "@/hooks/useAccess";
 
@@ -92,6 +93,16 @@ const PAGE_NAMES: Record<string, string> = {
   "/iac-scan":             "IaC Scanner",
   "/http-interceptor":     "HTTP Interceptor",
   "/api-tester":           "API Security Tester",
+  "/gps-spoof":            "GPS Spoofing",
+  "/port-forward":         "Port Forwarding",
+  "/dedicated-ip":         "Dedicated IP",
+  "/meshnet":              "Meshnet P2P",
+  "/data-broker":          "Data Broker Removal",
+  "/oast-tester":          "OAST Blind Tester",
+  "/dep-scanner":          "Dependency Scanner",
+  "/token-seq":            "Token Entropy Sequencer",
+  "/ws-tester":            "WebSocket Tester",
+  "/sast":                 "SAST Analyzer",
 };
 
 const USER_NAV = [
@@ -121,6 +132,8 @@ const PRIVACY_SUITE_NAV = [
   { href: "/dark-web",   label: "Dark Web Monitor",        icon: Eye },
   { href: "/alt-id",     label: "Alternative Identity",    icon: UserX },
   { href: "/ip-rotator", label: "IP Rotator",              icon: RefreshCcw },
+  { href: "/gps-spoof",  label: "GPS Spoofing",            icon: MapPin },
+  { href: "/data-broker",label: "Data Broker Removal",     icon: FileSearch },
 ];
 
 const NETWORK_NAV = [
@@ -129,6 +142,9 @@ const NETWORK_NAV = [
   { href: "/proxy",            label: "Proxy & Tor",       icon: Globe2 },
   { href: "/onion-browser",    label: "Onion Browser",     icon: Onion },
   { href: "/network-monitor",  label: "Network Monitor",   icon: Activity },
+  { href: "/port-forward",     label: "Port Forwarding",   icon: ArrowLeftRight },
+  { href: "/dedicated-ip",     label: "Dedicated IP",      icon: Share2 },
+  { href: "/meshnet",          label: "Meshnet P2P",       icon: GitMerge },
 ];
 
 const ADVANCED_NAV = [
@@ -160,6 +176,11 @@ const ADVANCED_NAV = [
   { href: "/iac-scan",           label: "IaC Scanner",            icon: FileCode2 },
   { href: "/http-interceptor",   label: "HTTP Interceptor",       icon: Filter },
   { href: "/api-tester",         label: "API Security Tester",    icon: FlaskConical },
+  { href: "/oast-tester",        label: "OAST Blind Tester",      icon: Crosshair },
+  { href: "/dep-scanner",        label: "Dependency Scanner",     icon: Package },
+  { href: "/token-seq",          label: "Token Sequencer",        icon: Key },
+  { href: "/ws-tester",          label: "WebSocket Tester",       icon: Plug },
+  { href: "/sast",               label: "SAST Analyzer",          icon: FileSearch },
 ];
 
 const AMBASSADOR_NAV = [
