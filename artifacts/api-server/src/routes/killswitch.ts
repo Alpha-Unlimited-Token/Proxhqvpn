@@ -90,7 +90,28 @@ function generateIptablesRules(ifaces: string[], safeIps: string[]): string[] {
     "iptables -P INPUT  DROP",
     "iptables -P FORWARD DROP",
     "",
-    'echo "Kill switch ACTIVE — all non-VPN traffic blocked"',
+    "# ── IPv6 Leak Protection (ip6tables) ─────────────────────────────────────",
+    "# Flush existing IPv6 rules",
+    "ip6tables -F OUTPUT 2>/dev/null || true",
+    "ip6tables -F INPUT  2>/dev/null || true",
+    "ip6tables -F FORWARD 2>/dev/null || true",
+    "",
+    "# Allow IPv6 loopback",
+    "ip6tables -A OUTPUT -o lo -j ACCEPT 2>/dev/null || true",
+    "ip6tables -A INPUT  -i lo -j ACCEPT 2>/dev/null || true",
+    "",
+    "# Allow established IPv6 sessions on VPN interfaces",
+    ...ifaces.flatMap((iface) => [
+      `ip6tables -A OUTPUT -o ${iface} -j ACCEPT 2>/dev/null || true`,
+      `ip6tables -A INPUT  -i ${iface} -j ACCEPT 2>/dev/null || true`,
+    ]),
+    "",
+    "# Block ALL IPv6 traffic not on VPN (prevents IPv6 leak bypass)",
+    "ip6tables -P OUTPUT DROP 2>/dev/null || true",
+    "ip6tables -P INPUT  DROP 2>/dev/null || true",
+    "ip6tables -P FORWARD DROP 2>/dev/null || true",
+    "",
+    'echo "Kill switch ACTIVE — IPv4 + IPv6 leak protection enabled"',
   );
 
   return rules;
@@ -104,7 +125,12 @@ function generateDisableScript(): string[] {
     "iptables -P INPUT  ACCEPT",
     "iptables -P FORWARD ACCEPT",
     "iptables -F",
-    'echo "Kill switch DISABLED — normal traffic restored"',
+    "# Also restore IPv6",
+    "ip6tables -P OUTPUT ACCEPT 2>/dev/null || true",
+    "ip6tables -P INPUT  ACCEPT 2>/dev/null || true",
+    "ip6tables -P FORWARD ACCEPT 2>/dev/null || true",
+    "ip6tables -F 2>/dev/null || true",
+    'echo "Kill switch DISABLED — IPv4 + IPv6 traffic restored"',
   ];
 }
 

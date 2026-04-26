@@ -112,6 +112,16 @@ router.get("/t/:tokenId/pixel.gif", (req, res, next) => {
   req.url = `/trigger/${req.params.tokenId}/pixel.gif`;
   (canaryRouter as any).handle(req, res, next);
 });
+router.get("/t/:tokenId/redirect", (req, res, next) => {
+  req.url = `/trigger/${req.params.tokenId}/redirect`;
+  (canaryRouter as any).handle(req, res, next);
+});
+
+// Warrant canary — public transparency endpoint
+router.get("/warrant-canary", (req, res, next) => {
+  req.url = `/warrant-canary`;
+  (canaryRouter as any).handle(req, res, next);
+});
 
 // Node auto-provision — PSK protected, public (no Clerk)
 router.use("/node-provision", nodeProvisionRouter);

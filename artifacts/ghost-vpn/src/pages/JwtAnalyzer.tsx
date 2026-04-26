@@ -30,6 +30,8 @@ export default function JwtAnalyzer() {
   const { toast } = useToast();
   const [token, setToken] = useState(SAMPLE_JWT);
   const [secret, setSecret] = useState("");
+  const [jwksUrl, setJwksUrl] = useState("https://attacker.com/.well-known/jwks.json");
+  const [x5uUrl, setX5uUrl] = useState("https://attacker.com/attacker.crt");
   const [loading, setLoading] = useState<string | null>(null);
   const [result, setResult] = useState<any>(null);
   const [activeOp, setActiveOp] = useState<string>("");
@@ -97,23 +99,56 @@ export default function JwtAnalyzer() {
             />
           </div>
 
+          {/* JWKS/X5U URL inputs (shown for relevant attacks) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="text-[10px] uppercase tracking-widest text-white/40 mb-1 block">JWKS URL (jku injection)</label>
+              <input value={jwksUrl} onChange={e => setJwksUrl(e.target.value)}
+                className="w-full bg-black/60 border border-primary/20 text-primary text-xs font-mono rounded-lg px-3 py-2 focus:outline-none focus:border-primary/50 placeholder:text-white/20"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] uppercase tracking-widest text-white/40 mb-1 block">X5U URL (x5u injection)</label>
+              <input value={x5uUrl} onChange={e => setX5uUrl(e.target.value)}
+                className="w-full bg-black/60 border border-primary/20 text-primary text-xs font-mono rounded-lg px-3 py-2 focus:outline-none focus:border-primary/50 placeholder:text-white/20"
+              />
+            </div>
+          </div>
+
           {/* Action buttons */}
-          <div className="flex flex-wrap gap-2 pt-1">
-            {[
-              { op: "decode",        label: "Decode" },
-              { op: "alg-none",      label: "Alg:None Attack" },
-              { op: "crack",         label: "Crack Secret" },
-              { op: "key-confusion", label: "Key Confusion" },
-              { op: "sign",          label: "Re-sign" },
-            ].map(({ op, label }) => (
-              <Button key={op} variant="outline" size="sm"
-                className={`text-xs border-primary/25 text-primary/80 hover:bg-primary/10 font-mono ${activeOp === op && result ? "border-primary/50 bg-primary/10" : ""}`}
-                onClick={() => call(op, op === "sign" || op === "key-confusion" ? { secret } : {})}
-                disabled={!!loading}>
-                {loading === op ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : null}
-                {label}
-              </Button>
-            ))}
+          <div className="space-y-2">
+            <div className="text-[10px] uppercase tracking-widest text-white/30 mb-1">Analysis</div>
+            <div className="flex flex-wrap gap-2">
+              {[
+                { op: "decode",        label: "Decode", extra: {} },
+                { op: "crack",         label: "Crack Secret", extra: {} },
+              ].map(({ op, label, extra }) => (
+                <Button key={op} variant="outline" size="sm"
+                  className={`text-xs border-primary/25 text-primary/80 hover:bg-primary/10 font-mono ${activeOp === op && result ? "border-primary/50 bg-primary/10" : ""}`}
+                  onClick={() => call(op, extra)} disabled={!!loading}>
+                  {loading === op ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : null}{label}
+                </Button>
+              ))}
+            </div>
+            <div className="text-[10px] uppercase tracking-widest text-white/30 mb-1 mt-2">Forgery Attacks</div>
+            <div className="flex flex-wrap gap-2">
+              {[
+                { op: "alg-none",      label: "Alg:None", extra: {} },
+                { op: "key-confusion", label: "Key Confusion", extra: { publicKey: secret } },
+                { op: "embedded-jwk",  label: "Embedded JWK", extra: {} },
+                { op: "jwks-inject",   label: "JWKS Injection (jku)", extra: { jwksUrl } },
+                { op: "x5u-inject",    label: "X5U Injection", extra: { x5uUrl } },
+                { op: "kid-injection", label: "kid SQL/Path Inject", extra: {} },
+                { op: "claim-escalate",label: "Claim Escalation", extra: {} },
+                { op: "sign",          label: "Re-sign", extra: { secret } },
+              ].map(({ op, label, extra }) => (
+                <Button key={op} variant="outline" size="sm"
+                  className={`text-xs border-orange-500/25 text-orange-400/80 hover:bg-orange-500/10 font-mono ${activeOp === op && result ? "border-orange-500/50 bg-orange-500/10" : ""}`}
+                  onClick={() => call(op, extra)} disabled={!!loading}>
+                  {loading === op ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : null}{label}
+                </Button>
+              ))}
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -214,6 +249,59 @@ export default function JwtAnalyzer() {
                     <div className="text-[9px] text-white/30 uppercase mb-1">Re-signed Token ({result.algorithm})</div>
                     <pre className="text-[10px] text-primary/60 bg-black/40 p-2 rounded border border-primary/10 break-all whitespace-pre-wrap font-mono">{result.token}</pre>
                   </>
+                )}
+              </div>
+            )}
+
+            {/* Generic advanced attack renderer */}
+            {["jwks-inject","embedded-jwk","kid-injection","claim-escalate","x5u-inject"].includes(activeOp) && (
+              <div className="space-y-3">
+                {result.description && (
+                  <div className="text-xs text-orange-300/80 p-3 bg-orange-900/10 border border-orange-400/20 rounded leading-relaxed">
+                    {result.description}
+                  </div>
+                )}
+                {result.forgedToken && (
+                  <div>
+                    <div className="text-[9px] text-white/30 uppercase mb-1">Forged Token</div>
+                    <pre className="text-[10px] text-primary/60 bg-black/40 p-2 rounded border border-primary/10 break-all whitespace-pre-wrap font-mono cursor-pointer select-all"
+                      onClick={() => navigator.clipboard.writeText(result.forgedToken).then(() => toast({ title: "Token copied" }))}>
+                      {result.forgedToken}
+                    </pre>
+                  </div>
+                )}
+                {result.results && (
+                  <div className="space-y-2">
+                    {result.results.map((r: any, i: number) => (
+                      <div key={i} className="border border-primary/10 rounded p-2 space-y-1">
+                        <div className="text-[9px] font-bold text-orange-400 uppercase">{r.label}</div>
+                        <div className="text-[9px] text-white/30">kid: <span className="text-primary/60 font-mono">{r.kid}</span></div>
+                        <pre className="text-[9px] text-primary/50 bg-black/40 p-1.5 rounded break-all whitespace-pre-wrap font-mono">{r.forgedToken}</pre>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {result.escalatedClaims && (
+                  <div>
+                    <div className="text-[9px] text-white/30 uppercase mb-1">Escalated Claims</div>
+                    <JsonView data={result.escalatedClaims} />
+                  </div>
+                )}
+                {result.exampleJwks && (
+                  <div>
+                    <div className="text-[9px] text-white/30 uppercase mb-1">Example JWKS to Host</div>
+                    <JsonView data={result.exampleJwks} />
+                  </div>
+                )}
+                {(result.step1 || result.step2 || result.step3) && (
+                  <div className="space-y-1 text-xs text-primary/50">
+                    {result.step1 && <div>① {result.step1}</div>}
+                    {result.step2 && <div>② {result.step2}</div>}
+                    {result.step3 && <div>③ {result.step3}</div>}
+                  </div>
+                )}
+                {result.warning && (
+                  <div className="text-[9px] text-yellow-400/60 italic">{result.warning}</div>
                 )}
               </div>
             )}

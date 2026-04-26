@@ -201,10 +201,13 @@ const FuzzSchema = z.object({
   customWords:    z.array(z.string()).max(500).optional(),
   extensions:     z.array(z.string()).max(10).default([]),
   filterCodes:    z.array(z.number()).default([404]),
+  filterSizes:    z.array(z.number()).optional(),
   threads:        z.number().int().min(1).max(20).default(10),
   timeoutMs:      z.number().int().min(500).max(10000).default(5000),
   followRedirects:z.boolean().default(false),
   verifySsl:      z.boolean().default(false),
+  recursive:      z.boolean().default(false),
+  recursionDepth: z.number().int().min(1).max(3).default(2),
 });
 
 type FuzzHit = {
@@ -259,6 +262,39 @@ function probe(baseUrl: string, path: string, opts: { timeoutMs: number; verifyS
   });
 }
 
+async function fuzzPaths(
+  baseUrl: string,
+  pathList: string[],
+  params: { timeoutMs: number; verifySsl: boolean; followRedirects: boolean; threads: number; filterCodes: number[]; filterSizes?: number[] }
+): Promise<{ hits: FuzzHit[]; errors: string[]; tested: number }> {
+  const filter = new Set(params.filterCodes);
+  const hits: FuzzHit[] = [];
+  const errors: string[] = [];
+  const queue = [...pathList];
+
+  const workers = Array.from({ length: params.threads }, async () => {
+    while (queue.length > 0) {
+      const path = queue.shift();
+      if (!path) break;
+      try {
+        const r = await probe(baseUrl, path, {
+          timeoutMs: params.timeoutMs,
+          verifySsl: params.verifySsl,
+          followRedirects: params.followRedirects,
+        });
+        if (r.status > 0 && !filter.has(r.status)) {
+          if (params.filterSizes && params.filterSizes.length > 0 && params.filterSizes.includes(r.size)) continue;
+          hits.push({ path, status: r.status, size: r.size, redirectTo: r.location, timingMs: r.timingMs });
+        }
+      } catch (e: any) {
+        errors.push(`${path}: ${e.message}`);
+      }
+    }
+  });
+  await Promise.all(workers);
+  return { hits, errors, tested: pathList.length };
+}
+
 router.post("/", async (req, res) => {
   try {
     const params = FuzzSchema.parse(req.body);
@@ -275,51 +311,65 @@ router.post("/", async (req, res) => {
       }
     }
 
-    const filter = new Set(params.filterCodes);
-    const hits: FuzzHit[] = [];
-    const errors: string[] = [];
+    const fuzzOpts = {
+      timeoutMs: params.timeoutMs,
+      verifySsl: params.verifySsl,
+      followRedirects: params.followRedirects,
+      threads: params.threads,
+      filterCodes: params.filterCodes,
+      filterSizes: params.filterSizes,
+    };
 
-    const queue = [...paths];
-    const workers = Array.from({ length: params.threads }, async () => {
-      while (queue.length > 0) {
-        const path = queue.shift();
-        if (!path) break;
-        try {
-          const r = await probe(params.url, path, {
-            timeoutMs: params.timeoutMs,
-            verifySsl: params.verifySsl,
-            followRedirects: params.followRedirects,
-          });
-          if (r.status > 0 && !filter.has(r.status)) {
-            hits.push({
-              path,
-              status: r.status,
-              size: r.size,
-              redirectTo: r.location,
-              timingMs: r.timingMs,
-            });
+    const first = await fuzzPaths(params.url, paths, fuzzOpts);
+    let allHits = [...first.hits];
+    let totalTested = first.tested;
+    const allErrors = [...first.errors];
+
+    if (params.recursive && params.recursionDepth > 1) {
+      const dirs = first.hits
+        .filter(h => h.status >= 200 && h.status < 400)
+        .map(h => h.path)
+        .filter(p => !p.includes("."));
+
+      const recurseWords = WORDLISTS["common"].slice(0, 50);
+      const seen = new Set(paths);
+
+      for (let depth = 1; depth < params.recursionDepth; depth++) {
+        const newDirs: string[] = [];
+        for (const dir of (depth === 1 ? dirs : newDirs)) {
+          const subPaths: string[] = [];
+          for (const w of recurseWords) {
+            const p = `${dir}/${w}`;
+            if (!seen.has(p)) { subPaths.push(p); seen.add(p); }
           }
-        } catch (e: any) {
-          errors.push(`${path}: ${e.message}`);
+          if (subPaths.length === 0) continue;
+          const sub = await fuzzPaths(params.url, subPaths, fuzzOpts);
+          allHits = [...allHits, ...sub.hits];
+          totalTested += sub.tested;
+          allErrors.push(...sub.errors);
+          for (const h of sub.hits) {
+            if (h.status >= 200 && h.status < 400 && !h.path.includes(".")) newDirs.push(h.path);
+          }
         }
       }
-    });
-    await Promise.all(workers);
+    }
 
-    hits.sort((a, b) => a.path.localeCompare(b.path));
+    allHits.sort((a, b) => a.path.localeCompare(b.path));
 
     res.json({
       baseUrl: params.url,
       wordlist: params.wordlist,
-      totalTested: paths.length,
-      hits,
-      errors: errors.slice(0, 20),
+      totalTested,
+      recursive: params.recursive,
+      recursionDepth: params.recursive ? params.recursionDepth : 0,
+      hits: allHits,
+      errors: allErrors.slice(0, 30),
       summary: {
-        found: hits.length,
-        "2xx": hits.filter(h => h.status >= 200 && h.status < 300).length,
-        "3xx": hits.filter(h => h.status >= 300 && h.status < 400).length,
-        "4xx": hits.filter(h => h.status >= 400 && h.status < 500).length,
-        "5xx": hits.filter(h => h.status >= 500).length,
+        found: allHits.length,
+        "2xx": allHits.filter(h => h.status >= 200 && h.status < 300).length,
+        "3xx": allHits.filter(h => h.status >= 300 && h.status < 400).length,
+        "4xx": allHits.filter(h => h.status >= 400 && h.status < 500).length,
+        "5xx": allHits.filter(h => h.status >= 500).length,
       },
     });
   } catch (err: any) {

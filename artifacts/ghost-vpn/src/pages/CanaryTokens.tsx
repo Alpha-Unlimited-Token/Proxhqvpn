@@ -20,11 +20,17 @@ async function apiFetch(path: string, opts?: RequestInit) {
 }
 
 const TOKEN_TYPES = [
-  { key: "url", label: "URL Token", icon: Globe, desc: "A unique URL that alerts when visited — embed in documents, emails, or web pages" },
-  { key: "web_bug", label: "Web Bug", icon: Code2, desc: "1x1 tracking pixel — undetectable in HTML emails and web pages" },
-  { key: "dns", label: "DNS Token", icon: Link2, desc: "A hostname that alerts on DNS resolution — works even behind firewalls" },
-  { key: "email", label: "Email Address", icon: Mail, desc: "An email address that alerts when emailed — detect data leaks in contact lists" },
-  { key: "file_path", label: "UNC Path", icon: FileText, desc: "Windows UNC path that alerts when accessed — detect file system intrusions" },
+  { key: "url",           label: "URL Token",      icon: Globe,     desc: "A unique URL that alerts when visited — embed in documents, emails, or web pages" },
+  { key: "web_bug",       label: "Web Bug",         icon: Code2,     desc: "1x1 tracking pixel — undetectable in HTML emails and web pages" },
+  { key: "dns",           label: "DNS Token",       icon: Link2,     desc: "A hostname that alerts on DNS resolution — works even behind firewalls" },
+  { key: "email",         label: "Email Address",   icon: Mail,      desc: "An email address that alerts when emailed — detect data leaks in contact lists" },
+  { key: "file_path",     label: "UNC Path",        icon: FileText,  desc: "Windows UNC path that alerts when accessed — detect file system intrusions" },
+  { key: "aws_key",       label: "AWS Key",         icon: Code2,     desc: "Fake AWS access key — plant in source code or configs; AWS CloudTrail logs any usage attempt" },
+  { key: "redirect",      label: "Redirect URL",    icon: Globe,     desc: "Tracking redirect — records hits then bounces user to a destination; ideal for phishing detection" },
+  { key: "sql",           label: "SQL Token",       icon: FileText,  desc: "Canary value embedded in DB — detects database exfiltration via OOB or pattern matching" },
+  { key: "powershell",    label: "PowerShell",      icon: Code2,     desc: "PS download cradle — embed in WMI, scheduled tasks, or scripts; triggers HTTP callback on execution" },
+  { key: "pdf",           label: "PDF Token",       icon: FileText,  desc: "Instructions + URL for embedding in PDFs — triggers when document is opened with internet access" },
+  { key: "slack_webhook", label: "Slack Webhook",   icon: Link2,     desc: "Fake Slack webhook URL — planted in configs; any POST triggers alert (attacker testing integrations)" },
 ];
 
 function timeAgo(ts: string) {

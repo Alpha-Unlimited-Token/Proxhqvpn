@@ -102,7 +102,7 @@ type SubdomainResult = {
   cnames: string[];
   hasHttp: boolean;
   hasHttps: boolean;
-  source: "crt.sh" | "brute" | "both";
+  source: string;
 };
 
 async function resolveDomain(sub: string): Promise<{ ips: string[]; cnames: string[] }> {
@@ -135,35 +135,164 @@ async function checkHttp(sub: string, timeoutMs: number): Promise<{ hasHttp: boo
   return { hasHttp: h, hasHttps: hs };
 }
 
+function addSubdomain(found: Map<string, SubdomainResult>, sub: string, source: string) {
+  sub = sub.trim().toLowerCase().replace(/^\*\./, "");
+  if (!sub || sub.startsWith(".") || sub.includes(" ")) return;
+  if (found.has(sub)) {
+    const existing = found.get(sub)!;
+    if (!existing.source.includes(source)) existing.source += `, ${source}`;
+  } else {
+    found.set(sub, { subdomain: sub, ips: [], cnames: [], hasHttp: false, hasHttps: false, source });
+  }
+}
+
 router.post("/", async (req, res) => {
   try {
     const params = ScanSchema.parse(req.body);
     const domain = params.domain.toLowerCase().replace(/^\.+|\.+$/g, "");
 
     const found = new Map<string, SubdomainResult>();
+    const timeout = Math.min(params.timeoutMs, 15000);
 
     // ── 1. Certificate Transparency via crt.sh ─────────────────────────────────
     try {
       const json = await httpsGet(
         `https://crt.sh/?q=%25.${domain}&output=json`,
-        params.timeoutMs
+        timeout
       );
       const records: any[] = JSON.parse(json);
       for (const r of records) {
         const names: string[] = (r.name_value ?? "").split("\n").map((s: string) => s.trim().toLowerCase());
         for (const name of names) {
           if (!name.endsWith(`.${domain}`) && name !== domain) continue;
-          const sub = name.replace(/^\*\./, "");
-          if (!found.has(sub)) {
-            found.set(sub, { subdomain: sub, ips: [], cnames: [], hasHttp: false, hasHttps: false, source: "crt.sh" });
+          addSubdomain(found, name, "crt.sh");
+        }
+      }
+    } catch {}
+
+    // ── 2. AlienVault OTX (passive DNS, no key needed) ─────────────────────────
+    try {
+      const json = await httpsGet(
+        `https://otx.alienvault.com/api/v1/indicators/domain/${domain}/passive_dns`,
+        timeout
+      );
+      const data = JSON.parse(json);
+      for (const r of (data.passive_dns || [])) {
+        const hostname = (r.hostname || "").toLowerCase();
+        if (hostname.endsWith(`.${domain}`) || hostname === domain) {
+          addSubdomain(found, hostname, "AlienVault OTX");
+        }
+      }
+    } catch {}
+
+    // ── 3. HackerTarget (free, no key) ─────────────────────────────────────────
+    try {
+      const text = await httpsGet(
+        `https://api.hackertarget.com/hostsearch/?q=${domain}`,
+        timeout
+      );
+      for (const line of text.split("\n")) {
+        const host = line.split(",")[0]?.trim().toLowerCase();
+        if (host && (host.endsWith(`.${domain}`) || host === domain)) {
+          addSubdomain(found, host, "HackerTarget");
+        }
+      }
+    } catch {}
+
+    // ── 4. URLScan.io (public results, no key needed for basic) ────────────────
+    try {
+      const json = await httpsGet(
+        `https://urlscan.io/api/v1/search/?q=domain:${domain}&size=200`,
+        timeout
+      );
+      const data = JSON.parse(json);
+      for (const r of (data.results || [])) {
+        const task = r?.task?.domain || r?.page?.domain || "";
+        if (task && (task.endsWith(`.${domain}`) || task === domain)) {
+          addSubdomain(found, task, "URLScan.io");
+        }
+      }
+    } catch {}
+
+    // ── 5. Wayback Machine CDX API ─────────────────────────────────────────────
+    try {
+      const text = await httpsGet(
+        `https://web.archive.org/cdx/search/cdx?url=*.${domain}&output=text&fl=original&collapse=urlkey&limit=5000`,
+        timeout
+      );
+      for (const line of text.split("\n")) {
+        try {
+          const url = new URL(line.trim());
+          const host = url.hostname.toLowerCase();
+          if (host && (host.endsWith(`.${domain}`) || host === domain)) {
+            addSubdomain(found, host, "Wayback CDX");
+          }
+        } catch {}
+      }
+    } catch {}
+
+    // ── 6. AnubisDB ────────────────────────────────────────────────────────────
+    try {
+      const json = await httpsGet(
+        `https://jldc.me/anubis/subdomains/${domain}`,
+        timeout
+      );
+      const names: string[] = JSON.parse(json);
+      for (const name of (Array.isArray(names) ? names : [])) {
+        if (name && (name.endsWith(`.${domain}`) || name === domain)) {
+          addSubdomain(found, name, "AnubisDB");
+        }
+      }
+    } catch {}
+
+    // ── 7. RapidDNS ────────────────────────────────────────────────────────────
+    try {
+      const json = await httpsGet(
+        `https://rapiddns.io/subdomain/${domain}?full=1&down=1`,
+        timeout
+      );
+      const matches = json.match(/([a-zA-Z0-9_.-]+\.[a-zA-Z]{2,})/g) || [];
+      for (const match of matches) {
+        const h = match.toLowerCase();
+        if (h.endsWith(`.${domain}`) && h !== domain) {
+          addSubdomain(found, h, "RapidDNS");
+        }
+      }
+    } catch {}
+
+    // ── 8. ThreatCrowd (legacy, still useful) ──────────────────────────────────
+    try {
+      const json = await httpsGet(
+        `https://www.threatcrowd.org/searchApi/v2/domain/report/?domain=${domain}`,
+        timeout
+      );
+      const data = JSON.parse(json);
+      for (const sub of (data.subdomains || [])) {
+        if (sub && (sub.endsWith(`.${domain}`) || sub === domain)) {
+          addSubdomain(found, sub, "ThreatCrowd");
+        }
+      }
+    } catch {}
+
+    // ── 9. BufferOver (DNS aggregation) ────────────────────────────────────────
+    try {
+      const json = await httpsGet(
+        `https://tls.bufferover.run/dns?q=.${domain}`,
+        timeout
+      );
+      const data = JSON.parse(json);
+      for (const r of [...(data.FDNS_A || []), ...(data.RDNS || [])]) {
+        const parts = (r || "").split(",");
+        for (const p of parts) {
+          const h = p.trim().toLowerCase();
+          if (h.endsWith(`.${domain}`) || h === domain) {
+            addSubdomain(found, h, "BufferOver");
           }
         }
       }
-    } catch {
-      // crt.sh may be rate-limited
-    }
+    } catch {}
 
-    // ── 2. Brute-force common prefixes ─────────────────────────────────────────
+    // ── 10. Brute-force common prefixes ─────────────────────────────────────────
     if (params.bruteForce) {
       for (const prefix of COMMON_PREFIXES) {
         const sub = `${prefix}.${domain}`;
@@ -206,15 +335,25 @@ router.post("/", async (req, res) => {
 
     results.sort((a, b) => a.subdomain.localeCompare(b.subdomain));
 
+    const sourceMap: Record<string, number> = {};
+    for (const r of results) {
+      for (const src of r.source.split(", ")) {
+        sourceMap[src] = (sourceMap[src] || 0) + 1;
+      }
+    }
+
     res.json({
       domain,
       totalFound: results.length,
-      sources: { certTransparency: Array.from(found.values()).filter(e => e.source !== "brute").length, bruteForce: params.bruteForce ? COMMON_PREFIXES.length : 0 },
+      passiveSources: ["crt.sh", "AlienVault OTX", "HackerTarget", "URLScan.io", "Wayback CDX", "AnubisDB", "RapidDNS", "ThreatCrowd", "BufferOver"],
+      sourceBreakdown: sourceMap,
+      bruteForced: params.bruteForce ? COMMON_PREFIXES.length : 0,
       results,
       summary: {
         withDns: results.filter(e => e.ips.length > 0).length,
         withHttp: results.filter(e => e.hasHttp).length,
         withHttps: results.filter(e => e.hasHttps).length,
+        uniqueSources: Object.keys(sourceMap).length,
       },
     });
   } catch (err: any) {

@@ -40,6 +40,9 @@ export default function DirectoryFuzzer() {
   const [threads, setThreads]       = useState(10);
   const [filterCodes, setFilter]    = usePersistedState<string>("dirfuzzer-filter", "404");
   const [followRedirs, setFollow]   = useState(false);
+  const [recursive, setRecursive]   = useState(false);
+  const [recursionDepth, setDepth]  = useState(2);
+  const [filterSizes, setFilterSizes] = useState("");
   const [loading, setLoading]       = useState(false);
   const [result, setResult]         = useState<any>(null);
   const [statusFilter, setStatusFilter] = useState<number | null>(null);
@@ -85,11 +88,12 @@ export default function DirectoryFuzzer() {
     try {
       const ext = extensions.split(",").map(s => s.trim()).filter(Boolean);
       const filt = filterCodes.split(",").map(s => parseInt(s.trim())).filter(n => !isNaN(n));
+      const sizes = filterSizes.split(",").map(s => parseInt(s.trim())).filter(n => !isNaN(n));
       const r = await fetch(`${BASE}/api/dir-fuzzer`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url, wordlist, extensions: ext, threads, filterCodes: filt, followRedirects: followRedirs }),
+        body: JSON.stringify({ url, wordlist, extensions: ext, threads, filterCodes: filt, followRedirects: followRedirs, recursive, recursionDepth, filterSizes: sizes.length > 0 ? sizes : undefined }),
       });
       const data = await r.json();
       if (!r.ok) throw new Error(data.error ?? "Fuzz failed");
@@ -176,7 +180,15 @@ export default function DirectoryFuzzer() {
             </div>
           </div>
 
-          <div className="flex items-center gap-6 pt-1 border-t border-primary/10">
+          {/* Response size filter */}
+          <div>
+            <label className="text-[11px] text-primary/50 block mb-1.5">Hide by response size <span className="text-primary/30">(bytes, comma-separated — removes false positives)</span></label>
+            <Input value={filterSizes} onChange={e => setFilterSizes(e.target.value)}
+              placeholder="e.g. 0, 1234 — blank = off"
+              className="font-mono text-[11px] bg-black/60 border-primary/20 text-primary/70 h-8" />
+          </div>
+
+          <div className="flex flex-wrap items-center gap-4 pt-1 border-t border-primary/10">
             <label className="flex items-center gap-2 text-[11px] text-primary/50 cursor-pointer">
               Threads:
               <select value={threads} onChange={e => setThreads(Number(e.target.value))}
@@ -188,6 +200,19 @@ export default function DirectoryFuzzer() {
               <input type="checkbox" checked={followRedirs} onChange={e => setFollow(e.target.checked)} className="accent-primary" />
               Follow redirects
             </label>
+            <label className="flex items-center gap-2 text-[11px] text-primary/50 cursor-pointer">
+              <input type="checkbox" checked={recursive} onChange={e => setRecursive(e.target.checked)} className="accent-primary" />
+              Recursive scan
+            </label>
+            {recursive && (
+              <label className="flex items-center gap-2 text-[11px] text-primary/50 cursor-pointer">
+                Depth:
+                <select value={recursionDepth} onChange={e => setDepth(Number(e.target.value))}
+                  className="bg-black border border-primary/20 rounded px-1.5 py-0.5 text-[11px] text-primary/70 outline-none">
+                  {[2,3].map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
+              </label>
+            )}
             <Button onClick={run} disabled={loading}
               className="ml-auto bg-primary/15 border border-primary/30 hover:bg-primary/25 text-primary text-xs h-8 px-4 gap-1.5">
               {loading ? <><Clock className="w-3.5 h-3.5 animate-spin" /> Scanning…</> : <><Search className="w-3.5 h-3.5" /> Start Fuzz</>}
