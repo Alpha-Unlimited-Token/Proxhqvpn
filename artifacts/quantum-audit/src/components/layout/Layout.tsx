@@ -11,7 +11,8 @@ import {
   Globe,
   Code2,
   Key,
-  Layers
+  Layers,
+  BarChart3
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -83,6 +84,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <NavItem href="/deep-analysis" icon={Code2} label="Deep Analysis" />
             <NavItem href="/ecdsa-scanner" icon={Key} label="ECDSA Scanner" />
             <NavItem href="/scheme-auditor" icon={Layers} label="Scheme Auditor" />
+            <NavItem href="/batch-scan" icon={BarChart3} label="Batch Scanner" />
             <NavItem href="/pentest" icon={Terminal} label="Pen Test" />
           </div>
         </div>

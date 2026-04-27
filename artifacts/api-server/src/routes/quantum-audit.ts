@@ -576,6 +576,88 @@ router.post("/auto-scan", async (req: Request, res: Response) => {
   }
 });
 
+// ── Batch scan — accepts up to 200 targets, runs with concurrency limit ─────
+async function runConcurrent<T>(
+  items: string[],
+  concurrency: number,
+  fn: (item: string, index: number) => Promise<T>
+): Promise<T[]> {
+  const results: T[] = new Array(items.length);
+  let idx = 0;
+  async function worker() {
+    while (idx < items.length) {
+      const i = idx++;
+      results[i] = await fn(items[i], i);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, worker));
+  return results;
+}
+
+router.post("/batch-detect", (req: Request, res: Response) => {
+  try {
+    const { targets } = req.body as { targets: string[] };
+    if (!Array.isArray(targets) || targets.length === 0) return res.status(400).json({ error: "targets array required" });
+    const limited = targets.slice(0, 500);
+    const results = limited.map(target => {
+      const candidates = detectChain(target.trim());
+      return {
+        target: target.trim(),
+        detected: candidates[0] ?? null,
+        alternatives: candidates.slice(1),
+        confidence: candidates[0]?.confidence ?? 0,
+      };
+    });
+    res.json({ results, total: results.length });
+  } catch (err) {
+    res.status(500).json({ error: "Batch detect failed", detail: String(err) });
+  }
+});
+
+router.post("/batch-scan", async (req: Request, res: Response) => {
+  try {
+    const { targets, concurrency = 4 } = req.body as { targets: string[]; concurrency?: number };
+    if (!Array.isArray(targets) || targets.length === 0) return res.status(400).json({ error: "targets array required" });
+    if (targets.length > 200) return res.status(400).json({ error: "Maximum 200 targets per batch request" });
+
+    const cap = Math.min(Math.max(1, concurrency), 6);
+    const results = await runConcurrent(targets, cap, async (target) => {
+      const t0 = Date.now();
+      try {
+        const r = await adaptiveScan(target.trim());
+        return { ...r, scanError: null };
+      } catch (e) {
+        const candidates = detectChain(target.trim());
+        return {
+          target: target.trim(),
+          detectedChain: candidates[0] ?? null,
+          alternativeCandidates: candidates.slice(1),
+          hasVulnerability: false,
+          vulnerabilityCount: 0,
+          scanError: String(e),
+          executionTimeMs: Date.now() - t0,
+          scanTimestamp: new Date().toISOString(),
+        };
+      }
+    });
+
+    const vulnerable = results.filter(r => r.hasVulnerability).length;
+    const errored    = results.filter(r => (r as Record<string, unknown>).scanError).length;
+
+    res.json({
+      results,
+      summary: {
+        total: results.length,
+        vulnerable,
+        clean: results.length - vulnerable - errored,
+        errored,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Batch scan failed", detail: String(err) });
+  }
+});
+
 // ── Ed25519 / Solana scanner — accepts address OR tx signature ─────────────────
 router.post("/ed25519-scan", async (req: Request, res: Response) => {
   try {
