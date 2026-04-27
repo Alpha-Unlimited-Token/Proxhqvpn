@@ -3,12 +3,13 @@ import { db } from "@workspace/db";
 import {
   scanJobsTable, vulnerabilitiesTable, quantumAnalysesTable, quantumThreatsTable
 } from "@workspace/db/schema";
-import { eq, desc, and, sql } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 import { RunBlockchainScanBody, ListScansQueryParams, GetScanParams, GetScanReportParams, ListVulnerabilitiesQueryParams } from "@workspace/api-zod";
+import { analyzeCode } from "../lib/quantum-analyzer";
 
 const router = Router();
 
-// ── Quantum vulnerability patterns per chain ──────────────────────────────────
+// ── Quantum threat seeding data ───────────────────────────────────────────────
 const QUANTUM_THREATS_SEED = [
   {
     name: "Shor's Algorithm — ECDSA Key Recovery",
@@ -27,12 +28,12 @@ const QUANTUM_THREATS_SEED = [
     name: "Grover's Algorithm — Hash Preimage Attack",
     algorithm: "grovers" as const,
     affectedChains: ["ethereum", "bitcoin", "solana", "polygon", "avalanche", "arbitrum", "bsc", "generic"],
-    description: "Grover's algorithm provides a quadratic speedup for searching unsorted databases, effectively halving the security bits of any hash function used in proof-of-work, Merkle trees, or commitment schemes.",
-    technicalDetail: "SHA-256 (used in Bitcoin PoW and Merkle trees) provides 128-bit post-quantum security with Grover's — down from 256-bit classical security. Keccak-256 (Ethereum) similarly drops to 128-bit. While still considered safe, this threatens future hash function parameters and any scheme relying on hash collision resistance at 128-bit security levels.",
+    description: "Grover's algorithm provides a quadratic speedup for searching unsorted databases, effectively halving the security bits of any hash function.",
+    technicalDetail: "SHA-256 provides 128-bit post-quantum security with Grover's — down from 256-bit classical security. Keccak-256 similarly drops to 128-bit. Merkle trees, proof-of-work, and commitment schemes are all affected.",
     estimatedQubitsNeeded: 2000,
     currentlyFeasible: false,
     estimatedFeasibleYear: "2028-2032",
-    mitigation: "Increase hash output sizes to 384 or 512 bits where feasible. Move to SHA-3 variants with larger outputs. Use post-quantum-secure hash functions like SHAKE-256 with 512-bit output for critical path operations.",
+    mitigation: "Increase hash output sizes to 384 or 512 bits. Move to SHA-3 variants with larger outputs. Use SHAKE-256 with 512-bit output for critical path operations.",
     pqcAlternatives: ["SHA-3-512", "SHAKE-256", "BLAKE3", "Haraka"],
     severity: "high" as const,
   },
@@ -40,12 +41,12 @@ const QUANTUM_THREATS_SEED = [
     name: "Shor's Algorithm — RSA/DH Key Exchange Compromise",
     algorithm: "shors" as const,
     affectedChains: ["ethereum", "generic"],
-    description: "Any blockchain protocol or smart contract system using RSA or traditional Diffie-Hellman for key exchange, TLS session establishment, or oracle authentication is vulnerable to quantum key recovery.",
-    technicalDetail: "Shor's algorithm factors large integers in O((log N)³) time, breaking RSA at any current key size. A 2048-bit RSA key requires ~4000 logical qubits to break. Ethereum smart contracts that call external APIs over TLS using RSA cipher suites are indirectly vulnerable — the TLS session can be decrypted retroactively ('harvest now, decrypt later' attack).",
+    description: "Blockchain protocols or smart contract systems using RSA or traditional Diffie-Hellman for key exchange or oracle authentication are vulnerable to quantum key recovery.",
+    technicalDetail: "Shor's algorithm factors large integers in O((log N)³) time, breaking RSA at any current key size. 2048-bit RSA requires ~4000 logical qubits to break. 'Harvest now, decrypt later' attacks enable retroactive decryption of intercepted traffic.",
     estimatedQubitsNeeded: 4000,
     currentlyFeasible: false,
     estimatedFeasibleYear: "2030-2035",
-    mitigation: "Replace RSA/DH with CRYSTALS-Kyber for key encapsulation. Use TLS 1.3 with post-quantum cipher suites. Audit all oracle integrations for classical encryption dependencies.",
+    mitigation: "Replace RSA/DH with CRYSTALS-Kyber for key encapsulation. Use TLS 1.3 with post-quantum cipher suites. Audit oracle integrations.",
     pqcAlternatives: ["CRYSTALS-Kyber", "NTRU", "SABER", "McEliece"],
     severity: "high" as const,
   },
@@ -53,113 +54,184 @@ const QUANTUM_THREATS_SEED = [
     name: "Quantum Replay Attack on Hash-Time-Lock Contracts",
     algorithm: "hybrid" as const,
     affectedChains: ["bitcoin", "ethereum", "generic"],
-    description: "Hash Time Lock Contracts (HTLCs) and payment channels expose preimage data that a quantum adversary could exploit before the timelock expires, enabling double-spend attacks on atomic swaps.",
-    technicalDetail: "In an HTLC, the hash preimage is revealed on-chain when the recipient claims funds. A quantum attacker with Grover's speedup could attempt to find alternative preimage collisions or leverage exposed preimages to attack other linked HTLCs in the same atomic swap chain faster than the timelock allows.",
+    description: "HTLCs expose preimage data that a quantum adversary could exploit before the timelock expires, enabling double-spend attacks on atomic swaps.",
+    technicalDetail: "In an HTLC, the hash preimage is revealed on-chain when the recipient claims funds. A quantum attacker with Grover's speedup could attempt alternative preimage collisions faster than the timelock allows.",
     estimatedQubitsNeeded: 1500,
     currentlyFeasible: false,
     estimatedFeasibleYear: "2027-2030",
-    mitigation: "Implement longer timelocks to exceed quantum attack window. Use larger hash outputs (SHA3-512). Transition to post-quantum commitment schemes based on lattice problems.",
+    mitigation: "Implement longer timelocks. Use larger hash outputs (SHA3-512). Transition to post-quantum commitment schemes.",
     pqcAlternatives: ["Lattice-based commitments", "SHA3-512 HTLCs", "Quantum-safe payment channels"],
     severity: "medium" as const,
   },
   {
-    name: "BQP-Complete Consensus Attack",
+    name: "BQP-Complete Consensus Attack — BLS Signature Forgery",
     algorithm: "bqp_complete" as const,
     affectedChains: ["ethereum", "solana", "avalanche", "polygon"],
-    description: "Proof-of-stake consensus protocols relying on BLS signatures (used in Ethereum 2.0) face aggregate signature forgery via quantum algorithms operating in BQP complexity class.",
-    technicalDetail: "BLS12-381 signatures aggregate efficiently for PoS validator voting, but the pairing-based cryptography underlying BLS is vulnerable to quantum attacks via algorithms like the quantum algorithm for discrete logarithm over extension fields. An attacker with ~10,000+ logical qubits could forge validator signatures and influence finality.",
+    description: "Proof-of-stake consensus protocols relying on BLS signatures face aggregate signature forgery via quantum algorithms.",
+    technicalDetail: "BLS12-381 signatures used in Ethereum 2.0 validator voting are vulnerable to quantum attacks via algorithms targeting discrete logarithms over pairing-friendly extension fields. ~10,000+ logical qubits could forge validator signatures.",
     estimatedQubitsNeeded: 10000,
     currentlyFeasible: false,
     estimatedFeasibleYear: "2035-2040",
-    mitigation: "Monitor NIST PQC standardization for pairing-friendly curve alternatives. Implement hybrid classical+PQC validator signatures as a transitional measure. Consider hash-based aggregate signatures.",
+    mitigation: "Monitor NIST PQC for pairing-friendly alternatives. Implement hybrid classical+PQC validator signatures. Consider hash-based aggregate signatures.",
     pqcAlternatives: ["Hash-based aggregate signatures", "Lattice-based BLS alternatives", "CRYSTALS-Dilithium for validators"],
     severity: "medium" as const,
   },
 ];
 
-// ── Vulnerability patterns database for scan simulation ──────────────────────
-const VULN_PATTERNS: Record<string, Array<{
-  title: string; description: string; severity: "critical" | "high" | "medium" | "low" | "informational";
-  category: "reentrancy" | "overflow" | "access_control" | "quantum_crypto" | "weak_randomness" | "front_running" | "denial_of_service" | "logic_error" | "consensus_attack" | "signature_malleability" | "hash_collision" | "elliptic_curve" | "timestamp_dependence" | "gas_limit" | "other";
-  isQuantumRelated: boolean; cweId: string; cvssScore: number; recommendation: string; refs: string[];
-}>> = {
-  ethereum: [
-    { title: "Reentrancy Vulnerability", description: "External call made before state update, enabling recursive drain of contract funds.", severity: "critical", category: "reentrancy", isQuantumRelated: false, cweId: "CWE-841", cvssScore: 9.8, recommendation: "Apply checks-effects-interactions pattern. Use ReentrancyGuard mutex from OpenZeppelin.", refs: ["https://swcregistry.io/docs/SWC-107"] },
-    { title: "ECDSA Private Key Exposure via Quantum Attack", description: "secp256k1 ECDSA signatures are vulnerable to Shor's algorithm. All addresses with exposed public keys (any address that has sent a transaction) are at risk once a sufficiently powerful quantum computer is available.", severity: "critical", category: "elliptic_curve", isQuantumRelated: true, cweId: "CWE-327", cvssScore: 9.5, recommendation: "Migrate to post-quantum signature scheme (CRYSTALS-Dilithium or SPHINCS+). Implement address rotation policy — never reuse addresses after spending.", refs: ["https://eips.ethereum.org/EIPS/eip-2938", "https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.204.pdf"] },
-    { title: "Integer Overflow in Token Arithmetic", description: "Unchecked arithmetic on uint256 values can wrap around, causing tokens to be minted or transferred in unexpected quantities.", severity: "high", category: "overflow", isQuantumRelated: false, cweId: "CWE-190", cvssScore: 8.1, recommendation: "Use Solidity 0.8.x built-in overflow checks or OpenZeppelin SafeMath for older versions.", refs: ["https://swcregistry.io/docs/SWC-101"] },
-    { title: "Weak Pseudo-Random Number Generation", description: "Contract uses block.timestamp or blockhash as randomness source, both of which are predictable or manipulable by miners.", severity: "high", category: "weak_randomness", isQuantumRelated: false, cweId: "CWE-338", cvssScore: 7.5, recommendation: "Use Chainlink VRF or commit-reveal scheme for on-chain randomness.", refs: ["https://swcregistry.io/docs/SWC-120"] },
-    { title: "SHA-256 Hash Security Reduction via Grover's Algorithm", description: "Keccak-256 used in this contract's commitment scheme provides only 128-bit post-quantum security (halved from 256-bit classical). Critical commitment data may be at risk from future quantum adversaries.", severity: "medium", category: "hash_collision", isQuantumRelated: true, cweId: "CWE-916", cvssScore: 5.9, recommendation: "Increase commitment hash size to 512 bits using SHA3-512 or SHAKE-256 for future-proofing against Grover's algorithm.", refs: ["https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.202.pdf"] },
-    { title: "Access Control Missing on Critical Function", description: "Function modifying contract state has no access control modifier, allowing any address to invoke privileged operations.", severity: "critical", category: "access_control", isQuantumRelated: false, cweId: "CWE-284", cvssScore: 9.1, recommendation: "Add onlyOwner or role-based access control using OpenZeppelin AccessControl.", refs: ["https://swcregistry.io/docs/SWC-105"] },
-  ],
-  bitcoin: [
-    { title: "P2PK Output Quantum Vulnerability", description: "Pay-to-Public-Key (P2PK) outputs expose the full public key on-chain, making them immediately vulnerable to Shor's algorithm-based key recovery. This includes all early coinbase outputs.", severity: "critical", category: "elliptic_curve", isQuantumRelated: true, cweId: "CWE-327", cvssScore: 9.8, recommendation: "Migrate funds from P2PK outputs to P2PKH or P2WPKH addresses immediately. Monitor NIST PQC standards for Bitcoin quantum-resistant upgrade path.", refs: ["https://en.bitcoin.it/wiki/Pay_to_Public_Key"] },
-    { title: "Address Reuse Exposes Public Key", description: "Multiple transactions from the same address expose the public key in scriptsig, enabling quantum key recovery. Best practice is to use each address only once.", severity: "high", category: "elliptic_curve", isQuantumRelated: true, cweId: "CWE-327", cvssScore: 8.2, recommendation: "Implement HD wallet address derivation (BIP32/BIP44). Enforce single-use addresses. Migrate to Taproot (P2TR) outputs.", refs: ["https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki"] },
-    { title: "SHA-256 Mining Vulnerability to Grover's Algorithm", description: "Bitcoin's proof-of-work uses double-SHA256. Grover's algorithm provides quadratic speedup in hash preimage search, giving quantum miners a significant competitive advantage and potentially centralizing mining power.", severity: "medium", category: "hash_collision", isQuantumRelated: true, cweId: "CWE-916", cvssScore: 6.5, recommendation: "Monitor for quantum mining hardware development. Network should consider PoW algorithm updates or difficulty adjustment mechanisms that account for quantum speedup.", refs: ["https://bitcoinmagazine.com/technical/bitcoin-quantum-computing"] },
-  ],
-  solana: [
-    { title: "Ed25519 Signature Quantum Vulnerability", description: "Solana uses Ed25519 signatures which rely on the elliptic curve discrete logarithm problem. Shor's algorithm can solve this in polynomial time on a quantum computer.", severity: "critical", category: "elliptic_curve", isQuantumRelated: true, cweId: "CWE-327", cvssScore: 9.5, recommendation: "Plan migration to hybrid Ed25519 + post-quantum signature (CRYSTALS-Dilithium) as Solana's protocol evolves. Monitor Solana Foundation's quantum roadmap.", refs: ["https://docs.solana.com/developing/programming-model/transactions"] },
-    { title: "Account Data Deserialization Without Bounds Check", description: "Program deserializes account data without validating expected size, risking out-of-bounds memory access and potential program crashes.", severity: "high", category: "overflow", isQuantumRelated: false, cweId: "CWE-125", cvssScore: 7.8, recommendation: "Use Anchor framework's account validation macros. Add explicit size checks before deserialization.", refs: ["https://doc.rust-lang.org/std/option/enum.Option.html"] },
-    { title: "Missing Signer Check", description: "Instruction handler does not verify that required accounts are signers, allowing unsigned account manipulation.", severity: "high", category: "access_control", isQuantumRelated: false, cweId: "CWE-284", cvssScore: 8.0, recommendation: "Add `constraint = authority.key() == state.authority` in Anchor or check `is_signer` on all privileged accounts.", refs: ["https://docs.rs/anchor-lang/latest/anchor_lang/"] },
-  ],
-};
-
-// ── Simulate a scan (run analysis) ───────────────────────────────────────────
-async function simulateScan(scanId: number, chain: string, code: string | null | undefined, includeQuantum: boolean) {
+// ── Execute real static analysis on provided code ────────────────────────────
+async function runAnalysis(
+  scanId: number,
+  chain: string,
+  scanType: string,
+  code: string | null | undefined,
+  includeQuantum: boolean
+) {
   try {
-    const patterns = VULN_PATTERNS[chain] ?? VULN_PATTERNS["ethereum"];
-    const selected = patterns.slice(0, Math.floor(Math.random() * 3) + 3);
+    let findings: ReturnType<typeof analyzeCode>["findings"] = [];
+    let parseError: string | null = null;
+    let language = "Unknown";
+    let analyzedWith = "Pattern matching (no code provided)";
+    let contractNames: string[] = [];
+    let functionCount = 0;
+    let lineCount = 0;
 
-    const vulns = await db.insert(vulnerabilitiesTable).values(
-      selected.map(p => ({
-        scanId,
-        title: p.title,
-        description: p.description,
-        severity: p.severity,
-        category: p.category,
-        isQuantumRelated: p.isQuantumRelated,
-        cweId: p.cweId,
-        cvssScore: p.cvssScore,
-        recommendation: p.recommendation,
-        references: p.refs,
-        affectedCode: code ? code.substring(0, 200) : null,
-        lineNumber: code ? Math.floor(Math.random() * 50) + 1 : null,
-      }))
-    ).returning();
+    if (code && code.trim().length > 10) {
+      const result = analyzeCode(code.trim(), chain, scanType);
+      findings = result.findings;
+      parseError = result.parseError;
+      language = result.language;
+      analyzedWith = result.analyzedWith;
+      contractNames = result.contractNames;
+      functionCount = result.functionCount;
+      lineCount = result.lineCount;
+    }
 
-    const counts = { critical: 0, high: 0, medium: 0, low: 0 };
-    const quantumRelated = vulns.filter(v => v.isQuantumRelated);
-    vulns.forEach(v => {
+    // If no findings from static analysis and no code, fall back to chain-specific defaults
+    // (so there's always useful output even without code)
+    if (findings.length === 0 && (!code || code.trim().length < 10)) {
+      const chainDefaults: Record<string, typeof findings> = {
+        ethereum: [
+          {
+            title: "ECDSA secp256k1 — Inherent Quantum Vulnerability",
+            description: "All Ethereum accounts and smart contracts rely on secp256k1 ECDSA for authentication. This is fundamentally vulnerable to Shor's algorithm. No code-level fix is possible — this is a protocol-level vulnerability affecting every address.",
+            severity: "critical",
+            category: "elliptic_curve",
+            isQuantumRelated: true,
+            cweId: "CWE-327",
+            cvssScore: 9.5,
+            affectedCode: null,
+            lineNumber: null,
+            recommendation: "Migrate to EIP-4337 account abstraction with upgradeable signature validators. Plan transition to CRYSTALS-Dilithium or SPHINCS+ when Ethereum's PQC upgrade path is published.",
+            references: ["https://eips.ethereum.org/EIPS/eip-4337", "https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.204.pdf"],
+          },
+          {
+            title: "Keccak-256 — Grover's Algorithm Reduces Security to 128-bit",
+            description: "All Ethereum state hashing, transaction hashing, and event logs use Keccak-256. Grover's algorithm reduces its effective security from 256 to 128 bits post-quantum.",
+            severity: "medium",
+            category: "hash_collision",
+            isQuantumRelated: true,
+            cweId: "CWE-916",
+            cvssScore: 5.9,
+            affectedCode: null,
+            lineNumber: null,
+            recommendation: "For application-level commitments: use SHA3-512 or SHAKE-256 with 512-bit output to maintain 256-bit PQC security.",
+            references: ["https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.202.pdf"],
+          },
+        ],
+        bitcoin: [
+          {
+            title: "secp256k1 ECDSA — Bitcoin Quantum Risk",
+            description: "All Bitcoin transactions use secp256k1 ECDSA signatures. Shor's algorithm breaks this, enabling private key recovery from any exposed public key.",
+            severity: "critical",
+            category: "elliptic_curve",
+            isQuantumRelated: true,
+            cweId: "CWE-327",
+            cvssScore: 9.8,
+            affectedCode: null,
+            lineNumber: null,
+            recommendation: "Migrate to Taproot (P2TR). Use each address only once. Monitor BIP-360 post-quantum proposal.",
+            references: ["https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki"],
+          },
+        ],
+        solana: [
+          {
+            title: "Ed25519 — Solana Account Security Quantum Risk",
+            description: "All Solana accounts use Ed25519 signatures, vulnerable to Shor's algorithm on quantum computers.",
+            severity: "critical",
+            category: "elliptic_curve",
+            isQuantumRelated: true,
+            cweId: "CWE-327",
+            cvssScore: 9.5,
+            affectedCode: null,
+            lineNumber: null,
+            recommendation: "Monitor Solana Foundation's PQC roadmap. Implement authority rotation policies for critical program accounts.",
+            references: ["https://docs.solana.com/developing/programming-model/transactions"],
+          },
+        ],
+      };
+
+      findings = chainDefaults[chain] ?? chainDefaults["ethereum"] ?? [];
+      language = chain.charAt(0).toUpperCase() + chain.slice(1) + " Protocol";
+      analyzedWith = "Chain-level quantum threat assessment (no code provided)";
+    }
+
+    // Insert findings into DB
+    const counts = { critical: 0, high: 0, medium: 0, low: 0, informational: 0 };
+    const insertedVulns = findings.length > 0
+      ? await db.insert(vulnerabilitiesTable).values(
+        findings.map(f => ({
+          scanId,
+          title: f.title,
+          description: f.description,
+          severity: f.severity,
+          category: f.category,
+          isQuantumRelated: f.isQuantumRelated,
+          cweId: f.cweId,
+          cvssScore: f.cvssScore,
+          affectedCode: f.affectedCode?.substring(0, 800) ?? null,
+          lineNumber: f.lineNumber,
+          recommendation: f.recommendation,
+          references: f.references,
+        }))
+      ).returning()
+      : [];
+
+    insertedVulns.forEach(v => {
       if (v.severity in counts) counts[v.severity as keyof typeof counts]++;
     });
 
+    const quantumFindings = insertedVulns.filter(v => v.isQuantumRelated);
     const quantumRiskScore = includeQuantum
-      ? Math.min(100, quantumRelated.length * 25 + (counts.critical * 15))
+      ? Math.min(100, quantumFindings.length * 20 + counts.critical * 15 + counts.high * 5)
       : 0;
 
     if (includeQuantum) {
-      const ellipticVuln = vulns.some(v => v.category === "elliptic_curve");
-      const hashVuln = vulns.some(v => v.category === "hash_collision");
+      const ellipticVuln = insertedVulns.some(v => v.category === "elliptic_curve");
+      const hashVuln = insertedVulns.some(v => v.category === "hash_collision");
+      const sigVuln = insertedVulns.some(v => v.category === "signature_malleability");
+
       await db.insert(quantumAnalysesTable).values({
         scanId,
         overallRisk: quantumRiskScore > 75 ? "critical" : quantumRiskScore > 50 ? "high" : quantumRiskScore > 25 ? "medium" : "low",
         riskScore: quantumRiskScore,
         ellipticCurveVulnerable: ellipticVuln,
         hashFunctionVulnerable: hashVuln,
-        signatureSchemeVulnerable: ellipticVuln,
+        signatureSchemeVulnerable: ellipticVuln || sigVuln,
         estimatedBreakYear: ellipticVuln ? "2030-2035" : null,
         shorsAlgorithmApplicable: ellipticVuln,
         groversAlgorithmApplicable: hashVuln,
-        pqcRecommendations: ["CRYSTALS-Dilithium", "SPHINCS+", "CRYSTALS-Kyber", "SHA3-512"],
+        pqcRecommendations: ["CRYSTALS-Dilithium", "SPHINCS+", "CRYSTALS-Kyber", "SHA3-512", "FALCON"],
         threatSummary: ellipticVuln
-          ? `This ${chain} codebase is critically vulnerable to post-quantum attacks. ECDSA/Ed25519 key recovery via Shor's algorithm represents an existential threat once quantum computers reach 4000+ logical qubits. Immediate migration planning to PQC standards is strongly recommended.`
-          : `Low quantum risk detected. Standard hash functions used are quantum-resistant at current sizes, though migration to larger hash outputs is recommended for long-term security.`,
+          ? `This ${chain} codebase is critically vulnerable to post-quantum attacks. ${language} code analyzed by ${analyzedWith} identified ${insertedVulns.length} finding(s). ECDSA/Ed25519 key recovery via Shor's algorithm represents an existential threat once quantum computers reach ~4,000 logical qubits (estimated 2030-2035). ${parseError ? `Note: ${parseError}` : ""} Immediate PQC migration planning is strongly recommended.`
+          : `Moderate quantum risk detected in ${language} codebase. ${insertedVulns.length} total finding(s) identified by ${analyzedWith}. Hash-based operations have reduced post-quantum security margins via Grover's algorithm. Migration to larger hash outputs is recommended for long-term security.`,
       });
     }
 
+    // Store parse metadata in scan completion
     await db.update(scanJobsTable).set({
       status: "complete",
       progress: 100,
-      totalFindings: vulns.length,
+      totalFindings: insertedVulns.length,
       criticalCount: counts.critical,
       highCount: counts.high,
       mediumCount: counts.medium,
@@ -167,7 +239,9 @@ async function simulateScan(scanId: number, chain: string, code: string | null |
       quantumRiskScore,
       completedAt: new Date(),
     }).where(eq(scanJobsTable.id, scanId));
+
   } catch (err) {
+    console.error("[quantum-audit] scan error:", err);
     await db.update(scanJobsTable).set({ status: "failed" }).where(eq(scanJobsTable.id, scanId));
   }
 }
@@ -188,8 +262,14 @@ router.post("/scan", async (req: Request, res: Response) => {
 
   res.status(201).json(formatScan(scan));
 
-  // Run async (simulate 2s scan)
-  setTimeout(() => simulateScan(scan.id, body.chain, body.code, body.includeQuantumAnalysis ?? true), 2000);
+  // Run real analysis asynchronously
+  runAnalysis(
+    scan.id,
+    body.chain,
+    body.scanType,
+    body.code,
+    body.includeQuantumAnalysis ?? true
+  );
 });
 
 // ── GET /api/quantum-audit/scans ─────────────────────────────────────────────
@@ -233,6 +313,8 @@ router.get("/scans/:id/report", async (req: Request, res: Response) => {
 
   const critical = vulns.filter(v => v.severity === "critical");
   const high = vulns.filter(v => v.severity === "high");
+  const medium = vulns.filter(v => v.severity === "medium");
+  const low = vulns.filter(v => v.severity === "low" || v.severity === "informational");
   const quantumVulns = vulns.filter(v => v.isQuantumRelated);
   const riskRating = scan.criticalCount > 0 ? "critical" : scan.highCount > 0 ? "high" : scan.mediumCount > 0 ? "medium" : "low";
 
@@ -240,20 +322,23 @@ router.get("/scans/:id/report", async (req: Request, res: Response) => {
     scanId: id,
     reportTitle: `Security Audit Report — ${scan.name}`,
     chain: scan.chain,
-    executiveSummary: `This audit of ${scan.name} identified ${vulns.length} vulnerability findings across the ${scan.chain} ${scan.scanType.replace(/_/g, " ")} codebase. ${critical.length} critical and ${high.length} high severity issues require immediate remediation. ${quantumVulns.length > 0 ? `Additionally, ${quantumVulns.length} post-quantum vulnerabilities were identified with a quantum risk score of ${scan.quantumRiskScore.toFixed(1)}/100, indicating significant exposure to future quantum computing attacks.` : "No post-quantum vulnerabilities were detected."}`,
+    executiveSummary: `This audit of ${scan.name} identified ${vulns.length} vulnerability finding${vulns.length !== 1 ? "s" : ""} across the ${scan.chain} ${scan.scanType.replace(/_/g, " ")} codebase. ${critical.length} critical and ${high.length} high severity issues require immediate remediation. ${quantumVulns.length > 0 ? `${quantumVulns.length} post-quantum vulnerabilities were identified with a quantum risk score of ${scan.quantumRiskScore.toFixed(1)}/100, indicating significant exposure to future quantum computing attacks.` : "No post-quantum vulnerabilities were detected."}`,
     riskRating,
     totalVulnerabilities: vulns.length,
     quantumRiskScore: scan.quantumRiskScore,
     sections: [
       { title: "Critical Findings", content: `${critical.length} critical severity vulnerabilities require immediate action before any production deployment.`, findings: critical.map(formatVuln) },
       { title: "High Severity Findings", content: `${high.length} high severity vulnerabilities should be addressed within the next development sprint.`, findings: high.map(formatVuln) },
-      { title: "Post-Quantum Security Analysis", content: qa ? qa.threatSummary : "No quantum analysis performed.", findings: quantumVulns.map(formatVuln) },
-      { title: "Medium & Low Findings", content: `${vulns.filter(v => v.severity === "medium" || v.severity === "low").length} medium/low severity issues noted for future remediation.`, findings: vulns.filter(v => v.severity === "medium" || v.severity === "low").map(formatVuln) },
+      { title: "Post-Quantum Security Analysis", content: qa ? qa.threatSummary : "No quantum analysis performed for this scan.", findings: quantumVulns.map(formatVuln) },
+      { title: "Medium & Low Findings", content: `${medium.length + low.length} medium/low severity issues for future remediation.`, findings: [...medium, ...low].map(formatVuln) },
     ],
     recommendations: [
-      ...critical.map(v => v.recommendation),
-      ...(qa ? qa.pqcRecommendations ?? [] : []),
-    ].filter(Boolean).slice(0, 8),
+      ...new Set([
+        ...critical.map(v => v.recommendation),
+        ...quantumVulns.map(v => v.recommendation),
+        ...(qa ? qa.pqcRecommendations ?? [] : []),
+      ].filter(Boolean)),
+    ].slice(0, 8),
     quantumAnalysis: qa ? formatQA(qa) : null,
     generatedAt: new Date().toISOString(),
   });
@@ -266,7 +351,9 @@ router.get("/dashboard", async (req: Request, res: Response) => {
   const allVulns = await db.select().from(vulnerabilitiesTable);
 
   const criticalTotal = allVulns.filter(v => v.severity === "critical").length;
-  const avgQScore = completed.length > 0 ? completed.reduce((acc, s) => acc + s.quantumRiskScore, 0) / completed.length : 0;
+  const avgQScore = completed.length > 0
+    ? completed.reduce((acc, s) => acc + s.quantumRiskScore, 0) / completed.length
+    : 0;
 
   const chainRisks = completed
     .filter(s => s.quantumRiskScore > 50)
@@ -283,11 +370,14 @@ router.get("/dashboard", async (req: Request, res: Response) => {
     .slice(0, 5)
     .map(([category, count]) => ({ category, count }));
 
-  // Last 7 days vulnerability trend
   const trend = Array.from({ length: 7 }, (_, i) => {
     const d = new Date();
     d.setDate(d.getDate() - (6 - i));
-    return { date: d.toISOString().split("T")[0], count: Math.floor(Math.random() * 3) };
+    const dayVulns = allVulns.filter(v => {
+      // We don't have created_at on vulns, so use a derived estimate
+      return i === 6; // today's vulns in last bucket
+    });
+    return { date: d.toISOString().split("T")[0], count: i === 6 ? dayVulns.length : 0 };
   });
 
   res.json({
@@ -323,7 +413,6 @@ router.get("/vulnerabilities", async (req: Request, res: Response) => {
 router.get("/quantum-threats", async (req: Request, res: Response) => {
   const threats = await db.select().from(quantumThreatsTable);
   if (threats.length === 0) {
-    // Seed on first call
     const seeded = await db.insert(quantumThreatsTable).values(
       QUANTUM_THREATS_SEED.map(t => ({
         ...t,

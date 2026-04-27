@@ -171,6 +171,14 @@ export default function ScanDetail() {
                         {vuln.category}
                       </Badge>
                       {vuln.cweId && <span className="text-muted-foreground bg-accent/30 px-2 py-0.5 rounded">{vuln.cweId}</span>}
+                      {vuln.cvssScore != null && (
+                        <span className={`px-2 py-0.5 rounded font-bold ${
+                          vuln.cvssScore >= 9 ? "bg-red-900/30 text-red-400" :
+                          vuln.cvssScore >= 7 ? "bg-orange-900/30 text-orange-400" :
+                          vuln.cvssScore >= 4 ? "bg-yellow-900/30 text-yellow-400" :
+                          "bg-blue-900/30 text-blue-400"
+                        }`}>CVSS {vuln.cvssScore.toFixed(1)}</span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -178,18 +186,29 @@ export default function ScanDetail() {
                 <p className="text-sm text-foreground/80 mb-4">{vuln.description}</p>
                 
                 {vuln.affectedCode && (
-                  <div className="bg-card p-3 rounded border border-border/50 font-mono text-xs text-muted-foreground overflow-x-auto mb-4">
-                    {vuln.lineNumber && <div className="text-primary mb-1">// Line: {vuln.lineNumber}</div>}
-                    <pre><code>{vuln.affectedCode}</code></pre>
+                  <div className="bg-black/60 p-3 rounded border border-border/50 font-mono text-xs text-muted-foreground overflow-x-auto mb-4">
+                    {vuln.lineNumber && <div className="text-primary/70 mb-1 select-none">Line {vuln.lineNumber}</div>}
+                    <pre className="whitespace-pre-wrap break-all"><code>{vuln.affectedCode}</code></pre>
                   </div>
                 )}
                 
-                <div className="bg-primary/5 border border-primary/20 p-3 rounded text-sm">
+                <div className="bg-primary/5 border border-primary/20 p-3 rounded text-sm mb-3">
                   <div className="font-bold text-primary mb-1 flex items-center gap-2">
                     <CheckCircle className="w-4 h-4" /> Recommendation
                   </div>
                   <p className="text-foreground/90">{vuln.recommendation}</p>
                 </div>
+
+                {vuln.references && vuln.references.length > 0 && (
+                  <div className="flex flex-wrap gap-x-3 gap-y-1">
+                    {vuln.references.map((ref: string, i: number) => (
+                      <a key={i} href={ref} target="_blank" rel="noopener noreferrer"
+                        className="text-[10px] text-primary/50 hover:text-primary underline font-mono truncate max-w-xs">
+                        {ref.replace(/^https?:\/\//, "")}
+                      </a>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
           </CardContent>

@@ -176,6 +176,9 @@ importers:
       '@clerk/express':
         specifier: ^2.1.5
         version: 2.1.5(express@5.2.1)
+      '@solidity-parser/parser':
+        specifier: ^0.20.2
+        version: 0.20.2
       '@types/adm-zip':
         specifier: ^0.5.8
         version: 0.5.8
@@ -3141,6 +3144,9 @@ packages:
   '@solana/wallet-standard@1.1.4':
     resolution: {integrity: sha512-NF+MI5tOxyvfTU4A+O5idh/gJFmjm52bMwsPpFGRSL79GECSN0XLmpVOO/jqTKJgac2uIeYDpQw/eMaQuWuUXw==}
     engines: {node: '>=16'}
+
+  '@solidity-parser/parser@0.20.2':
+    resolution: {integrity: sha512-rbu0bzwNvMcwAjH86hiEAcOeRI2EeK8zCkHDrFykh/Al8mvJeFmjy3UrE7GYQjNwOgbGUUtCn5/k8CB8zIu7QA==}
 
   '@stablelib/base64@1.0.1':
     resolution: {integrity: sha512-1bnPQqSxSuc3Ii6MhBysoWCg58j97aUjuCSZrGSmDxNqtytIi0k8utUenAwTZN4V5mXXYGsVUI9zeBqy+jBOSQ==}
@@ -10853,6 +10859,8 @@ snapshots:
       - '@solana/web3.js'
       - bs58
       - react
+
+  '@solidity-parser/parser@0.20.2': {}
 
   '@stablelib/base64@1.0.1': {}
 
