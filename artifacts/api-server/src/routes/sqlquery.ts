@@ -2,6 +2,7 @@ import { Router } from "express";
 import { pool } from "@workspace/db";
 import { z } from "zod";
 import { Pool as PgPool, type PoolConfig } from "pg";
+import { checkSsrfPostgres } from "../lib/ssrfGuard";
 
 const router = Router();
 
@@ -83,6 +84,12 @@ router.post("/connect", async (req, res) => {
 
   if (body.dbType !== "postgresql") {
     return res.status(400).json({ error: `${body.dbType} connections are not yet supported. Only PostgreSQL connection strings are supported (postgresql://user:pass@host:5432/db).` });
+  }
+
+  // SSRF Protection: reject connection strings that point to internal/metadata IPs
+  const ssrf = await checkSsrfPostgres(body.connectionString);
+  if (ssrf.blocked) {
+    return res.status(403).json({ error: `SSRF blocked: ${ssrf.reason}` });
   }
 
   let pgPool: PgPool;

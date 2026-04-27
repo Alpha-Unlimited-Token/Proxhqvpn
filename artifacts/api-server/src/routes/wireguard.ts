@@ -133,11 +133,18 @@ router.get("/my-config/:id/text", async (req, res) => {
     ? `${node.publicIp}:${node.listenPort}`
     : `# SET_SERVER_PUBLIC_IP:${node.listenPort}`;
 
-  // Generate a WireGuard Pre-Shared Key (PSK) — this is the real WireGuard PQC mechanism.
-  // Per the WireGuard paper: "PresharedKey is a symmetric key mixed into the handshake,
-  // providing post-quantum resistance against harvest-now/decrypt-later attacks."
-  // It makes the handshake resistant to quantum computers breaking X25519 alone.
-  const psk = crypto.randomBytes(32).toString("base64");
+  // Use existing stored PSK or generate a new one on first download.
+  // Storing the PSK allows rotation via POST /rotate-psk/:id without full re-provisioning.
+  // Per WireGuard paper §5.4: PSK provides post-quantum resistance by mixing a 256-bit
+  // symmetric key into the Noise handshake, defeating harvest-now/decrypt-later attacks.
+  let psk = cfg.pskKey;
+  if (!psk) {
+    psk = crypto.randomBytes(32).toString("base64");
+    await db
+      .update(userWgConfigsTable)
+      .set({ pskKey: psk, pskRotatedAt: new Date() })
+      .where(eq(userWgConfigsTable.id, cfg.id));
+  }
 
   const configText = `[Interface]
 PrivateKey = ${cfg.clientPrivateKey}
@@ -148,6 +155,8 @@ DNS = 1.1.1.1, 1.0.0.1
 # Post-Quantum Resistance: PresharedKey (symmetric 256-bit) mixed into WireGuard
 # handshake — provides quantum resistance per WireGuard paper §5.4 (Initiator+Responder
 # share a 32-byte PSK making the handshake resistant to future quantum adversaries).
+# PSK last rotated: ${cfg.pskRotatedAt?.toISOString() ?? new Date().toISOString()}
+# Rotate at: POST /api/wireguard/rotate-psk/${cfg.id}
 # Kill switch: add PostUp/PreDown iptables rules below to enforce.
 
 [Peer]
@@ -165,6 +174,38 @@ PersistentKeepalive = 25
   res.setHeader("Content-Type", "text/plain");
   res.setHeader("Content-Disposition", `attachment; filename="proxhqvpn-${node.region}-${cfg.assignedIp.replace(/\./g, "-")}.conf"`);
   res.send(configText);
+});
+
+// ─── POST /rotate-psk/:id ─────────────────────────────────────────────────────
+// Generates a new 256-bit PresharedKey for the peer. The user MUST re-download
+// their .conf and apply it on both the client and the server node. This should
+// be done at least every 90 days for optimal post-quantum security posture.
+router.post("/rotate-psk/:id", async (req, res) => {
+  const { userId } = getAuth(req);
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+  const id = parseInt(req.params.id);
+  const [cfg] = await db
+    .select()
+    .from(userWgConfigsTable)
+    .where(and(eq(userWgConfigsTable.id, id), eq(userWgConfigsTable.userId, userId), isNull(userWgConfigsTable.revokedAt)));
+
+  if (!cfg) return res.status(404).json({ error: "Config not found" });
+
+  const newPsk = crypto.randomBytes(32).toString("base64");
+  const rotatedAt = new Date();
+
+  await db
+    .update(userWgConfigsTable)
+    .set({ pskKey: newPsk, pskRotatedAt: rotatedAt })
+    .where(eq(userWgConfigsTable.id, id));
+
+  return res.json({
+    configId: id,
+    rotatedAt: rotatedAt.toISOString(),
+    message: "PSK rotated. Re-download your .conf file and apply PresharedKey on both client and server to complete rotation.",
+    nextRotationDue: new Date(rotatedAt.getTime() + 90 * 24 * 60 * 60 * 1000).toISOString(),
+  });
 });
 
 router.get("/peer-status/:configId", async (req, res) => {

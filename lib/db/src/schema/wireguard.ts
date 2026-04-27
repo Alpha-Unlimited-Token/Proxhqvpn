@@ -9,6 +9,10 @@ export const userWgConfigsTable = pgTable("user_wg_configs", {
   clientPrivateKey: text("client_private_key").notNull(),
   clientPublicKey: text("client_public_key").notNull(),
   assignedIp: text("assigned_ip").notNull(),
+  // Post-quantum PresharedKey — stored so rotation is possible without re-provisioning.
+  // Rotated via POST /api/wireguard/rotate-psk/:id. Must be applied on both client and server.
+  pskKey: text("psk_key"),
+  pskRotatedAt: timestamp("psk_rotated_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   revokedAt: timestamp("revoked_at"),
 });

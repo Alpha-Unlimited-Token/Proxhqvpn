@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { checkSsrf } from "../lib/ssrfGuard";
 import { exec, spawn } from "child_process";
 import { promisify } from "util";
 import { z } from "zod";
@@ -165,6 +166,12 @@ router.post("/http-request", async (req, res) => {
     timeout: z.number().min(500).max(30000).optional().default(10000),
   }).parse(req.body);
 
+  // SSRF Protection: block requests to private/internal/metadata IP ranges
+  const ssrf = await checkSsrf(body.url, true);
+  if (ssrf.blocked) {
+    return res.status(403).json({ error: `SSRF blocked: ${ssrf.reason}` });
+  }
+
   const startMs = Date.now();
   try {
     const nodeFetch = (await import("node-fetch")).default;
@@ -216,6 +223,12 @@ router.post("/port-scan", async (req, res) => {
     ports: z.array(z.number().min(1).max(65535)).max(50),
     timeout: z.number().min(100).max(5000).optional().default(1500),
   }).parse(req.body);
+
+  // SSRF Protection: block port scans against private/internal IP ranges
+  const ssrf = await checkSsrf(body.host, false);
+  if (ssrf.blocked) {
+    return res.status(403).json({ error: `SSRF blocked: ${ssrf.reason}` });
+  }
 
   const net = await import("net");
   const results: { port: number; open: boolean; banner?: string }[] = [];

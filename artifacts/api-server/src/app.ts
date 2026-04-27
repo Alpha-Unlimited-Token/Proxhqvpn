@@ -164,6 +164,22 @@ app.use((_req: Request, res: Response, next: NextFunction) => {
   res.setHeader("X-Permitted-Cross-Domain-Policies", "none");
   res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
   res.setHeader("Cross-Origin-Resource-Policy", "same-site");
+  // Permissions-Policy: explicitly disable browser features that have no place in a VPN dashboard
+  res.setHeader(
+    "Permissions-Policy",
+    [
+      "geolocation=()",
+      "camera=()",
+      "microphone=()",
+      "payment=()",
+      "usb=()",
+      "bluetooth=()",
+      "magnetometer=()",
+      "accelerometer=()",
+      "gyroscope=()",
+      "interest-cohort=()",
+    ].join(", "),
+  );
   next();
 });
 
