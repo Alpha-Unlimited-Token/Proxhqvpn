@@ -3,7 +3,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Shield, ShieldOff, Power, AlertTriangle, Zap, ShieldCheck, Download } from "lucide-react";
+import {
+  Shield, ShieldOff, Power, AlertTriangle, Zap,
+  ShieldCheck, Download, CheckCircle2, XCircle,
+  RefreshCw, Server, Activity,
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
@@ -20,6 +24,33 @@ interface KsState {
   safeIps: string[];
 }
 
+interface ValidationResult {
+  canValidate: boolean;
+  ipv4DropPolicy: boolean;
+  ipv6DropPolicy: boolean;
+  vpnIfaceAllowed: boolean;
+  loopbackAllowed: boolean;
+  dhcpAllowed: boolean;
+  wgPortAllowed: boolean;
+  issues: string[];
+  recommendations: string[];
+  raw: { ipv4?: string; ipv6?: string };
+}
+
+function CheckRow({ label, ok, note }: { label: string; ok: boolean; note?: string }) {
+  return (
+    <div className="flex items-start gap-2 py-1.5 border-b border-primary/10 last:border-0">
+      {ok
+        ? <CheckCircle2 className="w-3.5 h-3.5 text-green-400 flex-shrink-0 mt-0.5" />
+        : <XCircle className="w-3.5 h-3.5 text-red-400 flex-shrink-0 mt-0.5" />}
+      <div className="min-w-0">
+        <span className={`text-[10px] font-mono ${ok ? "text-green-400" : "text-red-400"}`}>{label}</span>
+        {note && <div className="text-[9px] font-mono text-primary/30 mt-0.5">{note}</div>}
+      </div>
+    </div>
+  );
+}
+
 export default function KillSwitch() {
   const { toast } = useToast();
   const [state, setState] = useState<KsState | null>(null);
@@ -27,6 +58,9 @@ export default function KillSwitch() {
   const [toggling, setToggling] = useState(false);
   const [safeIp, setSafeIp] = useState<string | null>(null);
   const [ipLoading, setIpLoading] = useState(true);
+
+  const [validation, setValidation] = useState<ValidationResult | null>(null);
+  const [validating, setValidating] = useState(false);
 
   useEffect(() => {
     setIpLoading(true);
@@ -57,9 +91,7 @@ export default function KillSwitch() {
         mode: state.mode,
         allowedInterfaces: state.allowedInterfaces,
       };
-      if (!state.enabled && safeIp) {
-        body.safeIps = [safeIp];
-      }
+      if (!state.enabled && safeIp) body.safeIps = [safeIp];
       const r = await fetch(`${BASE}/api/killswitch/${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -98,11 +130,55 @@ export default function KillSwitch() {
     const blob = new Blob([d.enable], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url;
-    a.download = `proxhqvpn_killswitch_${platform}.${ext}`;
-    a.click();
+    a.href = url; a.download = `proxhqvpn_killswitch_${platform}.${ext}`; a.click();
     URL.revokeObjectURL(url);
     toast({ title: "Rules downloaded", description: `Kill switch script for ${d.platform} saved.` });
+  };
+
+  const downloadSystemd = async () => {
+    const params = new URLSearchParams();
+    if (safeIp) params.set("safeIps", safeIp);
+    const r = await fetch(`${BASE}/api/killswitch/systemd?${params}`, { credentials: "include" });
+    const d = await r.json();
+    const blob = new Blob([d.installInstructions], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "proxhq-killswitch-systemd-install.sh"; a.click();
+    URL.revokeObjectURL(url);
+    toast({ title: "Systemd installer downloaded", description: "Run as root on your Linux VPS to enable kill switch at boot." });
+  };
+
+  const downloadWatchdog = async () => {
+    const params = new URLSearchParams();
+    if (safeIp) params.set("safeIps", safeIp);
+    const r = await fetch(`${BASE}/api/killswitch/watchdog?${params}`, { credentials: "include" });
+    const d = await r.json();
+    const blob = new Blob([d.watchdogScript], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "proxhq-watchdog.sh"; a.click();
+    URL.revokeObjectURL(url);
+    toast({ title: "Watchdog script downloaded", description: "Auto-reconnects WireGuard and arms kill switch if the tunnel drops." });
+  };
+
+  const runValidation = async () => {
+    setValidating(true);
+    setValidation(null);
+    try {
+      const r = await fetch(`${BASE}/api/killswitch/validate`, { credentials: "include" });
+      const d: ValidationResult = await r.json();
+      setValidation(d);
+      const allGood = d.ipv4DropPolicy && d.ipv6DropPolicy && d.vpnIfaceAllowed;
+      toast({
+        title: allGood ? "Kill switch fully active" : d.canValidate ? "Issues found" : "Cannot validate remotely",
+        description: allGood
+          ? "IPv4 + IPv6 DROP policy confirmed in iptables."
+          : d.issues[0] ?? "Check results below.",
+        variant: allGood ? "default" : "destructive",
+      });
+    } catch {
+      toast({ title: "Validation failed", description: "Could not reach validation endpoint.", variant: "destructive" });
+    } finally { setValidating(false); }
   };
 
   if (loading) {
@@ -116,10 +192,12 @@ export default function KillSwitch() {
   const isArmed = state?.enabled ?? false;
   const allSafeIps = Array.from(new Set([...(state?.safeIps ?? []), ...(safeIp ? [safeIp] : [])]));
 
+  const validationPassed = validation && validation.canValidate
+    && validation.ipv4DropPolicy && validation.ipv6DropPolicy && validation.vpnIfaceAllowed;
+
   return (
     <div className="flex flex-col gap-4 pb-8">
 
-      {/* Safe IP badge */}
       {!ipLoading && safeIp && (
         <div className="border border-primary/20 bg-primary/[0.04] rounded-sm px-3 py-2.5 flex items-center gap-3 text-xs font-mono">
           <ShieldCheck className="w-4 h-4 text-primary flex-shrink-0" />
@@ -137,10 +215,7 @@ export default function KillSwitch() {
             {isArmed ? <Shield className="w-5 h-5 text-green-400" /> : <ShieldOff className="w-5 h-5 text-red-400" />}
             Kill Switch
           </h2>
-          <Badge
-            variant="outline"
-            className={isArmed ? "text-green-400 border-green-400/50 font-mono text-xs" : "text-red-400 border-red-400/50 font-mono text-xs"}
-          >
+          <Badge variant="outline" className={isArmed ? "text-green-400 border-green-400/50 font-mono text-xs" : "text-red-400 border-red-400/50 font-mono text-xs"}>
             {isArmed ? "ARMED" : "DISARMED"}
           </Badge>
           <Badge variant="outline" className="text-primary/50 border-primary/20 font-mono text-xs">
@@ -165,9 +240,7 @@ export default function KillSwitch() {
           <Zap className="w-4 h-4 flex-shrink-0" />
           <div className="min-w-0">
             <span>KILL SWITCH ARMED — All internet blocked if VPN drops. VPN interfaces [{state?.allowedInterfaces?.join(", ")}] allowed.</span>
-            {allSafeIps.length > 0 && (
-              <span> Safe IPs: [{allSafeIps.join(", ")}].</span>
-            )}
+            {allSafeIps.length > 0 && <span> Safe IPs: [{allSafeIps.join(", ")}].</span>}
           </div>
         </div>
       )}
@@ -191,10 +264,7 @@ export default function KillSwitch() {
                 <p className="text-xs font-mono text-primary">Auto-trigger on VPN drop</p>
                 <p className="text-[10px] font-mono text-primary/40 mt-0.5">Activates automatically if WireGuard/TUN interface goes down</p>
               </div>
-              <Switch
-                checked={state?.autoTriggerOnDrop ?? true}
-                onCheckedChange={(v) => patchConfig({ autoTriggerOnDrop: v })}
-              />
+              <Switch checked={state?.autoTriggerOnDrop ?? true} onCheckedChange={(v) => patchConfig({ autoTriggerOnDrop: v })} />
             </div>
 
             <div className="flex items-center justify-between py-2 border-t border-primary/10">
@@ -202,10 +272,7 @@ export default function KillSwitch() {
                 <p className="text-xs font-mono text-primary">Block outbound when VPN down</p>
                 <p className="text-[10px] font-mono text-primary/40 mt-0.5">Drop all packets if no VPN interface is active</p>
               </div>
-              <Switch
-                checked={state?.blockedOutboundWhenVpnDown ?? true}
-                onCheckedChange={(v) => patchConfig({ blockedOutboundWhenVpnDown: v })}
-              />
+              <Switch checked={state?.blockedOutboundWhenVpnDown ?? true} onCheckedChange={(v) => patchConfig({ blockedOutboundWhenVpnDown: v })} />
             </div>
 
             <div className="flex items-center justify-between py-2 border-t border-primary/10">
@@ -227,27 +294,12 @@ export default function KillSwitch() {
             </div>
 
             <div className="border-t border-primary/10 pt-3 text-[10px] font-mono text-primary/40 space-y-1">
-              <div className="flex justify-between">
-                <span>TRIGGER COUNT</span>
-                <span className="text-primary">{state?.triggerCount ?? 0}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>LAST TRIGGERED</span>
-                <span className="text-primary">{state?.lastTriggeredAt ? new Date(state.lastTriggeredAt).toLocaleTimeString() : "never"}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>PLATFORM</span>
-                <span className="text-primary">{state?.platform ?? "unknown"}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>ALLOWED IFACES</span>
-                <span className="text-primary">{state?.allowedInterfaces?.join(", ") ?? "tun0, wg0"}</span>
-              </div>
+              <div className="flex justify-between"><span>TRIGGER COUNT</span><span className="text-primary">{state?.triggerCount ?? 0}</span></div>
+              <div className="flex justify-between"><span>LAST TRIGGERED</span><span className="text-primary">{state?.lastTriggeredAt ? new Date(state.lastTriggeredAt).toLocaleTimeString() : "never"}</span></div>
+              <div className="flex justify-between"><span>PLATFORM</span><span className="text-primary">{state?.platform ?? "unknown"}</span></div>
+              <div className="flex justify-between"><span>ALLOWED IFACES</span><span className="text-primary">{state?.allowedInterfaces?.join(", ") ?? "tun0, wg0"}</span></div>
               {allSafeIps.length > 0 && (
-                <div className="flex justify-between">
-                  <span>SAFE IPS</span>
-                  <span className="text-primary">{allSafeIps.join(", ")}</span>
-                </div>
+                <div className="flex justify-between"><span>SAFE IPS</span><span className="text-primary">{allSafeIps.join(", ")}</span></div>
               )}
             </div>
           </CardContent>
@@ -259,7 +311,7 @@ export default function KillSwitch() {
               <span className="text-xs font-mono uppercase tracking-widest text-primary/50">Download Rules</span>
             </div>
             <p className="text-[10px] font-mono text-primary/40 leading-relaxed">
-              Download a platform-specific kill switch script pre-configured with your safe IP baked in. Apply to any device.
+              Download platform-specific kill switch scripts pre-configured with your safe IP baked in.
             </p>
             <div className="space-y-2">
               {[
@@ -277,24 +329,174 @@ export default function KillSwitch() {
                 </button>
               ))}
             </div>
-            <div className="pt-1 space-y-2 text-[10px] font-mono text-primary/50 leading-relaxed">
-              <div className="grid grid-cols-2 gap-2 pt-1">
-                {[
-                  ["ARMED", "All traffic blocked unless it goes through the VPN tunnel"],
-                  ["DISARMED", "Normal routing — VPN protection still active"],
-                  ["AUTO-TRIGGER", "Fires automatically if the WireGuard interface drops"],
-                  ["HARD MODE", "Drops all packets — LAN/DHCP also blocked"],
-                ].map(([label, desc]) => (
-                  <div key={label} className="border border-primary/10 p-2 space-y-0.5">
-                    <div className="text-primary/70 uppercase">{label}</div>
-                    <div className="text-primary/30">{desc}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
           </CardContent>
         </Card>
       </div>
+
+      {/* ── Validate Live Rules ───────────────────────────────────────────────── */}
+      <Card className="bg-black border-primary/20">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between pb-3 border-b border-primary/10 mb-3">
+            <div>
+              <span className="text-xs font-mono uppercase tracking-widest text-primary/50">Live iptables Validation</span>
+              <p className="text-[10px] font-mono text-primary/30 mt-0.5">
+                Reads real iptables / ip6tables rules from the server to confirm the kill switch is actually enforced — not just configured
+              </p>
+            </div>
+            <Button
+              onClick={runValidation}
+              disabled={validating}
+              variant="outline"
+              className="border-primary/20 text-primary/60 hover:text-primary hover:border-primary/40 font-mono text-[10px]"
+            >
+              {validating ? <RefreshCw className="w-3 h-3 mr-1.5 animate-spin" /> : <Activity className="w-3 h-3 mr-1.5" />}
+              {validating ? "CHECKING..." : "VALIDATE NOW"}
+            </Button>
+          </div>
+
+          {!validation && !validating && (
+            <div className="text-[10px] font-mono text-primary/30 text-center py-4">
+              Click VALIDATE NOW to check if the kill switch is actually active in iptables
+            </div>
+          )}
+
+          {validation && (
+            <div className="space-y-3">
+              {/* Overall verdict */}
+              <div className={`flex items-center gap-2 px-3 py-2 rounded-sm border text-[10px] font-mono ${
+                validationPassed
+                  ? "border-green-500/30 bg-green-900/10 text-green-400"
+                  : validation.canValidate
+                  ? "border-red-500/30 bg-red-900/10 text-red-400"
+                  : "border-yellow-500/30 bg-yellow-900/10 text-yellow-400"
+              }`}>
+                {validationPassed
+                  ? <><CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" /> KILL SWITCH FULLY ACTIVE — IPv4 + IPv6 DROP policy confirmed in iptables</>
+                  : validation.canValidate
+                  ? <><XCircle className="w-3.5 h-3.5 flex-shrink-0" /> KILL SWITCH NOT FULLY ACTIVE — see issues below</>
+                  : <><AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" /> Cannot validate remotely — run validation on the Linux VPS where your VPN server runs</>
+                }
+              </div>
+
+              {validation.canValidate && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <div className="text-[9px] font-mono text-primary/40 uppercase mb-2">Rule Checks</div>
+                    <CheckRow label="IPv4 OUTPUT → DROP"  ok={validation.ipv4DropPolicy}  note="iptables -P OUTPUT DROP active" />
+                    <CheckRow label="IPv6 OUTPUT → DROP"  ok={validation.ipv6DropPolicy}  note="ip6tables -P OUTPUT DROP active" />
+                    <CheckRow label="VPN interface allowed" ok={validation.vpnIfaceAllowed} note={`${state?.allowedInterfaces?.join(", ")} in ACCEPT rules`} />
+                    <CheckRow label="Loopback allowed"    ok={validation.loopbackAllowed}  note="lo interface not blocked" />
+                    <CheckRow label="DHCP allowed"        ok={validation.dhcpAllowed}      note="UDP port 67 not blocked" />
+                    <CheckRow label="WireGuard port"      ok={validation.wgPortAllowed}    note="UDP 51820 handshake allowed" />
+                  </div>
+
+                  <div>
+                    {validation.issues.length > 0 && (
+                      <div className="mb-3">
+                        <div className="text-[9px] font-mono text-red-400/60 uppercase mb-2">Issues</div>
+                        <div className="space-y-1.5">
+                          {validation.issues.map((issue, i) => (
+                            <div key={i} className="flex items-start gap-1.5 text-[9px] font-mono text-red-400/80">
+                              <XCircle className="w-3 h-3 flex-shrink-0 mt-0.5" />
+                              <span>{issue}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {validation.recommendations.length > 0 && (
+                      <div>
+                        <div className="text-[9px] font-mono text-primary/40 uppercase mb-2">Recommendations</div>
+                        <div className="space-y-1.5">
+                          {validation.recommendations.map((rec, i) => (
+                            <div key={i} className="flex items-start gap-1.5 text-[9px] font-mono text-primary/50">
+                              <CheckCircle2 className="w-3 h-3 flex-shrink-0 mt-0.5 text-primary/30" />
+                              <span>{rec}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── Persistence & Watchdog ───────────────────────────────────────────── */}
+      <Card className="bg-black border-primary/20">
+        <CardContent className="p-4 space-y-3">
+          <div className="pb-2 border-b border-primary/10">
+            <span className="text-xs font-mono uppercase tracking-widest text-primary/50">Boot Persistence & Auto-Reconnect</span>
+            <p className="text-[10px] font-mono text-primary/30 mt-0.5">
+              Two scripts that close the enforcement gap — kill switch armed at boot before any network interface comes up, and auto-reconnect if the tunnel drops
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="border border-primary/15 rounded-sm p-3 space-y-2">
+              <div className="flex items-center gap-2">
+                <Server className="w-3.5 h-3.5 text-primary/60" />
+                <span className="text-[10px] font-mono text-primary/80 uppercase">Systemd Boot Unit</span>
+              </div>
+              <p className="text-[9px] font-mono text-primary/40 leading-relaxed">
+                Installs as a systemd service that runs <code>Before=network-pre.target</code> — kill switch is armed before any network interface comes up, not just when the script is run manually.
+              </p>
+              <div className="space-y-1 text-[9px] font-mono text-primary/30">
+                <div>✓ Survives reboots</div>
+                <div>✓ Fires before network — zero boot-time leak window</div>
+                <div>✓ Disarms cleanly on stop/disable</div>
+              </div>
+              <button
+                onClick={downloadSystemd}
+                className="w-full flex items-center gap-2 px-3 py-2 border border-primary/20 text-[10px] font-mono text-primary/60 hover:text-primary hover:border-primary/40 hover:bg-primary/[0.04] rounded-sm transition-all"
+              >
+                <Download className="w-3 h-3 flex-shrink-0" />
+                Download systemd installer
+              </button>
+            </div>
+
+            <div className="border border-primary/15 rounded-sm p-3 space-y-2">
+              <div className="flex items-center gap-2">
+                <Activity className="w-3.5 h-3.5 text-primary/60" />
+                <span className="text-[10px] font-mono text-primary/80 uppercase">Watchdog + Auto-Reconnect</span>
+              </div>
+              <p className="text-[9px] font-mono text-primary/40 leading-relaxed">
+                Polls WireGuard every 5 seconds. If the tunnel drops: instantly arms the kill switch, then reconnects via wg-quick. Disarms only after handshake is confirmed. Logs every event.
+              </p>
+              <div className="space-y-1 text-[9px] font-mono text-primary/30">
+                <div>✓ Zero-leak reconnect window (kill switch fires first)</div>
+                <div>✓ Up to 10 retry attempts with backoff</div>
+                <div>✓ SIGTERM-safe — disarms cleanly on stop</div>
+              </div>
+              <button
+                onClick={downloadWatchdog}
+                className="w-full flex items-center gap-2 px-3 py-2 border border-primary/20 text-[10px] font-mono text-primary/60 hover:text-primary hover:border-primary/40 hover:bg-primary/[0.04] rounded-sm transition-all"
+              >
+                <Download className="w-3 h-3 flex-shrink-0" />
+                Download watchdog script
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 pt-1">
+            {[
+              ["ARMED", "All traffic blocked unless it goes through the VPN tunnel"],
+              ["DISARMED", "Normal routing — VPN protection still active"],
+              ["AUTO-TRIGGER", "Fires automatically if the WireGuard interface drops"],
+              ["HARD MODE", "Drops all packets — LAN/DHCP also blocked"],
+            ].map(([label, desc]) => (
+              <div key={label} className="border border-primary/10 p-2 space-y-0.5 text-[10px] font-mono">
+                <div className="text-primary/70 uppercase">{label}</div>
+                <div className="text-primary/30">{desc}</div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

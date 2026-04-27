@@ -217,4 +217,61 @@ router.get("/fingerprint", (req, res) => {
   });
 });
 
+// ── GET /api/leaks/dns-rebind — server-side DNS rebinding protection test ─────
+// Checks whether internal metadata services, local routers, or cloud provider
+// instance metadata are reachable from the server's network. If they are, the
+// server may be misconfigured and vulnerable to DNS rebinding or SSRF attacks.
+router.get("/dns-rebind", async (_req, res) => {
+  const TARGETS = [
+    { label: "AWS Metadata (169.254.169.254)", url: "http://169.254.169.254/latest/meta-data/", critical: true },
+    { label: "GCP Metadata (metadata.google.internal)", url: "http://metadata.google.internal/computeMetadata/v1/", critical: true },
+    { label: "Azure Metadata (169.254.169.254 IMDS)", url: "http://169.254.169.254/metadata/instance?api-version=2021-02-01", critical: true },
+    { label: "Link-local gateway (169.254.0.1)", url: "http://169.254.0.1/", critical: false },
+    { label: "Common router (192.168.1.1)", url: "http://192.168.1.1/", critical: false },
+    { label: "Docker internal (172.17.0.1)", url: "http://172.17.0.1/", critical: false },
+    { label: "Kubernetes API (10.96.0.1)", url: "http://10.96.0.1/", critical: false },
+    { label: "Localhost port 22 (SSH)", url: "http://127.0.0.1:22/", critical: false },
+  ];
+
+  const results = await Promise.all(
+    TARGETS.map(async (t) => {
+      try {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 2500);
+        const resp = await fetch(t.url, {
+          signal: ctrl.signal,
+          redirect: "manual",
+          headers: { "Metadata": "true" },
+        }).catch(e => ({ ok: false, status: 0, _err: e.message ?? "timeout" })) as any;
+        clearTimeout(timer);
+        const reachable = resp.status > 0 && resp.status !== 0;
+        return { ...t, reachable, statusCode: resp.status ?? 0, error: null };
+      } catch (e: any) {
+        return { ...t, reachable: false, statusCode: 0, error: e.message ?? "unreachable" };
+      }
+    })
+  );
+
+  const criticalExposed = results.filter(r => r.critical && r.reachable);
+  const noncriticalExposed = results.filter(r => !r.critical && r.reachable);
+
+  const verdict =
+    criticalExposed.length > 0 ? "CRITICAL" :
+    noncriticalExposed.length > 0 ? "WARNING" :
+    "SECURE";
+
+  res.json({
+    verdict,
+    criticalExposed: criticalExposed.map(r => r.label),
+    noncriticalExposed: noncriticalExposed.map(r => r.label),
+    results,
+    summary:
+      verdict === "CRITICAL"
+        ? `${criticalExposed.length} cloud metadata endpoint(s) are reachable from this server. An SSRF vulnerability could allow an attacker to steal cloud credentials or instance identity tokens.`
+        : verdict === "WARNING"
+        ? `${noncriticalExposed.length} internal network endpoint(s) are reachable. Review firewall rules to restrict access to internal services.`
+        : "No internal metadata services or private network endpoints are reachable from this server. DNS rebinding protection is working.",
+  });
+});
+
 export default router;

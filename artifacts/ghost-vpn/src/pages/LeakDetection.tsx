@@ -34,27 +34,82 @@ const STUN_SERVERS = [
   "stun:stun.ekiga.net",
 ];
 
-function gatherWebRtcIps(): Promise<string[]> {
+interface IceCandidate {
+  ip: string;
+  candidateType: "host" | "srflx" | "relay" | "prflx" | "unknown";
+  protocol: string;
+  port: number;
+  isMdns: boolean;
+  raw: string;
+}
+
+function parseIceCandidate(candidateLine: string): IceCandidate | null {
+  const ipRegex = /([0-9]{1,3}(?:\.[0-9]{1,3}){3}|[a-f0-9:]{3,}:[a-f0-9:]+)/i;
+  const typeMatch = candidateLine.match(/\btyp\s+(\w+)/i);
+  const protoMatch = candidateLine.match(/\b(udp|tcp)\b/i);
+  const portMatch = candidateLine.match(/(\d{1,5})\s+typ/i);
+
+  const ipMatch = candidateLine.match(ipRegex);
+  const ip = ipMatch?.[1] ?? "";
+
+  const isMdns = ip.endsWith(".local");
+  if (!ip && !isMdns) return null;
+
+  const candidateType = (typeMatch?.[1]?.toLowerCase() ?? "unknown") as IceCandidate["candidateType"];
+
+  return {
+    ip,
+    candidateType,
+    protocol: protoMatch?.[1]?.toLowerCase() ?? "unknown",
+    port: parseInt(portMatch?.[1] ?? "0", 10),
+    isMdns,
+    raw: candidateLine,
+  };
+}
+
+function gatherWebRtcCandidates(): Promise<IceCandidate[]> {
   return new Promise((resolve) => {
-    const ips: string[] = [];
-    const ipRegex = /([0-9]{1,3}(\.[0-9]{1,3}){3}|[a-f0-9:]{3,}:[a-f0-9:]+)/gi;
+    const candidates: IceCandidate[] = [];
+    const seen = new Set<string>();
 
     let pc: RTCPeerConnection | null = null;
-    const done = () => { try { pc?.close(); } catch {} resolve([...new Set(ips)]); };
-    const timer = setTimeout(done, 4000);
+    const done = () => { try { pc?.close(); } catch {} resolve(candidates); };
+    const timer = setTimeout(done, 5000);
 
     try {
       pc = new RTCPeerConnection({ iceServers: STUN_SERVERS.map(u => ({ urls: u })) });
       pc.createDataChannel("");
       pc.onicecandidate = (e) => {
         if (!e.candidate) { clearTimeout(timer); done(); return; }
-        const line = e.candidate.candidate;
-        const matches = line.match(ipRegex) ?? [];
-        matches.forEach(ip => { if (!ips.includes(ip)) ips.push(ip); });
+        const parsed = parseIceCandidate(e.candidate.candidate);
+        if (parsed) {
+          const key = `${parsed.ip}:${parsed.candidateType}`;
+          if (!seen.has(key)) { seen.add(key); candidates.push(parsed); }
+        }
       };
       pc.createOffer().then(o => pc!.setLocalDescription(o)).catch(() => { clearTimeout(timer); done(); });
     } catch { clearTimeout(timer); done(); }
   });
+}
+
+function classifyCandidate(c: IceCandidate, vpnPublicIp: string) {
+  if (c.isMdns) return { isLeak: false, severity: "info" as const, label: "mDNS (browser privacy mode)" };
+  if (c.candidateType === "relay") return { isLeak: false, severity: "safe" as const, label: "TURN relay (safe)" };
+
+  const isPrivate = /^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|127\.|::1$|fc|fd)/.test(c.ip);
+  const isVpnIp = vpnPublicIp && c.ip === vpnPublicIp;
+
+  if (c.candidateType === "srflx") {
+    if (isVpnIp) return { isLeak: false, severity: "safe" as const, label: "VPN public IP (correct)" };
+    return { isLeak: true, severity: "critical" as const, label: "REAL IP LEAKED via srflx" };
+  }
+
+  if (c.candidateType === "host") {
+    if (isPrivate) return { isLeak: false, severity: "info" as const, label: "local/private IP" };
+    return { isLeak: true, severity: "high" as const, label: "public IP leaked via host candidate" };
+  }
+
+  return { isLeak: false, severity: "info" as const, label: c.candidateType };
 }
 
 function getBrowserFingerprint(): BrowserFingerprint {
@@ -128,12 +183,13 @@ export default function LeakDetection() {
   const [running, setRunning] = useState(false);
   const [completed, setCompleted] = useState(false);
 
-  const [ipTest,        setIpTest]        = useState<TestState>({ status: "idle" });
-  const [webrtcTest,    setWebrtcTest]    = useState<TestState>({ status: "idle" });
-  const [dnsTest,       setDnsTest]       = useState<TestState>({ status: "idle" });
-  const [ipv6Test,      setIpv6Test]      = useState<TestState>({ status: "idle" });
-  const [torTest,       setTorTest]       = useState<TestState>({ status: "idle" });
-  const [fingerTest,    setFingerTest]    = useState<TestState>({ status: "idle" });
+  const [ipTest,          setIpTest]          = useState<TestState>({ status: "idle" });
+  const [webrtcTest,      setWebrtcTest]      = useState<TestState>({ status: "idle" });
+  const [dnsTest,         setDnsTest]         = useState<TestState>({ status: "idle" });
+  const [ipv6Test,        setIpv6Test]        = useState<TestState>({ status: "idle" });
+  const [torTest,         setTorTest]         = useState<TestState>({ status: "idle" });
+  const [fingerTest,      setFingerTest]      = useState<TestState>({ status: "idle" });
+  const [dnsRebindTest,   setDnsRebindTest]   = useState<TestState>({ status: "idle" });
 
   const abortRef = useRef<AbortController | null>(null);
 
@@ -144,7 +200,7 @@ export default function LeakDetection() {
     const signal = abortRef.current.signal;
 
     const reset = (fn: (s: TestState) => void) => fn({ status: "running" });
-    [setIpTest, setWebrtcTest, setDnsTest, setIpv6Test, setTorTest, setFingerTest].forEach(reset);
+    [setIpTest, setWebrtcTest, setDnsTest, setIpv6Test, setTorTest, setFingerTest, setDnsRebindTest].forEach(reset);
 
     // 1 — Browser fingerprint (instant, local)
     try {
@@ -154,18 +210,20 @@ export default function LeakDetection() {
       setFingerTest({ status: "error", result: { error: e.message } });
     }
 
-    // 2 — WebRTC (in-browser STUN gathering)
-    let gatheredIps: string[] = [];
+    // 2 — WebRTC — full ICE candidate collection with type classification
+    let iceCandidates: IceCandidate[] = [];
     try {
-      gatheredIps = await gatherWebRtcIps();
-      // Send to server for comparison against real IP
+      iceCandidates = await gatherWebRtcCandidates();
       const wrtcRes = await fetch(`${BASE}/api/leaks/webrtc-analyze`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ iceIps: gatheredIps }),
+        body: JSON.stringify({
+          iceIps: iceCandidates.map(c => c.ip).filter(ip => !ip.endsWith(".local")),
+          candidates: iceCandidates,
+        }),
         signal,
       }).then(r => r.json());
-      setWebrtcTest({ status: "done", result: wrtcRes });
+      setWebrtcTest({ status: "done", result: { ...wrtcRes, rawCandidates: iceCandidates } });
     } catch (e: any) {
       if (e.name !== "AbortError") setWebrtcTest({ status: "error", result: { error: e.message } });
     }
@@ -185,13 +243,24 @@ export default function LeakDetection() {
       }
     }
 
+    // 4 — DNS rebinding protection test (server-side, checks if internal metadata is reachable)
+    try {
+      const rebindRes = await fetch(`${BASE}/api/leaks/dns-rebind`, { signal }).then(r => r.json());
+      setDnsRebindTest({ status: "done", result: rebindRes });
+    } catch (e: any) {
+      if (e.name !== "AbortError") setDnsRebindTest({ status: "error", result: { error: (e as any).message } });
+    }
+
     setRunning(false);
     setCompleted(true);
 
-    const wrtcLeaked = webrtcTest.result?.status === "leaked";
+    const wrtcLeaked = iceCandidates.some(c => {
+      const cls = classifyCandidate(c, "");
+      return cls.isLeak;
+    });
     toast({
       title: wrtcLeaked ? "WebRTC Leak Detected!" : "Leak scan complete",
-      description: wrtcLeaked ? "Your real IP is exposed via WebRTC." : "Review results below.",
+      description: wrtcLeaked ? "Your real IP is exposed via srflx WebRTC candidate." : "Review results below.",
       variant: wrtcLeaked ? "destructive" : "default",
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -199,8 +268,11 @@ export default function LeakDetection() {
 
   const overallLeaked =
     webrtcTest.result?.status === "leaked" ||
-    ipv6Test.result?.leakDetected;
-  const overallWarning = dnsTest.result?.leakDetected;
+    ipv6Test.result?.leakDetected ||
+    dnsRebindTest.result?.verdict === "CRITICAL";
+  const overallWarning =
+    dnsTest.result?.leakDetected ||
+    dnsRebindTest.result?.verdict === "WARNING";
 
   const overallVerdict = completed
     ? overallLeaked ? "leaked"
@@ -337,9 +409,10 @@ export default function LeakDetection() {
         <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
           {[
             { label: "Public IP", icon: Globe, state: ipTest, leaked: false },
-            { label: "WebRTC Leak", icon: Radio, state: webrtcTest, leaked: webrtcTest.result?.status === "leaked" },
+            { label: "WebRTC / ICE", icon: Radio, state: webrtcTest, leaked: webrtcTest.result?.status === "leaked" },
             { label: "DNS Resolvers", icon: Wifi, state: dnsTest, leaked: dnsTest.result?.leakDetected },
             { label: "IPv6 Exposure", icon: Network, state: ipv6Test, leaked: ipv6Test.result?.leakDetected },
+            { label: "DNS Rebinding", icon: Lock, state: dnsRebindTest, leaked: dnsRebindTest.result?.verdict === "CRITICAL" },
             { label: "Tor Exit Node", icon: EyeOff, state: torTest, leaked: false },
             { label: "Browser Fingerprint", icon: Fingerprint, state: fingerTest, leaked: false },
           ].map(({ label, icon: Icon, state, leaked }) => (
@@ -387,36 +460,76 @@ export default function LeakDetection() {
             </CardContent>
           </Card>
 
-          {/* WebRTC Leak */}
+          {/* WebRTC Leak — with ICE candidate type classification */}
           <Card className={`bg-black border ${webrtcTest.result?.status === "leaked" ? "border-red-500/50" : webrtcTest.status === "done" ? "border-green-500/30" : "border-primary/20"}`}>
             <CardContent className="p-4 space-y-3">
               <div className="flex items-center gap-2 pb-2 border-b border-primary/10">
                 <Radio className="w-3.5 h-3.5 text-primary" />
-                <span className="text-[10px] font-mono uppercase tracking-widest text-primary/50 flex-1">WebRTC Leak</span>
+                <span className="text-[10px] font-mono uppercase tracking-widest text-primary/50 flex-1">WebRTC / ICE Leak</span>
                 <LeakBadge leaked={webrtcTest.status === "done" ? webrtcTest.result?.status === "leaked" : undefined} />
                 <StatusIcon status={webrtcTest.status} leaked={webrtcTest.result?.status === "leaked"} />
               </div>
-              {webrtcTest.status === "running" && <p className="text-[10px] font-mono text-primary/30 animate-pulse">Gathering ICE candidates via STUN...</p>}
-              {webrtcTest.status === "done" && webrtcTest.result && (
-                <div className="space-y-2">
-                  <div className="space-y-1.5">
-                    {(webrtcTest.result.iceIps as WebRtcIp[]).length === 0 && (
-                      <p className="text-[10px] font-mono text-green-400">No IPs gathered — WebRTC blocked or no STUN reachable.</p>
-                    )}
-                    {(webrtcTest.result.iceIps as WebRtcIp[]).map((item, i) => (
-                      <div key={i} className="flex items-center justify-between text-[10px] font-mono gap-2">
-                        <span className={item.isLeak ? "text-red-400 font-bold" : item.type === "private" ? "text-primary/60" : "text-green-400"}>
-                          {item.ip}
-                        </span>
-                        <span className={`text-[9px] ${item.isLeak ? "text-red-400" : item.type === "private" ? "text-primary/40" : "text-green-400"}`}>
-                          {item.isLeak ? "⚠ REAL IP" : item.type === "private" ? "local" : "VPN"}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                  <p className="text-[9px] font-mono text-primary/40 border-t border-primary/10 pt-2">{webrtcTest.result.recommendation}</p>
-                </div>
+              {webrtcTest.status === "running" && (
+                <p className="text-[10px] font-mono text-primary/30 animate-pulse">Gathering ICE candidates via 4 STUN servers — classifying host/srflx/relay...</p>
               )}
+              {webrtcTest.status === "done" && webrtcTest.result && (() => {
+                const rawCandidates: IceCandidate[] = webrtcTest.result.rawCandidates ?? [];
+                const vpnIp: string = webrtcTest.result.realIp ?? "";
+                const anyLeak = rawCandidates.some(c => classifyCandidate(c, vpnIp).isLeak);
+                return (
+                  <div className="space-y-2">
+                    {rawCandidates.length === 0 && (
+                      <p className="text-[10px] font-mono text-green-400">No ICE candidates gathered — WebRTC is blocked or STUN is unreachable. This is ideal.</p>
+                    )}
+                    <div className="space-y-1.5">
+                      {rawCandidates.map((c, i) => {
+                        const cls = classifyCandidate(c, vpnIp);
+                        const typeColor = cls.isLeak
+                          ? "text-red-400"
+                          : cls.severity === "safe"
+                          ? "text-green-400"
+                          : "text-primary/50";
+                        return (
+                          <div key={i} className="border border-primary/10 rounded-sm px-2 py-1.5 space-y-0.5">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className={`text-[10px] font-mono font-bold ${cls.isLeak ? "text-red-400" : "text-primary/80"}`}>
+                                {c.isMdns ? c.ip : c.ip}
+                              </span>
+                              <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded border ${
+                                cls.isLeak
+                                  ? "border-red-500/50 text-red-400 bg-red-900/20"
+                                  : cls.severity === "safe"
+                                  ? "border-green-500/30 text-green-400"
+                                  : "border-primary/20 text-primary/40"
+                              }`}>
+                                {cls.isLeak ? "⚠ " : ""}{cls.label}
+                              </span>
+                            </div>
+                            <div className="flex gap-3 text-[9px] font-mono text-primary/30">
+                              <span className={typeColor}>typ:{c.candidateType}</span>
+                              <span>{c.protocol.toUpperCase()}</span>
+                              {c.port > 0 && <span>:{c.port}</span>}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {anyLeak && (
+                      <div className="text-[9px] font-mono text-red-400/80 border border-red-500/20 bg-red-900/10 rounded-sm px-2 py-1.5">
+                        ⚠ srflx candidate exposes your real public IP. This bypasses the VPN tunnel and reveals your ISP-assigned address.
+                      </div>
+                    )}
+                    {!anyLeak && rawCandidates.length > 0 && (
+                      <div className="text-[9px] font-mono text-green-400/70 border border-green-500/20 bg-green-900/10 rounded-sm px-2 py-1.5">
+                        All candidates are private, VPN, relay, or mDNS. No real IP leaked.
+                      </div>
+                    )}
+                    <p className="text-[9px] font-mono text-primary/30 border-t border-primary/10 pt-2">
+                      srflx = real public IP (critical if not VPN IP) · host = local IP · relay = TURN (safe) · mDNS = .local alias (browser privacy mode)
+                    </p>
+                  </div>
+                );
+              })()}
               {webrtcTest.status === "error" && <p className="text-[10px] font-mono text-red-400">WebRTC test failed — browser may block RTCPeerConnection.</p>}
             </CardContent>
           </Card>
@@ -512,6 +625,58 @@ export default function LeakDetection() {
                 </div>
               )}
               {torTest.status === "error" && <p className="text-[10px] font-mono text-red-400">Tor check unavailable.</p>}
+            </CardContent>
+          </Card>
+
+          {/* DNS Rebinding */}
+          <Card className={`bg-black border ${
+            dnsRebindTest.result?.verdict === "CRITICAL" ? "border-red-500/40" :
+            dnsRebindTest.result?.verdict === "WARNING" ? "border-yellow-500/30" :
+            dnsRebindTest.status === "done" ? "border-green-500/30" : "border-primary/20"
+          }`}>
+            <CardContent className="p-4 space-y-3">
+              <div className="flex items-center gap-2 pb-2 border-b border-primary/10">
+                <Lock className="w-3.5 h-3.5 text-primary" />
+                <span className="text-[10px] font-mono uppercase tracking-widest text-primary/50 flex-1">DNS Rebinding / SSRF</span>
+                <LeakBadge
+                  leaked={dnsRebindTest.status === "done" ? dnsRebindTest.result?.verdict === "CRITICAL" : undefined}
+                  label={
+                    dnsRebindTest.result?.verdict === "CRITICAL" ? "CRITICAL" :
+                    dnsRebindTest.result?.verdict === "WARNING" ? "WARNING" :
+                    dnsRebindTest.status === "done" ? "SECURE" : undefined
+                  }
+                />
+                <StatusIcon status={dnsRebindTest.status} leaked={dnsRebindTest.result?.verdict === "CRITICAL"} />
+              </div>
+              {dnsRebindTest.status === "running" && (
+                <p className="text-[10px] font-mono text-primary/30 animate-pulse">Probing 8 internal metadata targets (AWS/GCP/Azure/router)...</p>
+              )}
+              {dnsRebindTest.status === "done" && dnsRebindTest.result && (() => {
+                const r = dnsRebindTest.result;
+                return (
+                  <div className="space-y-2">
+                    <p className={`text-[10px] font-mono ${
+                      r.verdict === "CRITICAL" ? "text-red-400" :
+                      r.verdict === "WARNING" ? "text-yellow-400" : "text-green-400"
+                    }`}>{r.summary}</p>
+                    <div className="space-y-1">
+                      {(r.results as any[]).map((t: any, i: number) => (
+                        <div key={i} className="flex items-center justify-between text-[9px] font-mono gap-2">
+                          <span className="text-primary/50 truncate max-w-[180px]" title={t.label}>{t.label}</span>
+                          <span className={t.reachable
+                            ? t.critical ? "text-red-400 font-bold" : "text-yellow-400"
+                            : "text-primary/30"}>
+                            {t.reachable ? (t.critical ? "⚠ REACHABLE" : "reachable") : "blocked"}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+              {dnsRebindTest.status === "error" && (
+                <p className="text-[10px] font-mono text-red-400">DNS rebinding test failed.</p>
+              )}
             </CardContent>
           </Card>
 
