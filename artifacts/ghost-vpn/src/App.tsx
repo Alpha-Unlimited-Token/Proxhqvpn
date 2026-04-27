@@ -121,6 +121,7 @@ import DepScanner from "@/pages/DepScanner";
 import TokenSequencer from "@/pages/TokenSequencer";
 import WsTester from "@/pages/WsTester";
 import SastAnalyzer from "@/pages/SastAnalyzer";
+import QuantumAuditPage from "@/pages/QuantumAudit";
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
@@ -660,6 +661,9 @@ function AppRoutes() {
           </Route>
           <Route path="/sast">
             <CcLayout><SastAnalyzer /></CcLayout>
+          </Route>
+          <Route path="/quantum-audit">
+            <CcLayout><QuantumAuditPage /></CcLayout>
           </Route>
 
           {/* ── Admin-only — gated on backend; frontend shows paywall for non-admins ── */}

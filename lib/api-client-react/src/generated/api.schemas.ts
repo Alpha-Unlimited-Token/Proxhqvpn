@@ -532,6 +532,264 @@ export interface IptablesExport {
   exportedAt: string;
 }
 
+export type ScanRequestChain =
+  (typeof ScanRequestChain)[keyof typeof ScanRequestChain];
+
+export const ScanRequestChain = {
+  ethereum: "ethereum",
+  bitcoin: "bitcoin",
+  solana: "solana",
+  polygon: "polygon",
+  avalanche: "avalanche",
+  arbitrum: "arbitrum",
+  bsc: "bsc",
+  generic: "generic",
+} as const;
+
+export type ScanRequestScanType =
+  (typeof ScanRequestScanType)[keyof typeof ScanRequestScanType];
+
+export const ScanRequestScanType = {
+  smart_contract: "smart_contract",
+  protocol: "protocol",
+  consensus: "consensus",
+  cryptography: "cryptography",
+  all: "all",
+} as const;
+
+export interface ScanRequest {
+  /** Human-readable name for this audit */
+  name: string;
+  chain: ScanRequestChain;
+  scanType: ScanRequestScanType;
+  /** Source code to analyze (Solidity, Rust, etc.) */
+  code?: string;
+  /** Optional on-chain contract address to analyze */
+  contractAddress?: string;
+  includeQuantumAnalysis?: boolean;
+}
+
+export type ScanJobStatus = (typeof ScanJobStatus)[keyof typeof ScanJobStatus];
+
+export const ScanJobStatus = {
+  pending: "pending",
+  running: "running",
+  complete: "complete",
+  failed: "failed",
+} as const;
+
+export interface ScanJob {
+  id: number;
+  name: string;
+  chain: string;
+  scanType: string;
+  status: ScanJobStatus;
+  /** 0-100 percent complete */
+  progress: number;
+  totalFindings: number;
+  criticalCount: number;
+  highCount: number;
+  mediumCount: number;
+  lowCount: number;
+  /** 0-100, how vulnerable to quantum attacks */
+  quantumRiskScore: number;
+  createdAt: string;
+  completedAt?: string;
+}
+
+export interface ScanJobList {
+  scans: ScanJob[];
+  total: number;
+}
+
+export type VulnerabilitySeverity =
+  (typeof VulnerabilitySeverity)[keyof typeof VulnerabilitySeverity];
+
+export const VulnerabilitySeverity = {
+  critical: "critical",
+  high: "high",
+  medium: "medium",
+  low: "low",
+  informational: "informational",
+} as const;
+
+export type VulnerabilityCategory =
+  (typeof VulnerabilityCategory)[keyof typeof VulnerabilityCategory];
+
+export const VulnerabilityCategory = {
+  reentrancy: "reentrancy",
+  overflow: "overflow",
+  access_control: "access_control",
+  quantum_crypto: "quantum_crypto",
+  weak_randomness: "weak_randomness",
+  front_running: "front_running",
+  denial_of_service: "denial_of_service",
+  logic_error: "logic_error",
+  consensus_attack: "consensus_attack",
+  signature_malleability: "signature_malleability",
+  hash_collision: "hash_collision",
+  elliptic_curve: "elliptic_curve",
+  timestamp_dependence: "timestamp_dependence",
+  gas_limit: "gas_limit",
+  other: "other",
+} as const;
+
+export interface Vulnerability {
+  id: number;
+  scanId: number;
+  title: string;
+  description: string;
+  severity: VulnerabilitySeverity;
+  category: VulnerabilityCategory;
+  isQuantumRelated: boolean;
+  cweId?: string;
+  cvssScore?: number;
+  affectedCode?: string;
+  lineNumber?: number;
+  recommendation: string;
+  references?: string[];
+}
+
+export type VulnerabilityListBySeverity = {
+  critical: number;
+  high: number;
+  medium: number;
+  low: number;
+  informational: number;
+};
+
+export interface VulnerabilityList {
+  vulnerabilities: Vulnerability[];
+  total: number;
+  bySeverity: VulnerabilityListBySeverity;
+}
+
+export type QuantumAnalysisOverallRisk =
+  (typeof QuantumAnalysisOverallRisk)[keyof typeof QuantumAnalysisOverallRisk];
+
+export const QuantumAnalysisOverallRisk = {
+  critical: "critical",
+  high: "high",
+  medium: "medium",
+  low: "low",
+  safe: "safe",
+} as const;
+
+export interface QuantumAnalysis {
+  overallRisk: QuantumAnalysisOverallRisk;
+  riskScore: number;
+  ellipticCurveVulnerable: boolean;
+  /** Whether hash functions used are vulnerable to Grover's algorithm */
+  hashFunctionVulnerable: boolean;
+  signatureSchemeVulnerable: boolean;
+  /** Estimated year a quantum computer could break this code */
+  estimatedBreakYear?: string;
+  shorsAlgorithmApplicable: boolean;
+  groversAlgorithmApplicable: boolean;
+  /** Post-quantum cryptography algorithm recommendations */
+  pqcRecommendations: string[];
+  threatSummary: string;
+}
+
+export interface ScanDetail {
+  scan: ScanJob;
+  vulnerabilities: Vulnerability[];
+  quantumAnalysis?: QuantumAnalysis;
+}
+
+export type AuditReportRiskRating =
+  (typeof AuditReportRiskRating)[keyof typeof AuditReportRiskRating];
+
+export const AuditReportRiskRating = {
+  critical: "critical",
+  high: "high",
+  medium: "medium",
+  low: "low",
+  safe: "safe",
+} as const;
+
+export type AuditReportSectionsItem = {
+  title: string;
+  content: string;
+  findings?: Vulnerability[];
+};
+
+export interface AuditReport {
+  scanId: number;
+  reportTitle: string;
+  chain: string;
+  executiveSummary: string;
+  riskRating: AuditReportRiskRating;
+  totalVulnerabilities: number;
+  quantumRiskScore: number;
+  sections: AuditReportSectionsItem[];
+  recommendations: string[];
+  quantumAnalysis?: QuantumAnalysis;
+  generatedAt: string;
+}
+
+export type AuditDashboardVulnerabilityTrendItem = {
+  date: string;
+  count: number;
+};
+
+export type AuditDashboardTopVulnerabilityCategoriesItem = {
+  category: string;
+  count: number;
+};
+
+export interface AuditDashboard {
+  totalScans: number;
+  completedScans: number;
+  totalVulnerabilities: number;
+  criticalFindings: number;
+  highRiskChains: string[];
+  avgQuantumRiskScore: number;
+  recentScans: ScanJob[];
+  vulnerabilityTrend: AuditDashboardVulnerabilityTrendItem[];
+  topVulnerabilityCategories: AuditDashboardTopVulnerabilityCategoriesItem[];
+}
+
+export type QuantumThreatAlgorithm =
+  (typeof QuantumThreatAlgorithm)[keyof typeof QuantumThreatAlgorithm];
+
+export const QuantumThreatAlgorithm = {
+  shors: "shors",
+  grovers: "grovers",
+  hybrid: "hybrid",
+  bqp_complete: "bqp_complete",
+} as const;
+
+export type QuantumThreatSeverity =
+  (typeof QuantumThreatSeverity)[keyof typeof QuantumThreatSeverity];
+
+export const QuantumThreatSeverity = {
+  critical: "critical",
+  high: "high",
+  medium: "medium",
+  low: "low",
+} as const;
+
+export interface QuantumThreat {
+  id: number;
+  name: string;
+  algorithm: QuantumThreatAlgorithm;
+  affectedChains: string[];
+  description: string;
+  technicalDetail: string;
+  estimatedQubitsNeeded?: number;
+  currentlyFeasible: boolean;
+  estimatedFeasibleYear?: string;
+  mitigation: string;
+  pqcAlternatives: string[];
+  severity: QuantumThreatSeverity;
+}
+
+export interface QuantumThreatList {
+  threats: QuantumThreat[];
+  total: number;
+}
+
 export type ProxyBrowserConfigMode =
   (typeof ProxyBrowserConfigMode)[keyof typeof ProxyBrowserConfigMode];
 
@@ -617,5 +875,38 @@ export type ListBeaconAlertsStatus =
 export const ListBeaconAlertsStatus = {
   active: "active",
   dismissed: "dismissed",
+  all: "all",
+} as const;
+
+export type ListScansParams = {
+  status?: ListScansStatus;
+  chain?: string;
+};
+
+export type ListScansStatus =
+  (typeof ListScansStatus)[keyof typeof ListScansStatus];
+
+export const ListScansStatus = {
+  pending: "pending",
+  running: "running",
+  complete: "complete",
+  failed: "failed",
+  all: "all",
+} as const;
+
+export type ListVulnerabilitiesParams = {
+  severity?: ListVulnerabilitiesSeverity;
+  category?: string;
+};
+
+export type ListVulnerabilitiesSeverity =
+  (typeof ListVulnerabilitiesSeverity)[keyof typeof ListVulnerabilitiesSeverity];
+
+export const ListVulnerabilitiesSeverity = {
+  critical: "critical",
+  high: "high",
+  medium: "medium",
+  low: "low",
+  informational: "informational",
   all: "all",
 } as const;

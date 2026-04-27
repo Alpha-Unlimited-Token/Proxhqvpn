@@ -7,6 +7,15 @@
 ProxhqVPN is an advanced VPN orchestration and security platform with 60-node mesh (50 outer + 10 inner), silk web trap network, port knocking, mTLS, beacons/spiders/worms, firewall, WireGuard config generation, SQL interface (local + external PostgreSQL + HTTP API mode), terminal emulator (ProxhqVPN Mode with full outbound), security audit suite, system monitor, Tor/SOCKS5 integration, kill switch, leak detection, threat intelligence, split tunneling, and DPI obfuscation. React + Vite frontend; Express/PostgreSQL backend.
 
 **Latest additions:**
+- **QuantumAudit (2026-04-27)** — Standalone blockchain security auditing platform integrated into the Command Center. Scans smart contracts and protocols for classical and post-quantum cryptographic vulnerabilities.
+  - Artifact at `artifacts/quantum-audit/` (previewPath `/quantum-audit/`), dark cyan/orange theme.
+  - DB tables: `scan_jobs`, `vulnerabilities`, `quantum_analyses`, `quantum_threats` with PG enums `scan_status`, `blockchain_chain`, `scan_type`, `audit_severity`, `vuln_category`, `quantum_algorithm`, `quantum_risk`.
+  - API routes at `/api/quantum-audit/*`: POST `/scan`, GET `/scans`, GET `/scans/:id`, GET `/scans/:id/report`, GET `/dashboard`, GET `/vulnerabilities`, GET `/quantum-threats`.
+  - Frontend pages: Dashboard, New Scan, All Scans, Scan Detail, Scan Report, Vulnerabilities, Quantum Threats.
+  - Integrated into ghost-vpn Command Center nav under "QuantumAudit" (redirects to `/quantum-audit/`). Route added to `artifacts/ghost-vpn/src/App.tsx`.
+  - Mobile slug `"quantum-audit"` maps to `/quantum-audit/` in `tool/[slug].tsx`.
+
+
 - **Competitor Gap Fixes (2026-04-26)** — Major upgrade across all security tooling to surpass NordVPN, ExpressVPN, Mullvad, ProtonVPN, Surfshark, Burp Suite Pro, OWASP ZAP, Metasploit Pro, and Caido:
   - **JWT Analyzer** — 5 new attack classes added: JWKS injection (jku header), X5U header injection, Embedded JWK attack (server-side RSA keygen), kid SQL/path injection (6 payloads: UNION, OR 1=1, path traversal, NULL byte, etc.), Claim Escalation (role/admin/scope/plan). Frontend updated with 2 attack categories (Analysis + Forgery Attacks) with orange styling.
   - **Subdomain Scanner** — Expanded from 2 sources to 9 passive OSINT sources: crt.sh, AlienVault OTX, HackerTarget, URLScan.io, Wayback Machine CDX, AnubisDB/jldc.me, RapidDNS, ThreatCrowd, BufferOver. Results now include per-source breakdown map and `uniqueSources` counter. `addSubdomain()` helper deduplicates and tracks all sources per host.

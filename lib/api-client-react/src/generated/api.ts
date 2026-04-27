@@ -17,6 +17,8 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  AuditDashboard,
+  AuditReport,
   BeaconAlert,
   BeaconAlertList,
   BeaconStats,
@@ -33,13 +35,20 @@ import type {
   IptablesExport,
   ListBeaconAlertsParams,
   ListNodesParams,
+  ListScansParams,
+  ListVulnerabilitiesParams,
   Node,
   NodeList,
   NodeStats,
   ProxyBrowserConfig,
   ProxyFetchBody,
   ProxyFetchResult,
+  QuantumThreatList,
   SaveProxyBrowserConfigBody,
+  ScanDetail,
+  ScanJob,
+  ScanJobList,
+  ScanRequest,
   SilkWeb,
   SqlQueryBody,
   SqlQueryResult,
@@ -51,6 +60,7 @@ import type {
   TriggerBeaconBody,
   UpdateFirewallRuleBody,
   UpdateNodeBody,
+  VulnerabilityList,
   WireguardConfig,
 } from "./api.schemas";
 
@@ -2524,6 +2534,604 @@ export const useGenerateIptablesRules = <
 > => {
   return useMutation(getGenerateIptablesRulesMutationOptions(options));
 };
+
+/**
+ * @summary Submit contract or protocol code for vulnerability scanning
+ */
+export const getRunBlockchainScanUrl = () => {
+  return `/api/quantum-audit/scan`;
+};
+
+export const runBlockchainScan = async (
+  scanRequest: ScanRequest,
+  options?: RequestInit,
+): Promise<ScanJob> => {
+  return customFetch<ScanJob>(getRunBlockchainScanUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(scanRequest),
+  });
+};
+
+export const getRunBlockchainScanMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof runBlockchainScan>>,
+    TError,
+    { data: BodyType<ScanRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof runBlockchainScan>>,
+  TError,
+  { data: BodyType<ScanRequest> },
+  TContext
+> => {
+  const mutationKey = ["runBlockchainScan"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof runBlockchainScan>>,
+    { data: BodyType<ScanRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return runBlockchainScan(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RunBlockchainScanMutationResult = NonNullable<
+  Awaited<ReturnType<typeof runBlockchainScan>>
+>;
+export type RunBlockchainScanMutationBody = BodyType<ScanRequest>;
+export type RunBlockchainScanMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Submit contract or protocol code for vulnerability scanning
+ */
+export const useRunBlockchainScan = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof runBlockchainScan>>,
+    TError,
+    { data: BodyType<ScanRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof runBlockchainScan>>,
+  TError,
+  { data: BodyType<ScanRequest> },
+  TContext
+> => {
+  return useMutation(getRunBlockchainScanMutationOptions(options));
+};
+
+/**
+ * @summary List all scan jobs
+ */
+export const getListScansUrl = (params?: ListScansParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/quantum-audit/scans?${stringifiedParams}`
+    : `/api/quantum-audit/scans`;
+};
+
+export const listScans = async (
+  params?: ListScansParams,
+  options?: RequestInit,
+): Promise<ScanJobList> => {
+  return customFetch<ScanJobList>(getListScansUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListScansQueryKey = (params?: ListScansParams) => {
+  return [`/api/quantum-audit/scans`, ...(params ? [params] : [])] as const;
+};
+
+export const getListScansQueryOptions = <
+  TData = Awaited<ReturnType<typeof listScans>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListScansParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listScans>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListScansQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listScans>>> = ({
+    signal,
+  }) => listScans(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listScans>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListScansQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listScans>>
+>;
+export type ListScansQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List all scan jobs
+ */
+
+export function useListScans<
+  TData = Awaited<ReturnType<typeof listScans>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListScansParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listScans>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListScansQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get scan job and its full report
+ */
+export const getGetScanUrl = (id: number) => {
+  return `/api/quantum-audit/scans/${id}`;
+};
+
+export const getScan = async (
+  id: number,
+  options?: RequestInit,
+): Promise<ScanDetail> => {
+  return customFetch<ScanDetail>(getGetScanUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetScanQueryKey = (id: number) => {
+  return [`/api/quantum-audit/scans/${id}`] as const;
+};
+
+export const getGetScanQueryOptions = <
+  TData = Awaited<ReturnType<typeof getScan>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<Awaited<ReturnType<typeof getScan>>, TError, TData>;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetScanQueryKey(id);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getScan>>> = ({
+    signal,
+  }) => getScan(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<Awaited<ReturnType<typeof getScan>>, TError, TData> & {
+    queryKey: QueryKey;
+  };
+};
+
+export type GetScanQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getScan>>
+>;
+export type GetScanQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get scan job and its full report
+ */
+
+export function useGetScan<
+  TData = Awaited<ReturnType<typeof getScan>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<Awaited<ReturnType<typeof getScan>>, TError, TData>;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetScanQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get the formatted audit report for a completed scan
+ */
+export const getGetScanReportUrl = (id: number) => {
+  return `/api/quantum-audit/scans/${id}/report`;
+};
+
+export const getScanReport = async (
+  id: number,
+  options?: RequestInit,
+): Promise<AuditReport> => {
+  return customFetch<AuditReport>(getGetScanReportUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetScanReportQueryKey = (id: number) => {
+  return [`/api/quantum-audit/scans/${id}/report`] as const;
+};
+
+export const getGetScanReportQueryOptions = <
+  TData = Awaited<ReturnType<typeof getScanReport>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getScanReport>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetScanReportQueryKey(id);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getScanReport>>> = ({
+    signal,
+  }) => getScanReport(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getScanReport>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetScanReportQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getScanReport>>
+>;
+export type GetScanReportQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get the formatted audit report for a completed scan
+ */
+
+export function useGetScanReport<
+  TData = Awaited<ReturnType<typeof getScanReport>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getScanReport>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetScanReportQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get dashboard summary stats for QuantumAudit
+ */
+export const getGetQuantumAuditDashboardUrl = () => {
+  return `/api/quantum-audit/dashboard`;
+};
+
+export const getQuantumAuditDashboard = async (
+  options?: RequestInit,
+): Promise<AuditDashboard> => {
+  return customFetch<AuditDashboard>(getGetQuantumAuditDashboardUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetQuantumAuditDashboardQueryKey = () => {
+  return [`/api/quantum-audit/dashboard`] as const;
+};
+
+export const getGetQuantumAuditDashboardQueryOptions = <
+  TData = Awaited<ReturnType<typeof getQuantumAuditDashboard>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getQuantumAuditDashboard>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetQuantumAuditDashboardQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getQuantumAuditDashboard>>
+  > = ({ signal }) => getQuantumAuditDashboard({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getQuantumAuditDashboard>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetQuantumAuditDashboardQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getQuantumAuditDashboard>>
+>;
+export type GetQuantumAuditDashboardQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get dashboard summary stats for QuantumAudit
+ */
+
+export function useGetQuantumAuditDashboard<
+  TData = Awaited<ReturnType<typeof getQuantumAuditDashboard>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getQuantumAuditDashboard>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetQuantumAuditDashboardQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary List all vulnerability findings across all scans
+ */
+export const getListVulnerabilitiesUrl = (
+  params?: ListVulnerabilitiesParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/quantum-audit/vulnerabilities?${stringifiedParams}`
+    : `/api/quantum-audit/vulnerabilities`;
+};
+
+export const listVulnerabilities = async (
+  params?: ListVulnerabilitiesParams,
+  options?: RequestInit,
+): Promise<VulnerabilityList> => {
+  return customFetch<VulnerabilityList>(getListVulnerabilitiesUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListVulnerabilitiesQueryKey = (
+  params?: ListVulnerabilitiesParams,
+) => {
+  return [
+    `/api/quantum-audit/vulnerabilities`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getListVulnerabilitiesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listVulnerabilities>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListVulnerabilitiesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listVulnerabilities>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListVulnerabilitiesQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listVulnerabilities>>
+  > = ({ signal }) =>
+    listVulnerabilities(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listVulnerabilities>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListVulnerabilitiesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listVulnerabilities>>
+>;
+export type ListVulnerabilitiesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List all vulnerability findings across all scans
+ */
+
+export function useListVulnerabilities<
+  TData = Awaited<ReturnType<typeof listVulnerabilities>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListVulnerabilitiesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listVulnerabilities>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListVulnerabilitiesQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary List known post-quantum threat models applicable to blockchain
+ */
+export const getListQuantumThreatsUrl = () => {
+  return `/api/quantum-audit/quantum-threats`;
+};
+
+export const listQuantumThreats = async (
+  options?: RequestInit,
+): Promise<QuantumThreatList> => {
+  return customFetch<QuantumThreatList>(getListQuantumThreatsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListQuantumThreatsQueryKey = () => {
+  return [`/api/quantum-audit/quantum-threats`] as const;
+};
+
+export const getListQuantumThreatsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listQuantumThreats>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listQuantumThreats>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListQuantumThreatsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listQuantumThreats>>
+  > = ({ signal }) => listQuantumThreats({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listQuantumThreats>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListQuantumThreatsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listQuantumThreats>>
+>;
+export type ListQuantumThreatsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List known post-quantum threat models applicable to blockchain
+ */
+
+export function useListQuantumThreats<
+  TData = Awaited<ReturnType<typeof listQuantumThreats>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listQuantumThreats>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListQuantumThreatsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary Get proxy browser configuration

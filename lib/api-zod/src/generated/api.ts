@@ -628,6 +628,383 @@ export const GenerateIptablesRulesResponse = zod.object({
 });
 
 /**
+ * @summary Submit contract or protocol code for vulnerability scanning
+ */
+export const runBlockchainScanBodyIncludeQuantumAnalysisDefault = true;
+
+export const RunBlockchainScanBody = zod.object({
+  name: zod.string().describe("Human-readable name for this audit"),
+  chain: zod.enum([
+    "ethereum",
+    "bitcoin",
+    "solana",
+    "polygon",
+    "avalanche",
+    "arbitrum",
+    "bsc",
+    "generic",
+  ]),
+  scanType: zod.enum([
+    "smart_contract",
+    "protocol",
+    "consensus",
+    "cryptography",
+    "all",
+  ]),
+  code: zod
+    .string()
+    .optional()
+    .describe("Source code to analyze (Solidity, Rust, etc.)"),
+  contractAddress: zod
+    .string()
+    .optional()
+    .describe("Optional on-chain contract address to analyze"),
+  includeQuantumAnalysis: zod
+    .boolean()
+    .default(runBlockchainScanBodyIncludeQuantumAnalysisDefault),
+});
+
+/**
+ * @summary List all scan jobs
+ */
+export const ListScansQueryParams = zod.object({
+  status: zod
+    .enum(["pending", "running", "complete", "failed", "all"])
+    .optional(),
+  chain: zod.coerce.string().optional(),
+});
+
+export const ListScansResponse = zod.object({
+  scans: zod.array(
+    zod.object({
+      id: zod.number(),
+      name: zod.string(),
+      chain: zod.string(),
+      scanType: zod.string(),
+      status: zod.enum(["pending", "running", "complete", "failed"]),
+      progress: zod.number().describe("0-100 percent complete"),
+      totalFindings: zod.number(),
+      criticalCount: zod.number(),
+      highCount: zod.number(),
+      mediumCount: zod.number(),
+      lowCount: zod.number(),
+      quantumRiskScore: zod
+        .number()
+        .describe("0-100, how vulnerable to quantum attacks"),
+      createdAt: zod.coerce.date(),
+      completedAt: zod.coerce.date().optional(),
+    }),
+  ),
+  total: zod.number(),
+});
+
+/**
+ * @summary Get scan job and its full report
+ */
+export const GetScanParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetScanResponse = zod.object({
+  scan: zod.object({
+    id: zod.number(),
+    name: zod.string(),
+    chain: zod.string(),
+    scanType: zod.string(),
+    status: zod.enum(["pending", "running", "complete", "failed"]),
+    progress: zod.number().describe("0-100 percent complete"),
+    totalFindings: zod.number(),
+    criticalCount: zod.number(),
+    highCount: zod.number(),
+    mediumCount: zod.number(),
+    lowCount: zod.number(),
+    quantumRiskScore: zod
+      .number()
+      .describe("0-100, how vulnerable to quantum attacks"),
+    createdAt: zod.coerce.date(),
+    completedAt: zod.coerce.date().optional(),
+  }),
+  vulnerabilities: zod.array(
+    zod.object({
+      id: zod.number(),
+      scanId: zod.number(),
+      title: zod.string(),
+      description: zod.string(),
+      severity: zod.enum([
+        "critical",
+        "high",
+        "medium",
+        "low",
+        "informational",
+      ]),
+      category: zod.enum([
+        "reentrancy",
+        "overflow",
+        "access_control",
+        "quantum_crypto",
+        "weak_randomness",
+        "front_running",
+        "denial_of_service",
+        "logic_error",
+        "consensus_attack",
+        "signature_malleability",
+        "hash_collision",
+        "elliptic_curve",
+        "timestamp_dependence",
+        "gas_limit",
+        "other",
+      ]),
+      isQuantumRelated: zod.boolean(),
+      cweId: zod.string().optional(),
+      cvssScore: zod.number().optional(),
+      affectedCode: zod.string().optional(),
+      lineNumber: zod.number().optional(),
+      recommendation: zod.string(),
+      references: zod.array(zod.string()).optional(),
+    }),
+  ),
+  quantumAnalysis: zod
+    .object({
+      overallRisk: zod.enum(["critical", "high", "medium", "low", "safe"]),
+      riskScore: zod.number(),
+      ellipticCurveVulnerable: zod.boolean(),
+      hashFunctionVulnerable: zod
+        .boolean()
+        .describe(
+          "Whether hash functions used are vulnerable to Grover's algorithm",
+        ),
+      signatureSchemeVulnerable: zod.boolean(),
+      estimatedBreakYear: zod
+        .string()
+        .optional()
+        .describe("Estimated year a quantum computer could break this code"),
+      shorsAlgorithmApplicable: zod.boolean(),
+      groversAlgorithmApplicable: zod.boolean(),
+      pqcRecommendations: zod
+        .array(zod.string())
+        .describe("Post-quantum cryptography algorithm recommendations"),
+      threatSummary: zod.string(),
+    })
+    .optional(),
+});
+
+/**
+ * @summary Get the formatted audit report for a completed scan
+ */
+export const GetScanReportParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetScanReportResponse = zod.object({
+  scanId: zod.number(),
+  reportTitle: zod.string(),
+  chain: zod.string(),
+  executiveSummary: zod.string(),
+  riskRating: zod.enum(["critical", "high", "medium", "low", "safe"]),
+  totalVulnerabilities: zod.number(),
+  quantumRiskScore: zod.number(),
+  sections: zod.array(
+    zod.object({
+      title: zod.string(),
+      content: zod.string(),
+      findings: zod
+        .array(
+          zod.object({
+            id: zod.number(),
+            scanId: zod.number(),
+            title: zod.string(),
+            description: zod.string(),
+            severity: zod.enum([
+              "critical",
+              "high",
+              "medium",
+              "low",
+              "informational",
+            ]),
+            category: zod.enum([
+              "reentrancy",
+              "overflow",
+              "access_control",
+              "quantum_crypto",
+              "weak_randomness",
+              "front_running",
+              "denial_of_service",
+              "logic_error",
+              "consensus_attack",
+              "signature_malleability",
+              "hash_collision",
+              "elliptic_curve",
+              "timestamp_dependence",
+              "gas_limit",
+              "other",
+            ]),
+            isQuantumRelated: zod.boolean(),
+            cweId: zod.string().optional(),
+            cvssScore: zod.number().optional(),
+            affectedCode: zod.string().optional(),
+            lineNumber: zod.number().optional(),
+            recommendation: zod.string(),
+            references: zod.array(zod.string()).optional(),
+          }),
+        )
+        .optional(),
+    }),
+  ),
+  recommendations: zod.array(zod.string()),
+  quantumAnalysis: zod
+    .object({
+      overallRisk: zod.enum(["critical", "high", "medium", "low", "safe"]),
+      riskScore: zod.number(),
+      ellipticCurveVulnerable: zod.boolean(),
+      hashFunctionVulnerable: zod
+        .boolean()
+        .describe(
+          "Whether hash functions used are vulnerable to Grover's algorithm",
+        ),
+      signatureSchemeVulnerable: zod.boolean(),
+      estimatedBreakYear: zod
+        .string()
+        .optional()
+        .describe("Estimated year a quantum computer could break this code"),
+      shorsAlgorithmApplicable: zod.boolean(),
+      groversAlgorithmApplicable: zod.boolean(),
+      pqcRecommendations: zod
+        .array(zod.string())
+        .describe("Post-quantum cryptography algorithm recommendations"),
+      threatSummary: zod.string(),
+    })
+    .optional(),
+  generatedAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Get dashboard summary stats for QuantumAudit
+ */
+export const GetQuantumAuditDashboardResponse = zod.object({
+  totalScans: zod.number(),
+  completedScans: zod.number(),
+  totalVulnerabilities: zod.number(),
+  criticalFindings: zod.number(),
+  highRiskChains: zod.array(zod.string()),
+  avgQuantumRiskScore: zod.number(),
+  recentScans: zod.array(
+    zod.object({
+      id: zod.number(),
+      name: zod.string(),
+      chain: zod.string(),
+      scanType: zod.string(),
+      status: zod.enum(["pending", "running", "complete", "failed"]),
+      progress: zod.number().describe("0-100 percent complete"),
+      totalFindings: zod.number(),
+      criticalCount: zod.number(),
+      highCount: zod.number(),
+      mediumCount: zod.number(),
+      lowCount: zod.number(),
+      quantumRiskScore: zod
+        .number()
+        .describe("0-100, how vulnerable to quantum attacks"),
+      createdAt: zod.coerce.date(),
+      completedAt: zod.coerce.date().optional(),
+    }),
+  ),
+  vulnerabilityTrend: zod.array(
+    zod.object({
+      date: zod.string(),
+      count: zod.number(),
+    }),
+  ),
+  topVulnerabilityCategories: zod.array(
+    zod.object({
+      category: zod.string(),
+      count: zod.number(),
+    }),
+  ),
+});
+
+/**
+ * @summary List all vulnerability findings across all scans
+ */
+export const ListVulnerabilitiesQueryParams = zod.object({
+  severity: zod
+    .enum(["critical", "high", "medium", "low", "informational", "all"])
+    .optional(),
+  category: zod.coerce.string().optional(),
+});
+
+export const ListVulnerabilitiesResponse = zod.object({
+  vulnerabilities: zod.array(
+    zod.object({
+      id: zod.number(),
+      scanId: zod.number(),
+      title: zod.string(),
+      description: zod.string(),
+      severity: zod.enum([
+        "critical",
+        "high",
+        "medium",
+        "low",
+        "informational",
+      ]),
+      category: zod.enum([
+        "reentrancy",
+        "overflow",
+        "access_control",
+        "quantum_crypto",
+        "weak_randomness",
+        "front_running",
+        "denial_of_service",
+        "logic_error",
+        "consensus_attack",
+        "signature_malleability",
+        "hash_collision",
+        "elliptic_curve",
+        "timestamp_dependence",
+        "gas_limit",
+        "other",
+      ]),
+      isQuantumRelated: zod.boolean(),
+      cweId: zod.string().optional(),
+      cvssScore: zod.number().optional(),
+      affectedCode: zod.string().optional(),
+      lineNumber: zod.number().optional(),
+      recommendation: zod.string(),
+      references: zod.array(zod.string()).optional(),
+    }),
+  ),
+  total: zod.number(),
+  bySeverity: zod.object({
+    critical: zod.number(),
+    high: zod.number(),
+    medium: zod.number(),
+    low: zod.number(),
+    informational: zod.number(),
+  }),
+});
+
+/**
+ * @summary List known post-quantum threat models applicable to blockchain
+ */
+export const ListQuantumThreatsResponse = zod.object({
+  threats: zod.array(
+    zod.object({
+      id: zod.number(),
+      name: zod.string(),
+      algorithm: zod.enum(["shors", "grovers", "hybrid", "bqp_complete"]),
+      affectedChains: zod.array(zod.string()),
+      description: zod.string(),
+      technicalDetail: zod.string(),
+      estimatedQubitsNeeded: zod.number().optional(),
+      currentlyFeasible: zod.boolean(),
+      estimatedFeasibleYear: zod.string().optional(),
+      mitigation: zod.string(),
+      pqcAlternatives: zod.array(zod.string()),
+      severity: zod.enum(["critical", "high", "medium", "low"]),
+    }),
+  ),
+  total: zod.number(),
+});
+
+/**
  * @summary Get proxy browser configuration
  */
 export const GetProxyBrowserConfigResponse = zod.object({

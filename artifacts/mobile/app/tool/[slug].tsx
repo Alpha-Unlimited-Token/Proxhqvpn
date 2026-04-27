@@ -94,6 +94,7 @@ const SLUG_TO_PATH: Record<string, string> = {
   "security-audit":    "/ghost-vpn/security-audit",
   "threat-intel":      "/ghost-vpn/threat-intel",
   "account":           "/ghost-vpn/account",
+  "quantum-audit":     "/quantum-audit/",
 };
 
 const LABEL_MAP: Record<string, string> = {

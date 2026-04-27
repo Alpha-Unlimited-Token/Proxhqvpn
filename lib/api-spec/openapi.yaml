@@ -518,6 +518,135 @@ paths:
               schema:
                 $ref: "#/components/schemas/IptablesExport"
 
+  /quantum-audit/scan:
+    post:
+      operationId: runBlockchainScan
+      tags: [quantum-audit]
+      summary: Submit contract or protocol code for vulnerability scanning
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScanRequest"
+      responses:
+        "201":
+          description: Scan started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScanJob"
+
+  /quantum-audit/scans:
+    get:
+      operationId: listScans
+      tags: [quantum-audit]
+      summary: List all scan jobs
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, running, complete, failed, all]
+        - name: chain
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of scans
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScanJobList"
+
+  /quantum-audit/scans/{id}:
+    get:
+      operationId: getScan
+      tags: [quantum-audit]
+      summary: Get scan job and its full report
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Scan details with findings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScanDetail"
+
+  /quantum-audit/scans/{id}/report:
+    get:
+      operationId: getScanReport
+      tags: [quantum-audit]
+      summary: Get the formatted audit report for a completed scan
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Formatted audit report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuditReport"
+
+  /quantum-audit/dashboard:
+    get:
+      operationId: getQuantumAuditDashboard
+      tags: [quantum-audit]
+      summary: Get dashboard summary stats for QuantumAudit
+      responses:
+        "200":
+          description: Dashboard statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuditDashboard"
+
+  /quantum-audit/vulnerabilities:
+    get:
+      operationId: listVulnerabilities
+      tags: [quantum-audit]
+      summary: List all vulnerability findings across all scans
+      parameters:
+        - name: severity
+          in: query
+          schema:
+            type: string
+            enum: [critical, high, medium, low, informational, all]
+        - name: category
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Vulnerability findings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VulnerabilityList"
+
+  /quantum-audit/quantum-threats:
+    get:
+      operationId: listQuantumThreats
+      tags: [quantum-audit]
+      summary: List known post-quantum threat models applicable to blockchain
+      responses:
+        "200":
+          description: Quantum threat models
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuantumThreatList"
+
   /proxy-browser/config:
     get:
       operationId: getProxyBrowserConfig
@@ -1197,6 +1326,314 @@ components:
           type: string
           format: date-time
       required: [iptablesRules, nftablesRules, wireguardMasquerade, portKnockRules, exportedAt]
+
+    ScanRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Human-readable name for this audit
+        chain:
+          type: string
+          enum: [ethereum, bitcoin, solana, polygon, avalanche, arbitrum, bsc, generic]
+        scanType:
+          type: string
+          enum: [smart_contract, protocol, consensus, cryptography, all]
+        code:
+          type: string
+          description: Source code to analyze (Solidity, Rust, etc.)
+        contractAddress:
+          type: string
+          description: Optional on-chain contract address to analyze
+        includeQuantumAnalysis:
+          type: boolean
+          default: true
+      required: [name, chain, scanType]
+
+    ScanJob:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        chain:
+          type: string
+        scanType:
+          type: string
+        status:
+          type: string
+          enum: [pending, running, complete, failed]
+        progress:
+          type: integer
+          description: 0-100 percent complete
+        totalFindings:
+          type: integer
+        criticalCount:
+          type: integer
+        highCount:
+          type: integer
+        mediumCount:
+          type: integer
+        lowCount:
+          type: integer
+        quantumRiskScore:
+          type: number
+          description: 0-100, how vulnerable to quantum attacks
+        createdAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+      required: [id, name, chain, scanType, status, progress, totalFindings, criticalCount, highCount, mediumCount, lowCount, quantumRiskScore, createdAt]
+
+    ScanJobList:
+      type: object
+      properties:
+        scans:
+          type: array
+          items:
+            $ref: "#/components/schemas/ScanJob"
+        total:
+          type: integer
+      required: [scans, total]
+
+    Vulnerability:
+      type: object
+      properties:
+        id:
+          type: integer
+        scanId:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+        severity:
+          type: string
+          enum: [critical, high, medium, low, informational]
+        category:
+          type: string
+          enum: [reentrancy, overflow, access_control, quantum_crypto, weak_randomness, front_running, denial_of_service, logic_error, consensus_attack, signature_malleability, hash_collision, elliptic_curve, timestamp_dependence, gas_limit, other]
+        isQuantumRelated:
+          type: boolean
+        cweId:
+          type: string
+        cvssScore:
+          type: number
+        affectedCode:
+          type: string
+        lineNumber:
+          type: integer
+        recommendation:
+          type: string
+        references:
+          type: array
+          items:
+            type: string
+      required: [id, scanId, title, description, severity, category, isQuantumRelated, recommendation]
+
+    VulnerabilityList:
+      type: object
+      properties:
+        vulnerabilities:
+          type: array
+          items:
+            $ref: "#/components/schemas/Vulnerability"
+        total:
+          type: integer
+        bySeverity:
+          type: object
+          properties:
+            critical:
+              type: integer
+            high:
+              type: integer
+            medium:
+              type: integer
+            low:
+              type: integer
+            informational:
+              type: integer
+          required: [critical, high, medium, low, informational]
+      required: [vulnerabilities, total, bySeverity]
+
+    ScanDetail:
+      type: object
+      properties:
+        scan:
+          $ref: "#/components/schemas/ScanJob"
+        vulnerabilities:
+          type: array
+          items:
+            $ref: "#/components/schemas/Vulnerability"
+        quantumAnalysis:
+          $ref: "#/components/schemas/QuantumAnalysis"
+      required: [scan, vulnerabilities]
+
+    QuantumAnalysis:
+      type: object
+      properties:
+        overallRisk:
+          type: string
+          enum: [critical, high, medium, low, safe]
+        riskScore:
+          type: number
+        ellipticCurveVulnerable:
+          type: boolean
+        hashFunctionVulnerable:
+          type: boolean
+          description: Whether hash functions used are vulnerable to Grover's algorithm
+        signatureSchemeVulnerable:
+          type: boolean
+        estimatedBreakYear:
+          type: string
+          description: Estimated year a quantum computer could break this code
+        shorsAlgorithmApplicable:
+          type: boolean
+        groversAlgorithmApplicable:
+          type: boolean
+        pqcRecommendations:
+          type: array
+          items:
+            type: string
+          description: Post-quantum cryptography algorithm recommendations
+        threatSummary:
+          type: string
+      required: [overallRisk, riskScore, ellipticCurveVulnerable, hashFunctionVulnerable, signatureSchemeVulnerable, shorsAlgorithmApplicable, groversAlgorithmApplicable, pqcRecommendations, threatSummary]
+
+    AuditReport:
+      type: object
+      properties:
+        scanId:
+          type: integer
+        reportTitle:
+          type: string
+        chain:
+          type: string
+        executiveSummary:
+          type: string
+        riskRating:
+          type: string
+          enum: [critical, high, medium, low, safe]
+        totalVulnerabilities:
+          type: integer
+        quantumRiskScore:
+          type: number
+        sections:
+          type: array
+          items:
+            type: object
+            properties:
+              title:
+                type: string
+              content:
+                type: string
+              findings:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Vulnerability"
+            required: [title, content]
+        recommendations:
+          type: array
+          items:
+            type: string
+        quantumAnalysis:
+          $ref: "#/components/schemas/QuantumAnalysis"
+        generatedAt:
+          type: string
+          format: date-time
+      required: [scanId, reportTitle, chain, executiveSummary, riskRating, totalVulnerabilities, quantumRiskScore, sections, recommendations, generatedAt]
+
+    AuditDashboard:
+      type: object
+      properties:
+        totalScans:
+          type: integer
+        completedScans:
+          type: integer
+        totalVulnerabilities:
+          type: integer
+        criticalFindings:
+          type: integer
+        highRiskChains:
+          type: array
+          items:
+            type: string
+        avgQuantumRiskScore:
+          type: number
+        recentScans:
+          type: array
+          items:
+            $ref: "#/components/schemas/ScanJob"
+        vulnerabilityTrend:
+          type: array
+          items:
+            type: object
+            properties:
+              date:
+                type: string
+              count:
+                type: integer
+            required: [date, count]
+        topVulnerabilityCategories:
+          type: array
+          items:
+            type: object
+            properties:
+              category:
+                type: string
+              count:
+                type: integer
+            required: [category, count]
+      required: [totalScans, completedScans, totalVulnerabilities, criticalFindings, highRiskChains, avgQuantumRiskScore, recentScans, vulnerabilityTrend, topVulnerabilityCategories]
+
+    QuantumThreat:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        algorithm:
+          type: string
+          enum: [shors, grovers, hybrid, bqp_complete]
+        affectedChains:
+          type: array
+          items:
+            type: string
+        description:
+          type: string
+        technicalDetail:
+          type: string
+        estimatedQubitsNeeded:
+          type: integer
+        currentlyFeasible:
+          type: boolean
+        estimatedFeasibleYear:
+          type: string
+        mitigation:
+          type: string
+        pqcAlternatives:
+          type: array
+          items:
+            type: string
+        severity:
+          type: string
+          enum: [critical, high, medium, low]
+      required: [id, name, algorithm, affectedChains, description, technicalDetail, currentlyFeasible, mitigation, pqcAlternatives, severity]
+
+    QuantumThreatList:
+      type: object
+      properties:
+        threats:
+          type: array
+          items:
+            $ref: "#/components/schemas/QuantumThreat"
+        total:
+          type: integer
+      required: [threats, total]
 
     ProxyBrowserConfig:
       type: object

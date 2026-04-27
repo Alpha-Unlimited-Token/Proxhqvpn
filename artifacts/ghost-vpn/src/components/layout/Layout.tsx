@@ -108,6 +108,7 @@ const PAGE_NAMES: Record<string, string> = {
   "/token-seq":            "Token Entropy Sequencer",
   "/ws-tester":            "WebSocket Tester",
   "/sast":                 "SAST Analyzer",
+  "/quantum-audit":        "QuantumAudit — Blockchain Security",
 };
 
 const USER_NAV = [
@@ -188,6 +189,7 @@ const ADVANCED_NAV = [
   { href: "/token-seq",          label: "Token Sequencer",        icon: Key },
   { href: "/ws-tester",          label: "WebSocket Tester",       icon: Plug },
   { href: "/sast",               label: "SAST Analyzer",          icon: FileSearch },
+  { href: "/quantum-audit",      label: "QuantumAudit",           icon: ShieldCheck },
 ];
 
 const AMBASSADOR_NAV = [
