@@ -81,6 +81,7 @@ import tokenSequencerRouter from "./tokensequencer";
 import wsTesterRouter from "./wstester";
 import sastRouter from "./sast";
 import cveSearchRouter from "./cvesearch";
+import notificationsRouter from "./notifications";
 
 const router: IRouter = Router();
 
@@ -307,6 +308,7 @@ router.use("/sql",            requireAdmin, sqlRouter);
 // Stripe routes — always accessible (needed to purchase a subscription)
 router.use("/stripe",         stripeRouter);
 router.use("/payments/crypto", cryptoPaymentsRouter); // No requireAccess — handles its own auth + activates access
+router.use("/notifications",  notificationsRouter);   // In-app notifications (payment confirmed etc.)
 
 // ── VPN Basic routes — any active subscription (vpn OR command_center) ──────
 router.use("/killswitch",     requireAccess, killswitchRouter);

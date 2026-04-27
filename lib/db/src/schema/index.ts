@@ -16,3 +16,4 @@ export * from "./canary";
 export * from "./waf";
 export * from "./omnistrike";
 export * from "./crypto";
+export * from "./notifications";

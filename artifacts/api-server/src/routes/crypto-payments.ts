@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { getAuth } from "@clerk/express";
 import { db } from "@workspace/db";
-import { cryptoInvoicesTable, cryptoSubscriptionsTable } from "@workspace/db";
+import { cryptoInvoicesTable, cryptoSubscriptionsTable, notificationsTable } from "@workspace/db";
 import { eq, and, gt } from "drizzle-orm";
 import { z } from "zod";
 import crypto from "crypto";
@@ -282,6 +282,29 @@ router.get("/status/:invoiceId", async (req, res) => {
         invoiceId: invoice.id,
         startsAt: now,
         expiresAt,
+      });
+    }
+
+    // Create in-app notification (only if one doesn't already exist for this invoice)
+    const existingNotifs = await db
+      .select({ id: notificationsTable.id, data: notificationsTable.data })
+      .from(notificationsTable)
+      .where(and(eq(notificationsTable.userId, userId), eq(notificationsTable.type, "crypto_payment_confirmed")));
+    const alreadyNotified = existingNotifs.some((n: any) => (n.data as any)?.invoiceId === invoice.id);
+    if (!alreadyNotified) {
+      const tierLabel = invoice.planTier === "command_center" ? "Command Center Pro" : "VPN Basic";
+      await db.insert(notificationsTable).values({
+        userId,
+        type: "crypto_payment_confirmed",
+        title: "Payment Confirmed — Access Granted",
+        body: `Your ${invoice.currency} payment was detected on-chain. Your ${tierLabel} subscription is now active until ${expiresAt.toLocaleDateString()}.`,
+        data: {
+          invoiceId: invoice.id,
+          txHash: result.txHash ?? null,
+          planTier: invoice.planTier,
+          currency: invoice.currency,
+          accessExpiresAt: expiresAt.toISOString(),
+        },
       });
     }
 

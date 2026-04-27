@@ -15,8 +15,10 @@ import {
   Lock, Shuffle, UserX, RefreshCcw,
   ShieldCheck, Key, FileCode2, Filter, FlaskConical,
   MapPin, ArrowLeftRight, Share2, Crosshair, Package, Plug, FileSearch,
+  CheckCircle2, X,
 } from "lucide-react";
 import { useAccess } from "@/hooks/useAccess";
+import { useNotifications } from "@/hooks/useNotifications";
 
 interface LayoutProps {
   children: ReactNode;
@@ -281,9 +283,22 @@ export function Layout({ children }: LayoutProps) {
   const { isAdmin, hasAccess, hasCommandCenter, tier } = useAccess();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
   const [pendingUpdate, setPendingUpdate] = useState<UpdateInfo | null>(null);
   const [updateDismissed, setUpdateDismissed] = useState(false);
   const [restarting, setRestarting] = useState(false);
+
+  const { notifications, unreadCount, newAlert, markRead, markAllRead, dismissAlert } = useNotifications(30_000);
+  const [alertVisible, setAlertVisible] = useState(false);
+
+  // Show payment alert banner when a new confirmed notification arrives
+  useEffect(() => {
+    if (newAlert) {
+      setAlertVisible(true);
+      const t = setTimeout(() => { setAlertVisible(false); setTimeout(dismissAlert, 400); }, 8000);
+      return () => clearTimeout(t);
+    }
+  }, [newAlert, dismissAlert]);
 
   // Register the callback that Electron calls when a background update finishes downloading
   useEffect(() => {
@@ -478,10 +493,74 @@ export function Layout({ children }: LayoutProps) {
             <div className="hidden sm:block text-[11px] text-white/70 tabular-nums font-mono">
               {new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
             </div>
+
+            {/* ── Notification bell ── */}
             {user && (
               <div className="relative">
                 <button
-                  onClick={() => setUserMenuOpen(v => !v)}
+                  onClick={() => { setNotifOpen(v => !v); setUserMenuOpen(false); }}
+                  className="relative w-7 h-7 rounded-lg flex items-center justify-center text-white/50 hover:text-white/80 hover:bg-white/[0.07] transition-all"
+                  title="Notifications"
+                >
+                  <Bell className="w-4 h-4" />
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-orange-500 text-[8px] font-bold text-black flex items-center justify-center leading-none">
+                      {unreadCount > 9 ? "9+" : unreadCount}
+                    </span>
+                  )}
+                </button>
+
+                {notifOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setNotifOpen(false)} />
+                    <div className="absolute right-0 top-9 w-80 bg-[#0a0f0c] border border-white/[0.08] rounded-xl shadow-2xl z-50 overflow-hidden">
+                      <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]">
+                        <div className="text-[12px] font-semibold text-white/80">Notifications</div>
+                        {unreadCount > 0 && (
+                          <button onClick={markAllRead} className="text-[10px] text-primary/70 hover:text-primary transition-colors font-mono">
+                            Mark all read
+                          </button>
+                        )}
+                      </div>
+                      <div className="max-h-72 overflow-y-auto divide-y divide-white/[0.04]">
+                        {notifications.length === 0 ? (
+                          <div className="px-4 py-6 text-center text-[11px] text-white/30 font-mono">No notifications yet</div>
+                        ) : notifications.map((n) => (
+                          <div
+                            key={n.id}
+                            onClick={() => markRead(n.id)}
+                            className={`px-4 py-3 cursor-pointer transition-all hover:bg-white/[0.03] ${!n.read ? "bg-orange-500/5" : ""}`}
+                          >
+                            <div className="flex items-start gap-2.5">
+                              <div className={`mt-0.5 shrink-0 w-5 h-5 rounded-full flex items-center justify-center ${
+                                n.type === "crypto_payment_confirmed"
+                                  ? "bg-green-500/20 text-green-400"
+                                  : "bg-white/[0.07] text-white/40"
+                              }`}>
+                                <CheckCircle2 className="w-3 h-3" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="text-[11px] font-semibold text-white/88 leading-snug">{n.title}</div>
+                                <div className="text-[10px] text-white/50 mt-0.5 leading-relaxed">{n.body}</div>
+                                <div className="text-[9px] text-white/25 font-mono mt-1">
+                                  {new Date(n.createdAt).toLocaleString()}
+                                </div>
+                              </div>
+                              {!n.read && <div className="w-1.5 h-1.5 rounded-full bg-orange-400 shrink-0 mt-1.5" />}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {user && (
+              <div className="relative">
+                <button
+                  onClick={() => { setUserMenuOpen(v => !v); setNotifOpen(false); }}
                   className="w-7 h-7 rounded-full bg-primary/15 border border-primary/25 flex items-center justify-center hover:bg-primary/25 transition-all"
                   title="Account menu"
                 >
@@ -543,6 +622,27 @@ export function Layout({ children }: LayoutProps) {
           </div>
         </main>
       </div>
+
+      {/* ── Payment confirmed banner ────────────────────────────────────────── */}
+      {newAlert && (
+        <div className={`fixed top-14 right-4 z-50 w-80 transition-all duration-400 ${alertVisible ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-2 pointer-events-none"}`}>
+          <div className="bg-[#0a1a0d] border border-green-500/40 rounded-xl shadow-2xl shadow-black/60 p-4 flex items-start gap-3">
+            <div className="w-8 h-8 rounded-lg bg-green-500/15 border border-green-500/25 flex items-center justify-center shrink-0">
+              <CheckCircle2 className="w-4 h-4 text-green-400" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-[12px] font-bold text-white leading-tight">{newAlert.title}</div>
+              <div className="text-[10px] text-white/60 mt-1 leading-relaxed">{newAlert.body}</div>
+            </div>
+            <button
+              onClick={() => { setAlertVisible(false); setTimeout(dismissAlert, 400); if (newAlert) markRead(newAlert.id); }}
+              className="text-white/30 hover:text-white/60 transition-colors shrink-0 mt-0.5"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Update-ready banner — only appears when update downloads while the app is already open */}
       {showBanner && (

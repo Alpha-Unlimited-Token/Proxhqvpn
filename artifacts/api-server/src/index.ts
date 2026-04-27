@@ -1,5 +1,6 @@
 import app from "./app";
 import { logger } from "./lib/logger";
+import { startCryptoPoller } from "./lib/cryptoPoller";
 import { runMigrations } from "stripe-replit-sync";
 import { getStripeSync } from "./stripeClient";
 import { seedEmployees } from "./routes/employees";
@@ -123,6 +124,11 @@ async function timeoutStaleSessions() {
 // Run immediately on startup, then every 30 seconds
 timeoutStaleSessions();
 setInterval(timeoutStaleSessions, 30_000);
+
+// ── Crypto payment background poller ─────────────────────────────────────────
+// Checks pending blockchain invoices every 60 s so users get access even
+// after closing the modal or navigating away from the pricing page.
+startCryptoPoller(60_000);
 
 const rawPort = process.env["PORT"];
 
