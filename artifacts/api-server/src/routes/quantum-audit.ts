@@ -10,6 +10,7 @@ import { generateExploit } from "../lib/quantum-analyzer/exploit-generator";
 import { runApplicationPenTest } from "../lib/app-security-scanner";
 import { scanBlockchainAddress } from "../lib/blockchain-connectors";
 import { analyzeContractSource } from "../lib/solidity-analyzer";
+import { scanWalletForNonceReuse, recoverPrivateKey } from "../lib/ecdsa-analyzer/nonce-recovery";
 
 const router = Router();
 
@@ -498,6 +499,31 @@ router.post("/deep-analysis", async (req: Request, res: Response) => {
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: "Deep analysis failed", detail: String(err) });
+  }
+});
+
+// ── ECDSA Nonce Reuse Scanner ─────────────────────────────────────────────────
+router.post("/ecdsa-scan", async (req: Request, res: Response) => {
+  try {
+    const { address } = req.body as { address: string };
+    if (!address) return res.status(400).json({ error: "address required" });
+    const result = await scanWalletForNonceReuse(address);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: "ECDSA scan failed", detail: String(err) });
+  }
+});
+
+router.post("/ecdsa-recover", async (req: Request, res: Response) => {
+  try {
+    const input = req.body;
+    if (!input.r || !input.s1 || !input.s2 || !input.z1 || !input.z2) {
+      return res.status(400).json({ error: "Missing required fields: r, s1, s2, z1, z2" });
+    }
+    const result = recoverPrivateKey(input);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: "Recovery failed", detail: String(err) });
   }
 });
 

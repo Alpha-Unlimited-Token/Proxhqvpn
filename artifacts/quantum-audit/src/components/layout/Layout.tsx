@@ -9,7 +9,8 @@ import {
   ShieldCheck,
   Terminal,
   Globe,
-  Code2
+  Code2,
+  Key
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -79,6 +80,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           <div className="pt-2 mt-2 border-t border-border/50 space-y-1">
             <NavItem href="/live-scan" icon={Globe} label="Live Chain Scan" />
             <NavItem href="/deep-analysis" icon={Code2} label="Deep Analysis" />
+            <NavItem href="/ecdsa-scanner" icon={Key} label="ECDSA Scanner" />
             <NavItem href="/pentest" icon={Terminal} label="Pen Test" />
           </div>
         </div>

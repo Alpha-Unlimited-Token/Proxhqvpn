@@ -15,6 +15,7 @@ import QuantumThreats from "@/pages/QuantumThreats";
 import PenTest from "@/pages/PenTest";
 import LiveScan from "@/pages/LiveScan";
 import DeepAnalysis from "@/pages/DeepAnalysis";
+import ECDSAScanner from "@/pages/ECDSAScanner";
 
 const queryClient = new QueryClient();
 
@@ -32,6 +33,7 @@ function Router() {
         <Route path="/pentest" component={PenTest} />
         <Route path="/live-scan" component={LiveScan} />
         <Route path="/deep-analysis" component={DeepAnalysis} />
+        <Route path="/ecdsa-scanner" component={ECDSAScanner} />
         <Route component={NotFound} />
       </Switch>
     </Layout>
