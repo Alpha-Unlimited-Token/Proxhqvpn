@@ -14,6 +14,8 @@ import { scanWalletForNonceReuse, recoverPrivateKey, CHAIN_CAPABILITIES } from "
 import { scanSolana, recoverEd25519PrivateKey } from "../lib/scheme-auditor/ed25519-scan";
 import { scanPolkadot, recoverSchnorrPrivateKey } from "../lib/scheme-auditor/polkadot-scan";
 import { scanMonero, checkKeyImages } from "../lib/scheme-auditor/monero-scan";
+import { detectChain, getScanPlan } from "../lib/scheme-auditor/chain-detector";
+import { adaptiveScan } from "../lib/scheme-auditor/adaptive-scan";
 
 const router = Router();
 
@@ -541,6 +543,36 @@ router.post("/ecdsa-recover", async (req: Request, res: Response) => {
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: "Recovery failed", detail: String(err) });
+  }
+});
+
+// ── Adaptive chain detection ──────────────────────────────────────────────────
+router.post("/detect-chain", (req: Request, res: Response) => {
+  try {
+    const { target } = req.body as { target: string };
+    if (!target) return res.status(400).json({ error: "target required" });
+    const candidates = detectChain(target);
+    if (candidates.length === 0) return res.status(422).json({ error: "Could not determine blockchain from input format" });
+    const primary = candidates[0];
+    res.json({
+      target,
+      detected: primary,
+      alternatives: candidates.slice(1),
+      scanPlan: getScanPlan(primary),
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Detection failed", detail: String(err) });
+  }
+});
+
+router.post("/auto-scan", async (req: Request, res: Response) => {
+  try {
+    const { target, forceChain } = req.body as { target: string; forceChain?: string };
+    if (!target) return res.status(400).json({ error: "target required" });
+    const result = await adaptiveScan(target, forceChain);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: "Auto-scan failed", detail: String(err) });
   }
 });
 
