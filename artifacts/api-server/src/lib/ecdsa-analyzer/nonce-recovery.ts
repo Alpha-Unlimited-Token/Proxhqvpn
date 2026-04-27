@@ -135,6 +135,34 @@ export function recoverPrivateKey(input: RecoveryInput): RecoveryResult {
   }
 }
 
+// ── Chain capability definitions ──────────────────────────────────────────────
+
+export interface ChainCapability {
+  chain: string;
+  name: string;
+  sigScheme: "secp256k1-ecdsa" | "ed25519" | "clsag" | "schnorr";
+  nonceReuseVulnerable: boolean;
+  note: string;
+  canScan: boolean;
+}
+
+export const CHAIN_CAPABILITIES: ChainCapability[] = [
+  { chain: "ethereum",    name: "Ethereum (ETH)",      sigScheme: "secp256k1-ecdsa", nonceReuseVulnerable: true,  canScan: true,  note: "Full scan — extracts r, s, z from every transaction" },
+  { chain: "polygon",     name: "Polygon (MATIC)",      sigScheme: "secp256k1-ecdsa", nonceReuseVulnerable: true,  canScan: true,  note: "Full scan — same ECDSA as Ethereum" },
+  { chain: "bsc",         name: "BNB Chain (BSC)",      sigScheme: "secp256k1-ecdsa", nonceReuseVulnerable: true,  canScan: true,  note: "Full scan — same ECDSA as Ethereum" },
+  { chain: "arbitrum",    name: "Arbitrum (ARB)",       sigScheme: "secp256k1-ecdsa", nonceReuseVulnerable: true,  canScan: true,  note: "Full scan — same ECDSA as Ethereum" },
+  { chain: "avalanche",   name: "Avalanche (AVAX)",     sigScheme: "secp256k1-ecdsa", nonceReuseVulnerable: true,  canScan: true,  note: "Full scan — same ECDSA as Ethereum" },
+  { chain: "optimism",    name: "Optimism (OP)",        sigScheme: "secp256k1-ecdsa", nonceReuseVulnerable: true,  canScan: true,  note: "Full scan — same ECDSA as Ethereum" },
+  { chain: "bitcoin",     name: "Bitcoin (BTC)",        sigScheme: "secp256k1-ecdsa", nonceReuseVulnerable: true,  canScan: true,  note: "Parses DER signatures from scriptSig and witness data" },
+  { chain: "litecoin",    name: "Litecoin (LTC)",       sigScheme: "secp256k1-ecdsa", nonceReuseVulnerable: true,  canScan: true,  note: "Same secp256k1 ECDSA as Bitcoin — full scan" },
+  { chain: "dogecoin",    name: "Dogecoin (DOGE)",      sigScheme: "secp256k1-ecdsa", nonceReuseVulnerable: true,  canScan: true,  note: "Same secp256k1 ECDSA as Bitcoin — full scan" },
+  { chain: "bitcoincash", name: "Bitcoin Cash (BCH)",   sigScheme: "secp256k1-ecdsa", nonceReuseVulnerable: true,  canScan: true,  note: "Same secp256k1 ECDSA as Bitcoin — full scan" },
+  { chain: "solana",      name: "Solana (SOL)",         sigScheme: "ed25519",          nonceReuseVulnerable: false, canScan: false, note: "Ed25519 uses RFC 8032 deterministic nonce generation — nonce reuse is cryptographically impossible by design. Each nonce is derived as H(private_key || message), so two different messages always produce different nonces." },
+  { chain: "monero",      name: "Monero (XMR)",         sigScheme: "clsag",            nonceReuseVulnerable: false, canScan: false, note: "CLSAG ring signatures use a different structure than ECDSA — there is no exposed r value to match across transactions. Monero's quantum vulnerabilities are in ECDLP on Curve25519, not nonce reuse." },
+  { chain: "cardano",     name: "Cardano (ADA)",        sigScheme: "ed25519",          nonceReuseVulnerable: false, canScan: false, note: "Ed25519 deterministic signatures — same immunity as Solana. Nonce reuse is impossible by the signing algorithm." },
+  { chain: "polkadot",    name: "Polkadot (DOT)",       sigScheme: "ed25519",          nonceReuseVulnerable: false, canScan: false, note: "Sr25519 (Schnorr/Ristretto) with deterministic nonces — not vulnerable to nonce reuse attack." },
+];
+
 // ── Transaction signature extraction ─────────────────────────────────────────
 
 export interface TxSignatureData {
@@ -170,8 +198,64 @@ export interface WalletScanResult {
   rPairs: Record<string, string[]>; // r value -> [txHash1, txHash2, ...]
 }
 
-export async function scanWalletForNonceReuse(address: string): Promise<WalletScanResult> {
-  const provider = new ethers.JsonRpcProvider(ETH_RPC);
+export async function scanWalletForNonceReuse(address: string, chain = "ethereum"): Promise<WalletScanResult> {
+  // Route UTXO chains to Bitcoin scanner
+  const utxoChains = ["bitcoin", "litecoin", "dogecoin", "bitcoincash"];
+  if (utxoChains.includes(chain)) {
+    const { scanBitcoinAddressECDSA } = await import("./bitcoin-scan");
+    const result = await scanBitcoinAddressECDSA(address, chain);
+    return buildScanResult(address, chain, result.signatures, result.totalTransactions);
+  }
+
+  // EVM chains go through ethers.js
+  const evmChains = ["ethereum", "polygon", "bsc", "arbitrum", "avalanche", "optimism"];
+  const rpcEndpoints: Record<string, string> = {
+    ethereum: "https://cloudflare-eth.com",
+    polygon:  "https://polygon-rpc.com",
+    bsc:      "https://bsc-dataseed.binance.org",
+    arbitrum: "https://arb1.arbitrum.io/rpc",
+    avalanche:"https://api.avax.network/ext/bc/C/rpc",
+    optimism: "https://mainnet.optimism.io",
+  };
+  const etherscanBases: Record<string, string> = {
+    ethereum: "https://api.etherscan.io/api",
+    polygon:  "https://api.polygonscan.com/api",
+    bsc:      "https://api.bscscan.com/api",
+    arbitrum: "https://api.arbiscan.io/api",
+    avalanche:"https://api.snowtrace.io/api",
+    optimism: "https://api-optimistic.etherscan.io/api",
+  };
+  if (!evmChains.includes(chain)) {
+    throw new Error(`Chain "${chain}" does not use secp256k1 ECDSA and cannot be scanned for nonce reuse`);
+  }
+  // Use the chain-specific RPC and explorer
+  return _scanEVMWallet(address, chain, rpcEndpoints[chain] ?? rpcEndpoints.ethereum, etherscanBases[chain] ?? etherscanBases.ethereum);
+}
+
+function buildScanResult(address: string, chain: string, signatures: TxSignatureData[], totalTxCount: number): WalletScanResult {
+  const rGroups: Record<string, TxSignatureData[]> = {};
+  for (const sig of signatures) {
+    const rKey = sig.r.toLowerCase();
+    if (!rGroups[rKey]) rGroups[rKey] = [];
+    rGroups[rKey].push(sig);
+  }
+  const nonceReusePairs: NonceReusePair[] = [];
+  const rPairs: Record<string, string[]> = {};
+  for (const [r, group] of Object.entries(rGroups)) {
+    if (group.length >= 2) {
+      rPairs[r] = group.map(g => g.txHash);
+      for (let i = 0; i < group.length; i++) {
+        for (let j = i + 1; j < group.length; j++) {
+          nonceReusePairs.push({ sharedR: r, tx1: group[i], tx2: group[j], riskLevel: group[i].s !== group[j].s ? "confirmed_reuse" : "same_k_different_s" });
+        }
+      }
+    }
+  }
+  return { address, chain, totalTransactions: totalTxCount, signaturesExtracted: signatures.length, nonceReusePairs, hasVulnerability: nonceReusePairs.length > 0, allSignatures: signatures, scanTimestamp: new Date().toISOString(), rPairs };
+}
+
+async function _scanEVMWallet(address: string, chain: string, rpcUrl: string, etherscanBase: string): Promise<WalletScanResult> {
+  const provider = new ethers.JsonRpcProvider(rpcUrl);
   const checksum = ethers.getAddress(address);
 
   // Fetch transaction list from Etherscan (no key — rate limited but functional)

@@ -10,7 +10,7 @@ import { generateExploit } from "../lib/quantum-analyzer/exploit-generator";
 import { runApplicationPenTest } from "../lib/app-security-scanner";
 import { scanBlockchainAddress } from "../lib/blockchain-connectors";
 import { analyzeContractSource } from "../lib/solidity-analyzer";
-import { scanWalletForNonceReuse, recoverPrivateKey } from "../lib/ecdsa-analyzer/nonce-recovery";
+import { scanWalletForNonceReuse, recoverPrivateKey, CHAIN_CAPABILITIES } from "../lib/ecdsa-analyzer/nonce-recovery";
 
 const router = Router();
 
@@ -503,11 +503,25 @@ router.post("/deep-analysis", async (req: Request, res: Response) => {
 });
 
 // ── ECDSA Nonce Reuse Scanner ─────────────────────────────────────────────────
+router.get("/ecdsa-chains", (_req: Request, res: Response) => {
+  res.json(CHAIN_CAPABILITIES);
+});
+
 router.post("/ecdsa-scan", async (req: Request, res: Response) => {
   try {
-    const { address } = req.body as { address: string };
+    const { address, chain = "ethereum" } = req.body as { address: string; chain?: string };
     if (!address) return res.status(400).json({ error: "address required" });
-    const result = await scanWalletForNonceReuse(address);
+    const capability = CHAIN_CAPABILITIES.find(c => c.chain === chain);
+    if (capability && !capability.canScan) {
+      return res.status(400).json({
+        error: "not_scannable",
+        chain,
+        name: capability.name,
+        sigScheme: capability.sigScheme,
+        reason: capability.note,
+      });
+    }
+    const result = await scanWalletForNonceReuse(address, chain);
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: "ECDSA scan failed", detail: String(err) });
