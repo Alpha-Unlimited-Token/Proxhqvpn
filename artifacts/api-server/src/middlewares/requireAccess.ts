@@ -12,8 +12,8 @@
 import { type Request, type Response, type NextFunction } from "express";
 import { getAuth, clerkClient } from "@clerk/express";
 import { db } from "@workspace/db";
-import { usersTable } from "@workspace/db/schema";
-import { eq } from "drizzle-orm";
+import { usersTable, cryptoSubscriptionsTable } from "@workspace/db/schema";
+import { eq, and, gt } from "drizzle-orm";
 import { isEmployeeEmail } from "../routes/employees";
 import { stripeStorage } from "../stripeStorage";
 
@@ -40,6 +40,16 @@ export const requireAccess = async (req: Request, res: Response, next: NextFunct
     const sub = await stripeStorage.getSubscription(stripeUser.stripeSubscriptionId);
     if (sub?.status === "active" || sub?.status === "trialing") return next();
   }
+
+  // 4 — Active crypto subscription check (Bitcoin / Ethereum payments)
+  const [cryptoSub] = await db
+    .select()
+    .from(cryptoSubscriptionsTable)
+    .where(and(
+      eq(cryptoSubscriptionsTable.userId, userId),
+      gt(cryptoSubscriptionsTable.expiresAt, new Date()),
+    ));
+  if (cryptoSub) return next();
 
   // No valid access
   return res.status(402).json({

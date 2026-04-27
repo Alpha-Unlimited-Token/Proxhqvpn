@@ -20,6 +20,7 @@ import sqlRouter from "./sqlquery";
 import proxyBrowserRouter from "./proxybrowser";
 import killswitchRouter from "./killswitch";
 import leaksRouter from "./leaks";
+import cryptoPaymentsRouter from "./crypto-payments";
 import threatintelRouter from "./threatintel";
 import splittunnelRouter from "./splittunnel";
 import obfuscationRouter from "./obfuscation";
@@ -305,6 +306,7 @@ router.use("/sql",            requireAdmin, sqlRouter);
 
 // Stripe routes — always accessible (needed to purchase a subscription)
 router.use("/stripe",         stripeRouter);
+router.use("/payments/crypto", cryptoPaymentsRouter); // No requireAccess — handles its own auth + activates access
 
 // ── VPN Basic routes — any active subscription (vpn OR command_center) ──────
 router.use("/killswitch",     requireAccess, killswitchRouter);

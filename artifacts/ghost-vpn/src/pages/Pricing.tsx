@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { PageSEO } from "@/components/PageSEO";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useUser } from "@clerk/react";
@@ -6,7 +6,8 @@ import {
   Check, Shield, Zap, Loader2, Star, AlertCircle,
   Lock, Cpu, Globe, ShieldCheck, Server, Terminal as TerminalIcon,
   ScanSearch, Globe2, Network, Activity, Send, FolderSearch, Radar,
-  MapPin, Database, Code, Package, Key,
+  MapPin, Database, Code, Package, Key, Copy, Clock, CheckCircle2,
+  X, Bitcoin,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAccess } from "@/hooks/useAccess";
@@ -86,6 +87,14 @@ export default function Pricing() {
   const [promoStatus, setPromoStatus] = useState<null | "valid" | "invalid">(null);
   const [promoAmbassador, setPromoAmbassador] = useState<string | null>(null);
 
+  // Crypto payment state
+  const [cryptoModal, setCryptoModal] = useState<{ plan: string; planLabel: string } | null>(null);
+  const [cryptoCurrency, setCryptoCurrency] = useState<"BTC" | "ETH">("BTC");
+  const [cryptoInvoice, setCryptoInvoice] = useState<any | null>(null);
+  const [cryptoStatus, setCryptoStatus] = useState<"idle" | "creating" | "awaiting" | "confirmed" | "expired" | "error">("idle");
+  const [copied, setCopied] = useState<"address" | "amount" | null>(null);
+  const [countdown, setCountdown] = useState(0);
+
   const { data: products = [], isLoading } = useQuery<Product[]>({
     queryKey: ["stripe-products"],
     queryFn: () => apiFetch("/api/stripe/products"),
@@ -106,6 +115,71 @@ export default function Pricing() {
       setCheckingOut(null);
     },
   });
+
+  // ── Crypto checkout helpers ──────────────────────────────────────────────────
+  const createCryptoInvoice = useCallback(async (plan: string, currency: "BTC" | "ETH") => {
+    setCryptoStatus("creating");
+    setCryptoInvoice(null);
+    try {
+      const data = await apiFetch("/api/payments/crypto/create", {
+        method: "POST",
+        body: JSON.stringify({ plan, currency }),
+      });
+      setCryptoInvoice(data);
+      setCryptoStatus("awaiting");
+      const secs = Math.max(0, Math.round((new Date(data.expiresAt).getTime() - Date.now()) / 1000));
+      setCountdown(secs);
+    } catch (e: any) {
+      setCryptoStatus("error");
+      toast({ title: "Could not create invoice", description: e.message, variant: "destructive" });
+    }
+  }, [toast]);
+
+  // Countdown timer
+  useEffect(() => {
+    if (cryptoStatus !== "awaiting" || countdown <= 0) return;
+    const t = setInterval(() => setCountdown((c) => {
+      if (c <= 1) { setCryptoStatus("expired"); clearInterval(t); return 0; }
+      return c - 1;
+    }), 1000);
+    return () => clearInterval(t);
+  }, [cryptoStatus, countdown]);
+
+  // Blockchain polling (every 15 seconds)
+  useEffect(() => {
+    if (cryptoStatus !== "awaiting" || !cryptoInvoice?.invoiceId) return;
+    const poll = async () => {
+      try {
+        const data = await apiFetch(`/api/payments/crypto/status/${cryptoInvoice.invoiceId}`);
+        if (data.status === "confirmed") {
+          setCryptoStatus("confirmed");
+          toast({ title: "Payment confirmed!", description: "Your subscription is now active." });
+        } else if (data.status === "expired") {
+          setCryptoStatus("expired");
+        }
+      } catch {}
+    };
+    const t = setInterval(poll, 15000);
+    poll();
+    return () => clearInterval(t);
+  }, [cryptoStatus, cryptoInvoice?.invoiceId, toast]);
+
+  const copyText = (text: string, type: "address" | "amount") => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(type);
+      setTimeout(() => setCopied(null), 2000);
+    });
+  };
+
+  const fmtCountdown = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+
+  const openCrypto = (plan: string, label: string) => {
+    setCryptoModal({ plan, planLabel: label });
+    setCryptoInvoice(null);
+    setCryptoStatus("idle");
+    setCryptoCurrency("BTC");
+    setCountdown(0);
+  };
 
   const validatePromo = async () => {
     const code = promoCode.trim().toUpperCase();
@@ -334,17 +408,25 @@ export default function Pricing() {
                   Included in your Pro plan
                 </div>
               ) : (
-                <button
-                  onClick={() => vpnPrice && checkout(vpnPrice.id)}
-                  disabled={!!checkingOut || !vpnPrice}
-                  className="w-full py-3 rounded-xl font-semibold text-[13px] flex items-center justify-center gap-2 bg-primary text-black hover:brightness-110 transition-all disabled:opacity-40 shadow-[0_0_20px_rgba(0,255,136,0.15)]"
-                >
-                  {checkingOut === vpnPrice?.id ? (
-                    <><Loader2 className="w-4 h-4 animate-spin" /> Redirecting...</>
-                  ) : (
-                    <><Shield className="w-4 h-4" /> Get VPN Basic</>
-                  )}
-                </button>
+                <div className="space-y-2">
+                  <button
+                    onClick={() => vpnPrice && checkout(vpnPrice.id)}
+                    disabled={!!checkingOut || !vpnPrice}
+                    className="w-full py-3 rounded-xl font-semibold text-[13px] flex items-center justify-center gap-2 bg-primary text-black hover:brightness-110 transition-all disabled:opacity-40 shadow-[0_0_20px_rgba(0,255,136,0.15)]"
+                  >
+                    {checkingOut === vpnPrice?.id ? (
+                      <><Loader2 className="w-4 h-4 animate-spin" /> Redirecting...</>
+                    ) : (
+                      <><Shield className="w-4 h-4" /> Get VPN Basic</>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => openCrypto(period === "monthly" ? "vpn_monthly" : "vpn_annual", `VPN Basic — ${period === "monthly" ? "Monthly" : "Annual"}`)}
+                    className="w-full py-2.5 rounded-xl text-[12px] flex items-center justify-center gap-2 border border-orange-500/30 text-orange-400 hover:bg-orange-500/10 transition-all font-medium"
+                  >
+                    <Bitcoin className="w-3.5 h-3.5" /> Pay anonymously with Bitcoin/ETH
+                  </button>
+                </div>
               )}
             </div>
           </div>
@@ -424,30 +506,28 @@ export default function Pricing() {
                 <div className="w-full flex items-center justify-center gap-2 bg-yellow-500/10 border border-yellow-500/25 rounded-xl py-3 text-yellow-400 text-sm font-medium">
                   <Check className="w-4 h-4" /> Current Plan
                 </div>
-              ) : tier === "vpn" ? (
-                <button
-                  onClick={() => proPrice && checkout(proPrice.id)}
-                  disabled={!!checkingOut || !proPrice}
-                  className="w-full py-3 rounded-xl font-semibold text-[13px] flex items-center justify-center gap-2 bg-gradient-to-r from-yellow-500 to-orange-500 text-black hover:brightness-110 transition-all disabled:opacity-40 shadow-[0_0_30px_rgba(234,179,8,0.2)]"
-                >
-                  {checkingOut === proPrice?.id ? (
-                    <><Loader2 className="w-4 h-4 animate-spin" /> Redirecting...</>
-                  ) : (
-                    <><Zap className="w-4 h-4" /> Upgrade to Pro</>
-                  )}
-                </button>
               ) : (
-                <button
-                  onClick={() => proPrice && checkout(proPrice.id)}
-                  disabled={!!checkingOut || !proPrice}
-                  className="w-full py-3 rounded-xl font-semibold text-[13px] flex items-center justify-center gap-2 bg-gradient-to-r from-yellow-500 to-orange-500 text-black hover:brightness-110 transition-all disabled:opacity-40 shadow-[0_0_30px_rgba(234,179,8,0.2)]"
-                >
-                  {checkingOut === proPrice?.id ? (
-                    <><Loader2 className="w-4 h-4 animate-spin" /> Redirecting...</>
-                  ) : (
-                    <><Zap className="w-4 h-4" /> Get Command Center Pro</>
-                  )}
-                </button>
+                <div className="space-y-2">
+                  <button
+                    onClick={() => proPrice && checkout(proPrice.id)}
+                    disabled={!!checkingOut || !proPrice}
+                    className="w-full py-3 rounded-xl font-semibold text-[13px] flex items-center justify-center gap-2 bg-gradient-to-r from-yellow-500 to-orange-500 text-black hover:brightness-110 transition-all disabled:opacity-40 shadow-[0_0_30px_rgba(234,179,8,0.2)]"
+                  >
+                    {checkingOut === proPrice?.id ? (
+                      <><Loader2 className="w-4 h-4 animate-spin" /> Redirecting...</>
+                    ) : tier === "vpn" ? (
+                      <><Zap className="w-4 h-4" /> Upgrade to Pro</>
+                    ) : (
+                      <><Zap className="w-4 h-4" /> Get Command Center Pro</>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => openCrypto(period === "monthly" ? "pro_monthly" : "pro_annual", `Command Center Pro — ${period === "monthly" ? "Monthly" : "Annual"}`)}
+                    className="w-full py-2.5 rounded-xl text-[12px] flex items-center justify-center gap-2 border border-orange-500/30 text-orange-400 hover:bg-orange-500/10 transition-all font-medium"
+                  >
+                    <Bitcoin className="w-3.5 h-3.5" /> Pay anonymously with Bitcoin/ETH
+                  </button>
+                </div>
               )}
             </div>
           </div>
@@ -499,6 +579,188 @@ export default function Pricing() {
           </div>
         ))}
       </div>
+
+      {/* ── Crypto Payment Modal ─────────────────────────────────────────────── */}
+      {cryptoModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <div className="bg-[#0a0f0c] border border-orange-500/25 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden">
+
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-orange-500/15">
+              <div className="flex items-center gap-2.5">
+                <Bitcoin className="w-5 h-5 text-orange-400" />
+                <div>
+                  <div className="text-sm font-bold text-white">Anonymous Crypto Payment</div>
+                  <div className="text-[11px] text-orange-400/70 font-mono">{cryptoModal.planLabel}</div>
+                </div>
+              </div>
+              <button onClick={() => setCryptoModal(null)} className="text-white/40 hover:text-white/70 transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-5">
+
+              {/* Confirmed state */}
+              {cryptoStatus === "confirmed" && (
+                <div className="text-center space-y-3 py-4">
+                  <CheckCircle2 className="w-12 h-12 text-green-400 mx-auto" />
+                  <div className="text-white font-bold text-lg">Payment Confirmed!</div>
+                  <div className="text-white/60 text-sm">Your subscription is now active. You have full access.</div>
+                  <button onClick={() => { setCryptoModal(null); window.location.reload(); }}
+                    className="mt-4 px-6 py-2.5 bg-primary text-black rounded-xl font-semibold text-sm hover:brightness-110 transition-all">
+                    Continue to Dashboard
+                  </button>
+                </div>
+              )}
+
+              {/* Expired state */}
+              {cryptoStatus === "expired" && (
+                <div className="text-center space-y-3 py-4">
+                  <Clock className="w-10 h-10 text-red-400 mx-auto" />
+                  <div className="text-white font-bold">Invoice Expired</div>
+                  <div className="text-white/60 text-sm">The 2-hour payment window has closed. Create a new invoice to try again.</div>
+                  <button onClick={() => { setCryptoInvoice(null); setCryptoStatus("idle"); }}
+                    className="mt-2 px-5 py-2 border border-orange-500/30 text-orange-400 rounded-xl text-sm hover:bg-orange-500/10 transition-all">
+                    Create New Invoice
+                  </button>
+                </div>
+              )}
+
+              {/* Idle — choose currency */}
+              {cryptoStatus === "idle" && (
+                <div className="space-y-4">
+                  <div className="text-xs text-white/60 leading-relaxed">
+                    Pay anonymously — no name, no email, no card required. Your blockchain transaction activates access automatically.
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="text-[10px] font-mono uppercase tracking-widest text-white/40">Select currency</div>
+                    <div className="grid grid-cols-2 gap-3">
+                      {(["BTC", "ETH"] as const).map((c) => (
+                        <button key={c} onClick={() => setCryptoCurrency(c)}
+                          className={`p-4 rounded-xl border text-sm font-bold transition-all flex flex-col items-center gap-1.5 ${
+                            cryptoCurrency === c
+                              ? "bg-orange-500/15 border-orange-500/50 text-orange-300"
+                              : "bg-white/[0.03] border-white/[0.08] text-white/60 hover:border-orange-500/30"
+                          }`}>
+                          <Bitcoin className="w-5 h-5" />
+                          {c}
+                          <span className="text-[10px] font-normal text-white/40">
+                            {c === "BTC" ? "Bitcoin · ~10 min" : "Ethereum · ~30 sec"}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="bg-orange-500/8 border border-orange-500/20 rounded-xl p-3 space-y-1">
+                    <div className="text-[10px] text-orange-400/70 font-mono uppercase tracking-widest">Privacy note</div>
+                    <div className="text-[11px] text-white/60 leading-relaxed">
+                      A unique exact amount is generated per invoice — this fingerprints your payment on-chain.
+                      For maximum anonymity, send from a non-KYC wallet or use a mixing service first.
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => createCryptoInvoice(cryptoModal.plan, cryptoCurrency)}
+                    className="w-full py-3 rounded-xl bg-orange-500 text-black font-bold text-sm hover:brightness-110 transition-all flex items-center justify-center gap-2"
+                  >
+                    <Bitcoin className="w-4 h-4" /> Generate {cryptoCurrency} Invoice
+                  </button>
+                </div>
+              )}
+
+              {/* Creating state */}
+              {cryptoStatus === "creating" && (
+                <div className="flex flex-col items-center py-8 gap-3">
+                  <Loader2 className="w-8 h-8 text-orange-400 animate-spin" />
+                  <div className="text-white/60 text-sm">Fetching exchange rate and generating address...</div>
+                </div>
+              )}
+
+              {/* Awaiting payment */}
+              {cryptoStatus === "awaiting" && cryptoInvoice && (
+                <div className="space-y-4">
+                  {/* Countdown + polling indicator */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-[11px] text-white/40 font-mono">
+                      <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+                      Checking blockchain every 15 seconds...
+                    </div>
+                    <div className={`flex items-center gap-1 text-[11px] font-mono font-bold ${countdown < 300 ? "text-red-400" : "text-white/50"}`}>
+                      <Clock className="w-3 h-3" />
+                      {fmtCountdown(countdown)}
+                    </div>
+                  </div>
+
+                  {/* Amounts */}
+                  <div className="bg-[#0d1610] border border-white/[0.07] rounded-xl p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="text-[10px] text-white/40 font-mono uppercase">Send exact amount</div>
+                      <div className="text-[10px] text-white/30 font-mono">≈ ${cryptoInvoice.amountUsd} USD</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="font-mono text-orange-300 text-lg font-bold flex-1 break-all">
+                        {cryptoInvoice.amountCrypto} {cryptoInvoice.currency}
+                      </div>
+                      <button onClick={() => copyText(cryptoInvoice.amountCrypto, "amount")}
+                        className="shrink-0 p-1.5 rounded-lg border border-white/[0.08] text-white/40 hover:text-white/70 hover:border-white/20 transition-all">
+                        {copied === "amount" ? <CheckCircle2 className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Address */}
+                  <div className="bg-[#0d1610] border border-white/[0.07] rounded-xl p-4 space-y-2">
+                    <div className="text-[10px] text-white/40 font-mono uppercase">To address</div>
+                    <div className="flex items-start gap-2">
+                      <div className="font-mono text-white/80 text-[11px] flex-1 break-all leading-relaxed">
+                        {cryptoInvoice.address}
+                      </div>
+                      <button onClick={() => copyText(cryptoInvoice.address, "address")}
+                        className="shrink-0 p-1.5 rounded-lg border border-white/[0.08] text-white/40 hover:text-white/70 hover:border-white/20 transition-all mt-0.5">
+                        {copied === "address" ? <CheckCircle2 className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                    {/* URI link (opens wallet app) */}
+                    <a href={cryptoInvoice.uriScheme}
+                      className="inline-flex items-center gap-1.5 text-[10px] text-orange-400/70 hover:text-orange-400 transition-colors font-mono mt-1">
+                      <Bitcoin className="w-3 h-3" /> Open in wallet app ↗
+                    </a>
+                  </div>
+
+                  {/* Instructions */}
+                  <div className="space-y-1.5">
+                    {cryptoInvoice.instructions?.map((inst: string, i: number) => (
+                      <div key={i} className="flex items-start gap-2 text-[10px] text-white/50 font-mono">
+                        <span className="text-orange-500/50 shrink-0">{i + 1}.</span>
+                        <span>{inst}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="text-[10px] text-white/30 text-center font-mono">
+                    Exchange rate: 1 {cryptoInvoice.currency} = ${parseFloat(cryptoInvoice.exchangeRate).toLocaleString()} USD
+                  </div>
+                </div>
+              )}
+
+              {/* Error state */}
+              {cryptoStatus === "error" && (
+                <div className="text-center space-y-3 py-4">
+                  <AlertCircle className="w-10 h-10 text-red-400 mx-auto" />
+                  <div className="text-white/60 text-sm">Invoice creation failed. This is usually because crypto payments haven't been configured yet.</div>
+                  <button onClick={() => setCryptoStatus("idle")}
+                    className="px-5 py-2 border border-white/10 text-white/50 rounded-xl text-sm hover:border-white/20 transition-all">
+                    Try again
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

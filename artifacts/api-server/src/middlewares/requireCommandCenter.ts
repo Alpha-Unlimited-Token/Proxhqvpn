@@ -13,8 +13,8 @@
 import { type Request, type Response, type NextFunction } from "express";
 import { getAuth, clerkClient } from "@clerk/express";
 import { db } from "@workspace/db";
-import { usersTable } from "@workspace/db/schema";
-import { eq } from "drizzle-orm";
+import { usersTable, cryptoSubscriptionsTable } from "@workspace/db/schema";
+import { eq, and, gt } from "drizzle-orm";
 import { isEmployeeEmail } from "../routes/employees";
 import { stripeStorage } from "../stripeStorage";
 
@@ -44,6 +44,17 @@ export const requireCommandCenter = async (req: Request, res: Response, next: Ne
       if (tier === "command_center") return next();
     }
   }
+
+  // 4 — Active crypto Command Center Pro subscription
+  const [cryptoSub] = await db
+    .select()
+    .from(cryptoSubscriptionsTable)
+    .where(and(
+      eq(cryptoSubscriptionsTable.userId, userId),
+      eq(cryptoSubscriptionsTable.planTier, "command_center"),
+      gt(cryptoSubscriptionsTable.expiresAt, new Date()),
+    ));
+  if (cryptoSub) return next();
 
   return res.status(402).json({
     error: "Command Center Pro required",
