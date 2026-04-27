@@ -6,7 +6,8 @@ import {
   ShieldAlert, 
   Cpu,
   Menu,
-  ShieldCheck
+  ShieldCheck,
+  Terminal
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -73,6 +74,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           <NavItem href="/scans" icon={List} label="All Scans" />
           <NavItem href="/vulnerabilities" icon={ShieldAlert} label="Vulnerabilities" />
           <NavItem href="/quantum-threats" icon={Cpu} label="Quantum Threats" />
+          <div className="pt-2 mt-2 border-t border-border/50">
+            <NavItem href="/pentest" icon={Terminal} label="Pen Test" />
+          </div>
         </div>
       </div>
 

@@ -6,6 +6,8 @@ import {
 import { eq, desc, and } from "drizzle-orm";
 import { RunBlockchainScanBody, ListScansQueryParams, GetScanParams, GetScanReportParams, ListVulnerabilitiesQueryParams } from "@workspace/api-zod";
 import { analyzeCode } from "../lib/quantum-analyzer";
+import { generateExploit } from "../lib/quantum-analyzer/exploit-generator";
+import { runApplicationPenTest } from "../lib/app-security-scanner";
 
 const router = Router();
 
@@ -438,12 +440,14 @@ function formatScan(s: typeof scanJobsTable.$inferSelect) {
 }
 
 function formatVuln(v: typeof vulnerabilitiesTable.$inferSelect) {
+  const exploitPoC = generateExploit(v.title, v.category);
   return {
     id: v.id, scanId: v.scanId, title: v.title, description: v.description,
     severity: v.severity, category: v.category, isQuantumRelated: v.isQuantumRelated,
     cweId: v.cweId, cvssScore: v.cvssScore, affectedCode: v.affectedCode,
     lineNumber: v.lineNumber, recommendation: v.recommendation,
     references: v.references ?? [],
+    exploitPoC: exploitPoC ?? null,
   };
 }
 
@@ -470,5 +474,22 @@ function formatThreat(t: typeof quantumThreatsTable.$inferSelect) {
     mitigation: t.mitigation, pqcAlternatives: t.pqcAlternatives, severity: t.severity,
   };
 }
+
+// ── Application Penetration Test ─────────────────────────────────────────────
+router.post("/pentest/app", async (_req: Request, res: Response) => {
+  try {
+    const report = await runApplicationPenTest();
+    res.json(report);
+  } catch (err) {
+    res.status(500).json({ error: "Pen test failed", detail: String(err) });
+  }
+});
+
+// ── Exploit PoC lookup by vulnerability category ──────────────────────────────
+router.get("/exploits/:category", (req: Request, res: Response) => {
+  const poc = generateExploit(req.params.category, req.params.category);
+  if (!poc) return res.status(404).json({ error: "No exploit PoC for this category" });
+  res.json(poc);
+});
 
 export default router;
