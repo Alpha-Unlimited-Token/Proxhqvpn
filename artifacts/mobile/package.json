@@ -56,6 +56,10 @@
     "zod-validation-error": "^3.4.0"
   },
   "dependencies": {
+    "@clerk/clerk-expo": "^2.19.31",
+    "expo-auth-session": "^7.0.10",
+    "expo-file-system": "^19.0.21",
+    "expo-secure-store": "^15.0.8",
     "react-native-webview": "^13.16.1"
   }
 }

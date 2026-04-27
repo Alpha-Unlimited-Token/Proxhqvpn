@@ -1,24 +1,32 @@
 import { BlurView } from "expo-blur";
 import { isLiquidGlassAvailable } from "expo-glass-effect";
-import { Tabs } from "expo-router";
+import { Redirect, Tabs } from "expo-router";
 import { Icon, Label, NativeTabs } from "expo-router/unstable-native-tabs";
 import { SymbolView } from "expo-symbols";
-import { Feather } from "@expo/vector-icons";
+import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import React from "react";
 import { Platform, StyleSheet, View, useColorScheme } from "react-native";
-
+import { useAuth } from "@clerk/clerk-expo";
 import { useColors } from "@/hooks/useColors";
 
-// IMPORTANT: iOS 26 uses NativeTabs for native tabs with liquid glass support.
-// NativeTabs intentionally does NOT use custom design tokens — liquid glass
-// is a system-level appearance provided by iOS and cannot be overridden.
-// Custom brand colors are applied only on the ClassicTabLayout path (older iOS / Android / web).
 function NativeTabLayout() {
   return (
     <NativeTabs>
       <NativeTabs.Trigger name="index">
-        <Icon sf={{ default: "house", selected: "house.fill" }} />
-        <Label>Home</Label>
+        <Icon sf={{ default: "shield", selected: "shield.fill" }} />
+        <Label>VPN</Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="servers">
+        <Icon sf={{ default: "globe", selected: "globe.fill" }} />
+        <Label>Servers</Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="tools">
+        <Icon sf={{ default: "terminal", selected: "terminal.fill" }} />
+        <Label>Command</Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="account">
+        <Icon sf={{ default: "person.circle", selected: "person.circle.fill" }} />
+        <Label>Account</Label>
       </NativeTabs.Trigger>
     </NativeTabs>
   );
@@ -36,42 +44,59 @@ function ClassicTabLayout() {
       screenOptions={{
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.mutedForeground,
-        headerShown: true,
+        headerShown: false,
         tabBarStyle: {
           position: "absolute",
           backgroundColor: isIOS ? "transparent" : colors.background,
-          borderTopWidth: isWeb ? 1 : 0,
+          borderTopWidth: 1,
           borderTopColor: colors.border,
           elevation: 0,
           ...(isWeb ? { height: 84 } : {}),
         },
         tabBarBackground: () =>
           isIOS ? (
-            <BlurView
-              intensity={100}
-              tint={isDark ? "dark" : "light"}
-              style={StyleSheet.absoluteFill}
-            />
-          ) : isWeb ? (
-            <View
-              style={[
-                StyleSheet.absoluteFill,
-                { backgroundColor: colors.background },
-              ]}
-            />
+            <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
           ) : null,
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
-          title: "Home",
+          title: "VPN",
           tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="house" tintColor={color} size={24} />
-            ) : (
-              <Feather name="home" size={22} color={color} />
-            ),
+            isIOS
+              ? <SymbolView name="shield.fill" tintColor={color} size={22} />
+              : <Feather name="shield" size={22} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="servers"
+        options={{
+          title: "Servers",
+          tabBarIcon: ({ color }) =>
+            isIOS
+              ? <SymbolView name="globe" tintColor={color} size={22} />
+              : <Feather name="globe" size={22} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="tools"
+        options={{
+          title: "Command",
+          tabBarIcon: ({ color }) =>
+            isIOS
+              ? <SymbolView name="terminal" tintColor={color} size={22} />
+              : <MaterialCommunityIcons name="console" size={22} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="account"
+        options={{
+          title: "Account",
+          tabBarIcon: ({ color }) =>
+            isIOS
+              ? <SymbolView name="person.circle" tintColor={color} size={22} />
+              : <Feather name="user" size={22} color={color} />,
         }}
       />
     </Tabs>
@@ -79,8 +104,9 @@ function ClassicTabLayout() {
 }
 
 export default function TabLayout() {
-  if (isLiquidGlassAvailable()) {
-    return <NativeTabLayout />;
-  }
+  const { isSignedIn, isLoaded } = useAuth();
+  if (isLoaded && !isSignedIn) return <Redirect href="/sign-in" />;
+
+  if (isLiquidGlassAvailable()) return <NativeTabLayout />;
   return <ClassicTabLayout />;
 }
