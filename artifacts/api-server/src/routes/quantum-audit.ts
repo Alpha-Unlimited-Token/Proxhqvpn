@@ -9,6 +9,7 @@ import { analyzeCode } from "../lib/quantum-analyzer";
 import { generateExploit } from "../lib/quantum-analyzer/exploit-generator";
 import { runApplicationPenTest } from "../lib/app-security-scanner";
 import { scanBlockchainAddress } from "../lib/blockchain-connectors";
+import { analyzeContractSource } from "../lib/solidity-analyzer";
 
 const router = Router();
 
@@ -485,6 +486,18 @@ router.post("/live-scan", async (req: Request, res: Response) => {
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: "Blockchain scan failed", detail: String(err) });
+  }
+});
+
+// ── Deep Contract Analysis ────────────────────────────────────────────────────
+router.post("/deep-analysis", async (req: Request, res: Response) => {
+  try {
+    const { address, chain, source } = req.body as { address: string; chain?: string; source?: string };
+    if (!address && !source) return res.status(400).json({ error: "address or source required" });
+    const result = await analyzeContractSource(address ?? "", chain ?? "ethereum", source);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: "Deep analysis failed", detail: String(err) });
   }
 });
 

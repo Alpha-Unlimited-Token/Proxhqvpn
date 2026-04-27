@@ -14,6 +14,7 @@ import VulnerabilitiesList from "@/pages/VulnerabilitiesList";
 import QuantumThreats from "@/pages/QuantumThreats";
 import PenTest from "@/pages/PenTest";
 import LiveScan from "@/pages/LiveScan";
+import DeepAnalysis from "@/pages/DeepAnalysis";
 
 const queryClient = new QueryClient();
 
@@ -30,6 +31,7 @@ function Router() {
         <Route path="/quantum-threats" component={QuantumThreats} />
         <Route path="/pentest" component={PenTest} />
         <Route path="/live-scan" component={LiveScan} />
+        <Route path="/deep-analysis" component={DeepAnalysis} />
         <Route component={NotFound} />
       </Switch>
     </Layout>
