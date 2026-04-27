@@ -11,6 +11,9 @@ import { runApplicationPenTest } from "../lib/app-security-scanner";
 import { scanBlockchainAddress } from "../lib/blockchain-connectors";
 import { analyzeContractSource } from "../lib/solidity-analyzer";
 import { scanWalletForNonceReuse, recoverPrivateKey, CHAIN_CAPABILITIES } from "../lib/ecdsa-analyzer/nonce-recovery";
+import { scanSolana, recoverEd25519PrivateKey } from "../lib/scheme-auditor/ed25519-scan";
+import { scanPolkadot, recoverSchnorrPrivateKey } from "../lib/scheme-auditor/polkadot-scan";
+import { scanMonero, checkKeyImages } from "../lib/scheme-auditor/monero-scan";
 
 const router = Router();
 
@@ -538,6 +541,75 @@ router.post("/ecdsa-recover", async (req: Request, res: Response) => {
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: "Recovery failed", detail: String(err) });
+  }
+});
+
+// ── Ed25519 / Solana scanner — accepts address OR tx signature ─────────────────
+router.post("/ed25519-scan", async (req: Request, res: Response) => {
+  try {
+    const { target } = req.body as { target: string };
+    if (!target) return res.status(400).json({ error: "target (address or tx signature) required" });
+    const result = await scanSolana(target);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: "Ed25519 scan failed", detail: String(err) });
+  }
+});
+
+router.post("/ed25519-recover", async (req: Request, res: Response) => {
+  try {
+    const { R, pubkey, S1, msg1, S2, msg2 } = req.body as Record<string, string>;
+    if (!R || !S1 || !S2 || !msg1 || !msg2) return res.status(400).json({ error: "Missing fields" });
+    const result = recoverEd25519PrivateKey(R, pubkey ?? "", S1, msg1, S2, msg2);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: "Recovery failed", detail: String(err) });
+  }
+});
+
+// ── Polkadot / Sr25519 — accepts address OR extrinsic hash ───────────────────
+router.post("/schnorr-scan", async (req: Request, res: Response) => {
+  try {
+    const { target, chain = "polkadot" } = req.body as { target: string; chain?: string };
+    if (!target) return res.status(400).json({ error: "target (address or extrinsic hash) required" });
+    const result = await scanPolkadot(target, chain);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: "Schnorr scan failed", detail: String(err) });
+  }
+});
+
+router.post("/schnorr-recover", async (req: Request, res: Response) => {
+  try {
+    const { R, pubkey, s1, msg1, s2, msg2 } = req.body as Record<string, string>;
+    if (!R || !s1 || !s2) return res.status(400).json({ error: "Missing fields" });
+    const result = recoverSchnorrPrivateKey(R, pubkey ?? "", s1, msg1 ?? "", s2, msg2 ?? "");
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: "Recovery failed", detail: String(err) });
+  }
+});
+
+// ── Monero — accepts tx hash(es), auto-scans surrounding blocks ───────────────
+router.post("/monero-scan", async (req: Request, res: Response) => {
+  try {
+    const { target, blockWindow = 15 } = req.body as { target: string | string[]; blockWindow?: number };
+    if (!target) return res.status(400).json({ error: "target (tx hash or array of tx hashes) required" });
+    const result = await scanMonero(target, blockWindow);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: "Monero scan failed", detail: String(err) });
+  }
+});
+
+router.post("/monero-keyimages", async (req: Request, res: Response) => {
+  try {
+    const { keyImages } = req.body as { keyImages: string[] };
+    if (!Array.isArray(keyImages) || keyImages.length === 0) return res.status(400).json({ error: "keyImages array required" });
+    const result = await checkKeyImages(keyImages);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: "Key image check failed", detail: String(err) });
   }
 });
 
