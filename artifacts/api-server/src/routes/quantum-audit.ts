@@ -8,6 +8,7 @@ import { RunBlockchainScanBody, ListScansQueryParams, GetScanParams, GetScanRepo
 import { analyzeCode } from "../lib/quantum-analyzer";
 import { generateExploit } from "../lib/quantum-analyzer/exploit-generator";
 import { runApplicationPenTest } from "../lib/app-security-scanner";
+import { scanBlockchainAddress } from "../lib/blockchain-connectors";
 
 const router = Router();
 
@@ -474,6 +475,18 @@ function formatThreat(t: typeof quantumThreatsTable.$inferSelect) {
     mitigation: t.mitigation, pqcAlternatives: t.pqcAlternatives, severity: t.severity,
   };
 }
+
+// ── Live Blockchain Scanner ───────────────────────────────────────────────────
+router.post("/live-scan", async (req: Request, res: Response) => {
+  try {
+    const { chain, address } = req.body as { chain: string; address?: string };
+    if (!chain) return res.status(400).json({ error: "chain is required" });
+    const result = await scanBlockchainAddress(chain, address);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: "Blockchain scan failed", detail: String(err) });
+  }
+});
 
 // ── Application Penetration Test ─────────────────────────────────────────────
 router.post("/pentest/app", async (_req: Request, res: Response) => {

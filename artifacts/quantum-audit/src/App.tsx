@@ -13,6 +13,7 @@ import ScanReport from "@/pages/ScanReport";
 import VulnerabilitiesList from "@/pages/VulnerabilitiesList";
 import QuantumThreats from "@/pages/QuantumThreats";
 import PenTest from "@/pages/PenTest";
+import LiveScan from "@/pages/LiveScan";
 
 const queryClient = new QueryClient();
 
@@ -28,6 +29,7 @@ function Router() {
         <Route path="/vulnerabilities" component={VulnerabilitiesList} />
         <Route path="/quantum-threats" component={QuantumThreats} />
         <Route path="/pentest" component={PenTest} />
+        <Route path="/live-scan" component={LiveScan} />
         <Route component={NotFound} />
       </Switch>
     </Layout>
