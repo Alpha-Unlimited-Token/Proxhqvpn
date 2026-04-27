@@ -7,9 +7,11 @@ import { seedEmployees } from "./routes/employees";
 import { seedStripeProducts } from "./seedStripeProducts";
 import { exec, execSync } from "child_process";
 import fs from "fs";
+import pathLib from "path";
 import { db } from "@workspace/db";
-import { vpngateNodeSessionsTable } from "@workspace/db";
+import { vpngateNodeSessionsTable, batchScanJobsTable } from "@workspace/db";
 import { eq, and, lt, sql } from "drizzle-orm";
+import { startBatchWorker, createBatchJob } from "./lib/scheme-auditor/batch-worker";
 
 /** Normalize DATABASE_URL sslmode to suppress pg-connection-string deprecation warnings.
  *  Only applied in the deployed environment where the managed Postgres supports TLS.
@@ -172,6 +174,52 @@ seedEmployees().catch((err) => logger.warn({ err }, "Employee seed failed"));
 
 // Create the two Stripe pricing tiers if they don't exist yet
 seedStripeProducts().catch((err) => logger.warn({ err }, "Stripe product seed failed"));
+
+// ── Autonomous Batch Worker ───────────────────────────────────────────────────
+startBatchWorker();
+
+// ── Pre-load sillytuna attacker files (idempotent — skips if already queued) ──
+async function preloadAttackerFiles() {
+  try {
+    const SOURCE_NAMES = ["sillytuna_attacker_wallets", "sillytuna_attacker_tx_hashes"];
+    for (const src of SOURCE_NAMES) {
+      const [existing] = await db.select({ id: batchScanJobsTable.id })
+        .from(batchScanJobsTable)
+        .where(eq(batchScanJobsTable.sourceName, src))
+        .limit(1);
+      if (existing) continue; // already loaded
+
+      const candidates = [
+        pathLib.join(process.cwd(), "..", "..", "attached_assets", src + "_1777326855520.txt"),
+        pathLib.join(process.cwd(), "..", "..", "attached_assets", src + "_1777326855652.txt"),
+      ].filter(p => fs.existsSync(p));
+
+      if (candidates.length === 0) {
+        // Try glob match
+        const dir = pathLib.join(process.cwd(), "..", "..", "attached_assets");
+        if (fs.existsSync(dir)) {
+          const files = fs.readdirSync(dir).filter(f => f.startsWith(src));
+          if (files.length > 0) candidates.push(pathLib.join(dir, files[0]));
+        }
+      }
+
+      if (candidates.length === 0) {
+        logger.warn({ src }, "Attacker file not found — skipping pre-load");
+        continue;
+      }
+
+      const raw = fs.readFileSync(candidates[0], "utf8");
+      const targets = raw.split("\n").map(l => l.trim()).filter(l => l.length >= 10);
+      const label = src.includes("wallet") ? "Sillytuna Attacker Wallets" : "Sillytuna Attacker TX Hashes";
+      const jobId = await createBatchJob({ name: label, sourceName: src, targets });
+      logger.info({ jobId, src, total: targets.length }, "Attacker file queued as batch job");
+    }
+  } catch (err) {
+    logger.warn({ err }, "Attacker file pre-load failed — non-fatal");
+  }
+}
+
+preloadAttackerFiles();
 
 app.listen(port, (err) => {
   if (err) {

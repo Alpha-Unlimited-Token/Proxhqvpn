@@ -1,9 +1,10 @@
 import { Router, type Request, type Response } from "express";
 import { db } from "@workspace/db";
 import {
-  scanJobsTable, vulnerabilitiesTable, quantumAnalysesTable, quantumThreatsTable
+  scanJobsTable, vulnerabilitiesTable, quantumAnalysesTable, quantumThreatsTable,
+  batchScanJobsTable, batchScanResultsTable,
 } from "@workspace/db/schema";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, inArray, sql, asc } from "drizzle-orm";
 import { RunBlockchainScanBody, ListScansQueryParams, GetScanParams, GetScanReportParams, ListVulnerabilitiesQueryParams } from "@workspace/api-zod";
 import { analyzeCode } from "../lib/quantum-analyzer";
 import { generateExploit } from "../lib/quantum-analyzer/exploit-generator";
@@ -16,6 +17,10 @@ import { scanPolkadot, recoverSchnorrPrivateKey } from "../lib/scheme-auditor/po
 import { scanMonero, checkKeyImages } from "../lib/scheme-auditor/monero-scan";
 import { detectChain, getScanPlan } from "../lib/scheme-auditor/chain-detector";
 import { adaptiveScan } from "../lib/scheme-auditor/adaptive-scan";
+import { requireAdmin } from "../middlewares/requireAdmin";
+import { createBatchJob, getReportsDir } from "../lib/scheme-auditor/batch-worker";
+import fs from "fs";
+import path from "path";
 
 const router = Router();
 
@@ -725,6 +730,158 @@ router.post("/monero-keyimages", async (req: Request, res: Response) => {
   } catch (err) {
     res.status(500).json({ error: "Key image check failed", detail: String(err) });
   }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// AUTONOMOUS BATCH JOB MANAGER — HEAD ADMIN ONLY
+// All routes below require requireAdmin (isAdmin === true in DB).
+// No employees, no Command Center subscribers — owner account only.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// List all batch jobs
+router.get("/batch-jobs", requireAdmin, async (_req: Request, res: Response) => {
+  try {
+    const jobs = await db.select().from(batchScanJobsTable).orderBy(desc(batchScanJobsTable.createdAt));
+    res.json({ jobs });
+  } catch (err) { res.status(500).json({ error: String(err) }); }
+});
+
+// Create a new batch job (upload target list as text)
+router.post("/batch-jobs", requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { name, targets, sourceName } = req.body as { name: string; targets: string[]; sourceName?: string };
+    if (!name) return res.status(400).json({ error: "name required" });
+    if (!Array.isArray(targets) || targets.length === 0) return res.status(400).json({ error: "targets array required" });
+    const jobId = await createBatchJob({ name, sourceName, targets });
+    res.json({ jobId, message: `Job created with ${targets.length} targets. Processing will begin automatically.` });
+  } catch (err) { res.status(500).json({ error: String(err) }); }
+});
+
+// Get job status + metadata
+router.get("/batch-jobs/:id", requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const [job] = await db.select().from(batchScanJobsTable).where(eq(batchScanJobsTable.id, id));
+    if (!job) return res.status(404).json({ error: "Job not found" });
+    res.json({ job });
+  } catch (err) { res.status(500).json({ error: String(err) }); }
+});
+
+// Get paginated results for a job
+router.get("/batch-jobs/:id/results", requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const id     = parseInt(req.params.id, 10);
+    const page   = Math.max(1, parseInt(String(req.query.page ?? "1"), 10));
+    const limit  = Math.min(200, Math.max(1, parseInt(String(req.query.limit ?? "100"), 10)));
+    const filter = String(req.query.filter ?? "all");
+    const offset = (page - 1) * limit;
+
+    let q = db.select().from(batchScanResultsTable).where(eq(batchScanResultsTable.jobId, id));
+    // filter handled client-side from the returned results for simplicity
+
+    const results = await db
+      .select()
+      .from(batchScanResultsTable)
+      .where(eq(batchScanResultsTable.jobId, id))
+      .orderBy(asc(batchScanResultsTable.id))
+      .limit(limit)
+      .offset(offset);
+
+    const [{ count }] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(batchScanResultsTable)
+      .where(eq(batchScanResultsTable.jobId, id));
+
+    res.json({ results, total: count, page, limit, pages: Math.ceil(count / limit) });
+  } catch (err) { res.status(500).json({ error: String(err) }); }
+});
+
+// Get only vulnerable results (for quick findings view)
+router.get("/batch-jobs/:id/findings", requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const findings = await db
+      .select()
+      .from(batchScanResultsTable)
+      .where(and(
+        eq(batchScanResultsTable.jobId, id),
+        eq(batchScanResultsTable.hasVulnerability, true),
+      ))
+      .orderBy(desc(batchScanResultsTable.vulnerabilityCount));
+    res.json({ findings, count: findings.length });
+  } catch (err) { res.status(500).json({ error: String(err) }); }
+});
+
+// Pause / resume / cancel a job
+router.post("/batch-jobs/:id/pause",   requireAdmin, async (req: Request, res: Response) => {
+  const id = parseInt(req.params.id, 10);
+  await db.update(batchScanJobsTable).set({ status: "paused" }).where(eq(batchScanJobsTable.id, id));
+  res.json({ ok: true, status: "paused" });
+});
+router.post("/batch-jobs/:id/resume",  requireAdmin, async (req: Request, res: Response) => {
+  const id = parseInt(req.params.id, 10);
+  await db.update(batchScanJobsTable).set({ status: "pending" }).where(eq(batchScanJobsTable.id, id));
+  res.json({ ok: true, status: "pending" });
+});
+router.post("/batch-jobs/:id/cancel",  requireAdmin, async (req: Request, res: Response) => {
+  const id = parseInt(req.params.id, 10);
+  await db.update(batchScanJobsTable).set({ status: "cancelled" }).where(eq(batchScanJobsTable.id, id));
+  res.json({ ok: true, status: "cancelled" });
+});
+router.delete("/batch-jobs/:id",       requireAdmin, async (req: Request, res: Response) => {
+  const id = parseInt(req.params.id, 10);
+  await db.delete(batchScanJobsTable).where(eq(batchScanJobsTable.id, id));
+  res.json({ ok: true });
+});
+
+// List saved report files for a job
+router.get("/batch-jobs/:id/report-files", requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const [job] = await db.select().from(batchScanJobsTable).where(eq(batchScanJobsTable.id, id));
+    if (!job?.reportDir || !fs.existsSync(job.reportDir)) {
+      return res.json({ files: [], reportDir: null });
+    }
+    const files = fs.readdirSync(job.reportDir).map(f => ({
+      name: f,
+      size: fs.statSync(path.join(job.reportDir!, f)).size,
+      path: path.join(job.reportDir!, f),
+    }));
+    res.json({ files, reportDir: job.reportDir });
+  } catch (err) { res.status(500).json({ error: String(err) }); }
+});
+
+// Download a specific report file
+router.get("/batch-jobs/:id/download/:filename", requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const [job] = await db.select().from(batchScanJobsTable).where(eq(batchScanJobsTable.id, id));
+    if (!job?.reportDir) return res.status(404).json({ error: "No report available" });
+    const filePath = path.join(job.reportDir, req.params.filename);
+    if (!fs.existsSync(filePath) || !filePath.startsWith(getReportsDir())) {
+      return res.status(404).json({ error: "File not found" });
+    }
+    res.download(filePath);
+  } catch (err) { res.status(500).json({ error: String(err) }); }
+});
+
+// List all saved reports across all jobs
+router.get("/reports", requireAdmin, async (_req: Request, res: Response) => {
+  try {
+    const reportsDir = getReportsDir();
+    if (!fs.existsSync(reportsDir)) return res.json({ reports: [] });
+    const dirs = fs.readdirSync(reportsDir, { withFileTypes: true })
+      .filter(d => d.isDirectory())
+      .map(d => {
+        const dirPath = path.join(reportsDir, d.name);
+        const files = fs.readdirSync(dirPath).map(f => {
+          const s = fs.statSync(path.join(dirPath, f));
+          return { name: f, sizeBytes: s.size, modifiedAt: s.mtime };
+        });
+        return { folderName: d.name, path: dirPath, files };
+      });
+    res.json({ reports: dirs, reportsRoot: reportsDir });
+  } catch (err) { res.status(500).json({ error: String(err) }); }
 });
 
 // ── Application Penetration Test ─────────────────────────────────────────────

@@ -1,4 +1,4 @@
-import { pgTable, serial, text, integer, real, boolean, timestamp, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, integer, real, boolean, timestamp, pgEnum, jsonb } from "drizzle-orm/pg-core";
 
 export const scanStatusEnum = pgEnum("scan_status", ["pending", "running", "complete", "failed"]);
 export const blockchainChainEnum = pgEnum("blockchain_chain", ["ethereum", "bitcoin", "solana", "polygon", "avalanche", "arbitrum", "bsc", "generic"]);
@@ -62,6 +62,45 @@ export const quantumAnalysesTable = pgTable("quantum_analyses", {
   groversAlgorithmApplicable: boolean("grovers_algorithm_applicable").notNull().default(false),
   pqcRecommendations: text("pqc_recommendations").array(),
   threatSummary: text("threat_summary").notNull(),
+});
+
+// ── Autonomous Batch Scanner (Head Admin Only) ────────────────────────────────
+export const batchScanJobsTable = pgTable("batch_scan_jobs", {
+  id:               serial("id").primaryKey(),
+  name:             text("name").notNull(),
+  sourceName:       text("source_name"),           // original filename(s)
+  status:           text("status").notNull().default("pending"), // pending | running | paused | completed | cancelled | failed
+  totalTargets:     integer("total_targets").notNull().default(0),
+  completedCount:   integer("completed_count").notNull().default(0),
+  vulnerableCount:  integer("vulnerable_count").notNull().default(0),
+  cleanCount:       integer("clean_count").notNull().default(0),
+  errorCount:       integer("error_count").notNull().default(0),
+  cursor:           integer("cursor").notNull().default(0),     // next target index to process
+  targetsFile:      text("targets_file"),           // path to on-disk target list file
+  reportDir:        text("report_dir"),             // path to saved report directory
+  createdAt:        timestamp("created_at").notNull().defaultNow(),
+  startedAt:        timestamp("started_at"),
+  completedAt:      timestamp("completed_at"),
+  lastError:        text("last_error"),
+});
+
+export const batchScanResultsTable = pgTable("batch_scan_results", {
+  id:                 serial("id").primaryKey(),
+  jobId:              integer("job_id").notNull().references(() => batchScanJobsTable.id, { onDelete: "cascade" }),
+  target:             text("target").notNull(),
+  detectedChain:      text("detected_chain"),
+  displayName:        text("display_name"),
+  schemeLabel:        text("scheme_label"),
+  signatureScheme:    text("signature_scheme"),
+  hasVulnerability:   boolean("has_vulnerability").notNull().default(false),
+  vulnerabilityCount: integer("vulnerability_count").notNull().default(0),
+  recoveredPrivateKey: text("recovered_private_key"),   // if key was recovered
+  recoveredNonceK:    text("recovered_nonce_k"),
+  sharedRValue:       text("shared_r_value"),
+  scanError:          text("scan_error"),
+  execMs:             integer("exec_ms"),
+  scannedAt:          timestamp("scanned_at").notNull().defaultNow(),
+  rawResult:          jsonb("raw_result"),
 });
 
 export const quantumThreatsTable = pgTable("quantum_threats", {

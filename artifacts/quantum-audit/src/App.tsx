@@ -18,6 +18,7 @@ import DeepAnalysis from "@/pages/DeepAnalysis";
 import ECDSAScanner from "@/pages/ECDSAScanner";
 import SchemeAuditor from "@/pages/SchemeAuditor";
 import BatchScan from "@/pages/BatchScan";
+import BatchJobs from "@/pages/BatchJobs";
 
 const queryClient = new QueryClient();
 
@@ -38,6 +39,7 @@ function Router() {
         <Route path="/ecdsa-scanner" component={ECDSAScanner} />
         <Route path="/scheme-auditor" component={SchemeAuditor} />
         <Route path="/batch-scan" component={BatchScan} />
+        <Route path="/batch-jobs" component={BatchJobs} />
         <Route component={NotFound} />
       </Switch>
     </Layout>
