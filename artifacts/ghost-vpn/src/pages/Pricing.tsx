@@ -92,6 +92,7 @@ export default function Pricing() {
   const [cryptoCurrency, setCryptoCurrency] = useState<"BTC" | "ETH">("BTC");
   const [cryptoInvoice, setCryptoInvoice] = useState<any | null>(null);
   const [cryptoStatus, setCryptoStatus] = useState<"idle" | "creating" | "awaiting" | "confirmed" | "expired" | "error">("idle");
+  const [cryptoError, setCryptoError] = useState<string>("");
   const [copied, setCopied] = useState<"address" | "amount" | null>(null);
   const [countdown, setCountdown] = useState(0);
 
@@ -130,10 +131,10 @@ export default function Pricing() {
       const secs = Math.max(0, Math.round((new Date(data.expiresAt).getTime() - Date.now()) / 1000));
       setCountdown(secs);
     } catch (e: any) {
+      setCryptoError(e.message ?? "Unknown error");
       setCryptoStatus("error");
-      toast({ title: "Could not create invoice", description: e.message, variant: "destructive" });
     }
-  }, [toast]);
+  }, []);
 
   // Countdown timer
   useEffect(() => {
@@ -177,6 +178,7 @@ export default function Pricing() {
     setCryptoModal({ plan, planLabel: label });
     setCryptoInvoice(null);
     setCryptoStatus("idle");
+    setCryptoError("");
     setCryptoCurrency("BTC");
     setCountdown(0);
   };
@@ -748,12 +750,38 @@ export default function Pricing() {
 
               {/* Error state */}
               {cryptoStatus === "error" && (
-                <div className="text-center space-y-3 py-4">
-                  <AlertCircle className="w-10 h-10 text-red-400 mx-auto" />
-                  <div className="text-white/60 text-sm">Invoice creation failed. This is usually because crypto payments haven't been configured yet.</div>
-                  <button onClick={() => setCryptoStatus("idle")}
-                    className="px-5 py-2 border border-white/10 text-white/50 rounded-xl text-sm hover:border-white/20 transition-all">
-                    Try again
+                <div className="text-center space-y-4 py-4">
+                  {cryptoError.toLowerCase().includes("wrong network") || cryptoError.toLowerCase().includes("wrong_network") ? (
+                    <>
+                      <div className="flex flex-col items-center gap-2">
+                        <div className="w-12 h-12 rounded-full bg-red-500/15 border border-red-500/30 flex items-center justify-center">
+                          <AlertCircle className="w-6 h-6 text-red-400" />
+                        </div>
+                        <div className="text-white font-bold text-base">Wrong Blockchain / Network</div>
+                      </div>
+                      <div className="bg-red-500/10 border border-red-500/25 rounded-xl p-4 text-left space-y-2">
+                        <div className="text-red-300 text-[11px] font-mono leading-relaxed">{cryptoError}</div>
+                      </div>
+                      <div className="bg-[#0d1610] border border-white/[0.07] rounded-xl p-3 text-left space-y-1.5">
+                        <div className="text-[10px] font-mono uppercase tracking-widest text-white/40 mb-2">Expected address formats</div>
+                        <div className="text-[11px] text-white/60 font-mono">BTC → starts with <span className="text-orange-400">1</span>, <span className="text-orange-400">3</span>, or <span className="text-orange-400">bc1</span></div>
+                        <div className="text-[11px] text-white/60 font-mono">ETH → starts with <span className="text-orange-400">0x</span> (42 hex chars)</div>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <AlertCircle className="w-10 h-10 text-red-400 mx-auto" />
+                      <div className="text-white font-bold">Invoice Creation Failed</div>
+                      <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 text-[11px] text-red-300 font-mono text-left leading-relaxed">
+                        {cryptoError || "An unexpected error occurred. Please try again."}
+                      </div>
+                    </>
+                  )}
+                  <button
+                    onClick={() => { setCryptoStatus("idle"); setCryptoError(""); }}
+                    className="px-5 py-2 border border-white/10 text-white/50 rounded-xl text-sm hover:border-white/20 transition-all"
+                  >
+                    Go back
                   </button>
                 </div>
               )}

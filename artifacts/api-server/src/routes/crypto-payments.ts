@@ -45,6 +45,30 @@ async function getExchangeRate(currency: CryptoCurrency): Promise<number> {
   }
 }
 
+// ─── Address Format Validators ────────────────────────────────────────────────
+
+/**
+ * Bitcoin: Legacy (1...), P2SH (3...), or Bech32 (bc1...).
+ * Returns "valid", "wrong_network" (looks like ETH), or "invalid".
+ */
+function validateBtcAddress(address: string): "valid" | "wrong_network" | "invalid" {
+  if (/^0x[0-9a-fA-F]{40}$/.test(address)) return "wrong_network"; // ETH address given
+  if (/^[13][a-km-zA-HJ-NP-Z1-9]{24,33}$/.test(address)) return "valid"; // Legacy / P2SH
+  if (/^bc1[a-z0-9]{6,87}$/i.test(address)) return "valid";              // Bech32 / Taproot
+  return "invalid";
+}
+
+/**
+ * Ethereum: 0x followed by exactly 40 hex chars.
+ * Returns "valid", "wrong_network" (looks like BTC), or "invalid".
+ */
+function validateEthAddress(address: string): "valid" | "wrong_network" | "invalid" {
+  if (/^[13][a-km-zA-HJ-NP-Z1-9]{24,33}$/.test(address) || /^bc1[a-z0-9]{6,87}$/i.test(address))
+    return "wrong_network"; // BTC address given
+  if (/^0x[0-9a-fA-F]{40}$/.test(address)) return "valid";
+  return "invalid";
+}
+
 // ─── Blockchain Payment Verifier ──────────────────────────────────────────────
 interface TxResult { found: boolean; txHash?: string; confirmations?: number }
 
@@ -130,7 +154,28 @@ router.post("/create", async (req, res) => {
 
   if (!address) {
     return res.status(503).json({
-      error: "Crypto payments are not configured yet. Set CRYPTO_BTC_ADDRESS and CRYPTO_ETH_ADDRESS environment variables.",
+      error: "Crypto payments are not configured yet. Contact support.",
+    });
+  }
+
+  // Validate the configured address is actually on the correct network
+  const addrCheck = body.currency === "BTC"
+    ? validateBtcAddress(address)
+    : validateEthAddress(address);
+
+  if (addrCheck === "wrong_network") {
+    const got  = body.currency === "BTC" ? "an Ethereum" : "a Bitcoin";
+    const need = body.currency === "BTC" ? "Bitcoin"     : "Ethereum";
+    return res.status(503).json({
+      error: `Wrong network: the configured ${need} address appears to be ${got} address. Payments cannot be processed until the correct ${need} address is set.`,
+      code: "WRONG_NETWORK",
+    });
+  }
+
+  if (addrCheck === "invalid") {
+    return res.status(503).json({
+      error: `The configured ${body.currency} address is not a valid ${body.currency} address format. Payments cannot be processed.`,
+      code: "INVALID_ADDRESS",
     });
   }
 
