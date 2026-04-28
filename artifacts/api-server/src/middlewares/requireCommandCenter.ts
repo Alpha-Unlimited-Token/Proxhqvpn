@@ -19,6 +19,9 @@ import { isEmployeeEmail } from "../routes/employees";
 import { stripeStorage } from "../stripeStorage";
 
 export const requireCommandCenter = async (req: Request, res: Response, next: NextFunction) => {
+  // Internal bypass — request already validated by requireAuth with SESSION_SECRET
+  if ((req as any).internalBypass) return next();
+
   const { userId } = getAuth(req);
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
 

@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import {
   Key, Search, AlertTriangle, CheckCircle, ChevronDown, ChevronRight,
   Zap, Copy, Download, RefreshCw, ArrowRight, ShieldAlert, Eye, EyeOff,
-  Lock, ShieldCheck, Info
+  Lock, ShieldCheck, Info, Cpu, Database, BarChart3, Terminal
 } from "lucide-react";
 
 type ChainCapability = {
@@ -158,6 +158,53 @@ export default function ECDSAScanner() {
   const toggle = (k: string) => setExpanded(p => ({ ...p, [k]: !p[k] }));
   const copy = (s: string) => navigator.clipboard?.writeText(s);
 
+  // ── Advanced Attack Panel state ──────────────────────────────────────────────
+  type AdvState = {
+    running: boolean; startedAt: string | null;
+    log: string[]; lastReport: string | null; reports: string[];
+  };
+  const [advState, setAdvState]             = useState<AdvState | null>(null);
+  const [advLimit, setAdvLimit]             = useState("500");
+  const [advPolling, setAdvPolling]         = useState(false);
+  const [advPanelOpen, setAdvPanelOpen]     = useState(false);
+  const [advReport, setAdvReport]           = useState<Record<string, unknown> | null>(null);
+
+  const pollAdvStatus = async () => {
+    try {
+      const r = await fetch(`${BASE()}/api/quantum/advanced-attack-status`);
+      if (r.ok) setAdvState(await r.json());
+    } catch {}
+  };
+
+  useEffect(() => {
+    if (!advPanelOpen) return;
+    pollAdvStatus();
+    const id = setInterval(pollAdvStatus, 4000);
+    return () => clearInterval(id);
+  }, [advPanelOpen]);
+
+  const startAdvScan = async () => {
+    setAdvPolling(true);
+    try {
+      const r = await fetch(`${BASE()}/api/quantum/advanced-attack-scan`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ limit: parseInt(advLimit) || 500, targeted: true }),
+      });
+      const j = await r.json();
+      if (!r.ok && r.status !== 409) throw new Error(j.error ?? "Failed");
+      await pollAdvStatus();
+    } catch (e) { alert(String(e)); }
+    setAdvPolling(false);
+  };
+
+  const loadAdvReport = async (filePath: string) => {
+    const filename = filePath.split("/").pop();
+    try {
+      const r = await fetch(`${BASE()}/api/quantum/advanced-attack-report/${filename}`);
+      if (r.ok) setAdvReport(await r.json());
+    } catch {}
+  };
+
   const currentChainInfo = chains.find(c => c.chain === selectedChain);
   const scannableChains = chains.filter(c => c.canScan);
   const nonScannableChains = chains.filter(c => !c.canScan);
@@ -244,6 +291,138 @@ export default function ECDSAScanner() {
           </Button>
         )}
       </div>
+
+      {/* ── Advanced Attack Panel ─────────────────────────────────────────────── */}
+      <Card className="border-yellow-500/30 bg-yellow-500/5">
+        <button onClick={() => setAdvPanelOpen(p => !p)} className="w-full flex items-center justify-between p-4 hover:bg-white/5 text-left">
+          <div className="flex items-center gap-2">
+            <Cpu className="w-4 h-4 text-yellow-400" />
+            <span className="text-sm font-mono text-yellow-400 font-bold">Advanced Attack Battery — 8 Attack Vectors</span>
+            {advState?.running && <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30 text-[10px] animate-pulse">RUNNING</Badge>}
+          </div>
+          {advPanelOpen ? <ChevronDown className="w-4 h-4 text-yellow-400" /> : <ChevronRight className="w-4 h-4 text-yellow-400" />}
+        </button>
+        {advPanelOpen && (
+          <CardContent className="pt-0 pb-4 space-y-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs font-mono">
+              {[
+                "NONCE REUSE (r collision)",
+                "CROSS-ADDRESS r COLLISION",
+                "RELATED NONCE (k₂=k₁+Δ)",
+                "WEAK-k BRUTE FORCE (k≤500k)",
+                "LLL LATTICE ATTACK",
+                "BIAS / POLYNONCE",
+                "MALLEABILITY PAIRS",
+                "EXACT DUPLICATE SIGS",
+              ].map(v => (
+                <div key={v} className="flex items-center gap-1.5 bg-yellow-500/10 rounded px-2 py-1.5 border border-yellow-500/20">
+                  <Zap className="w-3 h-3 text-yellow-400 flex-shrink-0" />
+                  <span className="text-yellow-300/80 truncate">{v}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <label className="text-xs text-muted-foreground font-mono">Address limit:</label>
+                <Input
+                  value={advLimit}
+                  onChange={e => setAdvLimit(e.target.value)}
+                  className="w-24 h-8 text-xs font-mono"
+                  placeholder="500"
+                />
+              </div>
+              <Button
+                onClick={startAdvScan}
+                disabled={advPolling || advState?.running}
+                size="sm"
+                className="bg-yellow-500/20 text-yellow-300 border border-yellow-500/30 hover:bg-yellow-500/30 gap-2"
+              >
+                {advState?.running ? <><RefreshCw className="w-3 h-3 animate-spin" /> Running…</> : <><Cpu className="w-3 h-3" /> Start Full Attack Scan</>}
+              </Button>
+              {advState && (
+                <Button onClick={pollAdvStatus} variant="ghost" size="sm" className="text-muted-foreground gap-1">
+                  <RefreshCw className="w-3 h-3" /> Refresh
+                </Button>
+              )}
+            </div>
+
+            {advState && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-4 text-xs font-mono text-muted-foreground">
+                  <span>Status: <span className={advState.running ? "text-yellow-400" : "text-green-400"}>{advState.running ? "RUNNING" : "IDLE"}</span></span>
+                  {advState.startedAt && <span>Started: {new Date(advState.startedAt).toLocaleTimeString()}</span>}
+                  {advState.reports.length > 0 && <span className="text-primary">{advState.reports.length} report{advState.reports.length > 1 ? "s" : ""} saved</span>}
+                </div>
+
+                {advState.log.length > 0 && (
+                  <div className="bg-black/40 rounded border border-border/30 p-3 max-h-48 overflow-y-auto font-mono text-xs space-y-0.5">
+                    {advState.log.map((line, i) => (
+                      <div key={i} className={line.includes("ERROR") ? "text-red-400" : line.includes("Complete") ? "text-green-400" : "text-muted-foreground"}>
+                        {line}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {advState.reports.length > 0 && (
+                  <div className="space-y-1">
+                    <p className="text-xs font-mono text-muted-foreground">Saved reports:</p>
+                    {advState.reports.slice(0, 5).map(r => {
+                      const fn = r.split("/").pop();
+                      return (
+                        <button key={r} onClick={() => loadAdvReport(r)}
+                          className="text-xs font-mono text-primary hover:text-primary/80 underline block truncate max-w-full">{fn}</button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {advReport && (
+                  <div className="bg-primary/5 border border-primary/20 rounded p-3 space-y-2">
+                    <p className="text-xs font-mono font-bold text-primary flex items-center gap-1.5"><BarChart3 className="w-3 h-3" /> Report Summary</p>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs font-mono">
+                      {[
+                        ["Addresses", String(advReport.addressesScanned ?? 0)],
+                        ["Signatures", String(advReport.totalSignatures ?? 0)],
+                        ["Findings", String(advReport.totalFindings ?? 0)],
+                        ["Keys Recovered", String(advReport.verifiedKeyCount ?? (advReport as Record<string,unknown[]>).recoveredKeys?.length ?? 0)],
+                      ].map(([label, val]) => (
+                        <div key={label} className="bg-black/30 rounded p-2 border border-border/30">
+                          <p className="text-muted-foreground text-[10px]">{label}</p>
+                          <p className={label === "Keys Recovered" && parseInt(val) > 0 ? "text-red-400 font-bold text-lg" : "text-foreground font-bold"}>{val}</p>
+                        </div>
+                      ))}
+                    </div>
+                    {(advReport.recoveredKeys as string[] | undefined)?.length ? (
+                      <div className="bg-red-500/10 border border-red-500/30 rounded p-2">
+                        <p className="text-red-400 font-mono font-bold text-xs mb-1">⚠️ PRIVATE KEYS RECOVERED:</p>
+                        {(advReport.recoveredKeys as string[]).map(k => (
+                          <div key={k} className="flex items-center gap-2">
+                            <code className="text-red-300 text-xs font-mono break-all">{k}</code>
+                            <button onClick={() => copy(k)} className="text-muted-foreground hover:text-primary">
+                              <Copy className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                    {advReport.findingsByType && (
+                      <div className="space-y-0.5">
+                        {Object.entries(advReport.findingsByType as Record<string, number>).map(([t, c]) => (
+                          <div key={t} className="flex justify-between text-xs font-mono text-muted-foreground">
+                            <span>{t}</span><span className="text-primary">{c}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </CardContent>
+        )}
+      </Card>
 
       {/* How it works */}
       <Card className="border-primary/20 bg-primary/5">

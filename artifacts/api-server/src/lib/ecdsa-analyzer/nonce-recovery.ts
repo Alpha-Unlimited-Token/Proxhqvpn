@@ -16,6 +16,15 @@
 
 import { ethers } from "ethers";
 import { logger } from "../logger";
+import {
+  relatedNonceAttack,
+  weakKBruteForce,
+  analyzeSignatureBias,
+  latticeAttack,
+  detectExactDuplicates,
+  detectMalleabilityPairs,
+  type AdvancedFinding,
+} from "./advanced-attacks";
 
 // ── Curve order ───────────────────────────────────────────────────────────────
 const CURVE_N = BigInt(
@@ -112,6 +121,8 @@ export interface WalletScanResult {
   allSignatures:       TxSignatureData[];
   scanTimestamp:       string;
   rPairs:              Record<string, string[]>;
+  advancedFindings?:   AdvancedFinding[];
+  recoveredKeys?:      string[];
 }
 
 export interface RecoveryResult {
@@ -433,7 +444,7 @@ function buildResult(
     }
   }
 
-  return {
+  const result: WalletScanResult = {
     address,
     chain,
     totalTransactions:   totalTxs,
@@ -443,7 +454,50 @@ function buildResult(
     allSignatures:       signatures,
     scanTimestamp:       new Date().toISOString(),
     rPairs,
+    advancedFindings:    [],
+    recoveredKeys:       [],
   };
+
+  // Run advanced attacks asynchronously — don't block the scan pipeline
+  setImmediate(async () => {
+    try {
+      if (signatures.length === 0) return;
+
+      const adv: AdvancedFinding[] = [];
+
+      // Malleability pairs & exact duplicates
+      adv.push(...detectMalleabilityPairs(address, signatures));
+      adv.push(...detectExactDuplicates(new Map([[address, signatures]])));
+
+      // Related-nonce attack (k₂ = k₁ ± Δ or k₂ = c·k₁)
+      adv.push(...relatedNonceAttack(address, signatures));
+
+      // Bias analysis → lattice attack if triggered
+      const bias = analyzeSignatureBias(address, signatures);
+      adv.push(...bias.findings);
+      if (bias.shouldTriggerLattice) {
+        adv.push(...latticeAttack(address, signatures, bias));
+      }
+
+      // Weak-k brute force (only for small address sets or strong bias)
+      if (bias.smallRCount > 0 || signatures.length <= 200) {
+        adv.push(...weakKBruteForce(address, signatures));
+      }
+
+      const keys = [...new Set(adv.filter(f => f.privateKey && f.verified).map(f => f.privateKey!))];
+      result.advancedFindings = adv;
+      result.recoveredKeys    = keys;
+
+      if (adv.length > 0) {
+        logger.info({ address, advancedFindings: adv.length, keysRecovered: keys.length },
+          "Advanced attack analysis complete");
+      }
+    } catch (err) {
+      logger.warn({ address, err: String(err) }, "Advanced attack analysis failed");
+    }
+  });
+
+  return result;
 }
 
 // ── Scan a single EVM wallet ──────────────────────────────────────────────────

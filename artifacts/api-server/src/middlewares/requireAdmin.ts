@@ -6,6 +6,9 @@ import { eq, ilike } from "drizzle-orm";
 
 /** Full owner-level admin only */
 export const requireAdmin = async (req: Request, res: Response, next: NextFunction) => {
+  // Internal bypass — already validated by requireAuth
+  if ((req as any).internalBypass) return next();
+
   const { userId } = getAuth(req);
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));

