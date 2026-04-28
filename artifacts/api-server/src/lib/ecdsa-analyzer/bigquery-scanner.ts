@@ -306,6 +306,7 @@ function detectNonceReuse(
 export async function bulkScanViaBigQuery(
   addresses: string[],
   onProgress?: (done: number, total: number) => void,
+  onResult?:   (result: WalletScanResult)   => void,
 ): Promise<WalletScanResult[]> {
   if (!isBigQueryConfigured()) {
     throw new Error("GOOGLE_BIGQUERY_KEY not configured — set it in secrets");
@@ -373,7 +374,10 @@ export async function bulkScanViaBigQuery(
       const bias = analyzeSignatureBias(lc, sigs);
       adv.push(...bias.findings);
       if (bias.shouldTriggerLattice) adv.push(...latticeAttack(lc, sigs, bias));
-      if (bias.smallRCount > 0 || sigs.length <= 200) adv.push(...weakKBruteForce(lc, sigs));
+      // Only run weakKBruteForce when there is an actual small-r signal —
+      // running it unconditionally on every ≤200-sig wallet across 2 000+ addresses
+      // saturates memory and crashes the process.
+      if (bias.smallRCount > 0) adv.push(...weakKBruteForce(lc, sigs));
     }
 
     const recoveredKeys = [...new Set(adv.filter(f => f.privateKey && f.verified).map(f => f.privateKey!))];
@@ -387,7 +391,7 @@ export async function bulkScanViaBigQuery(
       }
     }
 
-    results.push({
+    const result: WalletScanResult = {
       address:             address,
       ensName:             ensMap.get(lc) ?? null,
       chain:               "ethereum",
@@ -403,8 +407,10 @@ export async function bulkScanViaBigQuery(
       advancedFindings: adv,
       recoveredKeys,
       interactionEns:  Object.keys(interactionEns).length > 0 ? interactionEns : undefined,
-    });
+    };
 
+    results.push(result);
+    onResult?.(result);
     onProgress?.(++done, addresses.length);
   }
 

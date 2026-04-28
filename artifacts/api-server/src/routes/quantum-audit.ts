@@ -1268,9 +1268,44 @@ router.get("/advanced-attack-report/:filename", requireAdmin, (req: Request, res
         push(`Starting — ${addresses.length} addresses from ${path.basename(srcFile)}`);
         setStatus(`SCAN_RUNNING (${addresses.length} addresses)`);
 
-        const results = await bulkScanViaBigQuery(addresses, (done, total) => {
-          if (done % 100 === 0) push(`Progress: ${done}/${total} addresses`);
-        });
+        // JSONL checkpoint — write each result as it arrives so findings survive crashes
+        const checkpointPath = path.join(REPORTS_DIR, "checkpoint.jsonl");
+        const cpStream = fs.createWriteStream(checkpointPath, { flags: "w" });
+
+        const results = await bulkScanViaBigQuery(
+          addresses,
+          (done, total) => {
+            if (done % 100 === 0) push(`Progress: ${done}/${total} addresses`);
+          },
+          (r) => {
+            // Stream each result to checkpoint file (minified per-line)
+            const compact = {
+              address:     r.address,
+              ensName:     r.ensName ?? null,
+              sigs:        r.signaturesExtracted,
+              vulnerable:  r.hasVulnerability,
+              rPairCount:  r.nonceReusePairs.length,
+              advCount:    (r.advancedFindings?.length ?? 0),
+              keys:        r.recoveredKeys ?? [],
+              interactionEns: r.interactionEns ?? {},
+            };
+            try { cpStream.write(JSON.stringify(compact) + "\n"); } catch {}
+
+            // Immediately surface any r-collision / key recovery findings
+            if (r.nonceReusePairs.length > 0) {
+              mlog(`⚠️  NONCE REUSE: ${r.address}${r.ensName ? " (" + r.ensName + ")" : ""} — ${r.nonceReusePairs.length} shared-r pair(s)`);
+              for (const p of r.nonceReusePairs) {
+                const k = p.recovery;
+                if (k.success && k.addressMatches) {
+                  mlog(`🔓 KEY RECOVERED: ${r.address} → ${k.privateKey}`);
+                }
+              }
+            }
+            if ((r.recoveredKeys?.length ?? 0) > 0) {
+              mlog(`🔓 KEY(S) via advanced attack: ${r.address} → ${r.recoveredKeys!.join(", ")}`);
+            }
+          },
+        );
 
         let totalFindings = 0, verifiedKeys = 0;
         const allRecoveredKeys: string[] = [];
@@ -1294,6 +1329,8 @@ router.get("/advanced-attack-report/:filename", requireAdmin, (req: Request, res
             } catch {}
           }
         }
+
+        cpStream.end(); // close checkpoint stream
 
         // ENS summary across all results
         const ensAddressHits   = results.filter(r => r.ensName).length;
@@ -1354,6 +1391,7 @@ router.get("/advanced-attack-report/:filename", requireAdmin, (req: Request, res
         push(`ERROR: ${String(err)}`);
         mlog(`Scan error: ${String(err)}`);
         setStatus(`ERROR: ${String(err)}`);
+        try { cpStream.end(); } catch {}
       } finally {
         advAttackState.running = false;
       }
