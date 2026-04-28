@@ -76,17 +76,19 @@ export async function fetchTxHashesBigQuery(
   // Normalise to lowercase for BigQuery (dataset stores lowercase)
   const lower = addresses.map(a => a.toLowerCase());
 
-  // Chunk to stay under BigQuery parameter limits (max ~10k items in UNNEST)
-  const CHUNK = 5_000;
+  // Chunk to stay under BigQuery IN-list limits (~1000 addresses per batch)
+  const CHUNK = 1_000;
   for (let i = 0; i < lower.length; i += CHUNK) {
     const batch = lower.slice(i, i + CHUNK);
 
+    // Build inline value list to avoid parameterized ARRAY type issues
+    const inList = batch.map(a => `'${a.replace(/'/g, "''")}'`).join(",");
     const query = `
       SELECT
         from_address,
-        hash
+        \`hash\`
       FROM \`bigquery-public-data.crypto_ethereum.transactions\`
-      WHERE from_address IN UNNEST(@addresses)
+      WHERE from_address IN (${inList})
       ORDER BY from_address, block_number, transaction_index
     `;
 
@@ -94,9 +96,7 @@ export async function fetchTxHashesBigQuery(
 
     const [rows] = await bq.query({
       query,
-      params:    { addresses: batch },
-      types:     { addresses: { type: "ARRAY", arrayType: { type: "STRING" } } },
-      location:  "US",
+      location:     "US",
       useLegacySql: false,
     });
 

