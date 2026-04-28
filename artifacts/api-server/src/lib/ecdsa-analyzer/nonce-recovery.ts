@@ -472,16 +472,73 @@ async function scanEVMWallet(
     return buildResult(checksum, chain, 0, []);
   }
 
-  // 2. Extract signatures in parallel batches (10 concurrent RPC calls) — no cap
-  const target = txHashes;
-  const BATCH  = 10;
+  // 2. Batch JSON-RPC — 50 tx hashes per HTTP request (vs 1 per call previously)
+  const RPC_BATCH = 50;
   const signatures: TxSignatureData[] = [];
 
-  for (let i = 0; i < target.length; i += BATCH) {
-    const batch   = target.slice(i, i + BATCH);
-    const results = await Promise.allSettled(batch.map(h => extractTxSignature(h, provider)));
-    for (const r of results) {
-      if (r.status === "fulfilled" && r.value) signatures.push(r.value);
+  for (let i = 0; i < txHashes.length; i += RPC_BATCH) {
+    const slice   = txHashes.slice(i, i + RPC_BATCH);
+    const payload = slice.map((h, idx) => ({
+      jsonrpc: "2.0",
+      method:  "eth_getTransactionByHash",
+      params:  [h],
+      id:      idx,
+    }));
+
+    try {
+      const res  = await fetch(rpcUrl, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify(payload),
+        signal:  AbortSignal.timeout(30_000),
+      });
+      const data = await res.json() as Array<{ id: number; result: Record<string, string> | null }>;
+      for (const item of data) {
+        const raw = item.result;
+        if (!raw?.r || raw.r === "0x" || raw.r === "0x0") continue;
+        try {
+          const txType = parseInt(raw.type ?? "0x0", 16);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const fields: Record<string, any> = {
+            to:       raw.to,
+            nonce:    parseInt(raw.nonce, 16),
+            gasLimit: BigInt(raw.gas),
+            data:     raw.input,
+            value:    BigInt(raw.value),
+            type:     txType,
+          };
+          if (txType === 2) {
+            fields.chainId              = BigInt(raw.chainId ?? "0x1");
+            fields.maxFeePerGas         = BigInt(raw.maxFeePerGas ?? "0x0");
+            fields.maxPriorityFeePerGas = BigInt(raw.maxPriorityFeePerGas ?? "0x0");
+            fields.accessList           = raw.accessList ?? [];
+          } else if (txType === 1) {
+            fields.chainId    = BigInt(raw.chainId ?? "0x1");
+            fields.gasPrice   = BigInt(raw.gasPrice ?? "0x0");
+            fields.accessList = raw.accessList ?? [];
+          } else {
+            fields.gasPrice = BigInt(raw.gasPrice ?? "0x0");
+            const cid = raw.chainId ? BigInt(raw.chainId) : null;
+            if (cid && cid > 0n) fields.chainId = cid;
+          }
+          const z = ethers.keccak256(ethers.Transaction.from(fields).unsignedSerialized);
+          signatures.push({
+            txHash:      raw.hash,
+            blockNumber: parseInt(raw.blockNumber ?? "0x0", 16),
+            from:        raw.from ?? "",
+            to:          raw.to ?? null,
+            value:       ethers.formatEther(BigInt(raw.value)),
+            r:           raw.r,
+            s:           raw.s,
+            v:           parseInt(raw.v, 16),
+            z,
+            nonce:       parseInt(raw.nonce, 16),
+            gasPrice:    BigInt(raw.gasPrice ?? raw.maxFeePerGas ?? "0x0").toString(),
+          });
+        } catch { /* skip malformed tx */ }
+      }
+    } catch (err) {
+      logger.warn({ err, batchStart: i }, "Batch RPC error");
     }
   }
 
