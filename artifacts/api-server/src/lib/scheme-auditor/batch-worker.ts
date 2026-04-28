@@ -21,8 +21,10 @@ import { logger } from "../logger";
 const REPORTS_ROOT  = path.join(process.cwd(), "..", "..", "proxhq-reports");
 const JOBS_DIR      = path.join(REPORTS_ROOT, "jobs");
 const REPORTS_DIR   = path.join(REPORTS_ROOT, "reports");
-const CHUNK_SIZE    = 8;   // targets per processing tick
-const POLL_INTERVAL = 12_000; // ms between worker polls
+// Real on-chain API calls — keep concurrency low to respect rate limits
+const CHUNK_SIZE    = 3;        // targets per processing tick (each hits Etherscan + RPC)
+const CONCURRENCY   = 1;        // serial within a chunk to avoid rate limiting
+const POLL_INTERVAL = 8_000;    // ms between worker polls
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 function ensureDirs() {
@@ -53,10 +55,25 @@ function extractKeyMaterial(raw: unknown): {
   recoveredNonceK: string | null;
   sharedRValue: string | null;
 } {
-  if (!raw || typeof raw !== "object") return { recoveredPrivateKey: null, recoveredNonceK: null, sharedRValue: null };
+  const none = { recoveredPrivateKey: null, recoveredNonceK: null, sharedRValue: null };
+  if (!raw || typeof raw !== "object") return none;
   const r = raw as Record<string, unknown>;
 
-  // Flat top-level fields
+  // ── New WalletScanResult format ──
+  // nonceReusePairs[].recovery.{ privateKey, nonceK } + nonceReusePairs[].sharedR
+  const pairs = (r.nonceReusePairs ?? []) as Array<Record<string, unknown>>;
+  for (const pair of pairs) {
+    const rec = pair.recovery as Record<string, unknown> | undefined;
+    if (rec?.success && rec?.privateKey) {
+      return {
+        recoveredPrivateKey: String(rec.privateKey),
+        recoveredNonceK:     rec.nonceK ? String(rec.nonceK) : null,
+        sharedRValue:        pair.sharedR ? String(pair.sharedR) : null,
+      };
+    }
+  }
+
+  // ── Legacy flat top-level fields ──
   if (r.privateKey || r.recoveredPrivateKey) {
     return {
       recoveredPrivateKey: String(r.privateKey ?? r.recoveredPrivateKey),
@@ -65,20 +82,20 @@ function extractKeyMaterial(raw: unknown): {
     };
   }
 
-  // Nested in nonceReusePairs
-  const pairs = (r.nonceReusePairs ?? r.reuseDetected ?? []) as Array<Record<string, unknown>>;
-  for (const pair of pairs) {
+  // ── Legacy reuseDetected format ──
+  const legacyPairs = (r.reuseDetected ?? []) as Array<Record<string, unknown>>;
+  for (const pair of legacyPairs) {
     const rec = pair.recovery as Record<string, unknown> | undefined;
     if (rec?.privateKey || pair.recoveredPrivateKey) {
       return {
         recoveredPrivateKey: String(rec?.privateKey ?? pair.recoveredPrivateKey),
         recoveredNonceK:     rec?.nonceK ? String(rec.nonceK) : null,
-        sharedRValue:        pair.sharedR ?? pair.r ? String(pair.sharedR ?? pair.r) : null,
+        sharedRValue:        pair.sharedR ? String(pair.sharedR) : null,
       };
     }
   }
 
-  return { recoveredPrivateKey: null, recoveredNonceK: null, sharedRValue: null };
+  return none;
 }
 
 // ── Report Generation ────────────────────────────────────────────────────────
@@ -320,7 +337,7 @@ async function tick() {
     // Process next chunk
     const chunk = allTargets.slice(cursor, cursor + CHUNK_SIZE);
 
-    const chunkResults = await runConcurrent(chunk, Math.min(4, chunk.length), async (target) => {
+    const chunkResults = await runConcurrent(chunk, Math.min(CONCURRENCY, chunk.length), async (target) => {
       const t0 = Date.now();
       try {
         const r = await adaptiveScan(target);

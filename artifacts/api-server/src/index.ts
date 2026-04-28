@@ -10,7 +10,7 @@ import fs from "fs";
 import pathLib from "path";
 import { db } from "@workspace/db";
 import { vpngateNodeSessionsTable, batchScanJobsTable } from "@workspace/db";
-import { eq, and, lt, sql } from "drizzle-orm";
+import { eq, and, lt, sql, inArray, notInArray } from "drizzle-orm";
 import { startBatchWorker, createBatchJob } from "./lib/scheme-auditor/batch-worker";
 
 /** Normalize DATABASE_URL sslmode to suppress pg-connection-string deprecation warnings.
@@ -178,16 +178,23 @@ seedStripeProducts().catch((err) => logger.warn({ err }, "Stripe product seed fa
 // ── Autonomous Batch Worker ───────────────────────────────────────────────────
 startBatchWorker();
 
-// ── Pre-load sillytuna attacker files (idempotent — skips if already queued) ──
+// ── Pre-load sillytuna attacker files (idempotent — skips if already active) ──
 async function preloadAttackerFiles() {
   try {
     const SOURCE_NAMES = ["sillytuna_attacker_wallets", "sillytuna_attacker_tx_hashes"];
     for (const src of SOURCE_NAMES) {
-      const [existing] = await db.select({ id: batchScanJobsTable.id })
+      // Only skip if there's an ACTIVE job (pending/running/completed).
+      // Re-queue if all existing jobs for this source are cancelled/failed.
+      const [active] = await db.select({ id: batchScanJobsTable.id })
         .from(batchScanJobsTable)
-        .where(eq(batchScanJobsTable.sourceName, src))
+        .where(
+          and(
+            eq(batchScanJobsTable.sourceName, src),
+            notInArray(batchScanJobsTable.status, ["cancelled", "failed"]),
+          )
+        )
         .limit(1);
-      if (existing) continue; // already loaded
+      if (active) continue; // already active — don't duplicate
 
       const candidates = [
         pathLib.join(process.cwd(), "..", "..", "attached_assets", src + "_1777326855520.txt"),

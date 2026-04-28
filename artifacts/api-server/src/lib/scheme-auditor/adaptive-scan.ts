@@ -20,20 +20,20 @@ export type AdaptiveScanResult = {
   scanTimestamp: string;
 };
 
-// Maps chain/scheme to the correct secp256k1 chain identifier for existing ECDSA scanner
+// Maps chain/scheme to the correct chain identifier for the ECDSA scanner
 const SECP256K1_CHAIN_MAP: Record<string, string> = {
-  ethereum: "ETH",
-  bitcoin: "BTC",
-  litecoin: "LTC",
-  dogecoin: "DOGE",
-  "bitcoin-cash": "BCH",
-  "binance-smart-chain": "BSC",
-  polygon: "MATIC",
-  avalanche: "AVAX",
-  arbitrum: "ARB",
-  optimism: "OP",
-  cosmos: "ETH",    // use ETH ECDSA math, different hash but same nonce-reuse detection
-  tezos: "ETH",
+  ethereum:            "ethereum",
+  bitcoin:             "bitcoin",
+  litecoin:            "litecoin",
+  dogecoin:            "dogecoin",
+  "bitcoin-cash":      "bitcoincash",
+  "binance-smart-chain": "bsc",
+  polygon:             "polygon",
+  avalanche:           "avalanche",
+  arbitrum:            "arbitrum",
+  optimism:            "optimism",
+  cosmos:              "ethereum",
+  tezos:               "ethereum",
 };
 
 async function runEd25519Scan(target: string, _chain: ChainInfo): Promise<{ hasVulnerability: boolean; vulnerabilityCount: number; result: unknown }> {
@@ -65,12 +65,11 @@ async function runClsagScan(target: string): Promise<{ hasVulnerability: boolean
 }
 
 async function runSecp256k1Scan(target: string, chain: ChainInfo): Promise<{ hasVulnerability: boolean; vulnerabilityCount: number; result: unknown }> {
-  const chainKey = SECP256K1_CHAIN_MAP[chain.chain] ?? "ETH";
-  const result = await scanWalletForNonceReuse(target, chainKey as "ETH" | "BTC" | "LTC" | "DOGE" | "BCH");
-  const r = result as { hasVulnerability?: boolean; nonceReusePairs?: unknown[] };
+  const chainKey = SECP256K1_CHAIN_MAP[chain.chain] ?? "ethereum";
+  const result = await scanWalletForNonceReuse(target, chainKey);
   return {
-    hasVulnerability: r.hasVulnerability ?? false,
-    vulnerabilityCount: r.nonceReusePairs?.length ?? 0,
+    hasVulnerability: result.hasVulnerability,
+    vulnerabilityCount: result.nonceReusePairs.length,
     result,
   };
 }
