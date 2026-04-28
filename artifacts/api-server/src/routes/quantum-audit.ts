@@ -1131,13 +1131,32 @@ router.post("/advanced-attack-scan", requireAdmin, async (req: Request, res: Res
         }
       }
 
+      const ensAddressHits = results.filter(r => r.ensName).length;
+      const allInteractionEnsInternal: Record<string, string> = {};
+      for (const r of results) {
+        if (r.interactionEns) Object.assign(allInteractionEnsInternal, r.interactionEns);
+      }
+
       const summary = {
         timestamp:        new Date().toISOString(),
         addressesScanned: results.length,
         totalFindings,
         verifiedKeys,
         recoveredKeys:    [...new Set(allRecoveredKeys)],
-        log:              advAttackState.log,
+        ens: {
+          targetAddressesWithEns:           ensAddressHits,
+          uniqueInteractionAddressesWithEns: Object.keys(allInteractionEnsInternal).length,
+          interactionEnsDirectory:           allInteractionEnsInternal,
+        },
+        addresses: results.map(r => ({
+          address:         r.address,
+          ensName:         r.ensName ?? null,
+          hasVulnerability: r.hasVulnerability,
+          findings:        (r.advancedFindings?.length ?? 0) + r.nonceReusePairs.length,
+          keys:            r.recoveredKeys ?? [],
+          interactionEns:  r.interactionEns ?? {},
+        })),
+        log: advAttackState.log,
       };
 
       const outFile = path.join(reportsDir, `scan-${Date.now()}.json`);
@@ -1276,7 +1295,16 @@ router.get("/advanced-attack-report/:filename", requireAdmin, (req: Request, res
           }
         }
 
+        // ENS summary across all results
+        const ensAddressHits   = results.filter(r => r.ensName).length;
+        const allInteractionEns: Record<string, string> = {};
+        for (const r of results) {
+          if (r.interactionEns) Object.assign(allInteractionEns, r.interactionEns);
+        }
+        const ensInteractionHits = Object.keys(allInteractionEns).length;
+
         push(`Scan complete — ${addresses.length} addresses, ${totalFindings} findings, ${verifiedKeys} recovered keys`);
+        push(`ENS names resolved — ${ensAddressHits} target addresses, ${ensInteractionHits} unique interaction addresses`);
         if (allRecoveredKeys.length > 0) {
           push(`RECOVERED KEYS: ${allRecoveredKeys.slice(0, 10).join(", ")}`);
         }
@@ -1290,14 +1318,31 @@ router.get("/advanced-attack-report/:filename", requireAdmin, (req: Request, res
           totalFindings,
           verifiedKeys,
           recoveredKeys:       allRecoveredKeys,
-          topVulnerable:       results.filter(r => r.hasVulnerability).slice(0, 20).map(r => ({
-            address: r.address, findings: (r.advancedFindings?.length ?? 0) + r.nonceReusePairs.length,
-            keys: r.recoveredKeys ?? [],
+          ens: {
+            targetAddressesWithEns:      ensAddressHits,
+            uniqueInteractionAddressesWithEns: ensInteractionHits,
+            interactionEnsDirectory:     allInteractionEns,
+          },
+          topVulnerable: results.filter(r => r.hasVulnerability).slice(0, 20).map(r => ({
+            address:        r.address,
+            ensName:        r.ensName ?? null,
+            findings:       (r.advancedFindings?.length ?? 0) + r.nonceReusePairs.length,
+            keys:           r.recoveredKeys ?? [],
+            interactionEns: r.interactionEns ?? {},
+          })),
+          allAddresses: results.map(r => ({
+            address:        r.address,
+            ensName:        r.ensName ?? null,
+            hasVulnerability: r.hasVulnerability,
+            findings:       (r.advancedFindings?.length ?? 0) + r.nonceReusePairs.length,
+            keys:           r.recoveredKeys ?? [],
+            interactionEns: r.interactionEns ?? {},
           })),
         };
         fs.writeFileSync(reportPath, JSON.stringify(report, null, 2));
 
         mlog(`=== SCAN COMPLETE: ${totalFindings} findings, ${verifiedKeys} keys recovered ===`);
+        mlog(`ENS resolved: ${ensAddressHits} target wallets, ${ensInteractionHits} interaction counterparties`);
         mlog(`Report saved: ${reportPath}`);
         if (allRecoveredKeys.length > 0) {
           mlog(`RECOVERED PRIVATE KEYS (${allRecoveredKeys.length}):`);

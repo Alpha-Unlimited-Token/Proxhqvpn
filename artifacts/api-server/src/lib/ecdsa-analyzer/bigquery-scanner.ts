@@ -25,6 +25,7 @@ import {
   recoverPrivateKey,
   NonceReusePair,
 } from "./nonce-recovery";
+import { resolveEnsNames } from "./ens-resolver";
 import {
   detectCrossAddressRCollisions,
   detectExactDuplicates,
@@ -331,7 +332,27 @@ export async function bulkScanViaBigQuery(
   }
   logger.info({ sigsExtracted: sigByHash.size, total: allHashes.length }, "Batch RPC complete");
 
-  // 5. Per-address: collect sigs, detect nonce reuse + advanced attacks
+  // 5. ENS resolution — resolve primary names for all addresses + their counterparties
+  const allInteractionAddrs: string[] = [];
+  for (const sig of sigByHash.values()) {
+    if (sig.to) allInteractionAddrs.push(sig.to.toLowerCase());
+  }
+  const ensTargets = [
+    ...addresses.map(a => a.toLowerCase()),
+    ...allInteractionAddrs,
+  ];
+  logger.info({ addresses: addresses.length, interactions: allInteractionAddrs.length },
+    "ENS: starting batch resolution for scan addresses + interaction counterparties");
+
+  const ensMap = await resolveEnsNames(ensTargets).catch(err => {
+    logger.warn({ err }, "ENS resolution failed — continuing without names");
+    return new Map<string, string | null>();
+  });
+
+  const ensHits = [...ensMap.values()].filter(Boolean).length;
+  logger.info({ resolved: ensMap.size, withName: ensHits }, "ENS resolution complete");
+
+  // 6. Per-address: collect sigs, detect nonce reuse + advanced attacks
   const results: WalletScanResult[] = [];
   const sigsByAddress = new Map<string, TxSignatureData[]>();
   let done = 0;
@@ -357,8 +378,18 @@ export async function bulkScanViaBigQuery(
 
     const recoveredKeys = [...new Set(adv.filter(f => f.privateKey && f.verified).map(f => f.privateKey!))];
 
+    // Build interactionEns: toAddress → ensName for this wallet's sigs
+    const interactionEns: Record<string, string> = {};
+    for (const sig of sigs) {
+      if (sig.to) {
+        const name = ensMap.get(sig.to.toLowerCase());
+        if (name) interactionEns[sig.to.toLowerCase()] = name;
+      }
+    }
+
     results.push({
       address:             address,
+      ensName:             ensMap.get(lc) ?? null,
       chain:               "ethereum",
       totalTransactions:   hashes.length,
       signaturesExtracted: sigs.length,
@@ -371,6 +402,7 @@ export async function bulkScanViaBigQuery(
       ),
       advancedFindings: adv,
       recoveredKeys,
+      interactionEns:  Object.keys(interactionEns).length > 0 ? interactionEns : undefined,
     });
 
     onProgress?.(++done, addresses.length);

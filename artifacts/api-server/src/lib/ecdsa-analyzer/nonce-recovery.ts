@@ -25,6 +25,7 @@ import {
   detectMalleabilityPairs,
   type AdvancedFinding,
 } from "./advanced-attacks";
+import { resolveEns, resolveEnsNames } from "./ens-resolver";
 
 // ── Curve order ───────────────────────────────────────────────────────────────
 const CURVE_N = BigInt(
@@ -113,6 +114,7 @@ export interface NonceReusePair {
 
 export interface WalletScanResult {
   address:             string;
+  ensName?:            string | null;    // ENS primary name for this address
   chain:               string;
   totalTransactions:   number;
   signaturesExtracted: number;
@@ -123,6 +125,7 @@ export interface WalletScanResult {
   rPairs:              Record<string, string[]>;
   advancedFindings?:   AdvancedFinding[];
   recoveredKeys?:      string[];
+  interactionEns?:     Record<string, string>; // toAddress → ensName for this wallet's txs
 }
 
 export interface RecoveryResult {
@@ -596,7 +599,23 @@ async function scanEVMWallet(
     }
   }
 
-  return buildResult(checksum, chain, txHashes.length, signatures);
+  const result = buildResult(checksum, chain, txHashes.length, signatures);
+
+  // ENS: resolve primary name for this wallet + counterparty names
+  try {
+    result.ensName = await resolveEns(checksum);
+    const toAddrs = [...new Set(signatures.map(s => s.to).filter(Boolean) as string[])];
+    if (toAddrs.length > 0) {
+      const ensMap = await resolveEnsNames(toAddrs);
+      const interactionEns: Record<string, string> = {};
+      for (const [addr, name] of ensMap) if (name) interactionEns[addr] = name;
+      if (Object.keys(interactionEns).length > 0) result.interactionEns = interactionEns;
+    }
+  } catch {
+    // ENS failure is non-fatal
+  }
+
+  return result;
 }
 
 // ── Main entry point ──────────────────────────────────────────────────────────
