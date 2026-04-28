@@ -18,13 +18,13 @@ import { detectChain } from "./chain-detector";
 import { logger } from "../logger";
 
 // ── Constants ────────────────────────────────────────────────────────────────
-const REPORTS_ROOT  = path.join(process.cwd(), "..", "..", "proxhq-reports");
-const JOBS_DIR      = path.join(REPORTS_ROOT, "jobs");
-const REPORTS_DIR   = path.join(REPORTS_ROOT, "reports");
-// Real on-chain API calls — keep concurrency low to respect rate limits
-const CHUNK_SIZE    = 3;        // targets per processing tick (each hits Etherscan + RPC)
-const CONCURRENCY   = 1;        // serial within a chunk to avoid rate limiting
-const POLL_INTERVAL = 8_000;    // ms between worker polls
+const REPORTS_ROOT   = path.join(process.cwd(), "..", "..", "proxhq-reports");
+const JOBS_DIR       = path.join(REPORTS_ROOT, "jobs");
+const REPORTS_DIR    = path.join(REPORTS_ROOT, "reports");
+const CHUNK_SIZE     = 3;          // targets per processing tick
+const CONCURRENCY    = 1;          // serial within a chunk to avoid rate limiting
+const POLL_INTERVAL  = 8_000;      // ms between worker polls
+const SCAN_TIMEOUT   = 5 * 60_000; // 5 min max per single target
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 function ensureDirs() {
@@ -336,11 +336,16 @@ async function tick() {
 
     // Process next chunk
     const chunk = allTargets.slice(cursor, cursor + CHUNK_SIZE);
+    logger.info({ jobId: job.id, cursor, chunkTargets: chunk }, "Batch tick — scanning chunk");
 
     const chunkResults = await runConcurrent(chunk, Math.min(CONCURRENCY, chunk.length), async (target) => {
       const t0 = Date.now();
+      logger.info({ target }, "Scanning target...");
       try {
-        const r = await adaptiveScan(target);
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error(`Scan timeout after ${SCAN_TIMEOUT / 1000}s`)), SCAN_TIMEOUT)
+        );
+        const r = await Promise.race([adaptiveScan(target), timeoutPromise]);
         const { recoveredPrivateKey, recoveredNonceK, sharedRValue } = extractKeyMaterial(r.result);
         return {
           jobId:              job.id,

