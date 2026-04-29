@@ -21,6 +21,8 @@ import { requireAdmin } from "../middlewares/requireAdmin";
 import { createBatchJob, getReportsDir } from "../lib/scheme-auditor/batch-worker";
 import { bulkScanViaBigQuery, isBigQueryConfigured } from "../lib/ecdsa-analyzer/bigquery-scanner";
 import { runThreatScan, isThreatScanConfigured, type ThreatScanSummary } from "../lib/threat-scanner/threat-scanner";
+import { KnowledgeStore } from "../lib/spider/knowledge-store";
+import { runSpider, buildSpiderReport, isConfigured as isSpiderConfigured, DEFAULT_CONFIG, type ProgressCallback } from "../lib/spider/blockchain-spider";
 import fs from "fs";
 import path from "path";
 
@@ -1551,6 +1553,171 @@ router.get("/advanced-attack-report/:filename", requireAdmin, (req: Request, res
     } catch (err) {
       res.status(500).json({ error: String(err) });
     }
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // BLOCKCHAIN SPIDER — adaptive graph crawler
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  const spiderStore = new KnowledgeStore(getReportsDir());
+
+  interface SpiderRunState {
+    running:   boolean;
+    log:       string[];
+    lastEvent: Record<string, unknown> | null;
+    error:     string | null;
+  }
+
+  const spiderRunState: SpiderRunState = {
+    running:   false,
+    log:       [],
+    lastEvent: null,
+    error:     null,
+  };
+
+  const onSpiderProgress: ProgressCallback = (event) => {
+    spiderRunState.lastEvent = event as unknown as Record<string, unknown>;
+    const line = `[${new Date().toISOString()}] [${event.phase}] wave=${event.wave} visited=${event.visited} sigs=${event.signatures} findings=${event.findings} keys=${event.publicKeys} — ${event.message}`;
+    spiderRunState.log.push(line);
+    if (spiderRunState.log.length > 200) spiderRunState.log.shift();
+    mlog(`[spider] ${event.message}`);
+  };
+
+  // GET /api/quantum-audit/spider/status
+  router.get("/spider/status", (req: Request, res: Response) => {
+    const state = spiderStore.getState();
+    res.json({
+      running:     spiderRunState.running,
+      error:       spiderRunState.error,
+      lastEvent:   spiderRunState.lastEvent,
+      log:         spiderRunState.log.slice(-30),
+      configured:  isSpiderConfigured(),
+      state: {
+        wave:         state.currentWave,
+        maxWave:      state.maxWave,
+        visited:      state.totalVisited,
+        queued:       state.totalQueued,
+        signatures:   state.totalSignatures,
+        findings:     state.totalFindings,
+        seedCount:    state.seedCount,
+        startedAt:    state.startedAt,
+        checkpoint:   state.lastCheckpoint,
+        publicKeys:   spiderStore.getPublicKeyMap().size,
+      },
+    });
+  });
+
+  // POST /api/quantum-audit/spider/start
+  router.post("/spider/start", requireAdmin, async (req: Request, res: Response) => {
+    if (!isSpiderConfigured()) {
+      res.status(503).json({ error: "BigQuery not configured" });
+      return;
+    }
+    if (spiderRunState.running) {
+      res.status(409).json({ error: "Spider already running", state: spiderStore.getState() });
+      return;
+    }
+
+    const reset      = req.body?.reset === true;
+    const maxWave    = Number(req.body?.maxWave    ?? 2);
+    const maxAddr    = Number(req.body?.maxAddresses ?? 50_000);
+    const concurrency = Number(req.body?.concurrency ?? 8);
+    const minFreq    = Number(req.body?.minFrequency ?? 2);
+
+    if (reset) {
+      spiderStore.reset();
+      mlog("[spider] State reset by request");
+    } else {
+      spiderStore.load();
+    }
+
+    // Load addresses
+    const targetFile = path.join(getReportsDir(), "jobs", "micro-targets.txt");
+    let seeds: string[] = [];
+    if (fs.existsSync(targetFile)) {
+      seeds = fs.readFileSync(targetFile, "utf8")
+        .split("\n").map(l => l.trim()).filter(l => l.startsWith("0x") && l.length >= 40);
+    }
+    if (Array.isArray(req.body?.addresses) && req.body.addresses.length > 0) {
+      seeds = req.body.addresses;
+    }
+    if (seeds.length === 0) {
+      res.status(400).json({ error: "No seed addresses found" });
+      return;
+    }
+
+    spiderRunState.running = true;
+    spiderRunState.error   = null;
+    spiderRunState.log     = [`[${new Date().toISOString()}] Spider started — ${seeds.length} seeds`];
+
+    setImmediate(async () => {
+      try {
+        await runSpider(
+          spiderStore,
+          seeds,
+          { ...DEFAULT_CONFIG, maxWave, maxAddresses: maxAddr, concurrency, minFrequency: minFreq, resumeIfExists: !reset },
+          onSpiderProgress,
+        );
+        spiderRunState.running = false;
+        mlog("[spider] Run complete");
+      } catch (err) {
+        spiderRunState.error   = String(err);
+        spiderRunState.running = false;
+        mlog(`[spider] ERROR: ${String(err)}`);
+      }
+    });
+
+    res.json({ started: true, seeds: seeds.length, maxWave, maxAddresses: maxAddr, concurrency });
+  });
+
+  // POST /api/quantum-audit/spider/stop
+  router.post("/spider/stop", requireAdmin, (req: Request, res: Response) => {
+    spiderStore.setMaxAddresses(0);  // causes isFull() = true → stops after current batch
+    res.json({ stopping: true, message: "Spider will stop after current batch completes" });
+  });
+
+  // POST /api/quantum-audit/spider/reset
+  router.post("/spider/reset", requireAdmin, (req: Request, res: Response) => {
+    if (spiderRunState.running) {
+      res.status(409).json({ error: "Stop the spider before resetting" });
+      return;
+    }
+    spiderStore.reset();
+    spiderRunState.log   = [];
+    spiderRunState.error = null;
+    res.json({ reset: true });
+  });
+
+  // GET /api/quantum-audit/spider/report
+  router.get("/spider/report", (req: Request, res: Response) => {
+    const state = spiderStore.getState();
+    if (state.totalVisited === 0) {
+      res.status(404).json({ error: "No spider data — run the spider first" });
+      return;
+    }
+    try {
+      res.json(buildSpiderReport(spiderStore));
+    } catch (err) {
+      res.status(500).json({ error: String(err) });
+    }
+  });
+
+  // GET /api/quantum-audit/spider/address/:address
+  router.get("/spider/address/:address", (req: Request, res: Response) => {
+    const addr = String(req.params.address).toLowerCase();
+    const meta = spiderStore.getMeta(addr);
+    if (!meta) {
+      res.status(404).json({ error: `Address ${addr} not found in spider database` });
+      return;
+    }
+    const sigs = spiderStore.loadSignaturesForAddress(addr);
+    res.json({
+      meta,
+      signatures: sigs,
+      publicKey:  spiderStore.getPublicKey(addr) ?? null,
+      ensName:    spiderStore.getEns(addr) ?? null,
+      findings:   spiderStore.getFindings().filter(f => f.address === addr),
+    });
   });
 
   // ── Boot: auto-start 30 s after server starts ──────────────────────────────
