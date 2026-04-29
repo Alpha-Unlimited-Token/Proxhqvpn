@@ -29,6 +29,12 @@ import fs   from "fs";
 import path from "path";
 import { ethers }              from "ethers";
 import { logger }              from "../logger";
+import { db }                  from "@workspace/db";
+import {
+  batchScanJobsTable,
+  batchScanResultsTable,
+  scanJobsTable,
+} from "@workspace/db/schema";
 import { runSignatureMiner }   from "./signature-miner";
 import { runWebSigSpider }     from "./web-sig-spider";
 import { runOsintSigSpider }   from "./osint-sig-spider";
@@ -135,8 +141,11 @@ let _running         = false;
 let _stopRequested   = false;
 let _userStopped     = false;   // true only when stop() was explicitly called
 let _startTime       = 0;
+let _seededWallets   = 0;       // total unique addresses seeded from DB into pool
 const _recentWindowTimes: number[] = [];
 const RPC = process.env.ETH_RPC_URL ?? "https://ethereum.publicnode.com";
+
+const ETH_ADDR_RE = /0x[0-9a-fA-F]{40}/g;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -277,6 +286,7 @@ export function getAutonomousStatus(): AutonomousStatus {
     statusMessage:         _state.statusMessage,
     estimatedBlocksPerHour,
     progressPct:           Math.round(progressPct * 10) / 10,
+    seededWallets:         _seededWallets,
     crossEngineFlows:      _state.crossEngineFlows,
     poolStats: {
       osintQueue:    pool.pendingOsintAddresses.size,
@@ -305,6 +315,72 @@ export function wasUserStopped(): boolean {
 }
 
 // ── Main runner ────────────────────────────────────────────────────────────────
+
+// ── DB-seeded wallet injector ─────────────────────────────────────────────────
+// Pulls every Ethereum address the user has added (batch upload targets,
+// individual scan jobs, and previously discovered results) and feeds them into
+// the cross-engine pool so all 5 engines can work on them.
+
+async function seedPoolFromDatabase(pool: ReturnType<typeof getCrossEnginePool>): Promise<number> {
+  const seen  = new Set<string>();
+  const addrs: string[] = [];
+
+  function collect(raw: string | null | undefined) {
+    if (!raw) return;
+    // Can be a bare address OR a line from a targets file (may contain other text)
+    const matches = raw.match(ETH_ADDR_RE) ?? [];
+    for (const a of matches) {
+      const norm = a.toLowerCase();
+      if (!seen.has(norm)) { seen.add(norm); addrs.push(norm); }
+    }
+  }
+
+  try {
+    // 1. All contract addresses from individual scan jobs
+    const scanJobs = await db.select({ addr: scanJobsTable.contractAddress }).from(scanJobsTable);
+    for (const row of scanJobs) collect(row.addr);
+
+    // 2. All target addresses from batch scan results (already parsed)
+    const batchResults = await db.select({ addr: batchScanResultsTable.target }).from(batchScanResultsTable);
+    for (const row of batchResults) collect(row.addr);
+
+    // 3. All targets files from batch scan jobs (may contain addresses not yet processed)
+    const batchJobs = await db.select({
+      id:          batchScanJobsTable.id,
+      targetsFile: batchScanJobsTable.targetsFile,
+    }).from(batchScanJobsTable);
+
+    for (const job of batchJobs) {
+      if (!job.targetsFile) continue;
+      try {
+        const lines = fs.readFileSync(job.targetsFile, "utf8");
+        for (const line of lines.split("\n")) collect(line.trim());
+      } catch {
+        // file may not exist yet — skip silently
+      }
+    }
+  } catch (e) {
+    log(`seedPoolFromDatabase: DB query error — ${e}`);
+    return 0;
+  }
+
+  // Feed every collected address into all three relevant engine queues
+  let injected = 0;
+  for (const addr of addrs) {
+    // Skip null address and common burn addresses
+    if (addr === "0x0000000000000000000000000000000000000000") continue;
+    pool.pendingE1TargetedAddresses.add(addr);
+    pool.pendingOsintAddresses.add(addr);
+    pool.pendingPeelAddresses.add(addr);
+    injected++;
+  }
+
+  if (injected > 0) {
+    _seededWallets = Math.max(_seededWallets, injected); // track high-water mark
+    log(`DB seed: injected ${injected} user wallet(s) into engine pool (E1/E3/E4 queues)`);
+  }
+  return injected;
+}
 
 export async function startAutonomousRunner(opts: {
   resumeFromSave?:        boolean;
@@ -390,6 +466,10 @@ export async function startAutonomousRunner(opts: {
   log(`Starting block: ${state.lastBlockScanned}`);
   log(`Window: ${windowSize} | Pause: ${pauseBetweenWindowsMs}ms | Max: ${maxRuntimeMs ? `${maxRuntimeMs/3_600_000}h` : "endless"}`);
   log(`OSINT every ${osintEveryNWindows} windows | Peel every ${peelEveryNWindows} | Hybrid every ${hybridEveryNWindows}`);
+
+  // ── Seed pool with all user-uploaded wallet addresses ───────────────────────
+  const seeded = await seedPoolFromDatabase(pool);
+  log(`DB seed at startup: ${seeded} user wallet address(es) queued for all engines`);
 
   let lastSaveTime = Date.now();
   const SAVE_INTERVAL_MS = 5 * 60_000;
@@ -488,6 +568,11 @@ export async function startAutonomousRunner(opts: {
     state.windowsCompleted++;
     _recentWindowTimes.push(Date.now() - tWindowStart);
     if (_recentWindowTimes.length > 20) _recentWindowTimes.shift();
+
+    // ── Periodic DB re-seed: pick up any wallets added since last check ───────
+    if (state.windowsCompleted % 50 === 0) {
+      seedPoolFromDatabase(pool).catch(e => log(`Periodic DB re-seed error: ${e}`));
+    }
 
     // ══════════════════════════════════════════════════════════════════════════
     // ENGINE 2: Web Spider

@@ -58,6 +58,7 @@ interface AutonomousStatus {
   statusMessage:     string;
   estimatedBlocksPerHour: number;
   progressPct:       number;
+  seededWallets?:    number;
   crossEngineFlows?: CrossEngineFlows;
   poolStats?:        PoolStats;
 }
@@ -313,13 +314,14 @@ export default function AutonomousScan() {
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <Stat icon={AlertTriangle} label="Errors"       value={status.errors}
+            <Stat icon={AlertTriangle} label="Errors"          value={status.errors}
               warn={status.errors > 10} sub="auto-retried with backoff" />
-            <Stat icon={Globe}         label="URLs Queued"  value={p?.urlQueue ?? status.pendingUrls}
+            <Stat icon={Globe}         label="URLs Queued"     value={p?.urlQueue ?? status.pendingUrls}
               sub="pending for Engine 2" />
-            <Stat icon={Shield}        label="Latest Block" value={(status.lastBlockScanned || 0).toLocaleString()}
-              sub="last E1 window top" />
-            <Stat icon={Database}      label="R-Values Seen" value={p?.rValues ?? 0}
+            <Stat icon={Shield}        label="Your Wallets"    value={status.seededWallets ?? 0}
+              good={(status.seededWallets ?? 0) > 0}
+              sub="loaded from your uploads — all 5 engines" />
+            <Stat icon={Database}      label="R-Values Seen"   value={p?.rValues ?? 0}
               accent sub="cross-engine nonce registry" />
           </div>
 
