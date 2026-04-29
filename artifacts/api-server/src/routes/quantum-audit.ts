@@ -20,6 +20,7 @@ import { adaptiveScan } from "../lib/scheme-auditor/adaptive-scan";
 import { requireAdmin } from "../middlewares/requireAdmin";
 import { createBatchJob, getReportsDir } from "../lib/scheme-auditor/batch-worker";
 import { bulkScanViaBigQuery, isBigQueryConfigured } from "../lib/ecdsa-analyzer/bigquery-scanner";
+import { runThreatScan, isThreatScanConfigured, type ThreatScanSummary } from "../lib/threat-scanner/threat-scanner";
 import fs from "fs";
 import path from "path";
 
@@ -1397,6 +1398,160 @@ router.get("/advanced-attack-report/:filename", requireAdmin, (req: Request, res
       }
     });
   };
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // THREAT SCANNER — multi-vector blockchain attack detection
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  const THREAT_REPORTS_DIR = path.join(getReportsDir(), "threat-scans");
+  fs.mkdirSync(THREAT_REPORTS_DIR, { recursive: true });
+
+  interface ThreatScanState {
+    running:    boolean;
+    progress:   number;
+    phase:      string;
+    lastReport: string | null;
+    log:        string[];
+    error:      string | null;
+  }
+
+  const threatState: ThreatScanState = {
+    running:    false,
+    progress:   0,
+    phase:      "idle",
+    lastReport: null,
+    log:        [],
+    error:      null,
+  };
+
+  function getThreatReport(): string | null {
+    try {
+      const files = fs.readdirSync(THREAT_REPORTS_DIR)
+        .filter(f => f.startsWith("threat-scan-") && f.endsWith(".json"))
+        .map(f => ({ f, mtime: fs.statSync(path.join(THREAT_REPORTS_DIR, f)).mtimeMs }))
+        .sort((a, b) => b.mtime - a.mtime);
+      return files.length ? path.join(THREAT_REPORTS_DIR, files[0].f) : null;
+    } catch { return null; }
+  }
+
+  async function startThreatScan(addresses: string[]): Promise<void> {
+    if (threatState.running) return;
+    threatState.running  = true;
+    threatState.progress = 0;
+    threatState.phase    = "starting";
+    threatState.error    = null;
+    threatState.log      = [`[${new Date().toISOString()}] Threat scan started — ${addresses.length} addresses`];
+
+    setImmediate(async () => {
+      try {
+        const summary = await runThreatScan(addresses, (phase, pct) => {
+          threatState.phase    = phase;
+          threatState.progress = pct;
+          threatState.log.push(`[${new Date().toISOString()}] ${phase} (${pct}%)`);
+          mlog(`[threat-scan] ${phase} ${pct}%`);
+        });
+
+        const reportPath = path.join(THREAT_REPORTS_DIR, `threat-scan-${Date.now()}.json`);
+        fs.writeFileSync(reportPath, JSON.stringify(summary, null, 2));
+        threatState.lastReport = reportPath;
+        threatState.phase      = "complete";
+        threatState.progress   = 100;
+        threatState.log.push(`[${new Date().toISOString()}] Complete — ${summary.riskBreakdown.critical} critical, ${summary.riskBreakdown.high} high, ${summary.highRiskAddresses.length} flagged addresses`);
+        mlog(`[threat-scan] DONE — report at ${reportPath}`);
+      } catch (err) {
+        threatState.error = String(err);
+        threatState.phase = "error";
+        threatState.log.push(`[${new Date().toISOString()}] ERROR: ${String(err)}`);
+        mlog(`[threat-scan] ERROR: ${String(err)}`);
+      } finally {
+        threatState.running = false;
+      }
+    });
+  }
+
+  // GET /api/quantum-audit/threat-scan/status
+  router.get("/threat-scan/status", (req: Request, res: Response) => {
+    const reportFile = getThreatReport();
+    res.json({
+      running:    threatState.running,
+      progress:   threatState.progress,
+      phase:      threatState.phase,
+      error:      threatState.error,
+      hasReport:  !!reportFile,
+      reportFile: reportFile ? path.basename(reportFile) : null,
+      log:        threatState.log.slice(-20),
+      configured: isThreatScanConfigured(),
+    });
+  });
+
+  // POST /api/quantum-audit/threat-scan/start
+  router.post("/threat-scan/start", requireAdmin, async (req: Request, res: Response) => {
+    if (!isThreatScanConfigured()) {
+      res.status(503).json({ error: "BigQuery not configured — GOOGLE_BIGQUERY_KEY required" });
+      return;
+    }
+    if (threatState.running) {
+      res.status(409).json({ error: "Threat scan already running", progress: threatState.progress, phase: threatState.phase });
+      return;
+    }
+    // Load addresses from micro-targets.txt
+    const targetFile = path.join(getReportsDir(), "jobs", "micro-targets.txt");
+    let addresses: string[] = [];
+    if (fs.existsSync(targetFile)) {
+      addresses = fs.readFileSync(targetFile, "utf8")
+        .split("\n")
+        .map(l => l.trim())
+        .filter(l => l.startsWith("0x") && l.length >= 40);
+    }
+    // Allow override via body
+    if (Array.isArray(req.body?.addresses) && req.body.addresses.length > 0) {
+      addresses = req.body.addresses;
+    }
+    if (addresses.length === 0) {
+      res.status(400).json({ error: "No target addresses found — provide addresses in body or ensure micro-targets.txt exists" });
+      return;
+    }
+    startThreatScan(addresses);
+    res.json({ started: true, addressCount: addresses.length, message: `Threat scan launched for ${addresses.length} addresses` });
+  });
+
+  // GET /api/quantum-audit/threat-scan/report
+  router.get("/threat-scan/report", (req: Request, res: Response) => {
+    const reportFile = getThreatReport();
+    if (!reportFile) {
+      res.status(404).json({ error: "No threat scan report found — run a scan first" });
+      return;
+    }
+    try {
+      const raw = fs.readFileSync(reportFile, "utf8");
+      const report = JSON.parse(raw) as ThreatScanSummary;
+      res.json(report);
+    } catch (err) {
+      res.status(500).json({ error: `Failed to read report: ${String(err)}` });
+    }
+  });
+
+  // GET /api/quantum-audit/threat-scan/report/address/:address
+  router.get("/threat-scan/report/address/:address", (req: Request, res: Response) => {
+    const reportFile = getThreatReport();
+    if (!reportFile) {
+      res.status(404).json({ error: "No threat scan report found" });
+      return;
+    }
+    try {
+      const raw    = fs.readFileSync(reportFile, "utf8");
+      const report = JSON.parse(raw) as ThreatScanSummary;
+      const addr   = String(req.params.address).toLowerCase();
+      const profile = report.allProfiles?.find(p => p.address === addr);
+      if (!profile) {
+        res.status(404).json({ error: `Address ${addr} not found in report`, allProfiles: report.allProfiles?.length ?? 0 });
+        return;
+      }
+      res.json(profile);
+    } catch (err) {
+      res.status(500).json({ error: String(err) });
+    }
+  });
 
   // ── Boot: auto-start 30 s after server starts ──────────────────────────────
   setTimeout(() => {

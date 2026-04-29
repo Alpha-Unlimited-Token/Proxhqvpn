@@ -19,6 +19,7 @@ import ECDSAScanner from "@/pages/ECDSAScanner";
 import SchemeAuditor from "@/pages/SchemeAuditor";
 import BatchScan from "@/pages/BatchScan";
 import BatchJobs from "@/pages/BatchJobs";
+import ThreatScanner from "@/pages/ThreatScanner";
 
 const queryClient = new QueryClient();
 
@@ -40,6 +41,7 @@ function Router() {
         <Route path="/scheme-auditor" component={SchemeAuditor} />
         <Route path="/batch-scan" component={BatchScan} />
         <Route path="/batch-jobs" component={BatchJobs} />
+        <Route path="/threat-scanner" component={ThreatScanner} />
         <Route component={NotFound} />
       </Switch>
     </Layout>
