@@ -695,8 +695,9 @@ function lllReduce(basis: bigint[][]): bigint[][] {
   let k = 1;
   const MAX_ITER = N_dim * N_dim * 10;
   let iter = 0;
+  const DEADLINE_MS = Date.now() + 2_000; // hard 2-second wall-clock limit
 
-  while (k < N_dim && iter++ < MAX_ITER) {
+  while (k < N_dim && iter++ < MAX_ITER && Date.now() < DEADLINE_MS) {
     // Size reduce b_k against b_{k-1}
     const q = lam[k][k - 1] >= 0n
       ? (lam[k][k - 1] + d[k] / 2n) / d[k]

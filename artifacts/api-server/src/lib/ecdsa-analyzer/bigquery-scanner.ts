@@ -307,6 +307,7 @@ export async function bulkScanViaBigQuery(
   addresses: string[],
   onProgress?: (done: number, total: number) => void,
   onResult?:   (result: WalletScanResult)   => void,
+  skipEns      = false,
 ): Promise<WalletScanResult[]> {
   if (!isBigQueryConfigured()) {
     throw new Error("GOOGLE_BIGQUERY_KEY not configured — set it in secrets");
@@ -333,25 +334,46 @@ export async function bulkScanViaBigQuery(
   }
   logger.info({ sigsExtracted: sigByHash.size, total: allHashes.length }, "Batch RPC complete");
 
-  // 5. ENS resolution — resolve primary names for all addresses + their counterparties
-  const allInteractionAddrs: string[] = [];
-  for (const sig of sigByHash.values()) {
-    if (sig.to) allInteractionAddrs.push(sig.to.toLowerCase());
+  // 5. ENS resolution — skipped when skipEns=true so the analysis phase is never delayed.
+  //    When enabled, a hard 4-minute timeout prevents blocking the analysis phase.
+  let ensMap = new Map<string, string | null>();
+
+  if (!skipEns) {
+    const ENS_TIMEOUT_MS  = 4 * 60_000;
+    const ENS_MAX_INTERACTIONS = 500;
+
+    const allInteractionAddrs: string[] = [];
+    for (const sig of sigByHash.values()) {
+      if (sig.to) allInteractionAddrs.push(sig.to.toLowerCase());
+    }
+    const uniqueInteractions = [...new Set(allInteractionAddrs)].slice(0, ENS_MAX_INTERACTIONS);
+    const ensTargets = [
+      ...addresses.map(a => a.toLowerCase()),
+      ...uniqueInteractions,
+    ];
+    logger.info(
+      { targets: addresses.length, interactions: uniqueInteractions.length, total: ensTargets.length },
+      "ENS: resolving target addresses + capped interaction counterparties",
+    );
+
+    ensMap = await Promise.race([
+      resolveEnsNames(ensTargets),
+      new Promise<Map<string, string | null>>(resolve =>
+        setTimeout(() => {
+          logger.warn({ timeoutMs: ENS_TIMEOUT_MS }, "ENS resolution timed out — proceeding with partial results");
+          resolve(new Map());
+        }, ENS_TIMEOUT_MS),
+      ),
+    ]).catch(err => {
+      logger.warn({ err }, "ENS resolution failed — continuing without names");
+      return new Map<string, string | null>();
+    });
+
+    const ensHits = [...ensMap.values()].filter(Boolean).length;
+    logger.info({ resolved: ensMap.size, withName: ensHits }, "ENS resolution complete");
+  } else {
+    logger.info("ENS resolution skipped (skipEns=true) — enrichment can be run as a post-process");
   }
-  const ensTargets = [
-    ...addresses.map(a => a.toLowerCase()),
-    ...allInteractionAddrs,
-  ];
-  logger.info({ addresses: addresses.length, interactions: allInteractionAddrs.length },
-    "ENS: starting batch resolution for scan addresses + interaction counterparties");
-
-  const ensMap = await resolveEnsNames(ensTargets).catch(err => {
-    logger.warn({ err }, "ENS resolution failed — continuing without names");
-    return new Map<string, string | null>();
-  });
-
-  const ensHits = [...ensMap.values()].filter(Boolean).length;
-  logger.info({ resolved: ensMap.size, withName: ensHits }, "ENS resolution complete");
 
   // 6. Per-address: collect sigs, detect nonce reuse + advanced attacks
   const results: WalletScanResult[] = [];
@@ -367,17 +389,14 @@ export async function bulkScanViaBigQuery(
     if (sigs.length > 0) sigsByAddress.set(lc, sigs);
 
     // Per-address advanced attacks
+    // NOTE: Only lightweight O(N) passes run here.  Expensive EC-scalar-multiply
+    //       attacks (relatedNonceAttack, latticeAttack, weakKBruteForce) are
+    //       intentionally skipped for bulk scans — run them individually on flagged addresses.
     const adv: AdvancedFinding[] = [];
     if (sigs.length > 0) {
       adv.push(...detectExactDuplicates(new Map([[lc, sigs]])));
-      adv.push(...relatedNonceAttack(lc, sigs));
       const bias = analyzeSignatureBias(lc, sigs);
       adv.push(...bias.findings);
-      if (bias.shouldTriggerLattice) adv.push(...latticeAttack(lc, sigs, bias));
-      // Only run weakKBruteForce when there is an actual small-r signal —
-      // running it unconditionally on every ≤200-sig wallet across 2 000+ addresses
-      // saturates memory and crashes the process.
-      if (bias.smallRCount > 0) adv.push(...weakKBruteForce(lc, sigs));
     }
 
     const recoveredKeys = [...new Set(adv.filter(f => f.privateKey && f.verified).map(f => f.privateKey!))];

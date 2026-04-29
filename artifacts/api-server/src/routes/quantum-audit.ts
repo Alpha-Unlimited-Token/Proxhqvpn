@@ -1287,24 +1287,24 @@ router.get("/advanced-attack-report/:filename", requireAdmin, (req: Request, res
               rPairCount:  r.nonceReusePairs.length,
               advCount:    (r.advancedFindings?.length ?? 0),
               keys:        r.recoveredKeys ?? [],
-              interactionEns: r.interactionEns ?? {},
             };
             try { cpStream.write(JSON.stringify(compact) + "\n"); } catch {}
 
             // Immediately surface any r-collision / key recovery findings
             if (r.nonceReusePairs.length > 0) {
-              mlog(`⚠️  NONCE REUSE: ${r.address}${r.ensName ? " (" + r.ensName + ")" : ""} — ${r.nonceReusePairs.length} shared-r pair(s)`);
+              mlog(`NONCE REUSE: ${r.address} — ${r.nonceReusePairs.length} shared-r pair(s)`);
               for (const p of r.nonceReusePairs) {
                 const k = p.recovery;
                 if (k.success && k.addressMatches) {
-                  mlog(`🔓 KEY RECOVERED: ${r.address} → ${k.privateKey}`);
+                  mlog(`KEY RECOVERED: ${r.address} -> ${k.privateKey}`);
                 }
               }
             }
             if ((r.recoveredKeys?.length ?? 0) > 0) {
-              mlog(`🔓 KEY(S) via advanced attack: ${r.address} → ${r.recoveredKeys!.join(", ")}`);
+              mlog(`KEY(S) via advanced attack: ${r.address} -> ${r.recoveredKeys!.join(", ")}`);
             }
           },
+          true,  // skipEns — ENS enrichment runs as separate post-process after report is written
         );
 
         let totalFindings = 0, verifiedKeys = 0;
