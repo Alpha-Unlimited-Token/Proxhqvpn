@@ -145,6 +145,28 @@ Clerk-based auth (app_3CcwHo66ohArVtaIa0XTcv88i4Y). Env vars: `VITE_CLERK_PUBLIS
 - Terminal audit log: timestamped record of every executed command + ProxhqVPN Mode status
 - Zod validation on all POST body parameters in all routes
 
+## Signature Mining Engine Suite
+
+5 independent engines wired into `/api/quantum-audit/sig-engine/*` + frontend at `/quantum-audit/sig-miner`:
+
+| Engine | Route | Description |
+|--------|-------|-------------|
+| Engine 1 — Block Scanner | `POST /sig-engine/block-scanner` | Mines raw ECDSA (r,s,z) from on-chain txs; detects nonce reuse, weak-k (brute k<2^24), r-collisions, MSB/LSB bias, polynomial nonce progressions |
+| Engine 2 — Web Sig Spider | `POST /sig-engine/web-spider` | BFS crawl of paste sites / GitHub Gists / public pages; regex extracts private keys, mnemonics, ECDSA sigs, xpub/xprv, keystore JSON |
+| Engine 3 — OSINT Spider | `POST /sig-engine/osint` | GitHub code search, Pastebin archive, ENS text records, OP_RETURN Bitcoin data, Ethereum tx input data |
+| Engine 4 — Peel Chain | `POST /sig-engine/peel-chain` | Follows fund-flow chains hop-by-hop; collects sigs at each hop and runs nonce-reuse key recovery; amount correlation |
+| Hybrid Worm Engine | `POST /sig-engine/hybrid` | Deploys all 4 as parallel async worms with shared result queue, adaptive load balancing, jitter, cross-worm dedup |
+
+Status: `GET /sig-engine/status` · Result: `GET /sig-engine/result` · Stop: `POST /sig-engine/stop`
+
+Source files:
+- `artifacts/api-server/src/lib/signature-miner/signature-miner.ts` — Engine 1
+- `artifacts/api-server/src/lib/signature-miner/web-sig-spider.ts` — Engine 2
+- `artifacts/api-server/src/lib/signature-miner/osint-sig-spider.ts` — Engine 3
+- `artifacts/api-server/src/lib/signature-miner/peel-chain-tracer.ts` — Engine 4
+- `artifacts/api-server/src/lib/signature-miner/hybrid-engine.ts` — Hybrid
+- `artifacts/quantum-audit/src/pages/SignatureMiner.tsx` — Frontend dashboard
+
 ## Key Commands
 
 - `pnpm run typecheck` — full typecheck across all packages

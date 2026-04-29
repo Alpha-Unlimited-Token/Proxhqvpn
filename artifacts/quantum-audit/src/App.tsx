@@ -23,6 +23,7 @@ import ThreatScanner from "@/pages/ThreatScanner";
 import SpiderCrawler from "@/pages/SpiderCrawler";
 import UnifiedScanner from "@/pages/UnifiedScanner";
 import ProxyScanner from "@/pages/ProxyScanner";
+import SignatureMiner from "@/pages/SignatureMiner";
 
 const queryClient = new QueryClient();
 
@@ -48,6 +49,7 @@ function Router() {
         <Route path="/spider" component={SpiderCrawler} />
         <Route path="/unified" component={UnifiedScanner} />
         <Route path="/proxy-scanner" component={ProxyScanner} />
+        <Route path="/sig-miner" component={SignatureMiner} />
         <Route component={NotFound} />
       </Switch>
     </Layout>

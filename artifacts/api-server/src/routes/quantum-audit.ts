@@ -25,6 +25,11 @@ import { KnowledgeStore } from "../lib/spider/knowledge-store";
 import { runSpider, buildSpiderReport, isConfigured as isSpiderConfigured, DEFAULT_CONFIG, type ProgressCallback } from "../lib/spider/blockchain-spider";
 import { UnifiedScanner, DEFAULT_UNIFIED_CONFIG, type UnifiedScanConfig } from "../lib/unified-scanner";
 import { runProxyScan, type ProxyScanSummary, type ProxyInfo } from "../lib/proxy-scanner/proxy-scanner";
+import { runSignatureMiner, type SigMinerResult, type SigMinerConfig } from "../lib/signature-miner/signature-miner";
+import { runWebSigSpider, type WebSpiderResult, type WebSpiderConfig } from "../lib/signature-miner/web-sig-spider";
+import { runOsintSigSpider, type OsintResult, type OsintConfig } from "../lib/signature-miner/osint-sig-spider";
+import { runPeelChainTracer, type PeelChainResult, type PeelChainConfig } from "../lib/signature-miner/peel-chain-tracer";
+import { runHybridEngine, type HybridEngineResult, type HybridEngineConfig } from "../lib/signature-miner/hybrid-engine";
 import { parseTargetFile, extractEthAddresses, extractAllAddresses } from "../lib/target-file-parser";
 import multer from "multer";
 import fs from "fs";
@@ -2026,6 +2031,233 @@ router.get("/advanced-attack-report/:filename", requireAdmin, (req: Request, res
     let items   = proxySummary.proxyInfos;
     if (type) items = items.filter((p: ProxyInfo) => p.proxyType === type);
     res.json({ total: items.length, page, limit, items: items.slice(page * limit, (page + 1) * limit) });
+  });
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // SIGNATURE MINING ENGINES — Engine 1 / 2 / 3 / 4 / Hybrid
+  // ══════════════════════════════════════════════════════════════════════════
+
+  // In-memory state for long-running engine jobs
+  const sigEngineState: {
+    running: boolean;
+    engineType: string | null;
+    startedAt: string | null;
+    result: SigMinerResult | WebSpiderResult | OsintResult | PeelChainResult | HybridEngineResult | null;
+    error: string | null;
+  } = {
+    running:    false,
+    engineType: null,
+    startedAt:  null,
+    result:     null,
+    error:      null,
+  };
+
+  // ── GET /api/quantum-audit/sig-engine/status ────────────────────────────────
+  router.get("/sig-engine/status", requireAdmin, (req: Request, res: Response) => {
+    res.json({
+      running:    sigEngineState.running,
+      engineType: sigEngineState.engineType,
+      startedAt:  sigEngineState.startedAt,
+      hasResult:  !!sigEngineState.result,
+      error:      sigEngineState.error,
+    });
+  });
+
+  // ── GET /api/quantum-audit/sig-engine/result ────────────────────────────────
+  router.get("/sig-engine/result", requireAdmin, (req: Request, res: Response) => {
+    if (!sigEngineState.result) {
+      res.status(404).json({ error: "No result yet — run an engine first" });
+      return;
+    }
+    res.json(sigEngineState.result);
+  });
+
+  // ── POST /api/quantum-audit/sig-engine/block-scanner ───────────────────────
+  // Engine 1: On-chain block-level ECDSA signature miner
+  router.post("/sig-engine/block-scanner", requireAdmin, async (req: Request, res: Response) => {
+    if (sigEngineState.running) {
+      res.status(409).json({ error: "An engine is already running", engineType: sigEngineState.engineType });
+      return;
+    }
+    const {
+      startBlock, blockCount = 200, maxTxPerBlock = 0,
+      addresses = [], detectWeakK = true, detectBias = true,
+      detectPoly = true, rCollision = true,
+    } = req.body as Partial<SigMinerConfig & { blockCount: number }>;
+
+    sigEngineState.running    = true;
+    sigEngineState.engineType = "block_scanner";
+    sigEngineState.startedAt  = new Date().toISOString();
+    sigEngineState.result     = null;
+    sigEngineState.error      = null;
+
+    res.json({ started: true, engineType: "block_scanner" });
+
+    // Run in background
+    runSignatureMiner({
+      startBlock,
+      blockCount,
+      maxTxPerBlock,
+      addresses,
+      detectWeakK,
+      detectBias,
+      detectPoly,
+      rCollision,
+    })
+      .then(result => {
+        sigEngineState.result  = result;
+        sigEngineState.running = false;
+      })
+      .catch(err => {
+        sigEngineState.error   = String(err);
+        sigEngineState.running = false;
+      });
+  });
+
+  // ── POST /api/quantum-audit/sig-engine/web-spider ──────────────────────────
+  // Engine 2: Web crawler hunting for exposed keys, signatures, and mnemonics
+  router.post("/sig-engine/web-spider", requireAdmin, async (req: Request, res: Response) => {
+    if (sigEngineState.running) {
+      res.status(409).json({ error: "An engine is already running", engineType: sigEngineState.engineType });
+      return;
+    }
+    const {
+      seeds = [], maxDepth = 3, maxUrls = 200,
+      concurrency = 8, allowedDomains = [],
+    } = req.body as Partial<WebSpiderConfig>;
+
+    sigEngineState.running    = true;
+    sigEngineState.engineType = "web_spider";
+    sigEngineState.startedAt  = new Date().toISOString();
+    sigEngineState.result     = null;
+    sigEngineState.error      = null;
+
+    res.json({ started: true, engineType: "web_spider" });
+
+    runWebSigSpider({ seeds, maxDepth, maxUrls, concurrency, allowedDomains })
+      .then(result => {
+        sigEngineState.result  = result;
+        sigEngineState.running = false;
+      })
+      .catch(err => {
+        sigEngineState.error   = String(err);
+        sigEngineState.running = false;
+      });
+  });
+
+  // ── POST /api/quantum-audit/sig-engine/osint ───────────────────────────────
+  // Engine 3: OSINT spider — GitHub, Pastebin, ENS, OP_RETURN, tx input data
+  router.post("/sig-engine/osint", requireAdmin, async (req: Request, res: Response) => {
+    if (sigEngineState.running) {
+      res.status(409).json({ error: "An engine is already running", engineType: sigEngineState.engineType });
+      return;
+    }
+    const {
+      addresses = [], keywords = [],
+      scanInputData = true, scanEns = true,
+      scanGithub = true, scanPastebin = true,
+      maxTxInputBlocks = 20,
+    } = req.body as Partial<OsintConfig>;
+
+    sigEngineState.running    = true;
+    sigEngineState.engineType = "osint";
+    sigEngineState.startedAt  = new Date().toISOString();
+    sigEngineState.result     = null;
+    sigEngineState.error      = null;
+
+    res.json({ started: true, engineType: "osint" });
+
+    runOsintSigSpider({ addresses, keywords, scanInputData, scanEns, scanGithub, scanPastebin, maxTxInputBlocks })
+      .then(result => {
+        sigEngineState.result  = result;
+        sigEngineState.running = false;
+      })
+      .catch(err => {
+        sigEngineState.error   = String(err);
+        sigEngineState.running = false;
+      });
+  });
+
+  // ── POST /api/quantum-audit/sig-engine/peel-chain ─────────────────────────
+  // Engine 4: Peel-chain tracer — fund flow + per-hop nonce-reuse detection
+  router.post("/sig-engine/peel-chain", requireAdmin, async (req: Request, res: Response) => {
+    if (sigEngineState.running) {
+      res.status(409).json({ error: "An engine is already running", engineType: sigEngineState.engineType });
+      return;
+    }
+    const {
+      startAddress, chain = "ethereum",
+      maxHops = 10, scanSigs = true, correlateAmounts = true,
+    } = req.body as Partial<PeelChainConfig> & { startAddress?: string };
+
+    if (!startAddress) {
+      res.status(400).json({ error: "startAddress is required" });
+      return;
+    }
+
+    sigEngineState.running    = true;
+    sigEngineState.engineType = "peel_chain";
+    sigEngineState.startedAt  = new Date().toISOString();
+    sigEngineState.result     = null;
+    sigEngineState.error      = null;
+
+    res.json({ started: true, engineType: "peel_chain", startAddress });
+
+    runPeelChainTracer({ startAddress, chain, maxHops, scanSigs, correlateAmounts })
+      .then(result => {
+        sigEngineState.result  = result;
+        sigEngineState.running = false;
+      })
+      .catch(err => {
+        sigEngineState.error   = String(err);
+        sigEngineState.running = false;
+      });
+  });
+
+  // ── POST /api/quantum-audit/sig-engine/hybrid ──────────────────────────────
+  // Hybrid Worm Engine — all 4 engines + adaptive swarm coordination
+  router.post("/sig-engine/hybrid", requireAdmin, async (req: Request, res: Response) => {
+    if (sigEngineState.running) {
+      res.status(409).json({ error: "An engine is already running", engineType: sigEngineState.engineType });
+      return;
+    }
+    const config = (req.body ?? {}) as HybridEngineConfig;
+
+    sigEngineState.running    = true;
+    sigEngineState.engineType = "hybrid";
+    sigEngineState.startedAt  = new Date().toISOString();
+    sigEngineState.result     = null;
+    sigEngineState.error      = null;
+
+    res.json({ started: true, engineType: "hybrid" });
+
+    runHybridEngine({
+      ...config,
+      onFinding: (f) => {
+        // Persist each finding to in-memory log as it arrives
+        (sigEngineState.result as HybridEngineResult | null)?.findings?.push?.(f);
+      },
+    })
+      .then(result => {
+        sigEngineState.result  = result;
+        sigEngineState.running = false;
+      })
+      .catch(err => {
+        sigEngineState.error   = String(err);
+        sigEngineState.running = false;
+      });
+  });
+
+  // ── POST /api/quantum-audit/sig-engine/stop ─────────────────────────────────
+  router.post("/sig-engine/stop", requireAdmin, (req: Request, res: Response) => {
+    if (!sigEngineState.running) {
+      res.status(409).json({ error: "No engine is currently running" });
+      return;
+    }
+    // Mark as stopped — async tasks will complete naturally but won't update state
+    sigEngineState.running = false;
+    sigEngineState.error   = "Stopped by user";
+    res.json({ stopped: true });
   });
 
   // ── Boot: auto-start 30 s after server starts ──────────────────────────────
