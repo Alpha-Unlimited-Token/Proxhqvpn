@@ -34,7 +34,7 @@
  */
 
 import { logger } from "../logger";
-import { runSignatureMiner,   type SigMinerFinding }  from "./signature-miner";
+import { runSignatureMiner,   type SigMinerFinding, type DiscoveredUrl }  from "./signature-miner";
 import { runWebSigSpider,     type WebSigFind }        from "./web-sig-spider";
 import { runOsintSigSpider,   type OsintFinding }      from "./osint-sig-spider";
 import { runPeelChainTracer,  type PeelChainResult }   from "./peel-chain-tracer";
@@ -86,6 +86,15 @@ export interface HybridEngineResult {
   stats:          Record<WormType, WormStats>;
   addressesFound: string[];
   scanConfig:     HybridEngineConfig;
+  // URLs discovered by Engine 1 in tx input data and auto-fed to Engine 2
+  chainedUrls:    Array<{
+    url:         string;
+    txHash:      string;
+    fromAddress: string;
+    blockNumber: number;
+    source:      string;
+  }>;
+  chainedUrlCount: number;
 }
 
 export interface HybridEngineConfig {
@@ -135,13 +144,16 @@ export interface HybridEngineConfig {
 // ── Shared state ──────────────────────────────────────────────────────────────
 
 interface SharedState {
-  findings:        HybridFinding[];
-  privateKeys:     Set<string>;
-  mnemonics:       Set<string>;
-  addresses:       Set<string>;    // discovered addresses to process
-  visitedUrls:     Set<string>;
+  findings:         HybridFinding[];
+  privateKeys:      Set<string>;
+  mnemonics:        Set<string>;
+  addresses:        Set<string>;    // discovered addresses to process
+  visitedUrls:      Set<string>;
   visitedAddresses: Set<string>;
-  stats:           Record<WormType, WormStats>;
+  stats:            Record<WormType, WormStats>;
+  // URLs discovered by Engine 1 that have been fed to Engine 2
+  chainedUrls:      DiscoveredUrl[];
+  pendingSpiderUrls: string[];      // queued for next web spider worm cycle
 }
 
 // ── Jitter ───────────────────────────────────────────────────────────────────
@@ -268,6 +280,28 @@ async function runBlockScannerWorm(
       if (hf.address)    shared.addresses.add(hf.address);
       config.onFinding?.(hf);
     }
+
+    // ── Auto-chain: feed Engine 1's discovered URLs into Engine 2 ─────────────
+    // Any URL embedded in a transaction's input data is added to the pending
+    // spider queue. The web spider worm will pick them up on its next cycle
+    // and crawl them looking for exposed key material related to that tx.
+    if (result.discoveredUrls.length > 0) {
+      let newUrlCount = 0;
+      for (const du of result.discoveredUrls) {
+        if (!shared.visitedUrls.has(du.url)) {
+          shared.chainedUrls.push(du);
+          shared.pendingSpiderUrls.push(du.url);
+          newUrlCount++;
+        }
+      }
+      if (newUrlCount > 0) {
+        logger.info(
+          { newUrlCount, total: shared.chainedUrls.length, startBlock, windowSize },
+          "Engine 1 → Engine 2 chain: feeding tx-linked URLs to web spider",
+        );
+      }
+    }
+
     stat.runs++;
     stat.findings += result.findings.length;
     stat.lastRunAt = new Date().toISOString();
@@ -441,13 +475,15 @@ export async function runHybridEngine(
   ];
 
   const shared: SharedState = {
-    findings:         [],
-    privateKeys:      new Set<string>(),
-    mnemonics:        new Set<string>(),
-    addresses:        new Set<string>(seedAddresses.map(a => a.toLowerCase())),
-    visitedUrls:      new Set<string>(),
-    visitedAddresses: new Set<string>(),
-    stats:            initStats(),
+    findings:          [],
+    privateKeys:       new Set<string>(),
+    mnemonics:         new Set<string>(),
+    addresses:         new Set<string>(seedAddresses.map(a => a.toLowerCase())),
+    visitedUrls:       new Set<string>(),
+    visitedAddresses:  new Set<string>(),
+    stats:             initStats(),
+    chainedUrls:       [],
+    pendingSpiderUrls: [...seedUrls],  // pre-seed with any explicit config URLs
   };
 
   logger.info({
@@ -498,6 +534,34 @@ export async function runHybridEngine(
         config.onProgress?.(shared.stats, shared.findings.length);
       })());
     }
+
+    // ── Dedicated Engine 1 → Engine 2 chain consumer ────────────────────────
+    // This extra worm slot polls for URLs deposited by block scanner worms.
+    // It runs in a loop, draining shared.pendingSpiderUrls in batches of 20
+    // every 10 seconds. This means as Engine 1 finds tx-linked URLs in real
+    // time, Engine 2 immediately starts crawling them in parallel.
+    promises.push((async () => {
+      while (Date.now() - startMs < maxRunMs) {
+        // Wait a bit before each drain cycle so block scanner has time to populate
+        await new Promise(r => setTimeout(r, 10_000));
+        if (shared.pendingSpiderUrls.length === 0) continue;
+        // Drain up to 20 URLs per cycle
+        const batch = shared.pendingSpiderUrls.splice(0, 20);
+        const fresh = batch.filter(u => !shared.visitedUrls.has(u));
+        if (fresh.length === 0) continue;
+        logger.info(
+          { batchSize: fresh.length, remaining: shared.pendingSpiderUrls.length },
+          "Engine 1→2 chain: crawling tx-linked URLs from block scanner",
+        );
+        await runWebSpiderWorm(
+          fresh,
+          50,   // tighter URL budget per chained batch
+          2,
+          shared, config,
+        );
+        config.onProgress?.(shared.stats, shared.findings.length);
+      }
+    })());
   }
 
   // ── OSINT worms ───────────────────────────────────────────────────────────
@@ -565,13 +629,15 @@ export async function runHybridEngine(
     startedAt,
     completedAt,
     durationSecs,
-    totalWormRuns: Object.values(shared.stats).reduce((s, st) => s + st.runs, 0),
-    findings:      unique,
+    totalWormRuns:  Object.values(shared.stats).reduce((s, st) => s + st.runs, 0),
+    findings:       unique,
     bySource,
-    privateKeys:   [...shared.privateKeys],
-    mnemonics:     [...shared.mnemonics],
-    stats:         shared.stats,
+    privateKeys:    [...shared.privateKeys],
+    mnemonics:      [...shared.mnemonics],
+    stats:          shared.stats,
     addressesFound: [...shared.addresses],
-    scanConfig:    config,
+    scanConfig:     config,
+    chainedUrls:    shared.chainedUrls,
+    chainedUrlCount: shared.chainedUrls.length,
   };
 }

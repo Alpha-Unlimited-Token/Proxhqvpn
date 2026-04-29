@@ -30,6 +30,7 @@ import { runWebSigSpider, type WebSpiderResult, type WebSpiderConfig } from "../
 import { runOsintSigSpider, type OsintResult, type OsintConfig } from "../lib/signature-miner/osint-sig-spider";
 import { runPeelChainTracer, type PeelChainResult, type PeelChainConfig } from "../lib/signature-miner/peel-chain-tracer";
 import { runHybridEngine, type HybridEngineResult, type HybridEngineConfig } from "../lib/signature-miner/hybrid-engine";
+import { buildTestVectors, runCalibration } from "../lib/signature-miner/test-vectors";
 import { parseTargetFile, extractEthAddresses, extractAllAddresses } from "../lib/target-file-parser";
 import multer from "multer";
 import fs from "fs";
@@ -2044,22 +2045,25 @@ router.get("/advanced-attack-report/:filename", requireAdmin, (req: Request, res
     startedAt: string | null;
     result: SigMinerResult | WebSpiderResult | OsintResult | PeelChainResult | HybridEngineResult | null;
     error: string | null;
+    chainedUrlCount: number;   // URLs auto-fed from Engine 1 to Engine 2
   } = {
-    running:    false,
-    engineType: null,
-    startedAt:  null,
-    result:     null,
-    error:      null,
+    running:         false,
+    engineType:      null,
+    startedAt:       null,
+    result:          null,
+    error:           null,
+    chainedUrlCount: 0,
   };
 
   // ── GET /api/quantum-audit/sig-engine/status ────────────────────────────────
   router.get("/sig-engine/status", requireAdmin, (req: Request, res: Response) => {
     res.json({
-      running:    sigEngineState.running,
-      engineType: sigEngineState.engineType,
-      startedAt:  sigEngineState.startedAt,
-      hasResult:  !!sigEngineState.result,
-      error:      sigEngineState.error,
+      running:         sigEngineState.running,
+      engineType:      sigEngineState.engineType,
+      startedAt:       sigEngineState.startedAt,
+      hasResult:       !!sigEngineState.result,
+      error:           sigEngineState.error,
+      chainedUrlCount: sigEngineState.chainedUrlCount,
     });
   });
 
@@ -2104,8 +2108,38 @@ router.get("/advanced-attack-report/:filename", requireAdmin, (req: Request, res
       detectPoly,
       rCollision,
     })
-      .then(result => {
+      .then(async result => {
         sigEngineState.result  = result;
+        // ── Auto-chain: if Engine 1 found URLs in tx input data, immediately
+        // kick off Engine 2 with those URLs as seeds so we can mine any key
+        // material that was published on-chain alongside those transactions.
+        const chainUrls = result.discoveredUrls.map(u => u.url);
+        if (chainUrls.length > 0) {
+          req.log.info(
+            { urlCount: chainUrls.length },
+            "Block scanner → Web spider auto-chain triggered by tx-embedded URLs",
+          );
+          sigEngineState.running    = true;
+          sigEngineState.engineType = "web_spider";
+          sigEngineState.startedAt  = new Date().toISOString();
+          sigEngineState.error      = null;
+          sigEngineState.chainedUrlCount = chainUrls.length;
+
+          try {
+            const spiderResult = await runWebSigSpider({
+              seeds:       chainUrls,
+              maxUrls:     chainUrls.length * 30,
+              maxDepth:    2,
+              concurrency: 6,
+            });
+            // Merge spider findings into the block-scanner result
+            (result as Record<string, unknown>).chainedSpiderFinds = spiderResult.finds;
+            (result as Record<string, unknown>).chainedUrlCount    = chainUrls.length;
+            sigEngineState.result = result;
+          } catch (spiderErr) {
+            req.log.warn({ err: String(spiderErr) }, "Chained web spider failed");
+          }
+        }
         sigEngineState.running = false;
       })
       .catch(err => {
@@ -2258,6 +2292,46 @@ router.get("/advanced-attack-report/:filename", requireAdmin, (req: Request, res
     sigEngineState.running = false;
     sigEngineState.error   = "Stopped by user";
     res.json({ stopped: true });
+  });
+
+  // ── GET /api/quantum-audit/sig-engine/test-vectors ───────────────────────────
+  // Returns the full catalogue of test vectors for inspection / calibration UI.
+  router.get("/sig-engine/test-vectors", requireAdmin, (_req: Request, res: Response) => {
+    try {
+      const vectors = buildTestVectors();
+      res.json({
+        total:    vectors.length,
+        byCategory: {
+          synthetic:  vectors.filter(v => v.category === "synthetic").length,
+          historical: vectors.filter(v => v.category === "historical").length,
+          weak_k:     vectors.filter(v => v.category === "weak_k").length,
+        },
+        vectors,
+      });
+    } catch (e) {
+      res.status(500).json({ error: String(e) });
+    }
+  });
+
+  // ── POST /api/quantum-audit/sig-engine/calibrate ─────────────────────────────
+  // Runs the full calibration suite. Optional body: { vectorIds: string[] }
+  // to run a subset. Returns pass/fail per vector + overall score.
+  router.post("/sig-engine/calibrate", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const { vectorIds } = req.body as { vectorIds?: string[] };
+      const all = buildTestVectors();
+      const subset = vectorIds?.length
+        ? all.filter(v => vectorIds.includes(v.id))
+        : all;
+      if (subset.length === 0) {
+        res.status(400).json({ error: "No vectors matched the provided vectorIds" });
+        return;
+      }
+      const report = await runCalibration(subset);
+      res.json(report);
+    } catch (e) {
+      res.status(500).json({ error: String(e) });
+    }
   });
 
   // ── Boot: auto-start 30 s after server starts ──────────────────────────────

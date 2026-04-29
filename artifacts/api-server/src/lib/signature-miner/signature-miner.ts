@@ -68,6 +68,16 @@ export interface SigMinerFinding {
   discoveredAt: string;
 }
 
+// A URL discovered inside a transaction's input data, associated with the
+// signer address and the specific transaction hash where it was found.
+export interface DiscoveredUrl {
+  url:         string;
+  txHash:      string;
+  fromAddress: string;
+  blockNumber: number;
+  source:      "input_data" | "ipfs_cid" | "arweave_id" | "ens_name" | "memo_utf8";
+}
+
 export interface SigMinerResult {
   scannedBlocks:  number;
   scannedTxCount: number;
@@ -76,6 +86,8 @@ export interface SigMinerResult {
   findings:       SigMinerFinding[];
   sigsByAddress:  Record<string, TxSignatureData[]>;
   rCollisions:    Array<{ r: string; addresses: string[] }>;
+  // URLs found embedded in transaction input data — auto-fed to Engine 2
+  discoveredUrls: DiscoveredUrl[];
   scannedAt:      string;
 }
 
@@ -150,6 +162,69 @@ function extractSig(tx: ethers.TransactionResponse): TxSignatureData | null {
       nonce:   tx.nonce,
     };
   } catch { return null; }
+}
+
+// ── URL extraction from transaction input data ────────────────────────────────
+// Transactions embed all kinds of metadata in their `data` field:
+//   • Plain UTF-8 memos (simple transfers with notes)
+//   • ABI-encoded string arguments (e.g. NFT mints, ENS registrations)
+//   • IPFS / Arweave CIDs pointing to off-chain content
+//   • Full HTTP(S) URLs in string parameters
+// Any URL found here is associated with the signing address and fed to Engine 2.
+
+const URL_RE      = /https?:\/\/[^\s"'<>\x00-\x1f]{6,}/g;
+const IPFS_CID_RE = /\bQm[1-9A-HJ-NP-Za-km-z]{44,}\b|bafy[0-9a-z]{50,}/g;
+const AR_ID_RE    = /\b[a-zA-Z0-9_-]{43}\b/g; // Arweave txid
+
+function extractUrlsFromTx(tx: ethers.TransactionResponse): DiscoveredUrl[] {
+  const found: DiscoveredUrl[] = [];
+  if (!tx.data || tx.data === "0x" || tx.data.length < 4) return found;
+
+  const base: Omit<DiscoveredUrl, "url" | "source"> = {
+    txHash:      tx.hash ?? "",
+    fromAddress: tx.from?.toLowerCase() ?? "",
+    blockNumber: tx.blockNumber ?? 0,
+  };
+
+  // Decode the hex as UTF-8 (strip non-printable, keep ASCII runs)
+  let decoded = "";
+  try {
+    const bytes = ethers.getBytes(tx.data);
+    decoded = new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+  } catch { /* ignore */ }
+
+  // HTTP(S) URLs
+  for (const m of decoded.matchAll(URL_RE)) {
+    const url = m[0].replace(/[^\w/:.#?=&%-]+$/, ""); // trim trailing junk
+    if (url.length >= 10) found.push({ ...base, url, source: "input_data" });
+  }
+
+  // IPFS CIDs → public gateway URL
+  for (const m of decoded.matchAll(IPFS_CID_RE)) {
+    found.push({
+      ...base,
+      url: `https://ipfs.io/ipfs/${m[0]}`,
+      source: "ipfs_cid",
+    });
+  }
+
+  // Arweave IDs → arweave.net URL (only if not already caught as a URL)
+  if (found.length === 0) {
+    for (const m of decoded.matchAll(AR_ID_RE)) {
+      // Rough filter: arweave txids are base64url, 43 chars
+      if (/^[a-zA-Z0-9_-]{43}$/.test(m[0])) {
+        found.push({
+          ...base,
+          url: `https://arweave.net/${m[0]}`,
+          source: "arweave_id",
+        });
+      }
+    }
+  }
+
+  // Deduplicate by url
+  const seen = new Set<string>();
+  return found.filter(u => seen.has(u.url) ? false : (seen.add(u.url), true));
 }
 
 // ── Nonce reuse detection ─────────────────────────────────────────────────────
@@ -361,6 +436,8 @@ export async function runSignatureMiner(
   let scannedTxCount = 0;
   let blocksDone     = 0;
   const allFindings: SigMinerFinding[] = [];
+  const allDiscoveredUrls: DiscoveredUrl[] = [];
+  const seenUrls = new Set<string>();
 
   const CONCURRENCY = 5;
   for (let b = startBlock; b <= endBlock; b += CONCURRENCY) {
@@ -383,6 +460,16 @@ export async function runSignatureMiner(
           const list = sigsByAddress[sig.address] ?? [];
           list.push(sig);
           sigsByAddress[sig.address] = list;
+
+          // ── Extract URLs from this transaction's input data ────────────────
+          // Any URL found is tied to this signer address and will auto-feed Engine 2
+          const txUrls = extractUrlsFromTx(tx);
+          for (const u of txUrls) {
+            if (!seenUrls.has(u.url)) {
+              seenUrls.add(u.url);
+              allDiscoveredUrls.push(u);
+            }
+          }
         }
         blocksDone++;
         config.onProgress?.(blocksDone, blockCount, allFindings.length);
@@ -416,6 +503,10 @@ export async function runSignatureMiner(
     findings: allFindings.length,
   }, "Signature miner complete");
 
+  logger.info({
+    discoveredUrls: allDiscoveredUrls.length,
+  }, "URL extraction complete — feeding to Engine 2");
+
   return {
     scannedBlocks:  blockCount,
     scannedTxCount,
@@ -424,6 +515,7 @@ export async function runSignatureMiner(
     findings:        allFindings,
     sigsByAddress,
     rCollisions:     rResult.summary,
+    discoveredUrls:  allDiscoveredUrls,
     scannedAt:       new Date().toISOString(),
   };
 }

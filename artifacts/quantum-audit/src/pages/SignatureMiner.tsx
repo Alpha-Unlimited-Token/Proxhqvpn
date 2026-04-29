@@ -3,6 +3,7 @@ import {
   Play, Square, RefreshCw, ChevronDown, ChevronRight,
   Key, Eye, Globe, Search, GitBranch, Cpu, AlertTriangle,
   CheckCircle, Clock, Zap, Hash, Copy, ExternalLink,
+  FlaskConical, BookOpen, XCircle, Loader2, ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -16,6 +17,15 @@ interface EngineStatus {
   startedAt: string | null;
   hasResult: boolean;
   error: string | null;
+  chainedUrlCount?: number;  // URLs auto-fed from Engine 1 to Engine 2
+}
+
+interface DiscoveredUrl {
+  url: string;
+  txHash: string;
+  fromAddress: string;
+  blockNumber: number;
+  source: "input_data" | "ipfs_cid" | "arweave_id" | "ens_name" | "memo_utf8";
 }
 
 interface Finding {
@@ -41,6 +51,10 @@ interface EngineResult {
   scannedTxCount?: number;
   signaturesFound?: number;
   uniqueAddresses?: number;
+  // Engine 1 → Engine 2 URL chain
+  discoveredUrls?: DiscoveredUrl[];
+  chainedUrlCount?: number;
+  chainedSpiderFinds?: Array<{ kind: string; value: string; url?: string }> ;
   // Web spider
   urlsVisited?: number;
   urlsQueued?: number;
@@ -529,6 +543,54 @@ function ResultPanel({ result, engineType }: { result: EngineResult | null; engi
         </>}
       </div>
 
+      {/* Engine 1 → Engine 2 URL Chain section */}
+      {engineType === "block_scanner" && result.discoveredUrls && result.discoveredUrls.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <div className="w-px h-4 bg-violet-500/60" />
+            <Globe className="w-3.5 h-3.5 text-violet-400" />
+            <span className="text-sm font-medium text-violet-300">
+              {result.discoveredUrls.length} URL{result.discoveredUrls.length !== 1 ? "s" : ""} discovered in transaction data
+              — automatically fed to Engine 2
+            </span>
+          </div>
+          <div className="rounded-lg border border-violet-500/30 bg-violet-950/10 divide-y divide-violet-800/20 max-h-64 overflow-y-auto">
+            {(result.discoveredUrls as DiscoveredUrl[]).map((du, i) => (
+              <div key={i} className="px-3 py-2 flex items-start gap-2 text-xs">
+                <span className={cn("shrink-0 mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide",
+                  du.source === "input_data" ? "bg-violet-800/60 text-violet-300" :
+                  du.source === "ipfs_cid"   ? "bg-blue-800/60 text-blue-300" :
+                  du.source === "arweave_id" ? "bg-amber-800/60 text-amber-300" :
+                  "bg-gray-800 text-gray-400",
+                )}>
+                  {du.source.replace("_", " ")}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <a href={du.url} target="_blank" rel="noopener noreferrer"
+                    className="text-violet-300 hover:text-violet-100 break-all truncate block">
+                    {du.url}
+                  </a>
+                  <div className="text-gray-500 mt-0.5">
+                    from <span className="font-mono text-gray-400">{du.fromAddress.slice(0, 10)}…</span>
+                    {" "}· block {du.blockNumber}
+                    {du.txHash && <> · <a href={`https://etherscan.io/tx/${du.txHash}`} target="_blank" rel="noopener noreferrer"
+                      className="text-gray-500 hover:text-gray-300">tx ↗</a></>}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          {result.chainedSpiderFinds && result.chainedSpiderFinds.length > 0 && (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-950/20 border border-emerald-500/30 text-xs text-emerald-300">
+              <CheckCircle className="w-3.5 h-3.5 shrink-0" />
+              Engine 2 found{" "}
+              <span className="font-semibold">{result.chainedSpiderFinds.length}</span>{" "}
+              item{result.chainedSpiderFinds.length !== 1 ? "s" : ""} by crawling those URLs
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Hybrid worm stats */}
       {engineType === "hybrid" && result.stats && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -797,6 +859,42 @@ export default function SignatureMiner() {
           ) : (
             <><Clock className="w-3.5 h-3.5" /> No engine running</>
           )}
+        </div>
+      )}
+
+      {/* Engine 1 → Engine 2 auto-chain indicator */}
+      {status && (status.chainedUrlCount ?? 0) > 0 && (
+        <div className="flex items-start gap-3 px-4 py-3 rounded-lg border border-violet-500/40 bg-violet-950/20 text-sm">
+          <div className="flex flex-col items-center gap-1 pt-0.5">
+            <div className="w-5 h-5 rounded-full bg-violet-600 flex items-center justify-center text-white">
+              <Hash className="w-2.5 h-2.5" />
+            </div>
+            <div className="w-px h-4 bg-violet-500/50" />
+            <div className="w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center text-white">
+              <Globe className="w-2.5 h-2.5" />
+            </div>
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="font-semibold text-violet-300 mb-0.5">
+              Engine 1 → Engine 2 Auto-Chain Active
+            </div>
+            <div className="text-violet-400/80 text-xs">
+              Block scanner found{" "}
+              <span className="font-mono text-violet-200 font-semibold">
+                {status.chainedUrlCount}
+              </span>{" "}
+              URL{(status.chainedUrlCount ?? 0) !== 1 ? "s" : ""} embedded in transaction input data.
+              Engine 2 (Web Signature Spider) is automatically crawling these URLs to mine any key material
+              that was published on-chain alongside those transactions.
+            </div>
+            {status.running && status.engineType === "web_spider" && (
+              <div className="mt-1.5 flex items-center gap-1.5 text-xs text-blue-300">
+                <Loader2 className="w-3 h-3 animate-spin" />
+                Engine 2 crawling chained URLs now…
+              </div>
+            )}
+          </div>
+          <ShieldCheck className="w-4 h-4 text-violet-400 shrink-0 mt-0.5" />
         </div>
       )}
 
