@@ -22,6 +22,7 @@ import BatchJobs from "@/pages/BatchJobs";
 import ThreatScanner from "@/pages/ThreatScanner";
 import SpiderCrawler from "@/pages/SpiderCrawler";
 import UnifiedScanner from "@/pages/UnifiedScanner";
+import ProxyScanner from "@/pages/ProxyScanner";
 
 const queryClient = new QueryClient();
 
@@ -46,6 +47,7 @@ function Router() {
         <Route path="/threat-scanner" component={ThreatScanner} />
         <Route path="/spider" component={SpiderCrawler} />
         <Route path="/unified" component={UnifiedScanner} />
+        <Route path="/proxy-scanner" component={ProxyScanner} />
         <Route component={NotFound} />
       </Switch>
     </Layout>

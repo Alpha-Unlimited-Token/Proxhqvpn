@@ -16,7 +16,8 @@ import {
   Lock,
   Crosshair,
   GitBranch,
-  Zap
+  Zap,
+  Link2
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -93,6 +94,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <NavItem href="/threat-scanner" icon={Crosshair} label="Threat Scanner" />
             <NavItem href="/spider" icon={GitBranch} label="Adaptive Spider" />
             <NavItem href="/unified" icon={Zap} label="Unified Scanner" />
+            <NavItem href="/proxy-scanner" icon={Link2} label="Proxy Scanner" />
             <NavItem href="/pentest" icon={Terminal} label="Pen Test" />
           </div>
         </div>

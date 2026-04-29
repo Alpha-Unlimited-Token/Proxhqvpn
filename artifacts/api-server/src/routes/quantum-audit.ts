@@ -24,6 +24,9 @@ import { runThreatScan, isThreatScanConfigured, type ThreatScanSummary } from ".
 import { KnowledgeStore } from "../lib/spider/knowledge-store";
 import { runSpider, buildSpiderReport, isConfigured as isSpiderConfigured, DEFAULT_CONFIG, type ProgressCallback } from "../lib/spider/blockchain-spider";
 import { UnifiedScanner, DEFAULT_UNIFIED_CONFIG, type UnifiedScanConfig } from "../lib/unified-scanner";
+import { runProxyScan, type ProxyScanSummary, type ProxyInfo } from "../lib/proxy-scanner/proxy-scanner";
+import { parseTargetFile, extractEthAddresses, extractAllAddresses } from "../lib/target-file-parser";
+import multer from "multer";
 import fs from "fs";
 import path from "path";
 
@@ -1845,6 +1848,184 @@ router.get("/advanced-attack-report/:filename", requireAdmin, (req: Request, res
       limit,
       items:   findings.slice(page * limit, (page + 1) * limit),
     });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // TARGET FILE UPLOAD — parse .txt / .csv / .json / .jsonl lists of targets
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  const targetUpload = multer({
+    storage: multer.diskStorage({
+      destination: (_req, _file, cb) => {
+        const dir = path.join(getReportsDir(), "uploads");
+        fs.mkdirSync(dir, { recursive: true });
+        cb(null, dir);
+      },
+      filename: (_req, file, cb) => {
+        cb(null, `targets-${Date.now()}-${file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_")}`);
+      },
+    }),
+    limits: { fileSize: 50 * 1024 * 1024, files: 1 },
+    fileFilter: (_req, file, cb) => {
+      const ok = /\.(txt|csv|json|jsonl|ndjson|tsv|log|md)$/i.test(file.originalname);
+      cb(null, ok);
+    },
+  });
+
+  // POST /api/quantum-audit/targets/upload
+  router.post("/targets/upload", (req: Request, res: Response) => {
+    targetUpload.single("file")(req as any, res as any, (err: unknown) => {
+      if (err) { res.status(400).json({ error: String(err) }); return; }
+      const file = (req as any).file;
+      if (!file) { res.status(400).json({ error: "No file uploaded. Send as multipart field 'file'" }); return; }
+
+      try {
+        const content = fs.readFileSync(file.path, "utf8");
+        const result  = parseTargetFile(content, file.originalname);
+        const allAddr = extractAllAddresses(result);
+        const ethAddr = extractEthAddresses(result);
+
+        mlog(`[targets/upload] ${file.originalname} — ${result.targets.length} targets parsed (${ethAddr.length} ETH)`);
+
+        res.json({
+          filename:   file.originalname,
+          format:     result.format,
+          totalLines: result.totalLines,
+          parsed:     result.targets.length,
+          skipped:    result.skipped,
+          byKind:     result.byKind,
+          errors:     result.errors,
+          preview:    result.targets.slice(0, 20),
+          // Usable address lists for the scanner
+          ethAddresses:  ethAddr,
+          allAddresses:  allAddr,
+          // Path so the client can start a scan referencing this file
+          uploadPath: file.path,
+        });
+      } catch (e) {
+        res.status(500).json({ error: String(e) });
+      }
+    });
+  });
+
+  // POST /api/quantum-audit/targets/parse-text — parse raw pasted text (no file upload)
+  router.post("/targets/parse-text", (req: Request, res: Response) => {
+    const text     = req.body?.text as string | undefined;
+    const filename = (req.body?.filename as string | undefined) ?? "paste.txt";
+    if (!text) { res.status(400).json({ error: "Provide 'text' in body" }); return; }
+    const result  = parseTargetFile(text, filename);
+    const ethAddr = extractEthAddresses(result);
+    const allAddr = extractAllAddresses(result);
+    res.json({
+      format:    result.format,
+      parsed:    result.targets.length,
+      skipped:   result.skipped,
+      byKind:    result.byKind,
+      errors:    result.errors,
+      preview:   result.targets.slice(0, 50),
+      ethAddresses: ethAddr,
+      allAddresses: allAddr,
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PROXY & DELEGATE SCANNER — detects EIP-1967, UUPS, EIP-1167, Diamond
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  let proxyRunning = false;
+  let proxySummary: ProxyScanSummary | null = null;
+  const proxyLog: string[] = [];
+  let proxyProgress = { done: 0, total: 0 };
+
+  const proxyLogLine = (msg: string) => {
+    const line = `[${new Date().toISOString()}] ${msg}`;
+    proxyLog.push(line);
+    if (proxyLog.length > 400) proxyLog.shift();
+    mlog(`[proxy] ${msg}`);
+  };
+
+  // GET /api/quantum-audit/proxy/status
+  router.get("/proxy/status", (req: Request, res: Response) => {
+    res.json({
+      running:  proxyRunning,
+      progress: proxyProgress,
+      log:      proxyLog.slice(-80),
+      hasReport: !!proxySummary,
+      summary:  proxySummary ? {
+        totalScanned:   proxySummary.totalScanned,
+        proxiesFound:   proxySummary.proxiesFound,
+        maliciousImpls: proxySummary.maliciousImpls,
+        deepChains:     proxySummary.deepChains,
+        byType:         proxySummary.byType,
+        findings:       proxySummary.findings.length,
+      } : null,
+    });
+  });
+
+  // POST /api/quantum-audit/proxy/scan
+  router.post("/proxy/scan", requireAdmin, (req: Request, res: Response) => {
+    if (proxyRunning) { res.status(409).json({ error: "Proxy scan already running" }); return; }
+
+    let addresses: string[] = req.body?.addresses ?? [];
+
+    // Also load from micro-targets.txt if no addresses provided
+    if (addresses.length === 0) {
+      const tf = path.join(getReportsDir(), "jobs", "micro-targets.txt");
+      if (fs.existsSync(tf)) {
+        addresses = fs.readFileSync(tf, "utf8")
+          .split("\n").map((l: string) => l.trim()).filter((l: string) => l.startsWith("0x") && l.length >= 40);
+      }
+    }
+
+    const limit  = Math.min(Number(req.body?.limit ?? 500), 5000);
+    const batch  = addresses.slice(0, limit);
+    const seeds  = new Set(batch.map((a: string) => a.toLowerCase()));
+
+    proxySummary    = null;
+    proxyProgress   = { done: 0, total: batch.length };
+    proxyLog.length = 0;
+    proxyRunning    = true;
+
+    proxyLogLine(`Starting proxy scan on ${batch.length} addresses`);
+
+    setImmediate(() => {
+      runProxyScan(
+        batch,
+        seeds,
+        (done, total, latest) => {
+          proxyProgress = { done, total };
+          if (latest.isProxy) {
+            proxyLogLine(`PROXY: ${latest.address} → ${latest.proxyType} → ${latest.implementation ?? "?"} (depth ${latest.chainDepth})${latest.implIsKnownBad ? " ⚠ MALICIOUS IMPL" : ""}`);
+          }
+        },
+      ).then(summary => {
+        proxySummary = summary;
+        proxyRunning = false;
+        proxyLogLine(`Scan complete: ${summary.proxiesFound}/${summary.totalScanned} proxies found, ${summary.maliciousImpls} malicious impls`);
+      }).catch(err => {
+        proxyRunning = false;
+        proxyLogLine(`FATAL: ${String(err)}`);
+      });
+    });
+
+    res.json({ started: true, addresses: batch.length });
+  });
+
+  // GET /api/quantum-audit/proxy/report
+  router.get("/proxy/report", (req: Request, res: Response) => {
+    if (!proxySummary) { res.status(404).json({ error: "No proxy scan report yet" }); return; }
+    res.json(proxySummary);
+  });
+
+  // GET /api/quantum-audit/proxy/report/proxies — paginated list of detected proxies
+  router.get("/proxy/report/proxies", (req: Request, res: Response) => {
+    if (!proxySummary) { res.status(404).json({ error: "No proxy scan report yet" }); return; }
+    const page  = Math.max(0, Number(req.query.page  ?? 0));
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit ?? 25)));
+    const type  = req.query.type as string | undefined;
+    let items   = proxySummary.proxyInfos;
+    if (type) items = items.filter((p: ProxyInfo) => p.proxyType === type);
+    res.json({ total: items.length, page, limit, items: items.slice(page * limit, (page + 1) * limit) });
   });
 
   // ── Boot: auto-start 30 s after server starts ──────────────────────────────

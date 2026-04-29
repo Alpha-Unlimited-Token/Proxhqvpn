@@ -18,6 +18,16 @@ async function apiFetch<T>(p: string, opts?: RequestInit): Promise<T> {
   if (!r.ok) throw new Error(await r.text().catch(() => r.statusText));
   return r.json() as Promise<T>;
 }
+async function apiUpload<T>(p: string, fd: FormData): Promise<T> {
+  const r = await fetch(`${BASE}${p}`, { method: "POST", body: fd });
+  if (!r.ok) throw new Error(await r.text().catch(() => r.statusText));
+  return r.json() as Promise<T>;
+}
+interface TargetParseResult {
+  parsed: number; skipped: number; byKind: Record<string, number>;
+  errors: string[]; ethAddresses: string[];
+  preview: Array<{ kind: string; value: string }>;
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type MegaPhase =
@@ -235,7 +245,7 @@ function FindingCard({ f }: { f: MegaFinding }) {
               </>
             ))}
           </div>
-          {(f.extra?.privateKey) && (
+          {!!f.extra?.privateKey && (
             <div className="p-2 rounded bg-red-500/20 border border-red-500/40 font-mono text-xs break-all">
               <span className="text-red-300 font-bold">RECOVERED KEY: </span>
               <span className="text-red-200">{String(f.extra.privateKey)}</span>
@@ -277,6 +287,14 @@ export default function UnifiedScanner() {
   const [sevF, setSevF] = useState("");
   const [srcF, setSrcF] = useState("");
   const [freshStart, setFreshStart] = useState(false);
+  const [showUpload,  setShowUpload]  = useState(false);
+  const [uploadParsed, setUploadParsed] = useState<TargetParseResult | null>(null);
+  const [customAddrs,  setCustomAddrs]  = useState<string[]>([]);
+  const [uploadLoading, setUploadLoading] = useState(false);
+  const [uploadError,   setUploadError]   = useState("");
+  const [pasteText,  setPasteText]  = useState("");
+  const [uploadMode, setUploadMode] = useState<"file" | "paste">("file");
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const logRef = useRef<HTMLDivElement>(null);
   const qc     = useQueryClient();
 
@@ -302,10 +320,35 @@ export default function UnifiedScanner() {
 
   const startMut = useMutation({
     mutationFn: () => apiFetch("/api/quantum-audit/unified/start", {
-      method: "POST", body: JSON.stringify({ reset: freshStart }),
+      method: "POST", body: JSON.stringify({
+        reset: freshStart,
+        ...(customAddrs.length > 0 ? { addresses: customAddrs } : {}),
+      }),
     }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["mega-status"] }); setTab("log"); },
   });
+
+  const handleFileUpload = async (file: File) => {
+    setUploadLoading(true); setUploadError("");
+    try {
+      const fd = new FormData(); fd.append("file", file);
+      const result = await apiUpload<TargetParseResult>("/api/quantum-audit/targets/upload", fd);
+      setUploadParsed(result); setCustomAddrs(result.ethAddresses); setShowUpload(false);
+    } catch (e) { setUploadError(String(e)); }
+    setUploadLoading(false);
+  };
+
+  const handlePasteUpload = async () => {
+    if (!pasteText.trim()) return;
+    setUploadLoading(true); setUploadError("");
+    try {
+      const result = await apiFetch<TargetParseResult>("/api/quantum-audit/targets/parse-text", {
+        method: "POST", body: JSON.stringify({ text: pasteText }),
+      });
+      setUploadParsed(result); setCustomAddrs(result.ethAddresses); setShowUpload(false); setPasteText("");
+    } catch (e) { setUploadError(String(e)); }
+    setUploadLoading(false);
+  };
 
   const resetMut = useMutation({
     mutationFn: () => apiFetch("/api/quantum-audit/unified/reset", { method: "POST" }),
@@ -360,11 +403,24 @@ export default function UnifiedScanner() {
             })}
           </div>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
           {phase === "complete" && !running && (
             <button onClick={() => resetMut.mutate()}
               className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 px-2 py-1.5 rounded border border-border/40">
               <RotateCcw className="w-3 h-3" /> Reset
+            </button>
+          )}
+          {/* Upload targets toggle */}
+          <button onClick={() => setShowUpload(v => !v)}
+            className={cn("flex items-center gap-1.5 text-xs px-3 py-1.5 rounded border transition-all",
+              showUpload ? "border-primary/50 text-primary bg-primary/10" : "border-border/40 text-muted-foreground hover:text-foreground")}>
+            <Database className="w-3.5 h-3.5" />
+            {uploadParsed ? `${customAddrs.length} custom targets` : "Load Targets"}
+          </button>
+          {uploadParsed && (
+            <button onClick={() => { setUploadParsed(null); setCustomAddrs([]); }}
+              className="text-xs text-muted-foreground hover:text-red-400 px-2 py-1.5 rounded border border-border/40">
+              ✕ Clear
             </button>
           )}
           <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
@@ -381,6 +437,64 @@ export default function UnifiedScanner() {
           </Button>
         </div>
       </div>
+
+      {/* ── Target file upload panel ──────────────────────────────────────── */}
+      {showUpload && (
+        <div className="p-4 rounded-lg border border-border/40 bg-card/30 space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold">Load Custom Scan Targets</h3>
+            <p className="text-xs text-muted-foreground">Replaces the default micro-targets.txt list. Supports Ethereum, ENS, BTC, Solana, Polkadot addresses and more.</p>
+          </div>
+          <div className="flex gap-2">
+            {(["file","paste"] as const).map(m => (
+              <button key={m} onClick={() => setUploadMode(m)}
+                className={cn("text-xs px-3 py-1.5 rounded-md border transition-all",
+                  uploadMode === m ? "bg-primary/15 text-primary border-primary/30" : "text-muted-foreground border-border/30 hover:text-foreground")}>
+                {m === "file" ? "Upload File (.txt / .csv / .json…)" : "Paste Text"}
+              </button>
+            ))}
+          </div>
+          {uploadMode === "file" && (
+            <div
+              className="border-2 border-dashed border-border/40 hover:border-border rounded-lg p-6 text-center cursor-pointer transition-colors"
+              onClick={() => fileInputRef.current?.click()}
+              onDragOver={e => e.preventDefault()}
+              onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleFileUpload(f); }}
+            >
+              <input ref={fileInputRef} type="file" className="hidden"
+                accept=".txt,.csv,.json,.jsonl,.ndjson,.tsv,.log"
+                onChange={e => { const f = e.target.files?.[0]; if (f) handleFileUpload(f); }} />
+              {uploadLoading
+                ? <RefreshCw className="w-6 h-6 mx-auto animate-spin text-muted-foreground" />
+                : <Database className="w-6 h-6 mx-auto text-muted-foreground" />}
+              <p className="text-sm text-muted-foreground mt-2">Drag & drop or click to upload</p>
+              <p className="text-xs text-muted-foreground/50 mt-1">.txt · .csv · .json · .jsonl · .tsv — up to 50 MB</p>
+            </div>
+          )}
+          {uploadMode === "paste" && (
+            <div className="space-y-2">
+              <textarea value={pasteText} onChange={e => setPasteText(e.target.value)}
+                placeholder={"Paste addresses one per line, or comma-separated\n0x742d35Cc6634C0532925a3b844Bc454e4438f44e\nvitalik.eth\n1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2"}
+                rows={6} className="w-full font-mono text-xs bg-black/30 border border-border/40 rounded-lg p-3 text-foreground placeholder:text-muted-foreground/50 resize-none focus:outline-none focus:border-primary/50" />
+              <Button onClick={handlePasteUpload} disabled={!pasteText.trim() || uploadLoading} size="sm" className="gap-2">
+                {uploadLoading ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Database className="w-3 h-3" />}
+                Parse & Load
+              </Button>
+            </div>
+          )}
+          {uploadError && <p className="text-xs text-red-400">{uploadError}</p>}
+          {uploadParsed && (
+            <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/30 text-xs space-y-1">
+              <p className="text-green-400 font-semibold">{uploadParsed.parsed} targets loaded — {customAddrs.length} Ethereum addresses will be used as scan seeds</p>
+              <div className="flex flex-wrap gap-x-4 gap-y-0.5 font-mono text-muted-foreground">
+                {Object.entries(uploadParsed.byKind).map(([k, v]) => (
+                  <span key={k}>{k.replace(/_/g," ")}: <span className="text-foreground">{v as number}</span></span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Not configured ───────────────────────────────────────────────── */}
       {status && !status.configured && (
