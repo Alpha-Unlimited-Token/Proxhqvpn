@@ -61,6 +61,10 @@ import {
   processTxHashBatch,
   loadTxHashesFromFile,
   loadWalletsFromFile,
+  loadProcessedHashes,
+  appendProcessedHashes,
+  saveRegistryToFile,
+  loadRegistryFromFile,
 } from "./tx-hash-engine";
 
 // ── Paths ─────────────────────────────────────────────────────────────────────
@@ -413,18 +417,41 @@ const SILLYTUNA_WALLETS  = "/home/runner/workspace/attached_assets/sillytuna_att
 const SILLYTUNA_HASHES_A = "/home/runner/workspace/attached_assets/sillytuna_attacker_tx_hashes_1777326663791.txt";
 const SILLYTUNA_HASHES_B = "/home/runner/workspace/attached_assets/sillytuna_attacker_tx_hashes_1777326855520.txt";
 
+// ── Engine 0 checkpoint + registry paths ──────────────────────────────────────
+// These files let Engine 0 survive crashes and restarts without re-processing
+// hashes it already completed.  They live in the same sig-cache directory as
+// the runner's own state file.
+export const TX_CHECKPOINT_FILE = path.join(CACHE_DIR, "tx-hash-checkpoint.txt");
+export const TX_REGISTRY_FILE   = path.join(CACHE_DIR, "tx-hash-registry.json");
+
 /**
  * Reads the two uploaded attacker files and seeds:
  *   • wallet addresses   → E1 targeted queue + OSINT + peel chain
  *   • transaction hashes → pendingTxHashes (Engine 0 ECDSA extractor)
  *
- * De-duplicates across calls so safe to call on every startup.
+ * On restart, reads the checkpoint file to skip already-processed hashes and
+ * reloads the signature registry so nonce-reuse detection continues from where
+ * it left off.  De-duplicates across calls — safe to call on every startup.
  */
 async function seedPoolFromFiles(pool: ReturnType<typeof getCrossEnginePool>): Promise<{ wallets: number; hashes: number }> {
   let wallets = 0;
   let hashes  = 0;
 
-  // ── 1. Load wallet addresses ─────────────────────────────────────────────
+  ensureDir();
+
+  // ── 1. Restore signature registry from disk (so nonce-reuse spans restarts)
+  const restoredSigs = loadRegistryFromFile(TX_REGISTRY_FILE);
+  if (restoredSigs > 0) {
+    log(`Engine 0 resume: restored ${restoredSigs} signature record(s) from registry (nonce-reuse detection continues)`);
+  }
+
+  // ── 2. Load already-processed tx hashes so we skip them this run ─────────
+  const alreadyDone = loadProcessedHashes(TX_CHECKPOINT_FILE);
+  if (alreadyDone.size > 0) {
+    log(`Engine 0 resume: ${alreadyDone.size} tx hash(es) already processed — skipping on restart`);
+  }
+
+  // ── 3. Load wallet addresses ─────────────────────────────────────────────
   const addrs = loadWalletsFromFile(SILLYTUNA_WALLETS);
   for (const addr of addrs) {
     if (addr === "0x0000000000000000000000000000000000000000") continue;
@@ -440,21 +467,29 @@ async function seedPoolFromFiles(pool: ReturnType<typeof getCrossEnginePool>): P
     log(`File seed: loaded ${wallets} attacker wallet address(es) into engine queues`);
   }
 
-  // ── 2. Load transaction hashes ───────────────────────────────────────────
-  const existingHashes = new Set(pool.pendingTxHashes);
+  // ── 4. Load transaction hashes — skip already-completed ones ─────────────
+  // First pass: build a de-duplicated set of ALL unique hashes in the files
+  const allUniqueHashes = new Set<string>();
   for (const file of [SILLYTUNA_HASHES_A, SILLYTUNA_HASHES_B]) {
-    const fileHashes = loadTxHashesFromFile(file);
-    for (const h of fileHashes) {
-      if (!existingHashes.has(h)) {
-        pool.pendingTxHashes.push(h);
-        existingHashes.add(h);
-        hashes++;
-      }
-    }
+    for (const h of loadTxHashesFromFile(file)) allUniqueHashes.add(h);
   }
-  if (hashes > 0) {
-    pool.txHashProgress.total += hashes;
-    log(`File seed: loaded ${hashes} attacker tx hash(es) into Engine 0 queue (${pool.pendingTxHashes.length} pending)`);
+
+  // Second pass: only queue hashes not yet processed and not already pending
+  const existingHashes = new Set(pool.pendingTxHashes);
+  for (const h of allUniqueHashes) {
+    if (alreadyDone.has(h)) continue;     // already processed — skip
+    if (existingHashes.has(h)) continue;  // already in pending queue
+    pool.pendingTxHashes.push(h);
+    existingHashes.add(h);
+    hashes++;
+  }
+
+  // Set progress counters so the dashboard shows correct totals
+  pool.txHashProgress.total     = allUniqueHashes.size;
+  pool.txHashProgress.processed = Math.min(alreadyDone.size, allUniqueHashes.size);
+
+  if (hashes > 0 || alreadyDone.size > 0) {
+    log(`Engine 0 queue: ${hashes} pending | ${alreadyDone.size} already done | ${allUniqueHashes.size} unique in dataset`);
   }
 
   return { wallets, hashes };
@@ -626,9 +661,21 @@ export async function startAutonomousRunner(opts: {
         if (e0Result.findings.length > 0) {
           log(`Engine 0: ${e0Result.fetched} txs fetched, ${e0Result.findings.length} finding(s), ${e0Result.failed} failed`);
         }
+
+        // ── Persist checkpoint + registry so restarts skip done work ──────
+        // Checkpoint: append the hashes we just processed (fetched OR failed)
+        appendProcessedHashes(TX_CHECKPOINT_FILE, txBatch);
+        // Registry: overwrite with the current in-memory signature index
+        // (save every 5 batches to reduce I/O — still very crash-safe)
+        if (pool.txHashProgress.processed % 125 === 0 || pool.pendingTxHashes.length === 0) {
+          saveRegistryToFile(TX_REGISTRY_FILE);
+          log(`Engine 0: checkpoint saved — ${pool.txHashProgress.processed}/${pool.txHashProgress.total} done`);
+        }
       } catch (e) {
         log(`Engine 0 error: ${e}`);
         state.errors++;
+        // Still checkpoint the batch even on error — prevents infinite retry loops
+        appendProcessedHashes(TX_CHECKPOINT_FILE, txBatch);
       }
     }
 

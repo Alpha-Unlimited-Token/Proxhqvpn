@@ -305,3 +305,95 @@ export function loadWalletsFromFile(filePath: string): string[] {
     return [];
   }
 }
+
+// ── Checkpoint persistence ─────────────────────────────────────────────────────
+//
+// Two files are saved after each batch:
+//   tx-hash-checkpoint.txt  — one processed tx hash per line (append-only)
+//   tx-hash-registry.json   — serialised _addrSigs for nonce-reuse across restarts
+//
+// On startup, the runner reads the checkpoint to skip already-done hashes and
+// reloads the registry so cross-tx nonce detection carries over.
+
+/**
+ * Load the set of already-processed tx hashes from the checkpoint file.
+ * Returns a Set so O(1) lookup when filtering the pending queue.
+ */
+export function loadProcessedHashes(checkpointPath: string): Set<string> {
+  const out = new Set<string>();
+  try {
+    const raw = fs.readFileSync(checkpointPath, "utf8");
+    for (const line of raw.split("\n")) {
+      const h = line.trim().toLowerCase();
+      if (/^0x[0-9a-f]{64}$/.test(h)) out.add(h);
+    }
+  } catch {
+    // file doesn't exist yet — normal on first run
+  }
+  return out;
+}
+
+/**
+ * Append a batch of newly processed tx hashes to the checkpoint file.
+ * Append-only so we never re-read the whole file on every save.
+ */
+export function appendProcessedHashes(checkpointPath: string, hashes: string[]): void {
+  if (hashes.length === 0) return;
+  try {
+    const dir = path.dirname(checkpointPath);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.appendFileSync(checkpointPath, hashes.join("\n") + "\n", "utf8");
+  } catch (e) {
+    logger.warn({ err: String(e) }, "tx-hash-engine: checkpoint write failed");
+  }
+}
+
+/**
+ * Serialise the in-memory signature registry to disk.
+ * Registry = _addrSigs map: address → [TxSigRecord, ...]
+ * We rebuild _rIndex from _addrSigs on load (it's derived data).
+ */
+export function saveRegistryToFile(registryPath: string): void {
+  try {
+    const dir = path.dirname(registryPath);
+    fs.mkdirSync(dir, { recursive: true });
+    const payload = {
+      savedAt:  new Date().toISOString(),
+      addrSigs: Array.from(_addrSigs.entries()),
+    };
+    fs.writeFileSync(registryPath, JSON.stringify(payload), "utf8");
+  } catch (e) {
+    logger.warn({ err: String(e) }, "tx-hash-engine: registry save failed");
+  }
+}
+
+/**
+ * Restore the signature registry from disk.
+ * Rebuilds both _addrSigs and _rIndex from the saved data.
+ * Returns the number of signatures restored.
+ */
+export function loadRegistryFromFile(registryPath: string): number {
+  try {
+    const raw  = fs.readFileSync(registryPath, "utf8");
+    const data = JSON.parse(raw) as { addrSigs: [string, TxSigRecord[]][] };
+    if (!Array.isArray(data.addrSigs)) return 0;
+
+    _addrSigs.clear();
+    _rIndex.clear();
+
+    let count = 0;
+    for (const [addr, records] of data.addrSigs) {
+      if (!Array.isArray(records)) continue;
+      _addrSigs.set(addr, records);
+      for (const rec of records) {
+        const rList = _rIndex.get(rec.r) ?? [];
+        rList.push(rec);
+        _rIndex.set(rec.r, rList);
+        count++;
+      }
+    }
+    return count;
+  } catch {
+    return 0;
+  }
+}
