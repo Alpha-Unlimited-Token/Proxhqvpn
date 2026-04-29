@@ -24,6 +24,7 @@ import SpiderCrawler from "@/pages/SpiderCrawler";
 import UnifiedScanner from "@/pages/UnifiedScanner";
 import ProxyScanner from "@/pages/ProxyScanner";
 import SignatureMiner from "@/pages/SignatureMiner";
+import AutonomousScan from "@/pages/AutonomousScan";
 
 const queryClient = new QueryClient();
 
@@ -50,6 +51,7 @@ function Router() {
         <Route path="/unified" component={UnifiedScanner} />
         <Route path="/proxy-scanner" component={ProxyScanner} />
         <Route path="/sig-miner" component={SignatureMiner} />
+        <Route path="/autonomous" component={AutonomousScan} />
         <Route component={NotFound} />
       </Switch>
     </Layout>

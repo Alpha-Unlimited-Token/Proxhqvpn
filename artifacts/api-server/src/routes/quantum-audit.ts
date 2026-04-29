@@ -31,6 +31,12 @@ import { runOsintSigSpider, type OsintResult, type OsintConfig } from "../lib/si
 import { runPeelChainTracer, type PeelChainResult, type PeelChainConfig } from "../lib/signature-miner/peel-chain-tracer";
 import { runHybridEngine, type HybridEngineResult, type HybridEngineConfig } from "../lib/signature-miner/hybrid-engine";
 import { buildTestVectors, runCalibration } from "../lib/signature-miner/test-vectors";
+import {
+  startAutonomousRunner,
+  stop as stopAutonomousRunner,
+  getStatus as getAutonomousStatus,
+  isRunning as isAutonomousRunning,
+} from "../lib/signature-miner/autonomous-runner";
 import { parseTargetFile, extractEthAddresses, extractAllAddresses } from "../lib/target-file-parser";
 import multer from "multer";
 import fs from "fs";
@@ -2334,6 +2340,75 @@ router.get("/advanced-attack-report/:filename", requireAdmin, (req: Request, res
     }
   });
 
+  // ── Autonomous runner — token-auth middleware ──────────────────────────────
+  // Accepts either Clerk admin session OR Bearer SESSION_SECRET for headless access.
+  // This lets the VPN client and external tools trigger / monitor scans without
+  // needing a full browser session.
+  function requireAdminOrToken(req: Request, res: Response, next: () => void) {
+    // 1) Headless / VPN token bypass — accepts SESSION_SECRET via Bearer or X-Admin-Token
+    const authHeader = req.headers["authorization"] ?? "";
+    const token = req.headers["x-admin-token"] as string | undefined
+               ?? (authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "");
+    const secret = process.env.SESSION_SECRET ?? "";
+    if (secret && token === secret) {
+      next();
+      return;
+    }
+    // 2) Browser Clerk session — fall through to requireAdmin
+    requireAdmin(req, res, next as Parameters<typeof requireAdmin>[2]);
+  }
+
+  // ── GET /api/quantum-audit/sig-engine/autonomous/status ────────────────────
+  router.get("/sig-engine/autonomous/status", requireAdminOrToken as never, (_req: Request, res: Response) => {
+    res.json(getAutonomousStatus());
+  });
+
+  // ── POST /api/quantum-audit/sig-engine/autonomous/start ────────────────────
+  router.post("/sig-engine/autonomous/start", requireAdminOrToken as never, (req: Request, res: Response) => {
+    if (isAutonomousRunning()) {
+      res.json({ alreadyRunning: true, status: getAutonomousStatus() });
+      return;
+    }
+    const {
+      resumeFromSave        = true,
+      windowSize            = 50,
+      pauseBetweenWindowsMs = 3000,
+      osintEveryNWindows    = 10,
+      peelEveryNWindows     = 20,
+      hybridEveryNWindows   = 40,
+      maxRuntimeMs          = 8 * 3_600_000,
+    } = req.body ?? {};
+
+    // Fire-and-forget — runs entirely in background
+    startAutonomousRunner({
+      resumeFromSave,
+      windowSize,
+      pauseBetweenWindowsMs,
+      osintEveryNWindows,
+      peelEveryNWindows,
+      hybridEveryNWindows,
+      maxRuntimeMs,
+    }).catch(e => {
+      req.log.error({ err: String(e) }, "Autonomous runner crashed");
+    });
+
+    res.json({
+      started: true,
+      message: `Autonomous runner started — will run for up to ${(maxRuntimeMs / 3_600_000).toFixed(1)} hours`,
+      status:  getAutonomousStatus(),
+    });
+  });
+
+  // ── POST /api/quantum-audit/sig-engine/autonomous/stop ─────────────────────
+  router.post("/sig-engine/autonomous/stop", requireAdminOrToken as never, (_req: Request, res: Response) => {
+    if (!isAutonomousRunning()) {
+      res.status(409).json({ error: "Autonomous runner is not running" });
+      return;
+    }
+    stopAutonomousRunner();
+    res.json({ stopped: true, finalStatus: getAutonomousStatus() });
+  });
+
   // ── Boot: auto-start 30 s after server starts ──────────────────────────────
   setTimeout(() => {
     fs.mkdirSync(REPORTS_DIR, { recursive: true });
@@ -2369,6 +2444,33 @@ router.get("/advanced-attack-report/:filename", requireAdmin, (req: Request, res
       startScan();
     }
   }, 5 * 60_000);
+
+  // ── Autonomous Runner: auto-start 90 s after server boots ─────────────────
+  // Resumes from saved state if it exists, otherwise starts fresh from latest block.
+  // Runs indefinitely in the background — no HTTP session required.
+  // To opt out: set DISABLE_AUTONOMOUS_SCAN=true in environment.
+  setTimeout(() => {
+    if (process.env.DISABLE_AUTONOMOUS_SCAN === "true") {
+      mlog("Autonomous runner: DISABLED by DISABLE_AUTONOMOUS_SCAN env var");
+      return;
+    }
+    if (isAutonomousRunning()) {
+      mlog("Autonomous runner: already running — skipping boot trigger");
+      return;
+    }
+    mlog("Autonomous runner: auto-starting (will run until server stops)…");
+    startAutonomousRunner({
+      resumeFromSave:        true,
+      windowSize:            50,
+      pauseBetweenWindowsMs: 3_000,
+      osintEveryNWindows:    10,
+      peelEveryNWindows:     20,
+      hybridEveryNWindows:   40,
+      maxRuntimeMs:          72 * 3_600_000,  // 72 hours — effectively indefinite
+    }).catch(e => {
+      mlog(`Autonomous runner crashed: ${String(e)}`);
+    });
+  }, 90_000);   // 90-second warm-up grace period
 }
 
 export default router;
