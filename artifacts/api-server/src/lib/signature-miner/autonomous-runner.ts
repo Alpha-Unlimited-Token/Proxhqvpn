@@ -52,10 +52,16 @@ import {
   drainSpiderUrls,
   drainCrossNonceCandidates,
   drainMultiChainAddresses,
+  drainTxHashes,
   poolSummary,
 } from "./cross-engine-pool";
 import { scanAddress as multiChainScanAddress } from "./multi-chain-engine";
 import { detectChain } from "./chain-adapter";
+import {
+  processTxHashBatch,
+  loadTxHashesFromFile,
+  loadWalletsFromFile,
+} from "./tx-hash-engine";
 
 // ── Paths ─────────────────────────────────────────────────────────────────────
 
@@ -133,6 +139,10 @@ export interface AutonomousStatus {
     peelQueue:       number;
     e1Queue:         number;
     multiChainQueue: number;
+    txHashQueue:     number;
+    txHashProcessed: number;
+    txHashTotal:     number;
+    txHashKeysFound: number;
     urlQueue:        number;
     rValues:         number;
     confirmedKeys:   number;
@@ -259,7 +269,7 @@ export function getAutonomousStatus(): AutonomousStatus {
       pendingUrls: 0, statusMessage: "Not started",
       estimatedBlocksPerHour: 0, progressPct: 0, seededWallets: 0,
       crossEngineFlows: emptyFlows,
-      poolStats: { osintQueue: 0, peelQueue: 0, e1Queue: 0, multiChainQueue: 0, urlQueue: 0, rValues: 0, confirmedKeys: 0 },
+      poolStats: { osintQueue: 0, peelQueue: 0, e1Queue: 0, multiChainQueue: 0, txHashQueue: 0, txHashProcessed: 0, txHashTotal: 0, txHashKeysFound: 0, urlQueue: 0, rValues: 0, confirmedKeys: 0 },
     };
   }
 
@@ -298,6 +308,10 @@ export function getAutonomousStatus(): AutonomousStatus {
       peelQueue:       pool.pendingPeelAddresses.size,
       e1Queue:         pool.pendingE1TargetedAddresses.size,
       multiChainQueue: pool.pendingMultiChainAddresses.size,
+      txHashQueue:     pool.pendingTxHashes.length,
+      txHashProcessed: pool.txHashProgress.processed,
+      txHashTotal:     pool.txHashProgress.total,
+      txHashKeysFound: pool.txHashProgress.keysFound,
       urlQueue:        pool.pendingSpiderUrls.length,
       rValues:         pool.rValueSigs.size,
       confirmedKeys:   pool.confirmedPrivateKeys.size,
@@ -394,6 +408,58 @@ async function seedPoolFromDatabase(pool: ReturnType<typeof getCrossEnginePool>)
   return injected;
 }
 
+// ── Sillytuna attacker dataset file paths ─────────────────────────────────────
+const SILLYTUNA_WALLETS  = "/home/runner/workspace/attached_assets/sillytuna_attacker_wallets_1777326855652.txt";
+const SILLYTUNA_HASHES_A = "/home/runner/workspace/attached_assets/sillytuna_attacker_tx_hashes_1777326663791.txt";
+const SILLYTUNA_HASHES_B = "/home/runner/workspace/attached_assets/sillytuna_attacker_tx_hashes_1777326855520.txt";
+
+/**
+ * Reads the two uploaded attacker files and seeds:
+ *   • wallet addresses   → E1 targeted queue + OSINT + peel chain
+ *   • transaction hashes → pendingTxHashes (Engine 0 ECDSA extractor)
+ *
+ * De-duplicates across calls so safe to call on every startup.
+ */
+async function seedPoolFromFiles(pool: ReturnType<typeof getCrossEnginePool>): Promise<{ wallets: number; hashes: number }> {
+  let wallets = 0;
+  let hashes  = 0;
+
+  // ── 1. Load wallet addresses ─────────────────────────────────────────────
+  const addrs = loadWalletsFromFile(SILLYTUNA_WALLETS);
+  for (const addr of addrs) {
+    if (addr === "0x0000000000000000000000000000000000000000") continue;
+    if (!pool.pendingE1TargetedAddresses.has(addr)) {
+      pool.pendingE1TargetedAddresses.add(addr);
+      pool.pendingOsintAddresses.add(addr);
+      pool.pendingPeelAddresses.add(addr);
+      wallets++;
+    }
+  }
+  if (wallets > 0) {
+    _seededWallets = Math.max(_seededWallets, pool.pendingE1TargetedAddresses.size);
+    log(`File seed: loaded ${wallets} attacker wallet address(es) into engine queues`);
+  }
+
+  // ── 2. Load transaction hashes ───────────────────────────────────────────
+  const existingHashes = new Set(pool.pendingTxHashes);
+  for (const file of [SILLYTUNA_HASHES_A, SILLYTUNA_HASHES_B]) {
+    const fileHashes = loadTxHashesFromFile(file);
+    for (const h of fileHashes) {
+      if (!existingHashes.has(h)) {
+        pool.pendingTxHashes.push(h);
+        existingHashes.add(h);
+        hashes++;
+      }
+    }
+  }
+  if (hashes > 0) {
+    pool.txHashProgress.total += hashes;
+    log(`File seed: loaded ${hashes} attacker tx hash(es) into Engine 0 queue (${pool.pendingTxHashes.length} pending)`);
+  }
+
+  return { wallets, hashes };
+}
+
 export async function startAutonomousRunner(opts: {
   resumeFromSave?:        boolean;
   windowSize?:            number;
@@ -483,6 +549,10 @@ export async function startAutonomousRunner(opts: {
   const seeded = await seedPoolFromDatabase(pool);
   log(`DB seed at startup: ${seeded} user wallet address(es) queued for all engines`);
 
+  // ── Seed from sillytuna attacker files (wallets + tx hashes) ─────────────
+  const fileSeed = await seedPoolFromFiles(pool);
+  log(`File seed at startup: ${fileSeed.wallets} wallets + ${fileSeed.hashes} tx hashes loaded from attacker dataset`);
+
   let lastSaveTime = Date.now();
   const SAVE_INTERVAL_MS = 5 * 60_000;
   // endTime = Infinity when no cap — loop runs until stop() is called
@@ -505,6 +575,62 @@ export async function startAutonomousRunner(opts: {
 
     const windowEnd = state.lowestBlockCovered - 1;
     const wStart    = Math.max(0, windowStart);
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // ENGINE 0: TX Hash ECDSA Extractor
+    // Fetches up to 25 attacker tx hashes per window, extracts ECDSA (r,s,z),
+    // detects nonce-reuse and r-collision across all fetched txs, and recovers
+    // private keys directly from the raw signature data — no block scan needed.
+    // ══════════════════════════════════════════════════════════════════════════
+    const txBatch = drainTxHashes(pool, 25);
+    if (txBatch.length > 0) {
+      state.statusMessage = `E0: extracting ECDSA from ${txBatch.length} tx hashes (${pool.txHashProgress.processed}/${pool.txHashProgress.total} done)`;
+      log(`Engine 0 (TX-ECDSA): processing ${txBatch.length} tx hashes | remaining: ${pool.pendingTxHashes.length}`);
+      try {
+        const e0Provider = new ethers.JsonRpcProvider(RPC);
+        const e0Result   = await processTxHashBatch(txBatch, e0Provider);
+        pool.txHashProgress.processed += e0Result.processed;
+
+        for (const f of e0Result.findings) {
+          findings.push({
+            engine:      "e0_tx_ecdsa",
+            kind:        f.attackType,
+            address:     f.address,
+            privateKey:  f.recoveredPrivKey,
+            value:       f.sharedR ?? f.attackType,
+            detail:      f.detail,
+            txHash:      f.txHash1,
+            confidence:  f.confidence,
+            discoveredAt: f.discoveredAt,
+          });
+
+          if (f.recoveredPrivKey) {
+            pool.txHashProgress.keysFound++;
+            pool.confirmedPrivateKeys.add(f.recoveredPrivKey);
+            if (!state.recoveredKeys.includes(f.recoveredPrivKey)) {
+              state.recoveredKeys.push(f.recoveredPrivKey);
+              log(`🔑 ENGINE 0 KEY RECOVERED: ${f.address} → ${f.recoveredPrivKey.slice(0, 18)}… (nonce reuse in ${f.txHash1.slice(0, 14)}… + ${f.txHash2?.slice(0, 14) ?? "?"}…)`);
+            }
+            // Feed recovered addresses into all other engines for max coverage
+            pool.pendingE1TargetedAddresses.add(f.address);
+            pool.pendingOsintAddresses.add(f.address);
+            pool.pendingPeelAddresses.add(f.address);
+          }
+
+          // Any r-collision across different addresses feeds E1 targeted scan
+          if (f.attackType === "cross_address_r_collision") {
+            pool.pendingE1TargetedAddresses.add(f.address);
+          }
+        }
+
+        if (e0Result.findings.length > 0) {
+          log(`Engine 0: ${e0Result.fetched} txs fetched, ${e0Result.findings.length} finding(s), ${e0Result.failed} failed`);
+        }
+      } catch (e) {
+        log(`Engine 0 error: ${e}`);
+        state.errors++;
+      }
+    }
 
     // ══════════════════════════════════════════════════════════════════════════
     // ENGINE 1: Block Scanner

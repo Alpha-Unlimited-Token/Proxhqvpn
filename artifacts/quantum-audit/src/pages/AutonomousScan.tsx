@@ -36,6 +36,10 @@ interface PoolStats {
   peelQueue:       number;
   e1Queue:         number;
   multiChainQueue: number;
+  txHashQueue:     number;
+  txHashProcessed: number;
+  txHashTotal:     number;
+  txHashKeysFound: number;
   urlQueue:        number;
   rValues:         number;
   confirmedKeys:   number;
@@ -328,21 +332,50 @@ export default function AutonomousScan() {
 
           {/* Cross-engine pool */}
           {p && (
-            <div className="grid grid-cols-4 md:grid-cols-7 gap-2">
-              {[
-                { label: "OSINT queue",       value: p.osintQueue,       color: "text-amber-300"  },
-                { label: "Peel queue",        value: p.peelQueue,        color: "text-red-300"    },
-                { label: "E1 queue",          value: p.e1Queue,          color: "text-blue-300"   },
-                { label: "⛓ Multi-chain Q",  value: p.multiChainQueue ?? 0, color: "text-cyan-300" },
-                { label: "URL queue",         value: p.urlQueue,         color: "text-purple-300" },
-                { label: "R-values",          value: p.rValues,          color: "text-violet-300" },
-                { label: "Conf. keys",        value: p.confirmedKeys,    color: "text-emerald-300" },
-              ].map(({ label, value, color }) => (
-                <div key={label} className="rounded-lg border border-gray-700/50 bg-gray-900/40 px-3 py-2 text-center">
-                  <div className={cn("text-lg font-bold tabular-nums", color)}>{value.toLocaleString()}</div>
-                  <div className="text-xs text-gray-500 mt-0.5">{label}</div>
+            <div className="space-y-3">
+              {/* Engine 0: TX Hash Progress */}
+              {(p.txHashTotal ?? 0) > 0 && (
+                <div className="rounded-xl border border-orange-500/30 bg-orange-950/20 p-3">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-xs font-semibold text-orange-300">Engine 0 — TX Hash ECDSA Extractor (sillytuna dataset)</span>
+                    <span className="text-xs text-orange-400 tabular-nums">
+                      {p.txHashProcessed.toLocaleString()} / {p.txHashTotal.toLocaleString()} txs
+                      {p.txHashKeysFound > 0 && <span className="ml-2 text-emerald-400 font-bold">🔑 {p.txHashKeysFound} key{p.txHashKeysFound > 1 ? "s" : ""} recovered</span>}
+                    </span>
+                  </div>
+                  <div className="h-2 rounded-full bg-gray-800 overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-orange-500 to-amber-400 transition-all duration-500"
+                      style={{ width: `${Math.min(100, p.txHashTotal > 0 ? (p.txHashProcessed / p.txHashTotal) * 100 : 0)}%` }}
+                    />
+                  </div>
+                  <div className="flex justify-between mt-1">
+                    <span className="text-[10px] text-gray-500">{p.txHashQueue.toLocaleString()} remaining in queue</span>
+                    <span className="text-[10px] text-orange-400/70">
+                      {p.txHashTotal > 0 ? Math.round((p.txHashProcessed / p.txHashTotal) * 100) : 0}% complete
+                    </span>
+                  </div>
                 </div>
-              ))}
+              )}
+
+              {/* Queue pill grid */}
+              <div className="grid grid-cols-4 md:grid-cols-8 gap-2">
+                {[
+                  { label: "TX hash Q",         value: p.txHashQueue ?? 0,     color: "text-orange-300" },
+                  { label: "E1 wallet Q",        value: p.e1Queue,              color: "text-blue-300"   },
+                  { label: "OSINT queue",        value: p.osintQueue,           color: "text-amber-300"  },
+                  { label: "Peel queue",         value: p.peelQueue,            color: "text-red-300"    },
+                  { label: "⛓ Multi-chain Q",   value: p.multiChainQueue ?? 0, color: "text-cyan-300"   },
+                  { label: "URL queue",          value: p.urlQueue,             color: "text-purple-300" },
+                  { label: "R-values",           value: p.rValues,              color: "text-violet-300" },
+                  { label: "Conf. keys",         value: p.confirmedKeys,        color: "text-emerald-300" },
+                ].map(({ label, value, color }) => (
+                  <div key={label} className="rounded-lg border border-gray-700/50 bg-gray-900/40 px-3 py-2 text-center">
+                    <div className={cn("text-lg font-bold tabular-nums", color)}>{value.toLocaleString()}</div>
+                    <div className="text-xs text-gray-500 mt-0.5">{label}</div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
@@ -352,6 +385,9 @@ export default function AutonomousScan() {
               <TrendingUp className="w-4 h-4 text-gray-400" />
               Engine Run Counts
             </h2>
+            <EngineRow icon={Activity}   color="bg-orange-600"  label="Engine 0 — TX Hash ECDSA Extractor"
+              runs={p?.txHashProcessed ?? 0}
+              detail="Every window · 25 tx/pass · nonce-reuse + r-collision → instant key recovery from sillytuna dataset" />
             <EngineRow icon={Activity}   color="bg-violet-600"  label="Engine 1 — Block Scanner"
               runs={status.windowsCompleted}
               detail="Every window · nonce reuse / weak-k / r-collision / bias / polynomial" />

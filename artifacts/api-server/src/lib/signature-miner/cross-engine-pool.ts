@@ -66,6 +66,13 @@ export interface CrossEnginePool {
    * All non-EVM addresses (BTC, LTC, DOGE, SOL, etc.) land here.
    */
   pendingMultiChainAddresses: Map<string, string>;
+  /**
+   * TX hashes queued for Engine 0 (TX Hash ECDSA Extractor).
+   * Each hash is fetched, its ECDSA (r,s,z) extracted, and nonce-reuse checked.
+   */
+  pendingTxHashes: string[];
+  /** Progress counters for the tx hash engine. */
+  txHashProgress: { total: number; processed: number; keysFound: number };
 
   // ── URL queue ───────────────────────────────────────────────────────────────
   /** URLs for Engine 2 (Web Spider) to crawl. Any engine can add here. */
@@ -116,6 +123,8 @@ export function getCrossEnginePool(): CrossEnginePool {
       pendingPeelAddresses:        new Set(),
       pendingE1TargetedAddresses:  new Set(),
       pendingMultiChainAddresses:  new Map(),
+      pendingTxHashes:             [],
+      txHashProgress:              { total: 0, processed: 0, keysFound: 0 },
       pendingSpiderUrls:           [],
       visitedSpiderUrls:          new Set(),
       rValueSigs:                 new Map(),
@@ -556,14 +565,24 @@ export function drainMultiChainAddresses(
   return out;
 }
 
+/**
+ * Drain up to `limit` tx hashes from the pending queue.
+ */
+export function drainTxHashes(pool: CrossEnginePool, limit = 20): string[] {
+  const batch = pool.pendingTxHashes.splice(0, limit);
+  return batch;
+}
+
 /** Pool telemetry summary string for logging. */
 export function poolSummary(pool: CrossEnginePool): string {
-  const s = pool.stats;
+  const s   = pool.stats;
+  const txp = pool.txHashProgress;
   return [
     `osintQ=${pool.pendingOsintAddresses.size}`,
     `peelQ=${pool.pendingPeelAddresses.size}`,
     `e1Q=${pool.pendingE1TargetedAddresses.size}`,
     `multiChainQ=${pool.pendingMultiChainAddresses.size}`,
+    `txHashQ=${pool.pendingTxHashes.length}(${txp.processed}/${txp.total} done,keys=${txp.keysFound})`,
     `urlQ=${pool.pendingSpiderUrls.length}`,
     `rValues=${pool.rValueSigs.size}`,
     `crossNonceHits=${s.crossNonceHits}`,
