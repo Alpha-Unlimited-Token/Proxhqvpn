@@ -36,6 +36,7 @@ import {
   stop as stopAutonomousRunner,
   getStatus as getAutonomousStatus,
   isRunning as isAutonomousRunning,
+  wasUserStopped as autonomousWasUserStopped,
 } from "../lib/signature-miner/autonomous-runner";
 import { parseTargetFile, extractEthAddresses, extractAllAddresses } from "../lib/target-file-parser";
 import multer from "multer";
@@ -2376,10 +2377,9 @@ router.get("/advanced-attack-report/:filename", requireAdmin, (req: Request, res
       osintEveryNWindows    = 10,
       peelEveryNWindows     = 20,
       hybridEveryNWindows   = 40,
-      maxRuntimeMs          = 8 * 3_600_000,
     } = req.body ?? {};
 
-    // Fire-and-forget — runs entirely in background
+    // Fire-and-forget — runs entirely in background with no time cap
     startAutonomousRunner({
       resumeFromSave,
       windowSize,
@@ -2387,14 +2387,14 @@ router.get("/advanced-attack-report/:filename", requireAdmin, (req: Request, res
       osintEveryNWindows,
       peelEveryNWindows,
       hybridEveryNWindows,
-      maxRuntimeMs,
+      // no maxRuntimeMs → runs forever until stop() is called
     }).catch(e => {
       req.log.error({ err: String(e) }, "Autonomous runner crashed");
     });
 
     res.json({
       started: true,
-      message: `Autonomous runner started — will run for up to ${(maxRuntimeMs / 3_600_000).toFixed(1)} hours`,
+      message: "Autonomous runner started in endless mode — scans continuously until Stop is called",
       status:  getAutonomousStatus(),
     });
   });
@@ -2445,11 +2445,23 @@ router.get("/advanced-attack-report/:filename", requireAdmin, (req: Request, res
     }
   }, 5 * 60_000);
 
-  // ── Autonomous Runner: auto-start 90 s after server boots ─────────────────
-  // Resumes from saved state if it exists, otherwise starts fresh from latest block.
-  // Runs indefinitely in the background — no HTTP session required.
-  // To opt out: set DISABLE_AUTONOMOUS_SCAN=true in environment.
-  setTimeout(() => {
+  // ── Autonomous Runner: self-healing endless loop ────────────────────────────
+  // Starts 90 s after server boot. Resumes from saved state when available.
+  // If the runner exits for any reason OTHER than an explicit user stop(),
+  // it automatically restarts after a short cooldown — no human intervention needed.
+  // To opt out permanently: set DISABLE_AUTONOMOUS_SCAN=true.
+
+  const RUNNER_OPTS = {
+    resumeFromSave:        true,
+    windowSize:            50,
+    pauseBetweenWindowsMs: 3_000,
+    osintEveryNWindows:    10,
+    peelEveryNWindows:     20,
+    hybridEveryNWindows:   40,
+    // no maxRuntimeMs → runs forever until stop() is called
+  } as const;
+
+  async function keepRunnerAlive(isFirstBoot: boolean): Promise<void> {
     if (process.env.DISABLE_AUTONOMOUS_SCAN === "true") {
       mlog("Autonomous runner: DISABLED by DISABLE_AUTONOMOUS_SCAN env var");
       return;
@@ -2458,19 +2470,27 @@ router.get("/advanced-attack-report/:filename", requireAdmin, (req: Request, res
       mlog("Autonomous runner: already running — skipping boot trigger");
       return;
     }
-    mlog("Autonomous runner: auto-starting (will run until server stops)…");
-    startAutonomousRunner({
-      resumeFromSave:        true,
-      windowSize:            50,
-      pauseBetweenWindowsMs: 3_000,
-      osintEveryNWindows:    10,
-      peelEveryNWindows:     20,
-      hybridEveryNWindows:   40,
-      maxRuntimeMs:          72 * 3_600_000,  // 72 hours — effectively indefinite
-    }).catch(e => {
+
+    mlog(`Autonomous runner: ${isFirstBoot ? "auto-starting" : "restarting"} (endless mode)…`);
+    try {
+      await startAutonomousRunner(RUNNER_OPTS);
+    } catch (e) {
       mlog(`Autonomous runner crashed: ${String(e)}`);
-    });
-  }, 90_000);   // 90-second warm-up grace period
+    }
+
+    // If the user explicitly stopped it via the API, honour that — don't restart.
+    if (autonomousWasUserStopped()) {
+      mlog("Autonomous runner: stopped by user — will NOT auto-restart. Use /autonomous/start to resume.");
+      return;
+    }
+
+    // Any other exit (natural wrap, unexpected error) → restart after 30 s cooldown.
+    mlog("Autonomous runner: exited — restarting in 30 s…");
+    setTimeout(() => keepRunnerAlive(false), 30_000);
+  }
+
+  // First boot: 90-second warm-up grace period, then start the endless loop.
+  setTimeout(() => keepRunnerAlive(true), 90_000);
 }
 
 export default router;

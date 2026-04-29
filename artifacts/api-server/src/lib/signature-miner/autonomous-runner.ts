@@ -133,6 +133,7 @@ export interface AutonomousStatus {
 let _state:          AutonomousState | null = null;
 let _running         = false;
 let _stopRequested   = false;
+let _userStopped     = false;   // true only when stop() was explicitly called
 let _startTime       = 0;
 const _recentWindowTimes: number[] = [];
 const RPC = process.env.ETH_RPC_URL ?? "https://ethereum.publicnode.com";
@@ -293,8 +294,14 @@ export { getAutonomousStatus as getStatus };
 
 export function stop() {
   _stopRequested = true;
+  _userStopped   = true;
   if (_state) _state.statusMessage = "Stop requested";
   log("Stop requested by user");
+}
+
+/** Returns true if the last run was halted explicitly via stop(), false if it ended naturally. */
+export function wasUserStopped(): boolean {
+  return _userStopped;
 }
 
 // ── Main runner ────────────────────────────────────────────────────────────────
@@ -318,6 +325,7 @@ export async function startAutonomousRunner(opts: {
 
   _running       = true;
   _stopRequested = false;
+  _userStopped   = false;
   _startTime     = Date.now();
 
   const {
@@ -329,7 +337,7 @@ export async function startAutonomousRunner(opts: {
     osintEveryNWindows    = 10,
     peelEveryNWindows     = 20,
     hybridEveryNWindows   = 40,
-    maxRuntimeMs          = 72 * 3_600_000,
+    maxRuntimeMs,           // undefined = run forever
     githubToken,
   } = opts;
 
@@ -380,12 +388,13 @@ export async function startAutonomousRunner(opts: {
 
   log(`=== Autonomous Runner START (cross-engine wiring active) ===`);
   log(`Starting block: ${state.lastBlockScanned}`);
-  log(`Window: ${windowSize} | Pause: ${pauseBetweenWindowsMs}ms | Max: ${maxRuntimeMs/3_600_000}h`);
+  log(`Window: ${windowSize} | Pause: ${pauseBetweenWindowsMs}ms | Max: ${maxRuntimeMs ? `${maxRuntimeMs/3_600_000}h` : "endless"}`);
   log(`OSINT every ${osintEveryNWindows} windows | Peel every ${peelEveryNWindows} | Hybrid every ${hybridEveryNWindows}`);
 
   let lastSaveTime = Date.now();
   const SAVE_INTERVAL_MS = 5 * 60_000;
-  const endTime = _startTime + maxRuntimeMs;
+  // endTime = Infinity when no cap — loop runs until stop() is called
+  const endTime = maxRuntimeMs ? _startTime + maxRuntimeMs : Infinity;
 
   // ── Main loop ──────────────────────────────────────────────────────────────
   while (!_stopRequested && Date.now() < endTime) {
@@ -719,7 +728,7 @@ export async function startAutonomousRunner(opts: {
   // ── Shutdown ───────────────────────────────────────────────────────────────
   _running = false;
   if (_state) _state.running = false;
-  const reason = _stopRequested ? "User stop" : "Max runtime reached";
+  const reason = _userStopped ? "User stop" : maxRuntimeMs ? "Max runtime reached" : "Unexpected exit";
   log(`=== Autonomous Runner STOPPED — ${reason} ===`);
   log(`Windows: ${state.windowsCompleted} | Findings: ${findings.length} | Keys: ${state.recoveredKeys.length}`);
   log(`Cross-engine flows: ${JSON.stringify(state.crossEngineFlows)}`);
