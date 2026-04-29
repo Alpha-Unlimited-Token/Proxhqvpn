@@ -39,6 +39,9 @@ import {
   wasUserStopped as autonomousWasUserStopped,
 } from "../lib/signature-miner/autonomous-runner";
 import { parseTargetFile, extractEthAddresses, extractAllAddresses } from "../lib/target-file-parser";
+import { scanAddress as multiChainScan, scanAddressBatch as multiChainScanBatch } from "../lib/signature-miner/multi-chain-engine";
+import { getCrossEnginePool } from "../lib/signature-miner/cross-engine-pool";
+import { detectChain } from "../lib/signature-miner/chain-adapter";
 import multer from "multer";
 import fs from "fs";
 import path from "path";
@@ -2408,6 +2411,98 @@ router.get("/advanced-attack-report/:filename", requireAdmin, (req: Request, res
     stopAutonomousRunner();
     res.json({ stopped: true, finalStatus: getAutonomousStatus() });
   });
+
+  // ── POST /api/quantum-audit/sig-engine/multi-chain/scan ────────────────────
+  // Scan a single address on its native blockchain (BTC, LTC, DOGE, SOL, TRX,
+  // EVM chains, etc.).  Chain auto-detected; override via ?chain= query param.
+  router.post(
+    "/sig-engine/multi-chain/scan",
+    requireAdminOrToken as never,
+    async (req: Request, res: Response) => {
+      const { address } = req.body as { address?: string };
+      if (!address || typeof address !== "string") {
+        res.status(400).json({ error: "address is required" });
+        return;
+      }
+      const chain = detectChain(address.trim());
+      try {
+        const result = await multiChainScan(address.trim(), { maxTx: 80 });
+        res.json({ ok: true, chain, result });
+      } catch (e) {
+        res.status(500).json({ error: String(e) });
+      }
+    }
+  );
+
+  // ── POST /api/quantum-audit/sig-engine/multi-chain/batch ───────────────────
+  // Scan a batch of addresses (up to 20).  Each address is auto-detected.
+  router.post(
+    "/sig-engine/multi-chain/batch",
+    requireAdminOrToken as never,
+    async (req: Request, res: Response) => {
+      const { addresses } = req.body as { addresses?: string[] };
+      if (!Array.isArray(addresses) || addresses.length === 0) {
+        res.status(400).json({ error: "addresses[] is required" });
+        return;
+      }
+      const batch = addresses.slice(0, 20).map(a => a.trim()).filter(Boolean);
+      try {
+        const results = await multiChainScanBatch(batch, { maxTx: 60 });
+        res.json({ ok: true, count: results.length, results });
+      } catch (e) {
+        res.status(500).json({ error: String(e) });
+      }
+    }
+  );
+
+  // ── POST /api/quantum-audit/sig-engine/multi-chain/queue ───────────────────
+  // Push addresses directly into the autonomous runner's multi-chain queue.
+  // The runner will drain and scan them in the next window cycle.
+  router.post(
+    "/sig-engine/multi-chain/queue",
+    requireAdminOrToken as never,
+    (req: Request, res: Response) => {
+      const { addresses } = req.body as { addresses?: string[] };
+      if (!Array.isArray(addresses) || addresses.length === 0) {
+        res.status(400).json({ error: "addresses[] is required" });
+        return;
+      }
+      const pool = getCrossEnginePool();
+      let queued = 0;
+      for (const raw of addresses) {
+        const addr = raw?.trim();
+        if (!addr) continue;
+        const chain = detectChain(addr);
+        if (chain === "ethereum" || chain === "unknown") {
+          pool.pendingE1TargetedAddresses.add(addr);
+        } else {
+          pool.pendingMultiChainAddresses.set(addr, chain);
+        }
+        queued++;
+      }
+      res.json({
+        ok: true,
+        queued,
+        multiChainQueueSize: pool.pendingMultiChainAddresses.size,
+      });
+    }
+  );
+
+  // ── GET /api/quantum-audit/sig-engine/multi-chain/detect ───────────────────
+  // Detect which blockchain an address belongs to.
+  router.get(
+    "/sig-engine/multi-chain/detect",
+    requireAdminOrToken as never,
+    (req: Request, res: Response) => {
+      const address = String(req.query.address ?? "").trim();
+      if (!address) {
+        res.status(400).json({ error: "?address= is required" });
+        return;
+      }
+      const chain = detectChain(address);
+      res.json({ address, chain });
+    }
+  );
 
   // ── Boot: auto-start 30 s after server starts ──────────────────────────────
   setTimeout(() => {

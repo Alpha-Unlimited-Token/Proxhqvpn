@@ -32,12 +32,13 @@ interface CrossEngineFlows {
 }
 
 interface PoolStats {
-  osintQueue:    number;
-  peelQueue:     number;
-  e1Queue:       number;
-  urlQueue:      number;
-  rValues:       number;
-  confirmedKeys: number;
+  osintQueue:      number;
+  peelQueue:       number;
+  e1Queue:         number;
+  multiChainQueue: number;
+  urlQueue:        number;
+  rValues:         number;
+  confirmedKeys:   number;
 }
 
 interface AutonomousStatus {
@@ -327,14 +328,15 @@ export default function AutonomousScan() {
 
           {/* Cross-engine pool */}
           {p && (
-            <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+            <div className="grid grid-cols-4 md:grid-cols-7 gap-2">
               {[
-                { label: "OSINT queue",  value: p.osintQueue,    color: "text-amber-300"  },
-                { label: "Peel queue",   value: p.peelQueue,     color: "text-red-300"    },
-                { label: "E1 queue",     value: p.e1Queue,       color: "text-blue-300"   },
-                { label: "URL queue",    value: p.urlQueue,      color: "text-purple-300" },
-                { label: "R-values",     value: p.rValues,       color: "text-violet-300" },
-                { label: "Conf. keys",   value: p.confirmedKeys, color: "text-emerald-300" },
+                { label: "OSINT queue",       value: p.osintQueue,       color: "text-amber-300"  },
+                { label: "Peel queue",        value: p.peelQueue,        color: "text-red-300"    },
+                { label: "E1 queue",          value: p.e1Queue,          color: "text-blue-300"   },
+                { label: "⛓ Multi-chain Q",  value: p.multiChainQueue ?? 0, color: "text-cyan-300" },
+                { label: "URL queue",         value: p.urlQueue,         color: "text-purple-300" },
+                { label: "R-values",          value: p.rValues,          color: "text-violet-300" },
+                { label: "Conf. keys",        value: p.confirmedKeys,    color: "text-emerald-300" },
               ].map(({ label, value, color }) => (
                 <div key={label} className="rounded-lg border border-gray-700/50 bg-gray-900/40 px-3 py-2 text-center">
                   <div className={cn("text-lg font-bold tabular-nums", color)}>{value.toLocaleString()}</div>

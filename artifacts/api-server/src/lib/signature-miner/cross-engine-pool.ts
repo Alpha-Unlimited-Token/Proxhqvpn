@@ -60,6 +60,12 @@ export interface CrossEnginePool {
   pendingPeelAddresses:       Set<string>;
   /** Addresses for Engine 1 to deep-scan (targeted, not rolling-window). */
   pendingE1TargetedAddresses: Set<string>;
+  /**
+   * Addresses for the Multi-Chain Engine to scan on their native blockchain.
+   * Key = address, Value = detected chain ID (or "auto" to let engine detect).
+   * All non-EVM addresses (BTC, LTC, DOGE, SOL, etc.) land here.
+   */
+  pendingMultiChainAddresses: Map<string, string>;
 
   // ── URL queue ───────────────────────────────────────────────────────────────
   /** URLs for Engine 2 (Web Spider) to crawl. Any engine can add here. */
@@ -106,10 +112,11 @@ let _pool: CrossEnginePool | null = null;
 export function getCrossEnginePool(): CrossEnginePool {
   if (!_pool) {
     _pool = {
-      pendingOsintAddresses:      new Set(),
-      pendingPeelAddresses:       new Set(),
-      pendingE1TargetedAddresses: new Set(),
-      pendingSpiderUrls:          [],
+      pendingOsintAddresses:       new Set(),
+      pendingPeelAddresses:        new Set(),
+      pendingE1TargetedAddresses:  new Set(),
+      pendingMultiChainAddresses:  new Map(),
+      pendingSpiderUrls:           [],
       visitedSpiderUrls:          new Set(),
       rValueSigs:                 new Map(),
       rValueAddresses:            new Map(),
@@ -533,6 +540,22 @@ export function drainCrossNonceCandidates(pool: CrossEnginePool): CrossNonceCand
   return out;
 }
 
+/**
+ * Drain up to `limit` multi-chain addresses from the pool.
+ * Returns array of [address, chainId] tuples.
+ */
+export function drainMultiChainAddresses(
+  pool: CrossEnginePool, limit = 10
+): Array<[string, string]> {
+  const out: Array<[string, string]> = [];
+  for (const [addr, chain] of pool.pendingMultiChainAddresses.entries()) {
+    out.push([addr, chain]);
+    pool.pendingMultiChainAddresses.delete(addr);
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
 /** Pool telemetry summary string for logging. */
 export function poolSummary(pool: CrossEnginePool): string {
   const s = pool.stats;
@@ -540,6 +563,7 @@ export function poolSummary(pool: CrossEnginePool): string {
     `osintQ=${pool.pendingOsintAddresses.size}`,
     `peelQ=${pool.pendingPeelAddresses.size}`,
     `e1Q=${pool.pendingE1TargetedAddresses.size}`,
+    `multiChainQ=${pool.pendingMultiChainAddresses.size}`,
     `urlQ=${pool.pendingSpiderUrls.length}`,
     `rValues=${pool.rValueSigs.size}`,
     `crossNonceHits=${s.crossNonceHits}`,

