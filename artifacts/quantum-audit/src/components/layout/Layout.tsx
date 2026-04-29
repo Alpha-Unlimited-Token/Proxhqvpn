@@ -15,7 +15,8 @@ import {
   BarChart3,
   Lock,
   Crosshair,
-  GitBranch
+  GitBranch,
+  Zap
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -91,6 +92,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <NavItem href="/batch-jobs" icon={Lock} label="Scan Jobs (Admin)" />
             <NavItem href="/threat-scanner" icon={Crosshair} label="Threat Scanner" />
             <NavItem href="/spider" icon={GitBranch} label="Adaptive Spider" />
+            <NavItem href="/unified" icon={Zap} label="Unified Scanner" />
             <NavItem href="/pentest" icon={Terminal} label="Pen Test" />
           </div>
         </div>

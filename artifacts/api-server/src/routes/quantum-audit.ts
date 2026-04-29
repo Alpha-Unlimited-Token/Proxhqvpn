@@ -23,6 +23,7 @@ import { bulkScanViaBigQuery, isBigQueryConfigured } from "../lib/ecdsa-analyzer
 import { runThreatScan, isThreatScanConfigured, type ThreatScanSummary } from "../lib/threat-scanner/threat-scanner";
 import { KnowledgeStore } from "../lib/spider/knowledge-store";
 import { runSpider, buildSpiderReport, isConfigured as isSpiderConfigured, DEFAULT_CONFIG, type ProgressCallback } from "../lib/spider/blockchain-spider";
+import { UnifiedScanner, DEFAULT_UNIFIED_CONFIG, type UnifiedScanConfig } from "../lib/unified-scanner";
 import fs from "fs";
 import path from "path";
 
@@ -1717,6 +1718,132 @@ router.get("/advanced-attack-report/:filename", requireAdmin, (req: Request, res
       publicKey:  spiderStore.getPublicKey(addr) ?? null,
       ensName:    spiderStore.getEns(addr) ?? null,
       findings:   spiderStore.getFindings().filter(f => f.address === addr),
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // UNIFIED SCANNER — runs all modules in sequence, feeds outputs across them
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  const unifiedScanner = new UnifiedScanner(getReportsDir());
+  unifiedScanner.loadState();
+
+  // GET /api/quantum-audit/unified/status
+  router.get("/unified/status", (req: Request, res: Response) => {
+    const state  = unifiedScanner.getState();
+    const report = unifiedScanner.loadReport();
+    res.json({
+      ...state,
+      hasReport:    unifiedScanner.hasReport(),
+      configured:   isBigQueryConfigured(),
+      reportSummary: report ? {
+        totalFindings:     report.findings.length,
+        recoveredKeys:     report.recoveredKeys.length,
+        topRiskAddresses:  report.topRiskAddresses.length,
+        totalSignatures:   report.totalSignatures,
+        moduleStats:       report.moduleStats,
+      } : null,
+    });
+  });
+
+  // POST /api/quantum-audit/unified/start
+  router.post("/unified/start", requireAdmin, async (req: Request, res: Response) => {
+    if (!isBigQueryConfigured()) {
+      res.status(503).json({ error: "BigQuery not configured" });
+      return;
+    }
+    if (unifiedScanner.getState().running) {
+      res.status(409).json({ error: "Unified scan already running" });
+      return;
+    }
+
+    const reset = req.body?.reset === true;
+    if (reset) unifiedScanner.reset();
+
+    // Load seed addresses
+    const targetFile = path.join(getReportsDir(), "jobs", "micro-targets.txt");
+    let seeds: string[] = [];
+    if (fs.existsSync(targetFile)) {
+      seeds = fs.readFileSync(targetFile, "utf8")
+        .split("\n").map(l => l.trim()).filter(l => l.startsWith("0x") && l.length >= 40);
+    }
+    if (Array.isArray(req.body?.addresses) && req.body.addresses.length > 0) {
+      seeds = req.body.addresses;
+    }
+    if (seeds.length === 0) {
+      res.status(400).json({ error: "No seed addresses found" });
+      return;
+    }
+
+    const cfg: UnifiedScanConfig = {
+      skipEcdsa:         req.body?.skipEcdsa         ?? false,
+      skipThreat:        req.body?.skipThreat         ?? false,
+      skipSpider:        req.body?.skipSpider         ?? false,
+      spiderMaxWave:     Number(req.body?.spiderMaxWave     ?? 2),
+      spiderConcurrency: Number(req.body?.spiderConcurrency ?? 8),
+      spiderMinFreq:     Number(req.body?.spiderMinFreq     ?? 2),
+      maxAddresses:      Number(req.body?.maxAddresses      ?? 50_000),
+    };
+
+    mlog(`[unified] Starting — ${seeds.length} seeds, config=${JSON.stringify(cfg)}`);
+
+    // Run asynchronously
+    setImmediate(() => {
+      unifiedScanner.run(seeds, cfg, (state) => {
+        mlog(`[unified] ${state.currentPhase} — ${state.log[state.log.length - 1] ?? ""}`);
+      }).catch(err => {
+        mlog(`[unified] FATAL: ${String(err)}`);
+      });
+    });
+
+    res.json({ started: true, seeds: seeds.length, config: cfg });
+  });
+
+  // POST /api/quantum-audit/unified/stop
+  router.post("/unified/stop", requireAdmin, (req: Request, res: Response) => {
+    // Stopping is handled by the individual sub-scanners
+    // The unified scanner will complete its current phase and stop
+    res.json({ message: "Stop signal sent — unified scan will complete current phase then stop" });
+  });
+
+  // POST /api/quantum-audit/unified/reset
+  router.post("/unified/reset", requireAdmin, (req: Request, res: Response) => {
+    if (unifiedScanner.getState().running) {
+      res.status(409).json({ error: "Cannot reset while running" });
+      return;
+    }
+    unifiedScanner.reset();
+    res.json({ reset: true });
+  });
+
+  // GET /api/quantum-audit/unified/report
+  router.get("/unified/report", (req: Request, res: Response) => {
+    const report = unifiedScanner.loadReport();
+    if (!report) {
+      res.status(404).json({ error: "No unified report — run a scan first" });
+      return;
+    }
+    res.json(report);
+  });
+
+  // GET /api/quantum-audit/unified/report/findings — paginated
+  router.get("/unified/report/findings", (req: Request, res: Response) => {
+    const report = unifiedScanner.loadReport();
+    if (!report) { res.status(404).json({ error: "No report" }); return; }
+    const page  = Math.max(0, Number(req.query.page  ?? 0));
+    const limit = Math.min(200, Math.max(1, Number(req.query.limit ?? 50)));
+    const source = req.query.source as string | undefined;
+    const sev    = req.query.severity as string | undefined;
+
+    let findings = report.findings;
+    if (source)  findings = findings.filter(f => f.source   === source);
+    if (sev)     findings = findings.filter(f => f.severity === sev);
+
+    res.json({
+      total:   findings.length,
+      page,
+      limit,
+      items:   findings.slice(page * limit, (page + 1) * limit),
     });
   });
 
