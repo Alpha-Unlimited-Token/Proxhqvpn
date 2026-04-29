@@ -190,13 +190,14 @@ export class EvmChainAdapter implements ChainAdapter {
 // ── Singleton instances for each supported EVM chain ─────────────────────────
 
 export const evmAdapters: Record<string, EvmChainAdapter> = {
-  ethereum:  new EvmChainAdapter("ethereum"),
-  polygon:   new EvmChainAdapter("polygon"),
-  bsc:       new EvmChainAdapter("bsc"),
-  arbitrum:  new EvmChainAdapter("arbitrum"),
-  optimism:  new EvmChainAdapter("optimism"),
-  avalanche: new EvmChainAdapter("avalanche"),
-  base:      new EvmChainAdapter("base"),
-  fantom:    new EvmChainAdapter("fantom"),
-  tron:      new EvmChainAdapter("tron"),
+  ethereum:          new EvmChainAdapter("ethereum"),
+  polygon:           new EvmChainAdapter("polygon"),
+  bsc:               new EvmChainAdapter("bsc"),
+  arbitrum:          new EvmChainAdapter("arbitrum"),
+  optimism:          new EvmChainAdapter("optimism"),
+  avalanche:         new EvmChainAdapter("avalanche"),
+  base:              new EvmChainAdapter("base"),
+  fantom:            new EvmChainAdapter("fantom"),
+  ethereum_classic:  new EvmChainAdapter("ethereum_classic"),
+  tron:              new EvmChainAdapter("tron"),
 };

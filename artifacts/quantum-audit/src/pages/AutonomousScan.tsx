@@ -369,6 +369,106 @@ export default function AutonomousScan() {
               detail="Every 40 windows · all 4 engines as coordinated worm swarm" />
           </div>
 
+          {/* Multi-chain coverage grid */}
+          <div className="bg-gray-900/60 rounded-xl border border-gray-700/50 p-4">
+            <h2 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+              <Globe className="w-4 h-4 text-cyan-400" />
+              Multi-Chain Coverage — 20 Blockchains
+              <span className="ml-auto text-[10px] font-normal text-gray-500 bg-gray-800 rounded px-2 py-0.5">auto-detected · auto-routed</span>
+            </h2>
+            {([
+              {
+                family: "EVM / secp256k1", color: "text-violet-300", dot: "bg-violet-500",
+                chains: [
+                  { name: "Ethereum",        ticker: "ETH",  mode: "full" },
+                  { name: "Polygon",         ticker: "MATIC", mode: "full" },
+                  { name: "BNB Chain",       ticker: "BNB",  mode: "full" },
+                  { name: "Arbitrum",        ticker: "ARB",  mode: "full" },
+                  { name: "Optimism",        ticker: "OP",   mode: "full" },
+                  { name: "Avalanche",       ticker: "AVAX", mode: "full" },
+                  { name: "Base",            ticker: "BASE", mode: "full" },
+                  { name: "Fantom",          ticker: "FTM",  mode: "full" },
+                  { name: "ETH Classic",     ticker: "ETC",  mode: "full" },
+                  { name: "Tron",            ticker: "TRX",  mode: "full" },
+                ],
+              },
+              {
+                family: "Bitcoin UTXO / secp256k1", color: "text-amber-300", dot: "bg-amber-500",
+                chains: [
+                  { name: "Bitcoin",         ticker: "BTC",  mode: "full" },
+                  { name: "Litecoin",        ticker: "LTC",  mode: "full" },
+                  { name: "Dogecoin",        ticker: "DOGE", mode: "full" },
+                  { name: "Bitcoin Cash",    ticker: "BCH",  mode: "full" },
+                  { name: "Dash",            ticker: "DASH", mode: "full", badge: "🔀 PrivateSend" },
+                  { name: "Zcash (t-addr)", ticker: "ZEC",  mode: "full" },
+                  { name: "Zcash (shielded)",ticker: "ZEC",  mode: "detect", badge: "🛡 zk-SNARKs" },
+                ],
+              },
+              {
+                family: "XRP Ledger / secp256k1", color: "text-sky-300", dot: "bg-sky-500",
+                chains: [
+                  { name: "XRP Ledger",      ticker: "XRP",  mode: "full" },
+                ],
+              },
+              {
+                family: "Ed25519 family", color: "text-emerald-300", dot: "bg-emerald-500",
+                chains: [
+                  { name: "Solana",          ticker: "SOL",  mode: "full" },
+                  { name: "Stellar",         ticker: "XLM",  mode: "full" },
+                  { name: "Cardano",         ticker: "ADA",  mode: "full" },
+                  { name: "NEAR Protocol",   ticker: "NEAR", mode: "full" },
+                ],
+              },
+              {
+                family: "secp256k1 L1s", color: "text-rose-300", dot: "bg-rose-500",
+                chains: [
+                  { name: "Cosmos Hub",      ticker: "ATOM", mode: "full" },
+                ],
+              },
+              {
+                family: "Privacy / Ring Signatures", color: "text-gray-400", dot: "bg-gray-600",
+                chains: [
+                  { name: "Monero",          ticker: "XMR",  mode: "detect", badge: "🔴 RingCT" },
+                ],
+              },
+            ] as Array<{
+              family: string; color: string; dot: string;
+              chains: Array<{ name: string; ticker: string; mode: string; badge?: string }>;
+            }>).map(group => (
+              <div key={group.family} className="mb-3 last:mb-0">
+                <div className={cn("text-[10px] font-semibold uppercase tracking-wider mb-1.5 flex items-center gap-1.5", group.color)}>
+                  <span className={cn("inline-block w-1.5 h-1.5 rounded-full", group.dot)} />
+                  {group.family}
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {group.chains.map(c => (
+                    <span
+                      key={c.name + c.ticker}
+                      className={cn(
+                        "inline-flex items-center gap-1 text-[10px] rounded-md px-2 py-0.5 border",
+                        c.mode === "full"
+                          ? "bg-gray-800/80 border-gray-700 text-gray-300"
+                          : "bg-gray-900/40 border-gray-800 text-gray-500 italic"
+                      )}
+                    >
+                      <span className="font-bold text-[9px] text-gray-500">{c.ticker}</span>
+                      {c.name}
+                      {c.badge && <span className="text-[9px] opacity-70 ml-0.5">{c.badge}</span>}
+                      {c.mode === "full"
+                        ? <span className="w-1 h-1 rounded-full bg-emerald-500 ml-0.5" title="Full nonce-reuse recovery" />
+                        : <span className="w-1 h-1 rounded-full bg-yellow-600 ml-0.5" title="Detection only" />
+                      }
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))}
+            <div className="mt-2 pt-2 border-t border-gray-800 flex gap-4 text-[10px] text-gray-500">
+              <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />Full nonce-reuse recovery + key derivation</span>
+              <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-yellow-600" />Address detection + laundering flag</span>
+            </div>
+          </div>
+
           {/* Cross-engine flows */}
           {f && (
             <div className="bg-gray-900/60 rounded-xl border border-gray-700/50 p-4">

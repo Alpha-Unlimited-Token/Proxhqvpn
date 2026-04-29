@@ -41,7 +41,7 @@ import {
 import { parseTargetFile, extractEthAddresses, extractAllAddresses } from "../lib/target-file-parser";
 import { scanAddress as multiChainScan, scanAddressBatch as multiChainScanBatch } from "../lib/signature-miner/multi-chain-engine";
 import { getCrossEnginePool } from "../lib/signature-miner/cross-engine-pool";
-import { detectChain } from "../lib/signature-miner/chain-adapter";
+import { detectChain as detectSigChain } from "../lib/signature-miner/chain-adapter";
 import multer from "multer";
 import fs from "fs";
 import path from "path";
@@ -2424,7 +2424,7 @@ router.get("/advanced-attack-report/:filename", requireAdmin, (req: Request, res
         res.status(400).json({ error: "address is required" });
         return;
       }
-      const chain = detectChain(address.trim());
+      const chain = detectSigChain(address.trim());
       try {
         const result = await multiChainScan(address.trim(), { maxTx: 80 });
         res.json({ ok: true, chain, result });
@@ -2472,7 +2472,7 @@ router.get("/advanced-attack-report/:filename", requireAdmin, (req: Request, res
       for (const raw of addresses) {
         const addr = raw?.trim();
         if (!addr) continue;
-        const chain = detectChain(addr);
+        const chain = detectSigChain(addr);
         if (chain === "ethereum" || chain === "unknown") {
           pool.pendingE1TargetedAddresses.add(addr);
         } else {
@@ -2499,7 +2499,7 @@ router.get("/advanced-attack-report/:filename", requireAdmin, (req: Request, res
         res.status(400).json({ error: "?address= is required" });
         return;
       }
-      const chain = detectChain(address);
+      const chain = detectSigChain(address);
       res.json({ address, chain });
     }
   );
