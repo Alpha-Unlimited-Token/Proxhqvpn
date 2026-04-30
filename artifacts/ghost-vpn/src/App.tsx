@@ -122,6 +122,7 @@ import TokenSequencer from "@/pages/TokenSequencer";
 import WsTester from "@/pages/WsTester";
 import SastAnalyzer from "@/pages/SastAnalyzer";
 import QuantumAuditPage from "@/pages/QuantumAudit";
+import VpnTracker from "@/pages/VpnTracker";
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
@@ -664,6 +665,9 @@ function AppRoutes() {
           </Route>
           <Route path="/quantum-audit">
             <CcLayout><QuantumAuditPage /></CcLayout>
+          </Route>
+          <Route path="/vpn-tracker">
+            <CcLayout><VpnTracker /></CcLayout>
           </Route>
 
           {/* ── Admin-only — gated on backend; frontend shows paywall for non-admins ── */}

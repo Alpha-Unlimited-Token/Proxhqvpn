@@ -109,6 +109,7 @@ const PAGE_NAMES: Record<string, string> = {
   "/ws-tester":            "WebSocket Tester",
   "/sast":                 "SAST Analyzer",
   "/quantum-audit":        "QuantumAudit — Blockchain Security",
+  "/vpn-tracker":          "VPN Tracker",
 };
 
 const USER_NAV = [
@@ -154,6 +155,7 @@ const NETWORK_NAV = [
 ];
 
 const ADVANCED_NAV = [
+  { href: "/vpn-tracker",   label: "VPN Tracker",           icon: Activity },
   { href: "/wireguard",     label: "WireGuard Config",      icon: Cpu },
   { href: "/router-config", label: "Router Setup",          icon: Router },
   { href: "/smart-dns",     label: "Smart DNS",             icon: Zap },
