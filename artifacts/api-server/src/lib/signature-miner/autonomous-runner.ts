@@ -161,6 +161,8 @@ let _stopRequested   = false;
 let _userStopped     = false;   // true only when stop() was explicitly called
 let _startTime       = 0;
 let _seededWallets   = 0;       // total unique addresses seeded from DB into pool
+/** Hashes already written to tx-hash-unknown-chain.txt — avoids duplicates across restarts. */
+const _unknownChainSet = new Set<string>();
 const _recentWindowTimes: number[] = [];
 const RPC = process.env.ETH_RPC_URL ?? "https://ethereum.publicnode.com";
 
@@ -421,8 +423,10 @@ const SILLYTUNA_HASHES_B = "/home/runner/workspace/attached_assets/sillytuna_att
 // These files let Engine 0 survive crashes and restarts without re-processing
 // hashes it already completed.  They live in the same sig-cache directory as
 // the runner's own state file.
-export const TX_CHECKPOINT_FILE = path.join(CACHE_DIR, "tx-hash-checkpoint.txt");
-export const TX_REGISTRY_FILE   = path.join(CACHE_DIR, "tx-hash-registry.json");
+export const TX_CHECKPOINT_FILE    = path.join(CACHE_DIR, "tx-hash-checkpoint.txt");
+export const TX_REGISTRY_FILE      = path.join(CACHE_DIR, "tx-hash-registry.json");
+/** Hashes that returned null from ALL 17 chains — queued for post-scan chain ID research. */
+export const TX_UNKNOWN_CHAIN_FILE = path.join(CACHE_DIR, "tx-hash-unknown-chain.txt");
 
 /**
  * Reads the two uploaded attacker files and seeds:
@@ -449,6 +453,13 @@ async function seedPoolFromFiles(pool: ReturnType<typeof getCrossEnginePool>): P
   const alreadyDone = loadProcessedHashes(TX_CHECKPOINT_FILE);
   if (alreadyDone.size > 0) {
     log(`Engine 0 resume: ${alreadyDone.size} tx hash(es) already processed — skipping on restart`);
+  }
+
+  // ── 2b. Load previously saved unknown-chain hashes into the dedup set ─────
+  const savedUnknown = loadProcessedHashes(TX_UNKNOWN_CHAIN_FILE);
+  for (const h of savedUnknown) _unknownChainSet.add(h);
+  if (savedUnknown.size > 0) {
+    log(`Engine 0 resume: ${savedUnknown.size} unknown-chain hash(es) queued for post-scan chain research`);
   }
 
   // ── 3. Load wallet addresses ─────────────────────────────────────────────
@@ -677,6 +688,18 @@ export async function startAutonomousRunner(opts: {
         if (pool.txHashProgress.processed % 125 === 0 || pool.pendingTxHashes.length === 0) {
           saveRegistryToFile(TX_REGISTRY_FILE);
           log(`Engine 0: checkpoint saved — ${pool.txHashProgress.processed}/${pool.txHashProgress.total} done`);
+        }
+
+        // ── Persist unknown-chain failures ────────────────────────────────
+        // Hashes that returned null from all 17 chains are written to a
+        // separate file for post-scan chain-ID research and rescan.
+        if (e0Result.failedHashes.length > 0) {
+          const newUnknown = e0Result.failedHashes.filter((h) => !_unknownChainSet.has(h));
+          if (newUnknown.length > 0) {
+            appendProcessedHashes(TX_UNKNOWN_CHAIN_FILE, newUnknown);
+            for (const h of newUnknown) _unknownChainSet.add(h);
+            log(`Engine 0: ${newUnknown.length} hash(es) added to unknown-chain queue (total: ${_unknownChainSet.size})`);
+          }
         }
       } catch (e) {
         log(`Engine 0 error: ${e}`);

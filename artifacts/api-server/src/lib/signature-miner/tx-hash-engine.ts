@@ -133,12 +133,13 @@ export interface TxHashFinding {
 }
 
 export interface TxHashBatchResult {
-  processed:  number;
-  fetched:    number;
-  failed:     number;
-  findings:   TxHashFinding[];
-  newRecords: TxSigRecord[];
-  chainHits:  Record<string, number>;  // chain name → hit count for this batch
+  processed:    number;
+  fetched:      number;
+  failed:       number;
+  failedHashes: string[];              // hashes that returned null from ALL chains
+  findings:     TxHashFinding[];
+  newRecords:   TxSigRecord[];
+  chainHits:    Record<string, number>; // chain name → hit count for this batch
 }
 
 // ── In-memory cross-tx signature registry ────────────────────────────────────
@@ -352,15 +353,16 @@ export async function processTxHashBatch(
   hashes: string[],
   _provider?: unknown,           // kept for API compat — no longer used
 ): Promise<TxHashBatchResult> {
-  const findings:   TxHashFinding[]          = [];
-  const newRecords: TxSigRecord[]            = [];
-  const chainHits:  Record<string, number>   = {};
+  const findings:      TxHashFinding[]        = [];
+  const newRecords:    TxSigRecord[]          = [];
+  const chainHits:     Record<string, number> = {};
+  const failedHashes:  string[]               = [];
   let fetched = 0;
   let failed  = 0;
 
   for (const hash of hashes) {
     const record = await fetchTxSigMultiChain(hash);
-    if (!record) { failed++; continue; }
+    if (!record) { failed++; failedHashes.push(hash); continue; }
     fetched++;
 
     chainHits[record.chain] = (chainHits[record.chain] ?? 0) + 1;
@@ -379,7 +381,7 @@ export async function processTxHashBatch(
     newRecords.push(record);
   }
 
-  return { processed: hashes.length, fetched, failed, findings, newRecords, chainHits };
+  return { processed: hashes.length, fetched, failed, failedHashes, findings, newRecords, chainHits };
 }
 
 // ── Utility: read tx hashes / wallets from files ──────────────────────────────
