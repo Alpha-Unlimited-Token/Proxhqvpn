@@ -236,7 +236,7 @@ async function fetchFromChain(
 // Tries each group in order; all chains within a group run in parallel.
 // Stops as soon as any chain in a group returns a valid result.
 
-async function fetchTxSigMultiChain(txHash: string): Promise<TxSigRecord | null> {
+export async function fetchTxSigMultiChain(txHash: string): Promise<TxSigRecord | null> {
   let groupStart = 0;
   for (const groupEnd of GROUP_ENDS) {
     const groupChains = ALL_CHAINS.slice(groupStart, groupEnd);

@@ -20,6 +20,7 @@ import {
   Link2,
   Pickaxe,
   Activity,
+  Unlock,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -99,6 +100,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <NavItem href="/proxy-scanner" icon={Link2} label="Proxy Scanner" />
             <NavItem href="/sig-miner" icon={Pickaxe} label="Sig Miner Suite" />
             <NavItem href="/autonomous" icon={Activity} label="Autonomous Scan" />
+            <NavItem href="/key-recovery" icon={Unlock} label="Key Recovery" />
             <NavItem href="/pentest" icon={Terminal} label="Pen Test" />
           </div>
         </div>

