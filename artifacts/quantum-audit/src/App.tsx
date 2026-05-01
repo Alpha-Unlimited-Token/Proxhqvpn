@@ -28,6 +28,7 @@ import AutonomousScan from "@/pages/AutonomousScan";
 import KeyRecovery from "@/pages/KeyRecovery";
 import WalletScanner from "@/pages/WalletScanner";
 import WalletIntel from "@/pages/WalletIntel";
+import DevAudit from "@/pages/DevAudit";
 
 const queryClient = new QueryClient();
 
@@ -58,6 +59,7 @@ function Router() {
         <Route path="/key-recovery" component={KeyRecovery} />
         <Route path="/wallet-scanner" component={WalletScanner} />
         <Route path="/wallet-intel" component={WalletIntel} />
+        <Route path="/dev-audit" component={DevAudit} />
         <Route component={NotFound} />
       </Switch>
     </Layout>
