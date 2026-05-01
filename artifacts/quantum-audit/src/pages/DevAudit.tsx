@@ -13,7 +13,8 @@ import {
   ShieldAlert, CheckCircle, AlertTriangle, Loader2, ExternalLink,
   Radio, Globe, FileCode, KeyRound, ChevronDown, ChevronUp,
   Info, Flame, ShieldCheck, Zap, Lock, Copy, Activity,
-  ServerCrash, BarChart3, Eye,
+  ServerCrash, BarChart3, Eye, Swords, Target, Network,
+  Package, ShieldX, Bug, Layers, Wifi,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -920,6 +921,493 @@ function SourceAnalysisTab() {
   );
 }
 
+// ── RPC Attack Suite Tab ───────────────────────────────────────────────────────
+interface AttackMethodResult {
+  method: string; namespace: string;
+  status: "exposed" | "auth-required" | "not-found" | "error" | "fuzz-hit";
+  errorCode?: number; errorMessage?: string; responseTime: number;
+  result?: unknown; isInfoLeak: boolean; params: unknown[];
+}
+interface FuzzResult {
+  method: string; payload: string; payloadDescription: string;
+  triggered: boolean; statusCode?: number; errorCode?: number;
+  errorMessage?: string; unexpectedBehaviour: string;
+}
+interface BatchAttackResult {
+  batchSize: number; responding: number; rateLimitBypassed: boolean;
+  batchRejected: boolean; rejectionReason?: string;
+  responseTimeMs: number; respondingMethods: string[]; batchError?: string;
+}
+interface RpcAttackSuiteResult {
+  endpoint: string; scanTimeMs: number; totalProbed: number;
+  fullyExposed: string[]; authRequired: string[]; notFound: number;
+  discoveredNamespaces: string[]; methods: AttackMethodResult[];
+  batchAttack: BatchAttackResult; fuzzResults: FuzzResult[];
+  responseDifferential: Record<string, string[]>;
+  criticalFindings: string[]; riskScore: number;
+}
+
+const NS_DANGER: Record<string, { color: string; label: string; threat: string }> = {
+  personal: { color: "text-red-400 border-red-500/40 bg-red-500/10",   label: "CRITICAL", threat: "Account unlocking & signing" },
+  admin:    { color: "text-red-400 border-red-500/40 bg-red-500/10",   label: "CRITICAL", threat: "Node admin & peer topology" },
+  debug:    { color: "text-red-400 border-red-500/40 bg-red-500/10",   label: "CRITICAL", threat: "Full EVM traces & state dumps" },
+  miner:    { color: "text-red-400 border-red-500/40 bg-red-500/10",   label: "CRITICAL", threat: "Miner control & coinbase set" },
+  devnode:  { color: "text-red-400 border-red-500/40 bg-red-500/10",   label: "CRITICAL", threat: "Hardhat/Anvil dev node exposed" },
+  txpool:   { color: "text-orange-400 border-orange-500/40 bg-orange-500/10", label: "HIGH", threat: "Full mempool enumeration" },
+  parity:   { color: "text-orange-400 border-orange-500/40 bg-orange-500/10", label: "HIGH", threat: "Parity-specific account access" },
+  trace:    { color: "text-yellow-400 border-yellow-500/40 bg-yellow-500/10", label: "MEDIUM", threat: "Transaction trace data" },
+  erigon:   { color: "text-yellow-400 border-yellow-500/40 bg-yellow-500/10", label: "MEDIUM", threat: "Erigon-specific endpoints" },
+  bor:      { color: "text-blue-400 border-blue-500/40 bg-blue-500/10",  label: "INFO",   threat: "Polygon validator info" },
+  alchemy:  { color: "text-blue-400 border-blue-500/40 bg-blue-500/10",  label: "INFO",   threat: "Alchemy enhanced API" },
+  eth:      { color: "text-green-400 border-green-500/40 bg-green-500/10", label: "STD",  threat: "Standard Ethereum API" },
+  net:      { color: "text-green-400 border-green-500/40 bg-green-500/10", label: "STD",  threat: "Network meta" },
+  web3:     { color: "text-muted-foreground border-border bg-muted/30",   label: "STD",   threat: "Web3 utility (version leak)" },
+};
+
+const TECHNIQUE_EXPLAINERS = [
+  {
+    icon: Layers,
+    title: "Batch Request Amplification",
+    color: "text-red-400",
+    desc: "JSON-RPC allows multiple calls in one HTTP request. Attackers bundle 150+ methods into a single POST to bypass per-request rate limits that only count HTTP requests, not the RPC calls inside the batch.",
+    source: "HackTricks Rate Limit Bypass / StackHawk",
+  },
+  {
+    icon: Eye,
+    title: "Cache Probe / API Surface Enumeration",
+    color: "text-orange-400",
+    desc: '"Method not found" (-32601) vs "Unauthorized" (-32001) is the key differential. Even on a "secured" node, Unauthorized reveals the method EXISTS — attackers use this to map the full hidden API surface without ever getting a result.',
+    source: "StackHawk JSON-RPC Security Guide (March 2026)",
+  },
+  {
+    icon: Bug,
+    title: "Loose Parameter Type Fuzzing",
+    color: "text-yellow-400",
+    desc: "Without strict schema enforcement, sending null, objects, arrays, or prototype-pollution payloads where strings are expected can bypass input validation, trigger unexpected code paths, or cause parser panics.",
+    source: "StackHawk / Alchemy RPC Security",
+  },
+  {
+    icon: Network,
+    title: "Namespace Discovery",
+    color: "text-blue-400",
+    desc: "Probing all known namespaces (eth, personal, admin, debug, txpool, miner, parity, trace, erigon, bor, alchemy, hardhat, anvil) reveals which client software is running and what private APIs are unintentionally exposed.",
+    source: "Ethereum Node Configuration Research",
+  },
+];
+
+function RpcAttackSuiteTab() {
+  const [endpoint, setEndpoint] = useState("");
+  const [showMethods, setShowMethods] = useState(false);
+  const [showDiff, setShowDiff] = useState(false);
+  const [showFuzz, setShowFuzz] = useState(false);
+  const [nsFilter, setNsFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+
+  const mutation = useMutation<RpcAttackSuiteResult, Error, string>({
+    mutationFn: async (ep) => {
+      const resp = await fetch(`${BASE}/api/dev-audit/rpc-attack`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ endpoint: ep }),
+      });
+      if (!resp.ok) throw new Error((await resp.json() as { error: string }).error);
+      return resp.json();
+    },
+  });
+
+  const r = mutation.data;
+
+  const filteredMethods = r ? r.methods.filter(m => {
+    if (nsFilter !== "all" && m.namespace !== nsFilter) return false;
+    if (statusFilter !== "all" && m.status !== statusFilter) return false;
+    return true;
+  }).sort((a, b) => {
+    const order = { exposed: 0, "auth-required": 1, error: 2, "fuzz-hit": 3, "not-found": 4 };
+    return (order[a.status] ?? 5) - (order[b.status] ?? 5);
+  }) : [];
+
+  const namespaces = r ? [...new Set(r.methods.map(m => m.namespace))] : [];
+
+  return (
+    <div className="space-y-6">
+      {/* Technique explainers */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {TECHNIQUE_EXPLAINERS.map(t => (
+          <div key={t.title} className="border border-border/50 rounded-lg p-3 bg-muted/20 space-y-1">
+            <div className="flex items-center gap-2">
+              <t.icon className={`w-4 h-4 shrink-0 ${t.color}`} />
+              <span className="text-xs font-bold">{t.title}</span>
+            </div>
+            <p className="text-xs text-muted-foreground leading-relaxed">{t.desc}</p>
+            <p className="text-xs text-muted-foreground/60 italic">Source: {t.source}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Input */}
+      <div className="space-y-3">
+        <div className="flex gap-2">
+          <div className="flex-1 relative">
+            <Wifi className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              className="pl-9 font-mono text-sm"
+              placeholder="https://your-node.example.com:8545"
+              value={endpoint}
+              onChange={e => setEndpoint(e.target.value)}
+            />
+          </div>
+          <Button
+            variant="destructive"
+            onClick={() => mutation.mutate(endpoint.trim())}
+            disabled={mutation.isPending || !endpoint.trim()}
+            className="gap-2 shrink-0"
+          >
+            {mutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Swords className="w-4 h-4" />}
+            {mutation.isPending ? "Attacking…" : "Run Full Attack Suite"}
+          </Button>
+        </div>
+        <Alert className="border-orange-500/40 bg-orange-500/8">
+          <Target className="w-4 h-4 text-orange-400" />
+          <AlertDescription className="text-xs">
+            <strong className="text-orange-400">What this does:</strong> Sends {170}+ real JSON-RPC calls, one batch amplification test
+            (all methods in a single HTTP request), and 17 fuzzing payloads per exposed method — the exact same
+            sequence a real attacker runs. Only point this at systems you own or have written permission to test.
+          </AlertDescription>
+        </Alert>
+      </div>
+
+      {mutation.isError && (
+        <Alert className="border-red-500/40 bg-red-500/8">
+          <ShieldX className="w-4 h-4 text-red-400" />
+          <AlertDescription className="text-sm text-red-300">{mutation.error.message}</AlertDescription>
+        </Alert>
+      )}
+
+      {mutation.isPending && (
+        <div className="flex flex-col items-center justify-center py-12 gap-4">
+          <Swords className="w-10 h-10 text-red-400 animate-pulse" />
+          <div className="text-center">
+            <p className="font-semibold text-sm">Attack suite running…</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Probing 170+ methods across 14 namespaces, running batch amplification test,
+              fuzzing exposed endpoints. This may take 30–90 seconds.
+            </p>
+          </div>
+          <div className="flex gap-2 flex-wrap justify-center">
+            {["Batch amplification","Cache probing","Namespace enumeration","Parameter fuzzing","Auth escalation"].map(s => (
+              <span key={s} className="text-xs border border-border/40 rounded px-2 py-0.5 text-muted-foreground animate-pulse">
+                {s}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {r && (
+        <div className="space-y-6">
+          {/* ── Summary Stats ── */}
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            {[
+              { label: "Methods Probed",   value: r.totalProbed,          color: "text-foreground" },
+              { label: "Fully Exposed",    value: r.fullyExposed.length,  color: r.fullyExposed.length > 0 ? "text-red-400" : "text-green-400" },
+              { label: "Auth-Required (Info Leak)", value: r.authRequired.length, color: r.authRequired.length > 0 ? "text-orange-400" : "text-green-400" },
+              { label: "Namespaces Found", value: r.discoveredNamespaces.length, color: "text-blue-400" },
+              { label: "Scan Time",        value: `${(r.scanTimeMs / 1000).toFixed(1)}s`, color: "text-muted-foreground" },
+            ].map(({ label, value, color }) => (
+              <Card key={label} className="border-border/50">
+                <CardContent className="pt-3 pb-3 text-center">
+                  <div className={`text-2xl font-bold font-mono ${color}`}>{value}</div>
+                  <div className="text-xs text-muted-foreground mt-1 leading-tight">{label}</div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          {/* ── Risk Score ── */}
+          <Card className="border-border/50">
+            <CardHeader className="pb-2 pt-4">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <BarChart3 className="w-4 h-4 text-red-400" />
+                Risk Score
+                <span className="text-xs text-muted-foreground font-normal ml-1">
+                  (based on exposed dangerous namespaces, rate-limit bypass, info leaks, fuzzing hits)
+                </span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pb-4">
+              <RiskBar score={r.riskScore} />
+            </CardContent>
+          </Card>
+
+          {/* ── Critical Findings ── */}
+          {r.criticalFindings.length > 0 && (
+            <div className="space-y-2">
+              <h3 className="text-sm font-bold flex items-center gap-2">
+                <Flame className="w-4 h-4 text-red-400" />
+                Critical Findings ({r.criticalFindings.length})
+              </h3>
+              {r.criticalFindings.map((f, i) => {
+                const isCrit = f.startsWith("CRITICAL");
+                const isHigh = f.startsWith("HIGH");
+                const cls = isCrit
+                  ? "border-red-500/50 bg-red-500/10 text-red-300"
+                  : isHigh
+                  ? "border-orange-500/50 bg-orange-500/10 text-orange-300"
+                  : "border-yellow-500/50 bg-yellow-500/10 text-yellow-300";
+                return (
+                  <Alert key={i} className={`${cls}`}>
+                    <ShieldAlert className="w-4 h-4" />
+                    <AlertDescription className="text-xs leading-relaxed">{f}</AlertDescription>
+                  </Alert>
+                );
+              })}
+            </div>
+          )}
+
+          {r.criticalFindings.length === 0 && (
+            <Alert className="border-green-500/40 bg-green-500/8">
+              <ShieldCheck className="w-4 h-4 text-green-400" />
+              <AlertDescription className="text-xs text-green-300">
+                No critical findings detected. All dangerous namespaces appear to be properly locked down.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* ── Batch Amplification Result ── */}
+          <Card className="border-border/50">
+            <CardHeader className="pb-2 pt-4">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Layers className="w-4 h-4 text-orange-400" />
+                Batch Request Amplification Attack
+                {r.batchAttack.rateLimitBypassed
+                  ? <span className="text-xs text-red-400 font-semibold ml-auto">⚠ RATE-LIMIT BYPASS CONFIRMED</span>
+                  : r.batchAttack.batchRejected
+                  ? <span className="text-xs text-green-400 font-semibold ml-auto">✓ Batch Rejected</span>
+                  : <span className="text-xs text-yellow-400 font-semibold ml-auto">Batch Accepted (monitor volume)</span>}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pb-4 space-y-3">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {[
+                  { label: "Methods in Batch",  value: r.batchAttack.batchSize },
+                  { label: "Responded",         value: r.batchAttack.responding },
+                  { label: "Response Time",     value: `${r.batchAttack.responseTimeMs}ms` },
+                  { label: "Rate-Limit Bypass", value: r.batchAttack.rateLimitBypassed ? "YES" : "No" },
+                ].map(({ label, value }) => (
+                  <div key={label} className="bg-muted/30 rounded p-2 text-center">
+                    <div className="font-mono font-bold text-sm">{value}</div>
+                    <div className="text-xs text-muted-foreground">{label}</div>
+                  </div>
+                ))}
+              </div>
+              {r.batchAttack.batchRejected && r.batchAttack.rejectionReason && (
+                <p className="text-xs text-green-300 bg-green-500/10 border border-green-500/30 rounded p-2">
+                  Server protection: {r.batchAttack.rejectionReason}
+                </p>
+              )}
+              {r.batchAttack.rateLimitBypassed && r.batchAttack.respondingMethods.length > 0 && (
+                <div className="space-y-1">
+                  <p className="text-xs text-orange-300 font-semibold">Methods that bypassed rate-limiting via batch:</p>
+                  <div className="flex flex-wrap gap-1">
+                    {r.batchAttack.respondingMethods.slice(0, 30).map(m => (
+                      <span key={m} className="text-xs font-mono bg-orange-500/10 border border-orange-500/30 text-orange-300 rounded px-1.5 py-0.5">
+                        {m}
+                      </span>
+                    ))}
+                    {r.batchAttack.respondingMethods.length > 30 && (
+                      <span className="text-xs text-muted-foreground">+{r.batchAttack.respondingMethods.length - 30} more</span>
+                    )}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* ── Namespace Discovery ── */}
+          {r.discoveredNamespaces.length > 0 && (
+            <div className="space-y-2">
+              <h3 className="text-sm font-bold flex items-center gap-2">
+                <Network className="w-4 h-4 text-blue-400" />
+                Discovered Namespaces ({r.discoveredNamespaces.length})
+              </h3>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                {r.discoveredNamespaces.map(ns => {
+                  const info = NS_DANGER[ns] ?? { color: "text-muted-foreground border-border bg-muted/20", label: "UNK", threat: "Unknown namespace" };
+                  const exposed = r.fullyExposed.filter(m => m.startsWith(`${ns}_`));
+                  const authReq = r.authRequired.filter(m => m.startsWith(`${ns}_`));
+                  return (
+                    <div key={ns} className={`border rounded-lg p-3 space-y-1 ${info.color}`}>
+                      <div className="flex items-center justify-between">
+                        <span className="font-mono font-bold text-sm">{ns}_*</span>
+                        <span className={`text-xs font-semibold px-1.5 py-0.5 rounded border ${info.color}`}>{info.label}</span>
+                      </div>
+                      <p className="text-xs opacity-80">{info.threat}</p>
+                      <div className="flex gap-2 text-xs flex-wrap">
+                        {exposed.length > 0 && <span className="text-red-400">{exposed.length} exposed</span>}
+                        {authReq.length > 0 && <span className="text-orange-400">{authReq.length} auth-required (info leak)</span>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* ── Response Differential (Cache Probe) ── */}
+          {Object.keys(r.responseDifferential).length > 0 && (
+            <Card className="border-border/50">
+              <CardHeader className="pb-2 pt-4">
+                <button
+                  className="flex items-center justify-between w-full"
+                  onClick={() => setShowDiff(v => !v)}
+                >
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Eye className="w-4 h-4 text-orange-400" />
+                    Response Differential Map — Cache Probe Results
+                    <span className="text-xs text-muted-foreground font-normal">
+                      ({Object.keys(r.responseDifferential).length} error signatures)
+                    </span>
+                  </CardTitle>
+                  {showDiff ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+                </button>
+              </CardHeader>
+              {showDiff && (
+                <CardContent className="pb-4 space-y-3">
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    <strong className="text-orange-400">The hacker technique:</strong> Different error codes for the same
+                    "failed" request reveal the API structure. A <code className="bg-muted px-1 rounded">-32601 Method not found</code> means
+                    the method doesn't exist. A <code className="bg-muted px-1 rounded">-32001 Unauthorized</code> means it DOES exist but is
+                    auth-protected — leaking the full API surface even to unauthenticated attackers.
+                  </p>
+                  {Object.entries(r.responseDifferential).map(([sig, methods]) => (
+                    <div key={sig} className="space-y-1">
+                      <p className="text-xs font-mono font-semibold text-orange-300">{sig}</p>
+                      <div className="flex flex-wrap gap-1">
+                        {methods.slice(0, 20).map(m => (
+                          <span key={m} className="text-xs font-mono bg-muted/40 border border-border/40 rounded px-1.5 py-0.5 text-muted-foreground">
+                            {m}
+                          </span>
+                        ))}
+                        {methods.length > 20 && (
+                          <span className="text-xs text-muted-foreground">+{methods.length - 20} more</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </CardContent>
+              )}
+            </Card>
+          )}
+
+          {/* ── Parameter Fuzzing Results ── */}
+          {r.fuzzResults.filter(f => f.triggered).length > 0 && (
+            <Card className="border-border/50">
+              <CardHeader className="pb-2 pt-4">
+                <button className="flex items-center justify-between w-full" onClick={() => setShowFuzz(v => !v)}>
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Bug className="w-4 h-4 text-yellow-400" />
+                    Parameter Fuzzing Hits
+                    <span className="text-xs text-red-400 font-semibold">
+                      {r.fuzzResults.filter(f => f.triggered).length} unexpected behaviours triggered
+                    </span>
+                  </CardTitle>
+                  {showFuzz ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+                </button>
+              </CardHeader>
+              {showFuzz && (
+                <CardContent className="pb-4 space-y-2">
+                  {r.fuzzResults.filter(f => f.triggered).map((f, i) => (
+                    <div key={i} className="border border-yellow-500/30 bg-yellow-500/8 rounded-lg p-3 space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-mono text-xs font-bold text-yellow-300">{f.method}</span>
+                        <span className="text-xs text-muted-foreground">←</span>
+                        <span className="text-xs text-yellow-200">{f.payloadDescription}</span>
+                      </div>
+                      <p className="text-xs text-orange-300 font-semibold">{f.unexpectedBehaviour}</p>
+                      {f.errorMessage && (
+                        <p className="text-xs font-mono text-muted-foreground">{f.errorMessage.slice(0, 150)}</p>
+                      )}
+                    </div>
+                  ))}
+                </CardContent>
+              )}
+            </Card>
+          )}
+
+          {/* ── All Methods Table ── */}
+          <Card className="border-border/50">
+            <CardHeader className="pb-2 pt-4">
+              <button className="flex items-center justify-between w-full" onClick={() => setShowMethods(v => !v)}>
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Activity className="w-4 h-4 text-cyan-400" />
+                  Full Method Probe Results ({r.totalProbed} methods)
+                </CardTitle>
+                {showMethods ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+              </button>
+            </CardHeader>
+            {showMethods && (
+              <CardContent className="pb-4 space-y-3">
+                {/* Filters */}
+                <div className="flex gap-2 flex-wrap">
+                  <select
+                    className="text-xs bg-muted border border-border rounded px-2 py-1"
+                    value={nsFilter}
+                    onChange={e => setNsFilter(e.target.value)}
+                  >
+                    <option value="all">All namespaces</option>
+                    {namespaces.map(ns => <option key={ns} value={ns}>{ns}</option>)}
+                  </select>
+                  <select
+                    className="text-xs bg-muted border border-border rounded px-2 py-1"
+                    value={statusFilter}
+                    onChange={e => setStatusFilter(e.target.value)}
+                  >
+                    <option value="all">All statuses</option>
+                    <option value="exposed">Exposed</option>
+                    <option value="auth-required">Auth-Required (Info Leak)</option>
+                    <option value="error">Error</option>
+                    <option value="not-found">Not Found</option>
+                  </select>
+                  <span className="text-xs text-muted-foreground self-center">
+                    Showing {filteredMethods.length} methods
+                  </span>
+                </div>
+                <ScrollArea className="h-80">
+                  <div className="space-y-1">
+                    {filteredMethods.map(m => {
+                      const statusCls = m.status === "exposed"
+                        ? "text-red-400 bg-red-500/10 border-red-500/30"
+                        : m.status === "auth-required"
+                        ? "text-orange-400 bg-orange-500/10 border-orange-500/30"
+                        : m.status === "error"
+                        ? "text-yellow-400 bg-yellow-500/10 border-yellow-500/30"
+                        : "text-muted-foreground bg-muted/10 border-border/20";
+                      return (
+                        <div key={m.method} className={`flex items-center gap-2 rounded px-2 py-1.5 border text-xs font-mono ${statusCls}`}>
+                          <span className="flex-1 truncate">{m.method}</span>
+                          <span className="shrink-0 text-muted-foreground">{m.responseTime}ms</span>
+                          {m.isInfoLeak && (
+                            <span className="shrink-0 text-xs bg-orange-500/20 text-orange-300 border border-orange-500/30 rounded px-1">
+                              INFO LEAK
+                            </span>
+                          )}
+                          <span className={`shrink-0 text-xs rounded px-1 border ${statusCls}`}>
+                            {m.status}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </ScrollArea>
+              </CardContent>
+            )}
+          </Card>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function DevAudit() {
   return (
@@ -935,12 +1423,13 @@ export default function DevAudit() {
         </p>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         {[
           { icon: Radio,    color: "text-cyan-400",    label: "RPC Probe",         desc: "Live JSON-RPC method exposure" },
           { icon: Globe,    color: "text-blue-400",    label: "Header Scanner",    desc: "Real HTTP response analysis" },
           { icon: Zap,      color: "text-purple-400",  label: "Live Contract",     desc: "On-chain bytecode & event audit" },
           { icon: KeyRound, color: "text-green-400",   label: "Key Entropy",       desc: "Statistical RNG weakness detection" },
+          { icon: Swords,   color: "text-red-400",     label: "RPC Attack Suite",  desc: "Batch amplification, cache probe, fuzzing" },
         ].map(({ icon: Icon, color, label, desc }) => (
           <Card key={label} className="border-border/50">
             <CardContent className="pt-4 pb-3 flex items-start gap-2">
@@ -963,17 +1452,19 @@ export default function DevAudit() {
         </AlertDescription>
       </Alert>
 
-      <Tabs defaultValue="rpc">
-        <TabsList className="grid grid-cols-4 w-full">
+      <Tabs defaultValue="attack">
+        <TabsList className="grid grid-cols-5 w-full">
+          <TabsTrigger value="attack"  className="flex items-center gap-1 text-xs"><Swords   className="w-3 h-3" /> Attack Suite</TabsTrigger>
           <TabsTrigger value="rpc"     className="flex items-center gap-1 text-xs"><Radio    className="w-3 h-3" /> RPC Probe</TabsTrigger>
           <TabsTrigger value="headers" className="flex items-center gap-1 text-xs"><Globe    className="w-3 h-3" /> Headers</TabsTrigger>
           <TabsTrigger value="contract"className="flex items-center gap-1 text-xs"><Zap      className="w-3 h-3" /> Live Contract</TabsTrigger>
           <TabsTrigger value="entropy" className="flex items-center gap-1 text-xs"><KeyRound className="w-3 h-3" /> Key Entropy</TabsTrigger>
         </TabsList>
-        <TabsContent value="rpc"      className="mt-6"><RpcProbeTab      /></TabsContent>
-        <TabsContent value="headers"  className="mt-6"><HeadersTab       /></TabsContent>
-        <TabsContent value="contract" className="mt-6"><ContractTestTab  /></TabsContent>
-        <TabsContent value="entropy"  className="mt-6"><KeyEntropyTab    /></TabsContent>
+        <TabsContent value="attack"   className="mt-6"><RpcAttackSuiteTab /></TabsContent>
+        <TabsContent value="rpc"      className="mt-6"><RpcProbeTab        /></TabsContent>
+        <TabsContent value="headers"  className="mt-6"><HeadersTab         /></TabsContent>
+        <TabsContent value="contract" className="mt-6"><ContractTestTab    /></TabsContent>
+        <TabsContent value="entropy"  className="mt-6"><KeyEntropyTab      /></TabsContent>
       </Tabs>
     </div>
   );

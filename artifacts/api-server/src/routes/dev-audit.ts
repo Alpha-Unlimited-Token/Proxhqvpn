@@ -16,6 +16,7 @@ import { checkSecurityHeaders } from "../lib/dev-audit/headers-checker";
 import { testLiveContract }    from "../lib/dev-audit/live-contract-tester";
 import { auditKeyEntropy }     from "../lib/dev-audit/key-entropy-auditor";
 import { scanContractSource }  from "../lib/dev-audit/contract-scanner";
+import { runRpcAttackSuite }   from "../lib/dev-audit/rpc-attack-suite";
 import { logger }              from "../lib/logger";
 
 const router = Router();
@@ -136,6 +137,35 @@ router.post("/contract-source", async (req: Request, res: Response) => {
   } catch (err) {
     req.log.error({ err }, "contract-source error");
     return res.status(500).json({ error: "Source analysis failed" });
+  }
+});
+
+// POST /api/dev-audit/rpc-attack
+// Full hacker-technique RPC attack suite:
+//   batch amplification, cache probing, namespace enumeration, parameter fuzzing
+router.post("/rpc-attack", async (req: Request, res: Response) => {
+  const { endpoint } = req.body as Record<string, unknown>;
+  if (typeof endpoint !== "string" || !endpoint.trim()) {
+    return res.status(400).json({ error: "endpoint (string) is required" });
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(endpoint.trim());
+    if (!["http:", "https:"].includes(parsed.protocol)) throw new Error("bad protocol");
+  } catch {
+    return res.status(400).json({ error: "endpoint must be a valid http:// or https:// URL" });
+  }
+  const host = parsed.hostname.toLowerCase();
+  const isInternal = /^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(host);
+  if (isInternal) {
+    return res.status(400).json({ error: "Only external endpoints can be tested. Use a publicly accessible URL." });
+  }
+  try {
+    const result = await runRpcAttackSuite(endpoint.trim());
+    return res.json(result);
+  } catch (err) {
+    req.log.error({ err }, "rpc-attack error");
+    return res.status(500).json({ error: "Attack suite failed — verify the endpoint is reachable" });
   }
 });
 
