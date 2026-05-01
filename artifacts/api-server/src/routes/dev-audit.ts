@@ -25,6 +25,7 @@ import {
   runEndpointDiscovery,
   runDnsRebindingTest,
 } from "../lib/dev-audit/pentest-suite";
+import { universalWalletScan } from "../lib/dev-audit/wallet-chain-detector";
 import { logger }              from "../lib/logger";
 
 const router = Router();
@@ -244,6 +245,27 @@ router.post("/rpc-attack", async (req: Request, res: Response) => {
   } catch (err) {
     req.log.error({ err }, "rpc-attack error");
     return res.status(500).json({ error: "Attack suite failed — verify the endpoint is reachable" });
+  }
+});
+
+// POST /api/dev-audit/universal-scan
+// Self-adaptive: auto-detects blockchain from address format and runs the correct scan suite.
+// Supports EVM (10 chains), Bitcoin, Solana, TRON, XRP, Litecoin, Dogecoin, Cardano, Cosmos.
+router.post("/universal-scan", async (req: Request, res: Response) => {
+  const { address } = req.body as Record<string, unknown>;
+  if (typeof address !== "string" || !address.trim()) {
+    return res.status(400).json({ error: "address (string) is required" });
+  }
+  const cleaned = address.trim();
+  if (cleaned.length < 20 || cleaned.length > 200) {
+    return res.status(400).json({ error: "address length must be between 20 and 200 characters" });
+  }
+  try {
+    const result = await universalWalletScan(cleaned);
+    return res.json(result);
+  } catch (err) {
+    req.log.error({ err }, "universal-scan error");
+    return res.status(500).json({ error: "Scan failed — check the address format" });
   }
 });
 

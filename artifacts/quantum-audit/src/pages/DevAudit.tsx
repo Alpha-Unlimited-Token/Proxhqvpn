@@ -14,7 +14,8 @@ import {
   Radio, Globe, FileCode, KeyRound, ChevronDown, ChevronUp,
   Info, Flame, ShieldCheck, Zap, Lock, Copy, Activity,
   ServerCrash, BarChart3, Eye, Swords, Target, Network,
-  Package, ShieldX, Bug, Layers, Wifi,
+  Package, ShieldX, Bug, Layers, Wifi, Search, Cpu, Coins,
+  ArrowDownLeft, ArrowUpRight, CircleDot,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -1802,6 +1803,389 @@ function RpcAttackSuiteTab() {
   );
 }
 
+// ── Universal Wallet Scanner Tab ──────────────────────────────────────────────
+
+type AddressFamily = "evm"|"bitcoin"|"solana"|"tron"|"xrp"|"litecoin"|"dogecoin"|"cardano"|"cosmos"|"unknown";
+
+interface ChainActivity {
+  chain: string; label: string; symbol: string; chainId?: number;
+  active: boolean; isContract: boolean;
+  balanceRaw: string; balanceFormatted: string; nativeSymbol: string;
+  txCount: number; error?: string;
+}
+interface ApprovalRecord {
+  chain: string; tokenContract: string; tokenName?: string; tokenSymbol?: string;
+  spender: string; txHash: string; blockNumber?: number;
+}
+interface TokenHolding {
+  chain: string; name?: string; symbol?: string; type: string; balance: string; contract?: string;
+}
+interface TransferRecord {
+  chain: string; direction: "in"|"out"; tokenSymbol?: string; tokenName?: string;
+  amount: string; counterparty: string; txHash?: string; timestamp?: string;
+}
+interface UniversalWalletScanResult {
+  address: string; normalizedAddress: string;
+  detectedFamily: AddressFamily; detectedFamilyLabel: string;
+  confidence: "definitive"|"high"|"medium"|"low";
+  chainsProbed: string[]; activeChains: ChainActivity[]; inactiveChains: ChainActivity[];
+  approvals: ApprovalRecord[]; tokenHoldings: TokenHolding[]; recentTransfers: TransferRecord[];
+  securityFindings: Array<{ id: string; severity: Severity; title: string; detail: string; chain?: string }>;
+  riskScore: number; scanTimeMs: number; scanErrors: string[];
+}
+
+const CHAIN_ICONS: Record<string, string> = {
+  ethereum: "⟠", polygon: "⬡", bsc: "●", arbitrum: "🔷", optimism: "🔴",
+  base: "🔵", avalanche: "🔺", fantom: "👻", zksync: "⚡", linea: "↗",
+  "bitcoin-mainnet": "₿", "solana-mainnet": "◎", "tron-mainnet": "♦",
+  "xrpl-mainnet": "✕", "cosmos-hub": "⚛",
+};
+
+const FAMILY_COLORS: Record<AddressFamily, string> = {
+  evm:      "text-cyan-400 bg-cyan-500/10 border-cyan-500/30",
+  bitcoin:  "text-orange-400 bg-orange-500/10 border-orange-500/30",
+  solana:   "text-purple-400 bg-purple-500/10 border-purple-500/30",
+  tron:      "text-red-400 bg-red-500/10 border-red-500/30",
+  xrp:      "text-blue-400 bg-blue-500/10 border-blue-500/30",
+  litecoin: "text-gray-300 bg-gray-500/10 border-gray-500/30",
+  dogecoin: "text-yellow-400 bg-yellow-500/10 border-yellow-500/30",
+  cardano:  "text-indigo-400 bg-indigo-500/10 border-indigo-500/30",
+  cosmos:   "text-violet-400 bg-violet-500/10 border-violet-500/30",
+  unknown:  "text-muted-foreground bg-muted/20 border-border",
+};
+
+function formatBalance(val: string, symbol: string): string {
+  const n = parseFloat(val);
+  if (isNaN(n)) return `${val} ${symbol}`;
+  if (n === 0) return `0 ${symbol}`;
+  if (n >= 1000) return `${n.toLocaleString(undefined, { maximumFractionDigits: 2 })} ${symbol}`;
+  if (n >= 0.01) return `${n.toFixed(4)} ${symbol}`;
+  return `${val} ${symbol}`;
+}
+
+function shortAddr(addr: string): string {
+  if (addr.length <= 14) return addr;
+  return `${addr.slice(0, 8)}…${addr.slice(-6)}`;
+}
+
+function UniversalWalletScannerTab() {
+  const [address, setAddress] = useState("");
+  const mutation = useMutation<UniversalWalletScanResult, Error, string>({
+    mutationFn: async (addr) => {
+      const resp = await fetch(`${BASE}/api/dev-audit/universal-scan`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ address: addr }),
+      });
+      if (!resp.ok) throw new Error((await resp.json() as { error: string }).error);
+      return resp.json();
+    },
+  });
+  const { toast } = useToast();
+  const r = mutation.data;
+
+  const [showInactive, setShowInactive] = useState(false);
+  const [showTransfers, setShowTransfers] = useState(false);
+  const [showTokens, setShowTokens] = useState(false);
+
+  return (
+    <div className="space-y-6">
+      <Alert className="border-cyan-500/30 bg-cyan-500/5">
+        <Cpu className="w-4 h-4 text-cyan-400" />
+        <AlertDescription className="text-xs">
+          <strong>Self-adaptive blockchain detection.</strong> Paste any wallet address — EVM (0x…), Bitcoin, Solana, TRON, XRP, Cardano, Cosmos, Litecoin, Dogecoin.
+          The engine auto-identifies the chain family, probes all relevant networks in parallel, and runs the correct real scans automatically. No chain selection required.
+        </AlertDescription>
+      </Alert>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Search className="w-5 h-5 text-cyan-400" />Universal Wallet Address Scanner
+          </CardTitle>
+          <CardDescription>
+            Paste any cryptocurrency wallet address. The system detects the blockchain automatically and fires all applicable security scans: balance probes, approval scans, token holdings, transfer history, entropy analysis, and active-chain discovery — all from real live queries.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex gap-2">
+            <Input
+              value={address}
+              onChange={e => setAddress(e.target.value)}
+              placeholder="0x… / bc1… / 1… / sol… / T… / r… / addr1… / cosmos1…"
+              className="font-mono flex-1 text-sm"
+              onKeyDown={e => e.key === "Enter" && address.trim() && mutation.mutate(address.trim())}
+            />
+            <Button
+              onClick={() => mutation.mutate(address.trim())}
+              disabled={!address.trim() || mutation.isPending}
+              className="shrink-0"
+            >
+              {mutation.isPending
+                ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Scanning…</>
+                : <><Search className="w-4 h-4 mr-1.5" />Scan</>}
+            </Button>
+          </div>
+          {mutation.error && (
+            <Alert className="border-red-500/40 bg-red-500/5">
+              <AlertTriangle className="w-4 h-4 text-red-400" />
+              <AlertDescription className="text-sm text-red-300">{mutation.error.message}</AlertDescription>
+            </Alert>
+          )}
+          {mutation.isPending && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                Detecting chain family, probing all networks in parallel…
+              </div>
+              <div className="grid grid-cols-5 gap-1.5">
+                {["ETH","POL","BSC","ARB","OPT","BASE","AVAX","FTM","ZK","LINEA"].map(c => (
+                  <div key={c} className="h-1.5 rounded-full bg-cyan-500/30 animate-pulse" style={{ animationDelay: `${Math.random()*400}ms` }} />
+                ))}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {r && (
+        <div className="space-y-5">
+
+          {/* ── Detection header ── */}
+          <div className="flex flex-wrap items-start gap-3">
+            <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-semibold ${FAMILY_COLORS[r.detectedFamily]}`}>
+              <CircleDot className="w-3.5 h-3.5" />
+              {r.detectedFamilyLabel}
+            </div>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border/50 bg-muted/20 text-xs text-muted-foreground">
+              Confidence: <span className="text-foreground font-semibold">{r.confidence}</span>
+            </div>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border/50 bg-muted/20 text-xs text-muted-foreground">
+              {r.chainsProbed.length} chain{r.chainsProbed.length !== 1 ? "s" : ""} probed in {(r.scanTimeMs / 1000).toFixed(1)}s
+            </div>
+            {r.scanErrors.length > 0 && (
+              <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-yellow-500/30 bg-yellow-500/8 text-xs text-yellow-300">
+                {r.scanErrors.length} probe error{r.scanErrors.length !== 1 ? "s" : ""}
+              </div>
+            )}
+          </div>
+
+          {/* ── Summary stats ── */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[
+              { label: "Active Chains",   value: r.activeChains.length,   color: r.activeChains.length > 0 ? "text-green-400" : "text-muted-foreground" },
+              { label: "Total Txns",      value: r.activeChains.reduce((s, c) => s + c.txCount, 0).toLocaleString(), color: "text-foreground" },
+              { label: "Standing Approvals", value: r.approvals.length,  color: r.approvals.length > 0 ? "text-red-400" : "text-green-400" },
+              { label: "Risk Score",      value: `${r.riskScore}/100`,   color: r.riskScore >= 60 ? "text-red-400" : r.riskScore >= 30 ? "text-yellow-400" : "text-green-400" },
+            ].map(({ label, value, color }) => (
+              <Card key={label}><CardContent className="pt-4 pb-3">
+                <p className={`text-xl font-bold ${color}`}>{value}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
+              </CardContent></Card>
+            ))}
+          </div>
+
+          {/* ── Active chains ── */}
+          {r.activeChains.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-sm font-semibold flex items-center gap-2">
+                <Activity className="w-4 h-4 text-green-400" />
+                Active Networks ({r.activeChains.length})
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                {r.activeChains.map(c => (
+                  <div key={c.chain} className="flex items-center gap-3 rounded-lg border border-green-500/20 bg-green-500/5 p-3">
+                    <span className="text-lg w-7 text-center">{CHAIN_ICONS[c.chain] ?? "◆"}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-semibold">{c.label}</span>
+                        {c.isContract && (
+                          <span className="text-xs px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">CONTRACT</span>
+                        )}
+                        {c.chainId && (
+                          <span className="text-xs text-muted-foreground">chain {c.chainId}</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+                        <span className="text-xs font-mono text-green-300">{formatBalance(c.balanceFormatted, c.symbol)}</span>
+                        <span className="text-xs text-muted-foreground">{c.txCount.toLocaleString()} txns</span>
+                      </div>
+                    </div>
+                    <CheckCircle className="w-4 h-4 text-green-400 shrink-0" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── Security findings ── */}
+          {r.securityFindings.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-sm font-semibold flex items-center gap-2">
+                <ShieldAlert className="w-4 h-4 text-orange-400" />
+                Security Findings
+              </p>
+              {r.securityFindings.map(f => (
+                <div key={f.id} className={`rounded-lg border p-3 space-y-1 ${sevColor(f.severity)}`}>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {sevBadge(f.severity)}
+                    <span className="text-xs font-semibold">{f.title}</span>
+                    {f.chain && <span className="text-xs text-muted-foreground">({f.chain})</span>}
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed">{f.detail}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* ── Standing approvals ── */}
+          {r.approvals.length > 0 && (
+            <Card className="border-red-500/30 bg-red-500/5">
+              <CardHeader className="pb-2 pt-4">
+                <CardTitle className="text-sm flex items-center gap-2 text-red-300">
+                  <ShieldX className="w-4 h-4" />
+                  Standing ERC-20 Approvals — {r.approvals.length} found
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pb-4 space-y-2">
+                <p className="text-xs text-muted-foreground">Each approval below is a standing permission for a spender contract to drain tokens without further user confirmation. Revoke unused approvals at <strong>revoke.cash</strong>.</p>
+                <ScrollArea className="h-48">
+                  <div className="space-y-1.5">
+                    {r.approvals.map((a, i) => (
+                      <div key={i} className="rounded border border-red-500/20 bg-card p-2 text-xs space-y-0.5">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-red-300 font-semibold">{CHAIN_ICONS[a.chain] ?? "◆"} {a.chain}</span>
+                          {a.tokenSymbol && <span className="font-mono text-orange-300">{a.tokenSymbol}</span>}
+                        </div>
+                        <p className="font-mono text-muted-foreground">Token: {shortAddr(a.tokenContract)}</p>
+                        <p className="font-mono text-muted-foreground">Spender: <span className="text-red-300">{shortAddr(a.spender.replace(/^0x000000000000000000000000/, "0x"))}</span></p>
+                        <div className="flex items-center gap-2">
+                          <span className="text-muted-foreground">Block {a.blockNumber?.toLocaleString()}</span>
+                          <CopyButton text={a.txHash} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* ── Token holdings ── */}
+          {r.tokenHoldings.length > 0 && (
+            <Card className="border-border/50">
+              <CardHeader className="pb-2 pt-4">
+                <button className="flex items-center justify-between w-full" onClick={() => setShowTokens(v => !v)}>
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Coins className="w-4 h-4 text-yellow-400" />
+                    Token Holdings ({r.tokenHoldings.length})
+                  </CardTitle>
+                  {showTokens ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+                </button>
+              </CardHeader>
+              {showTokens && (
+                <CardContent className="pb-4">
+                  <ScrollArea className="h-64">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
+                      {r.tokenHoldings.map((t, i) => (
+                        <div key={i} className="flex items-center gap-2 rounded border border-border/40 bg-card/60 px-3 py-2">
+                          <span className="text-sm">{CHAIN_ICONS[t.chain] ?? "◆"}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-semibold truncate">{t.name ?? "Unknown Token"}</p>
+                            <p className="text-xs text-muted-foreground font-mono">{t.symbol} · {t.type}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                </CardContent>
+              )}
+            </Card>
+          )}
+
+          {/* ── Transfer history ── */}
+          {r.recentTransfers.length > 0 && (
+            <Card className="border-border/50">
+              <CardHeader className="pb-2 pt-4">
+                <button className="flex items-center justify-between w-full" onClick={() => setShowTransfers(v => !v)}>
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Activity className="w-4 h-4 text-blue-400" />
+                    Recent Transfers ({r.recentTransfers.length})
+                  </CardTitle>
+                  {showTransfers ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+                </button>
+              </CardHeader>
+              {showTransfers && (
+                <CardContent className="pb-4">
+                  <ScrollArea className="h-64">
+                    <div className="space-y-1.5">
+                      {r.recentTransfers.map((t, i) => (
+                        <div key={i} className={`flex items-center gap-3 rounded border px-3 py-2 text-xs ${t.direction === "in" ? "border-green-500/20 bg-green-500/5" : "border-red-500/20 bg-red-500/5"}`}>
+                          {t.direction === "in"
+                            ? <ArrowDownLeft className="w-3.5 h-3.5 text-green-400 shrink-0" />
+                            : <ArrowUpRight className="w-3.5 h-3.5 text-red-400 shrink-0" />}
+                          <span className="text-sm">{CHAIN_ICONS[t.chain] ?? "◆"}</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className={`font-semibold ${t.direction === "in" ? "text-green-300" : "text-red-300"}`}>
+                                {t.direction === "in" ? "+" : "-"}{t.amount} {t.tokenSymbol ?? ""}
+                              </span>
+                            </div>
+                            <p className="text-muted-foreground font-mono truncate">
+                              {t.direction === "in" ? "from" : "to"}: {shortAddr(t.counterparty)}
+                            </p>
+                          </div>
+                          {t.timestamp && (
+                            <span className="text-muted-foreground shrink-0 text-right">
+                              {new Date(t.timestamp).toLocaleDateString()}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                </CardContent>
+              )}
+            </Card>
+          )}
+
+          {/* ── Inactive chains toggle ── */}
+          {r.inactiveChains.length > 0 && (
+            <div>
+              <button
+                className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                onClick={() => setShowInactive(v => !v)}
+              >
+                {showInactive ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                {r.inactiveChains.length} inactive / undeployed chain{r.inactiveChains.length !== 1 ? "s" : ""}
+              </button>
+              {showInactive && (
+                <div className="mt-2 grid grid-cols-2 md:grid-cols-3 gap-1.5">
+                  {r.inactiveChains.map(c => (
+                    <div key={c.chain} className="flex items-center gap-2 rounded border border-border/30 bg-muted/20 px-3 py-2 text-xs">
+                      <span>{CHAIN_ICONS[c.chain] ?? "◆"}</span>
+                      <span className="text-muted-foreground">{c.label}</span>
+                      {c.error && <AlertTriangle className="w-3 h-3 text-yellow-400 ml-auto" />}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {r.scanErrors.length > 0 && (
+            <div className="space-y-1">
+              {r.scanErrors.map((e, i) => (
+                <p key={i} className="text-xs text-yellow-400/70">{e}</p>
+              ))}
+            </div>
+          )}
+
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function DevAudit() {
   return (
@@ -1819,6 +2203,7 @@ export default function DevAudit() {
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
         {[
+          { icon: Search,     color: "text-cyan-400",    label: "Universal Scanner", desc: "Auto-detect chain, probe all networks" },
           { icon: Radio,      color: "text-cyan-400",    label: "RPC Probe",         desc: "Live JSON-RPC method exposure" },
           { icon: Globe,      color: "text-blue-400",    label: "Header Scanner",    desc: "Real HTTP response analysis" },
           { icon: Zap,        color: "text-purple-400",  label: "Live Contract",     desc: "On-chain bytecode & event audit" },
@@ -1847,23 +2232,25 @@ export default function DevAudit() {
         </AlertDescription>
       </Alert>
 
-      <Tabs defaultValue="pentest">
+      <Tabs defaultValue="universal">
         <TabsList className="grid grid-cols-3 w-full">
-          <TabsTrigger value="pentest" className="flex items-center gap-1 text-xs"><Bug      className="w-3 h-3" /> Pentest Suite</TabsTrigger>
-          <TabsTrigger value="attack"  className="flex items-center gap-1 text-xs"><Swords   className="w-3 h-3" /> RPC Attack</TabsTrigger>
-          <TabsTrigger value="rpc"     className="flex items-center gap-1 text-xs"><Radio    className="w-3 h-3" /> RPC Probe</TabsTrigger>
+          <TabsTrigger value="universal" className="flex items-center gap-1 text-xs"><Search   className="w-3 h-3" /> Wallet Scanner</TabsTrigger>
+          <TabsTrigger value="pentest"   className="flex items-center gap-1 text-xs"><Bug      className="w-3 h-3" /> Pentest Suite</TabsTrigger>
+          <TabsTrigger value="attack"    className="flex items-center gap-1 text-xs"><Swords   className="w-3 h-3" /> RPC Attack</TabsTrigger>
         </TabsList>
-        <TabsList className="grid grid-cols-3 w-full mt-1">
-          <TabsTrigger value="headers" className="flex items-center gap-1 text-xs"><Globe    className="w-3 h-3" /> Headers</TabsTrigger>
-          <TabsTrigger value="contract"className="flex items-center gap-1 text-xs"><Zap      className="w-3 h-3" /> Live Contract</TabsTrigger>
-          <TabsTrigger value="entropy" className="flex items-center gap-1 text-xs"><KeyRound className="w-3 h-3" /> Key Entropy</TabsTrigger>
+        <TabsList className="grid grid-cols-4 w-full mt-1">
+          <TabsTrigger value="rpc"      className="flex items-center gap-1 text-xs"><Radio    className="w-3 h-3" /> RPC Probe</TabsTrigger>
+          <TabsTrigger value="headers"  className="flex items-center gap-1 text-xs"><Globe    className="w-3 h-3" /> Headers</TabsTrigger>
+          <TabsTrigger value="contract" className="flex items-center gap-1 text-xs"><Zap      className="w-3 h-3" /> Live Contract</TabsTrigger>
+          <TabsTrigger value="entropy"  className="flex items-center gap-1 text-xs"><KeyRound className="w-3 h-3" /> Key Entropy</TabsTrigger>
         </TabsList>
-        <TabsContent value="pentest"  className="mt-6"><PentestSuiteTab   /></TabsContent>
-        <TabsContent value="attack"   className="mt-6"><RpcAttackSuiteTab /></TabsContent>
-        <TabsContent value="rpc"      className="mt-6"><RpcProbeTab        /></TabsContent>
-        <TabsContent value="headers"  className="mt-6"><HeadersTab         /></TabsContent>
-        <TabsContent value="contract" className="mt-6"><ContractTestTab    /></TabsContent>
-        <TabsContent value="entropy"  className="mt-6"><KeyEntropyTab      /></TabsContent>
+        <TabsContent value="universal" className="mt-6"><UniversalWalletScannerTab /></TabsContent>
+        <TabsContent value="pentest"   className="mt-6"><PentestSuiteTab           /></TabsContent>
+        <TabsContent value="attack"    className="mt-6"><RpcAttackSuiteTab         /></TabsContent>
+        <TabsContent value="rpc"       className="mt-6"><RpcProbeTab               /></TabsContent>
+        <TabsContent value="headers"   className="mt-6"><HeadersTab                /></TabsContent>
+        <TabsContent value="contract"  className="mt-6"><ContractTestTab           /></TabsContent>
+        <TabsContent value="entropy"   className="mt-6"><KeyEntropyTab             /></TabsContent>
       </Tabs>
     </div>
   );
