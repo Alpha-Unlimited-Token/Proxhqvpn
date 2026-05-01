@@ -532,6 +532,42 @@ router.get("/cc-summary", (req: Request, res: Response) => {
         discoveredAt: f.discoveredAt,
       })),
       crossEngineFlows: status.crossEngineFlows,
+      // ── Engine 5: Sequential / Counter-Derived Nonce Attack findings ──────
+      engine5: (() => {
+        const E5_TYPES = new Set([
+          "sequential_nonce", "geometric_nonce",
+          "low_s_violation", "s_entropy_bias", "lattice_bias_deep",
+        ]);
+        const e5Findings = recentFindings.filter(f => E5_TYPES.has(f.kind));
+        const keyRecoveries5 = e5Findings.filter(f => !!f.privateKey);
+        const bySeverity = { critical: 0, high: 0, medium: 0 } as Record<string, number>;
+        const byType: Record<string, number> = {};
+        for (const f of e5Findings) {
+          byType[f.kind] = (byType[f.kind] ?? 0) + 1;
+        }
+        return {
+          enabled:        true,
+          totalFindings:  e5Findings.length,
+          keyRecoveries:  keyRecoveries5.length,
+          bySeverity,
+          byType,
+          attackTypes: {
+            sequential_nonce:  "Linear counter-derived nonce (k_i = k₀ + n_i·c mod N) — O(1) key recovery from 3 txs",
+            geometric_nonce:   "Geometric ratio nonce (k_{i+1} = k_i·a mod N) — quadratic equation key recovery",
+            low_s_violation:   "EIP-2/BIP62 high-s signature — pre-Homestead wallet or missing low-s normalization",
+            s_entropy_bias:    "s-value bit-length bias — truncated k generation, reduces lattice attack complexity",
+            lattice_bias_deep: "Deep HNP lattice bias — Nguyen-Shparlinski attack via LLL basis reduction",
+          },
+          recentFindings: e5Findings.slice(0, 10).map(f => ({
+            kind:        f.kind,
+            address:     f.address,
+            hasKey:      !!f.privateKey,
+            detail:      f.detail,
+            confidence:  f.confidence,
+            discoveredAt: f.discoveredAt,
+          })),
+        };
+      })(),
     });
   } catch (err) {
     res.status(500).json({ error: String(err) });

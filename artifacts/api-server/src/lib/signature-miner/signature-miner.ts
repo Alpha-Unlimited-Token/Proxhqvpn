@@ -26,6 +26,7 @@
 import { ethers }   from "ethers";
 import { logger }   from "../logger";
 import { recoverPrivateKey, type TxSignatureData } from "../ecdsa-analyzer/nonce-recovery";
+import { runEngine5, type Engine5Finding } from "./sequential-nonce-engine";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const N  = BigInt("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141");
@@ -49,7 +50,13 @@ export type AttackType =
   | "r_collision"
   | "polynomial_nonce"
   | "bias_detected"
-  | "known_weak_k";
+  | "known_weak_k"
+  // Engine 5 — sequential / counter-derived nonce attacks
+  | "sequential_nonce"
+  | "geometric_nonce"
+  | "low_s_violation"
+  | "s_entropy_bias"
+  | "lattice_bias_deep";
 
 export interface SigMinerFinding {
   attackType:  AttackType;
@@ -66,6 +73,17 @@ export interface SigMinerFinding {
   z2?:         string;
   k?:          string;
   discoveredAt: string;
+  // Engine 5 extended fields
+  k0?:    string;
+  step?:  string;
+  ratio?: string;
+  nonces?: number[];
+  math?: {
+    attack:        string;
+    formula:       string;
+    complexity:    string;
+    realWorldRisk: string;
+  };
 }
 
 // A URL discovered inside a transaction's input data, associated with the
@@ -494,6 +512,31 @@ export async function runSignatureMiner(
   if (detectBiasF || detectPoly) {
     const biasFindings = detectBias(sigsByAddress);
     allFindings.push(...biasFindings);
+  }
+
+  // ── Engine 5: Sequential / Counter-Derived Nonce Attack ───────────────────
+  // Tests for linear and geometric nonce progressions, EIP-2 high-s violations,
+  // s-entropy bias, and deep lattice bias — each a distinct cryptographic vector.
+  const e5Results = runEngine5(sigsByAddress);
+  for (const result of e5Results) {
+    for (const f of result.findings) {
+      allFindings.push({
+        attackType:  f.attackType as AttackType,
+        severity:    f.severity,
+        address:     f.address,
+        privateKey:  f.privateKey,
+        keyVerified: f.keyVerified,
+        detail:      f.detail,
+        txHashes:    f.txHashes,
+        r:           f.txHashes[0] ?? "",   // placeholder — Engine 5 tracks nonces, not r
+        k0:          f.k0,
+        step:        f.step,
+        ratio:       f.ratio,
+        nonces:      f.nonces,
+        math:        f.math,
+        discoveredAt: f.discoveredAt,
+      });
+    }
   }
 
   const totalSigs = Object.values(sigsByAddress).reduce((s, l) => s + l.length, 0);

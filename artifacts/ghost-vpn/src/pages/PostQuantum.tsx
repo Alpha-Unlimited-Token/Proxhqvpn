@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Shield, Key, RefreshCw, Download, CheckCircle2,
-  AlertTriangle, Lock, Zap, Clock, Info, Atom,
+  AlertTriangle, Lock, Zap, Clock, Info, Atom, FlaskConical,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -85,6 +85,171 @@ function QuantumBlockchainThreatPanel() {
           {unknownChain} unresolved tx hashes — unidentified chains, queued for future research
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Engine 5: Sequential / Counter-Derived Nonce Attack Panel ────────────────
+
+const E5_ATTACK_META: Record<string, { label: string; color: string; formula: string; complexity: string; realWorld: string }> = {
+  sequential_nonce: {
+    label:      "Linear Counter Nonce",
+    color:      "text-red-400",
+    formula:    "k_i = k₀ + n_i·c (mod N)  →  d = (B₁−B₃−Δ₂Δ₁⁻¹(B₁−B₂))·(…)⁻¹",
+    complexity: "O(1) — 3 signatures, pure modular algebra",
+    realWorld:  "Android wallets using java.util.Random() with tx counter seed (2012–2014), counter-mode DRBG hardware wallets, minimal IoT signers",
+  },
+  geometric_nonce: {
+    label:      "Geometric Ratio Nonce",
+    color:      "text-red-400",
+    formula:    "k_{i+1} = k_i·a (mod N)  →  quadratic equation in d",
+    complexity: "O(1) — 3 consecutive txs + Tonelli-Shanks sqrt mod N",
+    realWorld:  "Multiplicative congruential generators (MCG), LCG multiplier-only mode, LFSR-based nonce schemes",
+  },
+  low_s_violation: {
+    label:      "EIP-2 High-S Violation",
+    color:      "text-orange-400",
+    formula:    "s > N/2  →  canonical form requires s = N − s, v XOR 1",
+    complexity: "O(1) per signature",
+    realWorld:  "Pre-Homestead wallets (block < 1,150,000), signing libraries missing BIP62 low-s normalization",
+  },
+  s_entropy_bias: {
+    label:      "s-Value Entropy Bias",
+    color:      "text-yellow-400",
+    formula:    "E[bits(s)] << 254.8  →  k entropy = 255 − E[bits(s)] bits leaked",
+    complexity: "LLL lattice on n×n matrix (polynomial time, seconds)",
+    realWorld:  "Wallets with truncated k generation, embedded signers not using full 256-bit field",
+  },
+  lattice_bias_deep: {
+    label:      "HNP Lattice Bias",
+    color:      "text-yellow-400",
+    formula:    "k_i < N/2^ℓ  →  k_i = a_i·d + b_i (mod N); SVP via LLL",
+    complexity: "LLL on ℓ-biased lattice — Nguyen-Shparlinski 2002",
+    realWorld:  "Biased RNGs, truncated entropy sources, hw wallets with non-uniform k distributions",
+  },
+};
+
+function Engine5AttackPanel() {
+  const [qa, setQa] = useState<any>(null);
+  const [expanded, setExpanded] = useState<string | null>(null);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const r = await fetch(`${QA_BASE_PQ}/api/quantum-audit/cc-summary`, { credentials: "include" });
+        if (r.ok) setQa(await r.json());
+      } catch { /* best-effort */ }
+    };
+    load();
+    const t = setInterval(load, 60_000);
+    return () => clearInterval(t);
+  }, []);
+
+  const e5 = qa?.engine5;
+
+  return (
+    <div className="border border-violet-500/20 bg-black p-4 space-y-4 font-mono">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center gap-2">
+          <FlaskConical className="w-3.5 h-3.5 text-violet-400" />
+          <span className="text-[10px] text-violet-400/70 uppercase tracking-widest">Engine 5 — Counter-Derived Nonce Attack Suite</span>
+        </div>
+        <div className="flex items-center gap-2">
+          {e5 && (
+            <>
+              <Badge variant="outline" className="text-[8px] border-violet-400/30 text-violet-400/60">
+                {e5.totalFindings} finding{e5.totalFindings !== 1 ? "s" : ""}
+              </Badge>
+              {e5.keyRecoveries > 0 && (
+                <Badge variant="outline" className="text-[8px] border-red-400/50 text-red-400">
+                  {e5.keyRecoveries} key{e5.keyRecoveries !== 1 ? "s" : ""} recovered
+                </Badge>
+              )}
+            </>
+          )}
+          <Badge variant="outline" className="text-[8px] font-mono border-violet-400/30 text-violet-400/60">E5</Badge>
+        </div>
+      </div>
+
+      <p className="text-[10px] text-primary/40 leading-relaxed">
+        Engine 5 detects an overlooked class of ECDSA vulnerability: wallets that derive the signing nonce
+        <em> k</em> from the transaction counter or a fixed ratio between successive nonces. Unlike nonce reuse
+        (two identical <em>k</em> values), this attack works even when every signature has a <em>different k</em> —
+        it requires only 3 transactions and pure modular algebra, with <strong className="text-violet-400">zero brute force</strong>.
+      </p>
+
+      {/* Attack vector grid */}
+      <div className="space-y-1.5">
+        <div className="text-[9px] text-primary/30 uppercase tracking-widest mb-2">5 Detection Algorithms Active</div>
+        {Object.entries(E5_ATTACK_META).map(([type, meta]) => {
+          const count = e5?.byType?.[type] ?? 0;
+          const isOpen = expanded === type;
+          return (
+            <div key={type} className="border border-primary/8 overflow-hidden">
+              <button
+                className="w-full flex items-center gap-2 px-2 py-1.5 text-left hover:bg-primary/5 transition-colors"
+                onClick={() => setExpanded(isOpen ? null : type)}
+              >
+                <span className={`shrink-0 w-1.5 h-1.5 rounded-full ${count > 0 ? "bg-red-400" : "bg-primary/20"}`} />
+                <span className={`text-[10px] font-bold flex-1 ${meta.color}`}>{meta.label}</span>
+                <span className={`text-[9px] px-1 ${count > 0 ? "text-red-400" : "text-primary/20"}`}>
+                  {count > 0 ? `${count} hit${count !== 1 ? "s" : ""}` : "monitoring"}
+                </span>
+                <span className="text-[8px] text-primary/20">{isOpen ? "▲" : "▼"}</span>
+              </button>
+              {isOpen && (
+                <div className="px-3 pb-3 space-y-2 border-t border-primary/8 bg-primary/2">
+                  <div className="pt-2 text-[9px] text-primary/50 uppercase tracking-wider">Mathematical Basis</div>
+                  <code className="block text-[9px] text-violet-300/80 bg-violet-900/10 border border-violet-500/15 px-2 py-1.5 leading-relaxed break-all">
+                    {meta.formula}
+                  </code>
+                  <div className="grid grid-cols-2 gap-2 text-[9px]">
+                    <div>
+                      <div className="text-primary/30 uppercase mb-0.5">Complexity</div>
+                      <div className="text-primary/60">{meta.complexity}</div>
+                    </div>
+                    <div>
+                      <div className="text-primary/30 uppercase mb-0.5">Real-World Sources</div>
+                      <div className="text-primary/60 leading-relaxed">{meta.realWorld}</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Recent E5 findings */}
+      {e5?.recentFindings?.length > 0 && (
+        <div className="space-y-1.5">
+          <div className="text-[9px] text-primary/30 uppercase tracking-widest">Recent Engine 5 Hits</div>
+          {e5.recentFindings.map((f: any, i: number) => (
+            <div key={i} className="border border-violet-500/15 bg-violet-900/5 px-2 py-1.5 text-[9px] space-y-0.5">
+              <div className="flex items-center gap-2">
+                <span className="text-violet-400 font-bold">{E5_ATTACK_META[f.kind]?.label ?? f.kind}</span>
+                {f.hasKey && <span className="text-red-400 font-bold">⚠ KEY RECOVERED</span>}
+              </div>
+              <div className="text-primary/40 font-mono">{f.address}</div>
+              <div className="text-primary/30 leading-relaxed">{f.detail?.slice(0, 120)}…</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Developer note */}
+      <div className="border border-violet-500/10 bg-violet-900/5 px-3 py-2 text-[9px] text-violet-400/50 leading-relaxed space-y-1">
+        <div className="text-violet-400/80 font-bold text-[10px]">Security Research Note</div>
+        <p>
+          Engine 5 demonstrates that ECDSA key exposure is not limited to identical nonce reuse. Any deterministic
+          relationship between successive signing nonces — linear, geometric, or otherwise — collapses the security
+          of the private key to a system of modular equations solvable in microseconds.
+        </p>
+        <p>
+          Defense: use RFC 6979 deterministic nonce generation correctly (include ALL context: key, hash, chain ID, and application tag),
+          or use EdDSA (Ed25519) which derives nonces from the message itself and is structurally immune to this class of attack.
+        </p>
+      </div>
     </div>
   );
 }
@@ -347,6 +512,7 @@ export default function PostQuantum() {
           </div>
 
           <QuantumBlockchainThreatPanel />
+          <Engine5AttackPanel />
         </div>
       </div>
     </div>
