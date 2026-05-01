@@ -22,7 +22,7 @@
  *   - Known-weak-key database match (Profanity, brainwallet patterns)
  */
 
-const ETH_RPC   = "https://ethereum.publicnode.com";
+const ETH_RPC    = "https://ethereum.publicnode.com";
 const BLOCKSCOUT = "https://eth.blockscout.com";
 
 // secp256k1 curve order
@@ -106,15 +106,56 @@ function bigToHex(n: bigint, padBytes = 32): string {
 
 // ── Fetch transactions and their signatures ───────────────────────────────────
 
-async function fetchTxList(address: string, limit = 100): Promise<string[]> {
+async function fetchTxList(address: string, limit = 50): Promise<string[]> {
+  // Use Etherscan-compatible API (Blockscout v1) — more reliable than v2 pagination
+  const url = `${BLOCKSCOUT}/api?module=account&action=txlist&address=${address}&sort=desc&page=1&offset=${limit}`;
   try {
-    const resp = await fetch(
-      `${BLOCKSCOUT}/api/v2/addresses/${address}/transactions?limit=${limit}`,
-      { signal: AbortSignal.timeout(10000) }
-    );
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 12000);
+    const resp = await fetch(url, { signal: controller.signal });
+    clearTimeout(timer);
+    if (!resp.ok) return await fetchTxListV2(address);
+    const data = await resp.json() as { status?: string; result?: Array<{ hash: string; from?: string }> };
+    if (data.status !== "1" || !Array.isArray(data.result)) return await fetchTxListV2(address);
+    // Return hashes for txs sent FROM this address (outbound only — those carry the address's own signature)
+    return data.result
+      .filter(tx => tx.from?.toLowerCase() === address.toLowerCase())
+      .map(tx => tx.hash);
+  } catch {
+    return await fetchTxListV2(address);
+  }
+}
+
+async function fetchTxListV2(address: string): Promise<string[]> {
+  // Fallback: Blockscout v2 API - no extra params, just filter=from
+  const url = `${BLOCKSCOUT}/api/v2/addresses/${address}/transactions?filter=from`;
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15000);
+    const resp = await fetch(url, { signal: controller.signal });
+    clearTimeout(timer);
     if (!resp.ok) return [];
-    const data = await resp.json() as { items?: Array<{ hash: string }> };
+    const data = await resp.json() as { items?: Array<{ hash: string; from?: string }> };
     return (data.items ?? []).map(t => t.hash);
+  } catch {
+    return [];
+  }
+}
+
+async function fetchTxListDirect(address: string): Promise<string[]> {
+  // Last resort: use eth_getBlockByNumber scanning via RPC — too slow, skip
+  // Instead try: get token transfer hashes (we know this endpoint works from the wallet scanner)
+  // and use them as a source for the from-address tx hashes
+  const url = `${BLOCKSCOUT}/api/v2/addresses/${address}/token-transfers?filter=from&type=ERC-20`;
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 12000);
+    const resp = await fetch(url, { signal: controller.signal });
+    clearTimeout(timer);
+    if (!resp.ok) return [];
+    const data = await resp.json() as { items?: Array<{ tx_hash?: string }> };
+    const hashes = (data.items ?? []).map(t => t.tx_hash).filter((h): h is string => !!h);
+    return [...new Set(hashes)]; // deduplicate
   } catch {
     return [];
   }
@@ -122,12 +163,15 @@ async function fetchTxList(address: string, limit = 100): Promise<string[]> {
 
 async function fetchTxSignature(txHash: string): Promise<TxSignature | null> {
   try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
     const resp = await fetch(ETH_RPC, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_getTransactionByHash", params: [txHash] }),
-      signal: AbortSignal.timeout(8000),
+      signal: controller.signal,
     });
+    clearTimeout(timer);
     const body = await resp.json() as { result?: Record<string, unknown> };
     const tx = body.result;
     if (!tx || !tx["r"] || !tx["s"]) return null;
@@ -176,8 +220,11 @@ export async function scanEcdsaSignatures(address: string): Promise<EcdsaScanRes
   const findings: EcdsaScanResult["findings"] = [];
   const weakPatterns: string[] = [];
 
-  // 1. Fetch tx list (up to 100 transactions)
-  const txHashes = await fetchTxList(addr, 100);
+  // 1. Fetch tx list — try three sources with fallback
+  let txHashes = await fetchTxList(addr, 50);
+  if (txHashes.length === 0) txHashes = await fetchTxListV2(addr);
+  if (txHashes.length === 0) txHashes = await fetchTxListDirect(addr);
+
   if (txHashes.length === 0) {
     return {
       address: addr, chain: "ethereum",
@@ -186,7 +233,7 @@ export async function scanEcdsaSignatures(address: string): Promise<EcdsaScanRes
       lowRvalueCount: 0, sMalleableCount: 0,
       rValueCollisions: [], weakPatterns: [],
       riskScore: 0, scanTimeMs: Date.now() - start,
-      findings: [{ id: "ECDSA-NO-TX", severity: "info", title: "No transactions found", detail: "Address has no on-chain transaction history to analyze." }],
+      findings: [{ id: "ECDSA-NO-TX", severity: "info", title: "No on-chain transactions found", detail: "Address has no outbound transaction history on Ethereum mainnet, or all data sources were temporarily unavailable." }],
     };
   }
 

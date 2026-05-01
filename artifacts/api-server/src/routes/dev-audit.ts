@@ -249,6 +249,53 @@ router.post("/rpc-attack", async (req: Request, res: Response) => {
   }
 });
 
+// POST /api/dev-audit/ecdsa-scan
+// Fetches real transaction signatures from Ethereum, checks for ECDSA nonce (k) reuse,
+// r-value collisions, low r-values, and malleable s-values.
+router.post("/ecdsa-scan", async (req: Request, res: Response) => {
+  const { address } = req.body as Record<string, unknown>;
+  if (typeof address !== "string" || !address.trim()) {
+    return res.status(400).json({ error: "address (string) is required" });
+  }
+  const cleaned = address.trim();
+  if (!/^0x[0-9a-fA-F]{40}$/.test(cleaned)) {
+    return res.status(400).json({ error: "ECDSA scan requires a valid EVM address (0x + 40 hex chars)" });
+  }
+  try {
+    const result = await scanEcdsaSignatures(cleaned);
+    return res.json(result);
+  } catch (err) {
+    req.log.error({ err }, "ecdsa-scan error");
+    return res.status(500).json({ error: "ECDSA scan failed" });
+  }
+});
+
+// POST /api/dev-audit/ecdsa-batch
+// Scan multiple EVM addresses in one request (max 20).
+router.post("/ecdsa-batch", async (req: Request, res: Response) => {
+  const { addresses } = req.body as Record<string, unknown>;
+  if (!Array.isArray(addresses) || addresses.length === 0) {
+    return res.status(400).json({ error: "addresses (string[]) is required" });
+  }
+  if (addresses.length > 20) {
+    return res.status(400).json({ error: "Maximum 20 addresses per batch" });
+  }
+  const cleaned = (addresses as unknown[])
+    .filter((a): a is string => typeof a === "string")
+    .map(a => a.trim())
+    .filter(a => /^0x[0-9a-fA-F]{40}$/.test(a));
+  if (cleaned.length === 0) {
+    return res.status(400).json({ error: "No valid EVM addresses provided" });
+  }
+  try {
+    const results = await Promise.all(cleaned.map(a => scanEcdsaSignatures(a)));
+    return res.json({ results, scanned: cleaned.length });
+  } catch (err) {
+    req.log.error({ err }, "ecdsa-batch error");
+    return res.status(500).json({ error: "Batch ECDSA scan failed" });
+  }
+});
+
 // POST /api/dev-audit/universal-scan
 // Self-adaptive: auto-detects blockchain from address format and runs the correct scan suite.
 // Supports EVM (10 chains), Bitcoin, Solana, TRON, XRP, Litecoin, Dogecoin, Cardano, Cosmos.

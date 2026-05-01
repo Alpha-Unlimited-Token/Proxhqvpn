@@ -1803,6 +1803,211 @@ function RpcAttackSuiteTab() {
   );
 }
 
+// ── ECDSA Nonce / Signature Scanner Tab ───────────────────────────────────────
+
+interface EcdsaFinding { id: string; severity: Severity; title: string; detail: string; }
+interface NonceReuseResult {
+  tx1Hash: string; tx2Hash: string; sharedR: string;
+  derivedK: string; derivedPrivKey: string; confidence: string; note: string;
+}
+interface EcdsaScanResult {
+  address: string; chain: string; txsAnalyzed: number; signaturesOk: number;
+  nonceReuseFound: boolean; nonceReuseResults: NonceReuseResult[];
+  lowRvalueCount: number; sMalleableCount: number;
+  rValueCollisions: Array<{ r: string; txHashes: string[] }>;
+  weakPatterns: string[]; riskScore: number; scanTimeMs: number;
+  findings: EcdsaFinding[];
+}
+interface EcdsaBatchResult { results: EcdsaScanResult[]; scanned: number; }
+
+function EcdsaScannerTab() {
+  const [input, setInput] = useState("");
+  const [expandedAddr, setExpandedAddr] = useState<string | null>(null);
+  const { toast } = useToast();
+
+  const mutation = useMutation<EcdsaBatchResult, Error, string[]>({
+    mutationFn: (addresses) =>
+      fetch(`${BASE}/api/dev-audit/ecdsa-batch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ addresses }),
+      }).then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.error); return d; }),
+  });
+
+  const run = () => {
+    const addrs = input.split(/[\n,\s]+/).map(a => a.trim()).filter(a => /^0x[0-9a-fA-F]{40}$/.test(a));
+    if (!addrs.length) { toast({ title: "No valid EVM addresses found", description: "Enter 0x… addresses, one per line.", variant: "destructive" }); return; }
+    if (addrs.length > 20) { toast({ title: "Max 20 addresses per batch", variant: "destructive" }); return; }
+    mutation.mutate(addrs);
+  };
+
+  const data = mutation.data;
+
+  return (
+    <div className="space-y-4">
+      <Card className="border-border/60">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Cpu className="w-5 h-5 text-red-400" />ECDSA Nonce Reuse &amp; Signature Vulnerability Scanner
+          </CardTitle>
+          <CardDescription className="text-xs">
+            Fetches real transaction signatures (r, s, v) from Ethereum for each address. Checks for ECDSA k-nonce reuse
+            (same r-value in two transactions = private key is mathematically derivable), low r-values, malleable
+            s-values, and nonce gaps. Paste up to 20 EVM addresses.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <Textarea
+            placeholder={"0x0D5c41C609Fe1Ec073C3b4Fa10949d602Ed059Bb\n0xb98E8eeFBa0f7476B85Cd9716Cb5b38a935AA872\n...one address per line"}
+            value={input} onChange={e => setInput(e.target.value)}
+            className="font-mono text-xs min-h-[120px] bg-background"
+          />
+          <div className="flex items-center gap-3">
+            <Button onClick={run} disabled={mutation.isPending} className="gap-2 bg-red-600 hover:bg-red-700">
+              {mutation.isPending ? <><Loader2 className="w-4 h-4 animate-spin" />Scanning signatures…</> : <><Cpu className="w-4 h-4" />Run ECDSA Scan</>}
+            </Button>
+            {data && <span className="text-xs text-muted-foreground">{data.scanned} address{data.scanned !== 1 ? "es" : ""} scanned</span>}
+          </div>
+          {mutation.isError && (
+            <Alert className="border-red-500/40 bg-red-500/8">
+              <AlertDescription className="text-xs text-red-400">{mutation.error.message}</AlertDescription>
+            </Alert>
+          )}
+        </CardContent>
+      </Card>
+
+      {data && (
+        <div className="space-y-3">
+          {/* Summary row */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[
+              { label: "Addresses Scanned",  value: data.scanned,                                                    color: "text-foreground" },
+              { label: "Nonce Reuse Found",   value: data.results.filter(r => r.nonceReuseFound).length,             color: data.results.some(r=>r.nonceReuseFound) ? "text-red-400" : "text-green-400" },
+              { label: "Total Sigs Analyzed", value: data.results.reduce((s,r)=>s+r.signaturesOk, 0),               color: "text-cyan-400" },
+              { label: "Total Weak Patterns", value: data.results.reduce((s,r)=>s+r.weakPatterns.length, 0),        color: data.results.some(r=>r.weakPatterns.length>0) ? "text-orange-400" : "text-green-400" },
+            ].map(({ label, value, color }) => (
+              <Card key={label} className="border-border/50">
+                <CardContent className="pt-3 pb-2 text-center">
+                  <p className={`text-2xl font-bold ${color}`}>{value}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          {/* Per-address results */}
+          <div className="space-y-2">
+            {data.results.map(result => {
+              const isOpen = expandedAddr === result.address;
+              const critical = result.nonceReuseFound;
+              const hasWeakness = result.weakPatterns.length > 0 || result.lowRvalueCount > 0 || result.sMalleableCount > 0;
+              return (
+                <Card key={result.address}
+                  className={`border-border/50 cursor-pointer hover:border-border transition-colors ${critical ? "border-red-500/50 bg-red-500/5" : ""}`}
+                  onClick={() => setExpandedAddr(isOpen ? null : result.address)}>
+                  <CardContent className="py-3 px-4">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        {critical
+                          ? <ShieldAlert className="w-4 h-4 text-red-400 shrink-0" />
+                          : hasWeakness
+                            ? <AlertTriangle className="w-4 h-4 text-yellow-400 shrink-0" />
+                            : <ShieldCheck className="w-4 h-4 text-green-400 shrink-0" />}
+                        <span className="font-mono text-xs truncate">{result.address}</span>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {critical && <Badge className="bg-red-500/20 text-red-300 border-red-500/30 text-xs">NONCE REUSE</Badge>}
+                        {!critical && hasWeakness && <Badge className="bg-yellow-500/20 text-yellow-300 border-yellow-500/30 text-xs">WEAK PATTERN</Badge>}
+                        {!critical && !hasWeakness && result.signaturesOk > 0 && <Badge className="bg-green-500/20 text-green-300 border-green-500/30 text-xs">CLEAN</Badge>}
+                        {result.signaturesOk === 0 && <Badge className="bg-muted/50 text-muted-foreground text-xs">NO OUTBOUND TXS</Badge>}
+                        <span className="text-xs text-muted-foreground">{result.signaturesOk} sigs</span>
+                        <RiskBar score={result.riskScore} />
+                        {isOpen ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+                      </div>
+                    </div>
+
+                    {isOpen && (
+                      <div className="mt-4 space-y-3" onClick={e => e.stopPropagation()}>
+                        {/* Stats row */}
+                        <div className="grid grid-cols-3 md:grid-cols-5 gap-2 text-center">
+                          {[
+                            { k: "Txs Found",      v: result.txsAnalyzed },
+                            { k: "Sigs Decoded",   v: result.signaturesOk },
+                            { k: "R Collisions",   v: result.rValueCollisions.length },
+                            { k: "Low R-value",    v: result.lowRvalueCount },
+                            { k: "Malleable S",    v: result.sMalleableCount },
+                          ].map(({ k, v }) => (
+                            <div key={k} className="bg-muted/30 rounded p-2">
+                              <p className="text-sm font-bold">{v}</p>
+                              <p className="text-xs text-muted-foreground">{k}</p>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Findings */}
+                        <div className="space-y-2">
+                          {result.findings.map(f => (
+                            <div key={f.id} className={`rounded p-3 border text-xs ${sevColor(f.severity)}`}>
+                              <div className="flex items-center gap-2 mb-1">
+                                {sevBadge(f.severity)}
+                                <span className="font-semibold">{f.title}</span>
+                              </div>
+                              <p className="text-xs opacity-80">{f.detail}</p>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Nonce reuse detail */}
+                        {result.nonceReuseResults.map((nr, i) => (
+                          <Card key={i} className="border-red-500/50 bg-red-500/5">
+                            <CardContent className="pt-3 pb-3 space-y-2 text-xs">
+                              <p className="font-bold text-red-400">⚠ Nonce Reuse Instance #{i + 1} — R-Value Collision</p>
+                              <div className="space-y-1 font-mono">
+                                <div className="flex gap-2"><span className="text-muted-foreground w-20 shrink-0">TX 1:</span><span className="truncate">{nr.tx1Hash}</span><CopyButton text={nr.tx1Hash} /></div>
+                                <div className="flex gap-2"><span className="text-muted-foreground w-20 shrink-0">TX 2:</span><span className="truncate">{nr.tx2Hash}</span><CopyButton text={nr.tx2Hash} /></div>
+                                <div className="flex gap-2"><span className="text-muted-foreground w-20 shrink-0">Shared r:</span><span className="truncate text-red-300">{nr.sharedR}</span><CopyButton text={nr.sharedR} /></div>
+                                <div className="flex gap-2"><span className="text-muted-foreground w-20 shrink-0">Derived k:</span><span className="truncate text-orange-300">{nr.derivedK}</span><CopyButton text={nr.derivedK} /></div>
+                                <div className="flex gap-2"><span className="text-muted-foreground w-20 shrink-0">Priv key:</span><span className="truncate text-yellow-300">{nr.derivedPrivKey}</span><CopyButton text={nr.derivedPrivKey} /></div>
+                              </div>
+                              <p className="text-muted-foreground opacity-70">{nr.note}</p>
+                            </CardContent>
+                          </Card>
+                        ))}
+
+                        {/* Weak patterns */}
+                        {result.weakPatterns.length > 0 && (
+                          <div className="space-y-1">
+                            {result.weakPatterns.map((p, i) => (
+                              <div key={i} className="text-xs text-yellow-300 bg-yellow-500/8 border border-yellow-500/20 rounded px-3 py-2">
+                                ⚠ {p}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        <div className="flex gap-2 pt-1">
+                          <a href={`https://etherscan.io/address/${result.address}`} target="_blank" rel="noopener noreferrer"
+                            className="text-xs text-cyan-400 hover:underline flex items-center gap-1">
+                            <ExternalLink className="w-3 h-3" /> Etherscan
+                          </a>
+                          <a href={`https://eth.blockscout.com/address/${result.address}`} target="_blank" rel="noopener noreferrer"
+                            className="text-xs text-cyan-400 hover:underline flex items-center gap-1">
+                            <ExternalLink className="w-3 h-3" /> Blockscout
+                          </a>
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Universal Wallet Scanner Tab ──────────────────────────────────────────────
 
 type AddressFamily = "evm"|"bitcoin"|"solana"|"tron"|"xrp"|"litecoin"|"dogecoin"|"cardano"|"cosmos"|"unknown";
@@ -2204,6 +2409,7 @@ export default function DevAudit() {
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
         {[
           { icon: Search,     color: "text-cyan-400",    label: "Universal Scanner", desc: "Auto-detect chain, probe all networks" },
+          { icon: Cpu,        color: "text-red-400",     label: "ECDSA Scanner",     desc: "Nonce reuse & r-value collision detection" },
           { icon: Radio,      color: "text-cyan-400",    label: "RPC Probe",         desc: "Live JSON-RPC method exposure" },
           { icon: Globe,      color: "text-blue-400",    label: "Header Scanner",    desc: "Real HTTP response analysis" },
           { icon: Zap,        color: "text-purple-400",  label: "Live Contract",     desc: "On-chain bytecode & event audit" },
@@ -2233,8 +2439,9 @@ export default function DevAudit() {
       </Alert>
 
       <Tabs defaultValue="universal">
-        <TabsList className="grid grid-cols-3 w-full">
+        <TabsList className="grid grid-cols-4 w-full">
           <TabsTrigger value="universal" className="flex items-center gap-1 text-xs"><Search   className="w-3 h-3" /> Wallet Scanner</TabsTrigger>
+          <TabsTrigger value="ecdsa"     className="flex items-center gap-1 text-xs"><Cpu      className="w-3 h-3" /> ECDSA</TabsTrigger>
           <TabsTrigger value="pentest"   className="flex items-center gap-1 text-xs"><Bug      className="w-3 h-3" /> Pentest Suite</TabsTrigger>
           <TabsTrigger value="attack"    className="flex items-center gap-1 text-xs"><Swords   className="w-3 h-3" /> RPC Attack</TabsTrigger>
         </TabsList>
@@ -2245,6 +2452,7 @@ export default function DevAudit() {
           <TabsTrigger value="entropy"  className="flex items-center gap-1 text-xs"><KeyRound className="w-3 h-3" /> Key Entropy</TabsTrigger>
         </TabsList>
         <TabsContent value="universal" className="mt-6"><UniversalWalletScannerTab /></TabsContent>
+        <TabsContent value="ecdsa"     className="mt-6"><EcdsaScannerTab           /></TabsContent>
         <TabsContent value="pentest"   className="mt-6"><PentestSuiteTab           /></TabsContent>
         <TabsContent value="attack"    className="mt-6"><RpcAttackSuiteTab         /></TabsContent>
         <TabsContent value="rpc"       className="mt-6"><RpcProbeTab               /></TabsContent>
