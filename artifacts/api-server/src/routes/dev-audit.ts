@@ -17,6 +17,14 @@ import { testLiveContract }    from "../lib/dev-audit/live-contract-tester";
 import { auditKeyEntropy }     from "../lib/dev-audit/key-entropy-auditor";
 import { scanContractSource }  from "../lib/dev-audit/contract-scanner";
 import { runRpcAttackSuite }   from "../lib/dev-audit/rpc-attack-suite";
+import {
+  runClickFixScan,
+  runBlockchainC2Scan,
+  runSsrfProbe,
+  runAuthBypassScan,
+  runEndpointDiscovery,
+  runDnsRebindingTest,
+} from "../lib/dev-audit/pentest-suite";
 import { logger }              from "../lib/logger";
 
 const router = Router();
@@ -138,6 +146,76 @@ router.post("/contract-source", async (req: Request, res: Response) => {
     req.log.error({ err }, "contract-source error");
     return res.status(500).json({ error: "Source analysis failed" });
   }
+});
+
+// ── Pentest Suite Routes ──────────────────────────────────────────────────────
+
+// POST /api/dev-audit/pentest/clickfix — ClickFix & UI deception scanner
+router.post("/pentest/clickfix", async (req: Request, res: Response) => {
+  const { url } = req.body as Record<string, unknown>;
+  if (typeof url !== "string" || !url.trim()) return res.status(400).json({ error: "url (string) required" });
+  try { new URL(url.trim()); } catch { return res.status(400).json({ error: "Invalid URL" }); }
+  try {
+    const result = await runClickFixScan(url.trim());
+    return res.json(result);
+  } catch (err) { req.log.error({ err }, "clickfix scan error"); return res.status(500).json({ error: "Scan failed" }); }
+});
+
+// POST /api/dev-audit/pentest/blockchain-c2 — blockchain C2 channel detector
+router.post("/pentest/blockchain-c2", async (req: Request, res: Response) => {
+  const { contractAddress, chain } = req.body as Record<string, unknown>;
+  if (typeof contractAddress !== "string" || !/^0x[0-9a-fA-F]{40}$/.test(contractAddress.trim())) {
+    return res.status(400).json({ error: "contractAddress must be a valid 0x... Ethereum address" });
+  }
+  const chainName = typeof chain === "string" ? chain : "ethereum";
+  try {
+    const result = await runBlockchainC2Scan(contractAddress.trim(), chainName);
+    return res.json(result);
+  } catch (err) { req.log.error({ err }, "blockchain-c2 scan error"); return res.status(500).json({ error: "Scan failed" }); }
+});
+
+// POST /api/dev-audit/pentest/ssrf — SSRF probe
+router.post("/pentest/ssrf", async (req: Request, res: Response) => {
+  const { targetApi } = req.body as Record<string, unknown>;
+  if (typeof targetApi !== "string" || !targetApi.trim()) return res.status(400).json({ error: "targetApi (string) required" });
+  try { new URL(targetApi.trim()); } catch { return res.status(400).json({ error: "Invalid URL" }); }
+  try {
+    const result = await runSsrfProbe(targetApi.trim());
+    return res.json(result);
+  } catch (err) { req.log.error({ err }, "ssrf probe error"); return res.status(500).json({ error: "Probe failed" }); }
+});
+
+// POST /api/dev-audit/pentest/auth-bypass — authentication bypass scanner
+router.post("/pentest/auth-bypass", async (req: Request, res: Response) => {
+  const { targetBase } = req.body as Record<string, unknown>;
+  if (typeof targetBase !== "string" || !targetBase.trim()) return res.status(400).json({ error: "targetBase (string) required" });
+  try { new URL(targetBase.trim()); } catch { return res.status(400).json({ error: "Invalid URL" }); }
+  try {
+    const result = await runAuthBypassScan(targetBase.trim());
+    return res.json(result);
+  } catch (err) { req.log.error({ err }, "auth-bypass scan error"); return res.status(500).json({ error: "Scan failed" }); }
+});
+
+// POST /api/dev-audit/pentest/endpoint-discovery — sensitive path bruteforce
+router.post("/pentest/endpoint-discovery", async (req: Request, res: Response) => {
+  const { targetBase } = req.body as Record<string, unknown>;
+  if (typeof targetBase !== "string" || !targetBase.trim()) return res.status(400).json({ error: "targetBase (string) required" });
+  try { new URL(targetBase.trim()); } catch { return res.status(400).json({ error: "Invalid URL" }); }
+  try {
+    const result = await runEndpointDiscovery(targetBase.trim());
+    return res.json(result);
+  } catch (err) { req.log.error({ err }, "endpoint-discovery error"); return res.status(500).json({ error: "Discovery failed" }); }
+});
+
+// POST /api/dev-audit/pentest/dns-rebinding — DNS rebinding vulnerability test
+router.post("/pentest/dns-rebinding", async (req: Request, res: Response) => {
+  const { targetUrl } = req.body as Record<string, unknown>;
+  if (typeof targetUrl !== "string" || !targetUrl.trim()) return res.status(400).json({ error: "targetUrl (string) required" });
+  try { new URL(targetUrl.trim()); } catch { return res.status(400).json({ error: "Invalid URL" }); }
+  try {
+    const result = await runDnsRebindingTest(targetUrl.trim());
+    return res.json(result);
+  } catch (err) { req.log.error({ err }, "dns-rebinding test error"); return res.status(500).json({ error: "Test failed" }); }
 });
 
 // POST /api/dev-audit/rpc-attack

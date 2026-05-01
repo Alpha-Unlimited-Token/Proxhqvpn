@@ -921,6 +921,400 @@ function SourceAnalysisTab() {
   );
 }
 
+// ── Pentest Suite Tab ──────────────────────────────────────────────────────────
+interface PentestFinding {
+  id: string; category: string; title: string; severity: Severity;
+  description: string; evidence?: string; attackVector: string;
+  remediation: string; cwe?: string;
+}
+interface ClickFixResult {
+  url: string; scanTimeMs: number; reachable: boolean; htmlSize: number;
+  findings: PentestFinding[]; riskScore: number;
+  detectedPatterns: Array<{ pattern: string; context: string }>;
+}
+interface C2Event {
+  txHash: string; blockNumber: number; rawData: string; decoded: string;
+  pattern: string; severity: Severity;
+}
+interface BlockchainC2Result {
+  contractAddress: string; chain: string; scanTimeMs: number;
+  totalEventsScanned: number; suspiciousEvents: C2Event[];
+  findings: PentestFinding[]; riskScore: number;
+}
+interface SsrfProbe {
+  paramName: string; injectedUrl: string; statusCode?: number;
+  responseSnippet: string; vulnerable: boolean; indicator: string;
+}
+interface SsrfResult {
+  targetApi: string; scanTimeMs: number;
+  findings: PentestFinding[]; probes: SsrfProbe[]; riskScore: number;
+}
+interface AuthTest {
+  technique: string; path: string; method: string;
+  statusCode?: number; expectedStatus: number; bypassed: boolean; detail: string;
+}
+interface AuthBypassResult {
+  targetBase: string; scanTimeMs: number;
+  findings: PentestFinding[]; tests: AuthTest[]; riskScore: number;
+}
+interface DiscoveredPath {
+  path: string; status: number; size: number; note: string; severity: Severity;
+}
+interface EndpointDiscoveryResult {
+  targetBase: string; scanTimeMs: number;
+  discovered: DiscoveredPath[]; findings: PentestFinding[]; riskScore: number;
+}
+interface DnsCheck {
+  check: string; result: string; vulnerable: boolean; detail: string;
+}
+interface DnsRebindingResult {
+  targetUrl: string; scanTimeMs: number;
+  findings: PentestFinding[]; checks: DnsCheck[]; riskScore: number;
+}
+
+function FindingsList({ findings }: { findings: PentestFinding[] }) {
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  if (!findings.length) return null;
+  return (
+    <div className="space-y-2">
+      {findings.map(f => {
+        const cls = sevColor(f.severity);
+        const isExp = expanded[f.id];
+        return (
+          <div key={f.id} className={`border rounded-lg p-3 space-y-1.5 ${cls}`}>
+            <div className="flex items-start gap-2 justify-between">
+              <div className="flex items-center gap-2 flex-wrap">
+                {sevBadge(f.severity)}
+                <span className="text-xs font-semibold">{f.title}</span>
+                {f.cwe && <span className="text-xs opacity-60">{f.cwe}</span>}
+              </div>
+              <button onClick={() => setExpanded(p => ({ ...p, [f.id]: !p[f.id] }))}
+                className="shrink-0 opacity-60 hover:opacity-100">
+                {isExp ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+              </button>
+            </div>
+            <p className="text-xs leading-relaxed">{f.description}</p>
+            {f.evidence && (
+              <pre className="text-xs font-mono bg-black/30 rounded p-2 overflow-x-auto whitespace-pre-wrap break-all leading-relaxed">{f.evidence}</pre>
+            )}
+            {isExp && (
+              <div className="space-y-1 text-xs pt-1 border-t border-white/10 mt-1">
+                <p className="text-orange-300"><span className="font-semibold">Attack vector: </span>{f.attackVector}</p>
+                <p className="text-blue-300"><span className="font-semibold">Remediation: </span>{f.remediation}</p>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+const PENTEST_TOOLS = [
+  { id: "clickfix",   icon: ShieldX,    color: "text-red-400",    label: "ClickFix Scanner",     desc: "Detect UI deception & clipboard injection in your dApp" },
+  { id: "c2",         icon: Wifi,       color: "text-purple-400", label: "Blockchain C2",        desc: "Find Command & Control patterns in contract event logs" },
+  { id: "ssrf",       icon: ServerCrash,color: "text-orange-400", label: "SSRF Probe",           desc: "Test for Server-Side Request Forgery in your API" },
+  { id: "authbypass", icon: Lock,       color: "text-yellow-400", label: "Auth Bypass",          desc: "JWT none, header spoofing, IDOR, admin path exposure" },
+  { id: "discovery",  icon: Eye,        color: "text-blue-400",   label: "Endpoint Discovery",   desc: "Bruteforce 60+ sensitive paths (.env, /admin, /actuator)" },
+  { id: "dnsrebind",  icon: Network,    color: "text-cyan-400",   label: "DNS Rebinding",        desc: "CORS + Host header rebinding vulnerability" },
+] as const;
+type PentestToolId = typeof PENTEST_TOOLS[number]["id"];
+
+function PentestSuiteTab() {
+  const [activeTool, setActiveTool] = useState<PentestToolId>("clickfix");
+  const [inputs, setInputs] = useState<Record<string, string>>({
+    clickfix_url: "", c2_address: "", c2_chain: "ethereum",
+    ssrf_url: "", auth_url: "", discovery_url: "", dns_url: "",
+  });
+  const setInput = (k: string, v: string) => setInputs(p => ({ ...p, [k]: v }));
+
+  const clickfixMut   = useMutation<ClickFixResult, Error, void>({ mutationFn: async () => { const r = await fetch(`${BASE}/api/dev-audit/pentest/clickfix`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url: inputs.clickfix_url }) }); if (!r.ok) throw new Error((await r.json() as { error: string }).error); return r.json(); } });
+  const c2Mut         = useMutation<BlockchainC2Result, Error, void>({ mutationFn: async () => { const r = await fetch(`${BASE}/api/dev-audit/pentest/blockchain-c2`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contractAddress: inputs.c2_address, chain: inputs.c2_chain }) }); if (!r.ok) throw new Error((await r.json() as { error: string }).error); return r.json(); } });
+  const ssrfMut       = useMutation<SsrfResult, Error, void>({ mutationFn: async () => { const r = await fetch(`${BASE}/api/dev-audit/pentest/ssrf`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ targetApi: inputs.ssrf_url }) }); if (!r.ok) throw new Error((await r.json() as { error: string }).error); return r.json(); } });
+  const authMut       = useMutation<AuthBypassResult, Error, void>({ mutationFn: async () => { const r = await fetch(`${BASE}/api/dev-audit/pentest/auth-bypass`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ targetBase: inputs.auth_url }) }); if (!r.ok) throw new Error((await r.json() as { error: string }).error); return r.json(); } });
+  const discMut       = useMutation<EndpointDiscoveryResult, Error, void>({ mutationFn: async () => { const r = await fetch(`${BASE}/api/dev-audit/pentest/endpoint-discovery`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ targetBase: inputs.discovery_url }) }); if (!r.ok) throw new Error((await r.json() as { error: string }).error); return r.json(); } });
+  const dnsMut        = useMutation<DnsRebindingResult, Error, void>({ mutationFn: async () => { const r = await fetch(`${BASE}/api/dev-audit/pentest/dns-rebinding`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ targetUrl: inputs.dns_url }) }); if (!r.ok) throw new Error((await r.json() as { error: string }).error); return r.json(); } });
+
+  return (
+    <div className="space-y-5">
+      {/* Tool selector grid */}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+        {PENTEST_TOOLS.map(t => (
+          <button
+            key={t.id}
+            onClick={() => setActiveTool(t.id)}
+            className={`border rounded-lg p-3 text-left transition-colors ${activeTool === t.id ? "border-red-500/60 bg-red-500/10" : "border-border/50 bg-muted/10 hover:bg-muted/30"}`}
+          >
+            <div className="flex items-center gap-2">
+              <t.icon className={`w-4 h-4 shrink-0 ${t.color}`} />
+              <span className="text-xs font-bold">{t.label}</span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1 leading-tight">{t.desc}</p>
+          </button>
+        ))}
+      </div>
+
+      {/* ── ClickFix Scanner ── */}
+      {activeTool === "clickfix" && (
+        <div className="space-y-4">
+          <div className="border border-red-500/30 bg-red-500/5 rounded-lg p-3 space-y-1">
+            <p className="text-xs font-bold text-red-400 flex items-center gap-2"><ShieldX className="w-4 h-4" /> ClickFix / UI Deception Scanner</p>
+            <p className="text-xs text-muted-foreground">Based on the <strong>HellsUchecker</strong> research: fetches your dApp's live HTML and scans for auto-clipboard injection, Windows command prompts (Win+R/mshta/PowerShell/cmd), fake CAPTCHA patterns, forced redirects, obfuscated eval() calls, and supply chain injection vectors — the exact patterns used in ClickFix blockchain backdoor attacks.</p>
+          </div>
+          <div className="flex gap-2">
+            <Input className="flex-1 font-mono text-sm" placeholder="https://your-dapp.com" value={inputs.clickfix_url} onChange={e => setInput("clickfix_url", e.target.value)} />
+            <Button variant="destructive" onClick={() => clickfixMut.mutate()} disabled={clickfixMut.isPending || !inputs.clickfix_url}>{clickfixMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldX className="w-4 h-4" />} Scan</Button>
+          </div>
+          {clickfixMut.isError && <Alert className="border-red-500/40"><AlertDescription className="text-xs text-red-300">{clickfixMut.error.message}</AlertDescription></Alert>}
+          {clickfixMut.isPending && <div className="flex items-center gap-2 py-4 justify-center text-sm text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin" /> Fetching HTML and scanning for deception patterns…</div>}
+          {clickfixMut.data && (() => { const d = clickfixMut.data; return (
+            <div className="space-y-4">
+              <div className="grid grid-cols-3 gap-3">
+                {[
+                  { label: "Reachable", value: d.reachable ? "Yes" : "No", color: d.reachable ? "text-green-400" : "text-red-400" },
+                  { label: "Findings", value: d.findings.length, color: d.findings.some(f => f.severity === "critical") ? "text-red-400" : d.findings.length > 0 ? "text-orange-400" : "text-green-400" },
+                  { label: "Risk Score", value: `${d.riskScore}/100`, color: d.riskScore >= 60 ? "text-red-400" : d.riskScore >= 30 ? "text-orange-400" : "text-green-400" },
+                ].map(({ label, value, color }) => (
+                  <Card key={label} className="border-border/50"><CardContent className="pt-3 pb-3 text-center"><div className={`text-xl font-bold ${color}`}>{value}</div><div className="text-xs text-muted-foreground">{label}</div></CardContent></Card>
+                ))}
+              </div>
+              <RiskBar score={d.riskScore} />
+              <FindingsList findings={d.findings} />
+              {d.detectedPatterns.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold">Detected Pattern Evidence</p>
+                  {d.detectedPatterns.map((p, i) => (
+                    <div key={i} className="font-mono text-xs bg-black/30 border border-border/30 rounded p-2 break-all"><span className="text-red-400">[{p.pattern}] </span>{p.context}</div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );})()}
+        </div>
+      )}
+
+      {/* ── Blockchain C2 Detector ── */}
+      {activeTool === "c2" && (
+        <div className="space-y-4">
+          <div className="border border-purple-500/30 bg-purple-500/5 rounded-lg p-3 space-y-1">
+            <p className="text-xs font-bold text-purple-400 flex items-center gap-2"><Wifi className="w-4 h-4" /> Blockchain C2 Detector</p>
+            <p className="text-xs text-muted-foreground">Scans a contract's event logs for encoded Command & Control patterns — the <strong>HellsUchecker technique</strong>. Attackers use the blockchain's immutability as a C2 channel that cannot be taken down via DNS or IP blocking. Looks for embedded URLs, IP:port pairs, shell commands, base64 payloads, and executable extensions in decoded event data.</p>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <Input className="col-span-2 font-mono text-sm" placeholder="0x... contract address" value={inputs.c2_address} onChange={e => setInput("c2_address", e.target.value)} />
+            <select className="bg-muted border border-border rounded px-2 text-sm" value={inputs.c2_chain} onChange={e => setInput("c2_chain", e.target.value)}>
+              {["ethereum","polygon","bsc","arbitrum","optimism"].map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <Button variant="destructive" onClick={() => c2Mut.mutate()} disabled={c2Mut.isPending || !inputs.c2_address} className="gap-2">
+            {c2Mut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wifi className="w-4 h-4" />} Scan Contract Events
+          </Button>
+          {c2Mut.isError && <Alert className="border-red-500/40"><AlertDescription className="text-xs text-red-300">{c2Mut.error.message}</AlertDescription></Alert>}
+          {c2Mut.isPending && <div className="flex items-center gap-2 py-4 justify-center text-sm text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin" /> Fetching last 10,000 blocks of events and decoding…</div>}
+          {c2Mut.data && (() => { const d = c2Mut.data; return (
+            <div className="space-y-4">
+              <div className="grid grid-cols-3 gap-3">
+                {[
+                  { label: "Events Scanned", value: d.totalEventsScanned, color: "text-foreground" },
+                  { label: "Suspicious Events", value: d.suspiciousEvents.length, color: d.suspiciousEvents.length > 0 ? "text-red-400" : "text-green-400" },
+                  { label: "Risk Score", value: `${d.riskScore}/100`, color: d.riskScore >= 60 ? "text-red-400" : "text-green-400" },
+                ].map(({ label, value, color }) => (
+                  <Card key={label} className="border-border/50"><CardContent className="pt-3 pb-3 text-center"><div className={`text-xl font-bold ${color}`}>{value}</div><div className="text-xs text-muted-foreground">{label}</div></CardContent></Card>
+                ))}
+              </div>
+              <FindingsList findings={d.findings} />
+              {d.suspiciousEvents.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold text-red-400">Suspicious Events</p>
+                  {d.suspiciousEvents.map((e, i) => (
+                    <div key={i} className="border border-red-500/30 bg-red-500/8 rounded p-3 space-y-1 text-xs">
+                      <div className="flex gap-2 flex-wrap">
+                        {sevBadge(e.severity)}
+                        <span className="font-mono text-muted-foreground">Block {e.blockNumber}</span>
+                        <span className="font-mono text-muted-foreground truncate">{e.txHash.slice(0, 18)}…</span>
+                      </div>
+                      <p className="text-orange-300 font-semibold">{e.pattern}</p>
+                      {e.decoded && <p className="font-mono bg-black/30 p-1.5 rounded break-all">{e.decoded.slice(0, 200)}</p>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );})()}
+        </div>
+      )}
+
+      {/* ── SSRF Probe ── */}
+      {activeTool === "ssrf" && (
+        <div className="space-y-4">
+          <div className="border border-orange-500/30 bg-orange-500/5 rounded-lg p-3 space-y-1">
+            <p className="text-xs font-bold text-orange-400 flex items-center gap-2"><ServerCrash className="w-4 h-4" /> SSRF Probe</p>
+            <p className="text-xs text-muted-foreground">Tests your API for <strong>Server-Side Request Forgery</strong>. Injects AWS IMDS, GCP metadata, Azure IMDS, and localhost URLs into 23 common parameter names (url, callback, redirect, proxy, webhook, dest…) and checks if the server fetches them — exposing cloud credentials and internal services.</p>
+          </div>
+          <div className="flex gap-2">
+            <Input className="flex-1 font-mono text-sm" placeholder="https://your-api.com/api/endpoint" value={inputs.ssrf_url} onChange={e => setInput("ssrf_url", e.target.value)} />
+            <Button variant="destructive" onClick={() => ssrfMut.mutate()} disabled={ssrfMut.isPending || !inputs.ssrf_url}>{ssrfMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <ServerCrash className="w-4 h-4" />} Probe</Button>
+          </div>
+          {ssrfMut.isError && <Alert className="border-red-500/40"><AlertDescription className="text-xs text-red-300">{ssrfMut.error.message}</AlertDescription></Alert>}
+          {ssrfMut.isPending && <div className="flex items-center gap-2 py-4 justify-center text-sm text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin" /> Injecting internal URLs into all parameter names…</div>}
+          {ssrfMut.data && (() => { const d = ssrfMut.data; return (
+            <div className="space-y-4">
+              <FindingsList findings={d.findings} />
+              {d.probes.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold">Probe Results ({d.probes.length} non-404 responses)</p>
+                  {d.probes.map((p, i) => (
+                    <div key={i} className={`border rounded p-2.5 text-xs space-y-1 ${p.vulnerable ? "border-red-500/40 bg-red-500/10" : "border-orange-500/30 bg-orange-500/8"}`}>
+                      <div className="flex items-center gap-2">
+                        {p.vulnerable ? <span className="text-red-400 font-bold">VULNERABLE</span> : <span className="text-orange-400 font-bold">SUSPICIOUS</span>}
+                        <span className="font-mono">?{p.paramName}={p.injectedUrl.slice(0, 40)}</span>
+                        <span className="text-muted-foreground">HTTP {p.statusCode}</span>
+                      </div>
+                      <p className="text-muted-foreground">{p.indicator}</p>
+                      {p.responseSnippet && <pre className="font-mono bg-black/30 p-1 rounded text-xs overflow-x-auto">{p.responseSnippet.slice(0, 150)}</pre>}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {d.probes.length === 0 && d.findings.every(f => f.severity === "pass") && (
+                <Alert className="border-green-500/40 bg-green-500/8"><ShieldCheck className="w-4 h-4 text-green-400" /><AlertDescription className="text-xs text-green-300">No SSRF indicators detected.</AlertDescription></Alert>
+              )}
+            </div>
+          );})()}
+        </div>
+      )}
+
+      {/* ── Auth Bypass ── */}
+      {activeTool === "authbypass" && (
+        <div className="space-y-4">
+          <div className="border border-yellow-500/30 bg-yellow-500/5 rounded-lg p-3 space-y-1">
+            <p className="text-xs font-bold text-yellow-400 flex items-center gap-2"><Lock className="w-4 h-4" /> Authentication Bypass Scanner</p>
+            <p className="text-xs text-muted-foreground">Tests your API for <strong>JWT algorithm:none bypass</strong> (unsigned admin token), IP spoofing via X-Forwarded-For, X-Original-URL override, Bearer null/undefined/0 coercion, admin path exposure, and sensitive endpoint discovery — all from the HackTricks pentest cheat sheet.</p>
+          </div>
+          <div className="flex gap-2">
+            <Input className="flex-1 font-mono text-sm" placeholder="https://your-api.com" value={inputs.auth_url} onChange={e => setInput("auth_url", e.target.value)} />
+            <Button variant="destructive" onClick={() => authMut.mutate()} disabled={authMut.isPending || !inputs.auth_url}>{authMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4" />} Scan</Button>
+          </div>
+          {authMut.isError && <Alert className="border-red-500/40"><AlertDescription className="text-xs text-red-300">{authMut.error.message}</AlertDescription></Alert>}
+          {authMut.isPending && <div className="flex items-center gap-2 py-4 justify-center text-sm text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin" /> Testing JWT none, header spoofing, sensitive paths…</div>}
+          {authMut.data && (() => { const d = authMut.data; const bypassed = d.tests.filter(t => t.bypassed); return (
+            <div className="space-y-4">
+              <div className="grid grid-cols-3 gap-3">
+                {[
+                  { label: "Tests Run", value: d.tests.length, color: "text-foreground" },
+                  { label: "Bypassed", value: bypassed.length, color: bypassed.length > 0 ? "text-red-400" : "text-green-400" },
+                  { label: "Risk Score", value: `${d.riskScore}/100`, color: d.riskScore >= 50 ? "text-red-400" : "text-green-400" },
+                ].map(({ label, value, color }) => (
+                  <Card key={label} className="border-border/50"><CardContent className="pt-3 pb-3 text-center"><div className={`text-xl font-bold ${color}`}>{value}</div><div className="text-xs text-muted-foreground">{label}</div></CardContent></Card>
+                ))}
+              </div>
+              <FindingsList findings={d.findings} />
+              {bypassed.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold text-red-400">Bypassed Tests</p>
+                  {bypassed.map((t, i) => (
+                    <div key={i} className="border border-red-500/30 bg-red-500/8 rounded p-2.5 text-xs space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-red-400 font-bold">BYPASSED</span>
+                        <span className="font-mono">{t.method} {t.path}</span>
+                        <span className="text-muted-foreground">HTTP {t.statusCode} (expected {t.expectedStatus})</span>
+                      </div>
+                      <p className="font-semibold">{t.technique}</p>
+                      <p className="text-muted-foreground">{t.detail}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );})()}
+        </div>
+      )}
+
+      {/* ── Endpoint Discovery ── */}
+      {activeTool === "discovery" && (
+        <div className="space-y-4">
+          <div className="border border-blue-500/30 bg-blue-500/5 rounded-lg p-3 space-y-1">
+            <p className="text-xs font-bold text-blue-400 flex items-center gap-2"><Eye className="w-4 h-4" /> Sensitive Endpoint Discovery</p>
+            <p className="text-xs text-muted-foreground">Bruteforces 60+ common sensitive paths: <code className="bg-muted px-1 rounded">/.env</code>, <code className="bg-muted px-1 rounded">/.git/config</code>, <code className="bg-muted px-1 rounded">/actuator/env</code>, <code className="bg-muted px-1 rounded">/api/keys</code>, <code className="bg-muted px-1 rounded">/swagger</code>, <code className="bg-muted px-1 rounded">/graphql</code>, <code className="bg-muted px-1 rounded">/api/mnemonic</code>, <code className="bg-muted px-1 rounded">/dump.sql</code>, and more — the same list attackers run with gobuster/ffuf.</p>
+          </div>
+          <div className="flex gap-2">
+            <Input className="flex-1 font-mono text-sm" placeholder="https://your-system.com" value={inputs.discovery_url} onChange={e => setInput("discovery_url", e.target.value)} />
+            <Button variant="destructive" onClick={() => discMut.mutate()} disabled={discMut.isPending || !inputs.discovery_url}>{discMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />} Discover</Button>
+          </div>
+          {discMut.isError && <Alert className="border-red-500/40"><AlertDescription className="text-xs text-red-300">{discMut.error.message}</AlertDescription></Alert>}
+          {discMut.isPending && <div className="flex items-center gap-2 py-4 justify-center text-sm text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin" /> Probing 60+ sensitive paths in parallel…</div>}
+          {discMut.data && (() => { const d = discMut.data; return (
+            <div className="space-y-4">
+              <FindingsList findings={d.findings} />
+              {d.discovered.length > 0 ? (
+                <div className="space-y-1">
+                  <p className="text-xs font-semibold">Discovered Paths ({d.discovered.length})</p>
+                  {d.discovered.sort((a, b) => {
+                    const o: Record<Severity, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4, pass: 5 };
+                    return (o[a.severity] ?? 6) - (o[b.severity] ?? 6);
+                  }).map((p, i) => (
+                    <div key={i} className={`flex items-center gap-2 rounded px-2 py-1.5 border text-xs ${
+                      p.severity === "critical" ? "border-red-500/30 bg-red-500/10 text-red-300"
+                      : p.severity === "high" ? "border-orange-500/30 bg-orange-500/10 text-orange-300"
+                      : p.severity === "medium" ? "border-yellow-500/30 bg-yellow-500/10 text-yellow-300"
+                      : "border-border/30 bg-muted/10 text-muted-foreground"}`}>
+                      {sevBadge(p.severity)}
+                      <span className="font-mono flex-1">{p.path}</span>
+                      <span>HTTP {p.status}</span>
+                      <span className="text-muted-foreground">{p.note}</span>
+                      <span className="text-muted-foreground">{(p.size / 1024).toFixed(1)}KB</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <Alert className="border-green-500/40 bg-green-500/8"><ShieldCheck className="w-4 h-4 text-green-400" /><AlertDescription className="text-xs text-green-300">No sensitive paths discovered. All probed paths returned 404.</AlertDescription></Alert>
+              )}
+            </div>
+          );})()}
+        </div>
+      )}
+
+      {/* ── DNS Rebinding ── */}
+      {activeTool === "dnsrebind" && (
+        <div className="space-y-4">
+          <div className="border border-cyan-500/30 bg-cyan-500/5 rounded-lg p-3 space-y-1">
+            <p className="text-xs font-bold text-cyan-400 flex items-center gap-2"><Network className="w-4 h-4" /> DNS Rebinding Vulnerability Test</p>
+            <p className="text-xs text-muted-foreground">Tests whether your endpoint is vulnerable to <strong>DNS rebinding attacks</strong> — checks CORS wildcard with arbitrary Origin headers, Host header validation bypass, and unauthenticated JSON-RPC access. Historically exploited against CryptoNote wallets (localhost:18082) and all JSON-RPC nodes with misconfigured CORS.</p>
+          </div>
+          <div className="flex gap-2">
+            <Input className="flex-1 font-mono text-sm" placeholder="https://your-rpc-or-api.com" value={inputs.dns_url} onChange={e => setInput("dns_url", e.target.value)} />
+            <Button variant="destructive" onClick={() => dnsMut.mutate()} disabled={dnsMut.isPending || !inputs.dns_url}>{dnsMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Network className="w-4 h-4" />} Test</Button>
+          </div>
+          {dnsMut.isError && <Alert className="border-red-500/40"><AlertDescription className="text-xs text-red-300">{dnsMut.error.message}</AlertDescription></Alert>}
+          {dnsMut.isPending && <div className="flex items-center gap-2 py-4 justify-center text-sm text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin" /> Testing CORS, Host header, and unauthenticated access…</div>}
+          {dnsMut.data && (() => { const d = dnsMut.data; return (
+            <div className="space-y-4">
+              <FindingsList findings={d.findings} />
+              {d.checks.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold">Check Results</p>
+                  {d.checks.map((c, i) => (
+                    <div key={i} className={`border rounded p-2.5 text-xs space-y-0.5 ${c.vulnerable ? "border-red-500/30 bg-red-500/8" : "border-green-500/30 bg-green-500/8"}`}>
+                      <div className="flex items-center gap-2">
+                        {c.vulnerable ? <span className="text-red-400 font-bold">VULNERABLE</span> : <span className="text-green-400 font-bold">PASS</span>}
+                        <span className="font-semibold">{c.check}</span>
+                      </div>
+                      <p className="text-muted-foreground font-mono">{c.result}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {d.checks.length === 0 && d.findings.every(f => f.severity === "pass") && (
+                <Alert className="border-green-500/40 bg-green-500/8"><ShieldCheck className="w-4 h-4 text-green-400" /><AlertDescription className="text-xs text-green-300">No DNS rebinding indicators found.</AlertDescription></Alert>
+              )}
+            </div>
+          );})()}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── RPC Attack Suite Tab ───────────────────────────────────────────────────────
 interface AttackMethodResult {
   method: string; namespace: string;
@@ -1423,13 +1817,14 @@ export default function DevAudit() {
         </p>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
         {[
-          { icon: Radio,    color: "text-cyan-400",    label: "RPC Probe",         desc: "Live JSON-RPC method exposure" },
-          { icon: Globe,    color: "text-blue-400",    label: "Header Scanner",    desc: "Real HTTP response analysis" },
-          { icon: Zap,      color: "text-purple-400",  label: "Live Contract",     desc: "On-chain bytecode & event audit" },
-          { icon: KeyRound, color: "text-green-400",   label: "Key Entropy",       desc: "Statistical RNG weakness detection" },
-          { icon: Swords,   color: "text-red-400",     label: "RPC Attack Suite",  desc: "Batch amplification, cache probe, fuzzing" },
+          { icon: Radio,      color: "text-cyan-400",    label: "RPC Probe",         desc: "Live JSON-RPC method exposure" },
+          { icon: Globe,      color: "text-blue-400",    label: "Header Scanner",    desc: "Real HTTP response analysis" },
+          { icon: Zap,        color: "text-purple-400",  label: "Live Contract",     desc: "On-chain bytecode & event audit" },
+          { icon: KeyRound,   color: "text-green-400",   label: "Key Entropy",       desc: "Statistical RNG weakness detection" },
+          { icon: Swords,     color: "text-red-400",     label: "RPC Attack Suite",  desc: "Batch amplification, cache probe, fuzzing" },
+          { icon: Bug,        color: "text-orange-400",  label: "Pentest Suite",     desc: "ClickFix, SSRF, Auth Bypass, C2, DNS rebinding" },
         ].map(({ icon: Icon, color, label, desc }) => (
           <Card key={label} className="border-border/50">
             <CardContent className="pt-4 pb-3 flex items-start gap-2">
@@ -1452,14 +1847,18 @@ export default function DevAudit() {
         </AlertDescription>
       </Alert>
 
-      <Tabs defaultValue="attack">
-        <TabsList className="grid grid-cols-5 w-full">
-          <TabsTrigger value="attack"  className="flex items-center gap-1 text-xs"><Swords   className="w-3 h-3" /> Attack Suite</TabsTrigger>
+      <Tabs defaultValue="pentest">
+        <TabsList className="grid grid-cols-3 w-full">
+          <TabsTrigger value="pentest" className="flex items-center gap-1 text-xs"><Bug      className="w-3 h-3" /> Pentest Suite</TabsTrigger>
+          <TabsTrigger value="attack"  className="flex items-center gap-1 text-xs"><Swords   className="w-3 h-3" /> RPC Attack</TabsTrigger>
           <TabsTrigger value="rpc"     className="flex items-center gap-1 text-xs"><Radio    className="w-3 h-3" /> RPC Probe</TabsTrigger>
+        </TabsList>
+        <TabsList className="grid grid-cols-3 w-full mt-1">
           <TabsTrigger value="headers" className="flex items-center gap-1 text-xs"><Globe    className="w-3 h-3" /> Headers</TabsTrigger>
           <TabsTrigger value="contract"className="flex items-center gap-1 text-xs"><Zap      className="w-3 h-3" /> Live Contract</TabsTrigger>
           <TabsTrigger value="entropy" className="flex items-center gap-1 text-xs"><KeyRound className="w-3 h-3" /> Key Entropy</TabsTrigger>
         </TabsList>
+        <TabsContent value="pentest"  className="mt-6"><PentestSuiteTab   /></TabsContent>
         <TabsContent value="attack"   className="mt-6"><RpcAttackSuiteTab /></TabsContent>
         <TabsContent value="rpc"      className="mt-6"><RpcProbeTab        /></TabsContent>
         <TabsContent value="headers"  className="mt-6"><HeadersTab         /></TabsContent>
