@@ -27,7 +27,7 @@ export const CHAINS: ChainConfig[] = [
     label: "Ethereum",
     alchemySlug: "eth-mainnet",
     blockscoutBase: "https://eth.blockscout.com",
-    rpcUrl: "https://cloudflare-eth.com",
+    rpcUrl: "https://ethereum.publicnode.com",
     supportsInternal: true,
   },
   {
@@ -35,7 +35,7 @@ export const CHAINS: ChainConfig[] = [
     label: "Polygon",
     alchemySlug: "polygon-mainnet",
     blockscoutBase: "https://polygon.blockscout.com",
-    rpcUrl: "https://polygon-rpc.com",
+    rpcUrl: "https://polygon.publicnode.com",
     supportsInternal: true,
   },
   {
@@ -43,7 +43,7 @@ export const CHAINS: ChainConfig[] = [
     label: "Arbitrum",
     alchemySlug: "arb-mainnet",
     blockscoutBase: "https://arbitrum.blockscout.com",
-    rpcUrl: "https://arb1.arbitrum.io/rpc",
+    rpcUrl: "https://arbitrum-one.publicnode.com",
     supportsInternal: false,
   },
   {
@@ -51,7 +51,7 @@ export const CHAINS: ChainConfig[] = [
     label: "Optimism",
     alchemySlug: "opt-mainnet",
     blockscoutBase: "https://optimism.blockscout.com",
-    rpcUrl: "https://mainnet.optimism.io",
+    rpcUrl: "https://optimism.publicnode.com",
     supportsInternal: false,
   },
   {
@@ -59,7 +59,7 @@ export const CHAINS: ChainConfig[] = [
     label: "Base",
     alchemySlug: "base-mainnet",
     blockscoutBase: "https://base.blockscout.com",
-    rpcUrl: "https://mainnet.base.org",
+    rpcUrl: "https://base.publicnode.com",
     supportsInternal: false,
   },
   {
@@ -67,10 +67,42 @@ export const CHAINS: ChainConfig[] = [
     label: "BNB Chain",
     alchemySlug: "",
     blockscoutBase: "https://bsc.blockscout.com",
-    rpcUrl: "https://bsc-dataseed.binance.org",
+    rpcUrl: "https://bsc.publicnode.com",
     supportsInternal: false,
   },
 ];
+
+// Ordered fallback RPC list per chain.
+// Ankr requires an API key — excluded. publicnode.com and official RPCs are free.
+const RPC_FALLBACKS: Record<string, string[]> = {
+  ethereum: [
+    "https://ethereum.publicnode.com",
+    "https://1rpc.io/eth",
+    "https://eth.llamarpc.com",
+    "https://cloudflare-eth.com",
+  ],
+  polygon: [
+    "https://polygon.publicnode.com",
+    "https://polygon-bor-rpc.publicnode.com",
+  ],
+  arbitrum: [
+    "https://arbitrum-one.publicnode.com",
+    "https://arb1.arbitrum.io/rpc",
+  ],
+  optimism: [
+    "https://optimism.publicnode.com",
+    "https://mainnet.optimism.io",
+  ],
+  base: [
+    "https://base.publicnode.com",
+    "https://mainnet.base.org",
+  ],
+  bsc: [
+    "https://bsc.publicnode.com",
+    "https://bsc-dataseed.binance.org",
+    "https://bsc-dataseed1.binance.org",
+  ],
+};
 
 export function getChain(id: string): ChainConfig {
   return CHAINS.find(c => c.id === id) ?? CHAINS[0];
@@ -199,7 +231,7 @@ interface BsTx {
 async function blockscoutFetchAll(
   address:  string,
   chain:    ChainConfig,
-  maxPages: number = 500,         // safety cap (500 × 50 = 25,000 txs)
+  maxPages: number = 1000,        // 1000 × 50 = 50,000 txs (handles high-volume wallets)
 ): Promise<OutgoingTx[]> {
   const base = chain.blockscoutBase;
   const all: OutgoingTx[] = [];
@@ -257,18 +289,25 @@ interface RawTx {
   gasPrice?: string;
 }
 
-async function fetchRawTx(hash: string, rpcUrl: string): Promise<RawTx | null> {
-  try {
-    const res = await fetch(rpcUrl, {
-      method:  "POST",
-      headers: { "content-type": "application/json" },
-      body:    JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_getTransactionByHash", params: [hash] }),
-      signal:  AbortSignal.timeout(8_000),
-    });
-    if (!res.ok) return null;
-    const d = await res.json() as { result?: RawTx };
-    return d.result ?? null;
-  } catch { return null; }
+async function fetchRawTx(hash: string, rpcUrl: string, chainId?: string): Promise<RawTx | null> {
+  const endpoints = chainId
+    ? [rpcUrl, ...(RPC_FALLBACKS[chainId] ?? []).filter(u => u !== rpcUrl)]
+    : [rpcUrl];
+
+  for (const url of endpoints) {
+    try {
+      const res = await fetch(url, {
+        method:  "POST",
+        headers: { "content-type": "application/json" },
+        body:    JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_getTransactionByHash", params: [hash] }),
+        signal:  AbortSignal.timeout(8_000),
+      });
+      if (!res.ok) continue;
+      const d = await res.json() as { result?: RawTx };
+      if (d.result?.r) return d.result;   // only accept if we got signature fields
+    } catch { /* try next */ }
+  }
+  return null;
 }
 
 /**
@@ -283,7 +322,7 @@ export async function enrichWithSignatures(
   const toEnrich = txs.filter(t => t.r === null).slice(0, limit);
   await Promise.all(
     toEnrich.map(async tx => {
-      const raw = await fetchRawTx(tx.hash, chain.rpcUrl);
+      const raw = await fetchRawTx(tx.hash, chain.rpcUrl, chain.id);
       if (!raw) return;
       tx.nonce    = raw.nonce    ? parseInt(raw.nonce, 16) : tx.nonce;
       tx.r        = raw.r ?? null;
@@ -297,10 +336,10 @@ export async function enrichWithSignatures(
 
 // ── Nonce + balance from public RPC ───────────────────────────────────────────
 
-export async function fetchNonceAndBalance(
+async function tryRpcNonceAndBalance(
   address: string,
   rpcUrl:  string,
-): Promise<{ nonce: number; balanceEth: number }> {
+): Promise<{ nonce: number; balanceEth: number } | null> {
   try {
     const [nonceRes, balRes] = await Promise.all([
       fetch(rpcUrl, {
@@ -314,15 +353,44 @@ export async function fetchNonceAndBalance(
         signal: AbortSignal.timeout(8_000),
       }),
     ]);
+    if (!nonceRes.ok || !balRes.ok) return null;
     const [nonceJson, balJson] = await Promise.all([nonceRes.json(), balRes.json()]) as [
       { result?: string }, { result?: string }
     ];
-    const nonce      = parseInt(nonceJson.result ?? "0x0", 16);
+    if (!nonceJson.result) return null;
+    const nonce      = parseInt(nonceJson.result, 16);
     const balanceEth = Number(BigInt(balJson.result ?? "0x0")) / 1e18;
     return { nonce, balanceEth };
-  } catch {
-    return { nonce: 0, balanceEth: 0 };
+  } catch { return null; }
+}
+
+/**
+ * Fetch nonce + balance, trying multiple RPC endpoints until a consistent result
+ * is returned. Addresses the problem of Cloudflare/LlamaRPC returning nonce=0
+ * for high-traffic wallets that exceed their cache TTL.
+ */
+export async function fetchNonceAndBalance(
+  address:  string,
+  rpcUrl:   string,
+  chainId?: string,
+): Promise<{ nonce: number; balanceEth: number }> {
+  // Build ordered list: primary first, then chain-specific fallbacks
+  const fallbacks = chainId ? (RPC_FALLBACKS[chainId] ?? [rpcUrl]) : [rpcUrl];
+  const candidates = [rpcUrl, ...fallbacks.filter(u => u !== rpcUrl)];
+
+  let lastResult: { nonce: number; balanceEth: number } | null = null;
+
+  for (const url of candidates) {
+    const result = await tryRpcNonceAndBalance(address, url);
+    if (!result) continue;
+
+    // Accept first result that looks meaningful. If nonce = 0, keep trying
+    // in case this RPC is stale (but save it as a fallback answer).
+    if (lastResult === null) lastResult = result;
+    if (result.nonce > 0) return result;   // non-zero nonce is authoritative
   }
+
+  return lastResult ?? { nonce: 0, balanceEth: 0 };
 }
 
 // ── Main entry point ──────────────────────────────────────────────────────────
@@ -342,7 +410,7 @@ export async function fetchWalletOutgoing(
   const enrichSigs  = options.enrichSigs ?? false;
   const enrichLimit = options.enrichLimit ?? 200;
 
-  const { nonce, balanceEth } = await fetchNonceAndBalance(address, chain.rpcUrl);
+  const { nonce, balanceEth } = await fetchNonceAndBalance(address, chain.rpcUrl, chainId);
 
   let outgoingTxs: OutgoingTx[] = [];
   let source: WalletSummary["source"] = "rpc-only";

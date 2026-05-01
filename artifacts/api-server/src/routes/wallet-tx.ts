@@ -32,7 +32,7 @@ router.get("/nonce", async (req, res) => {
   }
 
   const chain = getChain(chainId);
-  const data  = await fetchNonceAndBalance(address, chain.rpcUrl);
+  const data  = await fetchNonceAndBalance(address, chain.rpcUrl, chainId);
   res.json({ address, chain: chainId, ...data });
 });
 
@@ -154,7 +154,7 @@ router.get("/multi-chain", async (req, res) => {
 
   const results = await Promise.allSettled(
     CHAINS.map(async chain => {
-      const { nonce, balanceEth } = await fetchNonceAndBalance(address, chain.rpcUrl);
+      const { nonce, balanceEth } = await fetchNonceAndBalance(address, chain.rpcUrl, chain.id);
       return { chain: chain.id, label: chain.label, nonce, balanceEth, active: nonce > 0 };
     }),
   );
