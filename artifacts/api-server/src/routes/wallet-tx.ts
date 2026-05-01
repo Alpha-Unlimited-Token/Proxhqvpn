@@ -2,10 +2,9 @@ import { Router } from "express";
 import {
   fetchWalletOutgoing,
   fetchNonceAndBalance,
-  enrichWithSignatures,
-  analyzeSignatures,
   getChain,
   CHAINS,
+  fullSignatureScan,
 } from "@workspace/wallet-tx";
 
 const router = Router();
@@ -95,15 +94,21 @@ router.get("/outgoing", async (req, res) => {
 
 /**
  * POST /api/wallet/signature-scan
- * Body: { address: string, chain?: string, enrichLimit?: number }
+ * Body: { address, chain?, enrichLimit?, batchSize?, concurrency? }
  *
- * Fetches ALL outgoing txs, enriches with r/s/v from RPC,
- * then runs full ECDSA nonce-reuse / r-value collision analysis.
+ * Full pipeline:
+ *  1. Pages ALL outgoing txs from Blockscout (handles 33k+ wallets)
+ *  2. Detects nonce reuse from the nonce field (free — no extra RPC calls)
+ *  3. Batch-fetches r/s/v using JSON-RPC batch (50/call, concurrent)
+ *  4. Runs r-value duplicate + weak-k + key-recovery analysis
  */
 router.post("/signature-scan", async (req, res) => {
   const address     = String(req.body?.address ?? "");
   const chainId     = String(req.body?.chain ?? "ethereum");
-  const enrichLimit = Math.min(parseInt(String(req.body?.enrichLimit ?? "500")), 2000);
+  // enrichLimit: how many sigs to enrich. Default 50k (effectively unlimited for most wallets)
+  const enrichLimit = Math.min(parseInt(String(req.body?.enrichLimit ?? "50000")), 100_000);
+  const batchSize   = Math.min(parseInt(String(req.body?.batchSize   ?? "50")), 100);
+  const concurrency = Math.min(parseInt(String(req.body?.concurrency ?? "10")), 20);
 
   if (!/^0x[0-9a-fA-F]{40}$/.test(address)) {
     res.status(400).json({ error: "Invalid EVM address" });
@@ -111,29 +116,25 @@ router.post("/signature-scan", async (req, res) => {
   }
 
   try {
-    const summary = await fetchWalletOutgoing(address, chainId, {
-      alchemyKey: process.env.ALCHEMY_API_KEY,
-      enrichSigs: true,
-      enrichLimit,
-    });
-
-    const analysis = analyzeSignatures(summary);
-
+    const result = await fullSignatureScan(address, chainId, enrichLimit, batchSize, concurrency);
     res.json({
-      address,
-      chain:            chainId,
-      chainLabel:       summary.chainLabel,
-      nonce:            summary.nonce,
-      balanceEth:       summary.balanceEth,
-      source:           summary.source,
-      totalTxsFetched:  summary.totalFetched,
-      sigsAnalyzed:     analysis.totalSigs,
-      rValueDuplicates: analysis.rValueDuplicates,
-      sValueDuplicates: analysis.sValueDuplicates,
-      weakKCandidates:  analysis.weakKCandidates,
-      keyRecovered:     analysis.keyRecovered,
-      summary:          analysis.summary,
-      error:            summary.error ?? null,
+      address:          result.address,
+      chain:            result.chain,
+      chainLabel:       result.chainLabel,
+      nonce:            result.nonce,
+      balanceEth:       result.balanceEth,
+      source:           result.source,
+      totalTxsFetched:  result.totalTxsFetched,
+      sigsAnalyzed:     result.sigsEnriched,
+      nonceReuseFound:  result.nonceReuseFound,
+      nonceReusePairs:  result.nonceReusePairs,
+      rValueDuplicates: result.rValueDuplicates,
+      sValueDuplicates: result.sValueDuplicates,
+      weakKCandidates:  result.weakKCandidates,
+      keyRecovered:     result.keyRecovered,
+      summary:          result.summary,
+      durationMs:       result.durationMs,
+      error:            result.error,
     });
   } catch (err) {
     req.log?.error(err, "wallet/signature-scan error");

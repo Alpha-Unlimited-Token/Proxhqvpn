@@ -5,6 +5,7 @@ export {
   fetchNonceAndBalance,
   enrichWithSignatures,
   analyzeSignatures,
+  fullSignatureScan,
 } from "./fetcher.js";
 
 export type {
@@ -12,6 +13,7 @@ export type {
   OutgoingTx,
   WalletSummary,
   SignatureReuseResult,
+  FullScanResult,
   RDuplicate,
   SDuplicate,
 } from "./fetcher.js";

@@ -12,7 +12,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Wallet, Search, AlertTriangle, CheckCircle, Activity,
   Globe, Copy, ExternalLink, ChevronDown, ChevronUp, Loader2,
-  Shield, Key, RefreshCw, Network,
+  Shield, Key, RefreshCw, Network, Hash, Clock, Layers,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -45,11 +45,15 @@ interface OutgoingResult {
 
 interface RDuplicate { r: string; count: number; hashes: string[]; zValues: string[] }
 interface SDuplicate { s: string; count: number; hashes: string[] }
+interface NonceReusePair { nonce: number; hashes: string[] }
 interface SigScanResult {
   address: string; chain: string; chainLabel: string; nonce: number;
-  balanceEth: number; source: string; totalTxsFetched: number;
-  sigsAnalyzed: number; rValueDuplicates: RDuplicate[]; sValueDuplicates: SDuplicate[];
-  weakKCandidates: string[]; keyRecovered: string | null; summary: string; error: string | null;
+  balanceEth: number; source: string;
+  totalTxsFetched: number; sigsAnalyzed: number;
+  nonceReuseFound: boolean; nonceReusePairs: NonceReusePair[];
+  rValueDuplicates: RDuplicate[]; sValueDuplicates: SDuplicate[];
+  weakKCandidates: string[]; keyRecovered: string | null;
+  summary: string; durationMs: number; error: string | null;
 }
 
 function copyToClipboard(text: string) {
@@ -60,11 +64,17 @@ function shortHash(h: string) {
   return h ? `${h.slice(0, 10)}…${h.slice(-8)}` : "";
 }
 
+function fmtDuration(ms: number) {
+  if (ms < 1000) return `${ms}ms`;
+  return `${(ms / 1000).toFixed(1)}s`;
+}
+
 export default function WalletScanner() {
   const { toast } = useToast();
   const [address, setAddress]       = useState("");
   const [chain, setChain]           = useState("ethereum");
   const [enrichSigs, setEnrichSigs] = useState(false);
+  const [scanDepth, setScanDepth]   = useState<"sample" | "full">("full");
   const [activeTab, setActiveTab]   = useState("multi-chain");
   const [expandedTx, setExpandedTx] = useState<string | null>(null);
 
@@ -94,13 +104,14 @@ export default function WalletScanner() {
     enabled: false,
   });
 
-  // ── Signature scan (mutation — can take a while) ─────────────────────────────
+  // ── Signature scan ───────────────────────────────────────────────────────────
   const sigScan = useMutation<SigScanResult>({
     mutationFn: async () => {
+      const enrichLimit = scanDepth === "sample" ? 1000 : 50000;
       const r = await fetch(`${BASE}/api/wallet/signature-scan`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ address, chain, enrichLimit: 500 }),
+        body: JSON.stringify({ address, chain, enrichLimit, batchSize: 50, concurrency: 10 }),
       });
       if (!r.ok) throw new Error(await r.text());
       return r.json();
@@ -115,6 +126,9 @@ export default function WalletScanner() {
   }
 
   const isLoading = multiChain.isFetching || outgoing.isFetching;
+  const scanData  = sigScan.data;
+
+  const hasCritical = !!(scanData?.keyRecovered || scanData?.nonceReuseFound || (scanData?.rValueDuplicates?.length ?? 0) > 0);
 
   return (
     <div className="space-y-6">
@@ -126,7 +140,7 @@ export default function WalletScanner() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Wallet Scanner</h1>
           <p className="text-muted-foreground mt-1">
-            Multi-chain outgoing transaction discovery, ECDSA signature extraction, and nonce-reuse analysis.
+            Multi-chain outgoing transaction discovery, batch ECDSA signature extraction, and nonce / r-value reuse analysis.
           </p>
         </div>
       </div>
@@ -175,8 +189,11 @@ export default function WalletScanner() {
           <TabsTrigger value="outgoing">
             <Activity className="h-4 w-4 mr-2" /> Outgoing Txs
           </TabsTrigger>
-          <TabsTrigger value="sig-scan">
+          <TabsTrigger value="sig-scan" className="relative">
             <Shield className="h-4 w-4 mr-2" /> Sig Scan
+            {hasCritical && (
+              <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-destructive animate-pulse" />
+            )}
           </TabsTrigger>
         </TabsList>
 
@@ -209,7 +226,7 @@ export default function WalletScanner() {
                           <span className={c.nonce > 0 ? "text-primary font-bold" : ""}>{c.nonce.toLocaleString()}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span>Balance</span>
+                          <span>Balance (native)</span>
                           <span>{c.balanceEth.toFixed(6)}</span>
                         </div>
                       </div>
@@ -231,17 +248,15 @@ export default function WalletScanner() {
         {/* ── Outgoing txs tab ────────────────────────────────────────────────── */}
         <TabsContent value="outgoing" className="space-y-4 mt-4">
           <div className="flex items-center gap-2 justify-between">
-            <div className="flex items-center gap-3">
-              <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={enrichSigs}
-                  onChange={e => setEnrichSigs(e.target.checked)}
-                  className="rounded"
-                />
-                Enrich with r/s/v signatures (slower)
-              </label>
-            </div>
+            <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={enrichSigs}
+                onChange={e => setEnrichSigs(e.target.checked)}
+                className="rounded"
+              />
+              Enrich with r/s/v signatures (slower)
+            </label>
             <Button
               size="sm"
               variant="outline"
@@ -262,13 +277,12 @@ export default function WalletScanner() {
 
           {outgoing.data && (
             <div className="space-y-4">
-              {/* Summary bar */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {[
                   { label: "Nonce (total sent)", value: outgoing.data.nonce.toLocaleString(), highlight: outgoing.data.nonce > 0 },
-                  { label: "Txs retrieved", value: outgoing.data.totalFetched.toLocaleString(), highlight: false },
-                  { label: "Balance (native)", value: outgoing.data.balanceEth.toFixed(4), highlight: false },
-                  { label: "Data source", value: outgoing.data.source.toUpperCase(), highlight: false },
+                  { label: "Txs retrieved",      value: outgoing.data.totalFetched.toLocaleString(), highlight: false },
+                  { label: "Balance (native)",   value: outgoing.data.balanceEth.toFixed(4), highlight: false },
+                  { label: "Data source",        value: outgoing.data.source.toUpperCase(), highlight: false },
                 ].map(s => (
                   <Card key={s.label} className="bg-card/40 border-border">
                     <CardContent className="pt-3 pb-2">
@@ -286,21 +300,11 @@ export default function WalletScanner() {
                 </Alert>
               )}
 
-              {outgoing.data.nonce === 0 && (
-                <Alert>
-                  <CheckCircle className="h-4 w-4 text-green-500" />
-                  <AlertDescription>
-                    This wallet has <strong>never sent a transaction</strong> (nonce = 0). No outgoing signature data exists on-chain.
-                  </AlertDescription>
-                </Alert>
-              )}
-
-              {/* Transaction list */}
-              {outgoing.data.outgoingTxs.length > 0 && (
+              {outgoing.data.outgoingTxs.length > 0 ? (
                 <Card className="bg-card/40 border-border">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-base">Outgoing Transactions ({outgoing.data.outgoingTxs.length})</CardTitle>
-                    <CardDescription>Sorted oldest → newest. Click a row to expand signature details.</CardDescription>
+                    <CardDescription>Sorted newest → oldest. Click a row to expand signature detail.</CardDescription>
                   </CardHeader>
                   <CardContent>
                     <ScrollArea className="h-[420px] pr-2">
@@ -311,12 +315,11 @@ export default function WalletScanner() {
                               className="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-muted/30 transition-colors text-left"
                               onClick={() => setExpandedTx(expandedTx === tx.hash ? null : tx.hash)}
                             >
-                              <span className="font-mono text-muted-foreground text-[10px] w-6 shrink-0">
+                              <span className="font-mono text-muted-foreground text-[10px] w-8 shrink-0 text-right">
                                 {tx.nonce ?? "—"}
                               </span>
                               <span className="font-mono text-xs text-primary flex-1">{shortHash(tx.hash)}</span>
                               <span className="text-xs">{tx.valueEth.toFixed(4)} {tx.asset}</span>
-                              <span className="text-[10px] text-muted-foreground">{tx.category}</span>
                               <span className="text-[10px] text-muted-foreground hidden sm:block">
                                 {tx.timestamp ? new Date(tx.timestamp).toLocaleDateString() : "—"}
                               </span>
@@ -332,9 +335,7 @@ export default function WalletScanner() {
                                 <div className="flex gap-2 items-center">
                                   <span className="text-muted-foreground w-12">hash</span>
                                   <span className="text-primary break-all">{tx.hash}</span>
-                                  <button onClick={() => copyToClipboard(tx.hash)}>
-                                    <Copy className="h-3 w-3 text-muted-foreground hover:text-foreground" />
-                                  </button>
+                                  <button onClick={() => copyToClipboard(tx.hash)}><Copy className="h-3 w-3 text-muted-foreground hover:text-foreground" /></button>
                                 </div>
                                 <div className="flex gap-2">
                                   <span className="text-muted-foreground w-12">to</span>
@@ -349,9 +350,7 @@ export default function WalletScanner() {
                                   <div className="flex gap-2">
                                     <span className="text-muted-foreground w-12">r</span>
                                     <span className="break-all text-yellow-400">{tx.r}</span>
-                                    <button onClick={() => copyToClipboard(tx.r!)}>
-                                      <Copy className="h-3 w-3 text-muted-foreground hover:text-foreground" />
-                                    </button>
+                                    <button onClick={() => copyToClipboard(tx.r!)}><Copy className="h-3 w-3 text-muted-foreground hover:text-foreground" /></button>
                                   </div>
                                   <div className="flex gap-2">
                                     <span className="text-muted-foreground w-12">s</span>
@@ -370,6 +369,18 @@ export default function WalletScanner() {
                     </ScrollArea>
                   </CardContent>
                 </Card>
+              ) : outgoing.data.nonce === 0 ? (
+                <Alert>
+                  <CheckCircle className="h-4 w-4 text-green-500" />
+                  <AlertDescription>
+                    Nonce = 0 — this wallet has <strong>never sent a transaction</strong>. No outgoing signature data exists on-chain.
+                  </AlertDescription>
+                </Alert>
+              ) : (
+                <Alert>
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>No outgoing transactions returned by Blockscout for this chain.</AlertDescription>
+                </Alert>
               )}
             </div>
           )}
@@ -378,122 +389,233 @@ export default function WalletScanner() {
             <div className="text-center py-12 text-muted-foreground">
               <Activity className="h-10 w-10 mx-auto mb-3 opacity-30" />
               <p>Scan a wallet to fetch its complete outgoing transaction history.</p>
-              <p className="text-xs mt-1">Uses Blockscout (free) or Alchemy if API key is configured. Full pagination — all transactions, not just recent ones.</p>
+              <p className="text-xs mt-1">Uses Blockscout (free, fully paginated) as primary source.</p>
             </div>
           )}
         </TabsContent>
 
         {/* ── Sig scan tab ─────────────────────────────────────────────────────── */}
         <TabsContent value="sig-scan" className="space-y-4 mt-4">
-          <div className="flex justify-between items-center">
-            <p className="text-sm text-muted-foreground">
-              Fetches all outgoing txs, pulls r/s/v from RPC, then checks for nonce-reuse (k collision), duplicate r-values, and weak-k candidates.
-            </p>
+          {/* Controls */}
+          <div className="flex flex-wrap gap-3 items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2 text-sm">
+                <Layers className="h-4 w-4 text-muted-foreground" />
+                <span className="text-muted-foreground">Scan depth:</span>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setScanDepth("sample")}
+                  className={`px-3 py-1 text-xs rounded border transition-colors ${scanDepth === "sample" ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:border-foreground"}`}
+                >
+                  Sample (first 1,000)
+                </button>
+                <button
+                  onClick={() => setScanDepth("full")}
+                  className={`px-3 py-1 text-xs rounded border transition-colors ${scanDepth === "full" ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:border-foreground"}`}
+                >
+                  Full scan (all txs)
+                </button>
+              </div>
+            </div>
             <Button
               onClick={() => sigScan.mutate()}
               disabled={!isValid || sigScan.isPending}
               variant="destructive"
-              className="gap-2 shrink-0"
+              className="gap-2"
             >
               {sigScan.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Key className="h-4 w-4" />}
-              Run Sig Analysis
+              Run ECDSA Analysis
             </Button>
           </div>
 
           {sigScan.isPending && (
-            <div className="flex items-center gap-2 text-muted-foreground py-8 justify-center">
-              <Loader2 className="h-5 w-5 animate-spin" />
-              Running full ECDSA analysis — fetching all outgoing txs and enriching signatures…
-            </div>
+            <Card className="bg-card/40 border-border">
+              <CardContent className="py-8">
+                <div className="flex flex-col items-center gap-3 text-center">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  <div>
+                    <p className="font-medium">Running full ECDSA analysis…</p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {scanDepth === "full"
+                        ? "Fetching all outgoing txs from Blockscout, then batch-fetching r/s/v via JSON-RPC. This can take 2–5 minutes for wallets with 10k+ txs."
+                        : "Fetching first 1,000 outgoing txs and enriching signatures…"}
+                    </p>
+                    <div className="flex items-center justify-center gap-4 mt-3 text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1"><Hash className="h-3 w-3" /> Phase 1: listing txs from Blockscout</span>
+                      <span>→</span>
+                      <span className="flex items-center gap-1"><Key className="h-3 w-3" /> Phase 2: batch RPC for r/s/v</span>
+                      <span>→</span>
+                      <span className="flex items-center gap-1"><Shield className="h-3 w-3" /> Phase 3: analysis</span>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           )}
 
-          {sigScan.data && (
+          {scanData && (
             <div className="space-y-4">
-              {/* Summary */}
-              <Alert variant={sigScan.data.keyRecovered ? "destructive" : sigScan.data.rValueDuplicates.length > 0 ? "destructive" : "default"}>
-                {sigScan.data.keyRecovered || sigScan.data.rValueDuplicates.length > 0
-                  ? <AlertTriangle className="h-4 w-4" />
-                  : <CheckCircle className="h-4 w-4" />}
-                <AlertDescription className="font-medium">{sigScan.data.summary}</AlertDescription>
+              {/* Summary banner */}
+              <Alert variant={hasCritical ? "destructive" : "default"} className="border-2">
+                {hasCritical ? <AlertTriangle className="h-5 w-5" /> : <CheckCircle className="h-5 w-5" />}
+                <AlertDescription className="font-semibold text-base">{scanData.summary}</AlertDescription>
               </Alert>
 
-              {/* Stats */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {/* Stats grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
                 {[
-                  { label: "Nonce", value: sigScan.data.nonce.toLocaleString() },
-                  { label: "Txs Fetched", value: sigScan.data.totalTxsFetched.toLocaleString() },
-                  { label: "Sigs Analyzed", value: sigScan.data.sigsAnalyzed.toLocaleString() },
-                  { label: "Source", value: sigScan.data.source.toUpperCase() },
+                  { label: "Nonce",        value: scanData.nonce.toLocaleString(),          hi: scanData.nonce > 0 },
+                  { label: "Txs fetched",  value: scanData.totalTxsFetched.toLocaleString(), hi: false },
+                  { label: "Sigs analyzed",value: scanData.sigsAnalyzed.toLocaleString(),   hi: false },
+                  { label: "R-collisions", value: scanData.rValueDuplicates.length.toString(), hi: scanData.rValueDuplicates.length > 0 },
+                  { label: "Nonce reuse",  value: scanData.nonceReusePairs?.length?.toString() ?? "0", hi: scanData.nonceReuseFound },
+                  { label: "Duration",     value: fmtDuration(scanData.durationMs),         hi: false },
                 ].map(s => (
-                  <Card key={s.label} className="bg-card/40 border-border">
+                  <Card key={s.label} className={`bg-card/40 border-border ${s.hi ? "border-destructive/50" : ""}`}>
                     <CardContent className="pt-3 pb-2">
                       <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{s.label}</div>
-                      <div className="font-mono font-bold text-lg mt-0.5">{s.value}</div>
+                      <div className={`font-mono font-bold text-lg mt-0.5 ${s.hi ? "text-destructive" : ""}`}>{s.value}</div>
                     </CardContent>
                   </Card>
                 ))}
               </div>
 
               {/* Key recovered */}
-              {sigScan.data.keyRecovered && (
-                <Alert variant="destructive">
+              {scanData.keyRecovered && (
+                <Alert variant="destructive" className="border-2 border-destructive">
                   <Key className="h-4 w-4" />
                   <AlertDescription>
-                    <div className="font-bold mb-1">⚠️ PRIVATE KEY RECOVERED</div>
-                    <code className="text-xs break-all font-mono">{sigScan.data.keyRecovered}</code>
-                    <button onClick={() => copyToClipboard(sigScan.data.keyRecovered!)} className="ml-2 inline-flex">
-                      <Copy className="h-3 w-3" />
+                    <div className="font-bold text-lg mb-2">🔑 PRIVATE KEY RECOVERED</div>
+                    <code className="text-sm break-all font-mono bg-destructive/20 px-2 py-1 rounded">{scanData.keyRecovered}</code>
+                    <button onClick={() => copyToClipboard(scanData.keyRecovered!)} className="ml-2 inline-flex items-center gap-1 text-xs opacity-70 hover:opacity-100">
+                      <Copy className="h-3 w-3" /> copy
                     </button>
                   </AlertDescription>
                 </Alert>
               )}
 
-              {/* R-value duplicates */}
-              {sigScan.data.rValueDuplicates.length > 0 && (
-                <Card className="bg-card/40 border-border">
+              {/* Nonce reuse */}
+              {scanData.nonceReuseFound && (scanData.nonceReusePairs?.length ?? 0) > 0 && (
+                <Card className="bg-card/40 border-destructive/40">
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-sm text-destructive">
-                      R-Value Collisions ({sigScan.data.rValueDuplicates.length})
+                    <CardTitle className="text-sm text-destructive flex items-center gap-2">
+                      <Hash className="h-4 w-4" />
+                      Nonce Reuse Detected ({scanData.nonceReusePairs.length} nonce{scanData.nonceReusePairs.length > 1 ? "s" : ""})
                     </CardTitle>
-                    <CardDescription>Same r used across multiple txs = same k nonce = private key extractable</CardDescription>
+                    <CardDescription>
+                      Multiple transactions share the same nonce. This is a critical ECDSA vulnerability — if both signed with the same k, the private key is directly computable.
+                    </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="space-y-3">
-                      {sigScan.data.rValueDuplicates.map((d, i) => (
-                        <div key={i} className="rounded bg-destructive/10 border border-destructive/30 p-3 text-xs font-mono">
-                          <div className="text-destructive font-bold mb-1">r = {shortHash(d.r)} (×{d.count})</div>
-                          {d.hashes.map(h => (
-                            <div key={h} className="flex items-center gap-2 text-muted-foreground">
-                              <span>{shortHash(h)}</span>
-                              <button onClick={() => copyToClipboard(h)}><Copy className="h-3 w-3" /></button>
+                    <ScrollArea className="h-[220px]">
+                      <div className="space-y-2">
+                        {scanData.nonceReusePairs.map(p => (
+                          <div key={p.nonce} className="rounded bg-destructive/10 border border-destructive/30 p-3 text-xs font-mono">
+                            <div className="text-destructive font-bold mb-1">nonce = {p.nonce} — {p.hashes.length} transactions</div>
+                            {p.hashes.map(h => (
+                              <div key={h} className="flex items-center gap-2 text-muted-foreground mt-0.5">
+                                <span className="text-foreground">{shortHash(h)}</span>
+                                <button onClick={() => copyToClipboard(h)}><Copy className="h-3 w-3" /></button>
+                                <a href={`https://etherscan.io/tx/${h}`} target="_blank" rel="noopener noreferrer">
+                                  <ExternalLink className="h-3 w-3" />
+                                </a>
+                              </div>
+                            ))}
+                          </div>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* R-value duplicates */}
+              {scanData.rValueDuplicates.length > 0 && (
+                <Card className="bg-card/40 border-destructive/40">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm text-destructive flex items-center gap-2">
+                      <Key className="h-4 w-4" />
+                      r-Value Collisions ({scanData.rValueDuplicates.length})
+                    </CardTitle>
+                    <CardDescription>
+                      Same r-value across multiple transactions = same ECDSA k nonce reused = private key extractable via arithmetic.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <ScrollArea className="h-[260px]">
+                      <div className="space-y-3">
+                        {scanData.rValueDuplicates.map((d, i) => (
+                          <div key={i} className="rounded bg-destructive/10 border border-destructive/30 p-3 text-xs font-mono">
+                            <div className="text-destructive font-bold mb-1 break-all">
+                              r = {shortHash(d.r)} &nbsp;(×{d.count})
                             </div>
-                          ))}
+                            {d.hashes.map(h => (
+                              <div key={h} className="flex items-center gap-2 text-muted-foreground mt-0.5">
+                                <span className="text-foreground">{shortHash(h)}</span>
+                                <button onClick={() => copyToClipboard(h)}><Copy className="h-3 w-3" /></button>
+                                <a href={`https://etherscan.io/tx/${h}`} target="_blank" rel="noopener noreferrer">
+                                  <ExternalLink className="h-3 w-3" />
+                                </a>
+                              </div>
+                            ))}
+                          </div>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* s-value duplicates */}
+              {scanData.sValueDuplicates.length > 0 && (
+                <Card className="bg-card/40 border-yellow-500/40">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm text-yellow-500 flex items-center gap-2">
+                      <Shield className="h-4 w-4" />
+                      s-Value Duplicates ({scanData.sValueDuplicates.length})
+                    </CardTitle>
+                    <CardDescription>Same s-value reuse (unusual but may indicate deterministic signing or library bug).</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      {scanData.sValueDuplicates.slice(0, 10).map((d, i) => (
+                        <div key={i} className="rounded bg-yellow-500/10 border border-yellow-500/30 p-2 text-xs font-mono">
+                          <span className="text-yellow-400">{shortHash(d.s)}</span>
+                          <span className="text-muted-foreground ml-2">×{d.count} txs</span>
                         </div>
                       ))}
+                      {scanData.sValueDuplicates.length > 10 && (
+                        <p className="text-xs text-muted-foreground">…and {scanData.sValueDuplicates.length - 10} more</p>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
               )}
 
               {/* Weak k */}
-              {sigScan.data.weakKCandidates.length > 0 && (
-                <Card className="bg-card/40 border-border">
+              {scanData.weakKCandidates.length > 0 && (
+                <Card className="bg-card/40 border-yellow-500/30">
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-sm text-yellow-500">
-                      Weak-k Candidates ({sigScan.data.weakKCandidates.length})
+                    <CardTitle className="text-sm text-yellow-400 flex items-center gap-2">
+                      <AlertTriangle className="h-4 w-4" />
+                      Weak-k Candidates ({scanData.weakKCandidates.length})
                     </CardTitle>
-                    <CardDescription>r value {"<"} 2^24 — nonce k may be brute-forceable</CardDescription>
+                    <CardDescription>r value {"<"} 0x1000000 — the k nonce may be brute-forceable in ~2²⁴ operations.</CardDescription>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-1">
-                      {sigScan.data.weakKCandidates.slice(0, 20).map(h => (
+                      {scanData.weakKCandidates.slice(0, 20).map(h => (
                         <div key={h} className="font-mono text-xs text-yellow-400 flex items-center gap-2">
                           <span>{shortHash(h)}</span>
                           <button onClick={() => copyToClipboard(h)}><Copy className="h-3 w-3 opacity-60" /></button>
+                          <a href={`https://etherscan.io/tx/${h}`} target="_blank" rel="noopener noreferrer">
+                            <ExternalLink className="h-3 w-3 opacity-60" />
+                          </a>
                         </div>
                       ))}
-                      {sigScan.data.weakKCandidates.length > 20 && (
-                        <p className="text-xs text-muted-foreground mt-1">…and {sigScan.data.weakKCandidates.length - 20} more</p>
+                      {scanData.weakKCandidates.length > 20 && (
+                        <p className="text-xs text-muted-foreground">…and {scanData.weakKCandidates.length - 20} more</p>
                       )}
                     </div>
                   </CardContent>
@@ -501,25 +623,47 @@ export default function WalletScanner() {
               )}
 
               {/* Clean result */}
-              {!sigScan.data.keyRecovered && sigScan.data.rValueDuplicates.length === 0 && sigScan.data.weakKCandidates.length === 0 && sigScan.data.sigsAnalyzed > 0 && (
+              {!scanData.keyRecovered && !scanData.nonceReuseFound && scanData.rValueDuplicates.length === 0 && scanData.weakKCandidates.length === 0 && scanData.sigsAnalyzed > 0 && (
                 <Card className="bg-card/40 border-border">
-                  <CardContent className="py-6 text-center">
-                    <CheckCircle className="h-10 w-10 text-green-500 mx-auto mb-2" />
-                    <p className="font-medium">No signature vulnerabilities detected</p>
+                  <CardContent className="py-8 text-center">
+                    <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-3" />
+                    <p className="font-semibold text-lg">No signature vulnerabilities detected</p>
                     <p className="text-sm text-muted-foreground mt-1">
-                      {sigScan.data.sigsAnalyzed} signatures analyzed — all r-values and s-values are unique.
+                      {scanData.sigsAnalyzed.toLocaleString()} signatures analyzed across {scanData.totalTxsFetched.toLocaleString()} outgoing transactions — all r-values and nonces are unique.
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1 flex items-center justify-center gap-1">
+                      <Clock className="h-3 w-3" /> Completed in {fmtDuration(scanData.durationMs)}
                     </p>
                   </CardContent>
                 </Card>
               )}
+
+              {/* No sigs but txs listed */}
+              {scanData.sigsAnalyzed === 0 && scanData.totalTxsFetched > 0 && (
+                <Alert>
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>
+                    Listed {scanData.totalTxsFetched.toLocaleString()} outgoing txs but could not enrich any with r/s/v. The RPC endpoints may be rate-limiting. Try again or reduce scan depth to Sample.
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {scanData.error && (
+                <Alert variant="destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>{scanData.error}</AlertDescription>
+                </Alert>
+              )}
             </div>
           )}
 
-          {!sigScan.data && !sigScan.isPending && (
+          {!scanData && !sigScan.isPending && (
             <div className="text-center py-12 text-muted-foreground">
-              <Shield className="h-10 w-10 mx-auto mb-3 opacity-30" />
-              <p>Click "Run Sig Analysis" to perform a full ECDSA nonce-reuse audit.</p>
-              <p className="text-xs mt-1">This is the deepest check — may take 30–120 seconds depending on tx count.</p>
+              <Shield className="h-12 w-12 mx-auto mb-3 opacity-30" />
+              <p className="font-medium">Click "Run ECDSA Analysis" to perform a full signature audit.</p>
+              <p className="text-xs mt-2 max-w-sm mx-auto">
+                <strong>Sample</strong> = first 1,000 txs, fast (~30s). <strong>Full scan</strong> = all transactions, comprehensive (2–5 min for 33k+ tx wallets). Uses batch JSON-RPC for efficiency.
+              </p>
             </div>
           )}
         </TabsContent>

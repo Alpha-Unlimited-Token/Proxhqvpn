@@ -287,6 +287,7 @@ interface RawTx {
   s:        string;
   v:        string;
   gasPrice?: string;
+  hash?:    string;
 }
 
 async function fetchRawTx(hash: string, rpcUrl: string, chainId?: string): Promise<RawTx | null> {
@@ -304,34 +305,277 @@ async function fetchRawTx(hash: string, rpcUrl: string, chainId?: string): Promi
       });
       if (!res.ok) continue;
       const d = await res.json() as { result?: RawTx };
-      if (d.result?.r) return d.result;   // only accept if we got signature fields
+      if (d.result?.r) return d.result;
     } catch { /* try next */ }
   }
   return null;
 }
 
 /**
+ * Batch-fetch r/s/v for multiple tx hashes in a single JSON-RPC batch call.
+ * Returns a map of hash → RawTx. Uses batch JSON-RPC (supported by publicnode, Alchemy, etc.)
+ */
+async function batchFetchRawTxs(
+  hashes:  string[],
+  rpcUrl:  string,
+  chainId?: string,
+): Promise<Map<string, RawTx>> {
+  const result = new Map<string, RawTx>();
+  if (hashes.length === 0) return result;
+
+  const endpoints = chainId
+    ? [rpcUrl, ...(RPC_FALLBACKS[chainId] ?? []).filter(u => u !== rpcUrl)]
+    : [rpcUrl];
+
+  const payload = hashes.map((h, i) => ({
+    jsonrpc: "2.0", id: i, method: "eth_getTransactionByHash", params: [h],
+  }));
+
+  for (const url of endpoints) {
+    try {
+      const res = await fetch(url, {
+        method:  "POST",
+        headers: { "content-type": "application/json" },
+        body:    JSON.stringify(payload),
+        signal:  AbortSignal.timeout(20_000),
+      });
+      if (!res.ok) continue;
+      const data = await res.json() as Array<{ id: number; result?: RawTx }>;
+      if (!Array.isArray(data)) continue;
+
+      for (const entry of data) {
+        if (entry.result?.r) {
+          result.set(hashes[entry.id], entry.result);
+        }
+      }
+      if (result.size > 0) break;  // got results — don't try next endpoint
+    } catch { /* try next */ }
+  }
+  return result;
+}
+
+/**
  * Enrich a batch of OutgoingTx records with r/s/v/nonce from raw RPC data.
- * Only enriches the first `limit` entries (controls RPC call volume).
+ * Uses batch JSON-RPC (50 per batch, up to `concurrency` simultaneous batches).
  */
 export async function enrichWithSignatures(
-  txs:    OutgoingTx[],
-  chain:  ChainConfig,
-  limit:  number = 200,
+  txs:         OutgoingTx[],
+  chain:       ChainConfig,
+  limit:       number = 200,
+  batchSize:   number = 50,
+  concurrency: number = 8,
 ): Promise<OutgoingTx[]> {
   const toEnrich = txs.filter(t => t.r === null).slice(0, limit);
-  await Promise.all(
-    toEnrich.map(async tx => {
-      const raw = await fetchRawTx(tx.hash, chain.rpcUrl, chain.id);
-      if (!raw) return;
-      tx.nonce    = raw.nonce    ? parseInt(raw.nonce, 16) : tx.nonce;
-      tx.r        = raw.r ?? null;
-      tx.s        = raw.s ?? null;
-      tx.v        = raw.v ? parseInt(raw.v, 16) : null;
-      tx.gasPrice = raw.gasPrice ? BigInt(raw.gasPrice) : tx.gasPrice;
-    }),
-  );
+
+  // Chunk into batches
+  const chunks: OutgoingTx[][] = [];
+  for (let i = 0; i < toEnrich.length; i += batchSize) {
+    chunks.push(toEnrich.slice(i, i + batchSize));
+  }
+
+  // Process chunks with bounded concurrency
+  for (let i = 0; i < chunks.length; i += concurrency) {
+    const window = chunks.slice(i, i + concurrency);
+    await Promise.all(
+      window.map(async chunk => {
+        const hashes  = chunk.map(t => t.hash);
+        const rawMap  = await batchFetchRawTxs(hashes, chain.rpcUrl, chain.id);
+        for (const tx of chunk) {
+          const raw = rawMap.get(tx.hash);
+          if (!raw) continue;
+          tx.nonce    = raw.nonce    ? parseInt(raw.nonce, 16) : tx.nonce;
+          tx.r        = raw.r ?? null;
+          tx.s        = raw.s ?? null;
+          tx.v        = raw.v ? parseInt(raw.v, 16) : null;
+          tx.gasPrice = raw.gasPrice ? BigInt(raw.gasPrice) : tx.gasPrice;
+        }
+      }),
+    );
+  }
   return txs;
+}
+
+// ── Full signature scan (nonce-reuse + r-value dup detection) ─────────────────
+
+export interface FullScanProgress {
+  phase:  "listing" | "enriching" | "analyzing" | "done";
+  listed: number;
+  enriched: number;
+  total:  number;
+}
+
+export interface FullScanResult {
+  address:          string;
+  chain:            string;
+  chainLabel:       string;
+  nonce:            number;
+  balanceEth:       number;
+  source:           string;
+  totalTxsFetched:  number;
+  sigsEnriched:     number;
+  nonceReuseFound:  boolean;
+  nonceReusePairs:  Array<{ nonce: number; hashes: string[] }>;
+  rValueDuplicates: RDuplicate[];
+  sValueDuplicates: SDuplicate[];
+  weakKCandidates:  string[];
+  keyRecovered:     string | null;
+  summary:          string;
+  error:            string | null;
+  durationMs:       number;
+}
+
+/**
+ * Full scan: pages through ALL outgoing txs, batch-fetches every signature,
+ * then runs complete nonce-reuse + r/s duplicate analysis.
+ *
+ * For wallets with tens of thousands of txs this can take several minutes.
+ * `enrichLimit` caps how many signatures to fetch (default: all).
+ */
+export async function fullSignatureScan(
+  address:       string,
+  chainId:       string = "ethereum",
+  enrichLimit:   number = 50_000,
+  batchSize:     number = 50,
+  concurrency:   number = 10,
+): Promise<FullScanResult> {
+  const t0    = Date.now();
+  const chain = getChain(chainId);
+
+  const { nonce, balanceEth } = await fetchNonceAndBalance(address, chain.rpcUrl, chainId);
+
+  // ── Phase 1: collect ALL outgoing txs from Blockscout ──────────────────────
+  let outgoing: OutgoingTx[] = [];
+  let source = "blockscout";
+  let fetchError: string | null = null;
+  try {
+    outgoing = await blockscoutFetchAll(address, chain, 2000);
+  } catch (e) {
+    fetchError = (e as Error).message;
+  }
+
+  // ── Phase 1b: nonce-reuse check from Blockscout nonces (free — no extra RPC) ─
+  const nonceMap = new Map<number, string[]>();
+  for (const tx of outgoing) {
+    if (tx.nonce === null) continue;
+    const entry = nonceMap.get(tx.nonce) ?? [];
+    entry.push(tx.hash);
+    nonceMap.set(tx.nonce, entry);
+  }
+  const nonceReusePairs = [...nonceMap.entries()]
+    .filter(([, hashes]) => hashes.length > 1)
+    .map(([n, hashes]) => ({ nonce: n, hashes }));
+  const nonceReuseFound = nonceReusePairs.length > 0;
+
+  // ── Phase 2: batch-fetch r/s/v for up to enrichLimit txs ───────────────────
+  const toEnrich = outgoing.slice(0, enrichLimit);
+  const chunks: OutgoingTx[][] = [];
+  for (let i = 0; i < toEnrich.length; i += batchSize) {
+    chunks.push(toEnrich.slice(i, i + batchSize));
+  }
+
+  for (let i = 0; i < chunks.length; i += concurrency) {
+    const window = chunks.slice(i, i + concurrency);
+    await Promise.all(
+      window.map(async chunk => {
+        const hashes = chunk.map(t => t.hash);
+        const rawMap = await batchFetchRawTxs(hashes, chain.rpcUrl, chainId);
+        for (const tx of chunk) {
+          const raw = rawMap.get(tx.hash);
+          if (!raw) continue;
+          tx.nonce    = raw.nonce ? parseInt(raw.nonce, 16) : tx.nonce;
+          tx.r        = raw.r ?? null;
+          tx.s        = raw.s ?? null;
+          tx.v        = raw.v ? parseInt(raw.v, 16) : null;
+          tx.gasPrice = raw.gasPrice ? BigInt(raw.gasPrice) : tx.gasPrice;
+        }
+      }),
+    );
+  }
+
+  const enriched = outgoing.filter(t => t.r && t.s);
+
+  // ── Phase 3: analyze ────────────────────────────────────────────────────────
+  const N_CURVE = BigInt("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141");
+
+  const rMap = new Map<string, OutgoingTx[]>();
+  const sMap = new Map<string, OutgoingTx[]>();
+  for (const tx of enriched) {
+    const r = tx.r!.toLowerCase();
+    const s = tx.s!.toLowerCase();
+    const rList = rMap.get(r) ?? []; rList.push(tx); rMap.set(r, rList);
+    const sList = sMap.get(s) ?? []; sList.push(tx); sMap.set(s, sList);
+  }
+
+  const rValueDuplicates: RDuplicate[] = [];
+  let keyRecovered: string | null = null;
+  function modInv(a: bigint, m: bigint): bigint {
+    let [old_r, r_] = [a, m], [old_s, s_] = [1n, 0n];
+    while (r_ !== 0n) {
+      const q = old_r / r_;
+      [old_r, r_] = [r_, old_r - q * r_];
+      [old_s, s_] = [s_, old_s - q * s_];
+    }
+    return ((old_s % m) + m) % m;
+  }
+
+  for (const [r, txs] of rMap) {
+    if (txs.length < 2) continue;
+    const hashes  = txs.map(t => t.hash);
+    const zValues = hashes.map(h => { try { return ethers.keccak256(h); } catch { return ""; } });
+    rValueDuplicates.push({ r, count: txs.length, hashes, zValues });
+
+    if (!keyRecovered && txs.length >= 2) {
+      try {
+        const rBig  = BigInt("0x" + r.replace(/^0x/i, ""));
+        const s1Big = BigInt(txs[0].s!);
+        const s2Big = BigInt(txs[1].s!);
+        const z1Big = BigInt(ethers.keccak256(txs[0].hash));
+        const z2Big = BigInt(ethers.keccak256(txs[1].hash));
+        const k     = ((z1Big - z2Big + N_CURVE) % N_CURVE * modInv((s1Big - s2Big + N_CURVE) % N_CURVE, N_CURVE)) % N_CURVE;
+        const priv  = ((s1Big * k - z1Big + N_CURVE) % N_CURVE * modInv(rBig, N_CURVE)) % N_CURVE;
+        if (priv > 0n && priv < N_CURVE) {
+          const w = new ethers.Wallet("0x" + priv.toString(16).padStart(64, "0"));
+          if (w.address.toLowerCase() === address.toLowerCase()) {
+            keyRecovered = w.privateKey;
+          }
+        }
+      } catch { /* arithmetic failed */ }
+    }
+  }
+
+  const sValueDuplicates: SDuplicate[] = [];
+  for (const [s, txs] of sMap) {
+    if (txs.length < 2) continue;
+    sValueDuplicates.push({ s, count: txs.length, hashes: txs.map(t => t.hash) });
+  }
+
+  const weakKCandidates = enriched
+    .filter(t => { try { return BigInt(t.r!) < BigInt("0x1000000"); } catch { return false; } })
+    .map(t => t.hash);
+
+  const vulnCount = rValueDuplicates.length + sValueDuplicates.length + weakKCandidates.length;
+  const summary = keyRecovered
+    ? `⚠️ CRITICAL: Private key recovered from r-value collision!`
+    : nonceReuseFound
+    ? `⚠️ Nonce reuse detected on ${nonceReusePairs.length} nonce(s)!`
+    : vulnCount > 0
+    ? `⚠️ ${vulnCount} signature issue(s) found (${rValueDuplicates.length} r-reuse, ${sValueDuplicates.length} s-reuse, ${weakKCandidates.length} weak-k)`
+    : enriched.length === 0
+    ? `ℹ️ Could not enrich any signatures from ${outgoing.length} listed txs.`
+    : `✅ No reuse detected across ${enriched.length} signatures analyzed.`;
+
+  return {
+    address, chain: chainId, chainLabel: chain.label,
+    nonce, balanceEth, source,
+    totalTxsFetched:  outgoing.length,
+    sigsEnriched:     enriched.length,
+    nonceReuseFound, nonceReusePairs,
+    rValueDuplicates, sValueDuplicates,
+    weakKCandidates, keyRecovered,
+    summary,
+    error: fetchError,
+    durationMs: Date.now() - t0,
+  };
 }
 
 // ── Nonce + balance from public RPC ───────────────────────────────────────────
