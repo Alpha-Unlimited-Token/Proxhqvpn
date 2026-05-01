@@ -10,11 +10,94 @@ import {
   ChevronDown, Copy, Search, Globe, Syringe,
   TerminalSquare, Loader2, XCircle, Download,
   CheckCircle2, ShieldAlert, ShieldCheck, EyeOff,
-  ChevronRight, ListFilter, Plus, Trash2, Shield,
+  ChevronRight, ListFilter, Plus, Trash2, Shield, Atom, Key,
 } from "lucide-react";
 import { useQueryClient, useMutation, useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
+
+const QA_BASE_BA = import.meta.env.BASE_URL?.replace(/\/ghost-vpn\/?$/, "") ?? "";
+
+function BlockchainKeyAlertsPanel() {
+  const [qa, setQa] = useState<any>(null);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const r = await fetch(`${QA_BASE_BA}/api/quantum-audit/cc-summary`, { credentials: "include" });
+        if (r.ok) setQa(await r.json());
+      } catch { /* best-effort */ }
+    };
+    load();
+    const t = setInterval(load, 60_000);
+    return () => clearInterval(t);
+  }, []);
+
+  if (!qa) return null;
+  const keyFindings = (qa.recentFindings ?? []).filter((f: any) => f.hasKey);
+  const hasAny = keyFindings.length > 0 || qa.keys?.recovered > 0 || qa.runner?.running;
+  if (!hasAny) return null;
+
+  return (
+    <div className="border border-cyan-500/20 bg-black rounded-sm p-4 space-y-3 font-mono mt-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Atom className="w-3.5 h-3.5 text-cyan-400" />
+          <span className="text-[10px] font-mono text-cyan-400/70 uppercase tracking-widest">QuantumAudit · Key-Recovery Alerts</span>
+        </div>
+        <div className="flex items-center gap-2">
+          {(qa.keys?.recovered ?? 0) > 0 && (
+            <Badge variant="outline" className="text-[8px] font-mono border-red-500/40 text-red-400 animate-pulse">
+              {qa.keys.recovered} PRIVATE KEY{qa.keys.recovered > 1 ? "S" : ""} RECOVERED
+            </Badge>
+          )}
+          <div className={`flex items-center gap-1 text-[9px] font-mono ${qa.runner?.running ? "text-[#00ff88]" : "text-primary/25"}`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${qa.runner?.running ? "bg-[#00ff88] animate-pulse" : "bg-primary/20"}`} />
+            {qa.runner?.running ? "SCANNING" : "IDLE"}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-center">
+        {[
+          { label: "Wallets Scanned", value: qa.signatures?.addresses ?? 0, color: "text-cyan-400" },
+          { label: "ECDSA Signatures", value: qa.signatures?.totalSigs ?? 0, color: "text-primary/50" },
+          { label: "Scan Progress", value: `${qa.progress?.pct ?? 0}%`, color: "text-orange-400" },
+          { label: "Keys Recovered", value: qa.keys?.recovered ?? 0, color: (qa.keys?.recovered ?? 0) > 0 ? "text-red-400 font-bold" : "text-primary/20" },
+        ].map(({ label, value, color }) => (
+          <div key={label} className="border border-primary/8 p-2">
+            <div className={`text-sm font-bold ${color}`}>{typeof value === "number" ? value.toLocaleString() : value}</div>
+            <div className="text-[9px] text-primary/30 uppercase">{label}</div>
+          </div>
+        ))}
+      </div>
+
+      {keyFindings.length > 0 ? (
+        <div className="space-y-1">
+          <div className="text-[10px] text-red-400/70 font-bold flex items-center gap-1.5">
+            <Key className="w-3 h-3" /> Active Key-Recovery Alerts
+          </div>
+          {keyFindings.slice(0, 6).map((f: any, i: number) => (
+            <div key={i} className="flex items-center gap-2 border border-red-500/15 bg-red-900/5 px-2 py-1.5 text-[10px]">
+              <AlertOctagon className="w-3 h-3 text-red-400 shrink-0" />
+              <span className="text-red-400 font-bold uppercase text-[9px] border border-red-400/20 px-1">{f.kind}</span>
+              <span className="text-primary/50 truncate flex-1">{f.detail}</span>
+              {f.discoveredAt && <span className="text-primary/25 text-[9px] shrink-0">{new Date(f.discoveredAt).toLocaleDateString()}</span>}
+            </div>
+          ))}
+          <div className="text-[9px] text-red-400/40 leading-relaxed pt-1">
+            Critical: these wallets have exploitable ECDSA nonce reuse — private keys can be derived from public transaction data.
+          </div>
+        </div>
+      ) : (
+        <div className="text-[10px] text-primary/30 border border-primary/8 px-3 py-2 flex items-center gap-2">
+          <CheckCircle2 className="w-3.5 h-3.5 text-primary/20 shrink-0" />
+          No confirmed key-recovery events in current scan window — {qa.progress?.pct ?? 0}% of hashes processed so far.
+        </div>
+      )}
+    </div>
+  );
+}
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -917,6 +1000,8 @@ export default function BeaconAlerts() {
           </div>
         )}
       </div>
+
+      <BlockchainKeyAlertsPanel />
     </div>
   );
 }

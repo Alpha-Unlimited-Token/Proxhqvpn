@@ -4,8 +4,99 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { AlertTriangle, Search, Shield, Trash2, Plus, RefreshCw, ExternalLink } from "lucide-react";
+import { AlertTriangle, Search, Shield, Trash2, Plus, RefreshCw, ExternalLink, Atom, Globe, Key, Hash } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+
+const QA_BASE = import.meta.env.BASE_URL?.replace(/\/ghost-vpn\/?$/, "") ?? "";
+
+interface QaSummary {
+  signatures: { totalSigs: number; addresses: number };
+  progress: { processed: number; total: number; pct: number; unknownChain: number };
+  keys: { recovered: number };
+  chains: Record<string, number>;
+  recentFindings: Array<{ engine: string; kind: string; address?: string; detail: string; hasKey: boolean; discoveredAt: string }>;
+  runner: { running: boolean };
+}
+
+function BlockchainIntelPanel() {
+  const [qa, setQa] = useState<QaSummary | null>(null);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const r = await fetch(`${QA_BASE}/api/quantum-audit/cc-summary`, { credentials: "include" });
+        if (r.ok) setQa(await r.json());
+      } catch { /* best-effort */ }
+    };
+    load();
+    const t = setInterval(load, 60_000);
+    return () => clearInterval(t);
+  }, []);
+
+  if (!qa) return null;
+  const chainsSorted = Object.entries(qa.chains).sort((a, b) => b[1] - a[1]).slice(0, 4);
+
+  return (
+    <Card className="bg-black border-cyan-500/20">
+      <CardContent className="p-4 space-y-3">
+        <div className="text-[10px] font-mono uppercase tracking-widest text-cyan-400/60 pb-2 border-b border-cyan-500/15 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Atom className="w-3 h-3" />
+            Blockchain Threat Intelligence · QuantumAudit
+          </div>
+          <div className={`flex items-center gap-1 ${qa.runner.running ? "text-[#00ff88]" : "text-white/20"}`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${qa.runner.running ? "bg-[#00ff88] animate-pulse" : "bg-white/20"}`} />
+            <span className="text-[9px]">{qa.runner.running ? "SCANNING" : "IDLE"}</span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {[
+            { label: "ECDSA Sigs", value: qa.signatures.totalSigs.toLocaleString(), color: "text-cyan-400" },
+            { label: "Wallets", value: qa.signatures.addresses, color: "text-primary" },
+            { label: "Keys Found", value: qa.keys.recovered, color: qa.keys.recovered > 0 ? "text-red-400" : "text-primary/30" },
+            { label: "Scan %", value: `${qa.progress.pct}%`, color: "text-orange-400" },
+          ].map(({ label, value, color }) => (
+            <div key={label} className="text-center">
+              <div className={`text-lg font-bold font-mono ${color}`}>{value}</div>
+              <div className="text-[9px] font-mono text-primary/35 uppercase tracking-widest">{label}</div>
+            </div>
+          ))}
+        </div>
+
+        {chainsSorted.length > 0 && (
+          <div className="flex flex-wrap gap-2 pt-1">
+            <span className="text-[9px] font-mono text-primary/35 uppercase tracking-widest self-center">Chains:</span>
+            {chainsSorted.map(([chain, n]) => (
+              <span key={chain} className="text-[9px] font-mono border border-cyan-500/20 text-cyan-400/70 px-1.5 py-0.5 capitalize flex items-center gap-1">
+                <Globe className="w-2.5 h-2.5" />{chain} {n}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {qa.recentFindings.length > 0 && (
+          <div className="space-y-1 pt-1 border-t border-primary/8">
+            <div className="text-[9px] font-mono text-primary/35 uppercase tracking-widest mb-1.5">Recent Blockchain Findings</div>
+            {qa.recentFindings.slice(0, 4).map((f, i) => (
+              <div key={i} className="flex items-center gap-2 text-[9px] font-mono">
+                {f.hasKey ? <Key className="w-2.5 h-2.5 text-red-400 shrink-0" /> : <Hash className="w-2.5 h-2.5 text-cyan-400/40 shrink-0" />}
+                <span className={`border px-1 uppercase ${f.hasKey ? "border-red-400/30 text-red-400" : "border-cyan-400/20 text-cyan-400/50"}`}>{f.kind}</span>
+                <span className="text-primary/50 truncate flex-1">{f.detail}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {qa.progress.unknownChain > 0 && (
+          <div className="text-[9px] font-mono text-yellow-400/60 border border-yellow-400/15 bg-yellow-400/3 px-2 py-1.5">
+            {qa.progress.unknownChain} tx hashes unresolved across all 17 chains — queued for post-scan research
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
 
@@ -283,6 +374,8 @@ export default function ThreatIntel() {
           </CardContent>
         </Card>
       )}
+
+      <BlockchainIntelPanel />
     </div>
   );
 }

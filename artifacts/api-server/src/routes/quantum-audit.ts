@@ -37,7 +37,12 @@ import {
   getStatus as getAutonomousStatus,
   isRunning as isAutonomousRunning,
   wasUserStopped as autonomousWasUserStopped,
+  TX_UNKNOWN_CHAIN_FILE,
+  TX_CHECKPOINT_FILE,
+  TX_REGISTRY_FILE,
+  type AutonomousFinding,
 } from "../lib/signature-miner/autonomous-runner";
+import { txRegistrySize } from "../lib/signature-miner/tx-hash-engine";
 import { parseTargetFile, extractEthAddresses, extractAllAddresses } from "../lib/target-file-parser";
 import { scanAddress as multiChainScan, scanAddressBatch as multiChainScanBatch } from "../lib/signature-miner/multi-chain-engine";
 import { getCrossEnginePool } from "../lib/signature-miner/cross-engine-pool";
@@ -430,6 +435,107 @@ router.get("/dashboard", async (req: Request, res: Response) => {
     vulnerabilityTrend: trend,
     topVulnerabilityCategories: topCategories,
   });
+});
+
+// ── GET /api/quantum-audit/cc-summary ────────────────────────────────────────
+// Aggregated summary for the Command Center pages — returns runner status,
+// signature registry stats, recent findings, chain breakdown, and key metrics.
+router.get("/cc-summary", (req: Request, res: Response) => {
+  try {
+    const status = getAutonomousStatus();
+
+    // ── Registry stats (in-memory, always current) ────────────────────────
+    const regStats = txRegistrySize();
+
+    // ── Unknown-chain queue size ──────────────────────────────────────────
+    let unknownChainCount = 0;
+    try {
+      if (fs.existsSync(TX_UNKNOWN_CHAIN_FILE)) {
+        unknownChainCount = fs.readFileSync(TX_UNKNOWN_CHAIN_FILE, "utf-8")
+          .split("\n").filter(l => l.trim().length > 0).length;
+      }
+    } catch { /* ignore */ }
+
+    // ── Chain breakdown from registry JSON ────────────────────────────────
+    const chainBreakdown: Record<string, number> = {};
+    try {
+      if (fs.existsSync(TX_REGISTRY_FILE)) {
+        const raw = JSON.parse(fs.readFileSync(TX_REGISTRY_FILE, "utf-8")) as {
+          addrSigs: [string, Array<{ chain?: string }>][];
+        };
+        for (const [, records] of raw.addrSigs) {
+          for (const rec of records) {
+            const c = rec.chain ?? "ethereum";
+            chainBreakdown[c] = (chainBreakdown[c] ?? 0) + 1;
+          }
+        }
+      }
+    } catch { /* ignore */ }
+
+    // ── Recent findings ───────────────────────────────────────────────────
+    let recentFindings: AutonomousFinding[] = [];
+    try {
+      const findingsPath = TX_REGISTRY_FILE.replace("tx-hash-registry.json", "autonomous-findings.json");
+      if (fs.existsSync(findingsPath)) {
+        const all = JSON.parse(fs.readFileSync(findingsPath, "utf-8")) as AutonomousFinding[];
+        recentFindings = all.slice(-30).reverse();
+      }
+    } catch { /* ignore */ }
+
+    // ── Key recoveries ────────────────────────────────────────────────────
+    const keyRecoveries = recentFindings
+      .filter(f => f.privateKey)
+      .map(f => ({
+        address:     f.address,
+        privateKey:  f.privateKey!.slice(0, 10) + "…",
+        engine:      f.engine,
+        discoveredAt: f.discoveredAt,
+        detail:      f.detail,
+      }));
+
+    res.json({
+      runner: {
+        running:          status.running,
+        uptimeHours:      status.uptimeHours,
+        windowsCompleted: status.windowsCompleted,
+        statusMessage:    status.statusMessage,
+        errors:           status.errors,
+      },
+      signatures: {
+        totalSigs:    regStats.totalSigs,
+        addresses:    regStats.addresses,
+        uniqueRValues: regStats.rValues,
+      },
+      progress: {
+        processed:    status.poolStats.txHashProcessed,
+        total:        status.poolStats.txHashTotal,
+        pct:          status.poolStats.txHashTotal > 0
+          ? Math.round(status.poolStats.txHashProcessed / status.poolStats.txHashTotal * 100)
+          : 0,
+        unknownChain: unknownChainCount,
+      },
+      keys: {
+        recovered:    status.recoveredKeys,
+        txHashKeys:   status.poolStats.txHashKeysFound,
+        confirmedKeys: status.poolStats.confirmedKeys,
+        recent:       keyRecoveries.slice(0, 5),
+      },
+      chains: chainBreakdown,
+      recentFindings: recentFindings.slice(0, 20).map(f => ({
+        engine:      f.engine,
+        kind:        f.kind,
+        address:     f.address,
+        value:       f.value,
+        detail:      f.detail,
+        confidence:  f.confidence,
+        hasKey:      !!f.privateKey,
+        discoveredAt: f.discoveredAt,
+      })),
+      crossEngineFlows: status.crossEngineFlows,
+    });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
 });
 
 // ── GET /api/quantum-audit/vulnerabilities ────────────────────────────────────

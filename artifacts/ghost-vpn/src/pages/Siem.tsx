@@ -1,11 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { usePersistedState } from "@/hooks/usePersistedState";
 import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import {
   Database, AlertTriangle, Shield, Activity, Clock,
-  RefreshCw, Search, Filter, ChevronRight,
+  RefreshCw, Search, ChevronRight, Atom,
 } from "lucide-react";
+
+const QA_BASE = import.meta.env.BASE_URL?.replace(/\/ghost-vpn\/?$/, "") ?? "";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 async function apiFetch(path: string) {
@@ -43,9 +45,10 @@ const SEV_DOT = {
 
 const SOURCE_COLOR: Record<string, string> = {
   "Beacon Monitor": "text-purple-400",
-  "Ghost Trace": "text-[#00ff88]",
-  "Firewall": "text-blue-400",
-  "Ghost Chain": "text-orange-400",
+  "Ghost Trace":   "text-[#00ff88]",
+  "Firewall":      "text-blue-400",
+  "Ghost Chain":   "text-orange-400",
+  "QuantumAudit":  "text-cyan-400",
 };
 
 function timeAgo(ts: string) {
@@ -64,6 +67,44 @@ export default function Siem() {
   const [sourceFilter, setSourceFilter] = usePersistedState<string>("siem-source", "all");
   const [search, setSearch] = usePersistedState<string>("siem-search", "");
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [qaEvents, setQaEvents] = useState<SiemEvent[]>([]);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const r = await fetch(`${QA_BASE}/api/quantum-audit/cc-summary`, { credentials: "include" });
+        if (!r.ok) return;
+        const d = await r.json();
+        const synth: SiemEvent[] = (d.recentFindings ?? []).map((f: any, i: number) => ({
+          id:        `qa-${i}-${f.discoveredAt}`,
+          source:    "QuantumAudit",
+          eventType: f.kind,
+          severity:  f.hasKey ? "critical" : f.confidence >= 0.8 ? "high" : "medium",
+          title:     f.hasKey ? `Private Key Recovered — ${f.kind}` : `Blockchain Anomaly — ${f.kind}`,
+          details:   f.detail || `Engine: ${f.engine} | Confidence: ${Math.round((f.confidence ?? 0) * 100)}%`,
+          timestamp: f.discoveredAt,
+          metadata:  { engine: f.engine, kind: f.kind, address: f.address, confidence: f.confidence },
+        } as SiemEvent));
+        // Also add runner status event if active
+        if (d.runner?.running) {
+          synth.push({
+            id: "qa-runner-active",
+            source: "QuantumAudit",
+            eventType: "engine_scan",
+            severity: "info",
+            title: "Blockchain ECDSA Scanner Active",
+            details: `${d.progress?.processed ?? 0}/${d.progress?.total ?? 0} hashes processed · ${d.signatures?.totalSigs ?? 0} signatures · ${Object.keys(d.chains ?? {}).length} chains`,
+            timestamp: new Date().toISOString(),
+            metadata: { progress: d.progress, chains: d.chains, keys: d.keys },
+          });
+        }
+        setQaEvents(synth);
+      } catch { /* best-effort */ }
+    };
+    load();
+    const t = setInterval(load, 30_000);
+    return () => clearInterval(t);
+  }, []);
 
   const { data: events = [], isLoading, refetch } = useQuery<SiemEvent[]>({
     queryKey: ["siem-events", sevFilter, sourceFilter],
@@ -88,9 +129,16 @@ export default function Siem() {
     refetchInterval: 60_000,
   });
 
-  const filteredEvents = events.filter(e =>
-    search ? (e.title.toLowerCase().includes(search.toLowerCase()) || e.details.toLowerCase().includes(search.toLowerCase())) : true
+  const allEvents = [...events, ...qaEvents].sort(
+    (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
   );
+
+  const filteredEvents = allEvents.filter(e => {
+    if (sevFilter !== "all" && e.severity !== sevFilter) return false;
+    if (sourceFilter !== "all" && e.source.toLowerCase().replace(" ", "_") !== sourceFilter) return false;
+    if (search && !e.title.toLowerCase().includes(search.toLowerCase()) && !e.details.toLowerCase().includes(search.toLowerCase())) return false;
+    return true;
+  });
 
   const maxTimelineBar = Math.max(...timeline.map((t: any) => t.total), 1);
 
@@ -106,7 +154,7 @@ export default function Siem() {
             <Badge className="text-[9px] border-[#00ff88]/30 bg-[#00ff88]/10 text-[#00ff88] font-mono uppercase tracking-widest px-1.5">SIEM</Badge>
           </div>
           <p className="text-xs text-primary/40 max-w-xl leading-relaxed">
-            Unified security event timeline aggregating alerts from Beacon Monitor, Ghost Trace, Firewall, and Ghost Chain — all in one searchable log.
+            Unified security event timeline aggregating alerts from Beacon Monitor, Ghost Trace, Firewall, Ghost Chain, and <span className="text-cyan-400/70">QuantumAudit blockchain engine</span> — all in one searchable log.
           </p>
         </div>
         <button onClick={() => refetch()} className="p-1.5 border border-primary/20 hover:border-[#00ff88]/40 rounded transition-colors text-primary/40 hover:text-[#00ff88]">

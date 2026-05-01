@@ -1,14 +1,16 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import {
   AlertTriangle, CheckCircle2, Search, Plus, Trash2,
   Globe, RefreshCw, ShieldAlert, Eye, Clock, Lock, Zap,
-  KeyRound, ShieldCheck, XCircle, Info,
+  KeyRound, ShieldCheck, XCircle, Info, Atom, Key,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { useLocation } from "wouter";
+
+const QA_BASE = import.meta.env.BASE_URL?.replace(/\/ghost-vpn\/?$/, "") ?? "";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const api  = (path: string, opts?: RequestInit) =>
@@ -245,6 +247,105 @@ function BreachDatabase() {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function BlockchainWalletsPanel() {
+  const [qa, setQa] = useState<any>(null);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const r = await fetch(`${QA_BASE}/api/quantum-audit/cc-summary`, { credentials: "include" });
+        if (r.ok) setQa(await r.json());
+      } catch { /* best-effort */ }
+    };
+    load();
+    const t = setInterval(load, 60_000);
+    return () => clearInterval(t);
+  }, []);
+
+  if (!qa) return null;
+  const keyFindings = (qa.recentFindings ?? []).filter((f: any) => f.hasKey);
+  const hasAnyData = qa.signatures?.addresses > 0 || keyFindings.length > 0;
+  if (!hasAnyData) return null;
+
+  return (
+    <div className="space-y-3 pt-2">
+      <div className="flex items-center gap-2">
+        <div className="h-px flex-1 bg-primary/10" />
+        <span className="text-[9px] font-mono text-cyan-400/50 tracking-widest px-2 flex items-center gap-1">
+          <Atom className="w-2.5 h-2.5" /> BLOCKCHAIN COMPROMISED WALLETS · QUANTUMAUDIT
+        </span>
+        <div className="h-px flex-1 bg-primary/10" />
+      </div>
+
+      <div className="border border-cyan-500/20 bg-black p-4 space-y-3">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2">
+            <Atom className="w-3.5 h-3.5 text-cyan-400" />
+            <span className="text-[10px] font-mono text-cyan-400/70 tracking-widest uppercase">On-Chain Wallet Exposure</span>
+          </div>
+          <div className="flex gap-2">
+            {keyFindings.length > 0 && (
+              <Badge variant="outline" className="text-[8px] font-mono border-red-500/40 text-red-400">
+                {keyFindings.length} KEYS COMPROMISED
+              </Badge>
+            )}
+            <Badge variant="outline" className="text-[8px] font-mono border-cyan-400/30 text-cyan-400/60">
+              {qa.signatures?.addresses ?? 0} WALLETS INDEXED
+            </Badge>
+          </div>
+        </div>
+
+        <p className="text-[10px] font-mono text-primary/35 leading-relaxed">
+          QuantumAudit continuously mines blockchain transaction signatures to detect cryptographic vulnerabilities.
+          Wallets below were found with exploitable ECDSA properties across {Object.keys(qa.chains ?? {}).length} chains.
+        </p>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {[
+            { label: "Wallets Indexed", value: qa.signatures?.addresses ?? 0, color: "text-cyan-400" },
+            { label: "ECDSA Sigs", value: qa.signatures?.totalSigs ?? 0, color: "text-primary/60" },
+            { label: "Scan Progress", value: `${qa.progress?.pct ?? 0}%`, color: "text-orange-400" },
+            { label: "Keys Recovered", value: qa.keys?.recovered ?? 0, color: (qa.keys?.recovered ?? 0) > 0 ? "text-red-400" : "text-primary/20" },
+          ].map(({ label, value, color }) => (
+            <div key={label} className="border border-primary/10 p-2 text-center">
+              <div className={`text-base font-bold font-mono ${color}`}>{typeof value === "number" ? value.toLocaleString() : value}</div>
+              <div className="text-[9px] font-mono text-primary/30 uppercase">{label}</div>
+            </div>
+          ))}
+        </div>
+
+        {keyFindings.length > 0 && (
+          <div className="space-y-1.5">
+            <div className="text-[10px] font-mono text-red-400/70 font-bold flex items-center gap-1.5">
+              <Key className="w-3 h-3" /> Wallets with Recovered Private Keys
+            </div>
+            {keyFindings.slice(0, 5).map((f: any, i: number) => (
+              <div key={i} className="flex items-center gap-2 border border-red-500/15 bg-red-900/5 px-2 py-1.5 text-[10px] font-mono">
+                <Key className="w-2.5 h-2.5 text-red-400 shrink-0" />
+                <span className="text-red-400/80 font-bold uppercase text-[9px] border border-red-400/20 px-1">{f.kind}</span>
+                <span className="text-primary/50 truncate flex-1">{f.detail}</span>
+                {f.address && <span className="text-primary/30 text-[9px] font-mono shrink-0">{f.address.slice(0, 10)}…</span>}
+              </div>
+            ))}
+            <div className="text-[9px] font-mono text-red-400/40 pl-1 leading-relaxed">
+              These wallets should be considered fully compromised — any funds are at immediate risk of theft.
+            </div>
+          </div>
+        )}
+
+        {Object.keys(qa.chains ?? {}).length > 0 && (
+          <div className="flex flex-wrap gap-1.5 pt-1 border-t border-primary/8">
+            <span className="text-[9px] font-mono text-primary/30 self-center">Chains active:</span>
+            {Object.entries(qa.chains).sort((a: any, b: any) => b[1] - a[1]).slice(0, 6).map(([chain, n]) => (
+              <span key={chain} className="text-[9px] font-mono border border-cyan-500/20 text-cyan-400/60 px-1.5 py-0.5 capitalize">{chain} ({n as number})</span>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -533,6 +634,8 @@ export default function DarkWebMonitor() {
           </div>
         )}
       </div>
+
+      <BlockchainWalletsPanel />
     </div>
   );
 }

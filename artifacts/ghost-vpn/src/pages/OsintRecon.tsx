@@ -1,13 +1,88 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { usePersistedState } from "@/hooks/usePersistedState";
 import { useMutation } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import {
-  Globe, Lock, Server, Shield, AlertTriangle, CheckCircle,
-  Loader2, Mail, Network, Code2, ChevronRight,
+  Globe, Lock, Server,
+  Loader2, Mail, Code2, ChevronRight, Atom, Key, Hash,
 } from "lucide-react";
+
+const QA_BASE = import.meta.env.BASE_URL?.replace(/\/ghost-vpn\/?$/, "") ?? "";
+const ETH_ADDR_RE = /^0x[0-9a-fA-F]{40}$/i;
+
+interface QaAddrMatch {
+  signatures: number;
+  chains: string[];
+  hasKeyRecovered: boolean;
+  findings: Array<{ kind: string; detail: string; discoveredAt: string }>;
+}
+
+function BlockchainEnrichment({ target }: { target: string }) {
+  const [match, setMatch] = useState<QaAddrMatch | null>(null);
+  const [checked, setChecked] = useState(false);
+
+  useEffect(() => {
+    if (!ETH_ADDR_RE.test(target.trim())) { setChecked(true); return; }
+    const lower = target.trim().toLowerCase();
+    const load = async () => {
+      try {
+        const r = await fetch(`${QA_BASE}/api/quantum-audit/cc-summary`, { credentials: "include" });
+        if (!r.ok) return;
+        const d = await r.json();
+        // Find matching findings for this address
+        const addrFindings = (d.recentFindings ?? []).filter((f: any) =>
+          f.address?.toLowerCase() === lower
+        );
+        const hasKey = addrFindings.some((f: any) => f.hasKey);
+        if (addrFindings.length > 0) {
+          setMatch({
+            signatures: addrFindings.length,
+            chains: [...new Set<string>(addrFindings.map((f: any) => String(f.engine)))],
+            hasKeyRecovered: hasKey,
+            findings: addrFindings.slice(0, 5).map((f: any) => ({
+              kind: f.kind, detail: f.detail, discoveredAt: f.discoveredAt,
+            })),
+          });
+        }
+      } catch { /* best-effort */ } finally { setChecked(true); }
+    };
+    load();
+  }, [target]);
+
+  if (!checked || !ETH_ADDR_RE.test(target.trim())) return null;
+  if (!match) return (
+    <div className="border border-cyan-500/10 bg-cyan-900/5 p-3 rounded-sm flex items-center gap-2">
+      <Atom className="w-3.5 h-3.5 text-cyan-400/40 shrink-0" />
+      <span className="text-[10px] font-mono text-cyan-400/40">QuantumAudit: No blockchain findings for this address in current scan data.</span>
+    </div>
+  );
+  return (
+    <div className={`border rounded-sm p-3 space-y-2 font-mono ${match.hasKeyRecovered ? "border-red-500/30 bg-red-900/8" : "border-cyan-500/20 bg-cyan-900/5"}`}>
+      <div className="flex items-center gap-2">
+        <Atom className={`w-3.5 h-3.5 shrink-0 ${match.hasKeyRecovered ? "text-red-400" : "text-cyan-400"}`} />
+        <span className={`text-[10px] uppercase tracking-widest font-bold ${match.hasKeyRecovered ? "text-red-400" : "text-cyan-400"}`}>
+          QuantumAudit · Blockchain Intelligence
+        </span>
+        {match.hasKeyRecovered && (
+          <span className="text-[9px] border border-red-400/40 text-red-400 px-1 uppercase bg-red-900/20">PRIVATE KEY COMPROMISED</span>
+        )}
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div><span className="text-primary/40">Signatures found</span> <span className="text-cyan-400 ml-1">{match.signatures}</span></div>
+        <div><span className="text-primary/40">Key recovered</span> <span className={`ml-1 ${match.hasKeyRecovered ? "text-red-400 font-bold" : "text-primary/30"}`}>{match.hasKeyRecovered ? "YES" : "No"}</span></div>
+      </div>
+      {match.findings.map((f, i) => (
+        <div key={i} className="flex items-center gap-2 text-[10px]">
+          {match.hasKeyRecovered ? <Key className="w-2.5 h-2.5 text-red-400 shrink-0" /> : <Hash className="w-2.5 h-2.5 text-cyan-400/50 shrink-0" />}
+          <span className="border border-current/20 px-1 text-[9px] uppercase">{f.kind}</span>
+          <span className="text-primary/50 truncate">{f.detail}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -110,6 +185,8 @@ export default function OsintRecon() {
           Performs passive reconnaissance: DNS resolution, TLS inspection, HTTP headers, email security records
         </div>
       </div>
+
+      {target.trim() && <BlockchainEnrichment target={target} />}
 
       {lookupMut.isPending && (
         <div className="border border-primary/10 p-8 text-center rounded-sm">

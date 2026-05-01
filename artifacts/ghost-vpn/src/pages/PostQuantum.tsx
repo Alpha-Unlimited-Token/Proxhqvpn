@@ -1,12 +1,93 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Shield, Key, RefreshCw, Download, CheckCircle2,
-  AlertTriangle, Lock, Zap, Clock, Info,
+  AlertTriangle, Lock, Zap, Clock, Info, Atom,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+
+const QA_BASE_PQ = import.meta.env.BASE_URL?.replace(/\/ghost-vpn\/?$/, "") ?? "";
+
+function QuantumBlockchainThreatPanel() {
+  const [qa, setQa] = useState<any>(null);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const r = await fetch(`${QA_BASE_PQ}/api/quantum-audit/cc-summary`, { credentials: "include" });
+        if (r.ok) setQa(await r.json());
+      } catch { /* best-effort */ }
+    };
+    load();
+    const t = setInterval(load, 60_000);
+    return () => clearInterval(t);
+  }, []);
+
+  if (!qa) return null;
+
+  const pct = qa.progress?.pct ?? 0;
+  const totalSigs = qa.signatures?.totalSigs ?? 0;
+  const addresses = qa.signatures?.addresses ?? 0;
+  const keys = qa.keys?.recovered ?? 0;
+  const unknownChain = qa.progress?.unknownChain ?? 0;
+
+  return (
+    <div className="border border-cyan-500/20 bg-black p-4 space-y-4 font-mono">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Atom className="w-3.5 h-3.5 text-cyan-400" />
+          <span className="text-[10px] text-cyan-400/70 uppercase tracking-widest">Blockchain Quantum-Vulnerability Scan</span>
+        </div>
+        <Badge variant="outline" className="text-[8px] font-mono border-cyan-400/30 text-cyan-400/60">QUANTUMAUDIT</Badge>
+      </div>
+
+      <p className="text-[10px] text-primary/40 leading-relaxed">
+        Classical ECDSA (secp256k1) signatures — used by every Ethereum, Bitcoin, and EVM-compatible transaction — are vulnerable to quantum attacks via Shor's algorithm.
+        QuantumAudit mines live transaction hashes to find wallets with exploitable nonce reuse <em>today</em>, before quantum computers arrive.
+      </p>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        {[
+          { label: "ECDSA Sigs Mined", value: totalSigs.toLocaleString(), color: "text-cyan-400", sub: "secp256k1 signatures" },
+          { label: "Wallets Indexed", value: addresses.toLocaleString(), color: "text-primary/60", sub: "unique addresses" },
+          { label: "Scan Coverage", value: `${pct}%`, color: "text-orange-400", sub: "of tx hash queue" },
+          { label: "Keys Recovered", value: keys, color: keys > 0 ? "text-red-400" : "text-primary/20", sub: keys > 0 ? "CRITICAL" : "none yet" },
+        ].map(({ label, value, color, sub }) => (
+          <div key={label} className="border border-primary/10 p-2 text-center">
+            <div className={`text-base font-bold ${color}`}>{value}</div>
+            <div className="text-[9px] text-primary/30 uppercase">{label}</div>
+            <div className={`text-[8px] ${color} opacity-60`}>{sub}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="space-y-2">
+        <div className="text-[10px] text-primary/40 uppercase tracking-widest">Quantum Attack Vectors Monitored</div>
+        {[
+          { label: "Nonce Reuse (k-reuse)", detail: "Two transactions share the same ephemeral nonce → private key derivable via simple algebra", severity: "critical" },
+          { label: "Shor's Algorithm", detail: "Future quantum computer can break secp256k1 ECDLP — harvested public keys are permanently at risk", severity: "future" },
+          { label: "Weak RNG Bias", detail: "Biased random number generators produce predictable nonces → key recovery possible classically", severity: "high" },
+        ].map(({ label, detail, severity }) => (
+          <div key={label} className="flex gap-2 border border-primary/8 px-2 py-1.5 text-[10px]">
+            <span className={`shrink-0 border px-1 text-[9px] uppercase ${severity === "critical" ? "border-red-400/30 text-red-400" : severity === "high" ? "border-orange-400/30 text-orange-400" : "border-yellow-400/30 text-yellow-400"}`}>{severity}</span>
+            <div>
+              <div className="text-primary/70 font-bold">{label}</div>
+              <div className="text-primary/35 leading-relaxed">{detail}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {unknownChain > 0 && (
+        <div className="text-[10px] text-yellow-400/60 border border-yellow-400/15 bg-yellow-900/5 px-2 py-1.5">
+          {unknownChain} unresolved tx hashes — unidentified chains, queued for future research
+        </div>
+      )}
+    </div>
+  );
+}
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const api  = (path: string, opts?: RequestInit) =>
@@ -264,6 +345,8 @@ export default function PostQuantum() {
               <li><span className="text-primary/60">4.</span> Even if a future quantum computer breaks Curve25519, the ML-KEM component keeps your session private</li>
             </ul>
           </div>
+
+          <QuantumBlockchainThreatPanel />
         </div>
       </div>
     </div>

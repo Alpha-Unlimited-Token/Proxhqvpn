@@ -8,9 +8,86 @@ import {
   Target, AlertTriangle, ShieldOff, CheckCircle, Clock, ChevronRight,
   Loader2, Trash2, Globe, Lock, Code2, Database, Server, Link2,
   AlertOctagon, Info, Zap, BarChart2, GitMerge, Layers, Network,
-  RefreshCw, Search, Copy, Terminal, FlaskConical,
+  RefreshCw, Search, Copy, Terminal, FlaskConical, Atom,
 } from "lucide-react";
 import { getExploitPayload, type ExploitPayload } from "@/lib/exploitPayloads";
+
+const QA_BASE_GC = import.meta.env.BASE_URL?.replace(/\/ghost-vpn\/?$/, "") ?? "";
+
+function BlockchainKillChainPanel() {
+  const [qa, setQa] = useState<any>(null);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const r = await fetch(`${QA_BASE_GC}/api/quantum-audit/cc-summary`, { credentials: "include" });
+        if (r.ok) setQa(await r.json());
+      } catch { /* best-effort */ }
+    };
+    load();
+    const t = setInterval(load, 60_000);
+    return () => clearInterval(t);
+  }, []);
+
+  if (!qa) return null;
+  const chainNames = Object.keys(qa.chains ?? {});
+  if (!chainNames.length && !qa.runner?.running) return null;
+
+  const stages = [
+    { label: "Recon", detail: `${qa.signatures?.totalSigs ?? 0} ECDSA sigs harvested across ${chainNames.length} chains`, color: "text-blue-400" },
+    { label: "Weaponise", detail: `Nonce-reuse analysis — algebraic private-key derivation from (r,s) pairs`, color: "text-yellow-400" },
+    { label: "Exploit", detail: qa.keys?.recovered > 0 ? `${qa.keys.recovered} private key(s) confirmed recovered` : `0 keys confirmed — scan ${qa.progress?.pct ?? 0}% complete`, color: qa.keys?.recovered > 0 ? "text-red-400" : "text-primary/30" },
+    { label: "Impact", detail: "Full wallet control — attacker can drain funds or impersonate wallet on any chain", color: "text-red-400/60" },
+  ];
+
+  return (
+    <div className="border border-cyan-500/15 bg-black p-4 space-y-4 font-mono mt-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Atom className="w-3.5 h-3.5 text-cyan-400" />
+          <span className="text-[10px] text-cyan-400/70 uppercase tracking-widest">Blockchain Kill-Chain — QuantumAudit</span>
+        </div>
+        <div className={`flex items-center gap-1 text-[9px] font-mono ${qa.runner?.running ? "text-[#00ff88]" : "text-primary/25"}`}>
+          <span className={`w-1.5 h-1.5 rounded-full ${qa.runner?.running ? "bg-[#00ff88] animate-pulse" : "bg-primary/20"}`} />
+          {qa.runner?.running ? "LIVE SCAN" : "IDLE"}
+        </div>
+      </div>
+
+      {/* Kill chain stages */}
+      <div className="flex flex-col md:flex-row gap-1 md:gap-0">
+        {stages.map((s, i) => (
+          <div key={s.label} className="flex md:flex-col items-start md:items-center gap-2 md:gap-1 flex-1">
+            <div className={`text-[9px] font-bold uppercase border px-1.5 py-0.5 shrink-0 ${s.color === "text-primary/30" ? "border-primary/15 text-primary/25" : `border-current/30 ${s.color}`}`}>{i + 1}. {s.label}</div>
+            {i < stages.length - 1 && <ChevronRight className="w-3 h-3 text-primary/20 shrink-0 md:hidden" />}
+            <div className="text-[9px] text-primary/40 leading-relaxed md:text-center">{s.detail}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Chain entry nodes */}
+      {chainNames.length > 0 && (
+        <div>
+          <div className="text-[10px] text-primary/40 uppercase tracking-widest mb-2">Entry Node Chains</div>
+          <div className="flex flex-wrap gap-1.5">
+            {chainNames.sort((a, b) => (qa.chains[b] - qa.chains[a])).map((chain: string) => (
+              <div key={chain} className="border border-cyan-500/20 px-2 py-1 text-[9px] font-mono flex items-center gap-1.5">
+                <Network className="w-2.5 h-2.5 text-cyan-400/50" />
+                <span className="text-cyan-400/70 capitalize">{chain}</span>
+                <span className="text-primary/30">({qa.chains[chain]} txs)</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {qa.progress?.unknownChain > 0 && (
+        <div className="text-[9px] text-yellow-400/50 border border-yellow-400/10 bg-yellow-900/5 px-2 py-1.5">
+          {qa.progress.unknownChain} unresolved hashes — chain identity unknown, attack vector unconfirmed
+        </div>
+      )}
+    </div>
+  );
+}
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -727,6 +804,8 @@ export default function GhostChain() {
           </div>
         </div>
       )}
+
+      <BlockchainKillChainPanel />
     </div>
   );
 }
