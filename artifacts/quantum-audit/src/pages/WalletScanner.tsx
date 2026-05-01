@@ -56,6 +56,14 @@ interface SigScanResult {
   summary: string; durationMs: number; error: string | null;
 }
 
+type JobStatus = "pending" | "running" | "done" | "error";
+interface ScanJob {
+  jobId: string; address: string; chain: string; status: JobStatus;
+  phase: string; progress: { enriched: number; total: number };
+  startedAt: number; finishedAt?: number; durationMs?: number; elapsedMs: number;
+  result: SigScanResult | null; error: string | null; recentLog: string[];
+}
+
 function copyToClipboard(text: string) {
   navigator.clipboard.writeText(text).catch(() => {});
 }
@@ -74,9 +82,9 @@ export default function WalletScanner() {
   const [address, setAddress]       = useState("");
   const [chain, setChain]           = useState("ethereum");
   const [enrichSigs, setEnrichSigs] = useState(false);
-  const [scanDepth, setScanDepth]   = useState<"sample" | "full">("full");
   const [activeTab, setActiveTab]   = useState("multi-chain");
   const [expandedTx, setExpandedTx] = useState<string | null>(null);
+  const [jobId, setJobId]           = useState<string | null>(null);
 
   const isValid = /^0x[0-9a-fA-F]{40}$/.test(address);
 
@@ -104,19 +112,35 @@ export default function WalletScanner() {
     enabled: false,
   });
 
-  // ── Signature scan ───────────────────────────────────────────────────────────
-  const sigScan = useMutation<SigScanResult>({
+  // ── Background signature scan job ────────────────────────────────────────────
+  // Step 1: POST /api/wallet/scan-job — fires instantly, returns jobId
+  const startJob = useMutation<{ jobId: string }>({
     mutationFn: async () => {
-      const enrichLimit = scanDepth === "sample" ? 1000 : 50000;
-      const r = await fetch(`${BASE}/api/wallet/signature-scan`, {
+      const r = await fetch(`${BASE}/api/wallet/scan-job`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ address, chain, enrichLimit, batchSize: 50, concurrency: 10 }),
+        body: JSON.stringify({ address, chain }),
       });
       if (!r.ok) throw new Error(await r.text());
       return r.json();
     },
-    onError: (e) => toast({ title: "Scan failed", description: (e as Error).message, variant: "destructive" }),
+    onSuccess: (d) => { setJobId(d.jobId); setActiveTab("ecdsa-scan"); },
+    onError: (e) => toast({ title: "Could not start scan", description: (e as Error).message, variant: "destructive" }),
+  });
+
+  // Step 2: Poll GET /api/wallet/scan-job/:id every 3 seconds until done
+  const jobPoll = useQuery<ScanJob>({
+    queryKey: ["wallet-scan-job", jobId],
+    queryFn: async () => {
+      const r = await fetch(`${BASE}/api/wallet/scan-job/${jobId}`);
+      if (!r.ok) throw new Error(await r.text());
+      return r.json();
+    },
+    enabled: !!jobId,
+    refetchInterval: (q) => {
+      const status = q.state.data?.status;
+      return status === "done" || status === "error" ? false : 3000;
+    },
   });
 
   function runAll() {
@@ -126,7 +150,15 @@ export default function WalletScanner() {
   }
 
   const isLoading = multiChain.isFetching || outgoing.isFetching;
-  const scanData  = sigScan.data;
+  const job       = jobPoll.data;
+  const scanData  = job?.result ?? null;
+  // sigScan compat shim so existing render code still works
+  const sigScan   = {
+    data:      scanData,
+    isPending: startJob.isPending || (!!jobId && job?.status === "running") || (!!jobId && job?.status === "pending"),
+    mutate:    () => startJob.mutate(),
+    reset:     () => { startJob.reset(); setJobId(null); },
+  };
 
   const hasCritical = !!(scanData?.keyRecovered || scanData?.nonceReuseFound || (scanData?.rValueDuplicates?.length ?? 0) > 0);
 
@@ -189,8 +221,11 @@ export default function WalletScanner() {
           <TabsTrigger value="outgoing">
             <Activity className="h-4 w-4 mr-2" /> Outgoing Txs
           </TabsTrigger>
-          <TabsTrigger value="sig-scan" className="relative">
-            <Shield className="h-4 w-4 mr-2" /> Sig Scan
+          <TabsTrigger value="ecdsa-scan" className="relative">
+            <Shield className="h-4 w-4 mr-2" /> ECDSA Scan
+            {sigScan.isPending && (
+              <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-primary animate-pulse" />
+            )}
             {hasCritical && (
               <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-destructive animate-pulse" />
             )}
@@ -394,64 +429,94 @@ export default function WalletScanner() {
           )}
         </TabsContent>
 
-        {/* ── Sig scan tab ─────────────────────────────────────────────────────── */}
-        <TabsContent value="sig-scan" className="space-y-4 mt-4">
+        {/* ── ECDSA scan tab ───────────────────────────────────────────────────── */}
+        <TabsContent value="ecdsa-scan" className="space-y-4 mt-4">
           {/* Controls */}
           <div className="flex flex-wrap gap-3 items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2 text-sm">
-                <Layers className="h-4 w-4 text-muted-foreground" />
-                <span className="text-muted-foreground">Scan depth:</span>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setScanDepth("sample")}
-                  className={`px-3 py-1 text-xs rounded border transition-colors ${scanDepth === "sample" ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:border-foreground"}`}
-                >
-                  Sample (first 1,000)
-                </button>
-                <button
-                  onClick={() => setScanDepth("full")}
-                  className={`px-3 py-1 text-xs rounded border transition-colors ${scanDepth === "full" ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:border-foreground"}`}
-                >
-                  Full scan (all txs)
-                </button>
-              </div>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Layers className="h-4 w-4" />
+              Scans run inside the server — navigate away freely, come back and results will be here.
             </div>
-            <Button
-              onClick={() => sigScan.mutate()}
-              disabled={!isValid || sigScan.isPending}
-              variant="destructive"
-              className="gap-2"
-            >
-              {sigScan.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Key className="h-4 w-4" />}
-              Run ECDSA Analysis
-            </Button>
+            <div className="flex gap-2">
+              {jobId && (
+                <Button variant="outline" size="sm" onClick={() => sigScan.reset()} disabled={sigScan.isPending} className="gap-2">
+                  <RefreshCw className="h-3 w-3" /> New scan
+                </Button>
+              )}
+              <Button
+                onClick={() => startJob.mutate()}
+                disabled={!isValid || sigScan.isPending}
+                variant="destructive"
+                className="gap-2"
+              >
+                {sigScan.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Key className="h-4 w-4" />}
+                {jobId ? "Re-run ECDSA Scan" : "Run ECDSA Scan"}
+              </Button>
+            </div>
           </div>
 
-          {sigScan.isPending && (
-            <Card className="bg-card/40 border-border">
-              <CardContent className="py-8">
-                <div className="flex flex-col items-center gap-3 text-center">
+          {/* Live job progress card */}
+          {job && (job.status === "running" || job.status === "pending") && (
+            <Card className="bg-card/40 border-primary/30">
+              <CardContent className="py-6">
+                <div className="flex flex-col items-center gap-4 text-center">
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                  <div>
-                    <p className="font-medium">Running full ECDSA analysis…</p>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {scanDepth === "full"
-                        ? "Fetching all outgoing txs from Blockscout, then batch-fetching r/s/v via JSON-RPC. This can take 2–5 minutes for wallets with 10k+ txs."
-                        : "Fetching first 1,000 outgoing txs and enriching signatures…"}
+                  <div className="space-y-1">
+                    <p className="font-semibold">
+                      {job.status === "pending" ? "Queued…" : `Running — ${job.phase}`}
                     </p>
-                    <div className="flex items-center justify-center gap-4 mt-3 text-xs text-muted-foreground">
-                      <span className="flex items-center gap-1"><Hash className="h-3 w-3" /> Phase 1: listing txs from Blockscout</span>
-                      <span>→</span>
-                      <span className="flex items-center gap-1"><Key className="h-3 w-3" /> Phase 2: batch RPC for r/s/v</span>
-                      <span>→</span>
-                      <span className="flex items-center gap-1"><Shield className="h-3 w-3" /> Phase 3: analysis</span>
-                    </div>
+                    {job.progress.total > 0 && (
+                      <div className="w-64 mx-auto">
+                        <div className="flex justify-between text-xs text-muted-foreground mb-1">
+                          <span>{job.progress.enriched.toLocaleString()} enriched</span>
+                          <span>{job.progress.total.toLocaleString()} total</span>
+                        </div>
+                        <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-primary rounded-full transition-all duration-500"
+                            style={{ width: `${Math.min(100, (job.progress.enriched / job.progress.total) * 100)}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Elapsed: {fmtDuration(job.elapsedMs)} · polling every 3s · job runs in the background server, not here
+                    </p>
                   </div>
+                  {job.recentLog.length > 0 && (
+                    <div className="w-full max-w-md text-left">
+                      <p className="text-[10px] text-muted-foreground mb-1 uppercase tracking-wider">Recent activity</p>
+                      <div className="font-mono text-[9px] space-y-0.5 text-muted-foreground">
+                        {job.recentLog.slice(-5).map((l, i) => (
+                          <div key={i} className="truncate">{l}</div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
+          )}
+
+          {/* Job error */}
+          {job?.status === "error" && (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>Scan failed: {job.error}</AlertDescription>
+            </Alert>
+          )}
+
+          {/* Empty state — no job yet */}
+          {!jobId && !startJob.isPending && (
+            <div className="text-center py-12 text-muted-foreground">
+              <Shield className="h-10 w-10 mx-auto mb-3 opacity-30" />
+              <p className="font-medium">ECDSA Nonce-Reuse &amp; Key Recovery Scanner</p>
+              <p className="text-xs mt-2 max-w-sm mx-auto">
+                Pages all {(33590).toLocaleString()} outgoing txs, batch-fetches r/s/v via JSON-RPC,
+                then checks for r-value collisions, weak-k, and nonce reuse. The scan runs
+                entirely inside the persistent API server — you can navigate away and come back.
+              </p>
+            </div>
           )}
 
           {scanData && (

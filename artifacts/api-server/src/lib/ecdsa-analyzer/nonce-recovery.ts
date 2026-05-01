@@ -530,11 +530,14 @@ async function scanEVMWallet(
   }
 
   // 2. Batch JSON-RPC — 50 tx hashes per HTTP request (vs 1 per call previously)
-  const RPC_BATCH = 50;
+  // Cap at 2,000 for batch-scanner efficiency (nonce reuse only needs a subset)
+  const RPC_BATCH  = 50;
+  const MAX_HASHES = 2_000;
+  const hashSlice  = txHashes.slice(0, MAX_HASHES);
   const signatures: TxSignatureData[] = [];
 
-  for (let i = 0; i < txHashes.length; i += RPC_BATCH) {
-    const slice   = txHashes.slice(i, i + RPC_BATCH);
+  for (let i = 0; i < hashSlice.length; i += RPC_BATCH) {
+    const slice   = hashSlice.slice(i, i + RPC_BATCH);
     const payload = slice.map((h, idx) => ({
       jsonrpc: "2.0",
       method:  "eth_getTransactionByHash",
@@ -550,6 +553,8 @@ async function scanEVMWallet(
         signal:  AbortSignal.timeout(30_000),
       });
       const data = await res.json() as Array<{ id: number; result: Record<string, string> | null }>;
+      // Yield event loop between batches so HTTP requests can be served
+      await new Promise(r => setImmediate(r));
       for (const item of data) {
         const raw = item.result;
         if (!raw?.r || raw.r === "0x" || raw.r === "0x0") continue;

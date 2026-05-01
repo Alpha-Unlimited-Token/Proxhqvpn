@@ -288,9 +288,17 @@ async function generateReport(jobId: number, jobName: string, sourceName: string
 
 // ── Worker ───────────────────────────────────────────────────────────────────
 let workerRunning = false;
+let _batchPaused  = false;
+
+/** Temporarily pause the batch scanner (e.g. while a priority wallet scan runs). */
+export function pauseBatchWorker()  { _batchPaused = true;  }
+/** Resume the batch scanner after pausing. */
+export function resumeBatchWorker() { _batchPaused = false; }
+/** Whether the batch scanner is currently paused. */
+export function isBatchWorkerPaused() { return _batchPaused; }
 
 async function tick() {
-  if (workerRunning) return;
+  if (workerRunning || _batchPaused) return;
   workerRunning = true;
   try {
     // Find a running job first, then oldest pending

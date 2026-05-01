@@ -278,9 +278,10 @@ app.use("/api/ambassadors/me/videos", (req: Request, res: Response, next: NextFu
   next();
 });
 
+// wallet-tx is mounted BEFORE the main /api router so it bypasses requireAuth
+app.use("/api/wallet", walletTxRouter);
 app.use("/api", router);
 app.use("/api/omega", omegaRouter);
-app.use("/api/wallet", walletTxRouter);
 
 app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
   if (err && typeof err === "object" && "name" in err && (err as any).name === "ZodError") {

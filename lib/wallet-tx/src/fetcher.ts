@@ -228,54 +228,114 @@ interface BsTx {
   type:        number;
 }
 
+// ── Blockscout concurrency semaphore ──────────────────────────────────────────
+// Only 1 blockscoutFetchAll runs at a time. Priority (manual) scans hold the
+// lock; background batch-scanner calls immediately return false (→ empty []) if
+// a priority scan is running or queued.
+let blockscoutBusy     = false;
+let blockscoutPriority = false;                   // true while a manual scan holds the lock
+interface QueueEntry { resolve: (ok: boolean) => void; priority: boolean }
+const blockscoutQueue: QueueEntry[] = [];
+
+/**
+ * Acquire the Blockscout semaphore.
+ * Priority callers (manual scan jobs) wait indefinitely.
+ * Non-priority callers return false immediately if any priority scan is active or waiting.
+ */
+function acquireBlockscout(priority: boolean): Promise<boolean> {
+  if (!blockscoutBusy) {
+    blockscoutBusy     = true;
+    blockscoutPriority = priority;
+    return Promise.resolve(true);
+  }
+  // Bail immediately if a priority scan is holding OR queued
+  const priorityWaiting = blockscoutPriority || blockscoutQueue.some(q => q.priority);
+  if (!priority && priorityWaiting) return Promise.resolve(false);
+  return new Promise(resolve => blockscoutQueue.push({ resolve, priority }));
+}
+function releaseBlockscout(): void {
+  const next = blockscoutQueue.shift();
+  if (next) {
+    blockscoutPriority = next.priority;   // ← correct: set priority for the new holder
+    next.resolve(true);
+  } else {
+    blockscoutBusy     = false;
+    blockscoutPriority = false;
+  }
+}
+
 async function blockscoutFetchAll(
-  address:  string,
-  chain:    ChainConfig,
-  maxPages: number = 1000,        // 1000 × 50 = 50,000 txs (handles high-volume wallets)
+  address:   string,
+  chain:     ChainConfig,
+  maxPages:  number = 1000,        // 1000 × 50 = 50,000 txs (handles high-volume wallets)
+  onPage?:   (pagesFetched: number, itemsSoFar: number) => void,
+  priority:  boolean = false,
 ): Promise<OutgoingTx[]> {
+  const acquired = await acquireBlockscout(priority);
+  if (!acquired) return [];  // Batch call yields immediately to priority scan
   const base = chain.blockscoutBase;
   const all: OutgoingTx[] = [];
   let nextPageParams: string | null = null;
   let page = 0;
 
-  while (page < maxPages) {
-    const url = nextPageParams
-      ? `${base}/api/v2/addresses/${address}/transactions?filter=from&${nextPageParams}`
-      : `${base}/api/v2/addresses/${address}/transactions?filter=from`;
+  try {
+    while (page < maxPages) {
+      const url = nextPageParams
+        ? `${base}/api/v2/addresses/${address}/transactions?${nextPageParams}`
+        : `${base}/api/v2/addresses/${address}/transactions?filter=from`;
 
-    const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
-    if (!res.ok) break;
+      // Retry up to 4 times with back-off on transient errors
+      let data: { items: BsTx[]; next_page_params?: Record<string, string> | null } | null = null;
+      for (let attempt = 0; attempt < 4; attempt++) {
+        try {
+          const res = await fetch(url, { signal: AbortSignal.timeout(20_000) });
+          if (res.status === 429 || res.status >= 500) {
+            await new Promise(r => setTimeout(r, 800 * (attempt + 1)));
+            continue;
+          }
+          if (!res.ok) break;
+          data = await res.json() as { items: BsTx[]; next_page_params?: Record<string, string> | null };
+          break;
+        } catch {
+          await new Promise(r => setTimeout(r, 600 * (attempt + 1)));
+        }
+      }
+      if (!data) break;
 
-    const data = await res.json() as { items: BsTx[]; next_page_params?: Record<string, string> | null };
-    const items = data.items ?? [];
+      const items = data.items ?? [];
 
-    for (const tx of items) {
-      if (tx.from?.hash?.toLowerCase() !== address.toLowerCase()) continue;
-      all.push({
-        hash:        tx.hash,
-        blockNumber: tx.block,
-        timestamp:   tx.timestamp,
-        from:        tx.from.hash.toLowerCase(),
-        to:          tx.to?.hash?.toLowerCase() ?? "",
-        valueEth:    Number(BigInt(tx.value || "0")) / 1e18,
-        asset:       "ETH",
-        category:    "external",
-        nonce:       tx.nonce,
-        r:           null,
-        s:           null,
-        v:           null,
-        gasPrice:    tx.gas_price ? BigInt(tx.gas_price) : null,
-        chain:       chain.id,
-      });
+      for (const tx of items) {
+        if (tx.from?.hash?.toLowerCase() !== address.toLowerCase()) continue;
+        all.push({
+          hash:        tx.hash,
+          blockNumber: (tx as any).block_number ?? tx.block,
+          timestamp:   tx.timestamp,
+          from:        tx.from.hash.toLowerCase(),
+          to:          tx.to?.hash?.toLowerCase() ?? "",
+          valueEth:    Number(BigInt(tx.value || "0")) / 1e18,
+          asset:       "ETH",
+          category:    "external",
+          nonce:       tx.nonce,
+          r:           null,
+          s:           null,
+          v:           null,
+          gasPrice:    tx.gas_price ? BigInt(tx.gas_price) : null,
+          chain:       chain.id,
+        });
+      }
+
+      onPage?.(page + 1, all.length);
+
+      if (!data.next_page_params) break;
+      // Build next page URL preserving all pagination params (including filter)
+      nextPageParams = new URLSearchParams(data.next_page_params as Record<string, string>).toString();
+      page++;
+
+      await new Promise(r => setTimeout(r, 110)); // polite rate limit
     }
-
-    if (!data.next_page_params) break;
-    nextPageParams = new URLSearchParams(data.next_page_params as Record<string, string>).toString();
-    page++;
-
-    await new Promise(r => setTimeout(r, 120)); // polite rate limit
+  } finally {
+    releaseBlockscout();
   }
-
   return all;
 }
 
@@ -437,6 +497,8 @@ export async function fullSignatureScan(
   enrichLimit:   number = 50_000,
   batchSize:     number = 50,
   concurrency:   number = 10,
+  onProgress?:   (p: FullScanProgress) => void,
+  priority:      boolean = false,
 ): Promise<FullScanResult> {
   const t0    = Date.now();
   const chain = getChain(chainId);
@@ -448,7 +510,9 @@ export async function fullSignatureScan(
   let source = "blockscout";
   let fetchError: string | null = null;
   try {
-    outgoing = await blockscoutFetchAll(address, chain, 2000);
+    outgoing = await blockscoutFetchAll(address, chain, 2000, (pages, items) => {
+      onProgress?.({ phase: "listing", listed: items, enriched: 0, total: items });
+    }, priority);
   } catch (e) {
     fetchError = (e as Error).message;
   }
@@ -473,6 +537,7 @@ export async function fullSignatureScan(
     chunks.push(toEnrich.slice(i, i + batchSize));
   }
 
+  let enrichedCount = 0;
   for (let i = 0; i < chunks.length; i += concurrency) {
     const window = chunks.slice(i, i + concurrency);
     await Promise.all(
@@ -487,9 +552,11 @@ export async function fullSignatureScan(
           tx.s        = raw.s ?? null;
           tx.v        = raw.v ? parseInt(raw.v, 16) : null;
           tx.gasPrice = raw.gasPrice ? BigInt(raw.gasPrice) : tx.gasPrice;
+          enrichedCount++;
         }
       }),
     );
+    onProgress?.({ phase: "enriching", listed: outgoing.length, enriched: enrichedCount, total: outgoing.length });
   }
 
   const enriched = outgoing.filter(t => t.r && t.s);

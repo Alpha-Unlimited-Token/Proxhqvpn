@@ -159,6 +159,7 @@ let _state:          AutonomousState | null = null;
 let _running         = false;
 let _stopRequested   = false;
 let _userStopped     = false;   // true only when stop() was explicitly called
+let _scanJobActive   = false;   // true while a priority wallet scan is running
 let _startTime       = 0;
 let _seededWallets   = 0;       // total unique addresses seeded from DB into pool
 /** Hashes already written to tx-hash-unknown-chain.txt — avoids duplicates across restarts. */
@@ -338,6 +339,35 @@ export function stop() {
 /** Returns true if the last run was halted explicitly via stop(), false if it ended naturally. */
 export function wasUserStopped(): boolean {
   return _userStopped;
+}
+
+/**
+ * Called at the start of a priority wallet scan.
+ * Stops the currently-running autonomous runner (if any) AND sets a flag
+ * that prevents `startAutonomousRunner` from launching until `enableAfterScan`
+ * is called.  This closes the race where the runner starts after we check
+ * `isRunning()` but before our scan gets Blockscout bandwidth.
+ */
+export function disableForScan(): void {
+  _scanJobActive = true;
+  if (_running) {
+    _stopRequested = true;
+    _userStopped   = true;
+    if (_state) _state.statusMessage = "Paused — priority wallet scan running";
+    log("Runner stopped — priority wallet scan in progress");
+  } else {
+    log("Runner blocked — priority wallet scan will run before auto-start");
+  }
+}
+
+/**
+ * Called in the finally block of a priority wallet scan.
+ * Clears the scan-active flag and (if the runner was running before) restarts it.
+ */
+export function enableAfterScan(): void {
+  _scanJobActive = false;
+  _userStopped   = false;
+  log("Priority wallet scan finished — autonomous runner may restart");
 }
 
 // ── Main runner ────────────────────────────────────────────────────────────────
@@ -520,6 +550,10 @@ export async function startAutonomousRunner(opts: {
 }): Promise<void> {
   if (_running) {
     log("Runner already active — ignoring duplicate start");
+    return;
+  }
+  if (_scanJobActive) {
+    log("Priority wallet scan in progress — autonomous runner start deferred");
     return;
   }
 

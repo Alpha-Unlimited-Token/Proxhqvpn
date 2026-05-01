@@ -297,18 +297,23 @@ function detectNonceReuse(
 }
 
 // ── Weak k brute-force ────────────────────────────────────────────────────────
+// Yields to the event loop every YIELD_EVERY iterations so the server stays
+// responsive during long scans.  maxK is capped at 0xFFFF (65 535) by default —
+// any k value that small is severely weak and the scan completes in <100 ms.
 
-function detectWeakK(
+const YIELD_EVERY = 500n;   // yield to event-loop every 500 k-iterations
+
+async function detectWeakK(
   sigsByAddress: Record<string, TxSignatureData[]>,
-  maxK = BigInt("0xFFFFFFFF"),
-): SigMinerFinding[] {
+  maxK = BigInt("0xFFFF"),  // 65 535 — fast and still catches all meaningful weak-k
+): Promise<SigMinerFinding[]> {
   const findings: SigMinerFinding[] = [];
 
   for (const [address, sigs] of Object.entries(sigsByAddress)) {
     for (const sig of sigs.slice(0, 5)) { // test first 5 sigs per address
       const r = BigInt(sig.r); const s = BigInt(sig.s); const z = BigInt(sig.z);
 
-      // Test known-bad k values first
+      // Test known-bad k values first (synchronous, small list)
       for (const k of KNOWN_WEAK_K) {
         const key = tryRecoverKey(r, s, z, k, address);
         if (key) {
@@ -323,8 +328,12 @@ function detectWeakK(
         }
       }
 
-      // Brute-force small k values
-      for (let k = 1n; k <= maxK; k++) {
+      // Brute-force small k values — yield periodically to keep server responsive
+      let found = false;
+      for (let k = 1n; k <= maxK && !found; k++) {
+        if (k % YIELD_EVERY === 0n) {
+          await new Promise<void>(r => setImmediate(r));
+        }
         const key = tryRecoverKey(r, s, z, k, address);
         if (key) {
           findings.push({
@@ -334,7 +343,7 @@ function detectWeakK(
             txHashes: [sig.txHash], r: sig.r, k: "0x"+k.toString(16).padStart(64,"0"),
             discoveredAt: new Date().toISOString(),
           });
-          break;
+          found = true;
         }
       }
     }
@@ -502,7 +511,7 @@ export async function runSignatureMiner(
   allFindings.push(...nonceFindings);
 
   if (detectWeak) {
-    const weakFindings = detectWeakK(sigsByAddress, BigInt("0xFFFFFF")); // up to ~16M
+    const weakFindings = await detectWeakK(sigsByAddress); // capped at 0xFFFF with event-loop yields
     allFindings.push(...weakFindings);
   }
 
