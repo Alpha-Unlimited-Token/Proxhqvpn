@@ -25,7 +25,8 @@ import {
   runEndpointDiscovery,
   runDnsRebindingTest,
 } from "../lib/dev-audit/pentest-suite";
-import { universalWalletScan } from "../lib/dev-audit/wallet-chain-detector";
+import { universalWalletScan }   from "../lib/dev-audit/wallet-chain-detector";
+import { scanEcdsaSignatures }   from "../lib/dev-audit/ecdsa-nonce-scanner";
 import { logger }              from "../lib/logger";
 
 const router = Router();
