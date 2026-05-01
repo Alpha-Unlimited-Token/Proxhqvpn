@@ -1,0 +1,31 @@
+{
+  "startedAt": "2026-05-01T06:54:14.695Z",
+  "lastSavedAt": "2026-05-01T08:25:32.590Z",
+  "lastBlockScanned": 24998427,
+  "lowestBlockCovered": 24998378,
+  "windowsCompleted": 1,
+  "osintRunCount": 0,
+  "peelRunCount": 0,
+  "hybridRunCount": 0,
+  "totalFindings": 0,
+  "recoveredKeys": [],
+  "discoveredAddresses": [],
+  "pendingUrls": [],
+  "pendingPeelAddresses": [],
+  "errors": 0,
+  "rpcBackoffMs": 3000,
+  "running": true,
+  "statusMessage": "E1 scanning blocks 24998378–24998427 + 20 targeted addrs",
+  "crossEngineFlows": {
+    "e1ToE3": 0,
+    "e1ToE4": 0,
+    "e2ToE3": 0,
+    "e2ToE4": 0,
+    "e3ToE2": 0,
+    "e3ToE4": 0,
+    "e3ToE1": 0,
+    "e4ToE3": 0,
+    "e4ToE1": 0,
+    "crossNonceHits": 0
+  }
+}
