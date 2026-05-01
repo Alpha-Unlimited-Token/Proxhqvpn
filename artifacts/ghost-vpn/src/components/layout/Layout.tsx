@@ -16,6 +16,7 @@ import {
   ShieldCheck, Key, FileCode2, Filter, FlaskConical,
   MapPin, ArrowLeftRight, Share2, Crosshair, Package, Plug, FileSearch,
   CheckCircle2, X,
+  Camera, Clipboard, MessageSquare, FolderOpen, AppWindow,
 } from "lucide-react";
 import { useAccess } from "@/hooks/useAccess";
 import { useNotifications } from "@/hooks/useNotifications";
@@ -192,6 +193,21 @@ const ADVANCED_NAV = [
   { href: "/ws-tester",          label: "WebSocket Tester",       icon: Plug },
   { href: "/sast",               label: "SAST Analyzer",          icon: FileSearch },
   { href: "/quantum-audit",      label: "QuantumAudit",           icon: ShieldCheck },
+  { href: "/omega-dashboard",    label: "Omega — Overview",        icon: LayoutDashboard },
+  { href: "/omega-hosts",        label: "Omega — Hosts",           icon: Server },
+  { href: "/omega-events",       label: "Omega — Events",          icon: Activity },
+  { href: "/omega-system-info",  label: "Omega — System Info",     icon: Cpu },
+  { href: "/omega-chat",         label: "Omega — Chat",            icon: MessageSquare },
+  { href: "/omega-keylogger",    label: "Omega — Key Logger",      icon: Key },
+  { href: "/omega-screen-capture", label: "Omega — Screen Capture", icon: Camera },
+  { href: "/omega-file-manager", label: "Omega — File Manager",    icon: FolderOpen },
+  { href: "/omega-processes",    label: "Omega — Processes",       icon: Cpu },
+  { href: "/omega-windows",      label: "Omega — Windows",         icon: AppWindow },
+  { href: "/omega-clipboard",    label: "Omega — Clipboard",       icon: Clipboard },
+  { href: "/omega-message-manager", label: "Omega — Message Mgr",  icon: MessageSquare },
+  { href: "/omega-remote-commands", label: "Omega — Remote Cmds",  icon: Terminal },
+  { href: "/omega-ip-scanner",   label: "Omega — IP Scanner",      icon: Network },
+  { href: "/omega-ip-tool",      label: "Omega — IP Tool",         icon: Network },
 ];
 
 const AMBASSADOR_NAV = [

@@ -11,6 +11,7 @@ import { rateLimit } from "express-rate-limit";
 import { clerkMiddleware } from "@clerk/express";
 import { CLERK_PROXY_PATH, clerkProxyMiddleware } from "./middlewares/clerkProxyMiddleware";
 import router from "./routes";
+import omegaRouter from "./routes/omega";
 import { logger } from "./lib/logger";
 import { WebhookHandlers } from "./webhookHandlers";
 
@@ -277,6 +278,7 @@ app.use("/api/ambassadors/me/videos", (req: Request, res: Response, next: NextFu
 });
 
 app.use("/api", router);
+app.use("/api/omega", omegaRouter);
 
 app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
   if (err && typeof err === "object" && "name" in err && (err as any).name === "ZodError") {

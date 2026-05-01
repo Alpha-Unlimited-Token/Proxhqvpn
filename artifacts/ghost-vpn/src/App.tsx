@@ -123,6 +123,22 @@ import WsTester from "@/pages/WsTester";
 import SastAnalyzer from "@/pages/SastAnalyzer";
 import QuantumAuditPage from "@/pages/QuantumAudit";
 import VpnTracker from "@/pages/VpnTracker";
+import OmegaOverview from "@/pages/omega/dashboard";
+import OmegaHosts from "@/pages/omega/hosts";
+import OmegaHostDetails from "@/pages/omega/host-details";
+import OmegaEvents from "@/pages/omega/events";
+import OmegaKeylogger from "@/pages/omega/keylogger";
+import OmegaScreenCapture from "@/pages/omega/screen-capture";
+import OmegaFileManager from "@/pages/omega/file-manager";
+import OmegaChat from "@/pages/omega/chat";
+import OmegaIpScanner from "@/pages/omega/ip-scanner";
+import OmegaIpTool from "@/pages/omega/ip-tool";
+import OmegaProcesses from "@/pages/omega/processes";
+import OmegaSystemInfo from "@/pages/omega/system-info";
+import OmegaWindows from "@/pages/omega/windows";
+import OmegaClipboard from "@/pages/omega/clipboard";
+import OmegaMessageManager from "@/pages/omega/message-manager";
+import OmegaRemoteCommands from "@/pages/omega/remote-commands";
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
@@ -666,6 +682,57 @@ function AppRoutes() {
           <Route path="/quantum-audit">
             <CcLayout><QuantumAuditPage /></CcLayout>
           </Route>
+
+          {/* ── Omega C2 Dashboard ── */}
+          <Route path="/omega-dashboard">
+            <CcLayout><OmegaOverview /></CcLayout>
+          </Route>
+          <Route path="/omega-hosts">
+            <CcLayout><OmegaHosts /></CcLayout>
+          </Route>
+          <Route path="/omega-hosts/:id">
+            <CcLayout><OmegaHostDetails /></CcLayout>
+          </Route>
+          <Route path="/omega-events">
+            <CcLayout><OmegaEvents /></CcLayout>
+          </Route>
+          <Route path="/omega-keylogger">
+            <CcLayout><OmegaKeylogger /></CcLayout>
+          </Route>
+          <Route path="/omega-screen-capture">
+            <CcLayout><OmegaScreenCapture /></CcLayout>
+          </Route>
+          <Route path="/omega-file-manager">
+            <CcLayout><OmegaFileManager /></CcLayout>
+          </Route>
+          <Route path="/omega-chat">
+            <CcLayout><OmegaChat /></CcLayout>
+          </Route>
+          <Route path="/omega-ip-scanner">
+            <CcLayout><OmegaIpScanner /></CcLayout>
+          </Route>
+          <Route path="/omega-ip-tool">
+            <CcLayout><OmegaIpTool /></CcLayout>
+          </Route>
+          <Route path="/omega-processes">
+            <CcLayout><OmegaProcesses /></CcLayout>
+          </Route>
+          <Route path="/omega-system-info">
+            <CcLayout><OmegaSystemInfo /></CcLayout>
+          </Route>
+          <Route path="/omega-windows">
+            <CcLayout><OmegaWindows /></CcLayout>
+          </Route>
+          <Route path="/omega-clipboard">
+            <CcLayout><OmegaClipboard /></CcLayout>
+          </Route>
+          <Route path="/omega-message-manager">
+            <CcLayout><OmegaMessageManager /></CcLayout>
+          </Route>
+          <Route path="/omega-remote-commands">
+            <CcLayout><OmegaRemoteCommands /></CcLayout>
+          </Route>
+
           <Route path="/vpn-tracker">
             <CcLayout><VpnTracker /></CcLayout>
           </Route>
