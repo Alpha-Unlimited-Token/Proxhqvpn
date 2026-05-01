@@ -19,6 +19,7 @@
 
 import { ethers }  from "ethers";
 import { logger }  from "../logger";
+import { fetchWalletOutgoing, enrichWithSignatures, getChain } from "@workspace/wallet-tx";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -313,11 +314,43 @@ export async function runPeelChainTracer(
     let sigCount = 0;
 
     if (scanSigs) {
-      const txHashes = txs.map(t => t.hash);
-      const sigs     = await collectSigs(current, txHashes);
-      sigCount       = sigs.length;
-      rValues.push(...sigs.map(s => "0x" + s.r.toString(16).padStart(64, "0")));
-      const nr = checkNonceReuse(sigs);
+      // Use fully-paginated wallet-tx fetcher for complete outgoing tx + signature data
+      const chainCfg = getChain(chain);
+      const walletSummary = await fetchWalletOutgoing(current, chain, {
+        alchemyKey: process.env.ALCHEMY_API_KEY,
+        enrichSigs: false,
+      });
+      // Enrich up to 300 txs with real r/s/v from RPC
+      await enrichWithSignatures(walletSummary.outgoingTxs, chainCfg, 300);
+
+      const enriched = walletSummary.outgoingTxs.filter(t => t.r && t.s);
+      sigCount = enriched.length;
+
+      // Build Sig-compatible objects for checkNonceReuse
+      const compatSigs: Array<{ r: bigint; s: bigint; z: bigint; txHash: string }> = [];
+      for (const t of enriched) {
+        try {
+          compatSigs.push({
+            r:      BigInt(t.r!),
+            s:      BigInt(t.s!),
+            z:      BigInt(ethers.keccak256(t.hash)),
+            txHash: t.hash,
+          });
+          rValues.push(t.r!.toLowerCase());
+        } catch { /* skip malformed */ }
+      }
+
+      // Fall back to old collectSigs for any remaining tx hashes from peel data
+      const alreadyCovered = new Set(enriched.map(t => t.hash));
+      const remaining      = txs.map(t => t.hash).filter(h => !alreadyCovered.has(h));
+      if (remaining.length > 0) {
+        const fallback = await collectSigs(current, remaining.slice(0, 50));
+        compatSigs.push(...fallback);
+        sigCount += fallback.length;
+        rValues.push(...fallback.map(s => "0x" + s.r.toString(16).padStart(64, "0")));
+      }
+
+      const nr = checkNonceReuse(compatSigs);
       nonceFound = nr.found;
       privKey    = nr.privateKey;
       if (privKey) allPrivKeys.push(privKey);

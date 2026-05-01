@@ -10,6 +10,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@workspace/wallet-tx": "workspace:*",
     "@clerk/express": "^2.1.5",
     "@google-cloud/bigquery": "^8.2.0",
     "@noble/curves": "^2.2.0",

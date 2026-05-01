@@ -209,6 +209,9 @@ importers:
       '@workspace/omega-api-zod':
         specifier: workspace:*
         version: link:../../lib/omega-api-zod
+      '@workspace/wallet-tx':
+        specifier: workspace:*
+        version: link:../../lib/wallet-tx
       adm-zip:
         specifier: ^0.5.17
         version: 0.5.17
@@ -1300,6 +1303,12 @@ importers:
       zod:
         specifier: 'catalog:'
         version: 3.25.76
+
+  lib/wallet-tx:
+    dependencies:
+      ethers:
+        specifier: ^6.13.5
+        version: 6.16.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)
 
   scripts:
     devDependencies:
