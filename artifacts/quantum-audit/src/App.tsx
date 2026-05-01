@@ -27,6 +27,7 @@ import SignatureMiner from "@/pages/SignatureMiner";
 import AutonomousScan from "@/pages/AutonomousScan";
 import KeyRecovery from "@/pages/KeyRecovery";
 import WalletScanner from "@/pages/WalletScanner";
+import WalletIntel from "@/pages/WalletIntel";
 
 const queryClient = new QueryClient();
 
@@ -56,6 +57,7 @@ function Router() {
         <Route path="/autonomous" component={AutonomousScan} />
         <Route path="/key-recovery" component={KeyRecovery} />
         <Route path="/wallet-scanner" component={WalletScanner} />
+        <Route path="/wallet-intel" component={WalletIntel} />
         <Route component={NotFound} />
       </Switch>
     </Layout>

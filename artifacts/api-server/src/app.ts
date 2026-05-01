@@ -13,6 +13,7 @@ import { CLERK_PROXY_PATH, clerkProxyMiddleware } from "./middlewares/clerkProxy
 import router from "./routes";
 import omegaRouter from "./routes/omega";
 import walletTxRouter from "./routes/wallet-tx";
+import walletIntelRouter from "./routes/wallet-intel";
 import { logger } from "./lib/logger";
 import { WebhookHandlers } from "./webhookHandlers";
 
@@ -280,6 +281,7 @@ app.use("/api/ambassadors/me/videos", (req: Request, res: Response, next: NextFu
 
 // wallet-tx is mounted BEFORE the main /api router so it bypasses requireAuth
 app.use("/api/wallet", walletTxRouter);
+app.use("/api/wallet-intel", walletIntelRouter);
 app.use("/api", router);
 app.use("/api/omega", omegaRouter);
 
