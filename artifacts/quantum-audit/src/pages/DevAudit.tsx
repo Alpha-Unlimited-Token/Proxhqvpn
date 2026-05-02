@@ -1803,6 +1803,294 @@ function RpcAttackSuiteTab() {
   );
 }
 
+// ── Advanced Wallet Scanner Tab (Profanity · Weak-RNG · Contract Escape Hatches) ──
+
+interface AdvFinding { severity: string; title: string; detail: string; }
+interface AdvProfanity {
+  address: string; isVanity: boolean; vanityType: string; vanityLength: number;
+  profanityRisk: string; riskReason: string; entropy: number;
+  knownVulnMatch: boolean; findings: AdvFinding[];
+}
+interface AdvWeakRng {
+  address: string; rValuesAnalyzed: number; weakRngSignals: string[];
+  javaSecureRandom: boolean; lowEntropyR: boolean; sequentialR: boolean;
+  overallRisk: string; findings: AdvFinding[];
+}
+interface AdvContract {
+  address: string; isContract: boolean; isEip7702: boolean; delegateTo?: string;
+  bytecodeSize: number; proxied: boolean; implementationSlot?: string;
+  hasSelfDestruct: boolean; hasDelegateCall: boolean;
+  dangerousSelectors: Array<{ sig: string; name: string; risk: string }>;
+  upgradePattern?: string; findings: AdvFinding[];
+}
+interface AdvScanResult {
+  address: string; profanity: AdvProfanity; weakRng: AdvWeakRng;
+  contract: AdvContract; overallRisk: number; scanTimeMs: number;
+}
+interface AdvBatchResult { results: AdvScanResult[]; scanned: number; }
+
+const ADV_SEV_COLOR: Record<string, string> = {
+  critical: "bg-red-500/15 border-red-500/40 text-red-300",
+  high:     "bg-orange-500/15 border-orange-500/40 text-orange-300",
+  medium:   "bg-yellow-500/15 border-yellow-500/40 text-yellow-300",
+  low:      "bg-blue-500/15 border-blue-500/40 text-blue-300",
+  pass:     "bg-green-500/15 border-green-500/40 text-green-300",
+  info:     "bg-muted/50 border-border text-muted-foreground",
+};
+
+function AdvFindingRow({ f }: { f: AdvFinding }) {
+  return (
+    <div className={`rounded p-3 border text-xs ${ADV_SEV_COLOR[f.severity] ?? ADV_SEV_COLOR["info"]}`}>
+      <div className="flex items-center gap-2 mb-1">
+        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold border ${ADV_SEV_COLOR[f.severity] ?? ""}`}>
+          {f.severity.toUpperCase()}
+        </span>
+        <span className="font-semibold">{f.title}</span>
+      </div>
+      <p className="opacity-80">{f.detail}</p>
+    </div>
+  );
+}
+
+function AdvancedScannerTab() {
+  const [input, setInput] = useState("");
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const { toast } = useToast();
+
+  const mutation = useMutation<AdvBatchResult, Error, string[]>({
+    mutationFn: (addresses) =>
+      fetch(`${BASE}/api/dev-audit/advanced-batch`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ addresses }),
+      }).then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.error); return d; }),
+  });
+
+  const run = () => {
+    const addrs = input.split(/[\n,\s]+/).map(a => a.trim()).filter(a => /^0x[0-9a-fA-F]{40}$/.test(a));
+    if (!addrs.length) { toast({ title: "No valid EVM addresses", variant: "destructive" }); return; }
+    if (addrs.length > 20) { toast({ title: "Max 20 addresses per batch", variant: "destructive" }); return; }
+    mutation.mutate(addrs);
+  };
+
+  const data = mutation.data;
+  const criticalCount = data?.results.filter(r =>
+    r.profanity.profanityRisk === "critical" || r.weakRng.javaSecureRandom || r.contract.hasSelfDestruct
+  ).length ?? 0;
+
+  return (
+    <div className="space-y-4">
+      <Card className="border-border/60">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <ShieldAlert className="w-5 h-5 text-orange-400" />Advanced Cryptographic Vulnerability Scanner
+          </CardTitle>
+          <CardDescription className="text-xs space-y-1">
+            <span className="block">Three deep-scan vectors run in parallel for each address:</span>
+            <span className="block text-orange-300 font-medium">① Profanity/Vanity CVE-2022-39391</span>
+            <span className="block text-red-300 font-medium">② Weak-RNG r-value fingerprinting (Java SecureRandom, sequential patterns, low entropy)</span>
+            <span className="block text-yellow-300 font-medium">③ Contract escape hatch analysis (EIP-7702, proxy upgrade slots, SELFDESTRUCT, dangerous selectors)</span>
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <Textarea
+            placeholder={"0x0D5c41C609Fe1Ec073C3b4Fa10949d602Ed059Bb\n0xb98E8eeFBa0f7476B85Cd9716Cb5b38a935AA872\n...one per line, up to 20"}
+            value={input} onChange={e => setInput(e.target.value)}
+            className="font-mono text-xs min-h-[120px] bg-background"
+          />
+          <div className="flex items-center gap-3">
+            <Button onClick={run} disabled={mutation.isPending} className="gap-2 bg-orange-600 hover:bg-orange-700">
+              {mutation.isPending
+                ? <><Loader2 className="w-4 h-4 animate-spin" />Running 3 scan vectors…</>
+                : <><ShieldAlert className="w-4 h-4" />Run Advanced Scan</>}
+            </Button>
+            {data && <span className="text-xs text-muted-foreground">{data.scanned} address{data.scanned !== 1 ? "es" : ""} scanned</span>}
+          </div>
+          {mutation.isError && (
+            <Alert className="border-red-500/40 bg-red-500/8">
+              <AlertDescription className="text-xs text-red-400">{mutation.error.message}</AlertDescription>
+            </Alert>
+          )}
+        </CardContent>
+      </Card>
+
+      {data && (
+        <div className="space-y-3">
+          {/* Summary tiles */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[
+              { label: "Addresses Scanned",   value: data.scanned,       color: "text-foreground" },
+              { label: "Critical / High Risk", value: criticalCount,      color: criticalCount > 0 ? "text-red-400" : "text-green-400" },
+              { label: "Profanity Vanity",     value: data.results.filter(r => r.profanity.isVanity).length,          color: "text-orange-400" },
+              { label: "Contracts Found",      value: data.results.filter(r => r.contract.isContract).length,         color: "text-purple-400" },
+            ].map(({ label, value, color }) => (
+              <Card key={label} className="border-border/50">
+                <CardContent className="pt-3 pb-2 text-center">
+                  <p className={`text-2xl font-bold ${color}`}>{value}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          {/* Per-address results */}
+          <div className="space-y-2">
+            {data.results.map(result => {
+              const open = expanded === result.address;
+              const profRisk = result.profanity.profanityRisk;
+              const topRisk = result.overallRisk;
+              const statusColor = topRisk >= 70 ? "text-red-400" : topRisk >= 40 ? "text-orange-400" : topRisk >= 20 ? "text-yellow-400" : "text-green-400";
+              const borderColor = topRisk >= 70 ? "border-red-500/50 bg-red-500/5" : topRisk >= 40 ? "border-orange-500/30" : "";
+
+              return (
+                <Card key={result.address}
+                  className={`border-border/50 cursor-pointer hover:border-border transition-colors ${borderColor}`}
+                  onClick={() => setExpanded(open ? null : result.address)}>
+                  <CardContent className="py-3 px-4">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        {topRisk >= 70 ? <ShieldAlert className="w-4 h-4 text-red-400 shrink-0" />
+                          : topRisk >= 20 ? <AlertTriangle className="w-4 h-4 text-yellow-400 shrink-0" />
+                          : <ShieldCheck className="w-4 h-4 text-green-400 shrink-0" />}
+                        <span className="font-mono text-xs truncate">{result.address}</span>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+                        {result.profanity.isVanity && (
+                          <Badge className="bg-orange-500/20 text-orange-300 border-orange-500/30 text-xs">
+                            {profRisk.toUpperCase()} VANITY
+                          </Badge>
+                        )}
+                        {result.weakRng.javaSecureRandom && (
+                          <Badge className="bg-red-500/20 text-red-300 border-red-500/30 text-xs">JAVA RNG</Badge>
+                        )}
+                        {result.contract.isContract && (
+                          <Badge className="bg-purple-500/20 text-purple-300 border-purple-500/30 text-xs">
+                            {result.contract.proxied ? "PROXY" : "CONTRACT"}
+                          </Badge>
+                        )}
+                        {result.contract.isEip7702 && (
+                          <Badge className="bg-red-500/20 text-red-300 border-red-500/30 text-xs">EIP-7702</Badge>
+                        )}
+                        {!result.profanity.isVanity && !result.weakRng.javaSecureRandom && !result.contract.isContract && (
+                          <Badge className="bg-green-500/20 text-green-300 border-green-500/30 text-xs">EOA CLEAN</Badge>
+                        )}
+                        <span className={`text-sm font-bold ${statusColor}`}>{topRisk}/100</span>
+                        {open ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+                      </div>
+                    </div>
+
+                    {open && (
+                      <div className="mt-4 space-y-4" onClick={e => e.stopPropagation()}>
+
+                        {/* ① Profanity */}
+                        <div className="space-y-2">
+                          <p className="text-xs font-bold text-orange-400 flex items-center gap-1">
+                            <Flame className="w-3.5 h-3.5" /> ① Profanity / Vanity-Address Vulnerability (CVE-2022-39391)
+                          </p>
+                          <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                            <div className="bg-muted/30 rounded p-2">
+                              <p className="font-bold">{result.profanity.isVanity ? result.profanity.vanityType.replace("-", " ") : "none"}</p>
+                              <p className="text-muted-foreground">Vanity Type</p>
+                            </div>
+                            <div className="bg-muted/30 rounded p-2">
+                              <p className="font-bold">{(result.profanity.entropy * 100).toFixed(1)}%</p>
+                              <p className="text-muted-foreground">Address Entropy</p>
+                            </div>
+                            <div className="bg-muted/30 rounded p-2">
+                              <p className={`font-bold ${result.profanity.knownVulnMatch ? "text-red-400" : "text-green-400"}`}>
+                                {result.profanity.knownVulnMatch ? "YES" : "NO"}
+                              </p>
+                              <p className="text-muted-foreground">Known Vuln Match</p>
+                            </div>
+                          </div>
+                          {result.profanity.findings.map((f, i) => <AdvFindingRow key={i} f={f} />)}
+                        </div>
+
+                        {/* ② Weak-RNG */}
+                        <div className="space-y-2">
+                          <p className="text-xs font-bold text-red-400 flex items-center gap-1">
+                            <Activity className="w-3.5 h-3.5" /> ② Weak-RNG R-Value Fingerprinting
+                          </p>
+                          <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                            <div className="bg-muted/30 rounded p-2">
+                              <p className="font-bold">{result.weakRng.rValuesAnalyzed}</p>
+                              <p className="text-muted-foreground">R-Values Analyzed</p>
+                            </div>
+                            <div className="bg-muted/30 rounded p-2">
+                              <p className={`font-bold ${result.weakRng.javaSecureRandom ? "text-red-400" : "text-green-400"}`}>
+                                {result.weakRng.javaSecureRandom ? "DETECTED" : "Clean"}
+                              </p>
+                              <p className="text-muted-foreground">Java SecureRandom</p>
+                            </div>
+                            <div className="bg-muted/30 rounded p-2">
+                              <p className={`font-bold ${result.weakRng.sequentialR ? "text-red-400" : "text-green-400"}`}>
+                                {result.weakRng.sequentialR ? "YES" : "NO"}
+                              </p>
+                              <p className="text-muted-foreground">Sequential R</p>
+                            </div>
+                          </div>
+                          {result.weakRng.weakRngSignals.length > 0 && result.weakRng.weakRngSignals.map((s, i) => (
+                            <div key={i} className="text-xs bg-red-500/8 border border-red-500/20 rounded px-3 py-2 text-red-300">⚠ {s}</div>
+                          ))}
+                          {result.weakRng.findings.map((f, i) => <AdvFindingRow key={i} f={f} />)}
+                        </div>
+
+                        {/* ③ Contract */}
+                        <div className="space-y-2">
+                          <p className="text-xs font-bold text-purple-400 flex items-center gap-1">
+                            <Layers className="w-3.5 h-3.5" /> ③ Contract / EIP-7702 Escape Hatch Analysis
+                          </p>
+                          <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                            <div className="bg-muted/30 rounded p-2">
+                              <p className="font-bold">{result.contract.isContract ? `${result.contract.bytecodeSize}b` : "EOA"}</p>
+                              <p className="text-muted-foreground">Account Type</p>
+                            </div>
+                            <div className="bg-muted/30 rounded p-2">
+                              <p className={`font-bold ${result.contract.hasSelfDestruct ? "text-red-400" : "text-green-400"}`}>
+                                {result.contract.hasSelfDestruct ? "FOUND" : "None"}
+                              </p>
+                              <p className="text-muted-foreground">SELFDESTRUCT</p>
+                            </div>
+                            <div className="bg-muted/30 rounded p-2">
+                              <p className={`font-bold ${result.contract.proxied ? "text-orange-400" : "text-green-400"}`}>
+                                {result.contract.proxied ? result.contract.upgradePattern ?? "Proxied" : "No"}
+                              </p>
+                              <p className="text-muted-foreground">Upgrade Proxy</p>
+                            </div>
+                          </div>
+                          {result.contract.dangerousSelectors.length > 0 && (
+                            <div className="text-xs space-y-1">
+                              {result.contract.dangerousSelectors.map((s, i) => (
+                                <div key={i} className="bg-orange-500/8 border border-orange-500/20 rounded px-3 py-1.5 flex justify-between">
+                                  <span className="font-mono text-orange-300">{s.sig}</span>
+                                  <span className="text-orange-200">{s.name}</span>
+                                  <Badge className="bg-orange-500/20 text-orange-300 border-orange-500/30 text-xs">{s.risk}</Badge>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {result.contract.findings.map((f, i) => <AdvFindingRow key={i} f={f} />)}
+                        </div>
+
+                        <div className="flex gap-2 pt-1 text-xs text-muted-foreground">
+                          <span>Scan time: {result.scanTimeMs}ms</span>
+                          <a href={`https://etherscan.io/address/${result.address}`} target="_blank" rel="noopener noreferrer"
+                            className="text-cyan-400 hover:underline flex items-center gap-1 ml-2">
+                            <ExternalLink className="w-3 h-3" /> Etherscan
+                          </a>
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── ECDSA Nonce / Signature Scanner Tab ───────────────────────────────────────
 
 interface EcdsaFinding { id: string; severity: Severity; title: string; detail: string; }
@@ -2440,18 +2728,20 @@ export default function DevAudit() {
 
       <Tabs defaultValue="universal">
         <TabsList className="grid grid-cols-4 w-full">
-          <TabsTrigger value="universal" className="flex items-center gap-1 text-xs"><Search   className="w-3 h-3" /> Wallet Scanner</TabsTrigger>
-          <TabsTrigger value="ecdsa"     className="flex items-center gap-1 text-xs"><Cpu      className="w-3 h-3" /> ECDSA</TabsTrigger>
-          <TabsTrigger value="pentest"   className="flex items-center gap-1 text-xs"><Bug      className="w-3 h-3" /> Pentest Suite</TabsTrigger>
-          <TabsTrigger value="attack"    className="flex items-center gap-1 text-xs"><Swords   className="w-3 h-3" /> RPC Attack</TabsTrigger>
+          <TabsTrigger value="universal" className="flex items-center gap-1 text-xs"><Search     className="w-3 h-3" /> Wallet Scanner</TabsTrigger>
+          <TabsTrigger value="advanced"  className="flex items-center gap-1 text-xs"><ShieldAlert className="w-3 h-3" /> Advanced</TabsTrigger>
+          <TabsTrigger value="ecdsa"     className="flex items-center gap-1 text-xs"><Cpu        className="w-3 h-3" /> ECDSA</TabsTrigger>
+          <TabsTrigger value="pentest"   className="flex items-center gap-1 text-xs"><Bug        className="w-3 h-3" /> Pentest</TabsTrigger>
         </TabsList>
-        <TabsList className="grid grid-cols-4 w-full mt-1">
+        <TabsList className="grid grid-cols-5 w-full mt-1">
+          <TabsTrigger value="attack"   className="flex items-center gap-1 text-xs"><Swords   className="w-3 h-3" /> RPC Attack</TabsTrigger>
           <TabsTrigger value="rpc"      className="flex items-center gap-1 text-xs"><Radio    className="w-3 h-3" /> RPC Probe</TabsTrigger>
           <TabsTrigger value="headers"  className="flex items-center gap-1 text-xs"><Globe    className="w-3 h-3" /> Headers</TabsTrigger>
           <TabsTrigger value="contract" className="flex items-center gap-1 text-xs"><Zap      className="w-3 h-3" /> Live Contract</TabsTrigger>
           <TabsTrigger value="entropy"  className="flex items-center gap-1 text-xs"><KeyRound className="w-3 h-3" /> Key Entropy</TabsTrigger>
         </TabsList>
         <TabsContent value="universal" className="mt-6"><UniversalWalletScannerTab /></TabsContent>
+        <TabsContent value="advanced"  className="mt-6"><AdvancedScannerTab        /></TabsContent>
         <TabsContent value="ecdsa"     className="mt-6"><EcdsaScannerTab           /></TabsContent>
         <TabsContent value="pentest"   className="mt-6"><PentestSuiteTab           /></TabsContent>
         <TabsContent value="attack"    className="mt-6"><RpcAttackSuiteTab         /></TabsContent>

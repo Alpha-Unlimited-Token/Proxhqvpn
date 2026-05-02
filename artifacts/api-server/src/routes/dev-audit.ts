@@ -27,6 +27,7 @@ import {
 } from "../lib/dev-audit/pentest-suite";
 import { universalWalletScan }   from "../lib/dev-audit/wallet-chain-detector";
 import { scanEcdsaSignatures }   from "../lib/dev-audit/ecdsa-nonce-scanner";
+import { runAdvancedScan }       from "../lib/dev-audit/advanced-wallet-scanner";
 import { logger }              from "../lib/logger";
 
 const router = Router();
@@ -293,6 +294,52 @@ router.post("/ecdsa-batch", async (req: Request, res: Response) => {
   } catch (err) {
     req.log.error({ err }, "ecdsa-batch error");
     return res.status(500).json({ error: "Batch ECDSA scan failed" });
+  }
+});
+
+// POST /api/dev-audit/advanced-scan
+// Runs Profanity/vanity detection, weak-RNG r-value fingerprinting, and contract escape hatch analysis.
+router.post("/advanced-scan", async (req: Request, res: Response) => {
+  const { address, rValues } = req.body as Record<string, unknown>;
+  if (typeof address !== "string" || !address.trim()) {
+    return res.status(400).json({ error: "address (string) is required" });
+  }
+  const cleaned = address.trim();
+  if (!/^0x[0-9a-fA-F]{40}$/.test(cleaned)) {
+    return res.status(400).json({ error: "advanced-scan requires a valid EVM address (0x + 40 hex chars)" });
+  }
+  const rVals = Array.isArray(rValues) ? (rValues as unknown[]).filter((r): r is string => typeof r === "string") : [];
+  try {
+    const result = await runAdvancedScan(cleaned, rVals);
+    return res.json(result);
+  } catch (err) {
+    req.log.error({ err }, "advanced-scan error");
+    return res.status(500).json({ error: "Advanced scan failed" });
+  }
+});
+
+// POST /api/dev-audit/advanced-batch
+// Run advanced scans on up to 20 addresses. Pass optional rValues map keyed by lowercase address.
+router.post("/advanced-batch", async (req: Request, res: Response) => {
+  const { addresses, rValuesMap } = req.body as Record<string, unknown>;
+  if (!Array.isArray(addresses) || addresses.length === 0) {
+    return res.status(400).json({ error: "addresses (string[]) is required" });
+  }
+  if (addresses.length > 20) return res.status(400).json({ error: "Maximum 20 addresses per batch" });
+  const cleaned = (addresses as unknown[])
+    .filter((a): a is string => typeof a === "string")
+    .map(a => a.trim())
+    .filter(a => /^0x[0-9a-fA-F]{40}$/.test(a));
+  if (cleaned.length === 0) return res.status(400).json({ error: "No valid EVM addresses provided" });
+  const rMap = (rValuesMap && typeof rValuesMap === "object") ? rValuesMap as Record<string, string[]> : {};
+  try {
+    const results = await Promise.all(
+      cleaned.map(a => runAdvancedScan(a, rMap[a.toLowerCase()] ?? []))
+    );
+    return res.json({ results, scanned: cleaned.length });
+  } catch (err) {
+    req.log.error({ err }, "advanced-batch error");
+    return res.status(500).json({ error: "Batch advanced scan failed" });
   }
 });
 
