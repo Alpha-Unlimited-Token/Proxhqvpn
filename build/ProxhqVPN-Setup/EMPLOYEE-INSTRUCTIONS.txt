@@ -1,0 +1,61 @@
+PROXHQVPN — EMPLOYEE SETUP GUIDE
+Alpha Unlimited Technologies LLC
+=================================
+
+QUICK START (3 steps)
+----------------------
+  1. Extract this ZIP file anywhere on your PC (e.g. your Desktop).
+  2. Double-click  setup.bat
+     → Windows may ask "Do you want to allow this app to make changes?"
+     → Click YES (required to install WireGuard).
+  3. Follow the wizard — click Next, agree to the license, then Install.
+     WireGuard and ProxhqVPN will install automatically.
+
+That's it! A ProxhqVPN icon will appear on your Desktop when done.
+
+--------------------------------------------------------------------
+WHAT THE INSTALLER DOES
+--------------------------------------------------------------------
+  ✔ Downloads & installs the official WireGuard VPN client
+  ✔ Creates a ProxhqVPN launcher on your Desktop
+  ✔ Adds ProxhqVPN to your Start Menu
+  ✔ Registers with Windows (visible in Settings > Apps)
+
+No manual WireGuard configuration is needed.
+
+--------------------------------------------------------------------
+FIRST LOGIN
+--------------------------------------------------------------------
+  1. Double-click the ProxhqVPN icon on your Desktop.
+  2. Sign in with the email address provided by your manager.
+  3. If you don't have an account, click "Sign up" — use your
+     company email address.
+
+--------------------------------------------------------------------
+TROUBLESHOOTING
+--------------------------------------------------------------------
+  "Windows protected your PC" warning:
+    → Click "More info" then "Run anyway"
+    → This is normal for unsigned scripts.
+
+  WireGuard download failed:
+    → Check your internet connection and re-run setup.bat
+    → Or install WireGuard manually from: https://www.wireguard.com/install/
+
+  Nothing happens after double-click:
+    → Right-click setup.bat → "Run as administrator"
+
+--------------------------------------------------------------------
+UNINSTALLING
+--------------------------------------------------------------------
+  Option A: Settings > Apps > Search "ProxhqVPN" > Uninstall
+  Option B: Run uninstall.ps1 (in this same folder)
+
+  Note: WireGuard is uninstalled separately via Settings > Apps > WireGuard
+
+--------------------------------------------------------------------
+SUPPORT
+--------------------------------------------------------------------
+  Platform:  https://network-labyrinth.replit.app
+  Company:   Alpha Unlimited Technologies LLC
+  © 2026 Alpha Unlimited Technologies LLC. All rights reserved.

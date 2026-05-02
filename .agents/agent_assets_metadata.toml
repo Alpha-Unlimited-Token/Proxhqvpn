@@ -167,3 +167,9 @@ id = "5z5p5F2-1vnK3IG-lGRoM"
 uri = "file://reports/quantum-audit-security-report-2026-05-02.md"
 type = "text"
 title = "QuantumAudit Security Report — May 2, 2026"
+
+[[outputs]]
+id = "B66h9gR4kEabm-hFjA7Jo"
+uri = "file://build/ProxhqVPN-Setup.zip"
+type = "unspecified"
+title = "ProxhqVPN-Setup.zip — Windows Installer Package"
