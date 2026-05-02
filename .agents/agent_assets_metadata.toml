@@ -173,3 +173,9 @@ id = "B66h9gR4kEabm-hFjA7Jo"
 uri = "file://build/ProxhqVPN-Setup.zip"
 type = "unspecified"
 title = "ProxhqVPN-Setup.zip — Windows Installer Package"
+
+[[outputs]]
+id = "_SjiP88fHUdOr6lkwwKji"
+uri = "file://build/QuantumAudit-Autonomous-Report-2026-05-02.json"
+type = "unspecified"
+title = "QuantumAudit — Full Autonomous Live Report (JSON)"
