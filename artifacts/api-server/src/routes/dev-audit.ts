@@ -28,6 +28,8 @@ import {
 import { universalWalletScan }   from "../lib/dev-audit/wallet-chain-detector";
 import { scanEcdsaSignatures }   from "../lib/dev-audit/ecdsa-nonce-scanner";
 import { runAdvancedScan }       from "../lib/dev-audit/advanced-wallet-scanner";
+import { runRpcInjectionFuzz }  from "../lib/dev-audit/rpc-injection-fuzzer";
+import { scanNonceBatch }       from "../lib/dev-audit/nonce-gap-detector";
 import { logger }              from "../lib/logger";
 
 const router = Router();
@@ -361,6 +363,52 @@ router.post("/universal-scan", async (req: Request, res: Response) => {
   } catch (err) {
     req.log.error({ err }, "universal-scan error");
     return res.status(500).json({ error: "Scan failed — check the address format" });
+  }
+});
+
+// POST /api/dev-audit/rpc-fuzz
+// JSON-RPC injection fuzzer — runs admin method enumeration, parameter injection,
+// batch abuse, and info-leakage probes against a live JSON-RPC endpoint.
+router.post("/rpc-fuzz", async (req: Request, res: Response) => {
+  const { endpoint, vectors } = req.body as Record<string, unknown>;
+  if (typeof endpoint !== "string" || !endpoint.trim()) {
+    return res.status(400).json({ error: "endpoint (string) is required" });
+  }
+  const url = endpoint.trim();
+  if (!url.startsWith("http://") && !url.startsWith("https://")) {
+    return res.status(400).json({ error: "endpoint must start with http:// or https://" });
+  }
+  const activeVectors = Array.isArray(vectors)
+    ? (vectors as unknown[]).filter((v): v is string => typeof v === "string")
+    : ["admin", "injection", "batch", "info"];
+  try {
+    const result = await runRpcInjectionFuzz(url, activeVectors);
+    return res.json(result);
+  } catch (err) {
+    req.log.error({ err }, "rpc-fuzz error");
+    return res.status(500).json({ error: "RPC fuzz failed — check the endpoint" });
+  }
+});
+
+// POST /api/dev-audit/nonce-scan
+// On-chain nonce gap / collision / replay detector for up to 20 EVM addresses.
+router.post("/nonce-scan", async (req: Request, res: Response) => {
+  const { addresses } = req.body as Record<string, unknown>;
+  if (!Array.isArray(addresses) || addresses.length === 0) {
+    return res.status(400).json({ error: "addresses (string[]) is required" });
+  }
+  if (addresses.length > 20) return res.status(400).json({ error: "Maximum 20 addresses per scan" });
+  const cleaned = (addresses as unknown[])
+    .filter((a): a is string => typeof a === "string")
+    .map(a => a.trim())
+    .filter(a => /^0x[0-9a-fA-F]{40}$/.test(a));
+  if (cleaned.length === 0) return res.status(400).json({ error: "No valid EVM addresses provided" });
+  try {
+    const result = await scanNonceBatch(cleaned);
+    return res.json(result);
+  } catch (err) {
+    req.log.error({ err }, "nonce-scan error");
+    return res.status(500).json({ error: "Nonce scan failed" });
   }
 });
 

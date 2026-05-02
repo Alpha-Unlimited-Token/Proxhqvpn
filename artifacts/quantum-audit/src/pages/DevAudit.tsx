@@ -2679,6 +2679,387 @@ function UniversalWalletScannerTab() {
   );
 }
 
+// ── Nonce Audit Tab ───────────────────────────────────────────────────────────
+
+interface NonceTxRecord { hash: string; nonce: number; blockNumber: number | null; value: string; }
+interface NonceFinding  { severity: string; check: string; title: string; detail: string; evidence: string; }
+interface NonceResult {
+  address: string; confirmedNonce: number; pendingNonce: number; txsAnalyzed: number;
+  pendingTxs: NonceTxRecord[]; nonceGaps: number[]; preEip155Txs: string[];
+  nonceCollisions: Array<{ nonce: number; txHashes: string[] }>;
+  findings: NonceFinding[]; riskScore: number; scanTimeMs: number;
+}
+interface NonceBatchResult { results: NonceResult[]; scanned: number; scanTimeMs: number; }
+
+const NONCE_SEV: Record<string, string> = {
+  critical: "bg-red-500/15 border-red-500/40 text-red-300",
+  high:     "bg-orange-500/15 border-orange-500/40 text-orange-300",
+  medium:   "bg-yellow-500/15 border-yellow-500/40 text-yellow-300",
+  low:      "bg-blue-500/15 border-blue-500/40 text-blue-300",
+  info:     "bg-muted/50 border-border text-muted-foreground",
+};
+
+const DEFAULT_NONCE_ADDRS = [
+  "0x0d5c41c609fe1ec073c3b4fa10949d602ed059bb",
+  "0xb98e8eefba0f7476b85cd9716cb5b38a935aa872",
+  "0xb01fed2f701695992a4f7ffdb53f3af099e140d7",
+  "0xf70da97812cb96acdf810712aa562db8dfa3dbef",
+  "0xc600d76b5bfe058d6e52d2c08ceba6c85774f9b6",
+  "0xbcd263db9c9ed9215bcb07897f9da582129dd7da",
+  "0xea7fc58e112fb3607d8a7694e1f71c6894c72d3c",
+  "0xacd1f4e274d1a4bb686a41549a90253cf152dd6d",
+  "0xe205e85068704ecf1c3c55b76bcb466ff0798526",
+  "0x9b9fd485e94c73af3bc8b9a630c4de7203bc96cb",
+  "0x610e10ed49f57591abe16d919b6d15aaf4557237",
+  "0xa5cc3e44ed97f8c94df27822c85303a3bd4e8134",
+  "0x7aebc630f301f15baddf160103dc3bd8f9baf043",
+  "0x487663784c77ba56e32d9fe60485d93c4c319385",
+].join("\n");
+
+function NonceAuditTab() {
+  const [input, setInput]     = useState(DEFAULT_NONCE_ADDRS);
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const { toast } = useToast();
+
+  const mutation = useMutation<NonceBatchResult, Error, string[]>({
+    mutationFn: (addresses) =>
+      fetch(`${BASE}/api/dev-audit/nonce-scan`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ addresses }),
+      }).then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.error); return d; }),
+  });
+
+  const run = () => {
+    const addrs = input.split(/[\n,\s]+/).map(a => a.trim()).filter(a => /^0x[0-9a-fA-F]{40}$/.test(a));
+    if (!addrs.length) { toast({ title: "No valid EVM addresses", variant: "destructive" }); return; }
+    if (addrs.length > 20) { toast({ title: "Max 20 addresses", variant: "destructive" }); return; }
+    mutation.mutate(addrs);
+  };
+
+  const data = mutation.data;
+  const totalFindings  = data?.results.flatMap(r => r.findings.filter(f => f.severity !== "info")).length ?? 0;
+  const criticalCount  = data?.results.flatMap(r => r.findings).filter(f => f.severity === "critical").length ?? 0;
+  const preEip155Count = data?.results.reduce((n, r) => n + r.preEip155Txs.length, 0) ?? 0;
+  const gapCount       = data?.results.reduce((n, r) => n + r.nonceGaps.length, 0) ?? 0;
+
+  return (
+    <div className="space-y-4">
+      <Card className="border-border/60">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <ArrowDownLeft className="w-5 h-5 text-cyan-400" />Transaction Nonce Audit
+          </CardTitle>
+          <CardDescription className="text-xs space-y-1">
+            <span className="block">Five on-chain nonce checks per address — all real Ethereum mainnet data:</span>
+            <span className="block text-orange-300 font-medium">① Nonce gap detection (stuck txs, front-run windows)</span>
+            <span className="block text-red-300 font-medium">② Pending mempool collision (double-spend / cancel conflicts)</span>
+            <span className="block text-yellow-300 font-medium">③ Cross-chain replay risk (pre-EIP155 signatures v=27/28)</span>
+            <span className="block text-blue-300 font-medium">④ Nonce sequence integrity (on-chain history verification)</span>
+            <span className="block text-purple-300 font-medium">⑤ Front-run window size (pending queue depth analysis)</span>
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <Textarea
+            placeholder="0x... one address per line, up to 20"
+            value={input} onChange={e => setInput(e.target.value)}
+            className="font-mono text-xs min-h-[120px] bg-background"
+          />
+          <div className="flex items-center gap-3">
+            <Button onClick={run} disabled={mutation.isPending} className="gap-2 bg-cyan-700 hover:bg-cyan-800">
+              {mutation.isPending
+                ? <><Loader2 className="w-4 h-4 animate-spin" />Scanning nonces…</>
+                : <><ArrowDownLeft className="w-4 h-4" />Run Nonce Audit</>}
+            </Button>
+            {data && <span className="text-xs text-muted-foreground">{data.scanned} addresses — {data.scanTimeMs}ms</span>}
+          </div>
+          {mutation.isError && (
+            <Alert className="border-red-500/40 bg-red-500/8">
+              <AlertDescription className="text-xs text-red-400">{mutation.error.message}</AlertDescription>
+            </Alert>
+          )}
+        </CardContent>
+      </Card>
+
+      {data && (
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[
+              { label: "Addresses",     value: data.scanned,    color: "text-foreground" },
+              { label: "Critical",      value: criticalCount,   color: criticalCount > 0 ? "text-red-400" : "text-green-400" },
+              { label: "Nonce Gaps",    value: gapCount,        color: gapCount > 0 ? "text-orange-400" : "text-green-400" },
+              { label: "Pre-EIP155",    value: preEip155Count,  color: preEip155Count > 0 ? "text-orange-400" : "text-green-400" },
+            ].map(({ label, value, color }) => (
+              <Card key={label} className="border-border/50">
+                <CardContent className="pt-3 pb-2 text-center">
+                  <p className={`text-2xl font-bold ${color}`}>{value}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          {data.results.map(r => {
+            const open = expanded === r.address;
+            const worst = r.findings.find(f => f.severity !== "info")?.severity ?? "info";
+            const bc = worst === "critical" ? "border-red-500/50 bg-red-500/5" : worst === "high" ? "border-orange-500/30" : worst === "medium" ? "border-yellow-500/20" : "";
+            return (
+              <Card key={r.address} className={`border-border/50 cursor-pointer hover:border-border transition-colors ${bc}`}
+                onClick={() => setExpanded(open ? null : r.address)}>
+                <CardContent className="py-3 px-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      {r.riskScore >= 50 ? <ShieldAlert className="w-4 h-4 text-red-400 shrink-0" />
+                        : r.riskScore >= 20 ? <AlertTriangle className="w-4 h-4 text-yellow-400 shrink-0" />
+                        : <ShieldCheck className="w-4 h-4 text-green-400 shrink-0" />}
+                      <span className="font-mono text-xs truncate">{r.address}</span>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+                      <span className="text-xs text-muted-foreground">nonce {r.confirmedNonce}</span>
+                      {r.nonceGaps.length > 0 && <Badge className="bg-orange-500/20 text-orange-300 border-orange-500/30 text-xs">{r.nonceGaps.length} GAP{r.nonceGaps.length > 1 ? "S" : ""}</Badge>}
+                      {r.preEip155Txs.length > 0 && <Badge className="bg-red-500/20 text-red-300 border-red-500/30 text-xs">PRE-EIP155</Badge>}
+                      {r.pendingNonce > r.confirmedNonce && <Badge className="bg-yellow-500/20 text-yellow-300 border-yellow-500/30 text-xs">{r.pendingNonce - r.confirmedNonce} PENDING</Badge>}
+                      {r.riskScore === 0 && <Badge className="bg-green-500/20 text-green-300 border-green-500/30 text-xs">CLEAN</Badge>}
+                      <span className={`text-sm font-bold ${r.riskScore >= 50 ? "text-red-400" : r.riskScore >= 20 ? "text-yellow-400" : "text-green-400"}`}>{r.riskScore}/100</span>
+                      {open ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+                    </div>
+                  </div>
+                  {open && (
+                    <div className="mt-4 space-y-3" onClick={e => e.stopPropagation()}>
+                      <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                        <div className="bg-muted/30 rounded p-2"><p className="font-bold">{r.confirmedNonce}</p><p className="text-muted-foreground">Confirmed Nonce</p></div>
+                        <div className="bg-muted/30 rounded p-2"><p className="font-bold">{r.pendingNonce}</p><p className="text-muted-foreground">Pending Nonce</p></div>
+                        <div className="bg-muted/30 rounded p-2"><p className="font-bold">{r.txsAnalyzed}</p><p className="text-muted-foreground">Txs Analyzed</p></div>
+                      </div>
+                      {r.nonceGaps.length > 0 && (
+                        <div className="text-xs bg-orange-500/8 border border-orange-500/20 rounded p-2">
+                          <p className="font-bold text-orange-300 mb-1">Missing nonces: {r.nonceGaps.slice(0,15).join(", ")}{r.nonceGaps.length > 15 ? "…" : ""}</p>
+                        </div>
+                      )}
+                      {r.preEip155Txs.length > 0 && (
+                        <div className="text-xs bg-red-500/8 border border-red-500/20 rounded p-2">
+                          <p className="font-bold text-red-300 mb-1">Pre-EIP155 (v=27/28) transactions:</p>
+                          {r.preEip155Txs.slice(0,5).map(h => (
+                            <a key={h} href={`https://etherscan.io/tx/${h}`} target="_blank" rel="noopener noreferrer"
+                              className="block font-mono text-red-200 hover:underline truncate">{h}</a>
+                          ))}
+                        </div>
+                      )}
+                      <div className="space-y-2">
+                        {r.findings.map((f, i) => (
+                          <div key={i} className={`rounded p-3 border text-xs ${NONCE_SEV[f.severity] ?? NONCE_SEV["info"]}`}>
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold border ${NONCE_SEV[f.severity] ?? ""}`}>{f.severity.toUpperCase()}</span>
+                              <span className="font-semibold">{f.check}</span>
+                              <span className="opacity-70 truncate">{f.title}</span>
+                            </div>
+                            <p className="opacity-80">{f.detail}</p>
+                            {f.evidence && <p className="font-mono text-xs opacity-60 mt-1 break-all">{f.evidence}</p>}
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex gap-2 pt-1 text-xs text-muted-foreground">
+                        <span>Scan: {r.scanTimeMs}ms</span>
+                        <a href={`https://etherscan.io/address/${r.address}`} target="_blank" rel="noopener noreferrer"
+                          className="text-cyan-400 hover:underline flex items-center gap-1 ml-2"><ExternalLink className="w-3 h-3" /> Etherscan</a>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── RPC Injection Fuzzer Tab ──────────────────────────────────────────────────
+
+interface RpcFinding { severity: string; title: string; detail: string; evidence: string; }
+interface RpcProbeResult {
+  probe: { id: string; vector: string; method: string; description: string };
+  statusCode: number | null; responseMs: number; raw: string;
+  error: string | null; finding: RpcFinding | null;
+}
+interface RpcFuzzResult {
+  endpoint: string; probesRun: number; findings: RpcFinding[];
+  probeResults: RpcProbeResult[]; riskScore: number; scanTimeMs: number;
+}
+
+const FUZZ_SEV: Record<string, string> = {
+  critical: "bg-red-500/15 border-red-500/40 text-red-300",
+  high:     "bg-orange-500/15 border-orange-500/40 text-orange-300",
+  medium:   "bg-yellow-500/15 border-yellow-500/40 text-yellow-300",
+  low:      "bg-blue-500/15 border-blue-500/40 text-blue-300",
+  info:     "bg-muted/50 border-border text-muted-foreground",
+};
+
+const PRESET_ENDPOINTS = [
+  { label: "Ethereum Mainnet (publicnode)", url: "https://ethereum.publicnode.com" },
+  { label: "Ethereum Mainnet (cloudflare)", url: "https://cloudflare-eth.com" },
+  { label: "Polygon Mainnet",              url: "https://polygon-bor.publicnode.com" },
+  { label: "BSC Mainnet",                  url: "https://bsc.publicnode.com" },
+  { label: "Arbitrum One",                 url: "https://arbitrum-one.publicnode.com" },
+  { label: "Optimism",                     url: "https://optimism.publicnode.com" },
+];
+
+const ALL_VECTORS = ["admin", "injection", "batch", "info"] as const;
+type FuzzVector = (typeof ALL_VECTORS)[number];
+const VECTOR_LABELS: Record<FuzzVector, string> = {
+  admin:     "Admin Methods (20 probes)",
+  injection: "Parameter Injection (17 probes)",
+  batch:     "Batch Abuse (1 probe)",
+  info:      "Info Leakage (10 probes)",
+};
+
+function RpcFuzzTab() {
+  const [endpoint, setEndpoint] = useState("https://ethereum.publicnode.com");
+  const [vectors,  setVectors]  = useState<FuzzVector[]>([...ALL_VECTORS]);
+  const [showRaw,  setShowRaw]  = useState(false);
+  const { toast } = useToast();
+
+  const mutation = useMutation<RpcFuzzResult, Error, { endpoint: string; vectors: string[] }>({
+    mutationFn: (body) =>
+      fetch(`${BASE}/api/dev-audit/rpc-fuzz`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }).then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.error); return d; }),
+  });
+
+  const toggleVector = (v: FuzzVector) =>
+    setVectors(prev => prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v]);
+
+  const run = () => {
+    if (!endpoint.trim()) { toast({ title: "Endpoint required", variant: "destructive" }); return; }
+    if (!vectors.length)  { toast({ title: "Select at least one attack vector", variant: "destructive" }); return; }
+    mutation.mutate({ endpoint: endpoint.trim(), vectors });
+  };
+
+  const data = mutation.data;
+  const criticalFindings = data?.findings.filter(f => f.severity === "critical") ?? [];
+  const highFindings     = data?.findings.filter(f => f.severity === "high")     ?? [];
+
+  return (
+    <div className="space-y-4">
+      <Card className="border-border/60">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Target className="w-5 h-5 text-red-400" />JSON-RPC Injection Fuzzer
+          </CardTitle>
+          <CardDescription className="text-xs space-y-1">
+            <span className="block">The blockchain equivalent of SQLmap — real probe injection against live JSON-RPC nodes.</span>
+            <span className="block text-red-300 font-medium">48 attack probes across 4 vectors: admin method exposure, parameter injection, batch DoS, info leakage</span>
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="space-y-1">
+            <p className="text-xs font-medium text-muted-foreground">Target Endpoint</p>
+            <Input value={endpoint} onChange={e => setEndpoint(e.target.value)}
+              placeholder="https://your-node.example.com" className="font-mono text-xs" />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {PRESET_ENDPOINTS.map(p => (
+              <Button key={p.url} size="sm" variant={endpoint === p.url ? "default" : "outline"}
+                className="text-xs h-7" onClick={() => setEndpoint(p.url)}>{p.label}</Button>
+            ))}
+          </div>
+          <div className="space-y-1">
+            <p className="text-xs font-medium text-muted-foreground">Attack Vectors</p>
+            <div className="flex flex-wrap gap-2">
+              {ALL_VECTORS.map(v => (
+                <button key={v} onClick={() => toggleVector(v)}
+                  className={`text-xs px-3 py-1 rounded border transition-colors ${vectors.includes(v) ? "bg-red-500/20 border-red-500/40 text-red-300" : "bg-muted/30 border-border text-muted-foreground"}`}>
+                  {VECTOR_LABELS[v]}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <Button onClick={run} disabled={mutation.isPending} className="gap-2 bg-red-700 hover:bg-red-800">
+              {mutation.isPending
+                ? <><Loader2 className="w-4 h-4 animate-spin" />Fuzzing node…</>
+                : <><Target className="w-4 h-4" />Launch Fuzz Attack</>}
+            </Button>
+            {data && <span className="text-xs text-muted-foreground">{data.probesRun} probes in {data.scanTimeMs}ms</span>}
+          </div>
+          {mutation.isError && (
+            <Alert className="border-red-500/40 bg-red-500/8">
+              <AlertDescription className="text-xs text-red-400">{mutation.error.message}</AlertDescription>
+            </Alert>
+          )}
+        </CardContent>
+      </Card>
+
+      {data && (
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[
+              { label: "Probes Run",      value: data.probesRun,                             color: "text-foreground" },
+              { label: "Risk Score",      value: data.riskScore + "/100",                    color: data.riskScore >= 50 ? "text-red-400" : data.riskScore >= 25 ? "text-orange-400" : "text-green-400" },
+              { label: "Critical",        value: criticalFindings.length,                    color: criticalFindings.length > 0 ? "text-red-400" : "text-green-400" },
+              { label: "High",            value: highFindings.length,                        color: highFindings.length > 0 ? "text-orange-400" : "text-green-400" },
+            ].map(({ label, value, color }) => (
+              <Card key={label} className="border-border/50">
+                <CardContent className="pt-3 pb-2 text-center">
+                  <p className={`text-2xl font-bold ${color}`}>{value}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          {data.findings.length > 0 ? (
+            <div className="space-y-2">
+              <p className="text-sm font-semibold text-red-400">{data.findings.length} Finding{data.findings.length !== 1 ? "s" : ""} — {data.endpoint}</p>
+              {data.findings.map((f, i) => (
+                <div key={i} className={`rounded p-3 border text-xs ${FUZZ_SEV[f.severity] ?? FUZZ_SEV["info"]}`}>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold border ${FUZZ_SEV[f.severity] ?? ""}`}>{f.severity.toUpperCase()}</span>
+                    <span className="font-semibold">{f.title}</span>
+                  </div>
+                  <p className="opacity-80 mb-1">{f.detail}</p>
+                  {f.evidence && <p className="font-mono text-xs opacity-50 break-all mt-1">Evidence: {f.evidence.slice(0, 300)}</p>}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <Card className="border-green-500/30 bg-green-500/5">
+              <CardContent className="py-4 text-center">
+                <ShieldCheck className="w-8 h-8 text-green-400 mx-auto mb-2" />
+                <p className="text-sm font-semibold text-green-400">No vulnerabilities found</p>
+                <p className="text-xs text-muted-foreground mt-1">{data.probesRun} probes returned no exploitable findings on {data.endpoint}</p>
+              </CardContent>
+            </Card>
+          )}
+
+          {showRaw && (
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground">All Probe Results ({data.probeResults.length})</p>
+              {data.probeResults.map((pr, i) => (
+                <div key={i} className="bg-muted/20 rounded border border-border/40 p-2 text-xs font-mono">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className={`text-xs ${pr.finding ? (FUZZ_SEV[pr.finding.severity]?.split(" ")[2] ?? "") : "text-muted-foreground"}`}>
+                      {pr.finding ? `[${pr.finding.severity.toUpperCase()}]` : "[ OK ]"}
+                    </span>
+                    <span>{pr.probe.method}</span>
+                    <span className="text-muted-foreground ml-auto">{pr.responseMs}ms</span>
+                    {pr.error && <span className="text-red-400">{pr.error}</span>}
+                  </div>
+                  {pr.raw && <p className="text-muted-foreground truncate">{pr.raw.slice(0, 120)}</p>}
+                </div>
+              ))}
+            </div>
+          )}
+          <Button size="sm" variant="outline" className="text-xs" onClick={() => setShowRaw(v => !v)}>
+            {showRaw ? "Hide" : "Show"} all {data.probeResults.length} probe results
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function DevAudit() {
   return (
@@ -2731,18 +3112,24 @@ export default function DevAudit() {
           <TabsTrigger value="universal" className="flex items-center gap-1 text-xs"><Search     className="w-3 h-3" /> Wallet Scanner</TabsTrigger>
           <TabsTrigger value="advanced"  className="flex items-center gap-1 text-xs"><ShieldAlert className="w-3 h-3" /> Advanced</TabsTrigger>
           <TabsTrigger value="ecdsa"     className="flex items-center gap-1 text-xs"><Cpu        className="w-3 h-3" /> ECDSA</TabsTrigger>
-          <TabsTrigger value="pentest"   className="flex items-center gap-1 text-xs"><Bug        className="w-3 h-3" /> Pentest</TabsTrigger>
+          <TabsTrigger value="nonce"     className="flex items-center gap-1 text-xs"><ArrowDownLeft className="w-3 h-3" /> Nonce Audit</TabsTrigger>
         </TabsList>
         <TabsList className="grid grid-cols-5 w-full mt-1">
-          <TabsTrigger value="attack"   className="flex items-center gap-1 text-xs"><Swords   className="w-3 h-3" /> RPC Attack</TabsTrigger>
-          <TabsTrigger value="rpc"      className="flex items-center gap-1 text-xs"><Radio    className="w-3 h-3" /> RPC Probe</TabsTrigger>
-          <TabsTrigger value="headers"  className="flex items-center gap-1 text-xs"><Globe    className="w-3 h-3" /> Headers</TabsTrigger>
+          <TabsTrigger value="rpcfuzz"  className="flex items-center gap-1 text-xs"><Target  className="w-3 h-3" /> RPC Fuzz</TabsTrigger>
+          <TabsTrigger value="pentest"  className="flex items-center gap-1 text-xs"><Bug     className="w-3 h-3" /> Pentest</TabsTrigger>
+          <TabsTrigger value="attack"   className="flex items-center gap-1 text-xs"><Swords  className="w-3 h-3" /> RPC Attack</TabsTrigger>
+          <TabsTrigger value="rpc"      className="flex items-center gap-1 text-xs"><Radio   className="w-3 h-3" /> RPC Probe</TabsTrigger>
+          <TabsTrigger value="headers"  className="flex items-center gap-1 text-xs"><Globe   className="w-3 h-3" /> Headers</TabsTrigger>
+        </TabsList>
+        <TabsList className="grid grid-cols-2 w-full mt-1">
           <TabsTrigger value="contract" className="flex items-center gap-1 text-xs"><Zap      className="w-3 h-3" /> Live Contract</TabsTrigger>
           <TabsTrigger value="entropy"  className="flex items-center gap-1 text-xs"><KeyRound className="w-3 h-3" /> Key Entropy</TabsTrigger>
         </TabsList>
         <TabsContent value="universal" className="mt-6"><UniversalWalletScannerTab /></TabsContent>
         <TabsContent value="advanced"  className="mt-6"><AdvancedScannerTab        /></TabsContent>
         <TabsContent value="ecdsa"     className="mt-6"><EcdsaScannerTab           /></TabsContent>
+        <TabsContent value="nonce"     className="mt-6"><NonceAuditTab             /></TabsContent>
+        <TabsContent value="rpcfuzz"   className="mt-6"><RpcFuzzTab                /></TabsContent>
         <TabsContent value="pentest"   className="mt-6"><PentestSuiteTab           /></TabsContent>
         <TabsContent value="attack"    className="mt-6"><RpcAttackSuiteTab         /></TabsContent>
         <TabsContent value="rpc"       className="mt-6"><RpcProbeTab               /></TabsContent>
