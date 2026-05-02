@@ -188,8 +188,9 @@ export default function AccountScreen() {
         </View>
 
         <Text style={[styles.legal, { color: colors.mutedForeground }]}>
-          ProxhqVPN · ALPHA UNLIMITED TECHNOLOGIES LLC{"\n"}
-          All rights reserved
+          ProxhqVPN{"\n"}
+          © {new Date().getFullYear()} Alpha Unlimited Technologies LLC{"\n"}
+          All rights reserved.
         </Text>
       </ScrollView>
     </View>

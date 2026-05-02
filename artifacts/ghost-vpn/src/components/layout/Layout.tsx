@@ -471,6 +471,10 @@ export function Layout({ children }: LayoutProps) {
           </button>
         </div>
       )}
+      <div className="px-4 py-2.5 border-t border-white/[0.04] shrink-0 text-center">
+        <div className="text-[9px] text-white/25 leading-snug">© {new Date().getFullYear()} Alpha Unlimited Technologies LLC</div>
+        <div className="text-[8px] text-white/15 mt-0.5">All rights reserved.</div>
+      </div>
     </div>
   );
   };

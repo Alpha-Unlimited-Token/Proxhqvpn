@@ -110,6 +110,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <NavItem href="/pentest" icon={Terminal} label="Pen Test" />
           </div>
         </div>
+        <div className="px-4 py-3 border-t border-border/50 text-center shrink-0">
+          <p className="text-[9px] text-muted-foreground/40 leading-snug">© {new Date().getFullYear()} Alpha Unlimited Technologies LLC</p>
+          <p className="text-[8px] text-muted-foreground/25 mt-0.5">All rights reserved.</p>
+        </div>
       </div>
 
       {/* Main content */}

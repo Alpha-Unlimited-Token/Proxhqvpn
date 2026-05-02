@@ -107,10 +107,14 @@ export function Layout({ children }: LayoutProps) {
           ))}
         </nav>
 
-        <div className="p-4 border-t border-border">
+        <div className="p-4 border-t border-border space-y-2">
           <div className="text-xs text-muted-foreground flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
             SYSTEM ONLINE
+          </div>
+          <div className="text-center">
+            <p className="text-[9px] text-muted-foreground/40 leading-snug">© {new Date().getFullYear()} Alpha Unlimited Technologies LLC</p>
+            <p className="text-[8px] text-muted-foreground/25 mt-0.5">All rights reserved.</p>
           </div>
         </div>
       </div>
