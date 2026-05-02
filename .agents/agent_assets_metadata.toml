@@ -179,3 +179,9 @@ id = "_SjiP88fHUdOr6lkwwKji"
 uri = "file://build/QuantumAudit-Autonomous-Report-2026-05-02.json"
 type = "unspecified"
 title = "QuantumAudit — Autonomous Live Report (JSON)"
+
+[[outputs]]
+id = "P5FTDCkgy5kmZCYU19DjF"
+uri = "file://build/QuantumAudit-Report.zip"
+type = "unspecified"
+title = "QuantumAudit — Autonomous Report (ZIP)"
