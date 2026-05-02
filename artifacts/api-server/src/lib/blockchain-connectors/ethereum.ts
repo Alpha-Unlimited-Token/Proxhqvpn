@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 // Ethereum / EVM Blockchain Connector
 // Uses ethers.js with public RPC endpoints — no API key required for basic use
 // Fetches contract source, bytecode, and transaction data for security analysis

@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { PageSEO } from "@/components/PageSEO";

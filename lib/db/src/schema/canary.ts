@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { pgTable, serial, text, integer, boolean, timestamp } from "drizzle-orm/pg-core";
 
 export const canaryTokensTable = pgTable("canary_tokens", {

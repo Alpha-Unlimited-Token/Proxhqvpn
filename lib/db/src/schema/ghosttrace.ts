@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { pgTable, serial, text, integer, boolean, timestamp, real } from "drizzle-orm/pg-core";
 
 export const ghostTraceObservationsTable = pgTable("ghost_trace_observations", {

@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { pgTable, serial, integer, text, timestamp } from "drizzle-orm/pg-core";
 
 export const vpngateNodeSessionsTable = pgTable("vpngate_node_sessions", {

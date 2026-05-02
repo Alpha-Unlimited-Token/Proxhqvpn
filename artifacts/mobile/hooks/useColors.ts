@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { useColorScheme } from "react-native";
 
 import colors from "@/constants/colors";

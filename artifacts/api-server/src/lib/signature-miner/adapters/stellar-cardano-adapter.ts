@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 /**
  * Ed25519 Family Adapter — Stellar · Cardano · NEAR · Cosmos
  * ════════════════════════════════════════════════════════════

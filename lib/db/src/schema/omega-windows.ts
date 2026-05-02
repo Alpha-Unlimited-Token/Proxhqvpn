@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { pgTable, serial, integer, text, boolean, timestamp } from "drizzle-orm/pg-core";
 
 export const windowsListTable = pgTable("omega_windows_list", {

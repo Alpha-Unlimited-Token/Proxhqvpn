@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 // Bitcoin / UTXO-chain ECDSA Nonce Reuse Scanner
 // Supports: Bitcoin (BTC), Litecoin (LTC), Dogecoin (DOGE), Bitcoin Cash (BCH)
 // Uses public block explorer APIs — no key required

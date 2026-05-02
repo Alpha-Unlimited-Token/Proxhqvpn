@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { Router, type IRouter } from "express";
 import { db, hostsTable, eventsTable } from "@workspace/db";
 

@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { Helmet } from "react-helmet-async";
 
 const SITE_URL = import.meta.env.VITE_SITE_URL?.replace(/\/$/, "") || "https://proxhqvpn.com";

@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { useState, useRef, useEffect } from "react";
 import { useListBeaconAlerts, useDismissBeaconAlert, useTriggerBeacon, useListNodes, getListBeaconAlertsQueryKey } from "@workspace/api-client-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";

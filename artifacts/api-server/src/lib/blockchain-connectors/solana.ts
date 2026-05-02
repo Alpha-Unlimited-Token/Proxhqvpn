@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 // Solana Blockchain Connector
 // Uses @solana/web3.js with public RPC — no API key required
 // Scans programs for upgrade authority, account structure, and security patterns

@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 // Adaptive scan engine — takes any target (address or tx hash), detects the chain
 // automatically using chain-detector, then routes to the correct scanner.
 // Returns a unified result including which chain was detected and what math was applied.

@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 // Copyright © 2025 ALPHA UNLIMITED TECHNOLOGIES LLC — legal@alphauntechnologies.com
 // Multitasking persistence: sessionStorage-backed useState replacement.
 // State survives navigation (component unmount/remount) for the lifetime of the browser tab.

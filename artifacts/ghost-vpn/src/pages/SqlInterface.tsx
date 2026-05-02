@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { useState, useCallback } from "react";
 import { usePersistedState } from "@/hooks/usePersistedState";
 import { Database, Play, Plus, Trash2, Globe, Table, RefreshCw, Link, Unlink } from "lucide-react";

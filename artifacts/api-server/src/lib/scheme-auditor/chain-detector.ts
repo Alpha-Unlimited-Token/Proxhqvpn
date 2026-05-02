@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 // Adaptive chain detector — given any address or tx hash, determines the blockchain
 // and returns the full cryptographic profile: signature scheme, curve parameters,
 // recovery equations, and scan instructions.

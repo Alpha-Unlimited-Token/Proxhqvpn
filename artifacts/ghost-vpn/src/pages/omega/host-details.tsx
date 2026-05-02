@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { useEffect } from "react";
 import { Link, useParams, useLocation } from "wouter";
 

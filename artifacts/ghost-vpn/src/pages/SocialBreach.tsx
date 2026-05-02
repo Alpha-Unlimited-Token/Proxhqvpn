@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 // Copyright © 2025 ALPHA UNLIMITED TECHNOLOGIES LLC — legal@alphauntechnologies.com
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { usePersistedState } from "@/hooks/usePersistedState";

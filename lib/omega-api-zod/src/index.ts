@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import * as zod from "zod";
 
 export const HealthCheckResponse = zod.object({

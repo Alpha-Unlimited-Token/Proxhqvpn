@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 /**
  * External RPC Endpoint Prober
  * Makes real JSON-RPC calls to a target endpoint and reports exactly what

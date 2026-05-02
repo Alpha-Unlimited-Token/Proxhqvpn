@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 /**
  * WAF Bypass Auto-Generator — GoTestWAF-style 2000+ variant engine
  * Copyright © 2024–2026 ALPHA UNLIMITED TECHNOLOGIES LLC

@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 /**
  * Intruder — Burp Suite Intruder equivalent
  * Accepts an HTTP request template with §marker§ positions and a payload list,

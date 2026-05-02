@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { pgTable, serial, text, integer, real, boolean, timestamp, pgEnum, jsonb } from "drizzle-orm/pg-core";
 
 export const scanStatusEnum = pgEnum("scan_status", ["pending", "running", "complete", "failed"]);

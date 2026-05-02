@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { useState, useCallback } from "react";
 import { useUser } from "@clerk/react";
 import { Card, CardContent } from "@/components/ui/card";

@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import {
   Inter_400Regular,
   Inter_500Medium,

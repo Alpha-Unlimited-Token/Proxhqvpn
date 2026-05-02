@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 /**
  * ProxhqVPN — API Server
  * Copyright © 2024–2026 ALPHA UNLIMITED TECHNOLOGIES LLC

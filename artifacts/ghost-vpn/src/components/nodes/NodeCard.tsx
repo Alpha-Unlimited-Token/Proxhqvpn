@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { useEffect, useRef, useState } from "react";
 import type { LifecycleState, LiveNode } from "@/hooks/useNodeLifecycle";
 import { Shield, Cpu, Wifi } from "lucide-react";

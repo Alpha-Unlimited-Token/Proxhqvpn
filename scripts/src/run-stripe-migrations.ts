@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { runMigrations } from "stripe-replit-sync";
 
 const databaseUrl = process.env.DATABASE_URL;

@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 /**
  * Curated database of known-malicious, known-vulnerable, and high-risk
  * Ethereum contract and wallet addresses, categorised by attack vector.

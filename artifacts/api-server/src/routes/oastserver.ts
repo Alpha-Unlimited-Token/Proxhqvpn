@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 /**
  * OAST — Real Out-of-Band Application Security Testing Callback Server
  * Copyright © 2024–2026 ALPHA UNLIMITED TECHNOLOGIES LLC

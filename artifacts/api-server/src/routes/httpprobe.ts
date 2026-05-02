@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 /**
  * HTTP Probe — Burp Suite Repeater equivalent
  * Craft any HTTP request from the server and inspect the raw response.

@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useListNodes } from "@workspace/api-client-react";
 

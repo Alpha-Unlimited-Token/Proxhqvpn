@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 // Vulnerability pattern definitions for Solidity static analysis
 // Each pattern includes regex, line-level detection, and full exploit context
 

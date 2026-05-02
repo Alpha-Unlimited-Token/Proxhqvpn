@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { useGetSystemStats, useGetNodeStats, useGetBeaconStats, useGetFirewallStatus, useListBeaconAlerts, useListNodes } from "@workspace/api-client-react";
 import { Shield, Server, AlertTriangle, CheckCircle, Zap, Wifi, ChevronRight, Activity } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";

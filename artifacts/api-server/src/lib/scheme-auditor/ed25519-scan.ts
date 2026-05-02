@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 // Real Ed25519 nonce-reuse scanner — Solana / Cardano
 // Given a wallet address OR a single tx signature:
 //   - Resolves the signer address (from tx if needed)

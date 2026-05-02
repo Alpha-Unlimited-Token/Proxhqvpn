@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { useAuth } from "@clerk/clerk-expo";
 import { Redirect } from "expo-router";
 import React from "react";

@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 /**
  * Subdomain Scanner — subfinder / amass equivalent
  * Enumerate subdomains via certificate transparency logs (crt.sh) + DNS resolution.

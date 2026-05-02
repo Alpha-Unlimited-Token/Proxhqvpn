@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { Link, useLocation } from "wouter";
 import { 
   LayoutDashboard, 

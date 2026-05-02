@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import * as parser from "@solidity-parser/parser";
 import type { ASTNode } from "@solidity-parser/parser";
 

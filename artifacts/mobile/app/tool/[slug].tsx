@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import React, { useRef, useState } from "react";
 import {
   ActivityIndicator,

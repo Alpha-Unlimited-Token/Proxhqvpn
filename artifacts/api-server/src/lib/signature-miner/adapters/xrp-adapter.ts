@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 /**
  * XRP Ledger Adapter (secp256k1)
  * ══════════════════════════════

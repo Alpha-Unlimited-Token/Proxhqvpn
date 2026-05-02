@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { defineConfig, InputTransformerFn } from "orval";
 import path from "path";
 

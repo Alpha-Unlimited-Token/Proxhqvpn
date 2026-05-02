@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { Link, Stack } from "expo-router";
 import { StyleSheet, Text, View } from "react-native";
 

@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 /**
  * Signature Miner — Test Vectors & Calibration Suite
  * ═══════════════════════════════════════════════════

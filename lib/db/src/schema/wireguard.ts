@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { pgTable, serial, text, integer, timestamp } from "drizzle-orm/pg-core";
 import { nodesTable } from "./nodes";
 import { usersTable } from "./users";

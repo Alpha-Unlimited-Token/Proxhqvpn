@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { Router, type IRouter } from "express";
 import { eq, desc } from "drizzle-orm";
 import { db, remoteCommandsTable, eventsTable, hostsTable } from "@workspace/db";

@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import app from "./app";
 import { logger } from "./lib/logger";
 import { startCryptoPoller } from "./lib/cryptoPoller";

@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { scanBitcoinAddress, type BitcoinAddressReport } from "./bitcoin";
 import { scanEthereumAddress, type EthereumAddressReport } from "./ethereum";
 import { scanSolanaAddress, type SolanaAddressReport } from "./solana";

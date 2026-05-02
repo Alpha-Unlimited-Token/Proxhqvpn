@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 // Copyright © 2025 ALPHA UNLIMITED TECHNOLOGIES LLC — legal@alphauntechnologies.com
 // Social & Game Account Security Audit Engine — per-platform login + authenticated proxy
 import { Router, type Request, type Response } from "express";

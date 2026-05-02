@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 /**
  * Directory Fuzzer — Burp Suite Intruder / ffuf equivalent
  * Brute-force paths against a target to discover hidden endpoints.

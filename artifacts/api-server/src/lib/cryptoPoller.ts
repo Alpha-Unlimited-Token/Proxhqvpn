@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 /**
  * cryptoPoller.ts
  * Server-side background job that checks pending crypto invoices against the

@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 /**
  * EVM Multi-Chain Adapter (secp256k1)
  * ════════════════════════════════════

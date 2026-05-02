@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { useEffect, useState } from "react";
 import { useLocation, useSearch } from "wouter";
 import { CheckCircle, Loader2, ArrowRight, Shield } from "lucide-react";

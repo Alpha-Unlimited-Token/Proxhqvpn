@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 /**
  * Chain Adapter — Types, Detection & Registry
  * ════════════════════════════════════════════

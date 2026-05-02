@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 // Monero (XMR) Blockchain Connector
 // Connects to user's own monerod daemon via JSON-RPC
 // Default: localhost:18081 (mainnet) — configure via MONERO_RPC_URL env var

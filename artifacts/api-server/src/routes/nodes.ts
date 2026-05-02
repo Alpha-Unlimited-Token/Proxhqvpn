@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { nodesTable, beaconAlertsTable } from "@workspace/db";

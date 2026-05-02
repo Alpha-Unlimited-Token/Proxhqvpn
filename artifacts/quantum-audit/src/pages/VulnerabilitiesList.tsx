@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { useListVulnerabilities } from "@workspace/api-client-react";
 import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";

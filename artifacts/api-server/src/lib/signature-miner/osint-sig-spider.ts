@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 /**
  * Engine 3 — OSINT Signature Spider
  * ══════════════════════════════════

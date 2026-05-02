@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 /**
  * Solidity Contract Static Analyzer
  * Detects the same vulnerability classes that attackers exploit in 2026:

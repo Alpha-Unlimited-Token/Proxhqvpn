@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { useEffect, useState, useCallback } from "react";
 import {
   ExternalLink, Atom, Key, Activity, Globe,

@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 /**
  * Universal Wallet Chain Detector & Multi-Chain Scanner
  * ======================================================

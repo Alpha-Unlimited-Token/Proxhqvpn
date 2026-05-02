@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import React, { useState, useEffect } from "react";
 
 const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";

@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { Link } from "wouter";
 import { Lock, CreditCard, Zap, ArrowUpCircle } from "lucide-react";
 import { useAccess } from "@/hooks/useAccess";

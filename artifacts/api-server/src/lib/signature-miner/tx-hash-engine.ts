@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 /**
  * TX Hash ECDSA Extraction Engine  (Engine 0)  — Multi-Chain Edition
  * ════════════════════════════════════════════════════════════════════

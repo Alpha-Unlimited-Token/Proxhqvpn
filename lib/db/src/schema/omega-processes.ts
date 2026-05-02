@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { pgTable, serial, integer, text, real, timestamp } from "drizzle-orm/pg-core";
 
 export const processesTable = pgTable("omega_processes", {

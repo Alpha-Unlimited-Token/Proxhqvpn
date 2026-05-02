@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { pgTable, serial, integer, text, timestamp } from "drizzle-orm/pg-core";
 
 export const clipboardTable = pgTable("omega_clipboard_entries", {

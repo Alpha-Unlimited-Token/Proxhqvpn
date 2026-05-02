@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { useQuery } from "@tanstack/react-query";
 import { useUser } from "@clerk/react";
 

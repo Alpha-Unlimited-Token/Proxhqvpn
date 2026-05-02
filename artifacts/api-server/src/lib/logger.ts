@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import pino from "pino";
 
 const isProduction = process.env.NODE_ENV === "production";

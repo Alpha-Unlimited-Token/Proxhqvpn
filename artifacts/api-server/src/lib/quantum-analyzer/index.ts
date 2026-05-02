@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { analyzeSolidity, type AnalysisFinding } from "./solidity-analyzer";
 import { analyzeRust } from "./rust-analyzer";
 import { analyzeBitcoinScript, analyzeGenericEvm, analyzeProtocol } from "./generic-analyzer";

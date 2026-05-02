@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 // Deep Solidity Static Analysis Engine
 // Reads actual Solidity source code and finds logic-level vulnerabilities
 // with exact line numbers, exploit details, and fix recommendations

@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 /**
  * Engine 4 — Peel-Chain Signature Tracer
  * ════════════════════════════════════════

@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 // Real Sr25519 nonce-reuse scanner — Polkadot / Substrate chains
 // Given a wallet address OR an extrinsic hash:
 //   - Resolves the signer address (from extrinsic if needed)

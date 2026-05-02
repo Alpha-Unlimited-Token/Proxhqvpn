@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 // Real Monero CLSAG key image reuse scanner
 // Given a transaction hash OR a set of tx hashes:
 //   - Fetches the transaction's block height

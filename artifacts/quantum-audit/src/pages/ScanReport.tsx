@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { useGetScanReport } from "@workspace/api-client-react";
 import { useParams, Link } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";

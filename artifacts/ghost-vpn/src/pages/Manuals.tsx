@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 // Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC — legal@alphauntechnologies.com
 // ProxhqVPN Manuals Download Center — subscription-gated comprehensive guides
 import React, { useState } from "react";

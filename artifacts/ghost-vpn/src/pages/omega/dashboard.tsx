@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { 

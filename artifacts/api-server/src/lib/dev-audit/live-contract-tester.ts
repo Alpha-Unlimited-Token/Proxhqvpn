@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 /**
  * Live Contract Exploit Tester
  * Makes real eth_call and eth_getLogs calls against a deployed contract on

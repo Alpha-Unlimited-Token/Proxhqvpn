@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { useState, useEffect, useRef } from "react";
 import { CheckCircle, XCircle, Loader, Zap, RefreshCw, Shield, Package, Upload, Link, Trash2, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";

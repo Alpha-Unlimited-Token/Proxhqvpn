@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 /**
  * HTTP Security Headers Checker
  * Fetches a real URL from the server and reports exactly what security

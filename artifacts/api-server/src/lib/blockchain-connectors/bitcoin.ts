@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 // Bitcoin Blockchain Connector
 // Uses mempool.space public API — no key required
 // Detects quantum-vulnerable outputs and exposed public keys on-chain

@@ -1,3 +1,4 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { useState, useRef, useEffect } from "react";
 
 import { useListHosts } from "@workspace/omega-api-client-react";
