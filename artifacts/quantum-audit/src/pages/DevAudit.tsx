@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,7 @@ import {
   ServerCrash, BarChart3, Eye, Swords, Target, Network,
   Package, ShieldX, Bug, Layers, Wifi, Search, Cpu, Coins,
   ArrowDownLeft, ArrowUpRight, CircleDot,
+  Play, Square, RefreshCw, Database, Terminal, TrendingUp, Fingerprint,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -3060,6 +3061,781 @@ function RpcFuzzTab() {
   );
 }
 
+// ── Exploit Engines Tab ───────────────────────────────────────────────────────
+
+const EXPLOIT_ENDPOINTS = [
+  { label: "Ethereum (publicnode)", url: "https://ethereum.publicnode.com" },
+  { label: "Ethereum (cloudflare)", url: "https://cloudflare-eth.com" },
+  { label: "Polygon",               url: "https://polygon-bor.publicnode.com" },
+  { label: "BSC",                   url: "https://bsc.publicnode.com" },
+  { label: "Arbitrum One",          url: "https://arbitrum-one.publicnode.com" },
+  { label: "Optimism",              url: "https://optimism.publicnode.com" },
+];
+
+function SevBadge({ sev }: { sev: string }) {
+  const c = sev === "critical" ? "bg-red-500/20 text-red-300 border-red-500/30"
+           : sev === "high"    ? "bg-orange-500/20 text-orange-300 border-orange-500/30"
+           : sev === "medium"  ? "bg-yellow-500/20 text-yellow-300 border-yellow-500/30"
+           : sev === "low"     ? "bg-blue-500/20 text-blue-300 border-blue-500/30"
+           : sev === "pass"    ? "bg-green-500/20 text-green-300 border-green-500/30"
+           : "bg-muted/50 text-muted-foreground border-border";
+  return <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-bold border ${c}`}>{sev.toUpperCase()}</span>;
+}
+
+function RiskMeter({ score }: { score: number }) {
+  const color = score >= 70 ? "bg-red-500" : score >= 40 ? "bg-orange-500" : score >= 20 ? "bg-yellow-500" : "bg-green-500";
+  const label = score >= 70 ? "CRITICAL" : score >= 40 ? "HIGH" : score >= 20 ? "MEDIUM" : "LOW";
+  const lc    = score >= 70 ? "text-red-400" : score >= 40 ? "text-orange-400" : score >= 20 ? "text-yellow-400" : "text-green-400";
+  return (
+    <div className="flex items-center gap-3">
+      <div className="flex-1 h-3 bg-muted rounded-full overflow-hidden">
+        <div className={`h-full rounded-full transition-all ${color}`} style={{ width: `${score}%` }} />
+      </div>
+      <span className={`text-sm font-bold w-20 text-right ${lc}`}>{score}/100 {label}</span>
+    </div>
+  );
+}
+
+// ── Engine 1: Mempool Surveillance ────────────────────────────────────────────
+
+interface MempoolTx {
+  hash?: string; sender: string; senderLabel: string; to: string; toLabel: string;
+  nonce: number; value: string; gasPrice: string; gas: number; input: string;
+  callSelector: string; decoded: { name: string; type: string; risk: string } | null;
+  isFrontRunnable: boolean; isHighValue: boolean; isMultisig: boolean;
+}
+interface MempoolSnapshot {
+  timestamp: number; endpoint: string;
+  pendingCount: number; queuedCount: number;
+  frontRunnableCount: number; highValueCount: number; multisigCount: number;
+  sampleTxs: MempoolTx[];
+  topSenders: Array<{ address: string; label: string; txCount: number; totalValueEth: number }>;
+  gasPriceStats: { min: number; max: number; median: number; mean: number };
+}
+
+function MempoolEngine({ endpoint }: { endpoint: string }) {
+  const [streaming, setStreaming]     = useState(false);
+  const [snapshots, setSnapshots]     = useState<MempoolSnapshot[]>([]);
+  const [status, setStatus]           = useState<string>("");
+  const [filter, setFilter]           = useState<"all" | "frontrun" | "highvalue" | "multisig">("all");
+  const esRef = useRef<EventSource | null>(null);
+
+  const start = useCallback(() => {
+    if (esRef.current) { esRef.current.close(); }
+    setSnapshots([]); setStreaming(true); setStatus("Connecting…");
+    const url = `${BASE}/api/dev-audit/exploit/mempool-stream?endpoint=${encodeURIComponent(endpoint)}`;
+    const es = new EventSource(url);
+    esRef.current = es;
+    es.addEventListener("status",   e => setStatus((JSON.parse(e.data) as { message: string }).message));
+    es.addEventListener("snapshot", e => {
+      const snap = JSON.parse(e.data) as MempoolSnapshot;
+      setSnapshots(prev => [snap, ...prev].slice(0, 25));
+      setStatus(`Live — last update ${new Date(snap.timestamp).toLocaleTimeString()}`);
+    });
+    es.addEventListener("error",    e => setStatus("Error: " + (JSON.parse((e as MessageEvent).data || "{}") as { message?: string }).message ?? "stream error"));
+    es.addEventListener("done",     () => { setStreaming(false); setStatus("Stream completed (90s window)"); es.close(); });
+    es.onerror = () => { setStreaming(false); setStatus("Connection lost"); es.close(); };
+  }, [endpoint]);
+
+  const stop = () => { esRef.current?.close(); setStreaming(false); setStatus("Stopped"); };
+  useEffect(() => () => { esRef.current?.close(); }, []);
+
+  const latest = snapshots[0];
+  const txs = (latest?.sampleTxs ?? []).filter(t =>
+    filter === "frontrun"  ? t.isFrontRunnable :
+    filter === "highvalue" ? t.isHighValue :
+    filter === "multisig"  ? t.isMultisig : true,
+  );
+
+  const RISK_COLORS: Record<string, string> = {
+    frontrun: "text-orange-300", critical: "text-red-300", monitor: "text-blue-300",
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2 flex-wrap">
+        <Button onClick={streaming ? stop : start}
+          className={`gap-2 ${streaming ? "bg-red-700 hover:bg-red-800" : "bg-green-700 hover:bg-green-800"}`}>
+          {streaming ? <><Square className="w-4 h-4" />Stop Stream</> : <><Play className="w-4 h-4" />Start Live Feed</>}
+        </Button>
+        {streaming && <span className="flex items-center gap-1.5 text-xs text-green-400"><CircleDot className="w-3 h-3 animate-pulse" />LIVE</span>}
+        <span className="text-xs text-muted-foreground">{status}</span>
+      </div>
+
+      {latest && (
+        <>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+            {[
+              { label: "Pending",     value: latest.pendingCount.toLocaleString(),      color: "text-foreground" },
+              { label: "Queued",      value: latest.queuedCount.toLocaleString(),       color: "text-foreground" },
+              { label: "Front-Run ⚡", value: latest.frontRunnableCount.toLocaleString(), color: latest.frontRunnableCount > 0 ? "text-orange-400" : "text-green-400" },
+              { label: "High Value",  value: latest.highValueCount.toLocaleString(),    color: latest.highValueCount > 0 ? "text-yellow-400" : "text-green-400" },
+              { label: "Multisig",    value: latest.multisigCount.toLocaleString(),     color: latest.multisigCount > 0 ? "text-red-400" : "text-green-400" },
+            ].map(({ label, value, color }) => (
+              <Card key={label} className="border-border/50">
+                <CardContent className="py-2 text-center">
+                  <p className={`text-xl font-bold ${color}`}>{value}</p>
+                  <p className="text-xs text-muted-foreground">{label}</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+            <div className="bg-muted/20 rounded border border-border/40 p-2">
+              <p className="text-muted-foreground">Gas Min</p>
+              <p className="font-mono font-bold">{latest.gasPriceStats.min.toFixed(2)} Gwei</p>
+            </div>
+            <div className="bg-muted/20 rounded border border-border/40 p-2">
+              <p className="text-muted-foreground">Gas Median</p>
+              <p className="font-mono font-bold">{latest.gasPriceStats.median.toFixed(2)} Gwei</p>
+            </div>
+            <div className="bg-muted/20 rounded border border-border/40 p-2">
+              <p className="text-muted-foreground">Gas Mean</p>
+              <p className="font-mono font-bold">{latest.gasPriceStats.mean.toFixed(2)} Gwei</p>
+            </div>
+            <div className="bg-muted/20 rounded border border-border/40 p-2">
+              <p className="text-muted-foreground">Gas Max</p>
+              <p className="font-mono font-bold">{latest.gasPriceStats.max.toFixed(2)} Gwei</p>
+            </div>
+          </div>
+
+          {/* top senders */}
+          {latest.topSenders.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground mb-1">Top Senders by Tx Count</p>
+              <div className="space-y-1">
+                {latest.topSenders.slice(0, 6).map(s => (
+                  <div key={s.address} className="flex items-center gap-2 text-xs bg-muted/20 rounded px-2 py-1">
+                    <span className="font-mono text-cyan-300 truncate flex-1">{s.address}</span>
+                    <span className="text-muted-foreground shrink-0">{s.label !== s.address ? s.label : ""}</span>
+                    <Badge className="bg-muted/50 text-foreground border-border text-xs shrink-0">{s.txCount} txs</Badge>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* tx filter */}
+          <div className="flex gap-1.5 flex-wrap">
+            {(["all","frontrun","highvalue","multisig"] as const).map(f => (
+              <button key={f} onClick={() => setFilter(f)}
+                className={`text-xs px-2 py-1 rounded border transition-colors ${filter === f ? "bg-orange-500/20 border-orange-500/40 text-orange-300" : "bg-muted/30 border-border text-muted-foreground"}`}>
+                {f === "all" ? `All (${latest.sampleTxs.length})` : f === "frontrun" ? `⚡ Front-Run (${latest.frontRunnableCount})` : f === "highvalue" ? `💰 High Value (${latest.highValueCount})` : `🔴 Multisig (${latest.multisigCount})`}
+              </button>
+            ))}
+          </div>
+
+          <ScrollArea className="h-72">
+            <div className="space-y-1 pr-2">
+              {txs.slice(0, 30).map((tx, i) => (
+                <div key={i} className={`rounded border p-2 text-xs ${
+                  tx.isMultisig    ? "border-red-500/30 bg-red-500/5" :
+                  tx.isFrontRunnable ? "border-orange-500/30 bg-orange-500/5" :
+                  tx.isHighValue   ? "border-yellow-500/30 bg-yellow-500/5" :
+                  "border-border/40 bg-muted/10"
+                }`}>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {tx.decoded && <span className={`font-semibold ${RISK_COLORS[tx.decoded.risk] ?? "text-foreground"}`}>{tx.decoded.type}</span>}
+                    <span className="font-mono text-muted-foreground">{tx.senderLabel}</span>
+                    <span className="text-muted-foreground">→</span>
+                    <span className="font-mono text-cyan-300">{tx.toLabel}</span>
+                    <span className="ml-auto font-bold">{tx.value}</span>
+                    <span className="text-muted-foreground">{tx.gasPrice}</span>
+                  </div>
+                  {tx.decoded && (
+                    <p className="text-muted-foreground mt-0.5 truncate">{tx.decoded.name}</p>
+                  )}
+                  {tx.hash && (
+                    <a href={`https://etherscan.io/tx/${tx.hash}`} target="_blank" rel="noopener noreferrer"
+                      className="font-mono text-xs text-blue-400 hover:underline truncate block mt-0.5">{tx.hash}</a>
+                  )}
+                </div>
+              ))}
+              {txs.length === 0 && <p className="text-xs text-muted-foreground text-center py-4">No transactions match this filter</p>}
+            </div>
+          </ScrollArea>
+          <p className="text-xs text-muted-foreground">{snapshots.length} snapshots collected — showing top 50 txs by gas price</p>
+        </>
+      )}
+      {!latest && !streaming && (
+        <div className="text-center py-8 text-muted-foreground text-sm">
+          <Eye className="w-8 h-8 mx-auto mb-2 opacity-40" />
+          <p>Click Start Live Feed to begin real-time mempool surveillance</p>
+          <p className="text-xs mt-1">Streams live pending transactions every 4 seconds for 90 seconds</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Engine 2: Admin Method Scanner ────────────────────────────────────────────
+
+interface AdminProbeResult {
+  method: string; category: string; severity: string; exposed: boolean;
+  ms: number; result: unknown; errorMessage: string | null;
+  attackVector: string; impact: string;
+}
+interface AdminScanResult {
+  endpoint: string; probesRun: number;
+  criticalExposed: AdminProbeResult[]; highExposed: AdminProbeResult[];
+  mediumExposed: AdminProbeResult[]; infoExposed: AdminProbeResult[];
+  blocked: AdminProbeResult[];
+  riskScore: number; scanTimeMs: number; summary: string;
+}
+
+function AdminScanEngine({ endpoint }: { endpoint: string }) {
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const mutation = useMutation<AdminScanResult, Error, string>({
+    mutationFn: (ep) => fetch(`${BASE}/api/dev-audit/exploit/admin-scan`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ endpoint: ep }),
+    }).then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.error); return d; }),
+  });
+
+  const data = mutation.data;
+  const allExposed = data ? [
+    ...data.criticalExposed, ...data.highExposed,
+    ...data.mediumExposed, ...data.infoExposed,
+  ] : [];
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <Button onClick={() => mutation.mutate(endpoint)} disabled={mutation.isPending}
+          className="gap-2 bg-red-800 hover:bg-red-900">
+          {mutation.isPending
+            ? <><Loader2 className="w-4 h-4 animate-spin" />Probing {data ? "" : "40+"} methods…</>
+            : <><Terminal className="w-4 h-4" />Scan All Admin Methods</>}
+        </Button>
+        {data && <span className="text-xs text-muted-foreground">{data.probesRun} probes in {data.scanTimeMs}ms</span>}
+      </div>
+      {mutation.isError && <Alert className="border-red-500/40 bg-red-500/8"><AlertDescription className="text-xs text-red-400">{mutation.error.message}</AlertDescription></Alert>}
+
+      {data && (
+        <div className="space-y-4">
+          <RiskMeter score={data.riskScore} />
+          <p className={`text-sm font-semibold ${data.criticalExposed.length > 0 ? "text-red-400" : data.highExposed.length > 0 ? "text-orange-400" : "text-green-400"}`}>{data.summary}</p>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            {[
+              { label: "Critical",  value: data.criticalExposed.length, color: data.criticalExposed.length > 0 ? "text-red-400" : "text-green-400" },
+              { label: "High",      value: data.highExposed.length,     color: data.highExposed.length > 0 ? "text-orange-400" : "text-green-400" },
+              { label: "Medium",    value: data.mediumExposed.length,   color: data.mediumExposed.length > 0 ? "text-yellow-400" : "text-green-400" },
+              { label: "Blocked",   value: data.blocked.length,         color: "text-green-400" },
+            ].map(({ label, value, color }) => (
+              <Card key={label} className="border-border/50">
+                <CardContent className="py-2 text-center">
+                  <p className={`text-2xl font-bold ${color}`}>{value}</p>
+                  <p className="text-xs text-muted-foreground">{label}</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          {allExposed.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-sm font-bold text-red-400">{allExposed.length} METHOD{allExposed.length !== 1 ? "S" : ""} EXPOSED</p>
+              {allExposed.map(r => {
+                const open = expanded === r.method;
+                return (
+                  <div key={r.method}
+                    className={`rounded border cursor-pointer transition-colors ${
+                      r.severity === "critical" ? "border-red-500/50 bg-red-500/8 hover:bg-red-500/12" :
+                      r.severity === "high"     ? "border-orange-500/30 bg-orange-500/5 hover:bg-orange-500/8" :
+                      "border-yellow-500/20 bg-yellow-500/5 hover:bg-yellow-500/8"}`}
+                    onClick={() => setExpanded(open ? null : r.method)}>
+                    <div className="flex items-center gap-2 p-3">
+                      <SevBadge sev={r.severity} />
+                      <span className="font-mono text-sm font-bold flex-1">{r.method}</span>
+                      <span className="text-xs text-muted-foreground">{r.category}</span>
+                      <span className="text-xs text-muted-foreground">{r.ms}ms</span>
+                      {open ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+                    </div>
+                    {open && (
+                      <div className="px-3 pb-3 space-y-2 border-t border-border/40 pt-2" onClick={e => e.stopPropagation()}>
+                        <div>
+                          <p className="text-xs font-semibold text-muted-foreground mb-0.5">Impact</p>
+                          <p className="text-xs text-foreground">{r.impact}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold text-muted-foreground mb-0.5">Attack Vector (exact curl command)</p>
+                          <pre className="text-xs font-mono bg-muted/30 rounded p-2 overflow-x-auto whitespace-pre-wrap break-all">{r.attackVector}</pre>
+                        </div>
+                        {r.result !== null && r.result !== undefined && (
+                          <div>
+                            <p className="text-xs font-semibold text-red-400 mb-0.5">Live Response Data</p>
+                            <pre className="text-xs font-mono bg-red-500/10 border border-red-500/20 rounded p-2 overflow-x-auto max-h-32 whitespace-pre-wrap break-all">
+                              {typeof r.result === "string" ? r.result : JSON.stringify(r.result, null, 2)}
+                            </pre>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {allExposed.length === 0 && (
+            <Card className="border-green-500/30 bg-green-500/5">
+              <CardContent className="py-6 text-center">
+                <ShieldCheck className="w-10 h-10 text-green-400 mx-auto mb-2" />
+                <p className="font-semibold text-green-400">All admin methods blocked</p>
+                <p className="text-xs text-muted-foreground mt-1">{data.probesRun} privileged methods tested — none accessible</p>
+              </CardContent>
+            </Card>
+          )}
+
+          <details className="text-xs">
+            <summary className="cursor-pointer text-muted-foreground hover:text-foreground">Show {data.blocked.length} blocked methods</summary>
+            <div className="mt-2 grid grid-cols-2 md:grid-cols-3 gap-1">
+              {data.blocked.map(r => (
+                <div key={r.method} className="flex items-center gap-1.5 bg-green-500/5 border border-green-500/10 rounded px-2 py-1">
+                  <ShieldCheck className="w-3 h-3 text-green-400 shrink-0" />
+                  <span className="font-mono text-xs truncate">{r.method}</span>
+                </div>
+              ))}
+            </div>
+          </details>
+        </div>
+      )}
+      {!data && !mutation.isPending && (
+        <div className="text-center py-8 text-muted-foreground text-sm">
+          <Terminal className="w-8 h-8 mx-auto mb-2 opacity-40" />
+          <p>Probes 40+ privileged RPC methods against the target node</p>
+          <p className="text-xs mt-1">personal_*, admin_*, debug_*, miner_*, eth_accounts, eth_sign — all tested with real payloads</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Engine 3: Batch DoS Tester ────────────────────────────────────────────────
+
+interface BatchTestRow {
+  batchSize: number; sentRequests: number; returnedResponses: number;
+  completionRate: number; totalMs: number; msPerRequest: number;
+  amplificationRatio: number; finding: string;
+  severity: "critical" | "high" | "medium" | "low" | "pass";
+}
+interface BatchDosResult {
+  endpoint: string; tests: BatchTestRow[]; batchLimitDetected: number | null;
+  riskScore: number; scanTimeMs: number;
+}
+
+function BatchDosEngine({ endpoint }: { endpoint: string }) {
+  const mutation = useMutation<BatchDosResult, Error, string>({
+    mutationFn: (ep) => fetch(`${BASE}/api/dev-audit/exploit/batch-dos`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ endpoint: ep }),
+    }).then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.error); return d; }),
+  });
+  const data = mutation.data;
+
+  const SEV_ROW: Record<string, string> = {
+    critical: "border-red-500/40 bg-red-500/8",
+    high:     "border-orange-500/30 bg-orange-500/5",
+    medium:   "border-yellow-500/20 bg-yellow-500/5",
+    low:      "border-blue-500/20 bg-blue-500/5",
+    pass:     "border-green-500/15 bg-green-500/5",
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <Button onClick={() => mutation.mutate(endpoint)} disabled={mutation.isPending}
+          className="gap-2 bg-orange-800 hover:bg-orange-900">
+          {mutation.isPending
+            ? <><Loader2 className="w-4 h-4 animate-spin" />Testing 7 batch sizes…</>
+            : <><ServerCrash className="w-4 h-4" />Run Batch DoS Test</>}
+        </Button>
+        {data && <span className="text-xs text-muted-foreground">7 sizes tested in {data.scanTimeMs}ms</span>}
+      </div>
+      {mutation.isError && <Alert className="border-red-500/40 bg-red-500/8"><AlertDescription className="text-xs text-red-400">{mutation.error.message}</AlertDescription></Alert>}
+
+      {data && (
+        <div className="space-y-4">
+          <RiskMeter score={data.riskScore} />
+          {data.batchLimitDetected !== null
+            ? <p className="text-sm text-yellow-300">Batch cap detected near <span className="font-bold">{data.batchLimitDetected}</span> requests</p>
+            : <p className="text-sm text-red-400 font-semibold">No batch size cap detected — unlimited amplification possible</p>}
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-muted-foreground border-b border-border/40">
+                  <th className="text-left pb-2 font-medium">Batch Size</th>
+                  <th className="text-right pb-2 font-medium">Returned</th>
+                  <th className="text-right pb-2 font-medium">Total ms</th>
+                  <th className="text-right pb-2 font-medium">ms/req</th>
+                  <th className="text-right pb-2 font-medium">Completion</th>
+                  <th className="text-left pb-2 font-medium pl-3">Severity</th>
+                </tr>
+              </thead>
+              <tbody className="space-y-1">
+                {data.tests.map(t => (
+                  <tr key={t.batchSize} className={`border rounded ${SEV_ROW[t.severity] ?? ""}`}>
+                    <td className="py-2 px-2 font-mono font-bold">{t.batchSize}</td>
+                    <td className="py-2 text-right font-mono">{t.returnedResponses}/{t.sentRequests}</td>
+                    <td className="py-2 text-right font-mono">{t.totalMs}</td>
+                    <td className="py-2 text-right font-mono">{t.msPerRequest.toFixed(1)}</td>
+                    <td className="py-2 text-right font-mono">{t.completionRate.toFixed(0)}%</td>
+                    <td className="py-2 pl-3"><SevBadge sev={t.severity} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="space-y-2">
+            {data.tests.filter(t => t.severity !== "pass").map(t => (
+              <div key={t.batchSize} className={`rounded border p-3 text-xs ${SEV_ROW[t.severity] ?? ""}`}>
+                <div className="flex items-center gap-2 mb-1">
+                  <SevBadge sev={t.severity} />
+                  <span className="font-bold">Batch-{t.batchSize}</span>
+                  <span className="text-muted-foreground">{t.returnedResponses}/{t.batchSize} responses in {t.totalMs}ms</span>
+                </div>
+                <p className="leading-relaxed">{t.finding}</p>
+              </div>
+            ))}
+          </div>
+
+          <Alert className="border-orange-500/30 bg-orange-500/8">
+            <AlertDescription className="text-xs">
+              <strong className="text-orange-300">Attack scenario:</strong> An attacker sends 1,000 HTTP connections × batch-500 = 500,000 eth_call executions in one round. Replace eth_blockNumber with <code>eth_call</code> on a contract with a gas-intensive fallback() and the node CPU is saturated in under 10 seconds.
+            </AlertDescription>
+          </Alert>
+        </div>
+      )}
+      {!data && !mutation.isPending && (
+        <div className="text-center py-8 text-muted-foreground text-sm">
+          <ServerCrash className="w-8 h-8 mx-auto mb-2 opacity-40" />
+          <p>Tests batch sizes 5, 10, 25, 50, 100, 200, 500</p>
+          <p className="text-xs mt-1">Measures amplification ratio — one HTTP request processing N×server workload</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Engine 4: eth_call Abuse Engine ───────────────────────────────────────────
+
+interface CallAbuseProbe {
+  id: string; name: string; description: string;
+  payload: { method: string; params: unknown[] };
+  accepted: boolean; ms: number; result: unknown; errorMessage: string | null;
+  severity: "critical" | "high" | "medium" | "low" | "pass";
+  attackPath: string; recommendation: string;
+}
+interface CallAbuseResult { endpoint: string; probes: CallAbuseProbe[]; riskScore: number; scanTimeMs: number; }
+
+function CallAbuseEngine({ endpoint }: { endpoint: string }) {
+  const mutation = useMutation<CallAbuseResult, Error, string>({
+    mutationFn: (ep) => fetch(`${BASE}/api/dev-audit/exploit/call-abuse`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ endpoint: ep }),
+    }).then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.error); return d; }),
+  });
+  const data = mutation.data;
+  const [showAll, setShowAll] = useState(false);
+  const probes = data ? (showAll ? data.probes : data.probes.filter(p => p.accepted)) : [];
+
+  const SEV_BG: Record<string, string> = {
+    critical: "border-red-500/40 bg-red-500/8", high: "border-orange-500/30 bg-orange-500/5",
+    medium: "border-yellow-500/20 bg-yellow-500/5", low: "border-blue-500/20 bg-blue-500/5",
+    pass: "border-green-500/15 bg-green-500/5",
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <Button onClick={() => mutation.mutate(endpoint)} disabled={mutation.isPending}
+          className="gap-2 bg-yellow-800 hover:bg-yellow-900">
+          {mutation.isPending
+            ? <><Loader2 className="w-4 h-4 animate-spin" />Running {11} abuse probes…</>
+            : <><Zap className="w-4 h-4" />Run eth_call Abuse Tests</>}
+        </Button>
+        {data && <span className="text-xs text-muted-foreground">{data.probes.length} probes in {data.scanTimeMs}ms</span>}
+      </div>
+      {mutation.isError && <Alert className="border-red-500/40 bg-red-500/8"><AlertDescription className="text-xs text-red-400">{mutation.error.message}</AlertDescription></Alert>}
+
+      {data && (
+        <div className="space-y-4">
+          <RiskMeter score={data.riskScore} />
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { label: "Accepted",  value: data.probes.filter(p => p.accepted).length, color: "text-red-400" },
+              { label: "Rejected",  value: data.probes.filter(p => !p.accepted).length, color: "text-green-400" },
+              { label: "Total",     value: data.probes.length, color: "text-foreground" },
+            ].map(({ label, value, color }) => (
+              <Card key={label} className="border-border/50">
+                <CardContent className="py-2 text-center">
+                  <p className={`text-2xl font-bold ${color}`}>{value}</p>
+                  <p className="text-xs text-muted-foreground">{label}</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button onClick={() => setShowAll(v => !v)}
+              className="text-xs px-2 py-1 rounded border border-border bg-muted/30 text-muted-foreground hover:text-foreground">
+              {showAll ? "Show accepted only" : "Show all probes"}
+            </button>
+          </div>
+
+          <div className="space-y-3">
+            {probes.map(p => (
+              <div key={p.id} className={`rounded border p-3 text-xs ${SEV_BG[p.accepted ? p.severity : "pass"] ?? ""}`}>
+                <div className="flex items-center gap-2 mb-2">
+                  {p.accepted ? <SevBadge sev={p.severity} /> : <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-bold border bg-green-500/20 text-green-300 border-green-500/30">BLOCKED</span>}
+                  <span className="font-semibold">{p.name}</span>
+                  <span className="text-muted-foreground ml-auto">{p.ms}ms</span>
+                </div>
+                <p className="text-muted-foreground mb-2">{p.description}</p>
+                {p.accepted && (
+                  <>
+                    <div className="mb-2">
+                      <p className="font-semibold text-orange-300 mb-0.5">Attack Path</p>
+                      <p>{p.attackPath}</p>
+                    </div>
+                    {p.result !== null && (
+                      <div className="mb-2">
+                        <p className="font-semibold text-red-300 mb-0.5">Node Response</p>
+                        <pre className="font-mono bg-red-500/10 border border-red-500/15 rounded p-1.5 overflow-x-auto break-all whitespace-pre-wrap">
+                          {typeof p.result === "string" ? p.result : JSON.stringify(p.result)}
+                        </pre>
+                      </div>
+                    )}
+                  </>
+                )}
+                <div className="border-t border-border/30 pt-2 mt-2">
+                  <p className="text-green-300 font-semibold mb-0.5">Fix</p>
+                  <p className="text-muted-foreground">{p.recommendation}</p>
+                </div>
+              </div>
+            ))}
+            {probes.length === 0 && (
+              <Card className="border-green-500/30 bg-green-500/5">
+                <CardContent className="py-6 text-center">
+                  <ShieldCheck className="w-10 h-10 text-green-400 mx-auto mb-2" />
+                  <p className="font-semibold text-green-400">All {data.probes.length} abuse probes rejected</p>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </div>
+      )}
+      {!data && !mutation.isPending && (
+        <div className="text-center py-8 text-muted-foreground text-sm">
+          <Zap className="w-8 h-8 mx-auto mb-2 opacity-40" />
+          <p>11 abuse probes: null-to, 1/4/32KB calldata, MAX gas, historical call, full getLogs, negative blocks</p>
+          <p className="text-xs mt-1">Each probe shows attack path, live node response, and exact fix</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Engine 5: Node Intelligence ────────────────────────────────────────────────
+
+interface NodeIntelResult {
+  endpoint: string; clientVersion: string | null; gethVersion: string | null;
+  goVersion: string | null; os: string | null; buildCommit: string | null;
+  networkId: string | null; chainId: string | null; chainName: string | null;
+  peerCount: number | null; blockNumber: number | null;
+  gasPrice: string | null; gasPriceGwei: number | null;
+  syncing: boolean | object | null; isMining: boolean | null;
+  hashrate: number | null; coinbase: string | null; protocolVersion: string | null;
+  exposedModules: string[]; cveLookupUrl: string | null; fingerprint: string;
+  securityNotes: Array<{ severity: string; note: string }>;
+  scanTimeMs: number;
+}
+
+function NodeIntelEngine({ endpoint }: { endpoint: string }) {
+  const mutation = useMutation<NodeIntelResult, Error, string>({
+    mutationFn: (ep) => fetch(`${BASE}/api/dev-audit/exploit/node-intel`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ endpoint: ep }),
+    }).then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.error); return d; }),
+  });
+  const data = mutation.data;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <Button onClick={() => mutation.mutate(endpoint)} disabled={mutation.isPending}
+          className="gap-2 bg-purple-800 hover:bg-purple-900">
+          {mutation.isPending
+            ? <><Loader2 className="w-4 h-4 animate-spin" />Fingerprinting node…</>
+            : <><Fingerprint className="w-4 h-4" />Run Node Intelligence</>}
+        </Button>
+        {data && <span className="text-xs text-muted-foreground">{data.scanTimeMs}ms</span>}
+      </div>
+      {mutation.isError && <Alert className="border-red-500/40 bg-red-500/8"><AlertDescription className="text-xs text-red-400">{mutation.error.message}</AlertDescription></Alert>}
+
+      {data && (
+        <div className="space-y-4">
+          {/* Fingerprint banner */}
+          <Card className="border-purple-500/30 bg-purple-500/8">
+            <CardContent className="py-3">
+              <p className="text-xs font-semibold text-purple-300 mb-1">Node Fingerprint</p>
+              <p className="font-mono text-xs break-all text-foreground">{data.fingerprint}</p>
+            </CardContent>
+          </Card>
+
+          {/* Core stats grid */}
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
+            {[
+              { label: "Client",        value: data.clientVersion ?? "Unknown" },
+              { label: "Geth Version",  value: data.gethVersion ?? "N/A" },
+              { label: "Go Runtime",    value: data.goVersion ?? "N/A" },
+              { label: "OS / Arch",     value: data.os ?? "N/A" },
+              { label: "Build Commit",  value: data.buildCommit ?? "N/A" },
+              { label: "Chain",         value: data.chainName ?? data.chainId ?? "Unknown" },
+              { label: "Network ID",    value: data.networkId ?? "N/A" },
+              { label: "Block Height",  value: data.blockNumber?.toLocaleString() ?? "N/A" },
+              { label: "Gas Price",     value: data.gasPrice ?? "N/A" },
+              { label: "Peer Count",    value: data.peerCount !== null ? String(data.peerCount) : "N/A" },
+              { label: "Mining",        value: data.isMining ? "YES ⚠" : "No" },
+              { label: "Syncing",       value: data.syncing && data.syncing !== false ? "YES ⚠" : "Fully synced" },
+            ].map(({ label, value }) => (
+              <div key={label} className="bg-muted/20 border border-border/40 rounded p-2">
+                <p className="text-muted-foreground text-xs">{label}</p>
+                <p className="font-mono font-semibold truncate text-xs mt-0.5" title={value}>{value}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Exposed modules */}
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground mb-1">Exposed API Modules</p>
+            <div className="flex flex-wrap gap-1">
+              {data.exposedModules.map(m => (
+                <Badge key={m} className="bg-orange-500/15 text-orange-300 border-orange-500/20 text-xs">{m}</Badge>
+              ))}
+            </div>
+          </div>
+
+          {/* Security notes */}
+          {data.securityNotes.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground">Security Notes</p>
+              {data.securityNotes.map((n, i) => (
+                <div key={i} className={`rounded border p-2 text-xs ${
+                  n.severity === "critical" ? "border-red-500/40 bg-red-500/8 text-red-300" :
+                  n.severity === "high"     ? "border-orange-500/30 bg-orange-500/5 text-orange-300" :
+                  n.severity === "medium"   ? "border-yellow-500/20 bg-yellow-500/5 text-yellow-300" :
+                  "border-border/40 bg-muted/20 text-muted-foreground"}`}>
+                  <SevBadge sev={n.severity} /> <span className="ml-1">{n.note}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* CVE lookup */}
+          {data.cveLookupUrl && (
+            <a href={data.cveLookupUrl} target="_blank" rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-xs text-purple-300 hover:underline">
+              <ExternalLink className="w-3 h-3" />
+              Search NVD for CVEs against Geth {data.gethVersion}
+            </a>
+          )}
+        </div>
+      )}
+      {!data && !mutation.isPending && (
+        <div className="text-center py-8 text-muted-foreground text-sm">
+          <Fingerprint className="w-8 h-8 mx-auto mb-2 opacity-40" />
+          <p>Full node fingerprint: version, chain, peers, gas price, sync state, exposed modules</p>
+          <p className="text-xs mt-1">Results include CVE lookup URL and security risk notes</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Main Exploit Engines Tab ───────────────────────────────────────────────────
+
+function ExploitEnginesTab() {
+  const [endpoint, setEndpoint] = useState("https://ethereum.publicnode.com");
+  const [activeEngine, setActiveEngine] = useState<"mempool" | "admin" | "batch" | "callabuse" | "intel">("intel");
+
+  const ENGINES = [
+    { id: "mempool",   label: "Mempool Surveillance", icon: Eye,         desc: "Live pending tx feed with front-run detection",  color: "text-orange-400" },
+    { id: "admin",     label: "Admin Method Scanner",  icon: Terminal,    desc: "40+ privileged methods probed live",             color: "text-red-400"    },
+    { id: "batch",     label: "Batch DoS Tester",      icon: ServerCrash, desc: "Amplification ratio across 7 batch sizes",       color: "text-orange-300" },
+    { id: "callabuse", label: "eth_call Abuse",        icon: Zap,         desc: "11 input validation probes with attack paths",   color: "text-yellow-400" },
+    { id: "intel",     label: "Node Intelligence",     icon: Fingerprint, desc: "Full fingerprint, CVE lookup, peer risk",        color: "text-purple-400" },
+  ] as const;
+
+  return (
+    <div className="space-y-4">
+      {/* Endpoint selector */}
+      <Card className="border-red-500/30 bg-red-500/5">
+        <CardContent className="pt-4 pb-3 space-y-2">
+          <p className="text-xs font-semibold text-red-300 flex items-center gap-1.5">
+            <Target className="w-4 h-4" /> Target RPC Endpoint
+          </p>
+          <Input value={endpoint} onChange={e => setEndpoint(e.target.value)}
+            placeholder="https://your-node:8545" className="font-mono text-xs" />
+          <div className="flex flex-wrap gap-1.5">
+            {EXPLOIT_ENDPOINTS.map(p => (
+              <button key={p.url} onClick={() => setEndpoint(p.url)}
+                className={`text-xs px-2 py-0.5 rounded border transition-colors ${endpoint === p.url ? "bg-red-500/25 border-red-500/50 text-red-300" : "bg-muted/30 border-border text-muted-foreground hover:text-foreground"}`}>
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Engine selector */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+        {ENGINES.map(e => {
+          const Icon = e.icon;
+          return (
+            <button key={e.id} onClick={() => setActiveEngine(e.id)}
+              className={`rounded border p-3 text-left transition-all ${activeEngine === e.id ? "border-border bg-muted/40" : "border-border/40 bg-muted/10 hover:bg-muted/20"}`}>
+              <Icon className={`w-5 h-5 mb-1.5 ${e.color}`} />
+              <p className="text-xs font-semibold leading-tight">{e.label}</p>
+              <p className="text-xs text-muted-foreground mt-0.5 leading-tight">{e.desc}</p>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Active engine */}
+      <Card className="border-border/60">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            {activeEngine === "mempool"   && <><Eye        className="w-5 h-5 text-orange-400" />Mempool Surveillance Engine</>}
+            {activeEngine === "admin"     && <><Terminal   className="w-5 h-5 text-red-400"    />Admin Method Scanner</>}
+            {activeEngine === "batch"     && <><ServerCrash className="w-5 h-5 text-orange-300"/>Batch DoS Amplification Tester</>}
+            {activeEngine === "callabuse" && <><Zap        className="w-5 h-5 text-yellow-400" />eth_call Abuse Engine</>}
+            {activeEngine === "intel"     && <><Fingerprint className="w-5 h-5 text-purple-400"/>Node Intelligence Engine</>}
+          </CardTitle>
+          <CardDescription className="text-xs">
+            {activeEngine === "mempool"   && "Real-time Server-Sent Events stream of live pending transactions. Decodes calldata, identifies front-runnable swaps, multisig executions, and high-value transfers."}
+            {activeEngine === "admin"     && "Probes every privileged RPC method with a real payload — personal_unlockAccount, admin_peers, debug_dumpBlock, miner_setEtherbase and 36 more. Shows live response data for any that succeed."}
+            {activeEngine === "batch"     && "Tests batch request amplification at 7 sizes (5→500). Measures response time, completion rate, and calculates amplification ratio. Identifies the exact batch size at which the node's DoS protection kicks in (or doesn't)."}
+            {activeEngine === "callabuse" && "11 probes testing eth_call input validation: null to-address, 1KB/4KB/32KB calldata, MAX_UINT64 gas, genesis block call, 100K-block getLogs, and more. Shows attack path + fix for each."}
+            {activeEngine === "intel"     && "Full node intelligence dump: client version, Geth build commit, OS, Go runtime, chain ID, peer count, sync state, gas price, exposed API modules. Includes NVD CVE lookup URL for the detected version."}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {activeEngine === "mempool"   && <MempoolEngine   endpoint={endpoint} />}
+          {activeEngine === "admin"     && <AdminScanEngine endpoint={endpoint} />}
+          {activeEngine === "batch"     && <BatchDosEngine  endpoint={endpoint} />}
+          {activeEngine === "callabuse" && <CallAbuseEngine endpoint={endpoint} />}
+          {activeEngine === "intel"     && <NodeIntelEngine endpoint={endpoint} />}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function DevAudit() {
   return (
@@ -3109,33 +3885,35 @@ export default function DevAudit() {
 
       <Tabs defaultValue="universal">
         <TabsList className="grid grid-cols-4 w-full">
-          <TabsTrigger value="universal" className="flex items-center gap-1 text-xs"><Search     className="w-3 h-3" /> Wallet Scanner</TabsTrigger>
-          <TabsTrigger value="advanced"  className="flex items-center gap-1 text-xs"><ShieldAlert className="w-3 h-3" /> Advanced</TabsTrigger>
-          <TabsTrigger value="ecdsa"     className="flex items-center gap-1 text-xs"><Cpu        className="w-3 h-3" /> ECDSA</TabsTrigger>
-          <TabsTrigger value="nonce"     className="flex items-center gap-1 text-xs"><ArrowDownLeft className="w-3 h-3" /> Nonce Audit</TabsTrigger>
+          <TabsTrigger value="exploit"   className="flex items-center gap-1 text-xs font-bold text-red-300 data-[state=active]:bg-red-500/20"><Flame      className="w-3 h-3" /> Exploit Engines</TabsTrigger>
+          <TabsTrigger value="universal" className="flex items-center gap-1 text-xs"><Search        className="w-3 h-3" /> Wallet Scanner</TabsTrigger>
+          <TabsTrigger value="advanced"  className="flex items-center gap-1 text-xs"><ShieldAlert   className="w-3 h-3" /> Advanced</TabsTrigger>
+          <TabsTrigger value="ecdsa"     className="flex items-center gap-1 text-xs"><Cpu           className="w-3 h-3" /> ECDSA</TabsTrigger>
         </TabsList>
         <TabsList className="grid grid-cols-5 w-full mt-1">
-          <TabsTrigger value="rpcfuzz"  className="flex items-center gap-1 text-xs"><Target  className="w-3 h-3" /> RPC Fuzz</TabsTrigger>
-          <TabsTrigger value="pentest"  className="flex items-center gap-1 text-xs"><Bug     className="w-3 h-3" /> Pentest</TabsTrigger>
-          <TabsTrigger value="attack"   className="flex items-center gap-1 text-xs"><Swords  className="w-3 h-3" /> RPC Attack</TabsTrigger>
-          <TabsTrigger value="rpc"      className="flex items-center gap-1 text-xs"><Radio   className="w-3 h-3" /> RPC Probe</TabsTrigger>
-          <TabsTrigger value="headers"  className="flex items-center gap-1 text-xs"><Globe   className="w-3 h-3" /> Headers</TabsTrigger>
+          <TabsTrigger value="nonce"    className="flex items-center gap-1 text-xs"><ArrowDownLeft className="w-3 h-3" /> Nonce Audit</TabsTrigger>
+          <TabsTrigger value="rpcfuzz"  className="flex items-center gap-1 text-xs"><Target        className="w-3 h-3" /> RPC Fuzz</TabsTrigger>
+          <TabsTrigger value="pentest"  className="flex items-center gap-1 text-xs"><Bug           className="w-3 h-3" /> Pentest</TabsTrigger>
+          <TabsTrigger value="attack"   className="flex items-center gap-1 text-xs"><Swords        className="w-3 h-3" /> RPC Attack</TabsTrigger>
+          <TabsTrigger value="rpc"      className="flex items-center gap-1 text-xs"><Radio         className="w-3 h-3" /> RPC Probe</TabsTrigger>
         </TabsList>
-        <TabsList className="grid grid-cols-2 w-full mt-1">
-          <TabsTrigger value="contract" className="flex items-center gap-1 text-xs"><Zap      className="w-3 h-3" /> Live Contract</TabsTrigger>
-          <TabsTrigger value="entropy"  className="flex items-center gap-1 text-xs"><KeyRound className="w-3 h-3" /> Key Entropy</TabsTrigger>
+        <TabsList className="grid grid-cols-3 w-full mt-1">
+          <TabsTrigger value="headers"  className="flex items-center gap-1 text-xs"><Globe         className="w-3 h-3" /> Headers</TabsTrigger>
+          <TabsTrigger value="contract" className="flex items-center gap-1 text-xs"><Zap           className="w-3 h-3" /> Live Contract</TabsTrigger>
+          <TabsTrigger value="entropy"  className="flex items-center gap-1 text-xs"><KeyRound      className="w-3 h-3" /> Key Entropy</TabsTrigger>
         </TabsList>
-        <TabsContent value="universal" className="mt-6"><UniversalWalletScannerTab /></TabsContent>
-        <TabsContent value="advanced"  className="mt-6"><AdvancedScannerTab        /></TabsContent>
-        <TabsContent value="ecdsa"     className="mt-6"><EcdsaScannerTab           /></TabsContent>
-        <TabsContent value="nonce"     className="mt-6"><NonceAuditTab             /></TabsContent>
-        <TabsContent value="rpcfuzz"   className="mt-6"><RpcFuzzTab                /></TabsContent>
-        <TabsContent value="pentest"   className="mt-6"><PentestSuiteTab           /></TabsContent>
-        <TabsContent value="attack"    className="mt-6"><RpcAttackSuiteTab         /></TabsContent>
-        <TabsContent value="rpc"       className="mt-6"><RpcProbeTab               /></TabsContent>
-        <TabsContent value="headers"   className="mt-6"><HeadersTab                /></TabsContent>
-        <TabsContent value="contract"  className="mt-6"><ContractTestTab           /></TabsContent>
-        <TabsContent value="entropy"   className="mt-6"><KeyEntropyTab             /></TabsContent>
+        <TabsContent value="exploit"   className="mt-6"><ExploitEnginesTab          /></TabsContent>
+        <TabsContent value="universal" className="mt-6"><UniversalWalletScannerTab  /></TabsContent>
+        <TabsContent value="advanced"  className="mt-6"><AdvancedScannerTab         /></TabsContent>
+        <TabsContent value="ecdsa"     className="mt-6"><EcdsaScannerTab            /></TabsContent>
+        <TabsContent value="nonce"     className="mt-6"><NonceAuditTab              /></TabsContent>
+        <TabsContent value="rpcfuzz"   className="mt-6"><RpcFuzzTab                 /></TabsContent>
+        <TabsContent value="pentest"   className="mt-6"><PentestSuiteTab            /></TabsContent>
+        <TabsContent value="attack"    className="mt-6"><RpcAttackSuiteTab          /></TabsContent>
+        <TabsContent value="rpc"       className="mt-6"><RpcProbeTab                /></TabsContent>
+        <TabsContent value="headers"   className="mt-6"><HeadersTab                 /></TabsContent>
+        <TabsContent value="contract"  className="mt-6"><ContractTestTab            /></TabsContent>
+        <TabsContent value="entropy"   className="mt-6"><KeyEntropyTab              /></TabsContent>
       </Tabs>
     </div>
   );

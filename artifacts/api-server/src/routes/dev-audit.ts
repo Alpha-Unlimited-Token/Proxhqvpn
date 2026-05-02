@@ -30,6 +30,13 @@ import { scanEcdsaSignatures }   from "../lib/dev-audit/ecdsa-nonce-scanner";
 import { runAdvancedScan }       from "../lib/dev-audit/advanced-wallet-scanner";
 import { runRpcInjectionFuzz }  from "../lib/dev-audit/rpc-injection-fuzzer";
 import { scanNonceBatch }       from "../lib/dev-audit/nonce-gap-detector";
+import {
+  snapshotMempool,
+  runAdminScan,
+  runBatchDosTest,
+  runCallAbuseTest,
+  runNodeIntel,
+} from "../lib/dev-audit/exploit-engines";
 import { logger }              from "../lib/logger";
 
 const router = Router();
@@ -409,6 +416,135 @@ router.post("/nonce-scan", async (req: Request, res: Response) => {
   } catch (err) {
     req.log.error({ err }, "nonce-scan error");
     return res.status(500).json({ error: "Nonce scan failed" });
+  }
+});
+
+// ── Exploit Engines ────────────────────────────────────────────────────────────
+
+function validateRpcEndpoint(raw: unknown): { url: string } | { error: string } {
+  if (typeof raw !== "string" || !raw.trim()) return { error: "endpoint (string) is required" };
+  let parsed: URL;
+  try {
+    parsed = new URL(raw.trim());
+    if (!["http:", "https:"].includes(parsed.protocol)) throw new Error("bad protocol");
+  } catch {
+    return { error: "endpoint must be a valid http:// or https:// URL" };
+  }
+  return { url: raw.trim() };
+}
+
+// GET /api/dev-audit/exploit/mempool-stream
+// Server-Sent Events stream — pushes a live mempool snapshot every 4 seconds for 90s.
+router.get("/exploit/mempool-stream", async (req: Request, res: Response) => {
+  const endpointRaw = req.query["endpoint"];
+  const v = validateRpcEndpoint(endpointRaw);
+  if ("error" in v) return res.status(400).json({ error: v.error });
+
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+  res.flushHeaders();
+
+  const send = (event: string, data: unknown) => {
+    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    if ("flush" in res && typeof (res as unknown as { flush: () => void }).flush === "function") {
+      (res as unknown as { flush: () => void }).flush();
+    }
+  };
+
+  send("status", { message: "Connected — polling mempool every 4 seconds" });
+
+  let ticks = 0;
+  const MAX_TICKS = 22; // ~90 seconds
+
+  const poll = async () => {
+    try {
+      const snapshot = await snapshotMempool(v.url);
+      send("snapshot", snapshot);
+    } catch (err) {
+      send("error", { message: String(err) });
+    }
+    ticks++;
+    if (ticks >= MAX_TICKS) {
+      send("done", { message: "Stream ended after 90 seconds" });
+      res.end();
+    } else {
+      setTimeout(poll, 4_000);
+    }
+  };
+
+  req.on("close", () => { ticks = MAX_TICKS; });
+  await poll();
+});
+
+// POST /api/dev-audit/exploit/mempool-snapshot
+// Single mempool snapshot (non-streaming).
+router.post("/exploit/mempool-snapshot", async (req: Request, res: Response) => {
+  const v = validateRpcEndpoint((req.body as Record<string, unknown>)["endpoint"]);
+  if ("error" in v) return res.status(400).json({ error: v.error });
+  try {
+    const result = await snapshotMempool(v.url);
+    return res.json(result);
+  } catch (err) {
+    req.log.error({ err }, "mempool-snapshot error");
+    return res.status(500).json({ error: "Mempool snapshot failed" });
+  }
+});
+
+// POST /api/dev-audit/exploit/admin-scan
+// Probe 40+ admin/privileged RPC methods.
+router.post("/exploit/admin-scan", async (req: Request, res: Response) => {
+  const v = validateRpcEndpoint((req.body as Record<string, unknown>)["endpoint"]);
+  if ("error" in v) return res.status(400).json({ error: v.error });
+  try {
+    const result = await runAdminScan(v.url);
+    return res.json(result);
+  } catch (err) {
+    req.log.error({ err }, "admin-scan error");
+    return res.status(500).json({ error: "Admin scan failed" });
+  }
+});
+
+// POST /api/dev-audit/exploit/batch-dos
+// Test batch request amplification at 7 sizes.
+router.post("/exploit/batch-dos", async (req: Request, res: Response) => {
+  const v = validateRpcEndpoint((req.body as Record<string, unknown>)["endpoint"]);
+  if ("error" in v) return res.status(400).json({ error: v.error });
+  try {
+    const result = await runBatchDosTest(v.url);
+    return res.json(result);
+  } catch (err) {
+    req.log.error({ err }, "batch-dos error");
+    return res.status(500).json({ error: "Batch DoS test failed" });
+  }
+});
+
+// POST /api/dev-audit/exploit/call-abuse
+// Run all eth_call abuse probes.
+router.post("/exploit/call-abuse", async (req: Request, res: Response) => {
+  const v = validateRpcEndpoint((req.body as Record<string, unknown>)["endpoint"]);
+  if ("error" in v) return res.status(400).json({ error: v.error });
+  try {
+    const result = await runCallAbuseTest(v.url);
+    return res.json(result);
+  } catch (err) {
+    req.log.error({ err }, "call-abuse error");
+    return res.status(500).json({ error: "Call abuse test failed" });
+  }
+});
+
+// POST /api/dev-audit/exploit/node-intel
+// Full node intelligence & fingerprint dump.
+router.post("/exploit/node-intel", async (req: Request, res: Response) => {
+  const v = validateRpcEndpoint((req.body as Record<string, unknown>)["endpoint"]);
+  if ("error" in v) return res.status(400).json({ error: v.error });
+  try {
+    const result = await runNodeIntel(v.url);
+    return res.json(result);
+  } catch (err) {
+    req.log.error({ err }, "node-intel error");
+    return res.status(500).json({ error: "Node intelligence failed" });
   }
 });
 
