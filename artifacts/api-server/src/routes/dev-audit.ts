@@ -38,6 +38,7 @@ import {
   runCallAbuseTest,
   runNodeIntel,
 } from "../lib/dev-audit/exploit-engines";
+import { runAutonomousReport } from "../lib/dev-audit/autonomous-report";
 import { logger }              from "../lib/logger";
 
 const router = Router();
@@ -546,6 +547,36 @@ router.post("/exploit/node-intel", async (req: Request, res: Response) => {
   } catch (err) {
     req.log.error({ err }, "node-intel error");
     return res.status(500).json({ error: "Node intelligence failed" });
+  }
+});
+
+// GET /api/dev-audit/exploit/autonomous-stream
+// SSE stream: runs all 5 engines against all 7 chains + all 14 wallets autonomously.
+router.get("/exploit/autonomous-stream", async (req: Request, res: Response) => {
+  res.setHeader("Content-Type",  "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection",    "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+  res.flushHeaders();
+
+  const send = (type: string, data: unknown) => {
+    res.write(`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`);
+    (res as any).flush?.();
+  };
+
+  const closed = { v: false };
+  req.on("close", () => { closed.v = true; });
+
+  try {
+    await runAutonomousReport((evt) => {
+      if (closed.v) return;
+      send(evt.type, evt);
+    });
+  } catch (err) {
+    req.log.error({ err }, "autonomous-report error");
+    if (!closed.v) send("error", { msg: String(err) });
+  } finally {
+    if (!closed.v) res.end();
   }
 });
 

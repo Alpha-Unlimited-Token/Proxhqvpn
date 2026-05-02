@@ -3757,6 +3757,645 @@ function NodeIntelEngine({ endpoint }: { endpoint: string }) {
   );
 }
 
+// ── Autonomous Report Tab ─────────────────────────────────────────────────────
+
+const AUTO_CHAINS_META = [
+  { id: "eth",  chain: "Ethereum Mainnet",  url: "https://ethereum.publicnode.com" },
+  { id: "bsc",  chain: "BNB Smart Chain",   url: "https://bsc.publicnode.com" },
+  { id: "poly", chain: "Polygon Mainnet",   url: "https://polygon-bor.publicnode.com" },
+  { id: "arb",  chain: "Arbitrum One",      url: "https://arbitrum-one.publicnode.com" },
+  { id: "op",   chain: "Optimism",          url: "https://optimism.publicnode.com" },
+  { id: "base", chain: "Base",              url: "https://base.publicnode.com" },
+  { id: "avax", chain: "Avalanche C-Chain", url: "https://avalanche-c-chain.publicnode.com" },
+];
+
+const AUTO_WALLET_LIST = [
+  "0x0d5c41c609fe1ec073c3b4fa10949d602ed059bb",
+  "0xb98e8eefba0f7476b85cd9716cb5b38a935aa872",
+  "0xb01fed2f701695992a4f7ffdb53f3af099e140d7",
+  "0xf70da97812cb96acdf810712aa562db8dfa3dbef",
+  "0xc600d76b5bfe058d6e52d2c08ceba6c85774f9b6",
+  "0xbcd263db9c9ed9215bcb07897f9da582129dd7da",
+  "0xea7fc58e112fb3607d8a7694e1f71c6894c72d3c",
+  "0xacd1f4e274d1a4bb686a41549a90253cf152dd6d",
+  "0xe205e85068704ecf1c3c55b76bcb466ff0798526",
+  "0x9b9fd485e94c73af3bc8b9a630c4de7203bc96cb",
+  "0x610e10ed49f57591abe16d919b6d15aaf4557237",
+  "0xa5cc3e44ed97f8c94df27822c85303a3bd4e8134",
+  "0x7aebc630f301f15baddf160103dc3bd8f9baf043",
+  "0x487663784c77ba56e32d9fe60485d93c4c319385",
+];
+
+interface AutoProgressEvent { phase: string; chain?: string; pct: number; msg: string; type: string; data?: unknown; }
+interface AutoChainResult {
+  chain: string; url: string; id: string; riskScore: number;
+  nodeIntel: any; adminScan: any; batchDos: any; callAbuse: any; mempool: any;
+  criticalFindings: string[]; highFindings: string[]; elapsedMs: number;
+}
+interface AutoWalletResult { address: string; findings: {severity:string;title:string;detail:string}[]; riskScore: number; nonceGap: any; }
+interface AutoReport {
+  generatedAt: string; scanDurationMs: number; totalChains: number; totalWallets: number;
+  overallRisk: number; criticalCount: number; highCount: number; mediumCount: number;
+  chains: AutoChainResult[]; wallets: AutoWalletResult[];
+  topFindings: {severity:string;chain?:string;wallet?:string;title:string;detail:string}[];
+  summary: string;
+}
+
+function RiskRing({ score, size = 64 }: { score: number; size?: number }) {
+  const r = size / 2 - 6;
+  const circ = 2 * Math.PI * r;
+  const fill = circ * (1 - score / 100);
+  const color = score >= 70 ? "#ef4444" : score >= 40 ? "#f97316" : score >= 20 ? "#eab308" : "#22c55e";
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#1f2937" strokeWidth={6}/>
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={6}
+        strokeDasharray={circ} strokeDashoffset={fill}
+        transform={`rotate(-90 ${size/2} ${size/2})`} strokeLinecap="round"
+        style={{transition:"stroke-dashoffset 0.6s ease"}}/>
+      <text x={size/2} y={size/2+1} textAnchor="middle" dominantBaseline="middle"
+        fontSize={size < 60 ? 10 : 13} fontWeight="bold" fill={color}>{score}</text>
+    </svg>
+  );
+}
+
+function FindingCard({ sev, title, detail, chain, wallet }: { sev: string; title: string; detail?: string; chain?: string; wallet?: string }) {
+  const [open, setOpen] = useState(false);
+  const cls = sev === "critical" ? "border-red-500/50 bg-red-500/8"
+    : sev === "high" ? "border-orange-500/50 bg-orange-500/8"
+    : sev === "medium" ? "border-yellow-500/50 bg-yellow-500/8"
+    : "border-blue-500/30 bg-blue-500/5";
+  return (
+    <div className={`border rounded-lg p-3 cursor-pointer ${cls}`} onClick={() => setOpen(o => !o)}>
+      <div className="flex items-start gap-2">
+        <span className="shrink-0 mt-0.5">{sevBadge(sev as Severity)}</span>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold leading-tight">{title}</p>
+          {(chain || wallet) && (
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {chain && <span className="mr-2">⛓ {chain}</span>}
+              {wallet && <span className="font-mono">{wallet.slice(0,10)}…{wallet.slice(-6)}</span>}
+            </p>
+          )}
+        </div>
+        <span className="text-muted-foreground text-xs">{open ? "▲" : "▼"}</span>
+      </div>
+      {open && detail && <p className="text-xs text-muted-foreground mt-2 leading-relaxed border-t border-border/50 pt-2">{detail}</p>}
+    </div>
+  );
+}
+
+function ChainResultCard({ r }: { r: AutoChainResult }) {
+  const [expanded, setExpanded] = useState(false);
+  const admin = r.adminScan as any;
+  const batch = r.batchDos  as any;
+  const call  = r.callAbuse as any;
+  const intel = r.nodeIntel as any;
+  const pool  = r.mempool   as any;
+
+  const exposedMethods: string[] = [
+    ...(admin?.criticalExposed ?? []).map((m:any) => m.method),
+    ...(admin?.highExposed ?? []).map((m:any) => m.method),
+    ...(admin?.mediumExposed ?? []).map((m:any) => m.method),
+  ];
+  const acceptedProbes: string[] = (call?.probes ?? []).filter((p:any)=>p.accepted).map((p:any)=>p.id);
+  const blockedProbes:  string[] = (call?.probes ?? []).filter((p:any)=>!p.accepted).map((p:any)=>p.id);
+
+  return (
+    <div className="border border-border rounded-xl overflow-hidden">
+      <div className="flex items-center gap-3 p-4 cursor-pointer hover:bg-muted/20" onClick={() => setExpanded(e => !e)}>
+        <RiskRing score={r.riskScore} size={52} />
+        <div className="flex-1 min-w-0">
+          <p className="font-semibold text-sm">{r.chain}</p>
+          <p className="text-xs text-muted-foreground font-mono truncate">{r.url}</p>
+          <div className="flex gap-2 mt-1 flex-wrap">
+            {r.criticalFindings.length > 0 && <span className="text-xs px-1.5 py-0.5 rounded bg-red-500/20 text-red-300">{r.criticalFindings.length} critical</span>}
+            {r.highFindings.length    > 0 && <span className="text-xs px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-300">{r.highFindings.length} high</span>}
+            {exposedMethods.length    > 0 && <span className="text-xs px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-300">{exposedMethods.length} exposed methods</span>}
+          </div>
+        </div>
+        <div className="text-right shrink-0">
+          <p className="text-xs text-muted-foreground">{(r.elapsedMs/1000).toFixed(1)}s</p>
+          <p className="text-xs text-muted-foreground mt-0.5">{expanded ? "▲ collapse" : "▼ expand"}</p>
+        </div>
+      </div>
+
+      {expanded && (
+        <div className="border-t border-border p-4 space-y-4 bg-muted/10">
+          {/* Node Intel */}
+          {intel && (
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Engine 5 — Node Intelligence</p>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                {intel.clientVersion && <div className="col-span-2 font-mono bg-muted/40 rounded px-2 py-1 break-all">{intel.clientVersion}</div>}
+                {intel.blockNumber   && <div><span className="text-muted-foreground">Block: </span>{Number(intel.blockNumber).toLocaleString()}</div>}
+                {intel.peerCount     != null && <div><span className="text-muted-foreground">Peers: </span>{intel.peerCount}</div>}
+                {intel.exposedModules?.length > 0 && (
+                  <div className="col-span-2">
+                    <span className="text-muted-foreground">Exposed modules: </span>
+                    {intel.exposedModules.map((m:string) => (
+                      <code key={m} className="text-orange-300 bg-orange-500/10 px-1 rounded text-xs mr-1">{m}</code>
+                    ))}
+                  </div>
+                )}
+                {intel.securityNotes?.map((n:string, i:number) => (
+                  <div key={i} className="col-span-2 text-yellow-300 text-xs">⚠ {n}</div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Admin Scan */}
+          {admin && (
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Engine 2 — Admin Method Scanner ({(admin.methodsProbed ?? 0)} methods probed)</p>
+              <div className="space-y-1">
+                {[...(admin.criticalExposed??[]), ...(admin.highExposed??[]), ...(admin.mediumExposed??[])].map((m:any) => (
+                  <div key={m.method} className="flex items-start gap-2 text-xs">
+                    <span className="shrink-0">{sevBadge(m.severity as Severity)}</span>
+                    <code className="text-orange-200">{m.method}</code>
+                    <span className="text-muted-foreground">— {m.attackVector ?? m.impact ?? "exposed"}</span>
+                  </div>
+                ))}
+                {(admin.blockedCount ?? 0) > 0 && (
+                  <p className="text-xs text-muted-foreground">{admin.blockedCount} methods blocked ✓</p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Batch DoS */}
+          {batch && (
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Engine 3 — Batch DoS Tester</p>
+              <div className="text-xs space-y-1">
+                {(batch.batchResults ?? []).map((br:any, i:number) => (
+                  <div key={i} className="flex gap-3">
+                    <span className="text-muted-foreground">Batch-{br.batchSize}:</span>
+                    <span>{br.returned ?? br.batchSize}/{br.batchSize} returned in {br.ms}ms</span>
+                  </div>
+                ))}
+                <div className="flex gap-2 mt-1">
+                  <span className="text-muted-foreground">Batch cap:</span>
+                  <span className={batch.batchLimitDetected ? "text-green-400" : "text-red-400"}>
+                    {batch.batchLimitDetected ? `${batch.batchLimitDetected} (cap enforced ✓)` : "No cap detected — DoS risk"}
+                  </span>
+                </div>
+                <div className="flex gap-2">
+                  <span className="text-muted-foreground">Risk:</span>
+                  <span className={batch.riskScore >= 70 ? "text-red-400" : batch.riskScore >= 40 ? "text-orange-400" : "text-green-400"}>{batch.riskScore}/100</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* eth_call Abuse */}
+          {call && (
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Engine 4 — eth_call Abuse Engine ({(call.probes ?? []).length} probes)</p>
+              <div className="text-xs space-y-1">
+                {acceptedProbes.length > 0 && (
+                  <div><span className="text-red-400 font-semibold">Accepted: </span>{acceptedProbes.join(", ")}</div>
+                )}
+                {blockedProbes.length > 0 && (
+                  <div><span className="text-green-400">Blocked: </span>{blockedProbes.join(", ")}</div>
+                )}
+                {call.riskScore != null && (
+                  <div><span className="text-muted-foreground">Risk: </span><span className={call.riskScore>=70?"text-red-400":call.riskScore>=40?"text-orange-400":"text-green-400"}>{call.riskScore}/100</span></div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Mempool */}
+          {pool && (
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Engine 1 — Mempool Surveillance</p>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                {pool.pendingCount      != null && <div><span className="text-muted-foreground">Pending: </span>{Number(pool.pendingCount).toLocaleString()}</div>}
+                {pool.queuedCount       != null && <div><span className="text-muted-foreground">Queued: </span>{Number(pool.queuedCount).toLocaleString()}</div>}
+                {pool.frontRunnableCount != null && <div><span className="text-red-400 font-semibold">Front-runnable DEX swaps: </span>{Number(pool.frontRunnableCount).toLocaleString()}</div>}
+                {pool.highValueCount    != null && <div><span className="text-muted-foreground">High-value transfers: </span>{Number(pool.highValueCount).toLocaleString()}</div>}
+                {pool.multisigCount     != null && <div><span className="text-muted-foreground">Multisig executions: </span>{Number(pool.multisigCount).toLocaleString()}</div>}
+              </div>
+            </div>
+          )}
+
+          {/* Critical Findings */}
+          {(r.criticalFindings.length > 0 || r.highFindings.length > 0) && (
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Findings Summary</p>
+              <div className="space-y-1">
+                {r.criticalFindings.map((f,i) => <div key={i} className="text-xs text-red-300">🔴 {f}</div>)}
+                {r.highFindings.map((f,i)    => <div key={i} className="text-xs text-orange-300">🟠 {f}</div>)}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function WalletResultCard({ w }: { w: AutoWalletResult }) {
+  const [expanded, setExpanded] = useState(false);
+  const nonce = w.nonceGap as any;
+  const hasFindings = w.findings.length > 0;
+  return (
+    <div className={`border rounded-lg overflow-hidden ${hasFindings ? "border-orange-500/40" : "border-border"}`}>
+      <div className="flex items-center gap-3 p-3 cursor-pointer" onClick={() => setExpanded(e => !e)}>
+        <div className={`w-2 h-2 rounded-full shrink-0 ${w.riskScore >= 70 ? "bg-red-500" : w.riskScore >= 40 ? "bg-orange-500" : w.riskScore > 0 ? "bg-yellow-500" : "bg-green-500"}`}/>
+        <code className="text-xs flex-1 truncate">{w.address}</code>
+        <div className="flex gap-2 items-center">
+          {w.findings.filter(f=>f.severity==="critical").length > 0 && <span className="text-xs text-red-400">{w.findings.filter(f=>f.severity==="critical").length} critical</span>}
+          {w.findings.filter(f=>f.severity==="high").length > 0    && <span className="text-xs text-orange-400">{w.findings.filter(f=>f.severity==="high").length} high</span>}
+          {!hasFindings && <span className="text-xs text-green-400">CLEAN</span>}
+          <span className="text-muted-foreground text-xs">{expanded ? "▲" : "▼"}</span>
+        </div>
+      </div>
+      {expanded && (
+        <div className="border-t border-border p-3 bg-muted/10 text-xs space-y-2">
+          {nonce && (
+            <div className="space-y-1">
+              <p className="text-muted-foreground">Confirmed nonce: <span className="text-foreground font-mono">{nonce.confirmedNonce ?? "N/A"}</span></p>
+              <p className="text-muted-foreground">Pending nonce: <span className="text-foreground font-mono">{nonce.pendingNonce ?? "N/A"}</span></p>
+              {nonce.preEip155Txs?.length > 0 && <p className="text-yellow-400">⚠ {nonce.preEip155Txs.length} pre-EIP155 txs (replay risk)</p>}
+            </div>
+          )}
+          {w.findings.map((f, i) => (
+            <div key={i} className="flex items-start gap-2">
+              <span className="shrink-0">{sevBadge(f.severity as Severity)}</span>
+              <div>
+                <p className="font-semibold">{f.title}</p>
+                {f.detail && <p className="text-muted-foreground mt-0.5">{f.detail}</p>}
+              </div>
+            </div>
+          ))}
+          {!hasFindings && <p className="text-green-400">No nonce gaps, no pre-EIP155 transactions, clean sequence ✓</p>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AutonomousReportTab() {
+  const [status, setStatus]   = useState<"idle" | "running" | "done" | "error">("idle");
+  const [logs, setLogs]       = useState<string[]>([]);
+  const [pct, setPct]         = useState(0);
+  const [report, setReport]   = useState<AutoReport | null>(null);
+  const [chainResults, setChainResults] = useState<AutoChainResult[]>([]);
+  const [walletResults, setWalletResults] = useState<AutoWalletResult[]>([]);
+  const [activeSection, setActiveSection] = useState<"overview" | "chains" | "wallets" | "matrix">("overview");
+  const esRef   = useRef<EventSource | null>(null);
+  const logRef  = useRef<HTMLDivElement>(null);
+  const { toast } = useToast();
+
+  const pushLog = (msg: string) => {
+    setLogs(prev => [...prev.slice(-200), `[${new Date().toLocaleTimeString()}] ${msg}`]);
+    setTimeout(() => { logRef.current?.scrollTo({ top: 99999, behavior: "smooth" }); }, 50);
+  };
+
+  const launch = () => {
+    if (esRef.current) { esRef.current.close(); }
+    setStatus("running");
+    setLogs([]);
+    setPct(0);
+    setReport(null);
+    setChainResults([]);
+    setWalletResults([]);
+    pushLog("Launching autonomous scan — 7 chains × 5 engines + 14 wallets…");
+
+    const url = `${BASE}/api/dev-audit/exploit/autonomous-stream`;
+    const es  = new EventSource(url);
+    esRef.current = es;
+
+    const handle = (type: string) => (e: MessageEvent) => {
+      const evt: AutoProgressEvent = JSON.parse(e.data);
+      if (evt.pct) setPct(evt.pct);
+
+      if (type === "progress" || type === "error") {
+        pushLog(evt.msg);
+      } else if (type === "engine-result") {
+        pushLog(`✓ ${evt.chain}: risk ${(evt.data as any)?.riskScore ?? "?"}/100 — ${(evt.data as any)?.criticalFindings?.length ?? 0} critical, ${(evt.data as any)?.highFindings?.length ?? 0} high`);
+        setChainResults(prev => [...prev, evt.data as AutoChainResult]);
+      } else if (type === "wallet-result") {
+        const ws = evt.data as AutoWalletResult[];
+        setWalletResults(ws);
+        pushLog(`Wallet scan complete — ${ws.filter(w=>w.findings.length>0).length}/${ws.length} wallets with findings`);
+      } else if (type === "done") {
+        const r = evt.data as AutoReport;
+        setReport(r);
+        setStatus("done");
+        pushLog(`━━ SCAN COMPLETE ━━ Risk: ${r.overallRisk}/100 · ${r.criticalCount} critical · ${r.highCount} high · ${((r.scanDurationMs)/1000).toFixed(1)}s`);
+        es.close();
+        toast({ title: "Autonomous Scan Complete", description: r.summary });
+      }
+    };
+
+    es.addEventListener("progress",      handle("progress"));
+    es.addEventListener("engine-result", handle("engine-result"));
+    es.addEventListener("wallet-result", handle("wallet-result"));
+    es.addEventListener("done",          handle("done"));
+    es.addEventListener("error",         (e: MessageEvent) => { try { handle("error")(e); } catch {} });
+
+    es.onerror = () => {
+      if (status !== "done") {
+        setStatus("error");
+        pushLog("SSE connection error — scan may have completed.");
+        es.close();
+      }
+    };
+  };
+
+  const stop = () => {
+    esRef.current?.close();
+    setStatus("idle");
+    pushLog("Scan stopped by user.");
+  };
+
+  const downloadReport = () => {
+    if (!report) return;
+    const blob = new Blob([JSON.stringify({ ...report, chains: chainResults, wallets: walletResults }, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `QuantumAudit-Autonomous-Report-${new Date().toISOString().split("T")[0]}.json`;
+    a.click();
+  };
+
+  const sevCount = (s: string) => report?.topFindings.filter(f=>f.severity===s).length ?? 0;
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <Card className="border-emerald-500/30 bg-emerald-500/5">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <Activity className="w-5 h-5 text-emerald-400"/>
+                <h2 className="font-bold text-lg">Autonomous Full-Spectrum Report</h2>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Runs all 5 Exploit Engines against {AUTO_CHAINS_META.length} major chains
+                + nonce audit on all {AUTO_WALLET_LIST.length} pre-loaded wallets. Zero mocked data — every call is live.
+              </p>
+              <div className="flex flex-wrap gap-3 mt-2 text-xs text-muted-foreground">
+                <span>⛓ {AUTO_CHAINS_META.map(c=>c.chain).join(" · ")}</span>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              {status === "running" ? (
+                <Button variant="destructive" size="sm" onClick={stop}><Square className="w-3.5 h-3.5 mr-1.5"/>Stop</Button>
+              ) : (
+                <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={launch}>
+                  <Play className="w-3.5 h-3.5 mr-1.5"/>
+                  {status === "done" ? "Re-run Scan" : "Launch Autonomous Scan"}
+                </Button>
+              )}
+              {report && (
+                <Button variant="outline" size="sm" onClick={downloadReport}><Database className="w-3.5 h-3.5 mr-1.5"/>Download JSON</Button>
+              )}
+            </div>
+          </div>
+
+          {/* Progress Bar */}
+          {(status === "running" || status === "done") && (
+            <div className="mt-3">
+              <div className="flex justify-between text-xs text-muted-foreground mb-1">
+                <span>{status === "done" ? "Scan complete" : "Scanning…"}</span>
+                <span>{pct}%</span>
+              </div>
+              <div className="h-2 bg-muted rounded-full overflow-hidden">
+                <div className={`h-full rounded-full transition-all duration-500 ${status==="done" ? "bg-emerald-500" : "bg-emerald-400 animate-pulse"}`} style={{ width: `${pct}%` }}/>
+              </div>
+              <div className="flex gap-4 mt-1.5 text-xs text-muted-foreground">
+                <span>✓ {chainResults.length}/{AUTO_CHAINS_META.length} chains</span>
+                <span>✓ {walletResults.length}/{AUTO_WALLET_LIST.length} wallets</span>
+                {report && <span className="text-red-400">{report.criticalCount} critical</span>}
+                {report && <span className="text-orange-400">{report.highCount} high</span>}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Live Log */}
+      {logs.length > 0 && (
+        <Card>
+          <CardHeader className="py-2 px-4">
+            <CardTitle className="text-xs text-muted-foreground flex items-center gap-2">
+              <Terminal className="w-3.5 h-3.5"/>Live Scan Log
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div ref={logRef} className="h-40 overflow-y-auto font-mono text-xs p-3 bg-black/40 rounded-b-xl space-y-0.5">
+              {logs.map((l, i) => (
+                <div key={i} className={`${l.includes("COMPLETE") ? "text-emerald-400 font-bold" : l.includes("critical") || l.includes("error") ? "text-red-400" : l.includes("✓") ? "text-emerald-400" : "text-muted-foreground"}`}>{l}</div>
+              ))}
+              {status === "running" && <div className="text-emerald-400 animate-pulse">▌</div>}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Idle state — info cards */}
+      {status === "idle" && !report && (
+        <div className="grid grid-cols-1 gap-3">
+          <Card className="border-border/50">
+            <CardContent className="p-4">
+              <h3 className="font-semibold text-sm mb-3 flex items-center gap-2"><Zap className="w-4 h-4 text-yellow-400"/>What the Autonomous Scan Executes</h3>
+              <div className="grid grid-cols-1 gap-2 text-xs text-muted-foreground">
+                {[
+                  ["Engine 1 — Mempool Surveillance",  "Snapshots txpool_content, txpool_inspect, txpool_status. Decodes calldata, identifies front-runnable DEX swaps, high-value transfers, multisig executions."],
+                  ["Engine 2 — Admin Method Scanner",  "Probes 55+ privileged methods (eth_accounts, personal_*, admin_*, debug_*). Rates each by CVSS-equivalent severity. Shows exact attack vector per exposed method."],
+                  ["Engine 3 — Batch DoS Tester",      "Sends batch-100, batch-200, batch-500 requests. Measures amplification factor, detects missing batch size caps, scores DoS risk 0–100."],
+                  ["Engine 4 — eth_call Abuse Engine", "Probes null-to, 1KB/4KB/32KB calldata, MAX_UINT64 gas, estimateGas. Identifies missing input validation that enables CPU exhaustion attacks."],
+                  ["Engine 5 — Node Intelligence",     "Fingerprints client version (Geth/Besu/Nethermind), Go/Java runtime, OS, block height, peer count, exposed API modules. CVE lookup URLs generated."],
+                  ["Wallet Nonce Audit",               "Runs eth_getTransactionCount (confirmed + pending) on all 14 wallets. Fetches tx history via Blockscout. Detects nonce gaps, pre-EIP155 transactions, EIP-7702 delegation risks."],
+                ].map(([title, desc]) => (
+                  <div key={title} className="flex gap-3 p-2 border border-border/40 rounded-lg">
+                    <span className="text-emerald-400 shrink-0">▶</span>
+                    <div><p className="font-semibold text-foreground">{title}</p><p className="mt-0.5">{desc}</p></div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border/50">
+            <CardContent className="p-4">
+              <h3 className="font-semibold text-sm mb-2 flex items-center gap-2"><Network className="w-4 h-4 text-blue-400"/>Target Chains</h3>
+              <div className="grid grid-cols-2 gap-1.5">
+                {AUTO_CHAINS_META.map(c => (
+                  <div key={c.id} className="text-xs flex items-center gap-2 p-2 border border-border/30 rounded">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"/>
+                    <div><p className="font-medium">{c.chain}</p><p className="text-muted-foreground font-mono text-[10px]">{c.url}</p></div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border/50">
+            <CardContent className="p-4">
+              <h3 className="font-semibold text-sm mb-2 flex items-center gap-2"><Fingerprint className="w-4 h-4 text-purple-400"/>Pre-Loaded Wallets ({AUTO_WALLET_LIST.length})</h3>
+              <div className="space-y-1">
+                {AUTO_WALLET_LIST.map(a => (
+                  <div key={a} className="font-mono text-xs text-muted-foreground flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/50 shrink-0"/>
+                    {a}
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Full Report — shown when done (or during run with partial data) */}
+      {(chainResults.length > 0 || report) && (
+        <div className="space-y-4">
+          {/* Executive Summary */}
+          {report && (
+            <Card className={`border-2 ${report.overallRisk >= 70 ? "border-red-500/50" : report.overallRisk >= 40 ? "border-orange-500/50" : "border-yellow-500/50"}`}>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-4 flex-wrap">
+                  <RiskRing score={report.overallRisk} size={80}/>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-bold text-base">Executive Summary</h3>
+                    <p className="text-xs text-muted-foreground mt-1">{report.summary}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Generated: {new Date(report.generatedAt).toLocaleString()} · Duration: {(report.scanDurationMs/1000).toFixed(1)}s</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-4 gap-2 mt-4">
+                  {[
+                    { label: "CRITICAL", count: report.criticalCount, cls: "bg-red-500/20 border-red-500/40 text-red-300" },
+                    { label: "HIGH",     count: report.highCount,     cls: "bg-orange-500/20 border-orange-500/40 text-orange-300" },
+                    { label: "MEDIUM",   count: report.mediumCount,   cls: "bg-yellow-500/20 border-yellow-500/40 text-yellow-300" },
+                    { label: "WALLETS WITH FINDINGS", count: report.wallets.filter(w=>w.findings.length>0).length, cls: "bg-purple-500/20 border-purple-500/40 text-purple-300" },
+                  ].map(({ label, count, cls }) => (
+                    <div key={label} className={`border rounded-lg p-2 text-center ${cls}`}>
+                      <p className="text-2xl font-bold">{count}</p>
+                      <p className="text-[10px] font-semibold mt-0.5">{label}</p>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Section Nav */}
+          <div className="flex gap-1 flex-wrap">
+            {(["overview","chains","wallets","matrix"] as const).map(s => (
+              <button key={s} onClick={() => setActiveSection(s)}
+                className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${activeSection===s ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted"}`}>
+                {s === "overview" ? "🔍 Top Findings" : s === "chains" ? `⛓ Chains (${chainResults.length})` : s === "wallets" ? `👛 Wallets (${walletResults.length})` : "📋 Remediation"}
+              </button>
+            ))}
+          </div>
+
+          {/* Top Findings */}
+          {activeSection === "overview" && (
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">All critical and high severity findings across all chains and wallets, ranked by severity:</p>
+              {(report?.topFindings ?? chainResults.flatMap(c => [
+                ...c.criticalFindings.map(f => ({ severity:"critical", chain:c.chain, title:f, detail:"" })),
+                ...c.highFindings.map(f => ({ severity:"high", chain:c.chain, title:f, detail:"" })),
+              ])).length === 0 && <p className="text-sm text-muted-foreground text-center py-8">No critical or high findings yet — scan in progress…</p>}
+              {(report?.topFindings ?? chainResults.flatMap(c => [
+                ...c.criticalFindings.map(f => ({ severity:"critical", chain:c.chain, title:f, detail:"", wallet:undefined })),
+                ...c.highFindings.map(f => ({ severity:"high", chain:c.chain, title:f, detail:"", wallet:undefined })),
+              ])).map((f,i) => (
+                <FindingCard key={i} sev={f.severity} title={f.title} detail={f.detail} chain={f.chain} wallet={(f as any).wallet}/>
+              ))}
+            </div>
+          )}
+
+          {/* Chain Results */}
+          {activeSection === "chains" && (
+            <div className="space-y-3">
+              <p className="text-xs text-muted-foreground">Click any chain to expand full engine output. Sorted by risk score (highest first).</p>
+              {[...chainResults].sort((a,b) => b.riskScore - a.riskScore).map(r => (
+                <ChainResultCard key={r.id ?? r.chain} r={r}/>
+              ))}
+              {chainResults.length < AUTO_CHAINS_META.length && status === "running" && (
+                <div className="text-xs text-muted-foreground text-center py-4 animate-pulse">
+                  Scanning {AUTO_CHAINS_META.length - chainResults.length} remaining chains…
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Wallet Results */}
+          {activeSection === "wallets" && (
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">Nonce sequence audit across all {AUTO_WALLET_LIST.length} pre-loaded wallets on Ethereum Mainnet.</p>
+              {walletResults.length === 0 && (
+                <p className="text-xs text-muted-foreground text-center py-4">
+                  {status === "running" ? "Wallet scan running…" : "No wallet results yet."}
+                </p>
+              )}
+              {[...walletResults].sort((a,b) => b.riskScore - a.riskScore).map(w => (
+                <WalletResultCard key={w.address} w={w}/>
+              ))}
+            </div>
+          )}
+
+          {/* Remediation Matrix */}
+          {activeSection === "matrix" && report && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Remediation Priority Matrix</CardTitle>
+                <CardDescription className="text-xs">Ordered by severity and effort. Address P0 items immediately.</CardDescription>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="divide-y divide-border">
+                  {[
+                    { priority: "P0 — IMMEDIATE", sev: "critical", items: report.topFindings.filter(f=>f.severity==="critical") },
+                    { priority: "P1 — THIS WEEK", sev: "high",     items: report.topFindings.filter(f=>f.severity==="high") },
+                    { priority: "P2 — THIS SPRINT",sev: "medium",  items: [] },
+                  ].map(({ priority, sev, items }) => items.length > 0 && (
+                    <div key={priority} className="p-3">
+                      <p className={`text-xs font-bold mb-2 ${sev==="critical"?"text-red-400":sev==="high"?"text-orange-400":"text-yellow-400"}`}>{priority}</p>
+                      <div className="space-y-1.5">
+                        {items.map((f,i) => (
+                          <div key={i} className="flex items-start gap-2 text-xs">
+                            <span className="shrink-0">{sevBadge(f.severity as Severity)}</span>
+                            <div>
+                              <p className="font-medium">{f.title}</p>
+                              {f.chain  && <p className="text-muted-foreground">Chain: {f.chain}</p>}
+                              {(f as any).wallet && <p className="text-muted-foreground font-mono">{(f as any).wallet}</p>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                  <div className="p-3">
+                    <p className="text-xs font-bold text-muted-foreground mb-2">HARDENED NODE CONFIGURATION</p>
+                    <pre className="text-xs bg-black/40 rounded-lg p-3 overflow-x-auto text-green-400 font-mono whitespace-pre">{`geth \\
+  --mainnet \\
+  --http.api "eth" \\
+  --http.addr "127.0.0.1" \\
+  --http.vhosts "localhost" \\
+  --rpc.gascap 25000000 \\
+  --rpc.batch-request-limit 10 \\
+  --rpc.batch-response-max-size 10485760`}</pre>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {activeSection === "matrix" && !report && (
+            <p className="text-xs text-muted-foreground text-center py-8">Remediation matrix will be generated when the scan completes.</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main Exploit Engines Tab ───────────────────────────────────────────────────
 
 function ExploitEnginesTab() {
@@ -3884,25 +4523,27 @@ export default function DevAudit() {
         </AlertDescription>
       </Alert>
 
-      <Tabs defaultValue="universal">
+      <Tabs defaultValue="auto">
         <TabsList className="grid grid-cols-4 w-full">
-          <TabsTrigger value="exploit"   className="flex items-center gap-1 text-xs font-bold text-red-300 data-[state=active]:bg-red-500/20"><Flame      className="w-3 h-3" /> Exploit Engines</TabsTrigger>
+          <TabsTrigger value="auto"      className="flex items-center gap-1 text-xs font-bold text-emerald-300 data-[state=active]:bg-emerald-500/20"><Activity   className="w-3 h-3" /> Auto Report</TabsTrigger>
+          <TabsTrigger value="exploit"   className="flex items-center gap-1 text-xs font-bold text-red-300    data-[state=active]:bg-red-500/20"    ><Flame      className="w-3 h-3" /> Exploit Engines</TabsTrigger>
           <TabsTrigger value="universal" className="flex items-center gap-1 text-xs"><Search        className="w-3 h-3" /> Wallet Scanner</TabsTrigger>
           <TabsTrigger value="advanced"  className="flex items-center gap-1 text-xs"><ShieldAlert   className="w-3 h-3" /> Advanced</TabsTrigger>
-          <TabsTrigger value="ecdsa"     className="flex items-center gap-1 text-xs"><Cpu           className="w-3 h-3" /> ECDSA</TabsTrigger>
         </TabsList>
         <TabsList className="grid grid-cols-5 w-full mt-1">
+          <TabsTrigger value="ecdsa"    className="flex items-center gap-1 text-xs"><Cpu           className="w-3 h-3" /> ECDSA</TabsTrigger>
           <TabsTrigger value="nonce"    className="flex items-center gap-1 text-xs"><ArrowDownLeft className="w-3 h-3" /> Nonce Audit</TabsTrigger>
           <TabsTrigger value="rpcfuzz"  className="flex items-center gap-1 text-xs"><Target        className="w-3 h-3" /> RPC Fuzz</TabsTrigger>
           <TabsTrigger value="pentest"  className="flex items-center gap-1 text-xs"><Bug           className="w-3 h-3" /> Pentest</TabsTrigger>
           <TabsTrigger value="attack"   className="flex items-center gap-1 text-xs"><Swords        className="w-3 h-3" /> RPC Attack</TabsTrigger>
-          <TabsTrigger value="rpc"      className="flex items-center gap-1 text-xs"><Radio         className="w-3 h-3" /> RPC Probe</TabsTrigger>
         </TabsList>
-        <TabsList className="grid grid-cols-3 w-full mt-1">
+        <TabsList className="grid grid-cols-4 w-full mt-1">
+          <TabsTrigger value="rpc"      className="flex items-center gap-1 text-xs"><Radio         className="w-3 h-3" /> RPC Probe</TabsTrigger>
           <TabsTrigger value="headers"  className="flex items-center gap-1 text-xs"><Globe         className="w-3 h-3" /> Headers</TabsTrigger>
           <TabsTrigger value="contract" className="flex items-center gap-1 text-xs"><Zap           className="w-3 h-3" /> Live Contract</TabsTrigger>
           <TabsTrigger value="entropy"  className="flex items-center gap-1 text-xs"><KeyRound      className="w-3 h-3" /> Key Entropy</TabsTrigger>
         </TabsList>
+        <TabsContent value="auto"      className="mt-6"><AutonomousReportTab        /></TabsContent>
         <TabsContent value="exploit"   className="mt-6"><ExploitEnginesTab          /></TabsContent>
         <TabsContent value="universal" className="mt-6"><UniversalWalletScannerTab  /></TabsContent>
         <TabsContent value="advanced"  className="mt-6"><AdvancedScannerTab         /></TabsContent>
