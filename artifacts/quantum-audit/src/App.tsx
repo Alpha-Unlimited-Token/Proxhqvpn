@@ -30,6 +30,7 @@ import KeyRecovery from "@/pages/KeyRecovery";
 import WalletScanner from "@/pages/WalletScanner";
 import WalletIntel from "@/pages/WalletIntel";
 import WalletWebSpider from "@/pages/WalletWebSpider";
+import NodeCracker from "@/pages/NodeCracker";
 import DevAudit from "@/pages/DevAudit";
 
 const queryClient = new QueryClient();
@@ -62,6 +63,7 @@ function Router() {
         <Route path="/wallet-scanner" component={WalletScanner} />
         <Route path="/wallet-intel" component={WalletIntel} />
         <Route path="/wallet-web-spider" component={WalletWebSpider} />
+        <Route path="/node-cracker" component={NodeCracker} />
         <Route path="/dev-audit" component={DevAudit} />
         <Route component={NotFound} />
       </Switch>
