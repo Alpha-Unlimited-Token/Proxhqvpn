@@ -233,3 +233,9 @@ id = "SA7wZcPMS1mI_KCJ30Cyy"
 uri = "file://QuantumAudit_XRP_Attack_Report.md"
 type = "text"
 title = "Report 2: XRP Attack Wallet Trace & KYC Analysis"
+
+[[outputs]]
+id = "TMDSh887K4ncpBMpsHvHO"
+uri = "file://QuantumAudit_XRP_24448_Full_Package.zip"
+type = "unspecified"
+title = "XRP 24,448 Stolen — Full Investigation Package"
