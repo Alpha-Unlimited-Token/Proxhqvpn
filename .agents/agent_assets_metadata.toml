@@ -203,3 +203,9 @@ id = "FUT4q8WVgfy8hW6jzUX_l"
 uri = "file://wallet_report_FNQqNNvtojFX.md"
 type = "text"
 title = "FNQqNNvtojFX — Full Intelligence Report"
+
+[[outputs]]
+id = "jg6ALvyWLe_HrDS9m1Hqv"
+uri = "file://wallet_report_GK4_9rN_traces.md"
+type = "text"
+title = "GK4 + 9rN — Full Trace Report"
