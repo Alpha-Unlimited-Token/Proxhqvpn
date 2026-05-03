@@ -39,6 +39,7 @@ import {
   scanSolanaTokenRisks,
 } from "../lib/wallet-intel/solana-scanner";
 
+import { runWalletWebSpider } from "../lib/signature-miner/wallet-web-spider";
 import { logger } from "../lib/logger";
 
 const router = Router();
@@ -212,6 +213,52 @@ router.post("/sig-scan", async (req: Request, res: Response) => {
   } catch (err) {
     logger.error({ err, address: raw }, "sig-scan failed");
     res.status(500).json({ error: "Scan failed", detail: String(err) });
+  }
+});
+
+// ── POST /api/wallet-intel/wallet-web-spider ──────────────────────────────────
+// Crawls seed URLs for wallet addresses, scans each discovered wallet for
+// vulnerabilities, and optionally follows on-chain counterparty nodes.
+router.post("/wallet-web-spider", async (req: Request, res: Response) => {
+  const seeds         = Array.isArray(req.body?.seeds)         ? req.body.seeds.filter((s: unknown) => typeof s === "string") : [];
+  const seedAddresses = Array.isArray(req.body?.seedAddresses) ? req.body.seedAddresses.filter((s: unknown) => typeof s === "string") : [];
+
+  if (seeds.length === 0 && seedAddresses.length === 0) {
+    res.status(400).json({ error: "Provide at least one seed URL (seeds[]) or wallet address (seedAddresses[])" });
+    return;
+  }
+
+  // Validate and cap config inputs
+  const maxDepth        = Math.min(Math.max(Number(req.body?.maxDepth   ?? 2), 1), 5);
+  const maxUrls         = Math.min(Math.max(Number(req.body?.maxUrls    ?? 60), 1), 300);
+  const maxWalletScan   = Math.min(Math.max(Number(req.body?.maxWalletsToScan ?? 15), 1), 50);
+  const followNodes     = req.body?.followNodes !== false;
+  const maxNodes        = Math.min(Math.max(Number(req.body?.maxNodesPerWallet ?? 5), 1), 20);
+  const allowedDomains  = Array.isArray(req.body?.allowedDomains) ? req.body.allowedDomains : [];
+
+  req.log?.info(
+    { seeds: seeds.length, seedAddresses: seedAddresses.length, maxDepth, maxUrls, maxWalletScan, followNodes },
+    "wallet-web-spider requested",
+  );
+
+  try {
+    const report = await runWalletWebSpider({
+      seeds,
+      seedAddresses,
+      maxDepth,
+      maxUrls,
+      maxWalletsToScan:    maxWalletScan,
+      followNodes,
+      maxNodesPerWallet:   maxNodes,
+      allowedDomains,
+      concurrency:         6,
+      timeoutMs:           12_000,
+      jitterMs:            [250, 800],
+    });
+    res.json(report);
+  } catch (err) {
+    logger.error({ err }, "wallet-web-spider failed");
+    res.status(500).json({ error: "Spider failed", detail: String(err) });
   }
 });
 
