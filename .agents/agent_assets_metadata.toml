@@ -215,3 +215,21 @@ id = "rRXmn_EhNmvGeBWmKfwb0"
 uri = "file://QuantumAudit_Investigation_GK4_9rN.zip"
 type = "unspecified"
 title = "QuantumAudit Investigation Package — GK4 + 9rN"
+
+[[outputs]]
+id = "5pBtdUIasjlZMdK5EMjo3"
+uri = "file://QuantumAudit_Full_Investigation_May3_2026.zip"
+type = "unspecified"
+title = "QuantumAudit Full Investigation — May 3, 2026"
+
+[[outputs]]
+id = "5wcvene2ifmlHHbpibob6"
+uri = "file://QuantumAudit_CR_Solana_Report.md"
+type = "text"
+title = "Report 1: Crypto Revolution ($CR) Solana Investigation"
+
+[[outputs]]
+id = "SA7wZcPMS1mI_KCJ30Cyy"
+uri = "file://QuantumAudit_XRP_Attack_Report.md"
+type = "text"
+title = "Report 2: XRP Attack Wallet Trace & KYC Analysis"
