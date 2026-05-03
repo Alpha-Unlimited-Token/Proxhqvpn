@@ -245,3 +245,9 @@ id = "QsnatNAo8_eRjlOh2KX56"
 uri = "file://QuantumAudit_CR_DFPGn_Report.zip"
 type = "unspecified"
 title = "QuantumAudit — $CR Token Report (DFPGn...pump)"
+
+[[outputs]]
+id = "WmMY0ndnRMg36FAJlEEti"
+uri = "file://QuantumAudit_CryptoRevLLC_Full_Report.zip"
+type = "unspecified"
+title = "QuantumAudit — cryptorev.llc Full Security Report"
