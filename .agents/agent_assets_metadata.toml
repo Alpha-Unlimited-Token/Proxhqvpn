@@ -239,3 +239,9 @@ id = "TMDSh887K4ncpBMpsHvHO"
 uri = "file://QuantumAudit_XRP_24448_Full_Package.zip"
 type = "unspecified"
 title = "XRP 24,448 Stolen — Full Investigation Package"
+
+[[outputs]]
+id = "QsnatNAo8_eRjlOh2KX56"
+uri = "file://QuantumAudit_CR_DFPGn_Report.zip"
+type = "unspecified"
+title = "QuantumAudit — $CR Token Report (DFPGn...pump)"
