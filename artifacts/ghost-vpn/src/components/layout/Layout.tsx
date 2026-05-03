@@ -301,7 +301,7 @@ export function Layout({ children }: LayoutProps) {
   const [location] = useLocation();
   const { user } = useUser();
   const { signOut } = useClerk();
-  const { isAdmin, hasAccess, hasCommandCenter, tier } = useAccess();
+  const { isAdmin, isEmployee, hasAccess, hasCommandCenter, tier } = useAccess();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -386,8 +386,11 @@ export function Layout({ children }: LayoutProps) {
         className="flex-1 overflow-y-auto px-2 pt-1 pb-4 scrollbar-green min-h-0"
         style={{ WebkitOverflowScrolling: "touch", overscrollBehavior: "contain" }}
       >
-        <NavSection label="My VPN"      items={USER_NAV}       onNav={closeSidebar} isOpen={openSection === "myvpn"}       onToggle={() => toggle("myvpn")} />
-        <NavSection label="Ambassadors" items={AMBASSADOR_NAV} onNav={closeSidebar} isOpen={openSection === "ambassadors"} onToggle={() => toggle("ambassadors")} />
+        <NavSection label="My VPN" items={USER_NAV} onNav={closeSidebar} isOpen={openSection === "myvpn"} onToggle={() => toggle("myvpn")} />
+        {/* Ambassadors — only shown to subscribers and staff; free accounts are not eligible */}
+        {(hasAccess || isAdmin || isEmployee) && (
+          <NavSection label="Ambassadors" items={AMBASSADOR_NAV} onNav={closeSidebar} isOpen={openSection === "ambassadors"} onToggle={() => toggle("ambassadors")} />
+        )}
         {hasAccess && (
           <>
             <NavSection label="Protection"    items={PROTECTION_NAV}    onNav={closeSidebar} isOpen={openSection === "protection"}    onToggle={() => toggle("protection")} />
@@ -398,7 +401,8 @@ export function Layout({ children }: LayoutProps) {
         {hasCommandCenter && (
           <NavSection label="Command Center" items={ADVANCED_NAV} onNav={closeSidebar} isOpen={openSection === "commandcenter"} onToggle={() => toggle("commandcenter")} />
         )}
-        {isAdmin && (
+        {/* Admin section — visible to owners and employees only */}
+        {(isAdmin || isEmployee) && (
           <NavSection label="Admin" items={ADMIN_NAV} onNav={closeSidebar} isOpen={openSection === "admin"} onToggle={() => toggle("admin")} />
         )}
       </nav>

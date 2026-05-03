@@ -1,6 +1,6 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { Link } from "wouter";
-import { Lock, CreditCard, Zap, ArrowUpCircle } from "lucide-react";
+import { Lock, CreditCard, Zap, ArrowUpCircle, ShieldOff } from "lucide-react";
 import { useAccess } from "@/hooks/useAccess";
 
 interface PaywallGateProps {
@@ -8,6 +8,42 @@ interface PaywallGateProps {
   /** "any" = any active subscription grants access (VPN Basic or Pro)
    *  "command_center" = only Command Center Pro (or admin/employee) */
   requireTier?: "any" | "command_center";
+}
+
+/** Gate for admin-only pages — requires isAdmin or isEmployee */
+export function AdminGate({ children }: { children: React.ReactNode }) {
+  const { isAdmin, isEmployee, isLoading } = useAccess();
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="w-6 h-6 rounded-full border-2 border-primary/30 border-t-primary animate-spin" />
+      </div>
+    );
+  }
+
+  if (!isAdmin && !isEmployee) return <AdminDeniedScreen />;
+  return <>{children}</>;
+}
+
+function AdminDeniedScreen() {
+  return (
+    <div className="flex flex-col items-center justify-center min-h-[70vh] px-6 text-center">
+      <div className="w-16 h-16 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mb-6">
+        <ShieldOff className="w-7 h-7 text-red-400/70" />
+      </div>
+      <h1 className="text-xl font-bold text-white mb-2">Access Denied</h1>
+      <p className="text-sm text-white/78 max-w-sm leading-relaxed mb-8">
+        This area is restricted to ProxhqVPN staff. If you believe this is an error, contact your administrator.
+      </p>
+      <Link
+        href="/my-vpn"
+        className="flex items-center justify-center gap-2 border border-white/10 text-white/83 font-medium text-[13px] py-2.5 px-5 rounded-xl hover:border-white/20 hover:text-white/80 transition-colors"
+      >
+        Back to My VPN
+      </Link>
+    </div>
+  );
 }
 
 export function PaywallGate({ children, requireTier = "any" }: PaywallGateProps) {

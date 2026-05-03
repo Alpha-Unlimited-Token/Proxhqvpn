@@ -33,7 +33,7 @@ import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/reac
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Layout } from "./components/layout/Layout";
-import { PaywallGate } from "./components/PaywallGate";
+import { PaywallGate, AdminGate } from "./components/PaywallGate";
 
 import Home from "@/pages/Home";
 import Dashboard from "@/pages/Dashboard";
@@ -392,6 +392,24 @@ function CcLayout({ children }: { children: React.ReactNode }) {
   );
 }
 
+/** Pages restricted to staff only — admin owners and employees */
+function AdminLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <>
+      <Show when="signed-in">
+        <Layout>
+          <ErrorBoundary>
+            <AdminGate>{children}</AdminGate>
+          </ErrorBoundary>
+        </Layout>
+      </Show>
+      <Show when="signed-out">
+        <Redirect to="/sign-in" />
+      </Show>
+    </>
+  );
+}
+
 function ClerkQueryClientCacheInvalidator() {
   const { addListener } = useClerk();
   const qc = useQueryClient();
@@ -447,12 +465,13 @@ function AppRoutes() {
           </Route>
 
 
-          {/* ── Handbooks — publicly readable ── */}
+          {/* ── Handbooks ── */}
           <Route path="/handbook/ambassador">
             <PublicLayout><AmbassadorHandbook /></PublicLayout>
           </Route>
+          {/* Employee handbook — staff only */}
           <Route path="/handbook/employee">
-            <ProtectedLayout><EmployeeHandbook /></ProtectedLayout>
+            <AdminLayout><EmployeeHandbook /></AdminLayout>
           </Route>
 
           {/* ── Requires sign-in ── */}
@@ -465,8 +484,9 @@ function AppRoutes() {
           <Route path="/ambassador/apply">
             <ProtectedLayout><AmbassadorApply /></ProtectedLayout>
           </Route>
+          {/* Ambassador dashboard — requires at least a subscription */}
           <Route path="/ambassador/dashboard">
-            <ProtectedLayout><AmbassadorDashboard /></ProtectedLayout>
+            <ToolLayout><AmbassadorDashboard /></ToolLayout>
           </Route>
           <Route path="/checkout/success">
             <ProtectedLayout><CheckoutSuccess /></ProtectedLayout>
@@ -738,33 +758,33 @@ function AppRoutes() {
             <CcLayout><VpnTracker /></CcLayout>
           </Route>
 
-          {/* ── Admin-only — gated on backend; frontend shows paywall for non-admins ── */}
+          {/* ── Admin-only — restricted to owners and employees; all others see Access Denied ── */}
           <Route path="/nodes">
-            <CcLayout><NodeManager /></CcLayout>
+            <AdminLayout><NodeManager /></AdminLayout>
           </Route>
           <Route path="/beacons">
-            <CcLayout><BeaconAlerts /></CcLayout>
+            <AdminLayout><BeaconAlerts /></AdminLayout>
           </Route>
           <Route path="/silkweb">
-            <CcLayout><SilkWeb /></CcLayout>
+            <AdminLayout><SilkWeb /></AdminLayout>
           </Route>
           <Route path="/firewall">
-            <CcLayout><Firewall /></CcLayout>
+            <AdminLayout><Firewall /></AdminLayout>
           </Route>
           <Route path="/monitor">
-            <CcLayout><SystemMonitor /></CcLayout>
+            <AdminLayout><SystemMonitor /></AdminLayout>
           </Route>
           <Route path="/terminal">
-            <CcLayout><Terminal /></CcLayout>
+            <AdminLayout><Terminal /></AdminLayout>
           </Route>
           <Route path="/sql">
-            <CcLayout><SqlInterface /></CcLayout>
+            <AdminLayout><SqlInterface /></AdminLayout>
           </Route>
           <Route path="/employees">
-            <CcLayout><Employees /></CcLayout>
+            <AdminLayout><Employees /></AdminLayout>
           </Route>
           <Route path="/setup">
-            <CcLayout><Setup /></CcLayout>
+            <AdminLayout><Setup /></AdminLayout>
           </Route>
           <Route>
             <ProtectedLayout>
