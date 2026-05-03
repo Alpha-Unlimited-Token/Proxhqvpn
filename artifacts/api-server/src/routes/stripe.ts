@@ -26,6 +26,7 @@ router.get("/config", async (_req, res) => {
 
 router.get("/products", async (_req, res) => {
   try {
+    // Try synced DB first (fast path)
     const rows = await stripeStorage.listProductsWithPrices();
     const map = new Map<string, any>();
     for (const row of rows as any[]) {
@@ -47,6 +48,35 @@ router.get("/products", async (_req, res) => {
         });
       }
     }
+
+    // If DB is empty (StripeSync hasn't synced yet), fall back to live Stripe API
+    if (map.size === 0) {
+      const stripe = await getUncachableStripeClient();
+      const [productsRes, pricesRes] = await Promise.all([
+        stripe.products.list({ active: true, limit: 50 }),
+        stripe.prices.list({ active: true, limit: 100 }),
+      ]);
+      for (const p of productsRes.data) {
+        map.set(p.id, {
+          id: p.id,
+          name: p.name,
+          description: p.description ?? "",
+          metadata: p.metadata ?? {},
+          prices: [],
+        });
+      }
+      for (const pr of pricesRes.data) {
+        if (map.has(pr.product as string)) {
+          map.get(pr.product as string).prices.push({
+            id: pr.id,
+            unitAmount: pr.unit_amount,
+            currency: pr.currency,
+            recurring: pr.recurring,
+          });
+        }
+      }
+    }
+
     res.json(Array.from(map.values()));
   } catch {
     res.json([]);
