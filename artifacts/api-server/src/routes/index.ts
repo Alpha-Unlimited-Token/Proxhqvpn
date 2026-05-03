@@ -285,6 +285,12 @@ echo ""
 // Individual protected endpoints inside check auth themselves via getAuth()
 router.use("/ambassadors",    ambassadorsRouter);
 
+// Stripe routes — must be PUBLIC so the pricing page works without login.
+// The individual handlers call getAuth() themselves for checkout/portal/subscription.
+router.use("/stripe",         stripeRouter);
+router.use("/payments/crypto", cryptoPaymentsRouter);
+router.use("/notifications",  notificationsRouter);
+
 // Auth guard — all routes below require a valid Clerk session
 // Exception: localhost requests with correct X-Internal-Secret bypass Clerk auth
 const requireAuth = (req: Request, res: Response, next: NextFunction) => {
@@ -314,10 +320,7 @@ router.use("/monitor",        requireAdmin, monitorRouter);
 router.use("/terminal",       requireAdmin, terminalRouter);
 router.use("/sql",            requireAdmin, sqlRouter);
 
-// Stripe routes — always accessible (needed to purchase a subscription)
-router.use("/stripe",         stripeRouter);
-router.use("/payments/crypto", cryptoPaymentsRouter); // No requireAccess — handles its own auth + activates access
-router.use("/notifications",  notificationsRouter);   // In-app notifications (payment confirmed etc.)
+// (stripe, crypto payments, notifications are registered above requireAuth — see public section)
 
 // ── VPN Basic routes — any active subscription (vpn OR command_center) ──────
 router.use("/killswitch",     requireAccess, killswitchRouter);
