@@ -53,7 +53,7 @@ function SilkWebTopology({ routes, trappedIds }: { routes: Route[]; trappedIds: 
   const webRings = [innerR * 0.35, innerR * 0.65, innerR, (outerR + innerR) / 2, outerR];
 
   return (
-    <svg viewBox="0 0 400 400" className="w-full h-full" style={{ background: "transparent" }}>
+    <svg viewBox="-14 -14 428 428" preserveAspectRatio="xMidYMid meet" className="w-full h-full" style={{ background: "transparent" }}>
       <defs>
         <radialGradient id="webGlow" cx="50%" cy="50%" r="50%">
           <stop offset="0%" stopColor="#00ff88" stopOpacity="0.04" />
@@ -364,7 +364,7 @@ export default function SilkWeb() {
         {/* Left: topology + attacker list */}
         <div className={`flex flex-col gap-4 transition-all duration-300 ${selected ? "lg:w-[40%]" : "w-full"}`}>
           {/* Topology */}
-          <div className="border border-primary/20 rounded bg-black flex flex-col min-h-[220px] overflow-hidden" style={{ flex: selected ? "0 0 220px" : "0 0 280px" }}>
+          <div className="border border-primary/20 rounded bg-black flex flex-col shrink-0 overflow-hidden">
             <div className="p-2 border-b border-primary/20 flex items-center justify-between shrink-0">
               <span className="text-xs font-mono text-primary/60 uppercase tracking-widest">Topology Map</span>
               <div className="flex items-center gap-3 text-[10px] font-mono">
@@ -376,7 +376,8 @@ export default function SilkWeb() {
                 ))}
               </div>
             </div>
-            <div className="flex-1 p-2">
+            {/* Square canvas — always renders at 1:1 so the ring stays circular */}
+            <div className="w-full p-2" style={{ aspectRatio: "1 / 1", maxHeight: selected ? "240px" : "420px" }}>
               {routes.length > 0
                 ? <SilkWebTopology routes={routes} trappedIds={trappedIds} />
                 : <div className="h-full flex items-center justify-center font-mono text-primary/30 text-xs uppercase tracking-widest">Awaiting web data…</div>
