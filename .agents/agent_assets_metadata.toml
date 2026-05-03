@@ -197,3 +197,9 @@ id = "YClMRxy3hO-S8LHK3tos2"
 uri = "file://wallet_trace_3ec8R6jR.zip"
 type = "unspecified"
 title = "QuantumAudit — Full Report + OSINT (ZIP)"
+
+[[outputs]]
+id = "FUT4q8WVgfy8hW6jzUX_l"
+uri = "file://wallet_report_FNQqNNvtojFX.md"
+type = "text"
+title = "FNQqNNvtojFX — Full Intelligence Report"
