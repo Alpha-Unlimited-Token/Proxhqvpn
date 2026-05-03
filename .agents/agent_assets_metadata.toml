@@ -191,3 +191,9 @@ id = "xNu3EfhR5ZLQauxGNJz0F"
 uri = "file://wallet_trace_3ec8R6jR.md"
 type = "text"
 title = "QuantumAudit — Wallet Trace Report: 3ec8R6jR…BBst"
+
+[[outputs]]
+id = "YClMRxy3hO-S8LHK3tos2"
+uri = "file://wallet_trace_3ec8R6jR.zip"
+type = "unspecified"
+title = "QuantumAudit — Wallet Trace Report (ZIP)"
