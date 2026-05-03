@@ -209,3 +209,9 @@ id = "jg6ALvyWLe_HrDS9m1Hqv"
 uri = "file://wallet_report_GK4_9rN_traces.md"
 type = "text"
 title = "GK4 + 9rN — Full Trace Report"
+
+[[outputs]]
+id = "rRXmn_EhNmvGeBWmKfwb0"
+uri = "file://QuantumAudit_Investigation_GK4_9rN.zip"
+type = "unspecified"
+title = "QuantumAudit Investigation Package — GK4 + 9rN"
