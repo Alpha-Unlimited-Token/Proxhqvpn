@@ -5,7 +5,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -16,18 +15,23 @@ import {
   Flame, Info, ChevronDown, ChevronUp, Activity,
   Lock, Eye, EyeOff, KeyRound, Zap, Wifi, Radio,
   Smartphone, Database, MessageSquare, ShieldOff, TriangleAlert,
+  Fingerprint, Bitcoin, Globe,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
-const CHAINS = [
-  { id: "ethereum", label: "Ethereum"  },
-  { id: "polygon",  label: "Polygon"   },
-  { id: "arbitrum", label: "Arbitrum"  },
-  { id: "optimism", label: "Optimism"  },
-  { id: "bsc",      label: "BNB Chain" },
-];
+function detectChainLabel(address: string): string | null {
+  if (!address) return null;
+  const a = address.trim();
+  if (/^0x[0-9a-fA-F]{40}$/.test(a)) return "EVM (ETH / Polygon / BSC…)";
+  if (/^(1|3)[a-km-zA-HJ-NP-Z1-9]{25,34}$/.test(a) || /^bc1[a-z0-9]{6,87}$/i.test(a)) return "Bitcoin";
+  if (/^(L|M)[a-km-zA-HJ-NP-Z1-9]{26,33}$/.test(a) || /^ltc1[a-z0-9]{6,87}$/i.test(a)) return "Litecoin";
+  if (/^D[5-9A-HJ-NP-U][1-9A-HJ-NP-Za-km-z]{32}$/.test(a)) return "Dogecoin";
+  if (/^bitcoincash:q[a-z0-9]{41}$/.test(a)) return "Bitcoin Cash";
+  if (/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(a)) return "Solana";
+  return null;
+}
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -163,10 +167,9 @@ function FindingCard({ title, sev, txHash, chain, detail, remediation, extra }: 
 
 function PermitTab() {
   const [address, setAddress] = useState("");
-  const [chain, setChain]     = useState("ethereum");
   const { toast } = useToast();
 
-  const mutation = useMutation<PermitResult, Error, { address: string; chain: string }>({
+  const mutation = useMutation<PermitResult, Error, { address: string }>({
     mutationFn: async (body) => {
       const res = await fetch(`${BASE}/api/wallet-intel/permit-scan`, {
         method: "POST",
@@ -180,6 +183,7 @@ function PermitTab() {
   });
 
   const result = mutation.data;
+  const detectedChain = detectChainLabel(address);
 
   return (
     <div className="space-y-6">
@@ -187,27 +191,29 @@ function PermitTab() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <FileSignature className="w-5 h-5 text-orange-400" />
-            Permit & Blind-Signature Exploit Scanner
+            Script &amp; Blind-Signature Exploit Scanner
           </CardTitle>
           <CardDescription>
-            Detects EIP-2612 permit() abuse, setApprovalForAll drainer patterns, and unlimited token
-            approvals — the #1 attack vector used by wallet drainers in 2026.
+            EVM: EIP-2612 permit() abuse, setApprovalForAll drainer patterns, unlimited token approvals.
+            Bitcoin / Litecoin / Dogecoin: OP_RETURN data, bare multisig, dust outputs, legacy script risks.
+            Solana: SPL delegate and close-authority abuse. Chain is detected automatically from address format.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex gap-3 flex-wrap">
-            <Input
-              placeholder="0x… wallet address"
-              value={address} onChange={e => setAddress(e.target.value)}
-              className="flex-1 min-w-[260px] font-mono text-sm"
-            />
-            <Select value={chain} onValueChange={setChain}>
-              <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {CHAINS.map(c => <SelectItem key={c.id} value={c.id}>{c.label}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Button onClick={() => mutation.mutate({ address: address.trim(), chain })}
+            <div className="flex-1 min-w-[260px] space-y-1.5">
+              <Input
+                placeholder="Any address — BTC, ETH, SOL, LTC, DOGE, BCH…"
+                value={address} onChange={e => setAddress(e.target.value)}
+                className="font-mono text-sm"
+              />
+              {detectedChain && (
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Globe className="w-3 h-3" /> Detected: <span className="text-primary font-medium">{detectedChain}</span>
+                </p>
+              )}
+            </div>
+            <Button onClick={() => mutation.mutate({ address: address.trim() })}
               disabled={!address.trim() || mutation.isPending}>
               {mutation.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Scanning…</> : "Run Scan"}
             </Button>
@@ -216,9 +222,9 @@ function PermitTab() {
           <Alert className="border-orange-500/30 bg-orange-500/5">
             <AlertTriangle className="w-4 h-4 text-orange-400" />
             <AlertDescription className="text-xs text-muted-foreground">
-              <strong>What attackers do:</strong> They trick you into signing EIP-2612 permit() calls that look
-              like wallet connection approvals. One signature — no gas — and they can drain all your tokens.
-              setApprovalForAll grants permanent full control over NFT collections.
+              <strong>What attackers do:</strong> On EVM chains, they trick users into signing EIP-2612 permit() calls
+              with no gas — draining all tokens. On Bitcoin/UTXO chains, they embed malicious scripts via OP_RETURN
+              outputs and exploit bare P2PK outputs. On Solana, they abuse SPL token delegate authorities.
             </AlertDescription>
           </Alert>
         </CardContent>
@@ -281,10 +287,9 @@ function PermitTab() {
 
 function PoisoningTab() {
   const [address, setAddress] = useState("");
-  const [chain, setChain]     = useState("ethereum");
   const { toast } = useToast();
 
-  const mutation = useMutation<PoisoningResult, Error, { address: string; chain: string }>({
+  const mutation = useMutation<PoisoningResult, Error, { address: string }>({
     mutationFn: async (body) => {
       const res = await fetch(`${BASE}/api/wallet-intel/poisoning-scan`, {
         method: "POST",
@@ -300,6 +305,7 @@ function PoisoningTab() {
   const result = mutation.data;
   const lookalikes = result?.findings.filter(f => f.type === "address_lookalike") ?? [];
   const dustSpam   = result?.findings.filter(f => f.type === "dust_spam") ?? [];
+  const detectedChain = detectChainLabel(address);
 
   return (
     <div className="space-y-6">
@@ -310,24 +316,26 @@ function PoisoningTab() {
             Address Poisoning Detector
           </CardTitle>
           <CardDescription>
-            Finds near-identical vanity addresses sent to your wallet history. Attackers create addresses
-            matching your first/last chars so you accidentally paste theirs when sending funds.
+            Finds near-identical lookalike addresses in your transaction history across all chains.
+            EVM: vanity 0x addresses matching prefix/suffix. Bitcoin/UTXO: dust UTXO spam campaigns.
+            Solana: zero-balance airdrop tokens used as decoys. Chain auto-detected from address format.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex gap-3 flex-wrap">
-            <Input
-              placeholder="0x… wallet address to audit"
-              value={address} onChange={e => setAddress(e.target.value)}
-              className="flex-1 min-w-[260px] font-mono text-sm"
-            />
-            <Select value={chain} onValueChange={setChain}>
-              <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {CHAINS.map(c => <SelectItem key={c.id} value={c.id}>{c.label}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Button onClick={() => mutation.mutate({ address: address.trim(), chain })}
+            <div className="flex-1 min-w-[260px] space-y-1.5">
+              <Input
+                placeholder="Any address — BTC, ETH, SOL, LTC, DOGE, BCH…"
+                value={address} onChange={e => setAddress(e.target.value)}
+                className="font-mono text-sm"
+              />
+              {detectedChain && (
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Globe className="w-3 h-3" /> Detected: <span className="text-primary font-medium">{detectedChain}</span>
+                </p>
+              )}
+            </div>
+            <Button onClick={() => mutation.mutate({ address: address.trim() })}
               disabled={!address.trim() || mutation.isPending}>
               {mutation.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Scanning…</> : "Run Scan"}
             </Button>
@@ -336,10 +344,10 @@ function PoisoningTab() {
           <Alert className="border-purple-500/30 bg-purple-500/5">
             <Info className="w-4 h-4 text-purple-400" />
             <AlertDescription className="text-xs text-muted-foreground">
-              <strong>How it works:</strong> Attackers use vanity address generators to create addresses like
-              <code className="mx-1 bg-muted px-1 rounded">0x8e04…<strong>FAKE</strong>…5748</code> that match
-              your address's start/end. They send tiny dust transfers to pollute your history.
-              Victims copy the wrong address and send real funds to the attacker.
+              <strong>How it works:</strong> Attackers use vanity generators to craft addresses matching
+              your first/last characters, then send tiny dust to poison your history.
+              Victims copy the fake address from their tx history and send real funds to the attacker.
+              Works across EVM, Bitcoin, Litecoin, Dogecoin, BCH, and Solana.
             </AlertDescription>
           </Alert>
         </CardContent>
@@ -426,10 +434,9 @@ function PoisoningTab() {
 
 function ApprovalTab() {
   const [address, setAddress] = useState("");
-  const [chain, setChain]     = useState("ethereum");
   const { toast } = useToast();
 
-  const mutation = useMutation<ApprovalResult, Error, { address: string; chain: string }>({
+  const mutation = useMutation<ApprovalResult, Error, { address: string }>({
     mutationFn: async (body) => {
       const res = await fetch(`${BASE}/api/wallet-intel/approval-scan`, {
         method: "POST",
@@ -443,6 +450,11 @@ function ApprovalTab() {
   });
 
   const result = mutation.data;
+  const detectedChain = detectChainLabel(address);
+  const isUtxo = result && (result as unknown as Record<string,unknown>).scanType === "utxo-risk-scan";
+  const isSolana = result && (result as unknown as Record<string,unknown>).scanType === "solana-token-risk-scan";
+  const utxoResult = isUtxo ? (result as unknown as { totalUtxos: number; dustUtxos: number; riskyUtxos: number; summary: string; riskScore: number; chain: string }) : null;
+  const solanaResult = isSolana ? (result as unknown as { totalAccounts: number; flaggedAccounts: number; summary: string; riskScore: number; chain: string }) : null;
 
   return (
     <div className="space-y-6">
@@ -450,27 +462,30 @@ function ApprovalTab() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <Coins className="w-5 h-5 text-yellow-400" />
-            Token Approval Risk Auditor
+            Token Approval &amp; UTXO Risk Auditor
           </CardTitle>
           <CardDescription>
-            Audits all ERC-20 / ERC-721 / ERC-1155 approvals for stale unlimited permissions.
-            Unlimited allowances left open after DeFi interactions are the most exploited attack surface.
+            EVM: audits all ERC-20/ERC-721/ERC-1155 approvals for stale unlimited permissions.
+            Bitcoin / Litecoin / Dogecoin: scans UTXOs for dust spam, large stale outputs, and coin-control risks.
+            Solana: audits SPL token accounts for delegations, close authorities, and dust airdrop accounts.
+            Chain is detected automatically from address format.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex gap-3 flex-wrap">
-            <Input
-              placeholder="0x… wallet address to audit"
-              value={address} onChange={e => setAddress(e.target.value)}
-              className="flex-1 min-w-[260px] font-mono text-sm"
-            />
-            <Select value={chain} onValueChange={setChain}>
-              <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {CHAINS.map(c => <SelectItem key={c.id} value={c.id}>{c.label}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Button onClick={() => mutation.mutate({ address: address.trim(), chain })}
+            <div className="flex-1 min-w-[260px] space-y-1.5">
+              <Input
+                placeholder="Any address — BTC, ETH, SOL, LTC, DOGE, BCH…"
+                value={address} onChange={e => setAddress(e.target.value)}
+                className="font-mono text-sm"
+              />
+              {detectedChain && (
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Globe className="w-3 h-3" /> Detected: <span className="text-primary font-medium">{detectedChain}</span>
+                </p>
+              )}
+            </div>
+            <Button onClick={() => mutation.mutate({ address: address.trim() })}
               disabled={!address.trim() || mutation.isPending}>
               {mutation.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Scanning…</> : "Run Audit"}
             </Button>
@@ -479,9 +494,219 @@ function ApprovalTab() {
           <Alert className="border-yellow-500/30 bg-yellow-500/5">
             <Info className="w-4 h-4 text-yellow-400" />
             <AlertDescription className="text-xs text-muted-foreground">
-              <strong>The risk:</strong> Every time you use a DeFi protocol you leave an approval behind.
-              If that protocol is later hacked, the attacker can drain your tokens without any further
-              action from you. Unlimited approvals are permanent until explicitly revoked.
+              <strong>The risk:</strong> EVM — unlimited token approvals left open after DeFi interactions are drained
+              when a protocol is hacked. Bitcoin/UTXO — dust spam UTXOs are used to track wallet activity
+              and correlate identities. Solana — delegated SPL token authority lets attackers move your tokens
+              without your private key.
+            </AlertDescription>
+          </Alert>
+        </CardContent>
+      </Card>
+
+      {result && (
+        <div className="space-y-4">
+          {utxoResult ? (
+            <>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {[
+                  { label: "Total UTXOs",  value: utxoResult.totalUtxos,  color: "" },
+                  { label: "Dust UTXOs",   value: utxoResult.dustUtxos,   color: utxoResult.dustUtxos > 0 ? "text-orange-400" : "" },
+                  { label: "Risky UTXOs",  value: utxoResult.riskyUtxos,  color: utxoResult.riskyUtxos > 0 ? "text-red-400" : "" },
+                  { label: "Risk Score",   value: `${utxoResult.riskScore}`, color: utxoResult.riskScore >= 50 ? "text-red-400" : utxoResult.riskScore >= 25 ? "text-yellow-400" : "text-green-400" },
+                ].map(({ label, value, color }) => (
+                  <Card key={label}><CardContent className="pt-4 pb-3 text-center">
+                    <p className={`text-2xl font-bold ${color}`}>{value}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{label}</p>
+                  </CardContent></Card>
+                ))}
+              </div>
+              <Card><CardContent className="pt-4 space-y-2">
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="text-xs font-mono capitalize">{utxoResult.chain}</Badge>
+                  <span className="text-xs text-muted-foreground">UTXO Scan</span>
+                </div>
+                <p className="text-sm">{utxoResult.summary}</p>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">UTXO Risk Score</p>
+                  {riskBar(utxoResult.riskScore)}
+                </div>
+              </CardContent></Card>
+            </>
+          ) : solanaResult ? (
+            <>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {[
+                  { label: "Token Accounts", value: solanaResult.totalAccounts, color: "" },
+                  { label: "Flagged",         value: solanaResult.flaggedAccounts ?? 0, color: (solanaResult.flaggedAccounts ?? 0) > 0 ? "text-red-400" : "" },
+                  { label: "Risk Score",      value: `${solanaResult.riskScore}`, color: solanaResult.riskScore >= 50 ? "text-red-400" : solanaResult.riskScore >= 25 ? "text-yellow-400" : "text-green-400" },
+                  { label: "Chain",           value: "Solana", color: "text-primary" },
+                ].map(({ label, value, color }) => (
+                  <Card key={label}><CardContent className="pt-4 pb-3 text-center">
+                    <p className={`text-2xl font-bold ${color}`}>{value}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{label}</p>
+                  </CardContent></Card>
+                ))}
+              </div>
+              <Card><CardContent className="pt-4 space-y-2">
+                <p className="text-sm">{solanaResult.summary}</p>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">SPL Token Risk</p>
+                  {riskBar(solanaResult.riskScore)}
+                </div>
+              </CardContent></Card>
+            </>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {[
+                  { label: "Total Found",   value: result.totalFound, color: "" },
+                  { label: "Unlimited",     value: result.unlimited,  color: result.unlimited > 0 ? "text-red-400" : "" },
+                  { label: "Stale (6mo+)", value: result.stale,      color: result.stale > 0 ? "text-orange-400" : "" },
+                  { label: "Risk Score",    value: `${result.riskScore}`, color: result.riskScore >= 50 ? "text-red-400" : result.riskScore >= 25 ? "text-yellow-400" : "text-green-400" },
+                ].map(({ label, value, color }) => (
+                  <Card key={label}><CardContent className="pt-4 pb-3 text-center">
+                    <p className={`text-2xl font-bold ${color}`}>{value}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{label}</p>
+                  </CardContent></Card>
+                ))}
+              </div>
+
+              <Card><CardContent className="pt-4 space-y-2">
+                <p className="text-sm">{result.summary}</p>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Overall Approval Risk</p>
+                  {riskBar(result.riskScore)}
+                </div>
+              </CardContent></Card>
+
+              {result.approvals.length > 0 && (
+                <ScrollArea className="h-[480px] pr-2">
+                  <div className="space-y-3">
+                    {result.approvals.map((a, i) => (
+                      <div key={i} className={`rounded-lg border p-4 space-y-2
+                        ${a.riskLevel === "critical" ? "border-red-500/40 bg-red-500/5"
+                        : a.riskLevel === "high"     ? "border-orange-500/40 bg-orange-500/5"
+                        : a.riskLevel === "medium"   ? "border-yellow-500/40 bg-yellow-500/5"
+                        : a.riskLevel === "low"      ? "border-blue-500/40 bg-blue-500/5"
+                        : "border-border/40 bg-muted/20"}`}>
+                        <div className="flex items-start justify-between gap-2 flex-wrap">
+                          <div className="flex items-center gap-2">
+                            {a.isUnlimited ? <Flame className="w-4 h-4 text-red-400" /> : <Coins className="w-4 h-4 text-muted-foreground" />}
+                            <span className="font-semibold text-sm">{a.tokenSymbol || shortAddr(a.token)} <span className="text-muted-foreground font-normal text-xs">{a.tokenType}</span></span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {severityBadge(a.riskLevel)}
+                            {a.isUnlimited && <Badge variant="outline" className="text-xs bg-red-500/10 text-red-400 border-red-500/30">UNLIMITED</Badge>}
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                          <div><span className="text-foreground">Spender:</span> <span className="font-mono">{shortAddr(a.spender)}</span></div>
+                          <div><span className="text-foreground">Amount:</span> {a.allowanceLabel}</div>
+                          <div><span className="text-foreground">Age:</span> {a.ageMonths} months</div>
+                          <div><span className="text-foreground">Token:</span> <span className="font-mono">{shortAddr(a.token)}</span></div>
+                        </div>
+                        <p className="text-xs text-muted-foreground">{a.riskReason}</p>
+                        <div className="flex items-center gap-3">
+                          {a.txHash && (
+                            <a href={etherscanTx(a.txHash, result.chain)} target="_blank" rel="noopener noreferrer"
+                              className="flex items-center gap-1 text-xs text-primary hover:underline">
+                              <ExternalLink className="w-3 h-3" /> View approval tx
+                            </a>
+                          )}
+                          <a href="https://revoke.cash" target="_blank" rel="noopener noreferrer"
+                            className="flex items-center gap-1 text-xs text-orange-400 hover:underline ml-auto">
+                            <ShieldCheck className="w-3 h-3" /> Revoke on Revoke.cash
+                          </a>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Sig Scan Tab ───────────────────────────────────────────────────────────────
+
+interface SigScanResult {
+  chain: string; scanType: string; address: string;
+  scannedTxs: number; sigsAnalyzed: number;
+  rValueDuplicates: { r: string; txHashes: string[]; sigCount: number }[];
+  weakKIndicators: number; schnorrCount: number; legacyCount: number;
+  summary: string; riskScore?: number; durationMs?: number;
+}
+
+function SigScanTab() {
+  const [address, setAddress] = useState("");
+  const { toast } = useToast();
+
+  const mutation = useMutation<SigScanResult, Error, { address: string }>({
+    mutationFn: async (body) => {
+      const res = await fetch(`${BASE}/api/wallet-intel/sig-scan`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? `HTTP ${res.status}`);
+      return res.json();
+    },
+    onError: (e) => toast({ title: "Scan failed", description: e.message, variant: "destructive" }),
+  });
+
+  const result = mutation.data;
+  const detectedChain = detectChainLabel(address);
+  const isUtxoChain = detectedChain && !detectedChain.startsWith("EVM") && !detectedChain.startsWith("Solana");
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Fingerprint className="w-5 h-5 text-cyan-400" />
+            ECDSA / Signature Vulnerability Scanner
+          </CardTitle>
+          <CardDescription>
+            Scans transaction signatures for ECDSA nonce reuse (r-value duplicates), weak-k indicators,
+            and Schnorr vs. legacy key usage. R-value reuse directly exposes the private key — this scan
+            detects exactly the pattern exploited in the 2012 Sony PS3 hack and 2013 Android Bitcoin wallet break.
+            Supports Bitcoin, Litecoin, Dogecoin, and EVM chains. Solana uses Ed25519 with deterministic nonces (safe by design).
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex gap-3 flex-wrap">
+            <div className="flex-1 min-w-[260px] space-y-1.5">
+              <Input
+                placeholder="BTC, LTC, DOGE, or ETH address…"
+                value={address} onChange={e => setAddress(e.target.value)}
+                className="font-mono text-sm"
+              />
+              {detectedChain && (
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Globe className="w-3 h-3" /> Detected: <span className="text-primary font-medium">{detectedChain}</span>
+                  {!isUtxoChain && detectedChain.startsWith("EVM") && (
+                    <span className="ml-1 text-muted-foreground/60">(deep scan queued — EVM sigs take longer)</span>
+                  )}
+                </p>
+              )}
+            </div>
+            <Button onClick={() => mutation.mutate({ address: address.trim() })}
+              disabled={!address.trim() || mutation.isPending}>
+              {mutation.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Analyzing…</> : "Run Sig Scan"}
+            </Button>
+          </div>
+
+          <Alert className="border-cyan-500/30 bg-cyan-500/5">
+            <Fingerprint className="w-4 h-4 text-cyan-400" />
+            <AlertDescription className="text-xs text-muted-foreground">
+              <strong>Why r-value reuse is critical:</strong> ECDSA signatures contain a random nonce k.
+              If k is reused across two signatures with the same r-value, the private key can be algebraically
+              recovered — no brute force, just math. This has been used to steal millions in Bitcoin.
+              One duplicate r-value = private key exposed.
             </AlertDescription>
           </Alert>
         </CardContent>
@@ -491,10 +716,10 @@ function ApprovalTab() {
         <div className="space-y-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {[
-              { label: "Total Found",   value: result.totalFound, color: "" },
-              { label: "Unlimited",     value: result.unlimited,  color: result.unlimited > 0 ? "text-red-400" : "" },
-              { label: "Stale (6mo+)", value: result.stale,      color: result.stale > 0 ? "text-orange-400" : "" },
-              { label: "Risk Score",    value: `${result.riskScore}`, color: result.riskScore >= 50 ? "text-red-400" : result.riskScore >= 25 ? "text-yellow-400" : "text-green-400" },
+              { label: "Txs Scanned",      value: result.scannedTxs,                                                     color: "" },
+              { label: "Sigs Analyzed",    value: result.sigsAnalyzed,                                                   color: "" },
+              { label: "R-Value Dupes",    value: result.rValueDuplicates.length,                                         color: result.rValueDuplicates.length > 0 ? "text-red-400" : "text-green-400" },
+              { label: "Weak-k Signals",   value: result.weakKIndicators,                                                 color: result.weakKIndicators > 0 ? "text-orange-400" : "text-green-400" },
             ].map(({ label, value, color }) => (
               <Card key={label}><CardContent className="pt-4 pb-3 text-center">
                 <p className={`text-2xl font-bold ${color}`}>{value}</p>
@@ -503,57 +728,73 @@ function ApprovalTab() {
             ))}
           </div>
 
-          <Card><CardContent className="pt-4 space-y-2">
-            <p className="text-sm">{result.summary}</p>
-            <div>
-              <p className="text-xs text-muted-foreground mb-1">Overall Approval Risk</p>
-              {riskBar(result.riskScore)}
+          <Card><CardContent className="pt-4 space-y-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              <Badge variant="outline" className="text-xs font-mono capitalize">{result.chain}</Badge>
+              <Badge variant="outline" className="text-xs font-mono">{result.scanType}</Badge>
+              {result.schnorrCount > 0 && <Badge variant="outline" className="text-xs bg-green-500/10 text-green-400 border-green-500/30">Schnorr: {result.schnorrCount} txs</Badge>}
+              {result.legacyCount > 0 && <Badge variant="outline" className="text-xs bg-yellow-500/10 text-yellow-400 border-yellow-500/30">Legacy ECDSA: {result.legacyCount} txs</Badge>}
             </div>
+            <p className="text-sm">{result.summary}</p>
+            {result.rValueDuplicates.length === 0 && result.weakKIndicators === 0 && (
+              <div className="flex items-center gap-2 text-green-400 text-sm">
+                <CheckCircle className="w-4 h-4" /> No signature vulnerabilities detected
+              </div>
+            )}
           </CardContent></Card>
 
-          {result.approvals.length > 0 && (
-            <ScrollArea className="h-[480px] pr-2">
-              <div className="space-y-3">
-                {result.approvals.map((a, i) => (
-                  <div key={i} className={`rounded-lg border p-4 space-y-2
-                    ${a.riskLevel === "critical" ? "border-red-500/40 bg-red-500/5"
-                    : a.riskLevel === "high"     ? "border-orange-500/40 bg-orange-500/5"
-                    : a.riskLevel === "medium"   ? "border-yellow-500/40 bg-yellow-500/5"
-                    : a.riskLevel === "low"      ? "border-blue-500/40 bg-blue-500/5"
-                    : "border-border/40 bg-muted/20"}`}>
-                    <div className="flex items-start justify-between gap-2 flex-wrap">
+          {result.rValueDuplicates.length > 0 && (
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold flex items-center gap-2 text-red-400">
+                <Flame className="w-4 h-4" /> R-Value Duplicates Detected — Private Key At Risk
+              </h3>
+              <Alert className="border-red-500/50 bg-red-500/10">
+                <ShieldAlert className="w-4 h-4 text-red-400" />
+                <AlertDescription className="text-xs text-red-300">
+                  <strong>CRITICAL:</strong> Duplicate r-values mean the same nonce k was used in multiple signatures.
+                  The private key for this address can be mathematically recovered from these transactions.
+                  Move all funds to a new wallet generated with a secure, non-deterministic source immediately.
+                </AlertDescription>
+              </Alert>
+              <ScrollArea className="h-[300px] pr-2">
+                <div className="space-y-3">
+                  {result.rValueDuplicates.map((dup, i) => (
+                    <div key={i} className="rounded-lg border border-red-500/40 bg-red-500/5 p-4 space-y-2">
                       <div className="flex items-center gap-2">
-                        {a.isUnlimited ? <Flame className="w-4 h-4 text-red-400" /> : <Coins className="w-4 h-4 text-muted-foreground" />}
-                        <span className="font-semibold text-sm">{a.tokenSymbol || shortAddr(a.token)} <span className="text-muted-foreground font-normal text-xs">{a.tokenType}</span></span>
+                        <Flame className="w-4 h-4 text-red-400 shrink-0" />
+                        <span className="text-xs font-semibold text-red-400">Duplicate R-Value ({dup.sigCount} signatures share this nonce)</span>
                       </div>
-                      <div className="flex items-center gap-2">
-                        {severityBadge(a.riskLevel)}
-                        {a.isUnlimited && <Badge variant="outline" className="text-xs bg-red-500/10 text-red-400 border-red-500/30">UNLIMITED</Badge>}
+                      <p className="text-xs font-mono text-muted-foreground break-all">r = {dup.r}</p>
+                      <div className="space-y-1">
+                        {dup.txHashes.slice(0, 3).map((h, j) => (
+                          <div key={j} className="flex items-center gap-2">
+                            <button onClick={() => navigator.clipboard.writeText(h).catch(() => {})} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+                              <Copy className="w-3 h-3" /> {shortHash(h)}
+                            </button>
+                            <a href={`https://mempool.space/tx/${h}`} target="_blank" rel="noopener noreferrer"
+                              className="flex items-center gap-1 text-xs text-primary hover:underline">
+                              <ExternalLink className="w-3 h-3" /> mempool.space
+                            </a>
+                          </div>
+                        ))}
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                      <div><span className="text-foreground">Spender:</span> <span className="font-mono">{shortAddr(a.spender)}</span></div>
-                      <div><span className="text-foreground">Amount:</span> {a.allowanceLabel}</div>
-                      <div><span className="text-foreground">Age:</span> {a.ageMonths} months</div>
-                      <div><span className="text-foreground">Token:</span> <span className="font-mono">{shortAddr(a.token)}</span></div>
-                    </div>
-                    <p className="text-xs text-muted-foreground">{a.riskReason}</p>
-                    <div className="flex items-center gap-3">
-                      {a.txHash && (
-                        <a href={etherscanTx(a.txHash, result.chain)} target="_blank" rel="noopener noreferrer"
-                          className="flex items-center gap-1 text-xs text-primary hover:underline">
-                          <ExternalLink className="w-3 h-3" /> View approval tx
-                        </a>
-                      )}
-                      <a href="https://revoke.cash" target="_blank" rel="noopener noreferrer"
-                        className="flex items-center gap-1 text-xs text-orange-400 hover:underline ml-auto">
-                        <ShieldCheck className="w-3 h-3" /> Revoke on Revoke.cash
-                      </a>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </ScrollArea>
+                  ))}
+                </div>
+              </ScrollArea>
+            </div>
+          )}
+
+          {result.weakKIndicators > 0 && result.rValueDuplicates.length === 0 && (
+            <Alert className="border-orange-500/40 bg-orange-500/5">
+              <AlertTriangle className="w-4 h-4 text-orange-400" />
+              <AlertDescription className="text-xs text-muted-foreground">
+                <strong className="text-orange-400">{result.weakKIndicators} weak-k indicator(s) detected.</strong>{" "}
+                These signatures show patterns consistent with low-entropy nonce generation.
+                While no definitive r-value reuse was found, consider migrating to a wallet that uses
+                RFC 6979 deterministic nonce generation (most modern wallets do).
+              </AlertDescription>
+            </Alert>
           )}
         </div>
       )}
@@ -1107,17 +1348,19 @@ export default function WalletIntel() {
         </h1>
         <p className="text-muted-foreground mt-1 text-sm">
           Scan any wallet for the 2026 attack vectors currently being used to steal private keys and drain crypto.
-          Uses the same techniques attackers use — so developers and users can find and fix exposures before they're exploited.
+          Supports EVM (ETH, Polygon, BSC…), Bitcoin, Litecoin, Dogecoin, Bitcoin Cash, and Solana — chain is
+          detected automatically from the address format you paste.
         </p>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         {[
-          { icon: FileSignature, color: "text-orange-400", label: "Permit Scan",      desc: "EIP-2612 & blind signing" },
-          { icon: MapPin,        color: "text-purple-400", label: "Addr Poisoning",   desc: "Vanity lookalike addresses" },
-          { icon: Coins,         color: "text-yellow-400", label: "Approval Risk",    desc: "Unlimited ERC-20/NFT approvals" },
-          { icon: KeyRound,      color: "text-green-400",  label: "Seed & Passphrase",desc: "Entropy & breach check" },
-          { icon: Zap,           color: "text-blue-400",   label: "Zero-Click Risks", desc: "SS7 / stealth / no-touch" },
+          { icon: FileSignature, color: "text-orange-400", label: "Script / Permit",   desc: "EIP-2612, OP_RETURN, SPL delegates" },
+          { icon: MapPin,        color: "text-purple-400", label: "Addr Poisoning",    desc: "Lookalike & dust spam — all chains" },
+          { icon: Coins,         color: "text-yellow-400", label: "Approvals / UTXOs", desc: "ERC approvals · UTXO dust · SPL risk" },
+          { icon: Fingerprint,   color: "text-cyan-400",   label: "Sig Vulnerability", desc: "ECDSA r-reuse, weak-k, Schnorr audit" },
+          { icon: KeyRound,      color: "text-green-400",  label: "Seed & Passphrase", desc: "Entropy & breach check (offline)" },
+          { icon: Zap,           color: "text-blue-400",   label: "Zero-Click Risks",  desc: "SS7 / stealth / no-touch checklist" },
         ].map(({ icon: Icon, color, label, desc }) => (
           <Card key={label} className="border-border/50">
             <CardContent className="pt-4 pb-3 flex items-start gap-2">
@@ -1131,17 +1374,31 @@ export default function WalletIntel() {
         ))}
       </div>
 
+      <div className="flex items-center gap-2 flex-wrap text-xs text-muted-foreground bg-muted/30 border border-border/50 rounded-lg px-4 py-2.5">
+        <Globe className="w-3.5 h-3.5 text-primary shrink-0" />
+        <span><span className="text-foreground font-medium">Auto chain detection:</span></span>
+        <span className="font-mono text-primary/80">0x…</span><span>EVM ·</span>
+        <span className="font-mono text-primary/80">1… / bc1…</span><span>Bitcoin ·</span>
+        <span className="font-mono text-primary/80">L… / ltc1…</span><span>Litecoin ·</span>
+        <span className="font-mono text-primary/80">D…</span><span>Dogecoin ·</span>
+        <span className="font-mono text-primary/80">bitcoincash:q…</span><span>BCH ·</span>
+        <span className="font-mono text-primary/80">base58</span><span>Solana</span>
+        <Bitcoin className="w-3.5 h-3.5 text-orange-400 ml-1" />
+      </div>
+
       <Tabs defaultValue="permit">
-        <TabsList className="grid grid-cols-5 w-full">
-          <TabsTrigger value="permit"   className="flex items-center gap-1 text-xs"><FileSignature className="w-3 h-3" /> Permit</TabsTrigger>
-          <TabsTrigger value="poison"   className="flex items-center gap-1 text-xs"><MapPin        className="w-3 h-3" /> Poisoning</TabsTrigger>
-          <TabsTrigger value="approve"  className="flex items-center gap-1 text-xs"><Coins          className="w-3 h-3" /> Approvals</TabsTrigger>
-          <TabsTrigger value="passphrase" className="flex items-center gap-1 text-xs"><KeyRound     className="w-3 h-3" /> Passphrase</TabsTrigger>
-          <TabsTrigger value="zeroclk"  className="flex items-center gap-1 text-xs"><Zap            className="w-3 h-3" /> Zero-Click</TabsTrigger>
+        <TabsList className="grid grid-cols-6 w-full">
+          <TabsTrigger value="permit"     className="flex items-center gap-1 text-xs"><FileSignature className="w-3 h-3" /> Script</TabsTrigger>
+          <TabsTrigger value="poison"     className="flex items-center gap-1 text-xs"><MapPin        className="w-3 h-3" /> Poison</TabsTrigger>
+          <TabsTrigger value="approve"    className="flex items-center gap-1 text-xs"><Coins          className="w-3 h-3" /> Approvals</TabsTrigger>
+          <TabsTrigger value="sigscan"    className="flex items-center gap-1 text-xs"><Fingerprint   className="w-3 h-3" /> Sig Scan</TabsTrigger>
+          <TabsTrigger value="passphrase" className="flex items-center gap-1 text-xs"><KeyRound       className="w-3 h-3" /> Passphrase</TabsTrigger>
+          <TabsTrigger value="zeroclk"    className="flex items-center gap-1 text-xs"><Zap            className="w-3 h-3" /> Zero-Click</TabsTrigger>
         </TabsList>
         <TabsContent value="permit"     className="mt-6"><PermitTab      /></TabsContent>
         <TabsContent value="poison"     className="mt-6"><PoisoningTab   /></TabsContent>
         <TabsContent value="approve"    className="mt-6"><ApprovalTab    /></TabsContent>
+        <TabsContent value="sigscan"    className="mt-6"><SigScanTab     /></TabsContent>
         <TabsContent value="passphrase" className="mt-6"><PassphraseTab  /></TabsContent>
         <TabsContent value="zeroclk"    className="mt-6"><ZeroThreatTab  /></TabsContent>
       </Tabs>
