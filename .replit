@@ -52,3 +52,6 @@ packages = ["file"]
 
 [userenv.shared]
 ADMIN_EMAILS = "alphaunlimitedtechnologies@gmail.com,alphaunlimitedtoken@gmail.com"
+
+[userenv.production]
+CUSTOM_DOMAIN = "proxhqvpn.com"
