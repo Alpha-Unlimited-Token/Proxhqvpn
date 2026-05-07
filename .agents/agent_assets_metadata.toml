@@ -251,3 +251,9 @@ id = "WmMY0ndnRMg36FAJlEEti"
 uri = "file://QuantumAudit_CryptoRevLLC_Full_Report.zip"
 type = "unspecified"
 title = "QuantumAudit — cryptorev.llc Full Security Report"
+
+[[outputs]]
+id = "pP8DLmNwxOeviCqaGbA__"
+uri = "file://QuantumAudit_RaveDAO_RAVE_Full_Report.zip"
+type = "unspecified"
+title = "QuantumAudit — RaveDAO ($RAVE) Full Investigation Report"
