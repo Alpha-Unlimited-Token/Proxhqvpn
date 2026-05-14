@@ -257,3 +257,9 @@ id = "pP8DLmNwxOeviCqaGbA__"
 uri = "file://QuantumAudit_RaveDAO_RAVE_Full_Report.zip"
 type = "unspecified"
 title = "QuantumAudit — RaveDAO ($RAVE) Full Investigation Report"
+
+[[outputs]]
+id = "3VogAx4yIIEKvX8DdDLLC"
+uri = "file://proxhq-reports/security-scans/ProxhqVPN_Security_Scans_2026-05-13.zip"
+type = "unspecified"
+title = "ProxhqVPN Security Scans — 2026-05-13"
