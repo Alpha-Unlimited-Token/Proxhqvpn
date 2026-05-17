@@ -269,3 +269,9 @@ id = "f2ebw3_ntd8K66E29DIK-"
 uri = "file://proxhq-reports/ProxhqVPN_All_Engines_Source.zip"
 type = "unspecified"
 title = "ProxhqVPN — All Engines Source Code"
+
+[[outputs]]
+id = "wTOueLDb3COm3j8kpdbzH"
+uri = "file://proxhq-reports/CFTC_AUFC-2026-0517-DIXT_Full_Package.zip"
+type = "unspecified"
+title = "CFTC Whistleblower Package — AUFC-2026-0517-DIXT"
