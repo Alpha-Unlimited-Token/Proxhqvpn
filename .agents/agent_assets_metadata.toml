@@ -281,3 +281,9 @@ id = "1Xacl7WHdLlpT_oOhk7Bn"
 uri = "file://proxhq-reports/CFTC_AUFC-2026-0517-DIXT_Full_Package_v2.zip"
 type = "unspecified"
 title = "CFTC Whistleblower Package v2 — All 9 Engines + All Exhibits"
+
+[[outputs]]
+id = "z74LnZ5X1O-uCB0WfYDr0"
+uri = "file://proxhq-reports/CFTC_AUFC-2026-0517-DIXT_CFTC-Ready.zip"
+type = "unspecified"
+title = "CFTC-Ready Files (10 files, all valid formats)"
