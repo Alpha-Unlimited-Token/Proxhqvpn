@@ -299,3 +299,57 @@ id = "o8Wg8nOXMcJ6nFucyrGQ-"
 uri = "file://proxhq-reports/LITTLE_BIRDIE_FULL_ENGINE_REPORT.txt"
 type = "text"
 title = "Little Birdie — Full Engine Report (Original CDN + All Sources)"
+
+[[outputs]]
+id = "FszY4g4PPiQCSLJ7AM7Wr"
+uri = "file://proxhq-reports/little-birdie-stems/DEMUCS_AI_Vocals_Drake.mp3"
+type = "audio"
+title = "🎤 Demucs AI — Drake Vocals Isolated"
+
+[[outputs]]
+id = "0BKHsDad6ABM-aFDHvvHl"
+uri = "file://proxhq-reports/little-birdie-stems/DEMUCS_AI_Beat_NoVocals_Instrumental.mp3"
+type = "audio"
+title = "🥁 Demucs AI — Beat Only (No Vocals) Instrumental"
+
+[[outputs]]
+id = "8-0SCCeMiTie_N25Lqayp"
+uri = "file://proxhq-reports/little-birdie-stems/HPSS_Residual_UnexplainedLayer.mp3"
+type = "audio"
+title = "🚨 HPSS Residual — Unexplained 43% Layer (8x boosted)"
+
+[[outputs]]
+id = "1TiO3REg3K_CouUKhPEbZ"
+uri = "file://proxhq-reports/little-birdie-stems/HPSS_Harmonic_VocalsMelody.mp3"
+type = "audio"
+title = "🎵 HPSS Harmonic — Vocals + Melody"
+
+[[outputs]]
+id = "fvy1Med-tl5dlTQJbsizT"
+uri = "file://proxhq-reports/little-birdie-stems/HPSS_Percussive_BeatDrums.mp3"
+type = "audio"
+title = "🥁 HPSS Percussive — Beat + Drums"
+
+[[outputs]]
+id = "rbsUtGlBZTWKxSBuFaAVG"
+uri = "file://proxhq-reports/little-birdie-stems/FFmpeg_BeatOnly_VocalsRemoved.mp3"
+type = "audio"
+title = "🔇 FFmpeg — Beat Only (Phase Cancel Vocal Remove)"
+
+[[outputs]]
+id = "HRVxoMinLJXjwo0reF42_"
+uri = "file://proxhq-reports/little-birdie-stems/FFmpeg_CenterChannel_VocalIsolated.mp3"
+type = "audio"
+title = "🎙️ FFmpeg — Center Channel Vocal Extract"
+
+[[outputs]]
+id = "Sf1eUJyJcYjIMyw_5OL-P"
+uri = "file://proxhq-reports/little-birdie-stems/FFmpeg_VocalFormant_2500Hz_Boosted10x.mp3"
+type = "audio"
+title = "🔬 FFmpeg — Vocal Formant Band (2500Hz, 10x Boost)"
+
+[[outputs]]
+id = "GsdmOcO6dq9nTNOS6AbK4"
+uri = "file://proxhq-reports/LITTLE_BIRDIE_AUDIO_FORENSICS_REPORT.txt"
+type = "text"
+title = "📋 Full Audio Forensics Report"
