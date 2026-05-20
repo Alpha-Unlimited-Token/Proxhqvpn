@@ -293,3 +293,9 @@ id = "oD1XlAnUz-TH1ivIkKdH4"
 uri = "file://proxhq-reports/LITTLE_BIRDIE_FORENSIC_REPORT.txt"
 type = "text"
 title = "Little Birdie — Full Forensic Report (9 Engines)"
+
+[[outputs]]
+id = "o8Wg8nOXMcJ6nFucyrGQ-"
+uri = "file://proxhq-reports/LITTLE_BIRDIE_FULL_ENGINE_REPORT.txt"
+type = "text"
+title = "Little Birdie — Full Engine Report (Original CDN + All Sources)"
