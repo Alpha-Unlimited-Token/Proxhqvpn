@@ -919,5 +919,41 @@
     "url": "https://eth.blockscout.com/api/v2/addresses/0x00000000219ab540356cbb839cbe05303d7705fa",
     "confidence": 0.9,
     "discoveredAt": "2026-05-14T03:48:58.204Z"
+  },
+  {
+    "engine": "osint",
+    "kind": "private_key",
+    "address": "0x8FDCebb34974B8112BD6573aA795aeDA6a228690",
+    "value": "0x98d2716e57e83f9a6b7b7df3adde250623932b47d61aed1a1331d938a3756065",
+    "detail": "[eth_input_data] On-chain input data: tx 0x1012587f8d3d7417ea1957a7ed32ebadc173eb0e2d19ecee5b77a37a92537d87",
+    "confidence": 0.9,
+    "discoveredAt": "2026-05-20T03:09:00.461Z"
+  },
+  {
+    "engine": "osint",
+    "kind": "private_key",
+    "address": "0x6425659e74f2A7Ad340a122b411f684eA3190C3b",
+    "value": "0x31697bfc19342dfb69930cab75bc9dc9127f6dafea71e9d915eeed74917af459",
+    "detail": "[eth_input_data] On-chain input data: tx 0x1012587f8d3d7417ea1957a7ed32ebadc173eb0e2d19ecee5b77a37a92537d87",
+    "confidence": 0.9,
+    "discoveredAt": "2026-05-20T03:09:00.461Z"
+  },
+  {
+    "engine": "osint",
+    "kind": "private_key",
+    "address": "0x2401d0A3fcC0a1502dB668Ef073424654E1a1ddD",
+    "value": "0x74ff45de0f16ce5ba1ced2c792cc100cac0f12ecfb8f246578bf20223af18285",
+    "detail": "[eth_input_data] On-chain input data: tx 0x1012587f8d3d7417ea1957a7ed32ebadc173eb0e2d19ecee5b77a37a92537d87",
+    "confidence": 0.9,
+    "discoveredAt": "2026-05-20T03:09:00.461Z"
+  },
+  {
+    "engine": "osint",
+    "kind": "private_key",
+    "address": "0xCd6a7Ae99c9b9f21e60b78cAc90A098f197B5e84",
+    "value": "0x8b3992d1befbb8c674b5272060f6081e626fce4f4875d9f6953a7145bdbfea6f",
+    "detail": "[eth_input_data] On-chain input data: tx 0x1012587f8d3d7417ea1957a7ed32ebadc173eb0e2d19ecee5b77a37a92537d87",
+    "confidence": 0.9,
+    "discoveredAt": "2026-05-20T03:09:00.461Z"
   }
 ]
