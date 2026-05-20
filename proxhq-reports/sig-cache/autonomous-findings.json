@@ -955,5 +955,32 @@
     "detail": "[eth_input_data] On-chain input data: tx 0x1012587f8d3d7417ea1957a7ed32ebadc173eb0e2d19ecee5b77a37a92537d87",
     "confidence": 0.9,
     "discoveredAt": "2026-05-20T03:09:00.461Z"
+  },
+  {
+    "engine": "osint",
+    "kind": "private_key",
+    "address": "0xb1BAb066952966EEaF01DDAF0CEaD1890cdA23cf",
+    "value": "0xc709e67541feabc86c1ff3ae625c80835ebc92d542b7c2fd5ae328dfbd5956fc",
+    "detail": "[eth_input_data] On-chain input data: tx 0xe264a49a7f0105e641daefddb94f941526a461c48a1757957e7f3bbaefb6c354",
+    "confidence": 0.9,
+    "discoveredAt": "2026-05-20T03:50:20.119Z"
+  },
+  {
+    "engine": "osint",
+    "kind": "private_key",
+    "address": "0x25DFeCA40d5b0F4207ae1C241D22Ecab088958F2",
+    "value": "0x4ce614ee7348a8c2ca666772aa410b8285bcca28438253911bd2e7f9dc92768a",
+    "detail": "[eth_input_data] On-chain input data: tx 0xe264a49a7f0105e641daefddb94f941526a461c48a1757957e7f3bbaefb6c354",
+    "confidence": 0.9,
+    "discoveredAt": "2026-05-20T03:50:20.119Z"
+  },
+  {
+    "engine": "osint",
+    "kind": "private_key",
+    "address": "0x6Ef9b063C9AF15f10F3D661af35e7695E43E9665",
+    "value": "0x7d83f958c7db9724916ce325563b1441755a9d8f905ac2aff6facf7e0602faae",
+    "detail": "[eth_input_data] On-chain input data: tx 0xe264a49a7f0105e641daefddb94f941526a461c48a1757957e7f3bbaefb6c354",
+    "confidence": 0.9,
+    "discoveredAt": "2026-05-20T03:50:20.119Z"
   }
 ]
