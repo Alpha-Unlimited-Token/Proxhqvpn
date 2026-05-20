@@ -365,3 +365,9 @@ id = "rAGxXZH5g5Py1yLa0HYmN"
 uri = "file://proxhq-reports/LITTLE_BIRDIE_PRODUCER_INTELLIGENCE_REPORT.txt"
 type = "text"
 title = "Producer Intelligence Report — Jester Beats + 1900 Rugrat + Competing Claims"
+
+[[outputs]]
+id = "lFCQ5TVPedDKa2ctcmv1R"
+uri = "file://proxhq-reports/MASTER_CASE_FILE_1900RUGRAT_vs_DRAKE.txt"
+type = "text"
+title = "MASTER CASE FILE — 1900 Rugrat vs. Drake / OVO / Republic Records"
