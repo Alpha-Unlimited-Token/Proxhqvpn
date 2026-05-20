@@ -1070,5 +1070,25 @@
     "url": "https://eth.blockscout.com/api/v2/addresses/0x00000000219ab540356cbb839cbe05303d7705fa",
     "confidence": 0.9,
     "discoveredAt": "2026-05-20T05:53:56.924Z"
+  },
+  {
+    "engine": "osint",
+    "kind": "private_key",
+    "address": "0x440e5e12750498ed7FdacCe3596CF89678b39047",
+    "value": "0x37365d23a19896cea057fb572c96e8d299789b0983a1f01f021bcd6ee6b8f35f",
+    "detail": "[blockscout_label] Blockscout label for 0x00c600b30fb0400701010f4b080409018b9006e0",
+    "url": "https://eth.blockscout.com/api/v2/addresses/0x00c600b30fb0400701010f4b080409018b9006e0",
+    "confidence": 0.9,
+    "discoveredAt": "2026-05-20T07:01:33.975Z"
+  },
+  {
+    "engine": "osint",
+    "kind": "private_key",
+    "address": "0x80937be4b00cb81Cb265F57DAEe1262c6923c399",
+    "value": "0x3de883290e6c9fec14397db310f467792e6ea50f530640e0d9bf6849f82feeb6",
+    "detail": "[blockscout_label] Blockscout label for 0x00e2b6d170740c15bf9fb01d0b6e77c0d4510e32",
+    "url": "https://eth.blockscout.com/api/v2/addresses/0x00e2b6d170740c15bf9fb01d0b6e77c0d4510e32",
+    "confidence": 0.9,
+    "discoveredAt": "2026-05-20T07:01:33.975Z"
   }
 ]
