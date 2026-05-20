@@ -353,3 +353,9 @@ id = "GsdmOcO6dq9nTNOS6AbK4"
 uri = "file://proxhq-reports/LITTLE_BIRDIE_AUDIO_FORENSICS_REPORT.txt"
 type = "text"
 title = "📋 Full Audio Forensics Report"
+
+[[outputs]]
+id = "nWkVNAbtzTr2ZOgQ68S5O"
+uri = "file://proxhq-reports/SOUNDCLOUD_FULL_INTELLIGENCE_REPORT.txt"
+type = "text"
+title = "SoundCloud Full Intelligence Report — ISRC + UPC + All Timestamps"
