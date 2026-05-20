@@ -287,3 +287,9 @@ id = "z74LnZ5X1O-uCB0WfYDr0"
 uri = "file://proxhq-reports/CFTC_AUFC-2026-0517-DIXT_CFTC-Ready.zip"
 type = "unspecified"
 title = "CFTC-Ready Files (10 files, all valid formats)"
+
+[[outputs]]
+id = "oD1XlAnUz-TH1ivIkKdH4"
+uri = "file://proxhq-reports/LITTLE_BIRDIE_FORENSIC_REPORT.txt"
+type = "text"
+title = "Little Birdie — Full Forensic Report (9 Engines)"
