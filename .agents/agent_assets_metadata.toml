@@ -371,3 +371,9 @@ id = "lFCQ5TVPedDKa2ctcmv1R"
 uri = "file://proxhq-reports/MASTER_CASE_FILE_1900RUGRAT_vs_DRAKE.txt"
 type = "text"
 title = "MASTER CASE FILE — 1900 Rugrat vs. Drake / OVO / Republic Records"
+
+[[outputs]]
+id = "LRoRQ4WzFCR0yBjC5TY4R"
+uri = "file://proxhq-reports/FORENSIC_AUDIO_ANALYSIS_FULL_REPORT.txt"
+type = "text"
+title = "FORENSIC AUDIO ANALYSIS — Full Technical Report (708 lines / 49KB)"
