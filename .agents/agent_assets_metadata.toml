@@ -407,3 +407,9 @@ id = "4NkJzueREBtaC5mSTqIFw"
 uri = "file://proxhq-reports/Cantina-Submission_Patriot-Bait-bandcampro.md"
 type = "text"
 title = "Cantina/Spearbit Submission — Patriot Bait / bandcampro (Full PoC)"
+
+[[outputs]]
+id = "jAyjuZSZ6JqLIjgfNVtZY"
+uri = "file://proxhq-reports/agentx-osint/AgentX_William_Siegel_OSINT_Package_2026-05-24.zip"
+type = "unspecified"
+title = "@agentxanonymous50 / William Siegel — OSINT Package 2026-05-24"
