@@ -395,3 +395,9 @@ id = "qpHgLzZ1Pl4sdrdWzPfGh"
 uri = "file://proxhq-reports/Patriot-Bait-Attribution-Dossier_Iteration5.md"
 type = "text"
 title = "Patriot Bait Attribution Dossier — Iteration 5"
+
+[[outputs]]
+id = "ySmh0gxsW2E6KGeKEgOEV"
+uri = "file://proxhq-reports/Patriot-Bait-Attribution-Dossier_Iteration6.md"
+type = "text"
+title = "Patriot Bait — IP Intelligence & IOC Expansion (Iteration 6)"
