@@ -413,3 +413,9 @@ id = "jAyjuZSZ6JqLIjgfNVtZY"
 uri = "file://proxhq-reports/agentx-osint/AgentX_William_Siegel_OSINT_Package_2026-05-24.zip"
 type = "unspecified"
 title = "@agentxanonymous50 / William Siegel — OSINT Package 2026-05-24"
+
+[[outputs]]
+id = "9ZGpXJFtagqe25ukjS4aR"
+uri = "file://proxhq-reports/agentx-osint/AgentX_William_Siegel_OSINT_Package_v2_2026-05-24.zip"
+type = "unspecified"
+title = "@agentxanonymous50 / William Siegel — OSINT Package v2 (Full) 2026-05-24"
