@@ -377,3 +377,9 @@ id = "LRoRQ4WzFCR0yBjC5TY4R"
 uri = "file://proxhq-reports/FORENSIC_AUDIO_ANALYSIS_FULL_REPORT.txt"
 type = "text"
 title = "FORENSIC AUDIO ANALYSIS — Complete Report with Section 14 (1,545 lines / 103.7KB)"
+
+[[outputs]]
+id = "ZJOnaDNeDnKhYiEoMVnLY"
+uri = "file://proxhq-reports/Patriot-Bait-Attribution-Dossier_Iteration2.md"
+type = "text"
+title = "Patriot Bait Attribution Dossier — Iteration 2"
