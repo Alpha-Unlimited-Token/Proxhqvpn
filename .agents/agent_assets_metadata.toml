@@ -383,3 +383,9 @@ id = "ZJOnaDNeDnKhYiEoMVnLY"
 uri = "file://proxhq-reports/Patriot-Bait-Attribution-Dossier_Iteration2.md"
 type = "text"
 title = "Patriot Bait Attribution Dossier — Iteration 2"
+
+[[outputs]]
+id = "FwSjAQf2CnSxcqzecZgCh"
+uri = "file://proxhq-reports/Patriot-Bait-Attribution-Dossier_Iteration4.md"
+type = "text"
+title = "Patriot Bait Attribution Dossier — Iteration 4"
