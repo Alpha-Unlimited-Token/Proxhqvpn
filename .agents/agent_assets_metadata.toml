@@ -401,3 +401,9 @@ id = "ySmh0gxsW2E6KGeKEgOEV"
 uri = "file://proxhq-reports/Patriot-Bait-Attribution-Dossier_Iteration6.md"
 type = "text"
 title = "Patriot Bait — IP Intelligence & IOC Expansion (Iteration 6)"
+
+[[outputs]]
+id = "4NkJzueREBtaC5mSTqIFw"
+uri = "file://proxhq-reports/Cantina-Submission_Patriot-Bait-bandcampro.md"
+type = "text"
+title = "Cantina/Spearbit Submission — Patriot Bait / bandcampro (Full PoC)"
