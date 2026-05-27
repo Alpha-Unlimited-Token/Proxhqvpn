@@ -1,0 +1,77 @@
+{
+  "bc1qvug5pkre5anf9ur22z5dxdn7w6hnqnepx3cxgn": {
+    "funding_txid": "2111f626fb0bc4c9466089253e4681cf57a29165ecd53325544d210cdb3e2c27",
+    "n_in": 2,
+    "n_out": 157,
+    "upstream": [
+      "bc1qzd2d3p78vll4x3l7sqd40wgf82zcakfm5c7cly",
+      "bc1qmvmv47g2r62ag7pdcy7etk7frrz0gejdz7ptnh"
+    ],
+    "received_btc": 0.69992843
+  },
+  "bc1qxy3dw8jcdz2hrua5tpw5zu58sl3vrnwds574mw": {
+    "funding_txid": "40d1484c74993667d3577db5ceffb82a40e1743eaeef408474184dec46a1dd66",
+    "n_in": 2,
+    "n_out": 113,
+    "upstream": [
+      "bc1qtv4lwdqt6eqy8enj87qm0k3pdrla4kk45572w0",
+      "bc1q8g5nlyegmc5uq5yeglej4khzfxu4ggf0cp8qqp"
+    ],
+    "received_btc": 0.64297492
+  },
+  "bc1q8ma4qslmcfnpv8snsmgxw7lacl6mjxc6yg54lx": {
+    "funding_txid": "cc626b29d369f226dfe96db4d66b17aa32a2905084555cf359b4b610436e7733",
+    "n_in": 1,
+    "n_out": 142,
+    "upstream": [
+      "bc1qfwhk0f88sww2h2424pkw2xla4lj79y9sk9mxsp"
+    ],
+    "received_btc": 0.33745303
+  },
+  "bc1qqjx7twp822pvpk9p9m47zckg66dqw3w6syfc0c": {
+    "funding_txid": "cc626b29d369f226dfe96db4d66b17aa32a2905084555cf359b4b610436e7733",
+    "n_in": 1,
+    "n_out": 142,
+    "upstream": [
+      "bc1qfwhk0f88sww2h2424pkw2xla4lj79y9sk9mxsp"
+    ],
+    "received_btc": 0.33745303
+  },
+  "bc1qxkgnc2s3sfaeqe9zsjx43g5zcauj83v9gz2p45": {
+    "funding_txid": "9e55198de4fe88b34d58d3f3f6389fe711091be4b9b644859995f15f0c560bf7",
+    "n_in": 1,
+    "n_out": 137,
+    "upstream": [
+      "bc1qdggjtpwey777298qa2purz5ujhpdkvxl3qx3vh"
+    ],
+    "received_btc": 0.22172087
+  },
+  "bc1q09hn0x9hupca54jhcm75kg785gd8lscu5w2yyd": {
+    "funding_txid": "9e55198de4fe88b34d58d3f3f6389fe711091be4b9b644859995f15f0c560bf7",
+    "n_in": 1,
+    "n_out": 137,
+    "upstream": [
+      "bc1qdggjtpwey777298qa2purz5ujhpdkvxl3qx3vh"
+    ],
+    "received_btc": 0.22172087
+  },
+  "bc1qr6tld6z0vl6ju6876klgefjzyej3qeg4gh5kql": {
+    "funding_txid": "7ef8e08457fe3cbfa51256de4766d230ddbe23d0f53b23fa2d82ef04bb4a5ef7",
+    "n_in": 1,
+    "n_out": 61,
+    "upstream": [
+      "bc1qchsejqh0ynv8en9xd6g434m9j866fjcsc3w25x"
+    ],
+    "received_btc": 0.28160003
+  },
+  "bc1qkfelx7vzzjqg895hhgx6mq57t7emcutcpmcv7m": {
+    "funding_txid": "946d5309f1fb384a3b4195b8e14a8366ff87c069905a2f4091b76a940a0cb6e4",
+    "n_in": 2,
+    "n_out": 3,
+    "upstream": [
+      "bc1qjykc2k84m9k0lwps4g3cjwjrgnx0hx9va0ucj2",
+      "bc1qujgkx8ldfqw2r2f4hn644n83y7uwue5vsf3rrx"
+    ],
+    "received_btc": 0.26048996
+  }
+}

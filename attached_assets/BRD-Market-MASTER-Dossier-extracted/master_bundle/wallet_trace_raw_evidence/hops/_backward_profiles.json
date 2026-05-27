@@ -1,0 +1,42 @@
+{
+  "bc1qqjx7twp822pvpk9p9m47zckg66dqw3w6syfc0c": {
+    "received_btc": 0.33745303,
+    "spent_btc": 0.33745303,
+    "tx_count": 2
+  },
+  "bc1qxy3dw8jcdz2hrua5tpw5zu58sl3vrnwds574mw": {
+    "received_btc": 0.64297492,
+    "spent_btc": 0.64297492,
+    "tx_count": 2
+  },
+  "bc1qkfelx7vzzjqg895hhgx6mq57t7emcutcpmcv7m": {
+    "received_btc": 0.26048996,
+    "spent_btc": 0.26048996,
+    "tx_count": 2
+  },
+  "bc1q09hn0x9hupca54jhcm75kg785gd8lscu5w2yyd": {
+    "received_btc": 0.22172087,
+    "spent_btc": 0.22172087,
+    "tx_count": 2
+  },
+  "bc1qr6tld6z0vl6ju6876klgefjzyej3qeg4gh5kql": {
+    "received_btc": 0.28160003,
+    "spent_btc": 0.28160003,
+    "tx_count": 2
+  },
+  "bc1q8ma4qslmcfnpv8snsmgxw7lacl6mjxc6yg54lx": {
+    "received_btc": 0.33745303,
+    "spent_btc": 0.33745303,
+    "tx_count": 2
+  },
+  "bc1qxkgnc2s3sfaeqe9zsjx43g5zcauj83v9gz2p45": {
+    "received_btc": 0.22172087,
+    "spent_btc": 0.22172087,
+    "tx_count": 2
+  },
+  "bc1qvug5pkre5anf9ur22z5dxdn7w6hnqnepx3cxgn": {
+    "received_btc": 0.69992843,
+    "spent_btc": 0.69992843,
+    "tx_count": 2
+  }
+}

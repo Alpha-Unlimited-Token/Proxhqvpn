@@ -1,0 +1,1 @@
+{"Status":0,"TC":false,"RD":true,"RA":true,"AD":false,"CD":false,"Question":[{"name":"_dmarc.gbtrade-ltd.com","type":16}],"Answer":[{"name":"_dmarc.gbtrade-ltd.com","type":16,"TTL":897,"data":"\"v=DMARC1; p=quarantine; pct=100; rua=mailto:admin@gbtrade-ltd.com; ruf=mailto:admin@gbtrade-ltd.com\""}]}

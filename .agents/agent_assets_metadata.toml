@@ -425,3 +425,9 @@ id = "QDMSKnTsYWdZ87vhGa3Zo"
 uri = "file://forensic/BRD_Market_Forensic_Package_2026-05-27.zip"
 type = "unspecified"
 title = "BRD Market Forensic Package — 2026-05-27"
+
+[[outputs]]
+id = "JM_fwQMxlN9u4TMPQHmE9"
+uri = "file://forensic/BRD_Market_Complete_Package_2026-05-27.zip"
+type = "unspecified"
+title = "BRD Market Complete Package — Annex F + All Evidence (66 files, 24.5 MB)"

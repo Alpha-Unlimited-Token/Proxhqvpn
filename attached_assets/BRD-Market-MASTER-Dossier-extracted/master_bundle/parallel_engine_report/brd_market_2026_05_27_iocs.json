@@ -1,0 +1,94 @@
+{
+  "case_id": "BRD-MARKET-2026-05-27",
+  "compiled": "2026-05-27",
+  "compiled_by": "Alpha Unlimited Technologies LLC — Forensic Intelligence Unit",
+  "misp_event": {
+    "info": "Pig-butchering scam — BRD Market / Gateway Ventures / GB Trade Ltd",
+    "threat_level_id": "1",
+    "analysis": "2",
+    "distribution": "0"
+  },
+  "domains": [
+    {"value": "brdmarket.com", "type": "domain", "status": "LIVE", "role": "Primary lure / fake brokerage"},
+    {"value": "getwayventures.com", "type": "domain", "status": "LIVE", "role": "Parent operator brand"},
+    {"value": "gbtrade-ltd.com", "type": "domain", "status": "LIVE", "role": "Sister scam front — GB Trade Ltd"},
+    {"value": "i.getwayventures.com", "type": "domain", "status": "LIVE", "role": "Secondary front"},
+    {"value": "test.getwayventures.com", "type": "domain", "status": "LIVE", "role": "Dev/staging — ZipperTicket ticketing scam"},
+    {"value": "mgrr.org.uk", "type": "domain", "status": "NXDOMAIN", "role": "UK shell, torn down"},
+    {"value": "onlintrade.com", "type": "domain", "status": "NXDOMAIN", "role": "Prior burned scam front"},
+    {"value": "mgrr.org.uk.getwayventures.com", "type": "domain", "status": "HISTORIC", "role": "Cert SAN entry"},
+    {"value": "brdmarket.com.getwayventures.com", "type": "domain", "status": "HISTORIC", "role": "Cert SAN entry"}
+  ],
+  "ip_addresses": [
+    {"value": "185.27.133.17", "type": "ip-dst", "role": "Primary hosting — brdmarket.com + getwayventures.com", "hosting": "iFastNet", "cpanel_user": "getwayve"},
+    {"value": "82.163.176.236", "type": "ip-dst", "role": "Sister hosting — gbtrade-ltd.com", "hosting": "iFastNet"},
+    {"value": "82.163.176.83", "type": "ip-dst", "role": "SPF-authorized mail relay"},
+    {"value": "31.22.4.169", "type": "ip-dst", "role": "SPF-authorized mail relay"}
+  ],
+  "urls": [
+    {"value": "https://brdmarket.com", "type": "url", "status": "LIVE"},
+    {"value": "https://brdmarket.com/register", "type": "url", "status": "LIVE", "note": "Victim onboarding"},
+    {"value": "https://brdmarket.com/brdapp.apk", "type": "url", "status": "LIVE — HTTP 200 CONFIRMED", "risk": "CRITICAL — suspected Android RAT/wallet drainer"},
+    {"value": "https://brdmarket.com/wallet", "type": "url", "status": "500 — Laravel debug mode leaks stack trace"},
+    {"value": "https://getwayventures.com", "type": "url", "status": "LIVE"},
+    {"value": "https://gbtrade-ltd.com", "type": "url", "status": "LIVE"},
+    {"value": "https://test.getwayventures.com", "type": "url", "status": "LIVE — exposed dev environment"}
+  ],
+  "email_addresses": [
+    {"value": "admin@brdmarket.com", "type": "email-src", "source": "Contact page"},
+    {"value": "admin@gbtrade-ltd.com", "type": "email-src", "source": "getwayventures.com HTML source — ties two fronts"},
+    {"value": "*@onlintrade.com", "type": "email-src", "source": "/wallet Ignition stack trace — prior burned front"}
+  ],
+  "infrastructure": {
+    "hosting_provider": "iFastNet",
+    "hosting_abuse_email": "abuse@ifastnet.com",
+    "nameservers": ["ns1082.ifastnet.com", "ns2082.ifastnet.com"],
+    "cpanel_user": "getwayve",
+    "server_stack": "OpenResty + Apache + PHP + Laravel + Livewire",
+    "tls_cert_issuer": "Let's Encrypt R12",
+    "tls_cert_not_before": "2026-05-12",
+    "tls_cert_not_after": "2026-08-10",
+    "smartsupp_keys": [
+      {"key": "554b9280f064e970e99b65ccc93283166b17b86d", "site": "getwayventures.com"},
+      {"key": "f987db63f7caf291cecd3d76a85f9b61ed3eae4a", "site": "gbtrade-ltd.com"}
+    ]
+  },
+  "fake_registrations": [
+    {"jurisdiction": "United Kingdom", "claim": "Brdmarket LIMITED operating in the UK", "verified": false, "source": "UK Companies House — ZERO results"},
+    {"jurisdiction": "South Africa", "company": "Brdmarket SA (PTY) Ltd", "reg_no": "2015/341406/07", "address": "Suite 18, 114 West Street Sandton, Johannesburg 2031", "verified": "PENDING — check cipc.co.za"},
+    {"jurisdiction": "Seychelles", "company": "Brdmarket (Seychelles) Ltd", "reg_no": "8419176-1", "address": "Room S203A, Orion Complex, Victoria, Mahe", "verified": "PENDING — check FSA Seychelles"},
+    {"jurisdiction": "St. Vincent and the Grenadines", "address": "Griffith Corporate Centre, P.O. Box 1510, Beachmont Kingstown", "verified": false, "note": "No company name or number provided — standard offshore shell address"}
+  ],
+  "tiktok_operator": {
+    "display_name": "BigTrap",
+    "group_chat_name": "Alpha Unlimited, BigTrap",
+    "handle": "UNKNOWN — requires platform subpoena",
+    "first_contact": "2026-05-27T02:59:00",
+    "lure_script": "pig-butchering / fake crypto mentorship",
+    "note": "Operator used victim company name 'Alpha Unlimited' in group chat as personalization tactic"
+  },
+  "malware": [
+    {
+      "filename": "brdapp.apk",
+      "url": "https://brdmarket.com/brdapp.apk",
+      "platform": "Android only",
+      "distribution": "Sideloaded — NOT on Google Play",
+      "risk": "CRITICAL — suspected RAT or wallet drainer",
+      "status": "LIVE HTTP 200 confirmed 2026-05-27",
+      "action_required": "Detonate in isolated sandbox — extract permissions, C2 endpoints, embedded wallet addresses"
+    }
+  ],
+  "reporting_channels": [
+    {"agency": "FBI IC3", "url": "https://ic3.gov/complaint"},
+    {"agency": "FTC Consumer Sentinel", "url": "https://reportfraud.ftc.gov"},
+    {"agency": "TikTok Trust & Safety", "url": "https://tiktok.com/legal/report"},
+    {"agency": "iFastNet Abuse", "email": "abuse@ifastnet.com"},
+    {"agency": "Let's Encrypt", "email": "security@letsencrypt.org"},
+    {"agency": "UK Action Fraud", "url": "https://actionfraud.police.uk/report-a-fraud"},
+    {"agency": "Google Play Protect / Android Security", "email": "android-security-reports@google.com"},
+    {"agency": "Chainabuse", "url": "https://chainabuse.com/report"}
+  ],
+  "wallet_addresses": {
+    "note": "Deposit wallet addresses gated behind account registration — not yet recovered. Register with throwaway email at brdmarket.com/register to extract and add here for Chainalysis/Elliptic tracing."
+  }
+}
