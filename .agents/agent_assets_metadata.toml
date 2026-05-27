@@ -419,3 +419,9 @@ id = "9ZGpXJFtagqe25ukjS4aR"
 uri = "file://proxhq-reports/agentx-osint/AgentX_William_Siegel_OSINT_Package_v2_2026-05-24.zip"
 type = "unspecified"
 title = "@agentxanonymous50 / William Siegel — OSINT Package v2 (Full) 2026-05-24"
+
+[[outputs]]
+id = "QDMSKnTsYWdZ87vhGa3Zo"
+uri = "file://forensic/BRD_Market_Forensic_Package_2026-05-27.zip"
+type = "unspecified"
+title = "BRD Market Forensic Package — 2026-05-27"

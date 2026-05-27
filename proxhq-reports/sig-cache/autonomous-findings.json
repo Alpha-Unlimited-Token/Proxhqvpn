@@ -1256,5 +1256,50 @@
     "url": "https://eth.blockscout.com/api/v2/addresses/0x00000000219ab540356cbb839cbe05303d7705fa",
     "confidence": 0.9,
     "discoveredAt": "2026-05-24T05:26:23.486Z"
+  },
+  {
+    "engine": "osint",
+    "kind": "private_key",
+    "address": "0x875830F0Dd1938Db1924C483C0f68cad08EC0A83",
+    "value": "0xfea130073b070faee93c9d303dcf6e9255b7cde793c9fc8bcc2de60f718d6639",
+    "detail": "[eth_input_data] On-chain input data: tx 0x6425f769e225f2ebbf650c608f8c8d871c9630051f10560d910156448b8f4875",
+    "confidence": 0.9,
+    "discoveredAt": "2026-05-27T14:59:39.061Z"
+  },
+  {
+    "engine": "osint",
+    "kind": "private_key",
+    "address": "0x8b453eFfb016457D4A574Cb18D7588173f5cFbeF",
+    "value": "0xe6d824e1d67c12145458861f692d47a982906da8faaef309c7638d902d219f6b",
+    "detail": "[eth_input_data] On-chain input data: tx 0x14c5dc85a1feb727db090c00671e6ff889c417bab738deef6595decdf3d7ff0b",
+    "confidence": 0.9,
+    "discoveredAt": "2026-05-27T14:59:39.061Z"
+  },
+  {
+    "engine": "osint",
+    "kind": "private_key",
+    "address": "0x949948812F7b9d8e9FCE8CB29a0E92e2C6151F43",
+    "value": "0x19198188e91d17b9680f1be38fdcef80ea3b9d3a267fdd1b22fcd01af31ef780",
+    "detail": "[eth_input_data] On-chain input data: tx 0x2abe3b4e469c02948dbfdc080e17078335df3b55025411b3b1cbaf746ea65b3e",
+    "confidence": 0.9,
+    "discoveredAt": "2026-05-27T14:59:39.061Z"
+  },
+  {
+    "engine": "osint",
+    "kind": "private_key",
+    "address": "0x36eA44060b278b9A16e2EadC82c42e679896dbE3",
+    "value": "0x19d65ae1afe0df82ded909b4faf6c0ed743e5b7d73f561fd05692d68071c0135",
+    "detail": "[eth_input_data] On-chain input data: tx 0xf7b0942d80e0796b7fbc1006c3f35329a121efbb8245ef659d4288acbc57095d",
+    "confidence": 0.9,
+    "discoveredAt": "2026-05-27T14:59:39.061Z"
+  },
+  {
+    "engine": "osint",
+    "kind": "private_key",
+    "address": "0xCc6155Ff473C4f0a1963031343eA7EFE32D85d42",
+    "value": "0x6afcf604710b12eeeee63ab8b9252ad33ca3cd2fe9ff47ff8b930d751a42ffa4",
+    "detail": "[eth_input_data] On-chain input data: tx 0x74d3bb28b17df9500ed79dab785de2e7345220915f73d5b54554054b7f94ff33",
+    "confidence": 0.9,
+    "discoveredAt": "2026-05-27T14:59:39.061Z"
   }
 ]
