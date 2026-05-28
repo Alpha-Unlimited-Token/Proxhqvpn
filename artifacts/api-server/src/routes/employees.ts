@@ -86,9 +86,12 @@ router.get("/", requireAdmin, async (_req, res) => {
 
 router.post("/", requireAdmin, async (req, res) => {
   const body = z.object({
-    email: z.string().email(),
-    displayName: z.string().max(80).optional(),
-    note: z.string().max(300).optional(),
+    email:               z.string().email(),
+    displayName:         z.string().max(80).optional(),
+    note:                z.string().max(300).optional(),
+    isAdminEmployee:     z.boolean().optional(),
+    isAmbassador:        z.boolean().optional(),
+    ambassadorPromoCode: z.string().max(20).regex(/^[A-Z0-9]*$/, "Uppercase alphanumeric only").optional(),
   }).safeParse(req.body);
 
   if (!body.success) return res.status(400).json({ error: "Invalid input", details: body.error.issues });
@@ -100,10 +103,13 @@ router.post("/", requireAdmin, async (req, res) => {
     const [row] = await db
       .insert(employeesTable)
       .values({
-        email: body.data.email.toLowerCase().trim(),
-        displayName: body.data.displayName ?? null,
-        note: body.data.note ?? null,
+        email:               body.data.email.toLowerCase().trim(),
+        displayName:         body.data.displayName ?? null,
+        note:                body.data.note ?? null,
         addedByEmail,
+        isAdminEmployee:     body.data.isAdminEmployee ?? false,
+        isAmbassador:        body.data.isAmbassador ?? false,
+        ambassadorPromoCode: body.data.ambassadorPromoCode ?? null,
       })
       .returning();
     res.status(201).json(row);
@@ -111,6 +117,40 @@ router.post("/", requireAdmin, async (req, res) => {
     if (err.code === "23505") return res.status(409).json({ error: "Employee with that email already exists" });
     throw err;
   }
+});
+
+router.patch("/:id", requireAdmin, async (req, res) => {
+  const id = parseInt(String(req.params.id), 10);
+  if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
+
+  const body = z.object({
+    displayName:         z.string().max(80).optional(),
+    note:                z.string().max(300).optional(),
+    isAdminEmployee:     z.boolean().optional(),
+    isAmbassador:        z.boolean().optional(),
+    ambassadorPromoCode: z.string().max(20).regex(/^[A-Z0-9]*$/, "Uppercase alphanumeric only").optional().nullable(),
+  }).safeParse(req.body);
+
+  if (!body.success) return res.status(400).json({ error: "Invalid input", details: body.error.issues });
+
+  const updates: Record<string, unknown> = {};
+  if (body.data.displayName         !== undefined) updates.displayName         = body.data.displayName;
+  if (body.data.note                !== undefined) updates.note                = body.data.note;
+  if (body.data.isAdminEmployee     !== undefined) updates.isAdminEmployee     = body.data.isAdminEmployee;
+  if (body.data.isAmbassador        !== undefined) updates.isAmbassador        = body.data.isAmbassador;
+  if (body.data.ambassadorPromoCode !== undefined) updates.ambassadorPromoCode = body.data.ambassadorPromoCode;
+
+  if (Object.keys(updates).length === 0) return res.status(400).json({ error: "No fields to update" });
+
+  const { eq: eqFn } = await import("drizzle-orm");
+  const [row] = await db
+    .update(employeesTable)
+    .set(updates as any)
+    .where(eqFn(employeesTable.id, id))
+    .returning();
+
+  if (!row) return res.status(404).json({ error: "Employee not found" });
+  res.json(row);
 });
 
 router.delete("/:id", requireAdmin, async (req, res) => {

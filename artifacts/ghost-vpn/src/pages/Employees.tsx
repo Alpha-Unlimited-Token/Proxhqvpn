@@ -4,7 +4,8 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Users, UserPlus, Trash2, Loader2, BadgeCheck,
   Mail, Clock, User, AlertCircle, Shield,
-  RefreshCw, FileText,
+  RefreshCw, FileText, Award, ChevronDown, ChevronUp,
+  Pencil, Check, X, ToggleLeft, ToggleRight,
 } from "lucide-react";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -17,11 +18,135 @@ interface Employee {
   addedByEmail: string | null;
   addedAt: string;
   isAdminEmployee: boolean;
+  isAmbassador: boolean;
+  ambassadorPromoCode: string | null;
 }
 
 function formatDate(iso: string) {
   try { return new Date(iso).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }); }
   catch { return iso; }
+}
+
+interface EditRowProps {
+  emp: Employee;
+  onSaved: () => void;
+  onCancel: () => void;
+}
+
+function EditRow({ emp, onSaved, onCancel }: EditRowProps) {
+  const { toast } = useToast();
+  const [saving, setSaving] = useState(false);
+  const [displayName, setDisplayName] = useState(emp.displayName ?? "");
+  const [note, setNote] = useState(emp.note ?? "");
+  const [isAdminEmployee, setIsAdminEmployee] = useState(emp.isAdminEmployee);
+  const [isAmbassador, setIsAmbassador] = useState(emp.isAmbassador);
+  const [promoCode, setPromoCode] = useState(emp.ambassadorPromoCode ?? "");
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const r = await fetch(`${BASE}/api/employees/${emp.id}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          displayName: displayName.trim() || null,
+          note: note.trim() || null,
+          isAdminEmployee,
+          isAmbassador,
+          ambassadorPromoCode: isAmbassador ? (promoCode.trim().toUpperCase() || null) : null,
+        }),
+      });
+      const d = await r.json();
+      if (!r.ok) { toast({ title: d.error ?? "Save failed", variant: "destructive" }); return; }
+      toast({ title: "Employee updated" });
+      onSaved();
+    } catch {
+      toast({ title: "Network error", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="border border-primary/30 rounded p-4 bg-primary/5 space-y-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label className="text-[8px] text-primary/40 font-mono uppercase block mb-1">Display Name</label>
+          <input value={displayName} onChange={e => setDisplayName(e.target.value)}
+            className="w-full bg-black border border-primary/20 text-primary text-xs font-mono px-2 py-1.5 focus:outline-none focus:border-primary/50 rounded" />
+        </div>
+        <div>
+          <label className="text-[8px] text-primary/40 font-mono uppercase block mb-1">Internal Note</label>
+          <input value={note} onChange={e => setNote(e.target.value)}
+            className="w-full bg-black border border-primary/20 text-primary text-xs font-mono px-2 py-1.5 focus:outline-none focus:border-primary/50 rounded" />
+        </div>
+      </div>
+
+      {/* Access level toggles */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <button
+          type="button"
+          onClick={() => setIsAdminEmployee(v => !v)}
+          className={`flex items-center gap-2 px-3 py-2 rounded border text-xs font-mono transition-colors ${
+            isAdminEmployee
+              ? "bg-yellow-900/20 border-yellow-500/40 text-yellow-400"
+              : "bg-black border-primary/15 text-primary/40 hover:border-primary/30"
+          }`}
+        >
+          {isAdminEmployee
+            ? <ToggleRight className="w-4 h-4" />
+            : <ToggleLeft className="w-4 h-4" />}
+          Employee Admin Access
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setIsAmbassador(v => !v)}
+          className={`flex items-center gap-2 px-3 py-2 rounded border text-xs font-mono transition-colors ${
+            isAmbassador
+              ? "bg-orange-900/20 border-orange-500/40 text-orange-400"
+              : "bg-black border-primary/15 text-primary/40 hover:border-primary/30"
+          }`}
+        >
+          {isAmbassador
+            ? <ToggleRight className="w-4 h-4" />
+            : <ToggleLeft className="w-4 h-4" />}
+          Ambassador Program
+        </button>
+      </div>
+
+      {/* Promo code — only shown when ambassador is on */}
+      {isAmbassador && (
+        <div>
+          <label className="text-[8px] text-orange-400/70 font-mono uppercase block mb-1">
+            Ambassador Promo Code <span className="text-primary/30">(uppercase alphanumeric)</span>
+          </label>
+          <input
+            value={promoCode}
+            onChange={e => setPromoCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").substring(0, 20))}
+            placeholder="e.g. CHARLIE10"
+            className="w-full bg-black border border-orange-500/25 text-orange-300 text-xs font-mono px-2 py-1.5 focus:outline-none focus:border-orange-400/50 rounded uppercase"
+          />
+          <p className="text-[9px] text-primary/30 font-mono mt-1">
+            This code will be active in the ambassador program immediately. Customers can enter it at checkout for a discount.
+          </p>
+        </div>
+      )}
+
+      <div className="flex items-center gap-3 pt-1">
+        <button onClick={save} disabled={saving}
+          className="flex items-center gap-2 text-[10px] font-mono text-black bg-primary hover:bg-primary/80 disabled:opacity-50 px-4 py-2 rounded transition-colors">
+          {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+          {saving ? "Saving…" : "Save Changes"}
+        </button>
+        <button onClick={onCancel}
+          className="text-[9px] font-mono text-primary/40 hover:text-primary transition-colors flex items-center gap-1">
+          <X className="w-3 h-3" /> Cancel
+        </button>
+      </div>
+    </div>
+  );
 }
 
 export default function Employees() {
@@ -31,10 +156,14 @@ export default function Employees() {
   const [adding, setAdding]       = useState(false);
   const [deleting, setDeleting]   = useState<number | null>(null);
   const [showForm, setShowForm]   = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
 
   const [email, setEmail]           = useState("");
   const [displayName, setDispName]  = useState("");
   const [note, setNote]             = useState("");
+  const [isAdminEmp, setIsAdminEmp] = useState(false);
+  const [isAmb, setIsAmb]           = useState(false);
+  const [promoCode, setPromoCode]   = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -54,17 +183,25 @@ export default function Employees() {
 
   const add = async () => {
     if (!email.trim()) { toast({ title: "Email is required", variant: "destructive" }); return; }
+    if (isAmb && !promoCode.trim()) { toast({ title: "Promo code is required when enabling ambassador", variant: "destructive" }); return; }
     setAdding(true);
     try {
       const r = await fetch(`${BASE}/api/employees`, {
         method: "POST", credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim(), displayName: displayName.trim() || undefined, note: note.trim() || undefined }),
+        body: JSON.stringify({
+          email: email.trim(),
+          displayName: displayName.trim() || undefined,
+          note: note.trim() || undefined,
+          isAdminEmployee: isAdminEmp,
+          isAmbassador: isAmb,
+          ambassadorPromoCode: isAmb ? promoCode.trim().toUpperCase() : undefined,
+        }),
       });
       const d = await r.json();
       if (!r.ok) { toast({ title: d.error ?? "Failed to add", variant: "destructive" }); return; }
       toast({ title: "Employee added", description: `${d.email} now has full complimentary access` });
-      setEmail(""); setDispName(""); setNote(""); setShowForm(false);
+      setEmail(""); setDispName(""); setNote(""); setIsAdminEmp(false); setIsAmb(false); setPromoCode(""); setShowForm(false);
       load();
     } catch {
       toast({ title: "Network error", variant: "destructive" });
@@ -116,8 +253,9 @@ export default function Employees() {
       <div className="flex items-start gap-2 text-[9px] font-mono border border-green-500/20 bg-green-900/10 rounded px-3 py-2 text-green-400/80">
         <BadgeCheck className="w-3.5 h-3.5 mt-0.5 shrink-0 text-green-400" />
         <span>
-          Employees listed here receive <strong>complimentary full access</strong> — WireGuard config generation, all VPN features,
-          Alpha Toolkit, and every Pro-tier feature — automatically, with no billing required. Access is granted by email address match at login.
+          Employees listed here receive <strong>complimentary full access</strong> — WireGuard, all VPN features,
+          Alpha Toolkit, and every Pro-tier feature — automatically, with no billing required.
+          You can also give employees <strong>Admin</strong> or <strong>Ambassador</strong> access from each employee's edit panel.
         </span>
       </div>
 
@@ -147,20 +285,49 @@ export default function Employees() {
               placeholder="Role, department, or reason for access…"
               className="w-full bg-black border border-primary/20 text-primary text-xs font-mono px-2 py-1.5 focus:outline-none focus:border-primary/50 rounded" />
           </div>
+
+          {/* Toggles */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <button type="button" onClick={() => setIsAdminEmp(v => !v)}
+              className={`flex items-center gap-2 px-3 py-2 rounded border text-xs font-mono transition-colors ${
+                isAdminEmp ? "bg-yellow-900/20 border-yellow-500/40 text-yellow-400" : "bg-black border-primary/15 text-primary/40 hover:border-primary/30"
+              }`}>
+              {isAdminEmp ? <ToggleRight className="w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
+              Employee Admin Access
+            </button>
+            <button type="button" onClick={() => setIsAmb(v => !v)}
+              className={`flex items-center gap-2 px-3 py-2 rounded border text-xs font-mono transition-colors ${
+                isAmb ? "bg-orange-900/20 border-orange-500/40 text-orange-400" : "bg-black border-primary/15 text-primary/40 hover:border-primary/30"
+              }`}>
+              {isAmb ? <ToggleRight className="w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
+              Ambassador Program
+            </button>
+          </div>
+
+          {isAmb && (
+            <div>
+              <label className="text-[8px] text-orange-400/70 font-mono uppercase block mb-1">Ambassador Promo Code *</label>
+              <input value={promoCode}
+                onChange={e => setPromoCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").substring(0, 20))}
+                placeholder="e.g. CHARLIE10"
+                className="w-full bg-black border border-orange-500/25 text-orange-300 text-xs font-mono px-2 py-1.5 focus:outline-none focus:border-orange-400/50 rounded uppercase" />
+            </div>
+          )}
+
           <div className="flex items-center gap-3">
             <button onClick={add} disabled={adding}
               className="flex items-center gap-2 text-[10px] font-mono text-black bg-primary hover:bg-primary/80 disabled:opacity-50 px-4 py-2 rounded transition-colors">
               {adding ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <UserPlus className="w-3.5 h-3.5" />}
               {adding ? "Adding…" : "Grant Access"}
             </button>
-            <button onClick={() => { setShowForm(false); setEmail(""); setDispName(""); setNote(""); }}
+            <button onClick={() => { setShowForm(false); setEmail(""); setDispName(""); setNote(""); setIsAdminEmp(false); setIsAmb(false); setPromoCode(""); }}
               className="text-[9px] font-mono text-primary/40 hover:text-primary transition-colors">
               Cancel
             </button>
           </div>
           <div className="flex items-start gap-2 text-[9px] font-mono text-yellow-400/70 border border-yellow-500/15 rounded px-2 py-1.5">
             <AlertCircle className="w-3 h-3 mt-0.5 shrink-0" />
-            Access is granted immediately. The employee must sign in with this exact email address to receive complimentary access.
+            Access is granted immediately. The employee must sign in with this exact email address.
           </div>
         </div>
       )}
@@ -179,60 +346,75 @@ export default function Employees() {
       ) : (
         <div className="space-y-2">
           <div className="text-[8px] font-mono text-primary/30 uppercase tracking-widest px-1">
-            {employees.length} employee{employees.length !== 1 ? "s" : ""} · all have full complimentary access
+            {employees.length} employee{employees.length !== 1 ? "s" : ""} · click edit to change access level or ambassador code
           </div>
           {employees.map(emp => (
-            <div key={emp.id}
-              className="border border-primary/15 hover:border-primary/25 rounded p-4 flex items-start gap-4 transition-colors">
-              {/* Avatar */}
-              <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0 text-[11px] font-bold text-primary/70 uppercase">
-                {(emp.displayName?.[0] ?? emp.email[0]).toUpperCase()}
-              </div>
-
-              {/* Details */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  {emp.displayName && (
-                    <span className="text-[11px] font-bold text-primary font-mono">{emp.displayName}</span>
-                  )}
-                  <span className="flex items-center gap-1 text-[10px] text-primary/60 font-mono">
-                    <Mail className="w-3 h-3" /> {emp.email}
-                  </span>
-                  <span className="flex items-center gap-1 text-[8px] text-green-400 border border-green-500/25 bg-green-900/10 px-1.5 py-0.5 rounded font-mono">
-                    <BadgeCheck className="w-2.5 h-2.5" /> FULL ACCESS
-                  </span>
-                  {emp.isAdminEmployee && (
-                    <span className="flex items-center gap-1 text-[8px] text-yellow-400 border border-yellow-500/25 bg-yellow-900/10 px-1.5 py-0.5 rounded font-mono">
-                      <Shield className="w-2.5 h-2.5" /> EMPLOYEE ADMIN
-                    </span>
-                  )}
+            <div key={emp.id} className="border border-primary/15 hover:border-primary/25 rounded transition-colors">
+              {editingId === emp.id ? (
+                <div className="p-4">
+                  <EditRow emp={emp} onSaved={() => { setEditingId(null); load(); }} onCancel={() => setEditingId(null)} />
                 </div>
-                <div className="flex items-center gap-4 mt-1 flex-wrap">
-                  {emp.note && (
-                    <span className="flex items-center gap-1 text-[9px] text-primary/40 font-mono">
-                      <FileText className="w-3 h-3" /> {emp.note}
-                    </span>
-                  )}
-                  <span className="flex items-center gap-1 text-[9px] text-primary/30 font-mono">
-                    <Clock className="w-3 h-3" /> Added {formatDate(emp.addedAt)}
-                  </span>
-                  {emp.addedByEmail && (
-                    <span className="flex items-center gap-1 text-[9px] text-primary/20 font-mono">
-                      <User className="w-3 h-3" /> by {emp.addedByEmail}
-                    </span>
-                  )}
-                </div>
-              </div>
+              ) : (
+                <div className="p-4 flex items-start gap-4">
+                  {/* Avatar */}
+                  <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0 text-[11px] font-bold text-primary/70 uppercase">
+                    {(emp.displayName?.[0] ?? emp.email[0]).toUpperCase()}
+                  </div>
 
-              {/* Delete */}
-              <button onClick={() => remove(emp)} disabled={deleting === emp.id}
-                className="shrink-0 flex items-center gap-1.5 text-[9px] font-mono text-red-400/50 hover:text-red-400 border border-red-500/10 hover:border-red-500/30 px-2.5 py-1.5 rounded transition-colors disabled:opacity-40">
-                {deleting === emp.id
-                  ? <Loader2 className="w-3 h-3 animate-spin" />
-                  : <Trash2 className="w-3 h-3" />
-                }
-                Remove
-              </button>
+                  {/* Details */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {emp.displayName && (
+                        <span className="text-[11px] font-bold text-primary font-mono">{emp.displayName}</span>
+                      )}
+                      <span className="flex items-center gap-1 text-[10px] text-primary/60 font-mono">
+                        <Mail className="w-3 h-3" /> {emp.email}
+                      </span>
+                      <span className="flex items-center gap-1 text-[8px] text-green-400 border border-green-500/25 bg-green-900/10 px-1.5 py-0.5 rounded font-mono">
+                        <BadgeCheck className="w-2.5 h-2.5" /> FULL ACCESS
+                      </span>
+                      {emp.isAdminEmployee && (
+                        <span className="flex items-center gap-1 text-[8px] text-yellow-400 border border-yellow-500/25 bg-yellow-900/10 px-1.5 py-0.5 rounded font-mono">
+                          <Shield className="w-2.5 h-2.5" /> EMPLOYEE ADMIN
+                        </span>
+                      )}
+                      {emp.isAmbassador && (
+                        <span className="flex items-center gap-1 text-[8px] text-orange-400 border border-orange-500/25 bg-orange-900/10 px-1.5 py-0.5 rounded font-mono">
+                          <Award className="w-2.5 h-2.5" /> AMBASSADOR{emp.ambassadorPromoCode ? ` · ${emp.ambassadorPromoCode}` : ""}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-4 mt-1 flex-wrap">
+                      {emp.note && (
+                        <span className="flex items-center gap-1 text-[9px] text-primary/40 font-mono">
+                          <FileText className="w-3 h-3" /> {emp.note}
+                        </span>
+                      )}
+                      <span className="flex items-center gap-1 text-[9px] text-primary/30 font-mono">
+                        <Clock className="w-3 h-3" /> Added {formatDate(emp.addedAt)}
+                      </span>
+                      {emp.addedByEmail && (
+                        <span className="flex items-center gap-1 text-[9px] text-primary/20 font-mono">
+                          <User className="w-3 h-3" /> by {emp.addedByEmail}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="shrink-0 flex items-center gap-2">
+                    <button onClick={() => setEditingId(emp.id)}
+                      className="flex items-center gap-1.5 text-[9px] font-mono text-primary/50 hover:text-primary border border-primary/15 hover:border-primary/35 px-2.5 py-1.5 rounded transition-colors">
+                      <Pencil className="w-3 h-3" /> Edit
+                    </button>
+                    <button onClick={() => remove(emp)} disabled={deleting === emp.id}
+                      className="flex items-center gap-1.5 text-[9px] font-mono text-red-400/50 hover:text-red-400 border border-red-500/10 hover:border-red-500/30 px-2.5 py-1.5 rounded transition-colors disabled:opacity-40">
+                      {deleting === emp.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -241,47 +423,22 @@ export default function Employees() {
       {/* Info box */}
       <div className="border border-primary/10 rounded p-3 space-y-1.5 text-[9px] font-mono text-primary/83">
         <div className="flex items-center gap-1.5 text-primary font-bold uppercase text-[8px] tracking-widest">
-          <Shield className="w-3 h-3" /> Employee Handbook — Access & Features
+          <Shield className="w-3 h-3" /> Access Level Guide
         </div>
-        <div className="text-primary/78 mt-1 mb-2 text-[8px]">ALPHA UNLIMITED TECHNOLOGIES LLC — Internal Policy</div>
-
-        <div className="font-bold text-primary/90 text-[8px] uppercase tracking-wider mt-2 mb-1">How Access is Granted</div>
-        <div>• Employee emails are matched at login — exact match, case-insensitive.</div>
-        <div>• The employee signs in with their Google or email account using the standard ProxhqVPN login page.</div>
-        <div>• Access is granted immediately and automatically on their first login after being added to this list.</div>
-        <div>• The Pricing/Subscription page shows <span className="text-green-400">Employee — Complimentary</span> instead of asking for payment.</div>
-
-        <div className="font-bold text-primary/90 text-[8px] uppercase tracking-wider mt-3 mb-1">What Employees Get (Full Pro Access)</div>
-        <div>• <strong>My VPN</strong> — WireGuard config generation, auto-IP detection banner, QR code for mobile, connection to all nodes.</div>
-        <div>• <strong>Kill Switch</strong> — Auto-IP whitelisting with downloadable iptables/pf/netsh rule files for Linux, macOS, and Windows.</div>
-        <div>• <strong>WireGuard Config</strong> — Cryptographically signed configs with PostUp/PostDown kill switch hooks pre-baked.</div>
-        <div>• <strong>Router Config</strong> — One-click WireGuard configs for OpenWRT, DD-WRT, AsusWRT-Merlin, pfSense, GL.iNet, and Ubiquiti EdgeOS.</div>
-        <div>• <strong>VPN Gate</strong> — Double-hop routing through community VPN Gate servers.</div>
-        <div>• <strong>Onion Browser</strong> — Built-in Tor browser for .onion addresses and anonymous browsing.</div>
-        <div>• <strong>Leak Detection</strong> — IP, DNS, WebRTC, and IPv6 leak tests.</div>
-        <div>• <strong>DNS Shield</strong> — DNS-over-HTTPS and DNS-over-TLS configuration.</div>
-        <div>• <strong>Split Tunneling</strong> — Per-app and per-CIDR routing rules.</div>
-        <div>• <strong>Alpha Toolkit</strong> — Universal Scanner v4.0, Vulnerability Verifier, Web Scraper (all Tor-cloakable). Command Center Pro exclusive.</div>
-        <div>• <strong>SQLmap Scanner</strong> — Full SQLmap integration with Tor routing. Command Center Pro exclusive.</div>
-        <div>• <strong>SilkWeb Honeypot</strong> — Decoy network management, trapped IP logs, counter-scan interface.</div>
-        <div>• <strong>Threat Monitor</strong> — Real-time intrusion alerts from all nodes and honeypots.</div>
-        <div>• <strong>Firewall Manager</strong> — iptables/nftables rule management across all VPN nodes.</div>
-        <div>• <strong>Remote Terminal</strong> — Web-based shell for VPN node administration.</div>
-        <div>• <strong>Security Audit</strong> — Automated self-audit of the ProxhqVPN platform.</div>
-        <div>• <strong>Threat Intelligence</strong> — IP reputation, WHOIS, TLS inspection, threat feeds.</div>
-        <div>• <strong>VPN Node Manager</strong> — Add, configure, enable/disable VPN server nodes.</div>
-        <div>• <strong>Performance Monitor</strong> — Real-time CPU, RAM, bandwidth, and connection metrics per node.</div>
-
-        <div className="font-bold text-primary/90 text-[8px] uppercase tracking-wider mt-3 mb-1">Revoking Access</div>
-        <div>• Removing an employee immediately flags them for access revocation.</div>
-        <div>• Complimentary access is fully revoked at their next login attempt.</div>
-        <div>• Existing active sessions are unaffected until they log out or refresh — for immediate revocation, contact support to invalidate their Clerk session.</div>
-
-        <div className="font-bold text-primary/90 text-[8px] uppercase tracking-wider mt-3 mb-1">Security Policy</div>
-        <div>• Employees must not share login credentials or sessions with external parties.</div>
-        <div>• Alpha Toolkit, SQLmap, and SilkWeb may only be used against targets the company has written authorization to test.</div>
-        <div>• All terminal commands are audit-logged and may be reviewed by management.</div>
-        <div>• Report security concerns to <span className="text-primary">support@proxhqvpn.com</span>.</div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-2">
+          <div className="border border-green-500/20 rounded p-2 space-y-1">
+            <div className="flex items-center gap-1 text-green-400 font-bold text-[8px] uppercase"><BadgeCheck className="w-3 h-3" /> Full Access</div>
+            <div className="text-primary/50">All VPN features, Alpha Toolkit, Command Center Pro — no subscription required.</div>
+          </div>
+          <div className="border border-yellow-500/20 rounded p-2 space-y-1">
+            <div className="flex items-center gap-1 text-yellow-400 font-bold text-[8px] uppercase"><Shield className="w-3 h-3" /> Employee Admin</div>
+            <div className="text-primary/50">Can access admin pages (dashboard, nodes, firewall, terminal, DB) — below owner level.</div>
+          </div>
+          <div className="border border-orange-500/20 rounded p-2 space-y-1">
+            <div className="flex items-center gap-1 text-orange-400 font-bold text-[8px] uppercase"><Award className="w-3 h-3" /> Ambassador</div>
+            <div className="text-primary/50">Listed on the ambassador page with their own promo code. 10% commission on referrals.</div>
+          </div>
+        </div>
       </div>
     </div>
   );
