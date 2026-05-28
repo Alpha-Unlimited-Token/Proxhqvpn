@@ -1,12 +1,11 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
-import { useState } from "react";
 import { usePersistedState } from "@/hooks/usePersistedState";
 import { PageSEO } from "@/components/PageSEO";
 import {
   Users, ChevronRight, Shield, Terminal, Database,
   BookOpen, AlertCircle, CheckCircle, Lock,
   Info, Activity, Server, Zap, Eye, Globe,
-  Copy, FileText, Settings, Bell,
+  Copy, FileText, Settings, Bell, Download,
 } from "lucide-react";
 
 function CB({ children, label }: { children: string; label?: string }) {
@@ -497,14 +496,24 @@ export default function EmployeeHandbook() {
         path="/handbook/employee"
       />
 
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
-          <Users className="w-5 h-5 text-primary/80" />
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+            <Users className="w-5 h-5 text-primary/80" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-white leading-tight">Employee Handbook</h1>
+            <p className="text-xs text-white/78">ALPHA UNLIMITED TECHNOLOGIES LLC — Internal Operations Guide</p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-xl font-bold text-white leading-tight">Employee Handbook</h1>
-          <p className="text-xs text-white/78">ALPHA UNLIMITED TECHNOLOGIES LLC — Internal Operations Guide</p>
-        </div>
+        <button
+          onClick={() => window.print()}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl border border-primary/20 bg-primary/5 text-primary text-[11px] font-mono hover:bg-primary/10 transition-colors shrink-0"
+          title="Print or Save as PDF"
+        >
+          <Download className="w-3.5 h-3.5" />
+          Download PDF
+        </button>
       </div>
 
       <Note type="warn">This handbook is confidential and intended solely for authorized ALPHA UNLIMITED TECHNOLOGIES LLC employees. Do not share, copy, or distribute outside the organization.</Note>

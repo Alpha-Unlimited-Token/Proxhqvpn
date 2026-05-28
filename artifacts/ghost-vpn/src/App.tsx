@@ -307,7 +307,17 @@ function HomeRedirect() {
 }
 
 /** Pages accessible to anyone — no login required */
+function ClerkLoadingSpinner() {
+  return (
+    <div className="flex items-center justify-center min-h-screen bg-[#080d09]">
+      <div className="w-6 h-6 rounded-full border-2 border-primary/30 border-t-primary animate-spin" />
+    </div>
+  );
+}
+
 function PublicLayout({ children }: { children: React.ReactNode }) {
+  const { isLoaded } = useUser();
+  if (!isLoaded) return <ClerkLoadingSpinner />;
   return (
     <>
       <Show when="signed-in">
@@ -343,6 +353,8 @@ function PublicLayout({ children }: { children: React.ReactNode }) {
 
 /** Pages accessible to any signed-in user (no subscription required) */
 function ProtectedLayout({ children }: { children: React.ReactNode }) {
+  const { isLoaded } = useUser();
+  if (!isLoaded) return <ClerkLoadingSpinner />;
   return (
     <>
       <Show when="signed-in">
@@ -359,6 +371,8 @@ function ProtectedLayout({ children }: { children: React.ReactNode }) {
 
 /** Pages that require any active subscription — VPN Basic or Command Center Pro */
 function ToolLayout({ children }: { children: React.ReactNode }) {
+  const { isLoaded } = useUser();
+  if (!isLoaded) return <ClerkLoadingSpinner />;
   return (
     <>
       <Show when="signed-in">
@@ -377,6 +391,8 @@ function ToolLayout({ children }: { children: React.ReactNode }) {
 
 /** Pages that require Command Center Pro subscription */
 function CcLayout({ children }: { children: React.ReactNode }) {
+  const { isLoaded } = useUser();
+  if (!isLoaded) return <ClerkLoadingSpinner />;
   return (
     <>
       <Show when="signed-in">
@@ -395,6 +411,8 @@ function CcLayout({ children }: { children: React.ReactNode }) {
 
 /** Pages restricted to staff only — admin owners and employees */
 function AdminLayout({ children }: { children: React.ReactNode }) {
+  const { isLoaded } = useUser();
+  if (!isLoaded) return <ClerkLoadingSpinner />;
   return (
     <>
       <Show when="signed-in">

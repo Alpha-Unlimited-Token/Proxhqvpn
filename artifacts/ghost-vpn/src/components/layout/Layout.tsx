@@ -316,11 +316,10 @@ export function Layout({ children }: LayoutProps) {
 
   // Show payment alert banner when a new confirmed notification arrives
   useEffect(() => {
-    if (newAlert) {
-      setAlertVisible(true);
-      const t = setTimeout(() => { setAlertVisible(false); setTimeout(dismissAlert, 400); }, 8000);
-      return () => clearTimeout(t);
-    }
+    if (!newAlert) return;
+    setAlertVisible(true);
+    const t = setTimeout(() => { setAlertVisible(false); setTimeout(dismissAlert, 400); }, 8000);
+    return () => clearTimeout(t);
   }, [newAlert, dismissAlert]);
 
   // Register the callback that Electron calls when a background update finishes downloading
