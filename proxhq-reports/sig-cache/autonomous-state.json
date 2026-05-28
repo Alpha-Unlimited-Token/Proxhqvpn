@@ -1,9 +1,9 @@
 {
   "startedAt": "2026-05-01T06:54:14.695Z",
-  "lastSavedAt": "2026-05-27T14:59:39.062Z",
-  "lastBlockScanned": 24987977,
-  "lowestBlockCovered": 24987928,
-  "windowsCompleted": 210,
+  "lastSavedAt": "2026-05-27T22:43:01.002Z",
+  "lastBlockScanned": 24987827,
+  "lowestBlockCovered": 24987778,
+  "windowsCompleted": 213,
   "osintRunCount": 21,
   "peelRunCount": 30,
   "hybridRunCount": 0,
@@ -15,7 +15,7 @@
   "errors": 2,
   "rpcBackoffMs": 3000,
   "running": true,
-  "statusMessage": "E3 OSINT on 20 addrs (20 from pool, 0 recent)",
+  "statusMessage": "E1 scanning blocks 24987778–24987827 + 20 targeted addrs",
   "crossEngineFlows": {
     "e1ToE3": 0,
     "e1ToE4": 0,
