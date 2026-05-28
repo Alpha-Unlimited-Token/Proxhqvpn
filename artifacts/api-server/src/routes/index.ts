@@ -85,6 +85,7 @@ import sastRouter from "./sast";
 import cveSearchRouter from "./cvesearch";
 import notificationsRouter from "./notifications";
 import quantumAuditRouter from "./quantum-audit";
+import adminUsersRouter from "./admin-users";
 
 const router: IRouter = Router();
 
@@ -393,6 +394,7 @@ router.use("/meshnet",         requireAccess, meshnetRouter);
 router.use("/data-broker",     requireAccess, dataBrokerRouter);
 
 // ── Admin-only routes ─────────────────────────────────────────────────────
+router.use("/admin/users",    requireAdmin, adminUsersRouter);
 router.use("/employees",      requireAdmin, employeesRouter);
 router.use("/setup",          requireAdmin, setupRouter);
 

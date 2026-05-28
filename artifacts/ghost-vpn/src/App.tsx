@@ -71,6 +71,7 @@ import SubdomainScan from "@/pages/SubdomainScan";
 import Downloads from "@/pages/Downloads";
 import UserGuide from "@/pages/UserGuide";
 import Employees from "@/pages/Employees";
+import UserManagement from "@/pages/UserManagement";
 import ThreatProtection from "@/pages/ThreatProtection";
 import Setup from "@/pages/Setup";
 import Ambassadors from "@/pages/Ambassadors";
@@ -779,6 +780,9 @@ function AppRoutes() {
           </Route>
           <Route path="/sql">
             <AdminLayout><SqlInterface /></AdminLayout>
+          </Route>
+          <Route path="/user-management">
+            <AdminLayout><UserManagement /></AdminLayout>
           </Route>
           <Route path="/employees">
             <AdminLayout><Employees /></AdminLayout>
