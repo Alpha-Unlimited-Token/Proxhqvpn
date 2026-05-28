@@ -124,11 +124,11 @@ router.patch("/:id", requireAdmin, async (req, res) => {
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
 
   const body = z.object({
-    displayName:         z.string().max(80).optional(),
-    note:                z.string().max(300).optional(),
+    displayName:         z.string().max(80).nullable().optional(),
+    note:                z.string().max(300).nullable().optional(),
     isAdminEmployee:     z.boolean().optional(),
     isAmbassador:        z.boolean().optional(),
-    ambassadorPromoCode: z.string().max(20).regex(/^[A-Z0-9]*$/, "Uppercase alphanumeric only").optional().nullable(),
+    ambassadorPromoCode: z.string().max(20).regex(/^[A-Z0-9]*$/, "Uppercase alphanumeric only").nullable().optional(),
   }).safeParse(req.body);
 
   if (!body.success) return res.status(400).json({ error: "Invalid input", details: body.error.issues });
