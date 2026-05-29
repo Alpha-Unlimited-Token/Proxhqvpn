@@ -144,6 +144,24 @@ interface EmailPattern {
   hasGravatar: boolean;
 }
 
+interface DiscordLookupResult {
+  username: string | null;
+  resolvedUserId: string | null;
+  resolvedSource: string | null;
+  displayName: string | null;
+  avatar: string | null;
+  defaultAvatarUrl: string | null;
+  profileUrl: string | null;
+  accountAgeDays: number | null;
+  lookupAttempts: Array<{ source: string; status: "found" | "not_found" | "error"; note?: string }>;
+  selfLookupSteps: string[];
+  snowflake: { createdAt: string; timestampMs: number; workerId: number; processId: number; increment: number } | null;
+  profile: { displayName?: string; username?: string; avatar?: string; source?: string; createdAt?: string; accountAgeDays?: number | null } | null;
+  lanyardPresence: { username?: string; avatar?: string; status?: string; activities?: string[] } | null;
+  idBreachHits: Array<{ source: string; found: boolean; resultCount?: number; note?: string }> | null;
+  idDorkQueries: string[] | null;
+}
+
 interface UsernameResult {
   username: string;
   found: number;
@@ -180,6 +198,254 @@ const STATUS_COLOR: Record<PlatformResult["status"], string> = {
   error: "text-primary/20",
   manual: "text-blue-400/60",
 };
+
+// ── Discord Lookup Panel ──────────────────────────────────────────────────────
+
+const STATUS_PRESENCE: Record<string, string> = {
+  online: "🟢 Online", idle: "🟡 Idle", dnd: "🔴 Do Not Disturb", offline: "⚫ Offline",
+};
+
+function DiscordLookupPanel({
+  discordUsername, setDiscordUsername,
+  discordUserId, setDiscordUserId,
+  discordResult, discordMut, showSteps, setShowSteps,
+}: {
+  discordUsername: string; setDiscordUsername: (v: string) => void;
+  discordUserId: string; setDiscordUserId: (v: string) => void;
+  discordResult: DiscordLookupResult | null;
+  discordMut: { mutate: (b: { username?: string; userId?: string }) => void; isPending: boolean };
+  showSteps: boolean; setShowSteps: (v: boolean) => void;
+}) {
+  const [copied, setCopied] = useState<string | null>(null);
+  const copyText = (t: string, key: string) => {
+    navigator.clipboard.writeText(t);
+    setCopied(key);
+    setTimeout(() => setCopied(null), 1500);
+  };
+
+  const canRun = (discordUsername.trim().length > 0 || /^\d{17,20}$/.test(discordUserId.trim()));
+
+  const dr = discordResult;
+  const hasBreachHit = dr?.idBreachHits?.some(h => h.found) ?? false;
+  const avatarSrc = dr?.avatar ?? dr?.lanyardPresence?.avatar ?? dr?.defaultAvatarUrl;
+
+  return (
+    <div className="border border-indigo-500/20 rounded-sm bg-indigo-950/10">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-indigo-500/15">
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 rounded-full bg-indigo-400/60" />
+          <span className="text-[11px] font-bold text-indigo-300/80 uppercase tracking-widest">Discord Deep Lookup</span>
+        </div>
+        <button onClick={() => setShowSteps(!showSteps)} className="text-[10px] text-indigo-300/40 hover:text-indigo-300/80 transition-colors">
+          {showSteps ? "Hide" : "How to find my ID →"}
+        </button>
+      </div>
+
+      {/* How to find your ID (collapsible) */}
+      {showSteps && (
+        <div className="px-4 py-3 border-b border-indigo-500/10 bg-indigo-950/20 space-y-1.5">
+          <div className="text-[10px] text-indigo-300/60 font-bold mb-2 uppercase tracking-wide">How to find your Discord User ID</div>
+          {(dr?.selfLookupSteps ?? [
+            "Open Discord (desktop or mobile)",
+            "Settings → Advanced → Enable 'Developer Mode'",
+            "Right-click your username anywhere → 'Copy User ID'",
+            "Paste the 18-digit number into the User ID field below",
+          ]).map((step, i) => (
+            <div key={i} className="flex items-start gap-2 text-[10px] text-indigo-200/40">
+              <span className="text-indigo-400/50 font-mono shrink-0">{i + 1}.</span>
+              <span>{step}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Inputs */}
+      <div className="px-4 py-3 space-y-2">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <div>
+            <div className="text-[9px] text-indigo-300/40 uppercase tracking-widest mb-1">Username (optional)</div>
+            <input
+              value={discordUsername}
+              onChange={e => setDiscordUsername(e.target.value.replace(/^@+/, ""))}
+              placeholder="slovakian.t3eny"
+              className="w-full bg-black/40 border border-indigo-500/20 text-primary text-xs font-mono px-3 py-2 focus:outline-none focus:border-indigo-400/40 placeholder:text-primary/15 rounded-sm"
+            />
+          </div>
+          <div>
+            <div className="text-[9px] text-indigo-300/40 uppercase tracking-widest mb-1">User ID — 18-digit Snowflake</div>
+            <input
+              value={discordUserId}
+              onChange={e => setDiscordUserId(e.target.value.replace(/\D/g, "").slice(0, 20))}
+              placeholder="123456789012345678"
+              className="w-full bg-black/40 border border-indigo-500/20 text-primary text-xs font-mono px-3 py-2 focus:outline-none focus:border-indigo-400/40 placeholder:text-primary/15 rounded-sm"
+            />
+          </div>
+        </div>
+        <Button
+          onClick={() => discordMut.mutate({
+            username: discordUsername.trim() || undefined,
+            userId: discordUserId.trim() || undefined,
+          })}
+          disabled={discordMut.isPending || !canRun}
+          className="w-full bg-indigo-600/70 hover:bg-indigo-500/80 text-white font-bold font-mono text-xs py-2 rounded-sm"
+        >
+          {discordMut.isPending ? <><Loader2 className="w-3.5 h-3.5 animate-spin inline mr-1.5" />Scanning Discord...</> : "Run Discord Lookup & Breach Check"}
+        </Button>
+      </div>
+
+      {/* Results */}
+      {dr && !discordMut.isPending && (
+        <div className="px-4 pb-4 space-y-3 border-t border-indigo-500/10 pt-3">
+
+          {/* Alert banner */}
+          {hasBreachHit && (
+            <div className="flex items-center gap-2 p-2.5 border border-red-400/30 bg-red-900/10 rounded-sm">
+              <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+              <div className="text-[11px] text-red-300 font-bold">⚠ Discord User ID found in paste / dark web sources — review breach hits below</div>
+            </div>
+          )}
+          {!hasBreachHit && dr.resolvedUserId && (
+            <div className="flex items-center gap-2 p-2.5 border border-[#00ff88]/15 bg-[#00ff88]/3 rounded-sm">
+              <CheckCircle2 className="w-4 h-4 text-[#00ff88] shrink-0" />
+              <div className="text-[11px] text-[#00ff88]/80">No breach / paste hits found for this User ID</div>
+            </div>
+          )}
+
+          {/* Profile card */}
+          {dr.resolvedUserId && (
+            <div className="border border-indigo-500/20 rounded-sm p-3 bg-indigo-950/10">
+              <div className="text-[9px] text-indigo-300/40 uppercase tracking-widest mb-2">Discord Profile</div>
+              <div className="flex items-start gap-3">
+                {/* Avatar */}
+                <img
+                  src={avatarSrc ?? `https://cdn.discordapp.com/embed/avatars/0.png`}
+                  alt="avatar"
+                  className="w-12 h-12 rounded-full border border-indigo-500/30 shrink-0 bg-indigo-950/30"
+                  onError={e => { (e.target as HTMLImageElement).src = "https://cdn.discordapp.com/embed/avatars/0.png"; }}
+                />
+                <div className="flex-1 min-w-0 space-y-1">
+                  {(dr.profile?.displayName || dr.displayName) && (
+                    <div className="text-sm font-bold text-primary">{dr.profile?.displayName ?? dr.displayName}</div>
+                  )}
+                  {(dr.profile?.username || dr.lanyardPresence?.username) && (
+                    <div className="text-[11px] text-indigo-300/60 font-mono">@{dr.profile?.username ?? dr.lanyardPresence?.username}</div>
+                  )}
+                  {dr.lanyardPresence?.status && (
+                    <div className="text-[10px] text-indigo-200/50">{STATUS_PRESENCE[dr.lanyardPresence.status] ?? dr.lanyardPresence.status}</div>
+                  )}
+                  {dr.lanyardPresence?.activities && dr.lanyardPresence.activities.length > 0 && (
+                    <div className="text-[10px] text-indigo-200/40">Currently: {dr.lanyardPresence.activities.join(", ")}</div>
+                  )}
+                </div>
+                {dr.profileUrl && (
+                  <a href={dr.profileUrl} target="_blank" rel="noopener noreferrer"
+                    className="shrink-0 text-indigo-400/30 hover:text-indigo-400/80 transition-colors" title="Open Discord profile">
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                )}
+              </div>
+
+              {/* Snowflake data */}
+              {dr.snowflake && (
+                <div className="mt-3 pt-2 border-t border-indigo-500/10 grid grid-cols-2 gap-x-4 gap-y-1.5">
+                  <div>
+                    <div className="text-[9px] text-indigo-300/30 uppercase tracking-wide">User ID</div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[11px] font-mono text-primary/80">{dr.resolvedUserId}</span>
+                      <button onClick={() => copyText(dr.resolvedUserId!, "uid")} className="text-primary/20 hover:text-primary/60 transition-colors">
+                        {copied === "uid" ? <CheckCircle2 className="w-3 h-3 text-[#00ff88]" /> : <Copy className="w-3 h-3" />}
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[9px] text-indigo-300/30 uppercase tracking-wide">Account Created</div>
+                    <div className="text-[11px] font-mono text-primary/80">{new Date(dr.snowflake.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}</div>
+                  </div>
+                  <div>
+                    <div className="text-[9px] text-indigo-300/30 uppercase tracking-wide">Account Age</div>
+                    <div className="text-[11px] font-mono text-primary/80">
+                      {dr.accountAgeDays !== null ? `${Math.floor(dr.accountAgeDays / 365)}y ${Math.floor((dr.accountAgeDays % 365) / 30)}mo` : "—"}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[9px] text-indigo-300/30 uppercase tracking-wide">Resolved Via</div>
+                    <div className="text-[11px] font-mono text-indigo-300/50">{dr.resolvedSource ?? "—"}</div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ID resolution attempts */}
+          {dr.lookupAttempts.length > 0 && (
+            <div className="space-y-1">
+              <div className="text-[9px] text-primary/25 uppercase tracking-widest">ID Resolution Attempts</div>
+              {dr.lookupAttempts.map((a, i) => (
+                <div key={i} className="flex items-center gap-2 text-[10px]">
+                  {a.status === "found" ? <CheckCircle2 className="w-3 h-3 text-[#00ff88] shrink-0" />
+                    : a.status === "not_found" ? <XCircle className="w-3 h-3 text-primary/20 shrink-0" />
+                    : <AlertCircle className="w-3 h-3 text-yellow-400/50 shrink-0" />}
+                  <span className="text-primary/50 font-mono">{a.source}</span>
+                  <span className={a.status === "found" ? "text-[#00ff88]/70" : "text-primary/25"}>
+                    {a.status === "found" ? (a.note ?? "ID resolved") : a.status === "not_found" ? "Not found" : "Error"}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Breach / paste hits */}
+          {dr.idBreachHits && (
+            <div className="space-y-1">
+              <div className="text-[9px] text-primary/25 uppercase tracking-widest">Breach & Paste Scan for User ID</div>
+              {dr.idBreachHits.map((h, i) => (
+                <div key={i} className={`flex items-center gap-2 p-2 rounded-sm border text-[10px] ${h.found ? "border-red-400/20 bg-red-900/5" : "border-primary/5"}`}>
+                  {h.found ? <AlertCircle className="w-3 h-3 text-red-400 shrink-0" /> : <XCircle className="w-3 h-3 text-primary/15 shrink-0" />}
+                  <span className={`font-mono ${h.found ? "text-primary/80 font-bold" : "text-primary/30"}`}>{h.source}</span>
+                  {h.found ? (
+                    <span className="text-red-300/70">{h.resultCount ? `${h.resultCount} result${h.resultCount !== 1 ? "s" : ""}` : "HIT"}{h.note ? ` — ${h.note}` : ""}</span>
+                  ) : (
+                    <span className="text-primary/20">No matches</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Dork queries */}
+          {dr.idDorkQueries && dr.idDorkQueries.length > 0 && (
+            <div className="space-y-1">
+              <div className="text-[9px] text-primary/25 uppercase tracking-widest mb-1.5">Google Dork Queries for User ID</div>
+              {dr.idDorkQueries.map((q, i) => (
+                <div key={i} className="flex items-center gap-2 group">
+                  <code className="flex-1 text-[10px] text-primary/50 font-mono bg-black/30 border border-primary/8 px-2 py-1 rounded-sm break-all">{q}</code>
+                  <div className="flex gap-1 shrink-0">
+                    <button onClick={() => copyText(q, `dq${i}`)} className="text-primary/15 hover:text-primary/50 transition-colors p-1">
+                      {copied === `dq${i}` ? <CheckCircle2 className="w-3 h-3 text-[#00ff88]" /> : <Copy className="w-3 h-3" />}
+                    </button>
+                    <a href={`https://www.google.com/search?q=${encodeURIComponent(q)}`} target="_blank" rel="noopener noreferrer"
+                      className="text-primary/15 hover:text-indigo-400/60 transition-colors p-1">
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Not resolved */}
+          {!dr.resolvedUserId && (
+            <div className="text-[11px] text-primary/30 text-center py-2">
+              Could not resolve a User ID from the username automatically.
+              Enable Developer Mode in Discord, copy your User ID, and paste it in the field above.
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const CATEGORY_ORDER = ["Social", "Video", "Dev", "Pro", "Creative", "Gaming", "Messaging", "Community"];
 
@@ -383,6 +649,19 @@ export default function OsintRecon() {
   // Username tab
   const [username, setUsername] = usePersistedState<string>("osint-username", "");
   const [userResult, setUserResult] = useState<UsernameResult | null>(null);
+
+  // Discord lookup
+  const [discordUsername, setDiscordUsername] = useState("");
+  const [discordUserId, setDiscordUserId] = useState("");
+  const [discordResult, setDiscordResult] = useState<DiscordLookupResult | null>(null);
+  const [showDiscordSteps, setShowDiscordSteps] = useState(false);
+
+  const discordMut = useMutation({
+    mutationFn: (body: { username?: string; userId?: string }) =>
+      apiFetch("/osint/discord-lookup", { method: "POST", body: JSON.stringify(body) }),
+    onSuccess: (data) => setDiscordResult(data),
+    onError: (err: Error) => toast({ title: "Discord lookup failed", description: err.message, variant: "destructive" }),
+  });
 
   const lookupMut = useMutation({
     mutationFn: (t: string) => apiFetch("/osint/lookup", { method: "POST", body: JSON.stringify({ target: t }) }),
@@ -703,6 +982,14 @@ export default function OsintRecon() {
 
             </div>
           )}
+
+          {/* ── Discord Deep Lookup — always visible in username tab ── */}
+          <DiscordLookupPanel
+            discordUsername={discordUsername} setDiscordUsername={setDiscordUsername}
+            discordUserId={discordUserId}     setDiscordUserId={setDiscordUserId}
+            discordResult={discordResult}     discordMut={discordMut}
+            showSteps={showDiscordSteps}      setShowSteps={setShowDiscordSteps}
+          />
 
           {!userResult && !usernameMut.isPending && (
             <div className="border border-primary/10 p-10 text-center rounded-sm">

@@ -767,4 +767,249 @@ router.post("/username", async (req: Request, res: Response) => {
   });
 });
 
+// ── Discord User ID Lookup ────────────────────────────────────────────────────
+
+const SNOWFLAKE_RE = /\b(1\d{17}|[2-9]\d{17}|\d{18,19})\b/g;
+
+/** Try to resolve a Discord username → User ID via lookup.guru */
+async function discordLookupGuru(username: string): Promise<{ userId?: string; displayName?: string; avatar?: string }> {
+  const body = await fetchBody(`https://lookup.guru/${encodeURIComponent(username)}`, 9000);
+  if (!body) return {};
+  // Look for 17-19 digit snowflake IDs in the page
+  const matches = [...body.matchAll(SNOWFLAKE_RE)].map(m => m[1]);
+  if (!matches.length) return {};
+  const userId = matches[0];
+  // Try to extract display name from <title>
+  const titleMatch = body.match(/<title[^>]*>([^<]{1,100})<\/title>/i);
+  const displayName = titleMatch?.[1]?.replace(/\s*[-|].*$/, "").trim();
+  // Avatar: Discord CDN pattern sometimes appears in page
+  const avatarMatch = body.match(/cdn\.discordapp\.com\/avatars\/\d+\/([a-f0-9]+)/i);
+  const avatar = avatarMatch ? `https://cdn.discordapp.com/avatars/${userId}/${avatarMatch[1]}.png?size=128` : undefined;
+  return { userId, displayName, avatar };
+}
+
+/** Try discord.id lookup API */
+async function discordIdLookup(username: string): Promise<{ userId?: string; displayName?: string; avatar?: string }> {
+  // discord.id has a search endpoint
+  const body = await fetchBody(`https://discord.id/search?q=${encodeURIComponent(username)}`, 8000);
+  if (!body) return {};
+  const matches = [...body.matchAll(SNOWFLAKE_RE)].map(m => m[1]);
+  if (!matches.length) return {};
+  const userId = matches[0];
+  const displayName = username;
+  return { userId, displayName };
+}
+
+/** Decode a Discord Snowflake ID into metadata */
+function decodeSnowflake(id: string): {
+  createdAt: string; timestampMs: number;
+  workerId: number; processId: number; increment: number;
+} {
+  const n = BigInt(id);
+  const DISCORD_EPOCH = 1420070400000n;
+  const timestampMs = Number((n >> 22n) + DISCORD_EPOCH);
+  const workerId   = Number((n & 0x3E0000n) >> 17n);
+  const processId  = Number((n & 0x1F000n)  >> 12n);
+  const increment  = Number(n & 0xFFFn);
+  return { createdAt: new Date(timestampMs).toISOString(), timestampMs, workerId, processId, increment };
+}
+
+/** Pull public profile info for a User ID from discordlookup.com + Lanyard */
+async function fetchDiscordProfileById(userId: string): Promise<{
+  displayName?: string; username?: string; avatar?: string;
+  source?: string;
+}> {
+  const body = await fetchBody(`https://discordlookup.com/user/${userId}`, 10000);
+  if (!body) return {};
+  const titleMatch = body.match(/<title[^>]*>([^<]{1,100})<\/title>/i);
+  const displayName = titleMatch?.[1]?.replace(/\s*[-|].*$/, "").trim() ?? undefined;
+  const avatarMatch = body.match(/cdn\.discordapp\.com\/avatars\/(\d+)\/([a-f0-9_]+)/i);
+  const avatar = avatarMatch
+    ? `https://cdn.discordapp.com/avatars/${userId}/${avatarMatch[2]}.png?size=256`
+    : undefined;
+  const usernameMatch = body.match(/@([a-z0-9._]{2,32})/i);
+  const username = usernameMatch?.[1];
+  return { displayName, username, avatar, source: "discordlookup.com" };
+}
+
+/** Check Lanyard API for public Discord presence (opt-in service) */
+async function fetchLanyardPresence(userId: string): Promise<{
+  username?: string; avatar?: string; status?: string; activities?: string[];
+} | null> {
+  const body = await fetchBody(`https://api.lanyard.rest/v1/users/${userId}`, 6000);
+  if (!body) return null;
+  try {
+    const d = JSON.parse(body);
+    if (!d.success) return null;
+    const u = d.data?.discord_user;
+    if (!u) return null;
+    return {
+      username: u.username,
+      avatar: u.avatar
+        ? `https://cdn.discordapp.com/avatars/${userId}/${u.avatar}.png?size=256`
+        : undefined,
+      status: d.data.discord_status,
+      activities: ((d.data.activities ?? []) as any[]).map((a: any) => a.name).filter(Boolean),
+    };
+  } catch { return null; }
+}
+
+/** Search paste/breach sites for a Discord User ID (snowflake) */
+async function searchDiscordId(userId: string): Promise<Array<{ source: string; found: boolean; resultCount?: number; note?: string }>> {
+  const [pastebin, gists, ahmia] = await Promise.all([
+    searchPastebin(userId),
+    searchGitHubGists(userId),
+    searchAhmia(userId),
+  ]);
+  return [
+    { source: "Pastebin",    found: pastebin.status === "found",    resultCount: pastebin.resultCount },
+    { source: "GitHub Gists", found: gists.status === "found",       resultCount: gists.resultCount },
+    { source: "Ahmia (Tor)", found: ahmia.status === "found",        resultCount: ahmia.resultCount,
+      note: ahmia.snippets?.[0]?.title },
+  ];
+}
+
+function discordIdDorks(userId: string, username: string): string[] {
+  return [
+    `"${userId}" discord`,
+    `"${userId}" site:pastebin.com`,
+    `"${userId}" site:github.com`,
+    `"${userId}" "token" OR "password" OR "leaked"`,
+    `"${username}" discord.com/users/${userId}`,
+    `"${userId}" filetype:json OR filetype:txt OR filetype:sql`,
+    `intext:"${userId}" "discord" site:pastebin.com OR site:rentry.co`,
+  ];
+}
+
+// POST /api/osint/discord-lookup
+router.post("/discord-lookup", async (req: Request, res: Response) => {
+  const { username, userId: providedId } = req.body as { username?: string; userId?: string };
+
+  if (!username?.trim() && !providedId?.trim()) {
+    return res.status(400).json({ error: "username or userId required" });
+  }
+
+  const uname = (username ?? "").trim().replace(/^@/, "");
+  const givenId = (providedId ?? "").trim();
+
+  // Validate provided ID is a valid Snowflake (17-20 digits)
+  if (givenId && !/^\d{17,20}$/.test(givenId)) {
+    return res.status(400).json({ error: "Invalid Discord User ID — must be 17–20 digits" });
+  }
+
+  const selfLookupSteps = [
+    "Open Discord app (desktop or mobile)",
+    "Go to Settings → Advanced",
+    "Enable 'Developer Mode'",
+    "Close Settings",
+    "Find your username anywhere (DM list, server member list, your own profile)",
+    "Right-click (desktop) or long-press (mobile) your username",
+    "Click 'Copy User ID' — this is your 18-digit Snowflake ID",
+    "Paste it into the User ID field above for a full breach check",
+  ];
+
+  let resolvedUserId: string | undefined = givenId || undefined;
+  let resolvedSource: string | undefined = givenId ? "provided" : undefined;
+  let displayName: string | undefined;
+  let avatar: string | undefined;
+
+  const lookupAttempts: Array<{ source: string; status: "found" | "not_found" | "error"; note?: string }> = [];
+
+  if (!resolvedUserId && uname) {
+    // Try lookup.guru first
+    try {
+      const guru = await discordLookupGuru(uname);
+      if (guru.userId) {
+        resolvedUserId = guru.userId;
+        resolvedSource = "lookup.guru";
+        displayName = guru.displayName;
+        avatar = guru.avatar;
+        lookupAttempts.push({ source: "lookup.guru", status: "found", note: `User ID: ${guru.userId}` });
+      } else {
+        lookupAttempts.push({ source: "lookup.guru", status: "not_found" });
+      }
+    } catch {
+      lookupAttempts.push({ source: "lookup.guru", status: "error" });
+    }
+
+    // Try discord.id if not found yet
+    if (!resolvedUserId) {
+      try {
+        const did = await discordIdLookup(uname);
+        if (did.userId) {
+          resolvedUserId = did.userId;
+          resolvedSource = "discord.id";
+          displayName = did.displayName;
+          lookupAttempts.push({ source: "discord.id", status: "found", note: `User ID: ${did.userId}` });
+        } else {
+          lookupAttempts.push({ source: "discord.id", status: "not_found" });
+        }
+      } catch {
+        lookupAttempts.push({ source: "discord.id", status: "error" });
+      }
+    }
+  }
+
+  let idBreachHits: Array<{ source: string; found: boolean; resultCount?: number; note?: string }> | undefined;
+  let idDorkQueries: string[] | undefined;
+  let snowflake: ReturnType<typeof decodeSnowflake> | undefined;
+  let profile: { displayName?: string; username?: string; avatar?: string; source?: string } | undefined;
+  let lanyardPresence: { username?: string; avatar?: string; status?: string; activities?: string[] } | null = null;
+
+  if (resolvedUserId) {
+    // Decode Snowflake immediately (no I/O)
+    try { snowflake = decodeSnowflake(resolvedUserId); } catch { /* invalid id */ }
+
+    // Run all I/O in parallel
+    [idBreachHits, profile, lanyardPresence] = await Promise.all([
+      searchDiscordId(resolvedUserId),
+      fetchDiscordProfileById(resolvedUserId),
+      fetchLanyardPresence(resolvedUserId),
+    ]);
+    idDorkQueries = discordIdDorks(resolvedUserId, uname || resolvedUserId);
+
+    // Merge profile data: prefer discordlookup.com, fill gaps from resolution step
+    if (!profile?.displayName && displayName) profile = { ...profile, displayName };
+    if (!profile?.avatar && avatar) profile = { ...profile, avatar };
+    // Also fill from Lanyard if richer
+    if (lanyardPresence?.avatar && !profile?.avatar) profile = { ...profile, avatar: lanyardPresence.avatar };
+    if (lanyardPresence?.username && !profile?.username) profile = { ...profile, username: lanyardPresence.username };
+  }
+
+  // Account age from snowflake
+  const accountAgeMs = snowflake ? (Date.now() - snowflake.timestampMs) : null;
+  const accountAgeDays = accountAgeMs !== null ? Math.floor(accountAgeMs / 86400000) : null;
+
+  // Default avatar (Discord's CDN always serves these — no auth required)
+  const defaultAvatarIndex = snowflake
+    ? Number(BigInt(resolvedUserId!) % 6n)
+    : 0;
+  const defaultAvatarUrl = `https://cdn.discordapp.com/embed/avatars/${defaultAvatarIndex}.png`;
+
+  // Profile public link
+  const profileUrl = resolvedUserId ? `https://discord.com/users/${resolvedUserId}` : null;
+
+  return res.json({
+    username: uname || null,
+    resolvedUserId: resolvedUserId ?? null,
+    resolvedSource: resolvedSource ?? null,
+    displayName: profile?.displayName ?? displayName ?? null,
+    avatar: profile?.avatar ?? avatar ?? null,
+    lookupAttempts,
+    selfLookupSteps,
+    idBreachHits: idBreachHits ?? null,
+    idDorkQueries: idDorkQueries ?? null,
+    snowflake: snowflake ?? null,
+    accountAgeDays,
+    defaultAvatarUrl,
+    profileUrl,
+    lanyardPresence: lanyardPresence ?? null,
+    profile: profile
+      ? { ...profile, createdAt: snowflake?.createdAt, accountAgeDays }
+      : snowflake
+        ? { createdAt: snowflake.createdAt, accountAgeDays }
+        : null,
+  });
+});
+
 export default router;
