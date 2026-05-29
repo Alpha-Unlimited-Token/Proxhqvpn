@@ -5,6 +5,7 @@ import { db } from "@workspace/db";
 import { usersTable } from "@workspace/db/schema";
 import { eq, sql } from "drizzle-orm";
 import crypto from "crypto";
+import { sendMail, adminEmails } from "../lib/mailer";
 
 /** Normalize db.execute() result — returns plain array for simple queries, {rows} for complex aggregates */
 function toRows(result: unknown): any[] {
@@ -182,6 +183,34 @@ router.post("/apply", async (req, res) => {
       RETURNING id, name, promo_code, status
     `));
     const r = rows[0];
+
+    // Fire-and-forget admin notification email
+    const admins = adminEmails();
+    if (admins.length > 0) {
+      void sendMail({
+        to: admins,
+        subject: `[ProxhqVPN] New Ambassador Application — ${name.trim()} (${code})`,
+        html: `
+          <div style="font-family:monospace;background:#080d09;color:#00ff88;padding:24px;border-radius:8px;max-width:560px">
+            <h2 style="margin:0 0 16px;color:#ffffff">New Ambassador Application</h2>
+            <table style="width:100%;border-collapse:collapse;font-size:13px">
+              <tr><td style="color:#ffffff;padding:6px 0;width:140px">Name</td><td style="color:#00ff88">${name.trim()}</td></tr>
+              <tr><td style="color:#ffffff;padding:6px 0">Promo Code</td><td style="color:#00ff88;font-weight:bold">${code}</td></tr>
+              <tr><td style="color:#ffffff;padding:6px 0">Bio</td><td style="color:#aaaaaa">${bio?.trim() || "—"}</td></tr>
+              <tr><td style="color:#ffffff;padding:6px 0">Clerk User ID</td><td style="color:#aaaaaa;font-size:11px">${userId}</td></tr>
+              <tr><td style="color:#ffffff;padding:6px 0">Status</td><td style="color:#facc15">Pending Review</td></tr>
+            </table>
+            <div style="margin-top:20px">
+              <a href="https://proxhqvpn.com/employees" style="background:#00ff88;color:#000;padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:bold;font-size:13px">
+                Review in Admin → Employee Access
+              </a>
+            </div>
+            <p style="color:#666;font-size:11px;margin-top:20px">ProxhqVPN · ALPHA UNLIMITED TECHNOLOGIES LLC</p>
+          </div>`,
+        text: `New Ambassador Application\nName: ${name.trim()}\nPromo Code: ${code}\nBio: ${bio?.trim() || "—"}\nClerk User ID: ${userId}\nStatus: Pending Review\n\nReview at: https://proxhqvpn.com/employees`,
+      });
+    }
+
     return res.status(201).json({ ok: true, ambassador: { id: r.id, name: r.name, promoCode: r.promo_code, status: r.status } });
   } catch (err: any) {
     if (err.message?.includes("unique")) return res.status(400).json({ error: "Promo code already taken" });
