@@ -52,6 +52,9 @@ packages = ["file"]
 
 [userenv.shared]
 ADMIN_EMAILS = "alphaunlimitedtechnologies@gmail.com,alphaunlimitedtoken@gmail.com"
+SMTP_USER = "alphaunlimitedtechnologies@gmail.com"
+SMTP_HOST = "smtp.gmail.com"
+SMTP_PORT = "465"
 
 [userenv.production]
 CUSTOM_DOMAIN = "proxhqvpn.com"
