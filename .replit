@@ -58,3 +58,4 @@ SMTP_PORT = "465"
 
 [userenv.production]
 CUSTOM_DOMAIN = "proxhqvpn.com"
+VITE_CLERK_PROXY_URL = "https://proxhqvpn.com/api/__clerk"

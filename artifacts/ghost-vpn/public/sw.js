@@ -1,4 +1,4 @@
-const CACHE = "proxhqvpn-v1";
+const CACHE = "proxhqvpn-v3";
 const OFFLINE_URLS = ["/", "/my-vpn", "/downloads", "/guide", "/pricing"];
 
 self.addEventListener("install", (e) => {

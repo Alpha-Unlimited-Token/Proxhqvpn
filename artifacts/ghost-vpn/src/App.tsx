@@ -228,9 +228,21 @@ function AppLanding() {
   return <Redirect to="/pricing" />;
 }
 
+function AuthLoadingScreen() {
+  return (
+    <div className="min-h-[100dvh] bg-[#080d09] flex flex-col items-center justify-center gap-4">
+      <div className="w-14 h-14 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+        <img src={`${basePath}/icon-final2.png`} alt="ProxhqVPN" className="w-10 h-10" />
+      </div>
+      <div className="w-5 h-5 rounded-full border-2 border-primary/30 border-t-primary animate-spin" />
+    </div>
+  );
+}
+
 function SignInPage() {
   const { isSignedIn, isLoaded } = useUser();
-  if (isLoaded && isSignedIn) return <Redirect to="/app" />;
+  if (!isLoaded) return <AuthLoadingScreen />;
+  if (isSignedIn) return <Redirect to="/app" />;
   return (
     <div className="flex min-h-[100dvh] bg-[#080d09]">
       {/* Left branding panel */}
@@ -269,7 +281,8 @@ function SignInPage() {
 
 function SignUpPage() {
   const { isSignedIn, isLoaded } = useUser();
-  if (isLoaded && isSignedIn) return <Redirect to="/app" />;
+  if (!isLoaded) return <AuthLoadingScreen />;
+  if (isSignedIn) return <Redirect to="/app" />;
   return (
     <div className="flex min-h-[100dvh] bg-[#080d09]">
       <div className="hidden lg:flex flex-col justify-between w-96 bg-gradient-to-b from-[#0d1610] to-[#080d09] border-r border-white/[0.06] p-10">
