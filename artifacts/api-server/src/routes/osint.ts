@@ -243,74 +243,165 @@ function buildHeaderRisk(headers: Record<string, string>) {
 interface Platform {
   name: string;
   category: string;
+  /** URL used for the HTTP check — may be an API endpoint. Use {u} placeholder. */
   url: string;
-  /** If the platform returns 200 even for non-existent users, provide a not-found indicator */
-  notFoundString?: string;
+  /** Human-readable profile URL to display/link. Defaults to `url`. Use {u} placeholder. */
+  profileUrl?: string;
+  /** If true, cannot be checked via passive HTTP — returned as status "manual". */
+  manualCheck?: boolean;
+  manualNote?: string;
+  /**
+   * For JSON API endpoints (GitHub, Reddit, HN): "json"
+   * For normal HTML: undefined (HEAD check)
+   */
+  checkMode?: "json" | "hn_json";
 }
 
 const PLATFORMS: Platform[] = [
   // Social
-  { name: "X (Twitter)",     category: "Social",    url: "https://x.com/{u}" },
-  { name: "Instagram",       category: "Social",    url: "https://www.instagram.com/{u}/" },
-  { name: "TikTok",          category: "Social",    url: "https://www.tiktok.com/@{u}" },
-  { name: "Facebook",        category: "Social",    url: "https://www.facebook.com/{u}" },
-  { name: "Snapchat",        category: "Social",    url: "https://www.snapchat.com/add/{u}" },
-  { name: "Pinterest",       category: "Social",    url: "https://www.pinterest.com/{u}/" },
-  { name: "Tumblr",          category: "Social",    url: "https://{u}.tumblr.com" },
-  { name: "Bluesky",         category: "Social",    url: "https://bsky.app/profile/{u}.bsky.social" },
-  { name: "Mastodon",        category: "Social",    url: "https://mastodon.social/@{u}" },
-  { name: "Threads",         category: "Social",    url: "https://www.threads.net/@{u}" },
+  { name: "X (Twitter)",    category: "Social",    url: "https://x.com/{u}" },
+  { name: "Instagram",      category: "Social",    url: "https://www.instagram.com/{u}/" },
+  { name: "TikTok",         category: "Social",    url: "https://www.tiktok.com/@{u}" },
+  { name: "Facebook",       category: "Social",    url: "https://www.facebook.com/{u}" },
+  { name: "Snapchat",       category: "Social",    url: "https://www.snapchat.com/add/{u}" },
+  { name: "Pinterest",      category: "Social",    url: "https://www.pinterest.com/{u}/" },
+  { name: "Tumblr",         category: "Social",    url: "https://{u}.tumblr.com" },
+  { name: "Bluesky",        category: "Social",    url: "https://bsky.app/profile/{u}.bsky.social" },
+  { name: "Mastodon",       category: "Social",    url: "https://mastodon.social/@{u}" },
+  { name: "Threads",        category: "Social",    url: "https://www.threads.net/@{u}" },
+  // Discord: no public profile URL by username — requires numeric User ID
+  {
+    name: "Discord", category: "Social", url: "",
+    manualCheck: true,
+    manualNote: "Discord changed to username handles but profiles are only accessible by numeric User ID (not username). Check manually at discordlookup.com — search by server to find member IDs.",
+  },
   // Video / Streaming
-  { name: "YouTube",         category: "Video",     url: "https://www.youtube.com/@{u}" },
-  { name: "Twitch",          category: "Video",     url: "https://www.twitch.tv/{u}" },
-  { name: "Vimeo",           category: "Video",     url: "https://vimeo.com/{u}" },
-  { name: "Dailymotion",     category: "Video",     url: "https://www.dailymotion.com/{u}" },
-  // Dev / Tech
-  { name: "GitHub",          category: "Dev",       url: "https://github.com/{u}" },
-  { name: "GitLab",          category: "Dev",       url: "https://gitlab.com/{u}" },
-  { name: "Replit",          category: "Dev",       url: "https://replit.com/@{u}" },
-  { name: "Keybase",         category: "Dev",       url: "https://keybase.io/{u}" },
-  { name: "HackerNews",      category: "Dev",       url: "https://news.ycombinator.com/user?id={u}" },
-  { name: "Stack Overflow",  category: "Dev",       url: "https://stackoverflow.com/users/{u}" },
+  { name: "YouTube",        category: "Video",     url: "https://www.youtube.com/@{u}" },
+  { name: "Twitch",         category: "Video",     url: "https://www.twitch.tv/{u}" },
+  { name: "Vimeo",          category: "Video",     url: "https://vimeo.com/{u}" },
+  { name: "Dailymotion",    category: "Video",     url: "https://www.dailymotion.com/{u}" },
+  // Dev / Tech — GitHub, Reddit & HN use their public JSON APIs for reliable checks
+  {
+    name: "GitHub",         category: "Dev",
+    url: "https://api.github.com/users/{u}",
+    profileUrl: "https://github.com/{u}",
+    checkMode: "json",
+  },
+  { name: "GitLab",         category: "Dev",       url: "https://gitlab.com/{u}" },
+  { name: "Replit",         category: "Dev",       url: "https://replit.com/@{u}" },
+  { name: "Keybase",        category: "Dev",       url: "https://keybase.io/{u}" },
+  {
+    name: "HackerNews",     category: "Dev",
+    url: "https://hacker-news.firebaseio.com/v0/user/{u}.json",
+    profileUrl: "https://news.ycombinator.com/user?id={u}",
+    checkMode: "hn_json",
+  },
+  { name: "Stack Overflow", category: "Dev",       url: "https://stackoverflow.com/users/{u}" },
   // Professional
-  { name: "LinkedIn",        category: "Pro",       url: "https://www.linkedin.com/in/{u}/" },
-  { name: "Medium",          category: "Pro",       url: "https://medium.com/@{u}" },
-  { name: "Substack",        category: "Pro",       url: "https://{u}.substack.com" },
-  { name: "Patreon",         category: "Pro",       url: "https://www.patreon.com/{u}" },
-  { name: "Product Hunt",    category: "Pro",       url: "https://www.producthunt.com/@{u}" },
+  { name: "LinkedIn",       category: "Pro",       url: "https://www.linkedin.com/in/{u}/" },
+  { name: "Medium",         category: "Pro",       url: "https://medium.com/@{u}" },
+  { name: "Substack",       category: "Pro",       url: "https://{u}.substack.com" },
+  { name: "Patreon",        category: "Pro",       url: "https://www.patreon.com/{u}" },
+  { name: "Product Hunt",   category: "Pro",       url: "https://www.producthunt.com/@{u}" },
   // Creative
-  { name: "Behance",         category: "Creative",  url: "https://www.behance.net/{u}" },
-  { name: "Dribbble",        category: "Creative",  url: "https://dribbble.com/{u}" },
-  { name: "DeviantArt",      category: "Creative",  url: "https://www.deviantart.com/{u}" },
-  { name: "Flickr",          category: "Creative",  url: "https://www.flickr.com/people/{u}/" },
-  { name: "SoundCloud",      category: "Creative",  url: "https://soundcloud.com/{u}" },
-  { name: "Bandcamp",        category: "Creative",  url: "https://{u}.bandcamp.com" },
+  { name: "Behance",        category: "Creative",  url: "https://www.behance.net/{u}" },
+  { name: "Dribbble",       category: "Creative",  url: "https://dribbble.com/{u}" },
+  { name: "DeviantArt",     category: "Creative",  url: "https://www.deviantart.com/{u}" },
+  { name: "Flickr",         category: "Creative",  url: "https://www.flickr.com/people/{u}/" },
+  { name: "SoundCloud",     category: "Creative",  url: "https://soundcloud.com/{u}" },
+  { name: "Bandcamp",       category: "Creative",  url: "https://{u}.bandcamp.com" },
   // Gaming
-  { name: "Steam",           category: "Gaming",    url: "https://steamcommunity.com/id/{u}" },
-  { name: "Roblox",          category: "Gaming",    url: "https://www.roblox.com/user.aspx?username={u}" },
+  { name: "Steam",          category: "Gaming",    url: "https://steamcommunity.com/id/{u}" },
+  { name: "Roblox",         category: "Gaming",    url: "https://www.roblox.com/user.aspx?username={u}" },
   // Messaging / Community
-  { name: "Telegram",        category: "Messaging", url: "https://t.me/{u}" },
-  { name: "Reddit",          category: "Community", url: "https://www.reddit.com/user/{u}" },
-  { name: "Quora",           category: "Community", url: "https://www.quora.com/profile/{u}" },
+  { name: "Telegram",       category: "Messaging", url: "https://t.me/{u}" },
+  {
+    name: "Reddit",         category: "Community",
+    url: "https://www.reddit.com/user/{u}/about.json",
+    profileUrl: "https://www.reddit.com/user/{u}",
+    checkMode: "json",
+  },
+  { name: "Quora",          category: "Community", url: "https://www.quora.com/profile/{u}" },
 ];
 
-function checkUsername(platform: Platform, username: string, timeoutMs = 7000): Promise<{
+type PlatformStatus = "found" | "not_found" | "possible" | "timeout" | "error" | "manual";
+
+interface PlatformCheckResult {
   name: string;
   category: string;
+  /** Profile URL to display/link (human-readable, not the API URL) */
   url: string;
-  status: "found" | "not_found" | "possible" | "timeout" | "error";
+  status: PlatformStatus;
   statusCode: number | null;
-}> {
-  const url = platform.url.replace(/\{u\}/g, encodeURIComponent(username));
+  manualNote?: string;
+}
+
+/** Patterns in the redirect Location header that signal the account does NOT exist */
+const LOGIN_REDIRECT_PATTERNS = [
+  "login", "signin", "sign-in", "sign_in", "auth", "checkpoint",
+  "accounts/login", "session/new",
+];
+
+function isLoginOrHomeRedirect(location: string, parsedOriginal: URL): boolean {
+  if (!location) return false;
+  const loc = location.toLowerCase();
+  // Redirects to root → home page
+  if (loc === "/" || loc === parsedOriginal.origin + "/" || loc === parsedOriginal.origin) return true;
+  // Redirects to a login/auth page
+  if (LOGIN_REDIRECT_PATTERNS.some(p => loc.includes(p))) return true;
+  return false;
+}
+
+function checkUsername(platform: Platform, username: string, timeoutMs = 8000): Promise<PlatformCheckResult> {
+  // Manual-check platforms (e.g. Discord) — can't be checked via HTTP
+  if (platform.manualCheck) {
+    return Promise.resolve({
+      name: platform.name, category: platform.category, url: "",
+      status: "manual", statusCode: null, manualNote: platform.manualNote,
+    });
+  }
+
+  const checkUrl = platform.url.replace(/\{u\}/g, encodeURIComponent(username));
+  const profileUrl = (platform.profileUrl ?? platform.url).replace(/\{u\}/g, encodeURIComponent(username));
+
   return new Promise(resolve => {
-    const out = (status: "found" | "not_found" | "possible" | "timeout" | "error", code: number | null) =>
-      resolve({ name: platform.name, category: platform.category, url, status, statusCode: code });
+    const out = (status: PlatformStatus, code: number | null) =>
+      resolve({ name: platform.name, category: platform.category, url: profileUrl, status, statusCode: code });
 
     let done = false;
     const timer = setTimeout(() => { if (!done) { done = true; out("timeout", null); } }, timeoutMs);
 
+    // ── JSON API mode (GitHub, Reddit, HackerNews) ────────────────────────────
+    if (platform.checkMode === "json" || platform.checkMode === "hn_json") {
+      fetchBody(checkUrl, timeoutMs - 500).then(body => {
+        clearTimeout(timer);
+        if (!body) { out("error", null); return; }
+        if (platform.checkMode === "hn_json") {
+          // HN returns "null\n" for non-existent users
+          const trimmed = body.trim();
+          if (trimmed === "null" || trimmed === "") out("not_found", 200);
+          else out("found", 200);
+        } else {
+          // GitHub returns {"message":"Not Found"} with 404; Reddit /about.json returns 404 for private/non-existent
+          // If body parsed OK and has login/error fields → not found
+          try {
+            const parsed = JSON.parse(body) as Record<string, unknown>;
+            if (parsed.message === "Not Found" || parsed.error === "Not Found" || parsed.reason === "banned") {
+              out("not_found", 404);
+            } else if (parsed.login || parsed.name || parsed.data) {
+              out("found", 200);
+            } else {
+              out("possible", 200);
+            }
+          } catch { out("possible", 200); }
+        }
+      }).catch(() => { clearTimeout(timer); out("error", null); });
+      return;
+    }
+
+    // ── Normal HEAD check ─────────────────────────────────────────────────────
     try {
-      const parsed = new URL(url);
+      const parsed = new URL(checkUrl);
       const mod = parsed.protocol === "https:" ? https : http;
       const req = mod.request(
         {
@@ -319,10 +410,11 @@ function checkUsername(platform: Platform, username: string, timeoutMs = 7000): 
           port: parsed.port || (parsed.protocol === "https:" ? 443 : 80),
           method: "HEAD",
           headers: {
-            "User-Agent": "Mozilla/5.0 (compatible; ProxhqOSINT/1.0)",
-            "Accept": "text/html,application/xhtml+xml,*/*",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,*/*;q=0.9",
+            "Accept-Language": "en-US,en;q=0.9",
           },
-          timeout: timeoutMs - 200,
+          timeout: timeoutMs - 500,
           rejectUnauthorized: false,
         },
         res => {
@@ -330,15 +422,26 @@ function checkUsername(platform: Platform, username: string, timeoutMs = 7000): 
           done = true;
           clearTimeout(timer);
           const code = res.statusCode ?? 0;
-          // Consume response body to free socket
+          const location = (res.headers.location as string | undefined) ?? "";
           res.resume();
-          if (code === 200 || code === 301 || code === 302) {
-            // 301/302 from profile pages often mean profile exists (redirect to canonical)
+
+          if (code === 200) {
             out("found", code);
           } else if (code === 404 || code === 410) {
             out("not_found", code);
+          } else if (code === 301 || code === 302 || code === 303 || code === 307 || code === 308) {
+            // Check if this redirect leads to a login/home page (= account doesn't exist publicly)
+            if (isLoginOrHomeRedirect(location, parsed)) {
+              out("not_found", code);
+            } else if (location.toLowerCase().includes(username.toLowerCase())) {
+              // Redirect still contains username → likely canonical redirect, profile exists
+              out("found", code);
+            } else {
+              // Unknown redirect destination — can't confirm
+              out("possible", code);
+            }
           } else if (code === 403 || code === 429 || code === 401) {
-            // Bot-blocked but URL might exist
+            // Bot-blocked — can't confirm but URL pattern exists on the platform
             out("possible", code);
           } else {
             out("possible", code);

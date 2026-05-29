@@ -125,9 +125,10 @@ interface PlatformResult {
   name: string;
   category: string;
   url: string;
-  status: "found" | "not_found" | "possible" | "timeout" | "error";
+  status: "found" | "not_found" | "possible" | "timeout" | "error" | "manual";
   statusCode: number | null;
   snippet?: { title?: string; description?: string } | null;
+  manualNote?: string;
 }
 
 interface DarkWebResult {
@@ -158,15 +159,17 @@ interface UsernameResult {
 // ── Username tab components ───────────────────────────────────────────────────
 
 const STATUS_ICON: Record<PlatformResult["status"], React.ReactNode> = {
-  found:    <CheckCircle2 className="w-3.5 h-3.5 text-[#00ff88] shrink-0" />,
+  found:     <CheckCircle2 className="w-3.5 h-3.5 text-[#00ff88] shrink-0" />,
   not_found: <XCircle className="w-3.5 h-3.5 text-primary/20 shrink-0" />,
-  possible: <AlertCircle className="w-3.5 h-3.5 text-yellow-400 shrink-0" />,
-  timeout:  <Clock className="w-3.5 h-3.5 text-primary/20 shrink-0" />,
-  error:    <HelpCircle className="w-3.5 h-3.5 text-primary/20 shrink-0" />,
+  possible:  <AlertCircle className="w-3.5 h-3.5 text-yellow-400 shrink-0" />,
+  timeout:   <Clock className="w-3.5 h-3.5 text-primary/20 shrink-0" />,
+  error:     <HelpCircle className="w-3.5 h-3.5 text-primary/20 shrink-0" />,
+  manual:    <HelpCircle className="w-3.5 h-3.5 text-blue-400/60 shrink-0" />,
 };
 
 const STATUS_LABEL: Record<PlatformResult["status"], string> = {
-  found: "FOUND", not_found: "CLEAR", possible: "POSSIBLE", timeout: "TIMEOUT", error: "ERROR",
+  found: "FOUND", not_found: "CLEAR", possible: "POSSIBLE",
+  timeout: "TIMEOUT", error: "ERROR", manual: "MANUAL CHECK",
 };
 
 const STATUS_COLOR: Record<PlatformResult["status"], string> = {
@@ -175,6 +178,7 @@ const STATUS_COLOR: Record<PlatformResult["status"], string> = {
   possible: "text-yellow-400",
   timeout: "text-primary/20",
   error: "text-primary/20",
+  manual: "text-blue-400/60",
 };
 
 const CATEGORY_ORDER = ["Social", "Video", "Dev", "Pro", "Creative", "Gaming", "Messaging", "Community"];
@@ -190,30 +194,48 @@ function PlatformGrid({ results }: { results: PlatformResult[] }) {
       {CATEGORY_ORDER.map(cat => {
         const group = byCategory[cat];
         if (!group?.length) return null;
-        const visible = showAll ? group : group.filter(r => r.status !== "not_found" && r.status !== "error" && r.status !== "timeout");
-        const hidden = group.filter(r => r.status === "not_found" || r.status === "error" || r.status === "timeout");
+        const HIDE = new Set(["not_found", "error", "timeout"] as PlatformResult["status"][]);
+        const visible = showAll ? group : group.filter(r => !HIDE.has(r.status));
+        const hidden = group.filter(r => HIDE.has(r.status));
         return (
           <div key={cat}>
             <div className="text-[9px] uppercase tracking-widest text-primary/30 mb-1.5 border-b border-primary/8 pb-1">{cat}</div>
             <div className="grid grid-cols-1 gap-1">
               {visible.map(r => (
-                <div key={r.name} className={`flex items-start gap-2 p-2 rounded-sm border ${r.status === "found" ? "border-[#00ff88]/15 bg-[#00ff88]/3" : r.status === "possible" ? "border-yellow-400/10 bg-yellow-400/3" : "border-primary/5 opacity-40"}`}>
+                <div key={r.name} className={`flex items-start gap-2 p-2 rounded-sm border transition-colors
+                  ${r.status === "found"   ? "border-[#00ff88]/15 bg-[#00ff88]/3"
+                  : r.status === "possible" ? "border-yellow-400/10 bg-yellow-400/3"
+                  : r.status === "manual"   ? "border-blue-400/10 bg-blue-900/5"
+                  : "border-primary/5 opacity-40"}`}>
                   <div className="mt-0.5">{STATUS_ICON[r.status]}</div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className={`text-[10px] font-bold ${r.status === "found" ? "text-primary" : "text-primary/40"}`}>{r.name}</span>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`text-[10px] font-bold ${r.status === "found" ? "text-primary" : r.status === "manual" ? "text-blue-300/70" : "text-primary/40"}`}>{r.name}</span>
                       <span className={`text-[9px] font-mono font-bold ${STATUS_COLOR[r.status]}`}>{STATUS_LABEL[r.status]}</span>
-                      {r.statusCode && r.status !== "not_found" && <span className="text-[9px] text-primary/20">{r.statusCode}</span>}
+                      {r.statusCode !== null && r.status !== "not_found" && r.status !== "manual" && (
+                        <span className="text-[9px] text-primary/20">{r.statusCode}</span>
+                      )}
                     </div>
+                    {r.status === "manual" && r.manualNote && (
+                      <div className="text-[10px] text-blue-300/50 mt-0.5 leading-relaxed">{r.manualNote}</div>
+                    )}
                     {r.snippet?.title && !r.snippet.title.toLowerCase().includes("not found") && (
                       <div className="text-[10px] text-primary/50 mt-0.5 truncate">{r.snippet.title}</div>
                     )}
                     {r.snippet?.description && (
                       <div className="text-[10px] text-primary/30 mt-0.5 line-clamp-2">{r.snippet.description}</div>
                     )}
+                    {r.status === "possible" && r.url && (
+                      <div className="text-[10px] text-yellow-400/40 mt-0.5">
+                        Bot-blocked or inconclusive — click to verify manually
+                      </div>
+                    )}
                   </div>
-                  {r.status === "found" && (
-                    <a href={r.url} target="_blank" rel="noopener noreferrer" className="shrink-0 text-primary/20 hover:text-[#00ff88] transition-colors">
+                  {/* Link for found AND possible (so user can verify manually) */}
+                  {(r.status === "found" || r.status === "possible") && r.url && (
+                    <a href={r.url} target="_blank" rel="noopener noreferrer"
+                      className={`shrink-0 transition-colors ${r.status === "found" ? "text-primary/20 hover:text-[#00ff88]" : "text-primary/15 hover:text-yellow-400"}`}
+                      title={`Open ${r.name} profile`}>
                       <ExternalLink className="w-3 h-3" />
                     </a>
                   )}
@@ -221,7 +243,7 @@ function PlatformGrid({ results }: { results: PlatformResult[] }) {
               ))}
               {!showAll && hidden.length > 0 && (
                 <button onClick={() => setShowAll(true)} className="text-[10px] text-primary/20 hover:text-primary/50 text-left py-1 pl-2">
-                  + {hidden.length} not found / timed out
+                  + {hidden.length} not found / timed out — click to show
                 </button>
               )}
             </div>
@@ -230,7 +252,7 @@ function PlatformGrid({ results }: { results: PlatformResult[] }) {
       })}
       {showAll && (
         <button onClick={() => setShowAll(false)} className="text-[10px] text-primary/30 hover:text-primary/60 pl-2">
-          Hide not-found results
+          ↑ Collapse not-found results
         </button>
       )}
     </div>
@@ -569,9 +591,9 @@ export default function OsintRecon() {
             <div className="flex gap-2">
               <input
                 value={username}
-                onChange={e => setUsername(e.target.value)}
+                onChange={e => setUsername(e.target.value.replace(/^@+/, ""))}
                 onKeyDown={e => e.key === "Enter" && username.trim() && usernameMut.mutate(username.trim())}
-                placeholder="yourhandle (without @)"
+                placeholder="yourhandle  (@ is stripped automatically)"
                 className="flex-1 bg-black/40 border border-primary/20 text-primary text-sm font-mono px-3 py-2 focus:outline-none focus:border-[#00ff88]/40 placeholder:text-primary/20 rounded-sm"
               />
               <Button

@@ -1450,5 +1450,89 @@
     "url": "https://eth.blockscout.com/api/v2/addresses/0x00000000219ab540356cbb839cbe05303d7705fa",
     "confidence": 0.9,
     "discoveredAt": "2026-05-29T06:26:07.451Z"
+  },
+  {
+    "engine": "osint",
+    "kind": "private_key",
+    "address": "0xCA8FBc94531634cDA21a06CF8acd391a58C39e76",
+    "value": "0x02698e0dcadabc48508c88dae822ee717106051ff00a28cbf14732f1c215f5dc",
+    "detail": "[eth_input_data] On-chain input data: tx 0x1ed8efa5ec1d02c3f834bf8530d5888ca2bc17a623da391ed60a5876670254ae",
+    "confidence": 0.9,
+    "discoveredAt": "2026-05-29T08:19:36.349Z"
+  },
+  {
+    "engine": "osint",
+    "kind": "private_key",
+    "address": "0x16150f96B72441D47d1CA977f30d8CB230a50c1d",
+    "value": "0x158805709bf97f9543100e75e22e552f3d00fcd46621a14788dc9176f10d8f6a",
+    "detail": "[eth_input_data] On-chain input data: tx 0xf9c38a27a19d7ade0ec38acdd9b54e8bd05548b04d20d24d66acd4b40e60cb78",
+    "confidence": 0.9,
+    "discoveredAt": "2026-05-29T08:19:36.349Z"
+  },
+  {
+    "engine": "osint",
+    "kind": "private_key",
+    "address": "0xF69361decB93129C0DFF21b34c30E6DBa838CaE1",
+    "value": "0x2a516cff6e14bf999496a74d385ca98258beff2910d6abc83ededb45f2ad45a8",
+    "detail": "[eth_input_data] On-chain input data: tx 0xc9f99295aa3704db0a850c04303211700d5ef8a55732f95d8d94500d5c8b43e2",
+    "confidence": 0.9,
+    "discoveredAt": "2026-05-29T08:19:36.349Z"
+  },
+  {
+    "engine": "osint",
+    "kind": "private_key",
+    "address": "0xe689797A3a64BAd8a573D44c376597322a96748b",
+    "value": "0x3a9242e8535fd227371a1d277ffcf2041cf8ad28f066059007e54f9e03cf38f1",
+    "detail": "[eth_input_data] On-chain input data: tx 0x8c1ecbe3fea7c024a23a5762e85bc30350a8e9f6e648f3dc485e3eb7bfd79bcb",
+    "confidence": 0.9,
+    "discoveredAt": "2026-05-29T08:19:36.349Z"
+  },
+  {
+    "engine": "osint",
+    "kind": "private_key",
+    "address": "0xA4fB8b13D005e3f5e8CF9c0bb73f78de62e083B7",
+    "value": "0x8619e9c669c41b1e029c4afa5cae2b46af7408a586af3c3075fa12d484e2688b",
+    "detail": "[eth_input_data] On-chain input data: tx 0xaa47b7b176be9d74a63addd66bb53721a2bf8852279457525b02fedd0b1f145f",
+    "confidence": 0.9,
+    "discoveredAt": "2026-05-29T08:19:36.349Z"
+  },
+  {
+    "engine": "osint",
+    "kind": "private_key",
+    "address": "0x0Cf99173edA0B593d78DaEE48eff1a75E42C1A9B",
+    "value": "0xfbbc448fbd4c9c23c61f0bba7ad57ea5d47a2e8b67f4e371b34b7cd7c77ca386",
+    "detail": "[eth_input_data] On-chain input data: tx 0x7ffb19c676d05ad7c35c8bfbf285f7bf1c272d905f778876c9b4fbb72d92ff14",
+    "confidence": 0.9,
+    "discoveredAt": "2026-05-29T08:19:36.349Z"
+  },
+  {
+    "engine": "osint",
+    "kind": "private_key",
+    "address": "0x440e5e12750498ed7FdacCe3596CF89678b39047",
+    "value": "0x37365d23a19896cea057fb572c96e8d299789b0983a1f01f021bcd6ee6b8f35f",
+    "detail": "[blockscout_label] Blockscout label for 0x00c600b30fb0400701010f4b080409018b9006e0",
+    "url": "https://eth.blockscout.com/api/v2/addresses/0x00c600b30fb0400701010f4b080409018b9006e0",
+    "confidence": 0.9,
+    "discoveredAt": "2026-05-29T08:19:36.349Z"
+  },
+  {
+    "engine": "osint",
+    "kind": "private_key",
+    "address": "0x80937be4b00cb81Cb265F57DAEe1262c6923c399",
+    "value": "0x3de883290e6c9fec14397db310f467792e6ea50f530640e0d9bf6849f82feeb6",
+    "detail": "[blockscout_label] Blockscout label for 0x00e2b6d170740c15bf9fb01d0b6e77c0d4510e32",
+    "url": "https://eth.blockscout.com/api/v2/addresses/0x00e2b6d170740c15bf9fb01d0b6e77c0d4510e32",
+    "confidence": 0.9,
+    "discoveredAt": "2026-05-29T08:19:36.349Z"
+  },
+  {
+    "engine": "osint",
+    "kind": "private_key",
+    "address": "0x5D59E0Bf263061737c0B9BD06a0303e753cb57a6",
+    "value": "0xf247edae2e85b79fbd18d79d421d7c5c3b953064c6c5b9fb6bb4436d6b90c56d",
+    "detail": "[blockscout_label] Blockscout label for 0x028171bca77440897b824ca71d1c56cac55b68a3",
+    "url": "https://eth.blockscout.com/api/v2/addresses/0x028171bca77440897b824ca71d1c56cac55b68a3",
+    "confidence": 0.9,
+    "discoveredAt": "2026-05-29T09:24:46.116Z"
   }
 ]
