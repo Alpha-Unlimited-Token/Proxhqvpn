@@ -158,6 +158,7 @@ interface DiscordLookupResult {
   snowflake: { createdAt: string; timestampMs: number; workerId: number; processId: number; increment: number } | null;
   profile: { displayName?: string; username?: string; avatar?: string; source?: string; createdAt?: string; accountAgeDays?: number | null } | null;
   lanyardPresence: { username?: string; avatar?: string; status?: string; activities?: string[] } | null;
+  pasteExposures: Array<{ source: string; userId: string; context: string }> | null;
   idBreachHits: Array<{ source: string; found: boolean; resultCount?: number; note?: string }> | null;
   idDorkQueries: string[] | null;
 }
@@ -377,10 +378,38 @@ function DiscordLookupPanel({
             </div>
           )}
 
+          {/* Paste / breach ID exposure — most alarming finding, shown prominently */}
+          {dr.pasteExposures && dr.pasteExposures.length > 0 && (
+            <div className="border border-orange-400/25 bg-orange-900/8 rounded-sm p-3 space-y-2">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-3.5 h-3.5 text-orange-400 shrink-0" />
+                <span className="text-[11px] font-bold text-orange-300">
+                  User ID exposed in public paste / source data ({dr.pasteExposures.length} hit{dr.pasteExposures.length !== 1 ? "s" : ""})
+                </span>
+              </div>
+              <div className="text-[10px] text-orange-200/50 leading-relaxed">
+                Your Discord username was found alongside a Snowflake User ID in publicly accessible paste or code data.
+                This means your ID has been leaked or publicly shared somewhere.
+              </div>
+              {dr.pasteExposures.map((ex, i) => (
+                <div key={i} className="border border-orange-400/15 rounded-sm p-2 space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[9px] text-orange-300/50 uppercase tracking-wide font-bold">{ex.source}</span>
+                    <span className="text-[10px] font-mono text-orange-200/70 font-bold">ID: {ex.userId}</span>
+                    <button onClick={() => copyText(ex.userId, `pe${i}`)} className="text-primary/20 hover:text-orange-300 transition-colors">
+                      {copied === `pe${i}` ? <CheckCircle2 className="w-3 h-3 text-[#00ff88]" /> : <Copy className="w-3 h-3" />}
+                    </button>
+                  </div>
+                  <div className="text-[10px] text-orange-200/30 font-mono break-all leading-relaxed">{ex.context}</div>
+                </div>
+              ))}
+            </div>
+          )}
+
           {/* ID resolution attempts */}
           {dr.lookupAttempts.length > 0 && (
             <div className="space-y-1">
-              <div className="text-[9px] text-primary/25 uppercase tracking-widest">ID Resolution Attempts</div>
+              <div className="text-[9px] text-primary/25 uppercase tracking-widest mb-1">ID Resolution Scan</div>
               {dr.lookupAttempts.map((a, i) => (
                 <div key={i} className="flex items-center gap-2 text-[10px]">
                   {a.status === "found" ? <CheckCircle2 className="w-3 h-3 text-[#00ff88] shrink-0" />

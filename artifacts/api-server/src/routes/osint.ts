@@ -790,14 +790,71 @@ async function discordLookupGuru(username: string): Promise<{ userId?: string; d
 
 /** Try discord.id lookup API */
 async function discordIdLookup(username: string): Promise<{ userId?: string; displayName?: string; avatar?: string }> {
-  // discord.id has a search endpoint
   const body = await fetchBody(`https://discord.id/search?q=${encodeURIComponent(username)}`, 8000);
   if (!body) return {};
   const matches = [...body.matchAll(SNOWFLAKE_RE)].map(m => m[1]);
   if (!matches.length) return {};
-  const userId = matches[0];
-  const displayName = username;
-  return { userId, displayName };
+  return { userId: matches[0], displayName: username };
+}
+
+/** Try discordlookup.com search by username */
+async function discordLookupComSearch(username: string): Promise<{ userId?: string; source: string }> {
+  const body = await fetchBody(`https://discordlookup.com/search?q=${encodeURIComponent(username)}`, 9000);
+  if (!body) return { source: "discordlookup.com/search" };
+  const matches = [...body.matchAll(SNOWFLAKE_RE)].map(m => m[1]);
+  return { userId: matches[0], source: "discordlookup.com/search" };
+}
+
+/**
+ * Search paste sites and GitHub for the username and extract any Discord User IDs
+ * found nearby (within the same content block). This catches leaked data where
+ * someone's username + Discord ID appeared together in a paste or config file.
+ */
+async function searchPasteSitesForDiscordId(username: string): Promise<Array<{ source: string; userId: string; context: string }>> {
+  const results: Array<{ source: string; userId: string; context: string }> = [];
+
+  // Helper: find Snowflake IDs within 200 chars of the username in a body
+  const extractNearby = (body: string, src: string) => {
+    const lBody = body.toLowerCase();
+    const lUser = username.toLowerCase();
+    let pos = lBody.indexOf(lUser);
+    while (pos !== -1) {
+      const slice = body.slice(Math.max(0, pos - 200), pos + 200 + lUser.length);
+      for (const m of slice.matchAll(SNOWFLAKE_RE)) {
+        results.push({ source: src, userId: m[1], context: slice.replace(/\s+/g, " ").trim().slice(0, 120) });
+      }
+      pos = lBody.indexOf(lUser, pos + 1);
+    }
+  };
+
+  // Pastebin search
+  const pbBody = await fetchBody(
+    `https://pastebin.com/search?q=${encodeURIComponent(username + " discord")}`, 9000
+  );
+  if (pbBody) extractNearby(pbBody, "Pastebin");
+
+  // GitHub code search for username + discord (unauthenticated — 10 req/min limit)
+  const ghBody = await fetchBody(
+    `https://api.github.com/search/code?q=${encodeURIComponent('"' + username + '" discord')}&per_page=5`,
+    9000
+  );
+  if (ghBody) {
+    try {
+      const d = JSON.parse(ghBody);
+      for (const item of (d.items ?? []).slice(0, 5)) {
+        const rawUrl = item.html_url?.replace("github.com", "raw.githubusercontent.com")
+          ?.replace("/blob/", "/");
+        if (rawUrl) {
+          const raw = await fetchBody(rawUrl, 6000);
+          if (raw) extractNearby(raw, `GitHub: ${item.repository?.full_name ?? "repo"}`);
+        }
+      }
+    } catch { /* ignore parse errors */ }
+  }
+
+  // Deduplicate by userId
+  const seen = new Set<string>();
+  return results.filter(r => seen.has(r.userId) ? false : (seen.add(r.userId), true));
 }
 
 /** Decode a Discord Snowflake ID into metadata */
@@ -912,41 +969,63 @@ router.post("/discord-lookup", async (req: Request, res: Response) => {
   let resolvedSource: string | undefined = givenId ? "provided" : undefined;
   let displayName: string | undefined;
   let avatar: string | undefined;
+  let pasteExposures: Array<{ source: string; userId: string; context: string }> = [];
 
   const lookupAttempts: Array<{ source: string; status: "found" | "not_found" | "error"; note?: string }> = [];
 
   if (!resolvedUserId && uname) {
-    // Try lookup.guru first
-    try {
-      const guru = await discordLookupGuru(uname);
-      if (guru.userId) {
-        resolvedUserId = guru.userId;
-        resolvedSource = "lookup.guru";
-        displayName = guru.displayName;
-        avatar = guru.avatar;
-        lookupAttempts.push({ source: "lookup.guru", status: "found", note: `User ID: ${guru.userId}` });
-      } else {
-        lookupAttempts.push({ source: "lookup.guru", status: "not_found" });
-      }
-    } catch {
-      lookupAttempts.push({ source: "lookup.guru", status: "error" });
+    // Run all ID-resolution sources in parallel for speed
+    const [guru, dlCom, did, pasteHits] = await Promise.all([
+      discordLookupGuru(uname).catch(() => ({})),
+      discordLookupComSearch(uname).catch(() => ({ source: "discordlookup.com/search" })),
+      discordIdLookup(uname).catch(() => ({})),
+      searchPasteSitesForDiscordId(uname).catch(() => [] as typeof pasteExposures),
+    ]);
+
+    pasteExposures = pasteHits;
+
+    // lookup.guru
+    if ((guru as any).userId) {
+      const g = guru as { userId: string; displayName?: string; avatar?: string };
+      resolvedUserId = g.userId; resolvedSource = "lookup.guru";
+      displayName = g.displayName; avatar = g.avatar;
+      lookupAttempts.push({ source: "lookup.guru", status: "found", note: `User ID: ${g.userId}` });
+    } else {
+      lookupAttempts.push({ source: "lookup.guru", status: "not_found" });
     }
 
-    // Try discord.id if not found yet
-    if (!resolvedUserId) {
-      try {
-        const did = await discordIdLookup(uname);
-        if (did.userId) {
-          resolvedUserId = did.userId;
-          resolvedSource = "discord.id";
-          displayName = did.displayName;
-          lookupAttempts.push({ source: "discord.id", status: "found", note: `User ID: ${did.userId}` });
-        } else {
-          lookupAttempts.push({ source: "discord.id", status: "not_found" });
-        }
-      } catch {
-        lookupAttempts.push({ source: "discord.id", status: "error" });
+    // discordlookup.com search
+    if ((dlCom as any).userId) {
+      const d = dlCom as { userId: string; source: string };
+      lookupAttempts.push({ source: "discordlookup.com", status: "found", note: `User ID: ${d.userId}` });
+      if (!resolvedUserId) { resolvedUserId = d.userId; resolvedSource = "discordlookup.com"; }
+    } else {
+      lookupAttempts.push({ source: "discordlookup.com", status: "not_found" });
+    }
+
+    // discord.id
+    if ((did as any).userId) {
+      const d = did as { userId: string; displayName?: string };
+      lookupAttempts.push({ source: "discord.id", status: "found", note: `User ID: ${d.userId}` });
+      if (!resolvedUserId) { resolvedUserId = d.userId; resolvedSource = "discord.id"; displayName = d.displayName; }
+    } else {
+      lookupAttempts.push({ source: "discord.id", status: "not_found" });
+    }
+
+    // Paste/GitHub search — IDs found alongside username in leaked data
+    if (pasteExposures.length > 0) {
+      lookupAttempts.push({
+        source: "Paste/Breach data",
+        status: "found",
+        note: `${pasteExposures.length} User ID(s) found near username in public paste/source data`,
+      });
+      // Use first paste-sourced ID if we still have nothing
+      if (!resolvedUserId) {
+        resolvedUserId = pasteExposures[0].userId;
+        resolvedSource = pasteExposures[0].source;
       }
+    } else {
+      lookupAttempts.push({ source: "Paste/Breach data", status: "not_found" });
     }
   }
 
@@ -997,6 +1076,7 @@ router.post("/discord-lookup", async (req: Request, res: Response) => {
     avatar: profile?.avatar ?? avatar ?? null,
     lookupAttempts,
     selfLookupSteps,
+    pasteExposures: pasteExposures.length > 0 ? pasteExposures : null,
     idBreachHits: idBreachHits ?? null,
     idDorkQueries: idDorkQueries ?? null,
     snowflake: snowflake ?? null,
