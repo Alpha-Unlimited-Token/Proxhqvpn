@@ -5,7 +5,7 @@ import {
   Users, UserPlus, Trash2, Loader2, BadgeCheck,
   Mail, Clock, User, AlertCircle, Shield,
   RefreshCw, FileText, Award, ChevronDown, ChevronUp,
-  Pencil, Check, X, ToggleLeft, ToggleRight,
+  Pencil, Check, X, ToggleLeft, ToggleRight, Inbox,
 } from "lucide-react";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -20,6 +20,17 @@ interface Employee {
   isAdminEmployee: boolean;
   isAmbassador: boolean;
   ambassadorPromoCode: string | null;
+}
+
+interface PendingAmbassador {
+  id: number;
+  name: string;
+  bio: string | null;
+  promo_code: string;
+  status: string;
+  contact_email: string | null;
+  referral_count: number;
+  created_at: string;
 }
 
 function formatDate(iso: string) {
@@ -165,6 +176,13 @@ export default function Employees() {
   const [isAmb, setIsAmb]           = useState(false);
   const [promoCode, setPromoCode]   = useState("");
 
+  // Pending ambassador applications
+  const [pendingAmbs, setPendingAmbs]         = useState<PendingAmbassador[]>([]);
+  const [pendingLoading, setPendingLoading]   = useState(true);
+  const [approvingId, setApprovingId]         = useState<number | null>(null);
+  const [rejectingId, setRejectingId]         = useState<number | null>(null);
+  const [notifyEmails, setNotifyEmails]       = useState<Record<number, string>>({});
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -179,7 +197,63 @@ export default function Employees() {
     }
   }, [toast]);
 
-  useEffect(() => { load(); }, [load]);
+  const loadPending = useCallback(async () => {
+    setPendingLoading(true);
+    try {
+      const r = await fetch(`${BASE}/api/ambassadors/admin/all`, { credentials: "include" });
+      if (!r.ok) { setPendingAmbs([]); return; }
+      const data: PendingAmbassador[] = await r.json();
+      setPendingAmbs(Array.isArray(data) ? data.filter(a => a.status === "pending") : []);
+    } catch {
+      setPendingAmbs([]);
+    } finally {
+      setPendingLoading(false);
+    }
+  }, []);
+
+  const approveAmb = async (amb: PendingAmbassador) => {
+    setApprovingId(amb.id);
+    try {
+      const notifyEmail = notifyEmails[amb.id]?.trim() || amb.contact_email || "";
+      const r = await fetch(`${BASE}/api/ambassadors/admin/${amb.id}/status`, {
+        method: "PATCH", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "approved", notifyEmail: notifyEmail || undefined }),
+      });
+      const d = await r.json();
+      if (!r.ok) { toast({ title: d.error ?? "Failed to approve", variant: "destructive" }); return; }
+      toast({
+        title: `${amb.name} approved!`,
+        description: d.emailSent ? `Welcome email sent to ${notifyEmail}` : "No email address — status updated",
+      });
+      loadPending();
+    } catch {
+      toast({ title: "Network error", variant: "destructive" });
+    } finally {
+      setApprovingId(null);
+    }
+  };
+
+  const rejectAmb = async (amb: PendingAmbassador) => {
+    if (!confirm(`Reject ${amb.name}'s ambassador application?`)) return;
+    setRejectingId(amb.id);
+    try {
+      const r = await fetch(`${BASE}/api/ambassadors/admin/${amb.id}/status`, {
+        method: "PATCH", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "rejected" }),
+      });
+      if (!r.ok) { const d = await r.json(); toast({ title: d.error ?? "Failed to reject", variant: "destructive" }); return; }
+      toast({ title: `${amb.name}'s application rejected` });
+      loadPending();
+    } catch {
+      toast({ title: "Network error", variant: "destructive" });
+    } finally {
+      setRejectingId(null);
+    }
+  };
+
+  useEffect(() => { load(); loadPending(); }, [load, loadPending]);
 
   const add = async () => {
     if (!email.trim()) { toast({ title: "Email is required", variant: "destructive" }); return; }
@@ -419,6 +493,72 @@ export default function Employees() {
           ))}
         </div>
       )}
+
+      {/* Pending Ambassador Applications */}
+      <div className="border border-orange-500/25 rounded p-4 space-y-3">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-2">
+            <Inbox className="w-4 h-4 text-orange-400" />
+            <span className="text-[10px] font-bold text-orange-400 uppercase tracking-widest">Pending Ambassador Applications</span>
+            {pendingAmbs.length > 0 && (
+              <span className="text-[8px] font-mono text-black bg-orange-400 rounded-full px-1.5 py-0.5 font-bold">{pendingAmbs.length}</span>
+            )}
+          </div>
+          <button onClick={loadPending} className="flex items-center gap-1 text-[9px] font-mono text-primary/40 hover:text-primary border border-primary/15 hover:border-primary/30 px-2.5 py-1 rounded transition-colors">
+            <RefreshCw className="w-3 h-3" /> Refresh
+          </button>
+        </div>
+
+        {pendingLoading ? (
+          <div className="flex items-center gap-2 text-[9px] font-mono text-primary/40 py-2">
+            <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading applications…
+          </div>
+        ) : pendingAmbs.length === 0 ? (
+          <div className="text-[9px] font-mono text-primary/30 py-2">No pending applications.</div>
+        ) : (
+          <div className="space-y-2">
+            {pendingAmbs.map(amb => (
+              <div key={amb.id} className="border border-orange-500/15 rounded p-3 space-y-2 bg-orange-900/5">
+                <div className="flex items-start gap-3 flex-wrap">
+                  <div className="flex-1 min-w-0 space-y-0.5">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-[11px] font-bold text-orange-300 font-mono">{amb.name}</span>
+                      <span className="text-[8px] font-mono text-orange-400/60 border border-orange-500/20 px-1.5 py-0.5 rounded tracking-widest">{amb.promo_code}</span>
+                    </div>
+                    {amb.bio && <div className="text-[9px] font-mono text-primary/50">{amb.bio}</div>}
+                    <div className="text-[8px] font-mono text-primary/30">Applied {formatDate(amb.created_at)}</div>
+                  </div>
+                </div>
+
+                {/* Email input + action buttons */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <input
+                    type="email"
+                    value={notifyEmails[amb.id] ?? amb.contact_email ?? ""}
+                    onChange={e => setNotifyEmails(prev => ({ ...prev, [amb.id]: e.target.value }))}
+                    placeholder="Email to notify on approval"
+                    className="flex-1 min-w-[200px] bg-black border border-orange-500/20 text-orange-200 text-[10px] font-mono px-2 py-1.5 focus:outline-none focus:border-orange-400/50 rounded"
+                  />
+                  <button
+                    onClick={() => approveAmb(amb)}
+                    disabled={approvingId === amb.id}
+                    className="flex items-center gap-1.5 text-[9px] font-mono text-black bg-green-400 hover:bg-green-300 disabled:opacity-50 px-3 py-1.5 rounded transition-colors font-bold">
+                    {approvingId === amb.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                    Approve
+                  </button>
+                  <button
+                    onClick={() => rejectAmb(amb)}
+                    disabled={rejectingId === amb.id}
+                    className="flex items-center gap-1.5 text-[9px] font-mono text-red-400/70 hover:text-red-400 border border-red-500/20 hover:border-red-500/40 disabled:opacity-50 px-3 py-1.5 rounded transition-colors">
+                    {rejectingId === amb.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <X className="w-3 h-3" />}
+                    Reject
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Info box */}
       <div className="border border-primary/10 rounded p-3 space-y-1.5 text-[9px] font-mono text-primary/83">

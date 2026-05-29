@@ -35,6 +35,7 @@ async function ensureAmbassadorTables() {
       social_urls          JSONB DEFAULT '{}',
       status               TEXT NOT NULL DEFAULT 'pending',
       total_earnings_cents INTEGER NOT NULL DEFAULT 0,
+      contact_email        TEXT,
       created_at           TIMESTAMP DEFAULT NOW()
     )
   `);
@@ -159,8 +160,8 @@ router.post("/apply", async (req, res) => {
   const { userId } = getAuth(req);
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-  const { name, bio, promoCode, avatarUrl, socialUrls } = req.body as {
-    name: string; bio?: string; promoCode: string; avatarUrl?: string; socialUrls?: Record<string, string>;
+  const { name, bio, promoCode, avatarUrl, socialUrls, contactEmail } = req.body as {
+    name: string; bio?: string; promoCode: string; avatarUrl?: string; socialUrls?: Record<string, string>; contactEmail?: string;
   };
   if (!name?.trim()) return res.status(400).json({ error: "name is required" });
   if (!promoCode?.trim()) return res.status(400).json({ error: "promoCode is required" });
@@ -169,6 +170,9 @@ router.post("/apply", async (req, res) => {
   if (code.length < 3) return res.status(400).json({ error: "promoCode must be at least 3 characters" });
 
   try {
+    // Ensure contact_email column exists (idempotent)
+    await db.execute(sql`ALTER TABLE ambassadors ADD COLUMN IF NOT EXISTS contact_email TEXT`);
+
     // Check if already an ambassador
     const existing = toRows(await db.execute(sql`SELECT id FROM ambassadors WHERE user_id = ${userId} LIMIT 1`));
     if (existing.length > 0) return res.status(400).json({ error: "You have already applied" });
@@ -178,8 +182,8 @@ router.post("/apply", async (req, res) => {
     if (codeCheck.length > 0) return res.status(400).json({ error: "Promo code already taken — choose a different one" });
 
     const rows = toRows(await db.execute(sql`
-      INSERT INTO ambassadors (user_id, name, bio, promo_code, avatar_url, social_urls, status)
-      VALUES (${userId}, ${name.trim()}, ${bio?.trim() || null}, ${code}, ${avatarUrl?.trim() || null}, ${JSON.stringify(socialUrls || {})}::jsonb, 'pending')
+      INSERT INTO ambassadors (user_id, name, bio, promo_code, avatar_url, social_urls, status, contact_email)
+      VALUES (${userId}, ${name.trim()}, ${bio?.trim() || null}, ${code}, ${avatarUrl?.trim() || null}, ${JSON.stringify(socialUrls || {})}::jsonb, 'pending', ${contactEmail?.trim() || null})
       RETURNING id, name, promo_code, status
     `));
     const r = rows[0];
@@ -437,13 +441,60 @@ router.patch("/admin/:id/status", async (req, res) => {
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
   if (!await isAdminUser(userId)) return res.status(403).json({ error: "Forbidden: admin only" });
 
-  const { status } = req.body as { status: string };
+  const { status, notifyEmail } = req.body as { status: string; notifyEmail?: string };
   if (!["approved", "rejected", "pending"].includes(status)) {
     return res.status(400).json({ error: "Invalid status" });
   }
   try {
+    // Ensure contact_email column exists
+    await db.execute(sql`ALTER TABLE ambassadors ADD COLUMN IF NOT EXISTS contact_email TEXT`);
+
+    // If notifyEmail provided, persist it on the record
+    if (notifyEmail?.trim()) {
+      await db.execute(sql`UPDATE ambassadors SET contact_email = ${notifyEmail.trim()} WHERE id = ${Number(req.params.id)}`);
+    }
+
+    // Fetch ambassador details for the email
+    const rows = toRows(await db.execute(sql`SELECT name, promo_code, contact_email FROM ambassadors WHERE id = ${Number(req.params.id)} LIMIT 1`));
+    const amb = rows[0] as { name: string; promo_code: string; contact_email: string | null } | undefined;
+
     await db.execute(sql`UPDATE ambassadors SET status = ${status} WHERE id = ${Number(req.params.id)}`);
-    return res.json({ ok: true });
+
+    // Send welcome email if approved and we have an email address
+    const emailTo = notifyEmail?.trim() || amb?.contact_email || null;
+    if (status === "approved" && emailTo && amb) {
+      void sendMail({
+        to: emailTo,
+        subject: "[ProxhqVPN] Your Ambassador Application is Approved! 🎉",
+        html: `
+          <div style="font-family:monospace;background:#080d09;color:#00ff88;padding:32px;border-radius:8px;max-width:560px">
+            <h2 style="margin:0 0 8px;color:#ffffff;font-size:20px">You're In, ${amb.name}! 🎉</h2>
+            <p style="color:#aaaaaa;font-size:13px;margin:0 0 24px">Your ProxhqVPN Ambassador application has been approved.</p>
+            <div style="background:#0d1610;border:1px solid rgba(0,255,136,0.15);border-radius:8px;padding:20px;margin-bottom:20px">
+              <div style="color:#ffffff;font-size:11px;text-transform:uppercase;letter-spacing:2px;margin-bottom:8px">Your Promo Code</div>
+              <div style="color:#00ff88;font-size:28px;font-weight:bold;letter-spacing:4px">${amb.promo_code}</div>
+              <div style="color:#aaaaaa;font-size:12px;margin-top:8px">Share this with your audience — you earn 10% of every subscription they purchase.</div>
+            </div>
+            <div style="margin-bottom:24px">
+              <div style="color:#ffffff;font-size:13px;font-weight:bold;margin-bottom:12px">What happens next:</div>
+              <div style="color:#aaaaaa;font-size:13px;line-height:1.8">
+                ✅ Your profile is now live on the Ambassadors page<br>
+                ✅ Your referral link: <span style="color:#00ff88">proxhqvpn.com?ref=${amb.promo_code}</span><br>
+                ✅ Commissions tracked automatically in your dashboard<br>
+                ✅ Payouts processed monthly
+              </div>
+            </div>
+            <a href="https://proxhqvpn.com/ambassador/dashboard"
+               style="display:inline-block;background:#00ff88;color:#000000;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:bold;font-size:13px;margin-bottom:24px">
+              Open Your Ambassador Dashboard →
+            </a>
+            <p style="color:#666;font-size:11px;margin:0">Questions? Email us at ambassadors@proxhqvpn.com<br>ProxhqVPN · ALPHA UNLIMITED TECHNOLOGIES LLC</p>
+          </div>`,
+        text: `You're approved, ${amb.name}!\n\nYour promo code: ${amb.promo_code}\nYou earn 10% of every subscription your audience purchases.\n\nDashboard: https://proxhqvpn.com/ambassador/dashboard\n\nQuestions? ambassadors@proxhqvpn.com`,
+      });
+    }
+
+    return res.json({ ok: true, emailSent: status === "approved" && !!emailTo });
   } catch {
     return res.status(500).json({ error: "Update failed" });
   }
