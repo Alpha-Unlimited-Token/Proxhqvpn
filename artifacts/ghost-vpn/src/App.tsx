@@ -106,6 +106,7 @@ import AltIdentity from "@/pages/AltIdentity";
 import IpRotator from "@/pages/IpRotator";
 import SslTlsAnalyzer from "@/pages/SslTlsAnalyzer";
 import JwtAnalyzer from "@/pages/JwtAnalyzer";
+import SqliScanner from "@/pages/SqliScanner";
 import IacScanner from "@/pages/IacScanner";
 import HttpInterceptor from "@/pages/HttpInterceptor";
 import ApiSecurityTester from "@/pages/ApiSecurityTester";
@@ -705,6 +706,9 @@ function AppRoutes() {
           </Route>
           <Route path="/jwt-analyzer">
             <CcLayout><JwtAnalyzer /></CcLayout>
+          </Route>
+          <Route path="/sqli-scanner">
+            <CcLayout><SqliScanner /></CcLayout>
           </Route>
           <Route path="/iac-scan">
             <CcLayout><IacScanner /></CcLayout>
