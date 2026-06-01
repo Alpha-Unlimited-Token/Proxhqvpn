@@ -1,9 +1,9 @@
 {
   "startedAt": "2026-05-01T06:54:14.695Z",
-  "lastSavedAt": "2026-06-01T01:31:12.911Z",
-  "lastBlockScanned": 24984727,
-  "lowestBlockCovered": 24984678,
-  "windowsCompleted": 275,
+  "lastSavedAt": "2026-06-01T05:46:48.562Z",
+  "lastBlockScanned": 24984627,
+  "lowestBlockCovered": 24984578,
+  "windowsCompleted": 277,
   "osintRunCount": 27,
   "peelRunCount": 39,
   "hybridRunCount": 0,
@@ -15,7 +15,7 @@
   "errors": 3,
   "rpcBackoffMs": 3000,
   "running": true,
-  "statusMessage": "E1 scanning blocks 24984678–24984727 + 20 targeted addrs",
+  "statusMessage": "E1 scanning blocks 24984578–24984627 + 20 targeted addrs",
   "crossEngineFlows": {
     "e1ToE3": 0,
     "e1ToE4": 0,
