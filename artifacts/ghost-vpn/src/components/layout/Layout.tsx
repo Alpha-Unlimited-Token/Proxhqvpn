@@ -61,6 +61,7 @@ const PAGE_NAMES: Record<string, string> = {
   "/alpha-tools":          "Alpha Toolkit",
   "/downloads":            "Download ProxhqVPN",
   "/guide":                "User Guide",
+  "/parrot-tools":         "Parrot OS Tool Library",
   "/user-management":      "User Management",
   "/employees":            "Employee Access",
   "/setup":                "Server Setup",
@@ -131,6 +132,7 @@ const USER_NAV = [
   { href: "/platforms",     label: "Setup Guide",     icon: BookOpen },
   { href: "/guide",         label: "User Guide",      icon: FileText },
   { href: "/manuals",       label: "Manuals Download", icon: BookMarked },
+  { href: "/parrot-tools",  label: "Parrot OS Tools",  icon: Package },
 ];
 
 const PROTECTION_NAV = [

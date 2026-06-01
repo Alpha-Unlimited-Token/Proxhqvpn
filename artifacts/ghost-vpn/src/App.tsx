@@ -70,6 +70,7 @@ import DirectoryFuzzer from "@/pages/DirectoryFuzzer";
 import SubdomainScan from "@/pages/SubdomainScan";
 import Downloads from "@/pages/Downloads";
 import UserGuide from "@/pages/UserGuide";
+import ParrotTools from "@/pages/ParrotTools";
 import Employees from "@/pages/Employees";
 import UserManagement from "@/pages/UserManagement";
 import ThreatProtection from "@/pages/ThreatProtection";
@@ -502,6 +503,9 @@ function AppRoutes() {
           </Route>
           <Route path="/guide">
             <PublicLayout><UserGuide /></PublicLayout>
+          </Route>
+          <Route path="/parrot-tools">
+            <CcLayout><ParrotTools /></CcLayout>
           </Route>
 
 
