@@ -85,6 +85,7 @@ import sastRouter from "./sast";
 import cveSearchRouter from "./cvesearch";
 import notificationsRouter from "./notifications";
 import quantumAuditRouter from "./quantum-audit";
+import aiSecurityRouter from "./ai-security";
 import adminUsersRouter from "./admin-users";
 
 const router: IRouter = Router();
@@ -386,6 +387,7 @@ router.use("/token-seq",       requireCommandCenter, tokenSequencerRouter);
 router.use("/ws-tester",       requireCommandCenter, wsTesterRouter);
 router.use("/sast",            requireCommandCenter, sastRouter);
 router.use("/quantum-audit",   requireCommandCenter, quantumAuditRouter);
+router.use("/ai-security",     requireCommandCenter, aiSecurityRouter);
 // ── VPN Gap-Closers vs NordVPN / Mullvad / Surfshark / ExpressVPN ────────
 router.use("/gps-spoof",       requireAccess, gpsSpoofRouter);
 router.use("/port-forward",    requireAccess, portForwardRouter);

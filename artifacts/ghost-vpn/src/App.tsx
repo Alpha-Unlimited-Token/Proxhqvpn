@@ -124,6 +124,13 @@ import TokenSequencer from "@/pages/TokenSequencer";
 import WsTester from "@/pages/WsTester";
 import SastAnalyzer from "@/pages/SastAnalyzer";
 import QuantumAuditPage from "@/pages/QuantumAudit";
+import GhostPentest from "@/pages/GhostPentest";
+import RequestMind from "@/pages/RequestMind";
+import SocCopilot from "@/pages/SocCopilot";
+import CodeSentinel from "@/pages/CodeSentinel";
+import AgentStrike from "@/pages/AgentStrike";
+import LlmProbe from "@/pages/LlmProbe";
+import AiShield from "@/pages/AiShield";
 import VpnTracker from "@/pages/VpnTracker";
 import OmegaOverview from "@/pages/omega/dashboard";
 import OmegaHosts from "@/pages/omega/hosts";
@@ -734,6 +741,29 @@ function AppRoutes() {
           </Route>
           <Route path="/quantum-audit">
             <CcLayout><QuantumAuditPage /></CcLayout>
+          </Route>
+
+          {/* ── AI Security Suite ── */}
+          <Route path="/ghost-pentest">
+            <CcLayout><GhostPentest /></CcLayout>
+          </Route>
+          <Route path="/request-mind">
+            <CcLayout><RequestMind /></CcLayout>
+          </Route>
+          <Route path="/soc-copilot">
+            <CcLayout><SocCopilot /></CcLayout>
+          </Route>
+          <Route path="/code-sentinel">
+            <CcLayout><CodeSentinel /></CcLayout>
+          </Route>
+          <Route path="/agent-strike">
+            <CcLayout><AgentStrike /></CcLayout>
+          </Route>
+          <Route path="/llm-probe">
+            <CcLayout><LlmProbe /></CcLayout>
+          </Route>
+          <Route path="/ai-shield">
+            <CcLayout><AiShield /></CcLayout>
           </Route>
 
           {/* ── Omega C2 Dashboard ── */}
