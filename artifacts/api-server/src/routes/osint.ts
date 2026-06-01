@@ -6,6 +6,7 @@ import http from "http";
 import tls from "tls";
 import { URL } from "url";
 import crypto from "crypto";
+import { z } from "zod";
 
 const router = Router();
 
@@ -1092,4 +1093,252 @@ router.post("/discord-lookup", async (req: Request, res: Response) => {
   });
 });
 
+// ── Email Intelligence scanner ─────────────────────────────────────────────
+
+const DISPOSABLE_DOMAINS = new Set([
+  "mailinator.com","guerrillamail.com","temp-mail.org","throwam.com","yopmail.com",
+  "sharklasers.com","guerrillamailblock.com","grr.la","guerrillamail.info","guerrillamail.biz",
+  "guerrillamail.de","guerrillamail.net","guerrillamail.org","spam4.me","trashmail.com",
+  "trashmail.me","trashmail.net","trashmail.org","trashmail.at","trashmail.io",
+  "dispostable.com","mailnull.com","spamgourmet.com","maildrop.cc","discard.email",
+  "fakeinbox.com","mailnesia.com","spamfree24.org","getnada.com","tempinbox.com",
+  "mailsac.com","throwaway.email","spambox.us","getairmail.com","filzmail.com",
+  "tempr.email","discard.email","throwam.com","tempmail.net","mailtemp.info",
+  "10minutemail.com","10minutemail.net","10minutemail.org","tempail.com","tempmail2.com",
+  "spamhereplease.com","trashmail.fr","mailexpire.com","wegwerfemail.de",
+]);
+
+router.post("/email", async (req: Request, res: Response) => {
+  const body = z.object({ email: z.string().min(3).max(254) }).safeParse(req.body);
+  if (!body.success) return res.status(400).json({ error: "Invalid input" });
+
+  const rawEmail = body.data.email.toLowerCase().trim();
+  const emailMatch = rawEmail.match(/^([^@]+)@(.+)$/);
+  if (!emailMatch) return res.status(400).json({ error: "Invalid email format" });
+
+  const local = emailMatch[1];
+  const domain = emailMatch[2];
+  const isValidFormat = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/.test(rawEmail);
+  const isDisposable = DISPOSABLE_DOMAINS.has(domain);
+
+  // Parallel DNS lookups
+  const [mxRecords, txtRecords, aRecords] = await Promise.allSettled([
+    dns.resolveMx(domain).catch(() => [] as dns.MxRecord[]),
+    dns.resolveTxt(domain).catch(() => [] as string[][]),
+    dns.resolve4(domain).catch(() => [] as string[]),
+  ]);
+
+  const mx: dns.MxRecord[] = mxRecords.status === "fulfilled" ? (mxRecords.value as dns.MxRecord[]) : [];
+  const txt: string[][] = txtRecords.status === "fulfilled" ? (txtRecords.value as string[][]) : [];
+  const ips: string[] = aRecords.status === "fulfilled" ? (aRecords.value as string[]) : [];
+
+  const flatTxt = txt.map(r => r.join(""));
+  const spfRecord = flatTxt.find(r => r.startsWith("v=spf1")) ?? null;
+  const dmarcTxtRecords = await dns.resolveTxt(`_dmarc.${domain}`).catch(() => [] as string[][]);
+  const dmarcRecord = dmarcTxtRecords.map(r => r.join("")).find(r => r.startsWith("v=DMARC1")) ?? null;
+  const dkimRecord = await dns.resolveTxt(`default._domainkey.${domain}`).catch(() => null);
+
+  // MX health
+  const hasMx = mx.length > 0;
+  const primaryMx = mx.sort((a, b) => a.priority - b.priority)[0]?.exchange ?? null;
+
+  // Gravatar check
+  const emailHash = crypto.createHash("md5").update(rawEmail).digest("hex");
+  const gravatarUrl = `https://www.gravatar.com/avatar/${emailHash}?d=404`;
+  const gravatarHead = await fetchHead(gravatarUrl, 4000);
+  const hasGravatar = gravatarHead?.status === 200;
+  const gravatarProfileUrl = hasGravatar ? `https://gravatar.com/${emailHash}` : null;
+
+  // HIBP breach check (if API key configured)
+  let breaches: Array<{ name: string; domain: string; breachDate: string; dataClasses: string[]; pwnCount: number }> = [];
+  let hibpError: string | null = null;
+  const hibpKey = process.env.HIBP_API_KEY;
+  if (hibpKey) {
+    try {
+      const hibpRes = await fetch(`https://haveibeenpwned.com/api/v3/breachedaccount/${encodeURIComponent(rawEmail)}?truncateResponse=false`, {
+        headers: { "hibp-api-key": hibpKey, "User-Agent": "ProxhqVPN-OSINT/1.0" },
+        signal: AbortSignal.timeout(8000),
+      });
+      if (hibpRes.status === 200) {
+        const data = await hibpRes.json() as any[];
+        breaches = data.map(b => ({
+          name: b.Name,
+          domain: b.Domain,
+          breachDate: b.BreachDate,
+          dataClasses: b.DataClasses?.slice(0, 6) ?? [],
+          pwnCount: b.PwnCount,
+        }));
+      } else if (hibpRes.status === 404) {
+        breaches = [];
+      } else {
+        hibpError = `HIBP returned ${hibpRes.status}`;
+      }
+    } catch (e: any) {
+      hibpError = e.message;
+    }
+  } else {
+    hibpError = "HIBP_API_KEY not configured — add it to enable live breach lookups";
+  }
+
+  // Paste exposure search (public indexers)
+  const pasteSearches = await Promise.allSettled([
+    fetchHead(`https://psbdmp.ws/api/search/${encodeURIComponent(rawEmail)}`, 4000),
+    fetchHead(`https://www.google.com/search?q="${encodeURIComponent(rawEmail)}"`, 3000),
+  ]);
+
+  // Email reputation signals
+  const reputationSignals: Array<{ signal: string; risk: "critical" | "high" | "medium" | "low" | "ok"; detail: string }> = [];
+  if (!isValidFormat) reputationSignals.push({ signal: "Format", risk: "critical", detail: "Malformed email address" });
+  if (isDisposable) reputationSignals.push({ signal: "Disposable", risk: "high", detail: `${domain} is a known disposable/throwaway email service` });
+  if (!hasMx) reputationSignals.push({ signal: "MX Records", risk: "high", detail: "No MX records found — domain cannot receive email" });
+  if (!spfRecord) reputationSignals.push({ signal: "SPF", risk: "medium", detail: "No SPF record — spoofing protection missing" });
+  else reputationSignals.push({ signal: "SPF", risk: "ok", detail: spfRecord.slice(0, 80) });
+  if (!dmarcRecord) reputationSignals.push({ signal: "DMARC", risk: "medium", detail: "No DMARC policy — phishing protection missing" });
+  else {
+    const dmarcPolicy = dmarcRecord.match(/p=(none|quarantine|reject)/i)?.[1] ?? "none";
+    reputationSignals.push({ signal: "DMARC", risk: dmarcPolicy === "reject" ? "ok" : dmarcPolicy === "quarantine" ? "medium" : "high", detail: `Policy: ${dmarcPolicy}` });
+  }
+  if (dkimRecord) reputationSignals.push({ signal: "DKIM", risk: "ok", detail: "DKIM selector 'default' found" });
+  else reputationSignals.push({ signal: "DKIM", risk: "low", detail: "No 'default' DKIM selector (may use another)" });
+  if (hasGravatar) reputationSignals.push({ signal: "Gravatar", risk: "medium", detail: "Public Gravatar profile found — confirms real account" });
+  if (breaches.length > 0) reputationSignals.push({ signal: "Breaches", risk: breaches.length >= 5 ? "critical" : "high", detail: `Found in ${breaches.length} data breach(es)` });
+
+  // Risk score
+  const riskWeights: Record<string, number> = { critical: 30, high: 15, medium: 8, low: 3, ok: 0 };
+  const riskScore = Math.min(100, reputationSignals.reduce((acc, s) => acc + (riskWeights[s.risk] ?? 0), 0));
+
+  // Dork queries for manual research
+  const dorkQueries = [
+    `"${rawEmail}" site:pastebin.com`,
+    `"${rawEmail}" site:github.com`,
+    `"${rawEmail}" site:linkedin.com`,
+    `"${rawEmail}" filetype:sql OR filetype:csv`,
+    `"${rawEmail}" intext:password`,
+    `"${rawEmail}" site:reddit.com`,
+    `intitle:"${local}" "${domain}"`,
+  ];
+
+  return res.json({
+    email: rawEmail,
+    local,
+    domain,
+    isValidFormat,
+    isDisposable,
+    mx: mx.slice(0, 5).map(m => ({ exchange: m.exchange, priority: m.priority })),
+    hasMx,
+    primaryMx,
+    domainIps: ips.slice(0, 4),
+    emailSecurity: {
+      spf: spfRecord,
+      dmarc: dmarcRecord,
+      dkim: dkimRecord ? "Found (default selector)" : null,
+    },
+    gravatar: { found: hasGravatar, hash: emailHash, profileUrl: gravatarProfileUrl },
+    breaches,
+    hibpStatus: hibpKey ? (hibpError ? "error" : "ok") : "no_key",
+    hibpError,
+    reputationSignals,
+    riskScore,
+    dorkQueries,
+    scannedAt: new Date().toISOString(),
+  });
+});
+
+// ── Email Header Forensics ─────────────────────────────────────────────────
+router.post("/email-headers", async (req: Request, res: Response) => {
+  const body = z.object({ headers: z.string().min(20).max(50000) }).safeParse(req.body);
+  if (!body.success) return res.status(400).json({ error: "Invalid input" });
+
+  const raw = body.data.headers;
+  const lines = raw.split(/\r?\n/);
+
+  // Fold multi-line headers
+  const folded: string[] = [];
+  for (const line of lines) {
+    if (/^\s+/.test(line) && folded.length > 0) {
+      folded[folded.length - 1] += " " + line.trim();
+    } else {
+      folded.push(line);
+    }
+  }
+
+  function extractHeader(name: string): string | null {
+    const re = new RegExp(`^${name}:\\s*(.+)$`, "i");
+    for (const line of folded) {
+      const m = line.match(re);
+      if (m) return m[1].trim();
+    }
+    return null;
+  }
+
+  function extractAllHeaders(name: string): string[] {
+    const re = new RegExp(`^${name}:\\s*(.+)$`, "i");
+    return folded.flatMap(line => { const m = line.match(re); return m ? [m[1].trim()] : []; });
+  }
+
+  // Extract Received hops
+  const receivedHops = extractAllHeaders("Received").map((hop, i) => {
+    const fromMatch = hop.match(/from\s+([^\s;]+)/i);
+    const byMatch = hop.match(/by\s+([^\s;(]+)/i);
+    const ipMatch = hop.match(/\[(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\]/);
+    const dateMatch = hop.match(/;\s*(.+)$/);
+    return {
+      hop: i + 1,
+      from: fromMatch?.[1] ?? null,
+      by: byMatch?.[1] ?? null,
+      ip: ipMatch?.[1] ?? null,
+      timestamp: dateMatch?.[1]?.trim() ?? null,
+    };
+  });
+
+  // Authentication results
+  const authResults = extractHeader("Authentication-Results") ?? extractHeader("ARC-Authentication-Results") ?? null;
+  const spfResult = authResults?.match(/spf=(pass|fail|softfail|neutral|none|permerror|temperror)/i)?.[1] ?? null;
+  const dkimResult = authResults?.match(/dkim=(pass|fail|neutral|none|permerror|temperror)/i)?.[1] ?? null;
+  const dmarcResult = authResults?.match(/dmarc=(pass|fail|bestguesspass|none)/i)?.[1] ?? null;
+
+  const from = extractHeader("From");
+  const replyTo = extractHeader("Reply-To");
+  const returnPath = extractHeader("Return-Path");
+  const to = extractHeader("To");
+  const subject = extractHeader("Subject");
+  const date = extractHeader("Date");
+  const messageId = extractHeader("Message-ID");
+  const xMailer = extractHeader("X-Mailer") ?? extractHeader("User-Agent");
+  const xOrigIp = extractHeader("X-Originating-IP") ?? extractHeader("X-Forwarded-For") ?? extractHeader("X-Source-IP");
+  const xSpamScore = extractHeader("X-Spam-Score") ?? extractHeader("X-Spam-Status");
+  const contentType = extractHeader("Content-Type");
+  const mimeVersion = extractHeader("MIME-Version");
+
+  // Spoofing signals
+  const suspiciousSignals: string[] = [];
+  if (from && replyTo && from !== replyTo) suspiciousSignals.push(`Reply-To mismatch: From="${from}" vs Reply-To="${replyTo}"`);
+  if (from && returnPath && !returnPath.includes(from.replace(/.*@/, ""))) {
+    const fromDomain = from.match(/@([^>]+)/)?.[1];
+    const rpDomain = returnPath.match(/@([^>]+)/)?.[1];
+    if (fromDomain && rpDomain && fromDomain !== rpDomain) suspiciousSignals.push(`Return-Path domain mismatch: ${fromDomain} vs ${rpDomain}`);
+  }
+  if (spfResult && spfResult !== "pass") suspiciousSignals.push(`SPF ${spfResult.toUpperCase()}`);
+  if (dkimResult && dkimResult !== "pass") suspiciousSignals.push(`DKIM ${dkimResult.toUpperCase()}`);
+  if (dmarcResult && dmarcResult !== "pass") suspiciousSignals.push(`DMARC ${dmarcResult.toUpperCase()}`);
+  if (!messageId) suspiciousSignals.push("No Message-ID header (unusual for legitimate MUAs)");
+
+  // Timeline from Received hops
+  const timestamps = receivedHops.map(h => h.timestamp ? new Date(h.timestamp).getTime() : null).filter(Boolean) as number[];
+  const totalDelayMs = timestamps.length >= 2 ? Math.max(...timestamps) - Math.min(...timestamps) : null;
+
+  return res.json({
+    summary: { from, to, subject, date, messageId, xMailer, xOrigIp, xSpamScore, contentType, mimeVersion, replyTo, returnPath },
+    authentication: { spf: spfResult, dkim: dkimResult, dmarc: dmarcResult, raw: authResults },
+    receivedChain: receivedHops,
+    totalDelayMs,
+    totalDelaySeconds: totalDelayMs !== null ? Math.round(totalDelayMs / 1000) : null,
+    suspiciousSignals,
+    hopCount: receivedHops.length,
+    originatingIp: xOrigIp ?? receivedHops[receivedHops.length - 1]?.ip ?? null,
+    parsedAt: new Date().toISOString(),
+  });
+});
+
 export default router;
+

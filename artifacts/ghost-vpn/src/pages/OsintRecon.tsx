@@ -669,7 +669,7 @@ function DorkQueries({ queries }: { queries: string[] }) {
 
 export default function OsintRecon() {
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = usePersistedState<"domain" | "username">("osint-active-tab", "domain");
+  const [activeTab, setActiveTab] = usePersistedState<"domain" | "username" | "email">("osint-active-tab", "domain");
 
   // Domain/IP tab
   const [target, setTarget] = usePersistedState<string>("osint-target", "");
@@ -690,6 +690,25 @@ export default function OsintRecon() {
       apiFetch("/osint/discord-lookup", { method: "POST", body: JSON.stringify(body) }),
     onSuccess: (data) => setDiscordResult(data),
     onError: (err: Error) => toast({ title: "Discord lookup failed", description: err.message, variant: "destructive" }),
+  });
+
+  // Email Intelligence tab
+  const [emailTarget, setEmailTarget] = usePersistedState<string>("osint-email-target", "");
+  const [emailResult, setEmailResult] = useState<any>(null);
+  const [rawHeaders, setRawHeaders] = useState("");
+  const [headerResult, setHeaderResult] = useState<any>(null);
+  const [showHeaderParser, setShowHeaderParser] = useState(false);
+
+  const emailMut = useMutation({
+    mutationFn: (email: string) => apiFetch("/osint/email", { method: "POST", body: JSON.stringify({ email }) }),
+    onSuccess: (data) => setEmailResult(data),
+    onError: (err: Error) => toast({ title: "Email scan failed", description: err.message, variant: "destructive" }),
+  });
+
+  const headerMut = useMutation({
+    mutationFn: (headers: string) => apiFetch("/osint/email-headers", { method: "POST", body: JSON.stringify({ headers }) }),
+    onSuccess: (data) => setHeaderResult(data),
+    onError: (err: Error) => toast({ title: "Header parse failed", description: err.message, variant: "destructive" }),
   });
 
   const lookupMut = useMutation({
@@ -727,19 +746,23 @@ export default function OsintRecon() {
       </div>
 
       {/* Tab switcher */}
-      <div className="flex border-b border-primary/15">
-        {(["domain", "username"] as const).map(tab => (
+      <div className="flex border-b border-primary/15 overflow-x-auto">
+        {([
+          { id: "domain", label: "Domain / IP", icon: Globe },
+          { id: "username", label: "Username & Exposure", icon: User },
+          { id: "email", label: "Email Intelligence", icon: Mail },
+        ] as const).map(({ id, label, icon: Icon }) => (
           <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`flex items-center gap-1.5 px-4 py-2 text-xs font-bold uppercase tracking-wide border-b-2 transition-colors ${
-              activeTab === tab
+            key={id}
+            onClick={() => setActiveTab(id)}
+            className={`flex items-center gap-1.5 px-4 py-2 text-xs font-bold uppercase tracking-wide border-b-2 transition-colors whitespace-nowrap ${
+              activeTab === id
                 ? "border-[#00ff88] text-[#00ff88]"
                 : "border-transparent text-primary/30 hover:text-primary/60"
             }`}
           >
-            {tab === "domain" ? <Globe className="w-3.5 h-3.5" /> : <User className="w-3.5 h-3.5" />}
-            {tab === "domain" ? "Domain / IP" : "Username & Exposure"}
+            <Icon className="w-3.5 h-3.5" />
+            {label}
           </button>
         ))}
       </div>
@@ -1027,6 +1050,274 @@ export default function OsintRecon() {
               <div className="text-xs text-primary/15 mt-1">35+ platforms · Dark web indexers · Email correlation · Profile data · Dork queries</div>
             </div>
           )}
+        </>
+      )}
+
+      {/* ── Email Intelligence tab ── */}
+      {activeTab === "email" && (
+        <>
+          {/* Email scanner input */}
+          <div className="border border-primary/20 p-4 rounded-sm bg-primary/2">
+            <div className="text-[10px] text-primary/40 uppercase tracking-widest mb-2">Target Email</div>
+            <div className="flex gap-2">
+              <input
+                value={emailTarget}
+                onChange={e => setEmailTarget(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && emailTarget.trim() && emailMut.mutate(emailTarget.trim())}
+                placeholder="user@example.com"
+                className="flex-1 bg-black/40 border border-primary/20 text-primary text-sm font-mono px-3 py-2 focus:outline-none focus:border-[#00ff88]/40 placeholder:text-primary/20 rounded-sm"
+              />
+              <Button
+                onClick={() => emailTarget.trim() && emailMut.mutate(emailTarget.trim())}
+                disabled={emailMut.isPending || !emailTarget.trim()}
+                className="bg-[#00ff88] hover:bg-[#00ff88]/80 text-black font-bold font-mono text-xs px-5 rounded-sm"
+              >
+                {emailMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Scan"}
+              </Button>
+            </div>
+            <div className="mt-2 text-[10px] text-primary/20">MX validation · Breach lookup · SPF/DMARC/DKIM · Gravatar · Disposable detection · Dork queries</div>
+          </div>
+
+          {emailMut.isPending && (
+            <div className="border border-primary/10 p-8 text-center rounded-sm">
+              <Loader2 className="w-6 h-6 text-[#00ff88] mx-auto mb-2 animate-spin" />
+              <div className="text-xs text-primary/40">Running email intelligence scan...</div>
+              <div className="text-[10px] text-primary/20 mt-1">MX · DNS · Gravatar · Breach databases</div>
+            </div>
+          )}
+
+          {emailResult && !emailMut.isPending && (
+            <div className="space-y-3">
+              {/* Risk score banner */}
+              <div className={`border rounded-sm p-4 flex items-center justify-between ${emailResult.riskScore >= 60 ? "border-red-500/30 bg-red-900/8" : emailResult.riskScore >= 30 ? "border-orange-500/30 bg-orange-900/8" : "border-[#00ff88]/20 bg-[#00ff88]/5"}`}>
+                <div>
+                  <div className="text-[10px] text-primary/40 uppercase tracking-widest mb-1">Risk Score</div>
+                  <div className={`text-3xl font-bold font-mono ${emailResult.riskScore >= 60 ? "text-red-400" : emailResult.riskScore >= 30 ? "text-orange-400" : "text-[#00ff88]"}`}>{emailResult.riskScore}<span className="text-sm text-primary/30">/100</span></div>
+                </div>
+                <div className="text-right text-xs font-mono space-y-1">
+                  <div className="text-primary/40">{emailResult.email}</div>
+                  <div className="flex gap-1 justify-end flex-wrap">
+                    {emailResult.isDisposable && <span className="border border-red-400/40 text-red-400 text-[9px] px-1.5 py-0.5 uppercase bg-red-900/20">Disposable</span>}
+                    {emailResult.breaches?.length > 0 && <span className="border border-red-400/40 text-red-400 text-[9px] px-1.5 py-0.5 uppercase bg-red-900/20">{emailResult.breaches.length} Breach{emailResult.breaches.length > 1 ? "es" : ""}</span>}
+                    {emailResult.gravatar?.found && <span className="border border-yellow-400/40 text-yellow-400 text-[9px] px-1.5 py-0.5 uppercase bg-yellow-900/20">Gravatar</span>}
+                    {emailResult.hasMx && <span className="border border-[#00ff88]/30 text-[#00ff88] text-[9px] px-1.5 py-0.5 uppercase bg-[#00ff88]/5">Valid MX</span>}
+                  </div>
+                </div>
+              </div>
+
+              {/* Reputation signals */}
+              <Section title="Reputation Signals" icon={Shield} defaultOpen>
+                <div className="space-y-1.5">
+                  {(emailResult.reputationSignals ?? []).map((s: any, i: number) => (
+                    <div key={i} className="flex items-center gap-3 py-1 border-b border-primary/5 last:border-0">
+                      {s.risk === "ok"
+                        ? <CheckCircle2 className="w-3 h-3 text-[#00ff88] shrink-0" />
+                        : s.risk === "critical" ? <XCircle className="w-3 h-3 text-red-400 shrink-0" />
+                        : s.risk === "high" ? <AlertCircle className="w-3 h-3 text-orange-400 shrink-0" />
+                        : <HelpCircle className="w-3 h-3 text-yellow-400 shrink-0" />}
+                      <span className="text-primary/40 w-20 shrink-0">{s.signal}</span>
+                      <RiskPill risk={s.risk === "ok" ? "low" : s.risk} />
+                      <span className="text-primary/60 text-[10px] truncate flex-1">{s.detail}</span>
+                    </div>
+                  ))}
+                </div>
+              </Section>
+
+              {/* Domain / MX info */}
+              <Section title="Mail Exchange (MX)" icon={Server}>
+                <KV k="Domain" v={emailResult.domain} />
+                <KV k="Local part" v={emailResult.local} />
+                <KV k="Valid format" v={emailResult.isValidFormat ? "Yes" : "No"} highlight={emailResult.isValidFormat ? "text-[#00ff88]" : "text-red-400"} />
+                <KV k="Disposable" v={emailResult.isDisposable ? "Yes — throwaway service" : "No"} highlight={emailResult.isDisposable ? "text-red-400" : "text-[#00ff88]"} />
+                <KV k="Has MX records" v={emailResult.hasMx ? "Yes" : "No"} highlight={emailResult.hasMx ? "text-[#00ff88]" : "text-red-400"} />
+                {emailResult.primaryMx && <KV k="Primary MX" v={emailResult.primaryMx} />}
+                {(emailResult.mx ?? []).length > 0 && (
+                  <div className="mt-2">
+                    <div className="text-[10px] text-primary/30 uppercase mb-1">All MX Records</div>
+                    {emailResult.mx.map((m: any, i: number) => (
+                      <div key={i} className="flex gap-3 text-[10px] py-0.5">
+                        <span className="text-primary/30">pri {m.priority}</span>
+                        <span className="text-primary/70">{m.exchange}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {(emailResult.domainIps ?? []).length > 0 && <KV k="Domain IPs" v={emailResult.domainIps.join(", ")} />}
+              </Section>
+
+              {/* Email security records */}
+              <Section title="Email Security (SPF / DMARC / DKIM)" icon={Lock}>
+                <KV k="SPF" v={emailResult.emailSecurity?.spf ?? "Not found"} highlight={emailResult.emailSecurity?.spf ? "text-[#00ff88]" : "text-orange-400"} />
+                <KV k="DMARC" v={emailResult.emailSecurity?.dmarc ?? "Not found"} highlight={emailResult.emailSecurity?.dmarc ? "text-[#00ff88]" : "text-orange-400"} />
+                <KV k="DKIM" v={emailResult.emailSecurity?.dkim ?? "Not found (default selector)"} highlight={emailResult.emailSecurity?.dkim ? "text-[#00ff88]" : "text-primary/30"} />
+              </Section>
+
+              {/* Gravatar */}
+              <Section title="Gravatar Profile" icon={Eye}>
+                <KV k="Found" v={emailResult.gravatar?.found ? "Yes" : "No"} highlight={emailResult.gravatar?.found ? "text-yellow-400" : "text-primary/30"} />
+                <KV k="MD5 Hash" v={emailResult.gravatar?.hash ?? "-"} />
+                {emailResult.gravatar?.found && emailResult.gravatar.profileUrl && (
+                  <KV k="Profile URL" v={<a href={emailResult.gravatar.profileUrl} target="_blank" rel="noreferrer" className="text-[#00ff88] underline flex items-center gap-1">{emailResult.gravatar.profileUrl}<ExternalLink className="w-2.5 h-2.5" /></a>} />
+                )}
+              </Section>
+
+              {/* Breach data */}
+              <Section title={`Breach Database (${emailResult.breaches?.length ?? 0} hits)`} icon={Database}>
+                {emailResult.hibpStatus === "no_key" && (
+                  <div className="border border-yellow-500/20 bg-yellow-900/5 p-3 rounded-sm text-[10px] text-yellow-400 mb-3">
+                    <AlertCircle className="w-3 h-3 inline mr-1.5" />
+                    {emailResult.hibpError}
+                  </div>
+                )}
+                {emailResult.hibpStatus === "error" && (
+                  <div className="border border-red-500/20 bg-red-900/5 p-3 rounded-sm text-[10px] text-red-400 mb-3">
+                    <XCircle className="w-3 h-3 inline mr-1.5" />
+                    HIBP error: {emailResult.hibpError}
+                  </div>
+                )}
+                {emailResult.breaches?.length === 0 && emailResult.hibpStatus === "ok" && (
+                  <div className="text-[10px] text-[#00ff88]"><CheckCircle2 className="w-3 h-3 inline mr-1.5" />No breaches found in HIBP database</div>
+                )}
+                {(emailResult.breaches ?? []).map((b: any, i: number) => (
+                  <div key={i} className="border border-red-500/20 rounded-sm p-2.5 mb-2 bg-red-900/5">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Flame className="w-3 h-3 text-red-400 shrink-0" />
+                      <span className="text-xs font-bold text-red-400">{b.name}</span>
+                      <span className="text-[9px] text-primary/30 ml-auto">{b.breachDate}</span>
+                    </div>
+                    <div className="text-[10px] text-primary/40 mb-1">{b.domain}</div>
+                    <div className="text-[10px] text-orange-400">{(b.pwnCount ?? 0).toLocaleString()} accounts pwned</div>
+                    {b.dataClasses?.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1.5">
+                        {b.dataClasses.map((dc: string) => (
+                          <span key={dc} className="text-[8px] border border-orange-400/20 text-orange-400/70 px-1.5 py-0.5 rounded uppercase bg-orange-900/10">{dc}</span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </Section>
+
+              {/* Dork queries */}
+              <Section title="OSINT Dork Queries" icon={Search} defaultOpen={false}>
+                <div className="space-y-1.5">
+                  {(emailResult.dorkQueries ?? []).map((q: string, i: number) => (
+                    <div key={i} className="flex items-center gap-2 group">
+                      <Code2 className="w-3 h-3 text-primary/20 shrink-0" />
+                      <span className="font-mono text-[10px] text-primary/60 flex-1 break-all">{q}</span>
+                      <button
+                        onClick={() => { navigator.clipboard.writeText(q); toast({ title: "Copied" }); }}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity text-primary/40 hover:text-[#00ff88]"
+                      >
+                        <Copy className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </Section>
+            </div>
+          )}
+
+          {!emailResult && !emailMut.isPending && (
+            <div className="border border-primary/10 p-10 text-center rounded-sm">
+              <Mail className="w-8 h-8 text-primary/15 mx-auto mb-3" />
+              <div className="text-sm text-primary/25">Enter an email address to run intelligence scan</div>
+              <div className="text-xs text-primary/15 mt-1">MX validation · Breach lookup · SPF/DMARC/DKIM · Gravatar · Disposable detection</div>
+            </div>
+          )}
+
+          {/* ── Email Header Forensics panel ── */}
+          <div className="border border-primary/15 rounded-sm overflow-hidden mt-2">
+            <button
+              className="w-full flex items-center gap-2 p-3 bg-primary/3 hover:bg-primary/5 transition-colors text-left"
+              onClick={() => setShowHeaderParser(p => !p)}
+            >
+              <Clock className="w-3.5 h-3.5 text-[#00ff88]" />
+              <span className="text-xs font-bold text-primary uppercase tracking-wide flex-1">Email Header Forensics</span>
+              <ChevronRight className={`w-3.5 h-3.5 text-primary/30 transition-transform ${showHeaderParser ? "rotate-90" : ""}`} />
+            </button>
+            {showHeaderParser && (
+              <div className="p-3 space-y-3">
+                <div className="text-[10px] text-primary/30">Paste raw email headers (from Gmail "Show original", Outlook "View source", etc.) to extract routing chain, sender IP, authentication results, and spoofing signals.</div>
+                <textarea
+                  value={rawHeaders}
+                  onChange={e => setRawHeaders(e.target.value)}
+                  placeholder={"Received: from mail.example.com...\nFrom: sender@example.com\nTo: ...\n..."}
+                  rows={8}
+                  className="w-full bg-black/40 border border-primary/20 text-primary text-[11px] font-mono px-3 py-2 focus:outline-none focus:border-[#00ff88]/40 placeholder:text-primary/15 rounded-sm resize-y"
+                />
+                <Button
+                  onClick={() => rawHeaders.trim() && headerMut.mutate(rawHeaders.trim())}
+                  disabled={headerMut.isPending || !rawHeaders.trim()}
+                  className="bg-[#00ff88] hover:bg-[#00ff88]/80 text-black font-bold font-mono text-xs px-5 rounded-sm"
+                >
+                  {headerMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Parse Headers"}
+                </Button>
+
+                {headerResult && !headerMut.isPending && (
+                  <div className="space-y-3 mt-2">
+                    {/* Spoofing warnings */}
+                    {(headerResult.suspiciousSignals ?? []).length > 0 && (
+                      <div className="border border-red-500/30 bg-red-900/8 rounded-sm p-3 space-y-1.5">
+                        <div className="text-[10px] font-bold text-red-400 uppercase tracking-widest flex items-center gap-1.5">
+                          <AlertCircle className="w-3 h-3" /> Spoofing / Authentication Warnings
+                        </div>
+                        {headerResult.suspiciousSignals.map((s: string, i: number) => (
+                          <div key={i} className="text-[10px] text-red-300 flex items-start gap-1.5">
+                            <XCircle className="w-2.5 h-2.5 text-red-400 shrink-0 mt-0.5" />{s}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {(headerResult.suspiciousSignals ?? []).length === 0 && (
+                      <div className="border border-[#00ff88]/20 bg-[#00ff88]/5 rounded-sm p-2.5 text-[10px] text-[#00ff88] flex items-center gap-1.5">
+                        <CheckCircle2 className="w-3 h-3" /> No spoofing signals detected
+                      </div>
+                    )}
+
+                    {/* Summary + Auth side by side */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <Section title="Header Summary" icon={Mail} defaultOpen>
+                        {Object.entries(headerResult.summary ?? {}).map(([k, v]) => v ? (
+                          <KV key={k} k={k.replace(/([A-Z])/g, " $1").trim()} v={String(v)} />
+                        ) : null)}
+                        <KV k="Hop count" v={String(headerResult.hopCount ?? 0)} />
+                        {headerResult.totalDelaySeconds !== null && (
+                          <KV k="Total delay" v={`${headerResult.totalDelaySeconds}s`} highlight={headerResult.totalDelaySeconds > 300 ? "text-orange-400" : "text-[#00ff88]"} />
+                        )}
+                      </Section>
+
+                      <Section title="Authentication" icon={Shield} defaultOpen>
+                        <KV k="SPF" v={headerResult.authentication?.spf ?? "n/a"} highlight={headerResult.authentication?.spf === "pass" ? "text-[#00ff88]" : "text-red-400"} />
+                        <KV k="DKIM" v={headerResult.authentication?.dkim ?? "n/a"} highlight={headerResult.authentication?.dkim === "pass" ? "text-[#00ff88]" : "text-red-400"} />
+                        <KV k="DMARC" v={headerResult.authentication?.dmarc ?? "n/a"} highlight={headerResult.authentication?.dmarc === "pass" ? "text-[#00ff88]" : "text-red-400"} />
+                        {headerResult.originatingIp && <KV k="Origin IP" v={headerResult.originatingIp} highlight="text-orange-400" />}
+                      </Section>
+                    </div>
+
+                    {/* Received chain */}
+                    {(headerResult.receivedChain ?? []).length > 0 && (
+                      <Section title={`Routing Chain (${headerResult.hopCount} hops)`} icon={Server} defaultOpen>
+                        <div className="space-y-2">
+                          {headerResult.receivedChain.map((hop: any) => (
+                            <div key={hop.hop} className="border border-primary/10 rounded-sm p-2.5 text-[10px]">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="border border-[#00ff88]/30 text-[#00ff88] px-1.5 font-bold text-[9px]">HOP {hop.hop}</span>
+                                {hop.ip && <span className="text-orange-400 font-mono">{hop.ip}</span>}
+                              </div>
+                              {hop.from && <div className="text-primary/40">From: <span className="text-primary/70">{hop.from}</span></div>}
+                              {hop.by && <div className="text-primary/40">By: <span className="text-primary/70">{hop.by}</span></div>}
+                              {hop.timestamp && <div className="text-primary/30 mt-0.5">{hop.timestamp}</div>}
+                            </div>
+                          ))}
+                        </div>
+                      </Section>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </>
       )}
 
