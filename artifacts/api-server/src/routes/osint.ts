@@ -255,7 +255,7 @@ interface Platform {
    * For JSON API endpoints (GitHub, Reddit, HN): "json"
    * For normal HTML: undefined (HEAD check)
    */
-  checkMode?: "json" | "hn_json";
+  checkMode?: "json" | "hn_json" | "discord_auto";
 }
 
 const PLATFORMS: Platform[] = [
@@ -270,11 +270,11 @@ const PLATFORMS: Platform[] = [
   { name: "Bluesky",        category: "Social",    url: "https://bsky.app/profile/{u}.bsky.social" },
   { name: "Mastodon",       category: "Social",    url: "https://mastodon.social/@{u}" },
   { name: "Threads",        category: "Social",    url: "https://www.threads.net/@{u}" },
-  // Discord: no public profile URL by username — requires numeric User ID
+  // Discord: auto-resolved via lookup.guru, discord.id, and discordlookup.com
   {
-    name: "Discord", category: "Social", url: "",
-    manualCheck: true,
-    manualNote: "Discord changed to username handles but profiles are only accessible by numeric User ID (not username). Check manually at discordlookup.com — search by server to find member IDs.",
+    name: "Discord", category: "Social",
+    url: "https://discord.com/users/{u}",
+    checkMode: "discord_auto",
   },
   // Video / Streaming
   { name: "YouTube",        category: "Video",     url: "https://www.youtube.com/@{u}" },
@@ -354,12 +354,37 @@ function isLoginOrHomeRedirect(location: string, parsedOriginal: URL): boolean {
 }
 
 function checkUsername(platform: Platform, username: string, timeoutMs = 8000): Promise<PlatformCheckResult> {
-  // Manual-check platforms (e.g. Discord) — can't be checked via HTTP
+  // Manual-check platforms — legacy fallback
   if (platform.manualCheck) {
     return Promise.resolve({
       name: platform.name, category: platform.category, url: "",
       status: "manual", statusCode: null, manualNote: platform.manualNote,
     });
+  }
+
+  // Discord: auto-resolve username → User ID via 3 public lookup sources
+  if (platform.checkMode === "discord_auto") {
+    return (async () => {
+      try {
+        const [guru, did] = await Promise.all([
+          discordLookupGuru(username).catch(() => ({} as { userId?: string; displayName?: string })),
+          discordIdLookup(username).catch(() => ({} as { userId?: string; displayName?: string })),
+        ]);
+        const userId = (guru as any).userId ?? (did as any).userId;
+        const displayName = (guru as any).displayName ?? (did as any).displayName;
+        if (userId) {
+          return {
+            name: platform.name, category: platform.category,
+            url: `https://discord.com/users/${userId}`,
+            status: "found" as const, statusCode: null,
+            manualNote: `User ID: ${userId}${displayName ? ` · ${displayName}` : ""}`,
+          };
+        }
+        return { name: platform.name, category: platform.category, url: "", status: "not_found" as const, statusCode: null };
+      } catch {
+        return { name: platform.name, category: platform.category, url: "", status: "error" as const, statusCode: null };
+      }
+    })();
   }
 
   const checkUrl = platform.url.replace(/\{u\}/g, encodeURIComponent(username));
@@ -1338,6 +1363,193 @@ router.post("/email-headers", async (req: Request, res: Response) => {
     originatingIp: xOrigIp ?? receivedHops[receivedHops.length - 1]?.ip ?? null,
     parsedAt: new Date().toISOString(),
   });
+});
+
+// ── Cross-Intelligence Pivot Search ──────────────────────────────────────────
+// POST /api/osint/pivot — accepts email or username, auto-detects type, cross-searches both directions
+
+router.post("/pivot", async (req: Request, res: Response) => {
+  const { query } = req.body as { query?: string };
+  if (!query?.trim()) return res.status(400).json({ error: "query required" });
+
+  const q = query.trim();
+  const isEmail = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(q);
+
+  if (isEmail) {
+    // ── Email input ──────────────────────────────────────────────────────────
+    const rawEmail = q.toLowerCase();
+    const emailParts = rawEmail.match(/^([^@]+)@(.+)$/);
+    if (!emailParts) return res.status(400).json({ error: "Invalid email" });
+
+    const local = emailParts[1];
+    const emailDomain = emailParts[2];
+
+    // Clean local part → username candidate (strip +tag, collapse dots for gmail-style)
+    const usernameCandidate = local.replace(/\+.*$/, "").replace(/\./g, "").toLowerCase();
+    const altCandidate = local.replace(/\+.*$/, "").toLowerCase(); // with dots preserved
+
+    if (!/^[a-zA-Z0-9_.%-]{1,50}$/.test(usernameCandidate) && !/^[a-zA-Z0-9_.%-]{1,50}$/.test(altCandidate)) {
+      return res.status(400).json({ error: "Cannot derive valid username from email local part" });
+    }
+    const uname = /^[a-zA-Z0-9_.%-]{1,50}$/.test(altCandidate) ? altCandidate : usernameCandidate;
+
+    // Parallel: platform scan for derived username + email intel + Discord lookup
+    const emailHash = crypto.createHash("md5").update(rawEmail).digest("hex");
+    const derivedEmailDomains = ["gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "protonmail.com", "icloud.com"];
+    const derivedEmails = derivedEmailDomains.map(d => `${uname}@${d}`);
+
+    const [rawPlatformResults, darkWeb, gravatarResults, thisGravatar, discordRes,
+      mxRecords, txtRecords, dmarcRecords] = await Promise.all([
+      Promise.all(PLATFORMS.map(p => checkUsername(p, uname))),
+      scanDarkWeb(uname),
+      Promise.all(derivedEmails.map(e => checkGravatar(e))),
+      fetchHead(`https://www.gravatar.com/avatar/${emailHash}?d=404`, 4000),
+      discordLookupGuru(uname).catch(() => ({} as { userId?: string; displayName?: string })),
+      dns.resolveMx(emailDomain).catch(() => [] as any[]),
+      dns.resolveTxt(emailDomain).catch(() => [] as string[][]),
+      dns.resolveTxt(`_dmarc.${emailDomain}`).catch(() => [] as string[][]),
+    ]);
+
+    const mx: any[] = Array.isArray(mxRecords) ? mxRecords : [];
+    const txt: string[][] = Array.isArray(txtRecords) ? txtRecords : [];
+    const flatTxt = txt.map((r: string[]) => r.join(""));
+    const spfRecord = flatTxt.find(r => r.startsWith("v=spf1")) ?? null;
+    const dmarcRecord = (dmarcRecords as string[][]).map((r: string[]) => r.join("")).find(r => r.startsWith("v=DMARC1")) ?? null;
+
+    const hasGravatar = thisGravatar?.status === 200;
+    const discordId = (discordRes as any).userId as string | undefined;
+    const discordDisplay = (discordRes as any).displayName as string | undefined;
+
+    // Snippets for found platforms
+    const snippetTargets = rawPlatformResults.filter(r => r.status === "found").slice(0, 8);
+    const snippets = await Promise.all(snippetTargets.map(r => extractProfileSnippet(r.url)));
+    const snippetMap: Record<string, { title?: string; description?: string }> = {};
+    snippetTargets.forEach((r, i) => { snippetMap[r.url] = snippets[i]; });
+
+    const platforms = rawPlatformResults.map(r => ({ ...r, snippet: snippetMap[r.url] ?? null }));
+    const found = platforms.filter(r => r.status === "found").length;
+    const possible = platforms.filter(r => r.status === "possible").length;
+
+    // Extract name hints from profile snippets
+    const NOISE = ["page not found", "404", "just a moment", "access denied", "sign in", "log in"];
+    const nameHints: Array<{ platform: string; hint: string }> = [];
+    platforms.forEach(r => {
+      if (!r.snippet) return;
+      const { title, description } = r.snippet;
+      if (title && !NOISE.some(n => title.toLowerCase().includes(n)) && !title.toLowerCase().includes(uname.toLowerCase())) {
+        nameHints.push({ platform: r.name, hint: title });
+      }
+      if (description && description.length > 10 && !NOISE.some(n => description.toLowerCase().includes(n))) {
+        nameHints.push({ platform: r.name, hint: description.slice(0, 120) });
+      }
+    });
+
+    return res.json({
+      inputType: "email",
+      query: rawEmail,
+      derivedUsername: uname,
+      platforms,
+      found, possible, total: PLATFORMS.length,
+      darkWeb,
+      emailPatterns: derivedEmails.map((email, i) => ({ email, hasGravatar: gravatarResults[i] })),
+      discord: discordId ? {
+        resolvedUserId: discordId,
+        displayName: discordDisplay ?? null,
+        profileUrl: `https://discord.com/users/${discordId}`,
+        accountCreated: (() => {
+          try { const ts = Number((BigInt(discordId) >> 22n) + 1420070400000n); return new Date(ts).toISOString(); } catch { return null; }
+        })(),
+      } : null,
+      emailIntel: {
+        email: rawEmail,
+        local,
+        domain: emailDomain,
+        hasGravatar,
+        gravatarUrl: hasGravatar ? `https://gravatar.com/${emailHash}` : null,
+        hasMx: mx.length > 0,
+        primaryMx: mx.sort((a, b) => a.priority - b.priority)[0]?.exchange ?? null,
+        spf: spfRecord,
+        dmarc: dmarcRecord,
+      },
+      nameHints: nameHints.slice(0, 10),
+      dorkQueries: [
+        ...buildDorkQueries(uname),
+        `"${rawEmail}" site:pastebin.com`,
+        `"${rawEmail}" site:github.com`,
+        `"${rawEmail}" filetype:sql OR filetype:csv`,
+        `"${local}" site:linkedin.com`,
+        `"${rawEmail}" intext:password`,
+      ],
+    });
+  } else {
+    // ── Username input ────────────────────────────────────────────────────────
+    const uname = q.replace(/^@/, "");
+    if (!/^[a-zA-Z0-9_.%-]{1,50}$/.test(uname)) {
+      return res.status(400).json({ error: "Invalid username — use letters, numbers, _ . - only" });
+    }
+
+    const emailDomains = ["gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "protonmail.com", "icloud.com"];
+    const emailCandidates = emailDomains.map(d => `${uname}@${d}`);
+
+    const [rawResults, darkWeb, gravatarResults] = await Promise.all([
+      Promise.all(PLATFORMS.map(p => checkUsername(p, uname))),
+      scanDarkWeb(uname),
+      Promise.all(emailCandidates.map(e => checkGravatar(e))),
+    ]);
+
+    const snippetTargets = rawResults.filter(r => r.status === "found").slice(0, 10);
+    const snippets = await Promise.all(snippetTargets.map(r => extractProfileSnippet(r.url)));
+    const snippetMap: Record<string, { title?: string; description?: string }> = {};
+    snippetTargets.forEach((r, i) => { snippetMap[r.url] = snippets[i]; });
+    const platforms = rawResults.map(r => ({ ...r, snippet: snippetMap[r.url] ?? null }));
+
+    const emailPatterns = emailCandidates.map((email, i) => ({ email, hasGravatar: gravatarResults[i] }));
+
+    const discordResult = platforms.find(r => r.name === "Discord");
+    const discordId = discordResult?.status === "found"
+      ? discordResult.manualNote?.match(/User ID: (\d+)/)?.[1] ?? null
+      : null;
+    const discordDisplay = discordResult?.status === "found"
+      ? discordResult.manualNote?.match(/· (.+)$/)?.[1] ?? null
+      : null;
+
+    const NOISE = ["page not found", "404", "just a moment", "access denied", "sign in", "log in"];
+    const nameHints: Array<{ platform: string; hint: string }> = [];
+    platforms.forEach(r => {
+      if (!r.snippet) return;
+      const { title, description } = r.snippet;
+      if (title && !NOISE.some(n => title.toLowerCase().includes(n)) && !title.toLowerCase().includes(uname.toLowerCase())) {
+        nameHints.push({ platform: r.name, hint: title });
+      }
+      if (description && description.length > 10 && !NOISE.some(n => description.toLowerCase().includes(n))) {
+        nameHints.push({ platform: r.name, hint: description.slice(0, 120) });
+      }
+    });
+
+    const found = platforms.filter(r => r.status === "found").length;
+    const possible = platforms.filter(r => r.status === "possible").length;
+
+    return res.json({
+      inputType: "username",
+      query: uname,
+      derivedUsername: uname,
+      platforms,
+      found, possible, total: PLATFORMS.length,
+      darkWeb,
+      emailPatterns,
+      discord: discordId ? {
+        resolvedUserId: discordId,
+        displayName: discordDisplay,
+        profileUrl: `https://discord.com/users/${discordId}`,
+        accountCreated: (() => {
+          try { const ts = Number((BigInt(discordId) >> 22n) + 1420070400000n); return new Date(ts).toISOString(); } catch { return null; }
+        })(),
+      } : null,
+      emailIntel: null,
+      nameHints: nameHints.slice(0, 10),
+      dorkQueries: buildDorkQueries(uname),
+    });
+  }
 });
 
 export default router;

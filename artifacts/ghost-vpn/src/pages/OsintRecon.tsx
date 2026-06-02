@@ -669,7 +669,7 @@ function DorkQueries({ queries }: { queries: string[] }) {
 
 export default function OsintRecon() {
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = usePersistedState<"domain" | "username" | "email">("osint-active-tab", "domain");
+  const [activeTab, setActiveTab] = usePersistedState<"smart" | "domain" | "username" | "email">("osint-active-tab", "smart");
 
   // Domain/IP tab
   const [target, setTarget] = usePersistedState<string>("osint-target", "");
@@ -691,6 +691,18 @@ export default function OsintRecon() {
     onSuccess: (data) => setDiscordResult(data),
     onError: (err: Error) => toast({ title: "Discord lookup failed", description: err.message, variant: "destructive" }),
   });
+
+  // Smart cross-search (pivot)
+  const [pivotQuery, setPivotQuery] = usePersistedState<string>("osint-pivot-query", "");
+  const [pivotResult, setPivotResult] = useState<any>(null);
+  const pivotMut = useMutation({
+    mutationFn: (q: string) => apiFetch("/osint/pivot", { method: "POST", body: JSON.stringify({ query: q }) }),
+    onSuccess: (data) => setPivotResult(data),
+    onError: (err: Error) => toast({ title: "Cross search failed", description: err.message, variant: "destructive" }),
+  });
+  const detectedType: "email" | "username" | null = pivotQuery.trim()
+    ? /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(pivotQuery.trim()) ? "email" : "username"
+    : null;
 
   // Email Intelligence tab
   const [emailTarget, setEmailTarget] = usePersistedState<string>("osint-email-target", "");
@@ -748,8 +760,9 @@ export default function OsintRecon() {
       {/* Tab switcher */}
       <div className="flex border-b border-primary/15 overflow-x-auto">
         {([
+          { id: "smart", label: "Smart Cross Search", icon: Search },
           { id: "domain", label: "Domain / IP", icon: Globe },
-          { id: "username", label: "Username & Exposure", icon: User },
+          { id: "username", label: "Username Scan", icon: User },
           { id: "email", label: "Email Intelligence", icon: Mail },
         ] as const).map(({ id, label, icon: Icon }) => (
           <button
@@ -766,6 +779,203 @@ export default function OsintRecon() {
           </button>
         ))}
       </div>
+
+      {/* ── Smart Cross Search tab ── */}
+      {activeTab === "smart" && (
+        <>
+          <div className="border border-primary/20 p-4 rounded-sm bg-primary/2 space-y-3">
+            <div className="text-[10px] text-primary/40 uppercase tracking-widest">Username or Email — auto-detected</div>
+            <div className="flex gap-2">
+              <div className="flex-1 relative">
+                <input
+                  value={pivotQuery}
+                  onChange={e => setPivotQuery(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && pivotQuery.trim() && pivotMut.mutate(pivotQuery.trim())}
+                  placeholder="johndoe  or  john@example.com"
+                  className="w-full bg-black/40 border border-primary/20 text-primary text-sm font-mono px-3 py-2 focus:outline-none focus:border-[#00ff88]/40 placeholder:text-primary/20 rounded-sm"
+                />
+                {detectedType && (
+                  <div className={`absolute right-2 top-1/2 -translate-y-1/2 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded border ${
+                    detectedType === "email"
+                      ? "text-orange-400 border-orange-400/30 bg-orange-900/10"
+                      : "text-[#00ff88] border-[#00ff88]/30 bg-[#00ff88]/5"
+                  }`}>
+                    {detectedType === "email" ? "✉ Email" : "⌖ Username"}
+                  </div>
+                )}
+              </div>
+              <Button
+                onClick={() => pivotQuery.trim() && pivotMut.mutate(pivotQuery.trim())}
+                disabled={pivotMut.isPending || !pivotQuery.trim()}
+                className="bg-[#00ff88] hover:bg-[#00ff88]/80 text-black font-bold font-mono text-xs px-5 rounded-sm"
+              >
+                {pivotMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Search"}
+              </Button>
+            </div>
+            <div className="text-[10px] text-primary/20 leading-relaxed">
+              {detectedType === "email"
+                ? "Email → derives username from local part · platform scan · Discord auto-lookup · Gravatar correlation · domain MX/SPF/DMARC"
+                : detectedType === "username"
+                ? "Username → 35+ platform scan · Discord auto-resolved · email pattern Gravatar check · name hint extraction · dark web"
+                : "Enter a username or email address — the engine auto-detects the type and cross-searches all intelligence sources"}
+            </div>
+          </div>
+
+          {pivotMut.isPending && (
+            <div className="border border-primary/10 p-8 text-center rounded-sm space-y-2">
+              <Loader2 className="w-6 h-6 text-[#00ff88] mx-auto animate-spin" />
+              <div className="text-xs text-primary/40">Cross-intelligence scan running...</div>
+              <div className="text-[10px] text-primary/20">Platforms · Discord · Email · Dark Web · Name hints</div>
+              <div className="text-[10px] text-primary/15">15–30 seconds</div>
+            </div>
+          )}
+
+          {pivotResult && !pivotMut.isPending && (() => {
+            const pr = pivotResult;
+            const discordHit = pr.discord;
+            const emailGravatarHits = (pr.emailPatterns ?? []).filter((e: any) => e.hasGravatar);
+            return (
+              <div className="space-y-3">
+
+                {/* Summary */}
+                <div className="border border-primary/20 p-4 rounded-sm bg-primary/3">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className={`text-[9px] font-bold uppercase px-2 py-0.5 rounded border ${pr.inputType === "email" ? "text-orange-400 border-orange-400/30 bg-orange-900/10" : "text-[#00ff88] border-[#00ff88]/30 bg-[#00ff88]/5"}`}>
+                      {pr.inputType === "email" ? "✉ Email Input" : "⌖ Username Input"}
+                    </div>
+                    <span className="text-[10px] text-primary/40 font-mono">{pr.query}</span>
+                    {pr.inputType === "email" && (
+                      <span className="text-[10px] text-primary/30">→ username pivot: <span className="text-primary/60 font-bold">{pr.derivedUsername}</span></span>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-4 gap-3 text-center">
+                    <div>
+                      <div className={`text-2xl font-bold font-mono ${pr.found > 0 ? "text-[#00ff88]" : "text-primary/20"}`}>{pr.found}</div>
+                      <div className="text-[9px] text-primary/40 uppercase tracking-wide">Platforms</div>
+                    </div>
+                    <div>
+                      <div className={`text-2xl font-bold font-mono ${discordHit ? "text-indigo-400" : "text-primary/20"}`}>{discordHit ? "✓" : "✗"}</div>
+                      <div className="text-[9px] text-primary/40 uppercase tracking-wide">Discord</div>
+                    </div>
+                    <div>
+                      <div className={`text-2xl font-bold font-mono ${emailGravatarHits.length > 0 ? "text-orange-400" : "text-primary/20"}`}>{emailGravatarHits.length}</div>
+                      <div className="text-[9px] text-primary/40 uppercase tracking-wide">Email Hits</div>
+                    </div>
+                    <div>
+                      <div className={`text-2xl font-bold font-mono ${(pr.darkWeb ?? []).filter((d: any) => d.status === "found").length > 0 ? "text-red-400" : "text-primary/20"}`}>
+                        {(pr.darkWeb ?? []).filter((d: any) => d.status === "found").length}
+                      </div>
+                      <div className="text-[9px] text-primary/40 uppercase tracking-wide">Dark Web</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Discord intel */}
+                {discordHit && (
+                  <div className="border border-indigo-500/25 rounded-sm bg-indigo-950/10 p-3 space-y-2">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-2 h-2 rounded-full bg-indigo-400" />
+                      <span className="text-[10px] font-bold text-indigo-300/80 uppercase tracking-widest">Discord — Auto-Resolved</span>
+                      <span className="text-[9px] border border-indigo-400/30 text-indigo-400 px-1 rounded ml-auto">FOUND</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-[10px]">
+                      <div>
+                        <div className="text-primary/30 mb-0.5">User ID (Snowflake)</div>
+                        <div className="text-indigo-300 font-mono font-bold">{discordHit.resolvedUserId}</div>
+                      </div>
+                      {discordHit.displayName && (
+                        <div>
+                          <div className="text-primary/30 mb-0.5">Display Name</div>
+                          <div className="text-primary/70 font-mono">{discordHit.displayName}</div>
+                        </div>
+                      )}
+                      {discordHit.accountCreated && (
+                        <div>
+                          <div className="text-primary/30 mb-0.5">Account Created</div>
+                          <div className="text-primary/60 font-mono">{new Date(discordHit.accountCreated).toLocaleDateString()}</div>
+                        </div>
+                      )}
+                      <div>
+                        <div className="text-primary/30 mb-0.5">Profile URL</div>
+                        <a href={discordHit.profileUrl} target="_blank" rel="noreferrer" className="text-indigo-400 hover:text-indigo-300 text-[9px] underline break-all">{discordHit.profileUrl}</a>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Email intel pivot (when email was the input) */}
+                {pr.inputType === "email" && pr.emailIntel && (
+                  <Section title="Email Domain Intel" icon={Mail}>
+                    <KV k="Domain" v={pr.emailIntel.domain} />
+                    <KV k="MX Records" v={pr.emailIntel.hasMx ? <span className="text-[#00ff88]">✓ {pr.emailIntel.primaryMx}</span> : <span className="text-red-400">✗ None</span>} />
+                    <KV k="Gravatar" v={pr.emailIntel.hasGravatar ? <span className="text-orange-400">✓ Profile found</span> : "Not found"} />
+                    <KV k="SPF" v={pr.emailIntel.spf ? <span className="text-[#00ff88]">✓ {pr.emailIntel.spf.slice(0, 60)}</span> : <span className="text-yellow-400">✗ Missing</span>} />
+                    <KV k="DMARC" v={pr.emailIntel.dmarc ? <span className="text-[#00ff88]">✓ Present</span> : <span className="text-yellow-400">✗ Missing</span>} />
+                    {pr.emailIntel.gravatarUrl && (
+                      <div className="mt-2 text-[10px] text-orange-300">
+                        ⚠ Gravatar profile linked to this email — confirms real account. <a href={pr.emailIntel.gravatarUrl} target="_blank" rel="noreferrer" className="underline">View profile</a>
+                      </div>
+                    )}
+                  </Section>
+                )}
+
+                {/* Name hints from profile snippets */}
+                {pr.nameHints?.length > 0 && (
+                  <Section title={`Name / Bio Hints (${pr.nameHints.length} extracted)`} icon={Eye} defaultOpen={pr.nameHints.length > 0}>
+                    <div className="text-[10px] text-primary/30 mb-2">Extracted from public profile titles and bios of found accounts</div>
+                    <div className="space-y-1.5">
+                      {pr.nameHints.map((h: any, i: number) => (
+                        <div key={i} className="flex items-start gap-2 p-2 border border-primary/10 rounded-sm">
+                          <User className="w-3 h-3 text-yellow-400 shrink-0 mt-0.5" />
+                          <div>
+                            <div className="text-[9px] text-primary/30 uppercase">{h.platform}</div>
+                            <div className="text-[10px] text-primary/70 break-words">{h.hint}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </Section>
+                )}
+
+                {/* Platform results */}
+                <Section title={`Platform Scan — ${pr.derivedUsername} (${pr.found} found / ${pr.total} checked)`} icon={User}>
+                  <PlatformGrid results={pr.platforms ?? []} />
+                </Section>
+
+                {/* Email correlation */}
+                {(pr.emailPatterns ?? []).length > 0 && (
+                  <Section title={`Email Correlation (${emailGravatarHits.length} gravatar hits)`} icon={Mail} defaultOpen={emailGravatarHits.length > 0}>
+                    <EmailCorrelation emailPatterns={pr.emailPatterns} />
+                  </Section>
+                )}
+
+                {/* Dark web */}
+                {(pr.darkWeb ?? []).length > 0 && (
+                  <Section title={`Dark Web & Paste Sites (${(pr.darkWeb ?? []).filter((d: any) => d.status === "found").length} hits)`} icon={Flame} defaultOpen={(pr.darkWeb ?? []).some((d: any) => d.status === "found")}>
+                    <DarkWebSection darkWeb={pr.darkWeb} />
+                  </Section>
+                )}
+
+                {/* Dork queries */}
+                {(pr.dorkQueries ?? []).length > 0 && (
+                  <Section title="OSINT Search Queries" icon={Search} defaultOpen={false}>
+                    <DorkQueries queries={pr.dorkQueries} />
+                  </Section>
+                )}
+
+              </div>
+            );
+          })()}
+
+          {!pivotResult && !pivotMut.isPending && (
+            <div className="border border-primary/10 p-10 text-center rounded-sm">
+              <Search className="w-8 h-8 text-primary/15 mx-auto mb-3" />
+              <div className="text-sm text-primary/25">Paste a username or email to begin cross-intelligence search</div>
+              <div className="text-xs text-primary/15 mt-1">Auto-detects type · Pivots email↔username · Discord auto-resolved · Name hints extracted</div>
+            </div>
+          )}
+        </>
+      )}
 
       {/* ── Domain / IP tab ── */}
       {activeTab === "domain" && (
@@ -1035,13 +1245,18 @@ export default function OsintRecon() {
             </div>
           )}
 
-          {/* ── Discord Deep Lookup — always visible in username tab ── */}
-          <DiscordLookupPanel
-            discordUsername={discordUsername} setDiscordUsername={setDiscordUsername}
-            discordUserId={discordUserId}     setDiscordUserId={setDiscordUserId}
-            discordResult={discordResult}     discordMut={discordMut}
-            showSteps={showDiscordSteps}      setShowSteps={setShowDiscordSteps}
-          />
+          {/* ── Discord Deep Lookup — manual fallback (Discord auto-resolves via platform scan) ── */}
+          <Section title="Discord Deep Lookup — manual ID search" icon={HelpCircle} defaultOpen={false}>
+            <div className="text-[10px] text-primary/30 mb-3 leading-relaxed">
+              Discord is now auto-resolved during platform scan above. Use this panel only if you have a specific User ID (Snowflake) to look up directly.
+            </div>
+            <DiscordLookupPanel
+              discordUsername={discordUsername} setDiscordUsername={setDiscordUsername}
+              discordUserId={discordUserId}     setDiscordUserId={setDiscordUserId}
+              discordResult={discordResult}     discordMut={discordMut}
+              showSteps={showDiscordSteps}      setShowSteps={setShowDiscordSteps}
+            />
+          </Section>
 
           {!userResult && !usernameMut.isPending && (
             <div className="border border-primary/10 p-10 text-center rounded-sm">
