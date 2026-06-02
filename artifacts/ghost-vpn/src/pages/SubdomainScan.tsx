@@ -144,7 +144,7 @@ export default function SubdomainScan() {
                 <span className="text-primary/40">HTTPS: <span className="text-green-400">{result.summary.withHttps}</span></span>
               </div>
               <div className="text-[10px] text-primary/30">
-                Cert logs: {result.sources.certTransparency} · Brute: {result.sources.bruteForce}
+                Sources: {result.summary?.uniqueSources ?? 0} · Brute: {result.bruteForced ?? 0}
               </div>
             </div>
 
