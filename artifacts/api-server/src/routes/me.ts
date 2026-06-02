@@ -98,9 +98,15 @@ router.get("/", async (req, res) => {
   // Access flags:
   // hasAccess        = can use VPN features (admin | employee | any active sub)
   // hasCommandCenter = can use developer tools (admin | employee | command_center sub)
+  // devTier          = 1 (Recon) | 2 (Strike/CC Pro) | 3 (Arsenal) | null
   const hasSubscription = tier !== null;
   const hasAccess = isAdmin || isEmployee || hasSubscription;
   const hasCommandCenter = isAdmin || isEmployee || tier === "command_center";
+  const devTier: 1 | 2 | 3 | null =
+    isAdmin || isEmployee ? 3 :
+    tier === "command_center" ? 2 :
+    null;
+  const hasArsenal = devTier === 3;
 
   // role hierarchy: "owner" > "employee_admin" > "employee" > "subscriber" > null
   const role = isAdmin
@@ -123,6 +129,8 @@ router.get("/", async (req, res) => {
     hasAccess,
     hasSubscription,
     hasCommandCenter,
+    devTier,
+    hasArsenal,
     tier: isAdmin || isEmployee || isAdminEmployee ? "command_center" : tier,
   });
 });

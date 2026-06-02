@@ -6,7 +6,7 @@ import {
   Award, ChevronRight, DollarSign, Users, Share2,
   BarChart2, BookOpen, CheckCircle, AlertCircle,
   TrendingUp, Link, Zap, Shield, Gift, Info,
-  Copy, Check, Globe, MessageSquare, Star,
+  Copy, Check, Globe, MessageSquare, Star, Download,
 } from "lucide-react";
 
 function CopyBtn({ text }: { text: string }) {
@@ -285,6 +285,178 @@ const SECTIONS: Section[] = [
             </div>
           ))}
         </div>
+      </div>
+    ),
+  },
+  {
+    id: "faq", title: "Frequently Asked Questions", icon: MessageSquare,
+    content: (
+      <div className="space-y-3">
+        <p>Common questions we hear from ambassadors and potential customers. Bookmark these answers for your content and conversations.</p>
+        {[
+          { q: "Is ProxhqVPN really no-log?", a: "Yes. ProxhqVPN doesn't log user activity, DNS queries, connection timestamps, or IP addresses. Unlike most commercial VPNs, our warrant canary (/api/warrant-canary) is publicly accessible and cryptographically signed — confirming no NSLs, FISC orders, gag orders, or backdoors exist. The canary refreshes every 30 days." },
+          { q: "How is ProxhqVPN different from NordVPN / ExpressVPN?", a: "The biggest difference is the Command Center Pro tier — it includes a full penetration testing platform (SQLMap, Ghost Chain, OSINT Recon, OAST Server, WAF Bypass, Exploit Importer, etc.) that no consumer VPN provider offers. ProxhqVPN is built for developers and security professionals, not just streaming. It also includes a SilkWeb honeypot network, DNS Sinkhole, and QuantumAudit (blockchain smart contract scanner) — features in a completely different category." },
+          { q: "What's WireGuard and why does it matter?", a: "WireGuard is the most modern VPN protocol — only ~4,000 lines of code vs OpenVPN's 100,000+, which means a smaller attack surface and faster speeds. ProxhqVPN uses AES-256-GCM and ChaCha20-Poly1305 depending on hardware. It's the same protocol used by Mullvad, NordVPN (when they updated from OpenVPN), and the Linux kernel." },
+          { q: "Does it work on Fire Stick / smart TVs / game consoles?", a: "Yes. Full setup guides exist for Amazon Fire Stick, Fire TV, Android TV, Google TV, Samsung Smart TVs, LG webOS TVs, Xbox (via router), PS5 (via router), Roku, and Apple TV. All of these work through the Smart DNS mode or router-level WireGuard config. The Downloads page also has OS-specific .txt setup guides." },
+          { q: "Can I run ProxhqVPN alongside another VPN like NordVPN?", a: "Yes — the VPN Coexistence page (/vpn-coexist) covers four coexistence modes: fwmark-based routing, double-hop chaining, network namespaces, and routing table isolation. It auto-detects any running commercial VPN and generates the appropriate scripts." },
+          { q: "Is my commission tracked automatically?", a: "Yes. When a customer enters your promo code at Stripe checkout, the session is tagged with your ambassador ID. When payment succeeds, the webhook fires instantly and your commission is credited. You can verify every referral in your dashboard under Referral History." },
+          { q: "What happens if a customer asks for a refund?", a: "If Stripe processes a refund, the commission for that transaction is reversed from your dashboard. Commissions are only paid out on confirmed, non-refunded payments. Payouts are processed monthly for balances over $25." },
+          { q: "Can I promote ProxhqVPN on YouTube as a sponsor?", a: "Yes — read-through and integrated sponsorships are both approved. Always include a disclosure (FTC-compliant: 'I earn a commission from ProxhqVPN at no extra cost to you'). Use only approved claims from the Approved Content section of this handbook. For scripts or talking points, email ambassadors@proxhqvpn.com." },
+          { q: "What if a viewer asks about security incidents?", a: "Direct them to our public warrant canary at proxhqvpn.com/api/warrant-canary which provides a signed transparency statement. Security questions can be escalated to security@proxhqvpn.com." },
+          { q: "Is the Command Center legal?", a: "All tools in the Command Center are standard industry security tools used by professional penetration testers daily. They are legal to own and use for authorized testing. They are comparable to (and in many ways beyond) Burp Suite Pro, OWASP ZAP, Metasploit, and Caido. ProxhqVPN includes HackAnon — an educational exploit guide — and all tools include prominent legal disclaimers." },
+          { q: "Does ProxhqVPN work in China / UAE / Iran?", a: "ProxhqVPN includes multiple DPI obfuscation protocols: obfs4, Shadowsocks, V2Ray-WS, Meek, Snowflake, and XOR. These disguise VPN traffic as regular HTTPS traffic, helping bypass deep packet inspection in restrictive regions. Results vary by ISP and region — we cannot guarantee access in all situations." },
+          { q: "How do I get my first sale?", a: "Start with your existing audience — even a single video or post mentioning your experience with ProxhqVPN. The Command Center Pro is a strong selling point for developer/security audiences who are tired of paying for Burp Suite Pro ($449/yr) separately. ProxhqVPN Pro at $39.99/mo covers both VPN and the full security toolkit." },
+        ].map(({ q, a }) => (
+          <div key={q} className="border border-primary/10 rounded px-3 py-2.5">
+            <div className="text-[10px] font-mono font-bold text-primary mb-1">Q: {q}</div>
+            <div className="text-[9px] font-mono text-primary/75 leading-relaxed">A: {a}</div>
+          </div>
+        ))}
+      </div>
+    ),
+  },
+  {
+    id: "platform-rundown", title: "Product Deep Dive", icon: BookOpen,
+    content: (
+      <div className="space-y-3">
+        <p>Everything you need to confidently pitch every tier and feature. This section covers what each plan includes, how to explain it to non-technical and technical audiences, and specific use cases to highlight.</p>
+        <h4 className="font-bold text-primary text-[11px]">VPN Basic — $6.99/month</h4>
+        <p className="text-[9px] text-primary/75">Who to pitch: Privacy-first consumers, streamers, travelers, smart TV users.<br/>What's included:</p>
+        {[
+          "60-node WireGuard mesh (50 outer + 10 inner hidden nodes) — more nodes than many premium VPNs",
+          "Kill switch + IPv6 leak protection — zero exposure even if VPN drops",
+          "DNS Sinkhole — blocks ads, trackers, malware, phishing, cryptominers, botnet C2 at the DNS level (like Pi-hole, built-in)",
+          "Smart DNS for TVs/consoles — Fire Stick, Samsung/LG/Roku/Apple TV, Xbox, PS5",
+          "Multi-device WireGuard configs — unlimited devices",
+          "Tor + SOCKS5 proxy — double-hop anonymity",
+          "VPN Gate integration — 6,000+ relay nodes in 100+ countries for extra hops",
+          "Multi-platform support — Windows, Mac, Linux, iOS, Android, routers, browser extension",
+        ].map(f => <div key={f} className="text-[9px] font-mono text-primary/75 flex gap-2"><span className="text-primary/30 shrink-0">✓</span>{f}</div>)}
+
+        <h4 className="font-bold text-primary text-[11px] mt-3">Command Center Pro — $39.99/month</h4>
+        <p className="text-[9px] text-primary/75">Who to pitch: Penetration testers, bug bounty hunters, security researchers, developers, IT teams.<br/>Everything in VPN Basic, plus:</p>
+        {[
+          "Alpha Toolkit / OmniStrike — complete web app attack suite (replaces Burp Suite Pro $449/yr)",
+          "SQLMap integration — automated SQL injection scanner with full dump capability",
+          "Ghost Chain — automated kill chain discovery: 5-stage attack path correlation engine",
+          "OSINT Recon — passive DNS, TLS cert, HTTP header, ASN, email security analysis",
+          "SIEM Security Event Log — unified threat timeline from all platform sensors",
+          "Ghost Trace — WireGuard peer behavioral analysis, C2 detection, exfiltration detection",
+          "Canary Tokens — URL, DNS, email, web bug, UNC, AWS Key, SQL, PowerShell trackers",
+          "Exploit Importer — upload Burp/Nessus/ZAP reports, get step-by-step exploitation guides + PoC code",
+          "JWT Analyzer — 5 attack classes including JWKS injection, kid SQL injection, claim escalation",
+          "Subdomain Scout — 9 passive OSINT sources, deduplication, source breakdown",
+          "Directory Fuzzer — recursive scanning depth 3, response-size filtering",
+          "SAST Analyzer, Dependency Scanner, SQL Injection Scanner, SSL/TLS Analyzer",
+          "Social & Game Account Breach Tester, Bug Bounty Hub",
+          "Network Monitor — real-time traffic flow analysis across all VPN nodes",
+        ].map(f => <div key={f} className="text-[9px] font-mono text-primary/75 flex gap-2"><span className="text-orange-400/60 shrink-0">✦</span>{f}</div>)}
+
+        <h4 className="font-bold text-primary text-[11px] mt-3">Arsenal Tier (Tier 3 — admin/employee preview)</h4>
+        {[
+          "WAF Analyzer + WAF Bypass Generator — detect and defeat web application firewalls",
+          "HTTP Interceptor — full request/response manipulation proxy",
+          "API Security Tester — REST/GraphQL security scanner",
+          "OAST Blind Tester + OAST Callback Server — detect blind SSRF, XXE, Log4Shell callbacks",
+          "WebSocket Security Tester — ws/wss message manipulation and injection",
+          "Token Sequencer — statistical randomness analysis of session tokens",
+          "IaC Scanner — Terraform/CloudFormation/Kubernetes security misconfig scanner",
+          "QuantumAudit — blockchain smart contract scanner for classical + post-quantum vulnerabilities",
+          "Ghost PenTest, Request Mind, SOC Co-Pilot, Code Sentinel, Agent Strike, LLM Probe, AI Shield",
+        ].map(f => <div key={f} className="text-[9px] font-mono text-primary/75 flex gap-2"><span className="text-purple-400/60 shrink-0">◆</span>{f}</div>)}
+      </div>
+    ),
+  },
+  {
+    id: "hacker-defense", title: "Explaining Hacker Defense to Customers", icon: Shield,
+    content: (
+      <div className="space-y-3">
+        <p>This section helps you explain ProxhqVPN's defensive capabilities to non-technical customers. Use these talking points for demos, videos, and conversations.</p>
+        <h4 className="font-bold text-primary text-[11px]">The Threat Landscape (keep it simple)</h4>
+        <div className="text-[9px] text-primary/75 leading-relaxed">
+          "Every device on your network — phone, TV, laptop, even your smart refrigerator — constantly communicates with servers. Hackers intercept that traffic to steal passwords, inject malware, or track your location. Your ISP sells your browsing history. Advertisers fingerprint your device across every site you visit. Without protection, all of this happens invisibly."
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-2">Explaining the Kill Switch</h4>
+        <div className="text-[9px] text-primary/75">"If your VPN connection drops for even a millisecond, your real IP address is exposed. ProxhqVPN's kill switch uses iptables and ip6tables rules to cut all internet traffic the instant the tunnel drops — so your real IP never leaks. No other VPN protects IPv6 by default. This matters because your device has both IPv4 and IPv6 addresses — blocking only one leaves a backdoor."</div>
+        <h4 className="font-bold text-primary text-[11px] mt-2">Explaining the SilkWeb Honeypot</h4>
+        <div className="text-[9px] text-primary/75">"ProxhqVPN deploys an invisible trap network — fake services that look like real targets. When a hacker or bot probes your network and touches one of these traps, they're immediately identified, logged, and blocked. It's the same technology used by government cyber teams to catch intruders before they cause damage."</div>
+        <h4 className="font-bold text-primary text-[11px] mt-2">Explaining Canary Tokens</h4>
+        <div className="text-[9px] text-primary/75">"Imagine planting an invisible dye pack in your bank vault. If someone steals the money, the dye explodes and marks them. Canary Tokens work the same way — invisible tracking tripwires. If a hacker opens your fake 'AWS credentials' file, accesses a planted URL, or opens a booby-trapped PDF, you get an instant alert with their IP address, browser, and location."</div>
+        <h4 className="font-bold text-primary text-[11px] mt-2">Explaining the DNS Sinkhole</h4>
+        <div className="text-[9px] text-primary/75">"Your device is constantly making DNS requests — every app, every website, every ad network. The DNS Sinkhole intercepts these requests and blocks the ones going to known malware servers, trackers, and ad networks before your device even makes a connection. It's like having a bouncer checking every guest list before they enter your network. Works on Fire Stick, Smart TVs, game consoles — everything on your WiFi."</div>
+        <h4 className="font-bold text-primary text-[11px] mt-2">Explaining OSINT Recon (for security content creators)</h4>
+        <div className="text-[9px] text-primary/75">"OSINT stands for Open Source Intelligence — intelligence gathered from publicly available sources without touching the target. Our OSINT Recon tool shows you everything a hacker can see about any domain: every DNS record, every TLS certificate ever issued (revealing hidden subdomains), HTTP security headers, email security misconfigurations (SPF/DKIM/DMARC), and your hosting provider's fingerprint. This is the first step hackers take before any attack."</div>
+        <Note type="info">Customer support email for your audience's questions: <strong>support@proxhqvpn.com</strong></Note>
+      </div>
+    ),
+  },
+  {
+    id: "downloads-sales", title: "Sales Downloads", icon: Download,
+    content: (
+      <div className="space-y-4">
+        <p>Download these materials to support your ambassador content creation and sales pitches. All materials are pre-approved for ambassador use.</p>
+        {[
+          {
+            title: "Ambassador Sales Pitch Deck",
+            desc: "Full HTML presentation: 10 slides covering ProxhqVPN overview, pricing tiers, competitive advantages, target market, and closing script. Open in any browser. Printable.",
+            color: "border-yellow-500/20 bg-yellow-900/8",
+            badgeColor: "text-yellow-400",
+            badge: "SALES DECK",
+            fn: () => {
+              const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>ProxhqVPN — Ambassador Sales Presentation</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Segoe UI',sans-serif;background:#0a0f0a;color:#e5e5e5}@media print{body{background:#fff;color:#111}.slide{page-break-after:always;border:none!important}}.slide{min-height:100vh;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:60px;border-bottom:2px solid #1a2a1a;text-align:center}.slide h1{font-size:3em;color:#00ff88;margin-bottom:20px;font-weight:900}.slide h2{font-size:2em;color:#00ff88;margin-bottom:20px}.slide p,.slide li{font-size:1.1em;line-height:1.8;color:#c5c5c5;max-width:800px;text-align:left}.slide ul{text-align:left;max-width:800px}.slide li{margin:8px 0;padding-left:4px}.badge{display:inline-block;padding:6px 18px;border:1px solid #00ff88;color:#00ff88;font-size:.8em;letter-spacing:.15em;text-transform:uppercase;margin-bottom:20px}.tier{display:inline-block;padding:4px 12px;border-radius:4px;font-size:.9em;font-weight:700;margin:4px}.t1{background:#1a3a3a;color:#00ff88;border:1px solid #00ff88}.t2{background:#2a1a0a;color:#ff8800;border:1px solid #ff8800}.t3{background:#1a0a2a;color:#aa66ff;border:1px solid #aa66ff}.grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;max-width:900px;text-align:left}.card{background:#111;border:1px solid #222;padding:20px;border-radius:8px}.card h3{color:#00ff88;margin-bottom:8px;font-size:1em}.card p{font-size:.9em}.green{color:#00ff88}.orange{color:#ff8800}</style></head><body>
+<div class="slide"><div class="badge">Ambassador Presentation</div><h1>ProxhqVPN</h1><p style="text-align:center;font-size:1.3em;color:#888">The world's most advanced VPN + security platform<br><strong style="color:#00ff88">ALPHA UNLIMITED TECHNOLOGIES LLC</strong></p><p style="text-align:center;margin-top:40px;font-size:.9em;color:#555">Your promo code: ______________________ | proxhqvpn.com</p></div>
+<div class="slide"><h2>What is ProxhqVPN?</h2><p>ProxhqVPN is not just a VPN — it's a complete privacy and security operations platform for individuals, developers, and security professionals.</p><br><div class="grid"><div class="card"><h3>🔒 Privacy Layer</h3><p>60-node WireGuard mesh, kill switch, DNS Sinkhole, Tor integration, no-log policy, warrant canary</p></div><div class="card"><h3>🛡️ Defense Layer</h3><p>SilkWeb honeypot, Canary Tokens, Firewall Manager, Ghost Trace behavioral analysis, Beacon Monitor</p></div><div class="card"><h3>⚔️ Offense Layer</h3><p>Full penetration testing platform: SQLMap, Ghost Chain, OSINT Recon, Exploit Importer, OAST Server</p></div><div class="card"><h3>🔗 Infrastructure Layer</h3><p>QuantumAudit blockchain scanner, IaC Scanner, API Security Tester, WAF Analyzer, LLM Probe</p></div></div></div>
+<div class="slide"><h2>Pricing — Simple, Transparent</h2><br><div class="grid" style="grid-template-columns:1fr 1fr 1fr"><div class="card"><div class="tier t1">Recon</div><h3 class="green">$6.99/mo</h3><p>VPN Basic — all privacy and protection features. Works on every device. DNS Sinkhole, Kill Switch, Tor, Smart DNS.</p></div><div class="card"><h3 class="orange">$39.99/mo</h3><div class="tier t2">Strike</div><p>Command Center Pro — VPN Basic + full penetration testing suite. Replaces Burp Suite Pro ($449/yr).</p></div><div class="card"><h3 style="color:#aa66ff">Contact Us</h3><div class="tier t3">Arsenal</div><p>Elite tier — WAF Bypass, HTTP Interceptor, QuantumAudit, AI Shield, Ghost PenTest, SOC Co-Pilot.</p></div></div></div>
+<div class="slide"><h2>Who Buys ProxhqVPN?</h2><br><ul><li><strong class="green">Security Researchers & Bug Bounty Hunters</strong> — Command Center Pro replaces $449/yr Burp Suite Pro. Ghost Chain + OSINT Recon + Exploit Importer is a complete offensive security stack.</li><li><strong class="green">Developers</strong> — Test APIs, inspect requests, audit dependencies, scan IaC configs — all from inside a VPN tunnel with opsec.</li><li><strong class="green">Privacy-First Users</strong> — DNS Sinkhole (built-in Pi-hole), kill switch, no-log warrant canary. Works on Fire Stick, smart TVs, game consoles.</li><li><strong class="green">IT Professionals & Red Teams</strong> — OmniStrike, Ghost Pentest, SOC Co-Pilot, Agent Strike, Code Sentinel.</li><li><strong class="green">Crypto & Web3 Security Teams</strong> — QuantumAudit scans smart contracts for classical and post-quantum cryptographic vulnerabilities.</li></ul></div>
+<div class="slide"><h2>vs. The Competition</h2><br><div class="grid"><div class="card"><h3 style="color:#ff4444">NordVPN / ExpressVPN</h3><p>✗ No security tools whatsoever<br>✗ Shared IP pools with abuse history<br>✗ No honeypot / canary / SIEM<br>✗ No blockchain security audit<br>✓ Brand recognition only</p></div><div class="card"><h3 style="color:#ff8800">Burp Suite Pro</h3><p>✗ $449/year — no VPN included<br>✗ No opsec / anonymity layer<br>✗ No OSINT / threat intel<br>✓ Industry standard intercepting proxy<br><em class="green">ProxhqVPN Strike tier = Burp Pro + VPN + 40+ more tools</em></p></div><div class="card"><h3 style="color:#ffaa00">Mullvad / ProtonVPN</h3><p>✗ Privacy-only, no security tools<br>✗ No offensive research capability<br>✓ Strongest consumer VPN privacy<br><em class="green">ProxhqVPN adds the full security platform on top</em></p></div><div class="card"><h3 style="color:#00ff88">ProxhqVPN</h3><p>✓ Full VPN + complete security platform<br>✓ 60-node mesh + Tor + VPN Gate<br>✓ No-log + warrant canary<br>✓ SilkWeb honeypot + Canary Tokens<br>✓ SQLMap + Ghost Chain + OSINT + OAST<br>✓ QuantumAudit blockchain scanner</p></div></div></div>
+<div class="slide"><h2>Your Commission Structure</h2><br><ul><li><strong class="green">10% commission</strong> on every paid subscription you refer</li><li>VPN Basic ($6.99/mo): <strong class="green">$0.70/mo per subscriber</strong> — grows with their tenure</li><li>Command Center Pro ($39.99/mo): <strong class="green">$4.00/mo per subscriber</strong></li><li>Commissions tracked automatically — every promo code use is logged to your dashboard</li><li>Monthly payouts via Stripe Connect — direct to your bank account</li><li>No cap on earnings — top ambassadors with 1,000 CC Pro subscribers = $4,000/month passive income</li><li>Stack subscribers over time — your earnings grow every month as your audience builds</li></ul></div>
+<div class="slide"><h2>The Pitch Script</h2><br><p>Adapt this for your content style:</p><br><p style="background:#0f1f0f;border:1px solid #00ff8833;padding:20px;border-radius:8px;font-style:italic;max-width:700px">"I've been using ProxhqVPN for [X time] and it's become my go-to security stack. Unlike normal VPNs, it's got a full penetration testing suite built in — I use the Ghost Chain tool for recon and OSINT Recon to map attack surfaces on authorized targets. The kill switch and DNS Sinkhole run 24/7. If you're a developer or security researcher, the $39.99/month Command Center Pro tier replaces Burp Suite Pro at a fraction of the cost — and you get the VPN, DNS Sinkhole, honeypot, and everything else on top. Use code [YOUR CODE] for [discount or mention]. Link in description."</p></div>
+<div class="slide"><h2>Key FAQs to Address in Content</h2><br><ul><li><strong class="green">Is it legal?</strong> — All tools are legal for authorized security testing, comparable to Burp Suite Pro, OWASP ZAP, and Metasploit. Legal disclaimers on every page.</li><li><strong class="green">Does it work on [device]?</strong> — Yes. Guides for 20+ device types: Fire Stick, Smart TVs, consoles, routers, Raspberry Pi, everything.</li><li><strong class="green">No-log proof?</strong> — Public warrant canary at proxhqvpn.com/api/warrant-canary — cryptographically signed, refreshes monthly.</li><li><strong class="green">Can I use it with my other VPN?</strong> — Yes, VPN Coexistence page covers 4 modes (double-hop, namespace, fwmark, routing table).</li><li><strong class="green">Works in China / restricted regions?</strong> — DPI obfuscation: obfs4, Shadowsocks, V2Ray-WS, Meek, Snowflake, XOR.</li></ul></div>
+<div class="slide"><h2>Call to Action</h2><br><p style="text-align:center;font-size:1.4em">Your link: <strong class="green">proxhqvpn.com/pricing?code=[YOUR_CODE]</strong></p><br><p style="text-align:center;font-size:1.1em;color:#888">Say at the end of every video:<br><em style="color:#e5e5e5">"Use code [YOUR_CODE] at checkout to get started. The link is in the description."</em></p><br><p style="text-align:center;font-size:.9em;color:#555">Questions? ambassadors@proxhqvpn.com | Customer support: support@proxhqvpn.com</p><br><p style="text-align:center;font-size:.8em;color:#333">© 2026 ALPHA UNLIMITED TECHNOLOGIES LLC — Ambassador materials confidential. For ambassador use only.</p></div>
+</body></html>`;
+              const blob = new Blob([html], { type: "text/html" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a"); a.href = url; a.download = "proxhqvpn_ambassador_pitch_deck.html"; a.click(); URL.revokeObjectURL(url);
+            },
+          },
+          {
+            title: "Ambassador Program Overview PDF",
+            desc: "Printable one-page overview of the ambassador program — commission rates, promo code instructions, approved claims, and contact info. Print and use as a quick reference.",
+            color: "border-blue-500/20 bg-blue-900/8",
+            badgeColor: "text-blue-400",
+            badge: "PDF",
+            fn: () => {
+              const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Ambassador Program Overview</title><style>body{font-family:'Segoe UI',sans-serif;max-width:800px;margin:40px auto;padding:40px;color:#111;line-height:1.6}h1{color:#0a5c2a;font-size:2em;border-bottom:3px solid #0a5c2a;padding-bottom:10px}h2{color:#0a5c2a;font-size:1.2em;margin-top:24px}p,li{font-size:.95em;color:#333}.badge{display:inline-block;padding:2px 10px;background:#0a5c2a;color:#fff;border-radius:3px;font-size:.8em;margin-bottom:8px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.card{border:1px solid #ccc;padding:12px;border-radius:6px}footer{margin-top:40px;font-size:.8em;color:#888;border-top:1px solid #eee;padding-top:16px}@media print{body{margin:0}}</style></head><body>
+<h1>ProxhqVPN Ambassador Program</h1><p><strong>ALPHA UNLIMITED TECHNOLOGIES LLC</strong> | ambassadors@proxhqvpn.com</p>
+<div class="badge">Your Commission: 10% of every subscription you refer</div>
+<h2>Pricing & Your Earnings</h2><div class="grid"><div class="card"><strong>VPN Basic — $6.99/mo</strong><br>Your commission: $0.70/mo per subscriber<br>Privacy + DNS Sinkhole + Smart DNS + Kill Switch</div><div class="card"><strong>Command Center Pro — $39.99/mo</strong><br>Your commission: $4.00/mo per subscriber<br>VPN Basic + full penetration testing platform</div></div>
+<h2>How to Get Your Referral Link</h2><ol><li>Log into your account at proxhqvpn.com</li><li>Go to Ambassador Dashboard (/ambassador/dashboard)</li><li>Your promo code is shown at the top (e.g. YOURNAME2024)</li><li>Your referral link: proxhqvpn.com/pricing?code=YOURNAME2024</li></ol>
+<h2>Approved Claims</h2><ul><li>Military-grade WireGuard encryption (AES-256-GCM + ChaCha20-Poly1305)</li><li>Zero-log policy + public warrant canary (proxhqvpn.com/api/warrant-canary)</li><li>Works on every device: Windows, Mac, Linux, iOS, Android, Fire Stick, Smart TV, router, console</li><li>Full offensive security toolkit — replaces Burp Suite Pro ($449/yr)</li><li>60-node VPN mesh, Tor integration, DPI obfuscation, VPN Gate (6,000+ relay nodes)</li><li>Built-in honeypot + DNS Sinkhole + Canary Tokens — complete defensive stack</li></ul>
+<h2>Program Rules (Key Points)</h2><ul><li>Always include FTC-required disclosure in content</li><li>Do not share code on coupon aggregator sites</li><li>Do not make unsupported technical claims</li><li>Monthly payouts via Stripe Connect (minimum $25 balance)</li></ul>
+<footer>© 2026 ALPHA UNLIMITED TECHNOLOGIES LLC. Ambassador materials are confidential. For ambassador use only. Customer support: support@proxhqvpn.com</footer></body></html>`;
+              const blob = new Blob([html], { type: "text/html" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a"); a.href = url; a.download = "proxhqvpn_ambassador_overview.html"; a.click(); URL.revokeObjectURL(url);
+            },
+          },
+        ].map(({ title, desc, color, badgeColor, badge, fn }) => (
+          <div key={title} className={`border rounded p-4 ${color}`}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex-1">
+                <div className={`text-[8px] font-mono font-bold uppercase tracking-widest mb-1 ${badgeColor}`}>{badge}</div>
+                <div className="text-[11px] font-bold text-primary mb-1">{title}</div>
+                <div className="text-[9px] font-mono text-primary/70">{desc}</div>
+              </div>
+              <button
+                onClick={fn}
+                className="shrink-0 flex items-center gap-1.5 text-[10px] border border-primary/30 text-primary px-3 py-2 hover:bg-primary/10 transition-colors"
+              >
+                <Download className="w-3 h-3" /> Download
+              </button>
+            </div>
+          </div>
+        ))}
+        <Note type="info">These files download as .html — open in any browser to view or print. To save as PDF: File → Print → Save as PDF in your browser.</Note>
       </div>
     ),
   },

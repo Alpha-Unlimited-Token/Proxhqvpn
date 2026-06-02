@@ -454,6 +454,106 @@ ss -tupn | grep LISTEN          # Listening ports`}</CB>
     ),
   },
   {
+    id: "customer-support", title: "Customer Support Workflow", icon: Globe,
+    content: (
+      <div className="space-y-3">
+        <p>All customer-facing support is handled through <strong>support@proxhqvpn.com</strong>. This section covers how to triage, respond, and escalate support requests efficiently.</p>
+        <h4 className="font-bold text-primary text-[11px]">Support Tiers</h4>
+        <div className="space-y-2">
+          {[
+            { tier: "Tier 1 — Self-Service", who: "Customer resolves independently", how: "Direct customers to /guide (User Guide), /downloads (setup guides), /platforms (device setup), or /manuals (downloadable docs). The User Guide covers every feature in detail." },
+            { tier: "Tier 2 — Email Support", who: "Employee responds", how: "Check support@proxhqvpn.com. Respond within 24 hours on business days. Use standard response templates below. CC admin on billing disputes." },
+            { tier: "Tier 3 — Admin Escalation", who: "Admin resolves", how: "Any security incident, data request (law enforcement), billing dispute >$50, or account compromise suspected. Forward the full email thread with your assessment." },
+          ].map(({ tier, who, how }) => (
+            <div key={tier} className="border border-primary/10 rounded px-3 py-2">
+              <div className="text-[10px] font-mono font-bold text-primary">{tier}</div>
+              <div className="text-[9px] font-mono text-primary/60 mb-0.5">{who}</div>
+              <div className="text-[9px] font-mono text-primary/83">{how}</div>
+            </div>
+          ))}
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Common Issues & Responses</h4>
+        <div className="space-y-2">
+          {[
+            { issue: "Can't connect to VPN", steps: "1. Check /api/healthz is responding. 2. Ask customer to re-download WireGuard config from /wireguard. 3. If all nodes failing, check /api/nodes status. 4. Escalate if nodes are down." },
+            { issue: "Subscription not activating", steps: "1. Ask for the email used at checkout. 2. Check if Stripe shows the subscription as active (admin Stripe dashboard). 3. If Stripe shows active but platform doesn't, trigger manual webhook replay or manually update DB." },
+            { issue: "Missing promo code commission", steps: "1. Ask for the promo code and approximate date. 2. Check ambassadors table in DB for the code. 3. Check ambassador_referrals table for the transaction. 4. If webhook missed, replay from Stripe." },
+            { issue: "Command Center tool not working", steps: "1. Check if the API server is healthy (/api/healthz). 2. Check browser console for errors. 3. Ask for exact error message. 4. Reproduce locally. 5. Escalate with reproduction steps." },
+            { issue: "Leak test shows IP exposed", steps: "1. Verify kill switch is enabled (/kill-switch). 2. Ask customer OS. 3. For IPv6 leaks: kill switch now includes ip6tables rules — customer needs to re-enable the kill switch to get the IPv6 protection. 4. Walk through the /leaks page DNS/WebRTC/IPv6 tests." },
+          ].map(({ issue, steps }) => (
+            <div key={issue} className="border border-primary/10 rounded px-3 py-2">
+              <div className="text-[10px] font-mono font-bold text-primary mb-1">{issue}</div>
+              <div className="text-[9px] font-mono text-primary/75 whitespace-pre-line">{steps}</div>
+            </div>
+          ))}
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Response Templates</h4>
+        <CB label="Connection Issue Template">{`Subject: Re: VPN Connection Issue
+
+Hi [Name],
+
+Thank you for reaching out. Here are the steps to resolve this:
+
+1. Navigate to Settings → Downloads and re-download your WireGuard config
+2. Delete the old config from your WireGuard app and import the new one
+3. If the issue persists, try switching to a different VPN node — go to /nodes and select one with a green status indicator
+
+Our platform status page is at proxhqvpn.com/api/healthz
+
+If none of these resolve the issue, please reply with:
+- Your device OS and version
+- A screenshot of the WireGuard connection log
+
+Best,
+[Your name]
+ProxhqVPN Support | support@proxhqvpn.com`}</CB>
+        <Note type="info">All support emails should use <strong>support@proxhqvpn.com</strong> as the reply-to address. Do not use personal email addresses for support correspondence.</Note>
+      </div>
+    ),
+  },
+  {
+    id: "sales-materials", title: "Sales & Marketing Materials", icon: FileText,
+    content: (
+      <div className="space-y-4">
+        <p>Download these materials for use in employee sales support, partner conversations, and internal training. Do not distribute externally without admin approval.</p>
+        {[
+          {
+            title: "Employee Sales Reference Deck",
+            desc: "10-slide HTML presentation covering all ProxhqVPN tiers, features, competitive positioning, and objection handling. For use in sales calls and partner demos.",
+            fn: () => {
+              const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>ProxhqVPN — Sales Reference</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Segoe UI',sans-serif;background:#050f05;color:#e5e5e5}@media print{.slide{page-break-after:always}body{background:#fff;color:#111}}.slide{min-height:100vh;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:60px;border-bottom:2px solid #111;text-align:center}.slide h1{font-size:3em;color:#00ff88;margin-bottom:16px;font-weight:900}.slide h2{font-size:2em;color:#00ff88;margin-bottom:16px}.slide p{font-size:1.05em;color:#bbb;max-width:800px;text-align:left;line-height:1.7}.slide ul{max-width:800px;text-align:left}.slide li{font-size:1em;margin:8px 0;color:#ccc;line-height:1.6}.grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;max-width:900px;text-align:left}.card{background:#0d1f0d;border:1px solid #1a3a1a;padding:20px;border-radius:8px}.card h3{color:#00ff88;margin-bottom:8px}.card p{font-size:.9em;color:#aaa}.tier-badge{display:inline-block;padding:4px 12px;border-radius:4px;font-size:.85em;font-weight:700;margin:4px}.t1{background:#0a3a3a;color:#00ffcc;border:1px solid #00ffcc44}.t2{background:#3a1a0a;color:#ff8800;border:1px solid #ff880044}.t3{background:#1a0a3a;color:#aa66ff;border:1px solid #aa66ff44}</style></head><body>
+<div class="slide"><h1>ProxhqVPN</h1><p style="text-align:center;color:#888;font-size:1.2em">ALPHA UNLIMITED TECHNOLOGIES LLC<br><strong style="color:#00ff88">Internal Sales Reference</strong><br><span style="font-size:.8em;color:#555">CONFIDENTIAL — Employees only</span></p></div>
+<div class="slide"><h2>Platform Overview</h2><div class="grid"><div class="card"><h3>Privacy & VPN</h3><p>60-node WireGuard mesh, Kill Switch + IPv6, DNS Sinkhole, Tor, VPN Gate (6,000+ nodes), Multi-device, DPI obfuscation</p></div><div class="card"><h3>Defense</h3><p>SilkWeb honeypot, Canary Tokens, Firewall Manager, Ghost Trace (behavioral analysis), Beacon Monitor, SIEM</p></div><div class="card"><h3>Offense / Research</h3><p>Alpha Toolkit, SQLMap, Ghost Chain, OSINT Recon, Exploit Importer, OmniStrike, OAST, WAF Bypass, QuantumAudit</p></div><div class="card"><h3>AI & Arsenal</h3><p>SOC Co-Pilot, LLM Probe, AI Shield, Code Sentinel, Agent Strike, Ghost PenTest, Request Mind</p></div></div></div>
+<div class="slide"><h2>Pricing Tiers</h2><br><div class="grid" style="grid-template-columns:1fr 1fr 1fr"><div class="card"><div class="tier-badge t1">Recon</div><h3>$6.99/mo</h3><p>VPN Basic — privacy, DNS Sinkhole, smart DNS, kill switch, Tor, all devices</p></div><div class="card"><div class="tier-badge t2">Strike</div><h3>$39.99/mo</h3><p>Command Center Pro — Recon tier + full security toolkit (replaces Burp Suite Pro)</p></div><div class="card"><div class="tier-badge t3">Arsenal</div><h3>Contact Us</h3><p>Elite — WAF Bypass, HTTP Interceptor, QuantumAudit, AI tools, SOC Co-Pilot</p></div></div></div>
+<div class="slide"><h2>Command Center Pro vs. Competitors</h2><br><ul><li><strong style="color:#00ff88">vs. Burp Suite Pro ($449/yr)</strong> — ProxhqVPN Strike = $479/yr and includes the full VPN + 40+ more tools beyond Burp</li><li><strong style="color:#00ff88">vs. NordVPN / ExpressVPN</strong> — No security tools whatsoever; purely VPN/streaming focused</li><li><strong style="color:#00ff88">vs. Metasploit Pro ($15k/yr)</strong> — ProxhqVPN includes Ghost Chain + OmniStrike covering equivalent use cases</li><li><strong style="color:#00ff88">vs. Caido ($450/yr)</strong> — HTTP Interceptor + API Security Tester covers equivalent functionality</li><li><strong style="color:#ff4444">Where ProxhqVPN doesn't replace</strong> — Nessus/Tenable for enterprise vulnerability management, Cobalt Strike for red team C2</li></ul></div>
+<div class="slide"><h2>Target Customer Profiles</h2><br><div class="grid"><div class="card"><h3>Security Researcher</h3><p>Bug bounty hunter, CTF player, pen tester. Pain: Burp Suite Pro too expensive. Solution: Strike tier replaces it + adds VPN opsec.</p></div><div class="card"><h3>Developer</h3><p>Needs API testing, secret scanning, dependency audit, IaC security. Pain: Separate tools for each task. Solution: All in one platform, routed through VPN.</p></div><div class="card"><h3>Privacy User</h3><p>Wants no-log VPN + DNS blocker + device-level protection. Pain: VPN + Pi-hole setup is complex. Solution: DNS Sinkhole built-in, one subscription.</p></div><div class="card"><h3>Web3 / Crypto Team</h3><p>Needs smart contract auditing. Pain: Expensive manual audits. Solution: QuantumAudit for classical + post-quantum vulnerability scanning.</p></div></div></div>
+<div class="slide"><h2>Common Objections</h2><br><ul><li><strong style="color:#ff8800">"I already use NordVPN"</strong> — ProxhqVPN doesn't replace their existing VPN subscription immediately. Start with the security tools angle: "Do you also pay for Burp Suite separately?" If yes, that's the immediate ROI.</li><li><strong style="color:#ff8800">"The tools seem complicated"</strong> — Every tool has a built-in User Guide (/guide) with step-by-step instructions. HackAnon page explains every attack class in plain English. No prior security experience required.</li><li><strong style="color:#ff8800">"Is it legal?"</strong> — All tools are legal for authorized testing. Legal disclaimers on every page. Comparable to Burp Suite Pro, which is used by every major enterprise security team globally.</li><li><strong style="color:#ff8800">"I'm worried about my data"</strong> — Zero-log policy. Warrant canary at /api/warrant-canary (publicly accessible, cryptographically signed). Hosted by ALPHA UNLIMITED TECHNOLOGIES LLC, a registered LLC.</li></ul></div>
+<div class="slide"><h2>Support Channels</h2><br><ul><li><strong style="color:#00ff88">Customer Support</strong>: support@proxhqvpn.com — 24hr response SLA on business days</li><li><strong style="color:#00ff88">Ambassador Support</strong>: ambassadors@proxhqvpn.com — Priority channel for ambassador issues</li><li><strong style="color:#00ff88">Security Reports</strong>: security@proxhqvpn.com — PGP available on request</li><li><strong style="color:#00ff88">Admin / Technical</strong>: admin@proxhqvpn.com — Internal escalation only</li><li><strong style="color:#00ff88">Self-Service</strong>: /guide, /manuals, /platforms, /downloads — comprehensive documentation</li></ul><br><p style="text-align:center;font-size:.9em;color:#555">This deck is CONFIDENTIAL — for employee use only.<br>© 2026 ALPHA UNLIMITED TECHNOLOGIES LLC</p></div>
+</body></html>`;
+              const blob = new Blob([html], { type: "text/html" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a"); a.href = url; a.download = "proxhqvpn_employee_sales_deck.html"; a.click(); URL.revokeObjectURL(url);
+            },
+          },
+        ].map(({ title, desc, fn }) => (
+          <div key={title} className="border border-primary/10 rounded p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex-1">
+                <div className="text-[8px] font-mono font-bold text-orange-400 uppercase tracking-widest mb-1">INTERNAL — CONFIDENTIAL</div>
+                <div className="text-[11px] font-bold text-primary mb-1">{title}</div>
+                <div className="text-[9px] font-mono text-primary/70">{desc}</div>
+              </div>
+              <button onClick={fn} className="shrink-0 flex items-center gap-1.5 text-[10px] border border-primary/30 text-primary px-3 py-2 hover:bg-primary/10 transition-colors">
+                <Download className="w-3 h-3" /> Download
+              </button>
+            </div>
+          </div>
+        ))}
+        <Note type="warn">Sales materials are for internal and authorized ambassador use only. Do not distribute externally without explicit admin approval.</Note>
+      </div>
+    ),
+  },
+  {
     id: "escalation", title: "Escalation & Emergency Procedures", icon: Bell,
     content: (
       <div className="space-y-3">

@@ -133,6 +133,7 @@ const USER_NAV = [
   { href: "/guide",         label: "User Guide",      icon: FileText },
   { href: "/manuals",       label: "Manuals Download", icon: BookMarked },
   { href: "/parrot-tools",  label: "Parrot OS Tools",  icon: Package },
+  { href: "/hackanon",      label: "HackAnon — Exploits", icon: Bug },
 ];
 
 const PROTECTION_NAV = [
@@ -166,6 +167,30 @@ const NETWORK_NAV = [
   { href: "/dedicated-ip",     label: "Dedicated IP",      icon: Share2 },
   { href: "/meshnet",          label: "Meshnet P2P",       icon: GitMerge },
 ];
+
+// Tool tier assignments: 1=Recon, 2=Strike, 3=Arsenal
+const TOOL_TIER: Record<string, 1 | 2 | 3> = {
+  "/http-probe": 1, "/dir-fuzzer": 1, "/subdomain-scan": 1,
+  "/encoder": 1, "/comparer": 1, "/payloads": 1, "/cve-search": 1,
+  "/parrot-tools": 1, "/hackanon": 1, "/ip-exposure": 1,
+  "/sqlmap": 2, "/alpha-tools": 2, "/intruder": 2, "/ghost-chain": 2,
+  "/siem": 2, "/osint": 2, "/canary": 2, "/exploit-import": 2,
+  "/omnistrike": 2, "/social-breach": 2, "/bug-bounty": 2,
+  "/ssl-tls": 2, "/jwt-analyzer": 2, "/sqli-scanner": 2,
+  "/sast": 2, "/dep-scanner": 2, "/ghost-trace": 2, "/network-monitor": 2,
+  "/waf": 3, "/iac-scan": 3, "/http-interceptor": 3, "/api-tester": 3,
+  "/oast-tester": 3, "/oast-server": 3, "/waf-bypass": 3, "/token-seq": 3,
+  "/ws-tester": 3, "/quantum-audit": 3, "/ghost-pentest": 3, "/request-mind": 3,
+  "/soc-copilot": 3, "/code-sentinel": 3, "/agent-strike": 3, "/llm-probe": 3,
+  "/ai-shield": 3,
+};
+
+const TIER_LABEL: Record<1 | 2 | 3, string> = { 1: "Recon", 2: "Strike", 3: "Arsenal" };
+const TIER_COLOR: Record<1 | 2 | 3, string> = {
+  1: "text-cyan-400/70 border-cyan-500/30",
+  2: "text-orange-400/70 border-orange-500/30",
+  3: "text-purple-400/70 border-purple-500/30",
+};
 
 const ADVANCED_NAV = [
   { href: "/vpn-tracker",   label: "VPN Tracker",           icon: Activity },
@@ -252,11 +277,31 @@ const ADMIN_NAV = [
   { href: "/sql",                label: "Database",           icon: Database },
 ];
 
-function NavItem({ href, label, icon: Icon, onClick }: {
+function NavItem({ href, label, icon: Icon, onClick, locked, tier }: {
   href: string; label: string; icon: any; onClick?: () => void;
+  locked?: boolean; tier?: 1 | 2 | 3;
 }) {
   const [location] = useLocation();
   const isActive = location === href;
+
+  if (locked) {
+    const tierNum = tier ?? 3;
+    const tcls = TIER_COLOR[tierNum];
+    return (
+      <div
+        title={`Requires ${TIER_LABEL[tierNum]} tier — upgrade to unlock`}
+        className="flex items-center gap-3 px-3 py-2 rounded-xl opacity-40 cursor-not-allowed select-none"
+      >
+        <Icon className="w-[17px] h-[17px] flex-shrink-0 text-white/30" />
+        <span className="text-[13px] font-medium leading-none text-white/40 flex-1 truncate">{label}</span>
+        <span className={`text-[8px] font-mono border px-1 py-0.5 rounded shrink-0 ${tcls}`}>
+          {TIER_LABEL[tierNum]}
+        </span>
+        <Lock className="w-2.5 h-2.5 text-white/25 shrink-0" />
+      </div>
+    );
+  }
+
   return (
     <Link
       href={href}
@@ -268,18 +313,24 @@ function NavItem({ href, label, icon: Icon, onClick }: {
       }`}
     >
       <Icon className={`w-[17px] h-[17px] flex-shrink-0 ${isActive ? "text-primary" : "text-white/78 group-hover:text-white/65"}`} />
-      <span className="text-[13px] font-medium leading-none">{label}</span>
+      <span className="text-[13px] font-medium leading-none flex-1">{label}</span>
+      {tier && tier > 1 && !isActive && (
+        <span className={`text-[7px] font-mono border px-1 py-0.5 rounded shrink-0 ${TIER_COLOR[tier]}`}>
+          {TIER_LABEL[tier]}
+        </span>
+      )}
       {isActive && <span className="ml-auto w-1 h-1 rounded-full bg-primary/70 shrink-0" />}
     </Link>
   );
 }
 
-function NavSection({ label, items, onNav, isOpen, onToggle }: {
+function NavSection({ label, items, onNav, isOpen, onToggle, userDevTier }: {
   label: string;
   items: { href: string; label: string; icon: any }[];
   onNav?: () => void;
   isOpen: boolean;
   onToggle: () => void;
+  userDevTier?: number | null;
 }) {
   const [location] = useLocation();
   const hasActive = items.some((i) => i.href === location);
@@ -304,9 +355,11 @@ function NavSection({ label, items, onNav, isOpen, onToggle }: {
         isOpen ? "max-h-[3000px] opacity-100" : "max-h-0 opacity-0"
       }`}>
         <div className="space-y-0.5 pb-1">
-          {items.map((item) => (
-            <NavItem key={item.href} {...item} onClick={onNav} />
-          ))}
+          {items.map((item) => {
+            const itemTier = TOOL_TIER[item.href];
+            const locked = userDevTier !== undefined && userDevTier !== null && itemTier !== undefined && (userDevTier < itemTier);
+            return <NavItem key={item.href} {...item} onClick={locked ? undefined : onNav} locked={locked} tier={itemTier} />;
+          })}
         </div>
       </div>
     </div>
@@ -321,7 +374,7 @@ export function Layout({ children }: LayoutProps) {
   const [location] = useLocation();
   const { user } = useUser();
   const { signOut } = useClerk();
-  const { isAdmin, isEmployee, hasAccess, hasCommandCenter, tier } = useAccess();
+  const { isAdmin, isEmployee, hasAccess, hasCommandCenter, tier, devTier } = useAccess();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -418,7 +471,7 @@ export function Layout({ children }: LayoutProps) {
           </>
         )}
         {hasCommandCenter && (
-          <NavSection label="Command Center" items={ADVANCED_NAV} onNav={closeSidebar} isOpen={openSection === "commandcenter"} onToggle={() => toggle("commandcenter")} />
+          <NavSection label="Command Center" items={ADVANCED_NAV} onNav={closeSidebar} isOpen={openSection === "commandcenter"} onToggle={() => toggle("commandcenter")} userDevTier={devTier} />
         )}
         {/* Admin section — visible to owners and employees only */}
         {(isAdmin || isEmployee) && (

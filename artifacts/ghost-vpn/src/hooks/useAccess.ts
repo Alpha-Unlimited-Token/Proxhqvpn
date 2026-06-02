@@ -14,6 +14,8 @@ export interface MeResponse {
   hasAccess: boolean;
   hasSubscription: boolean;
   hasCommandCenter: boolean;
+  devTier: 1 | 2 | 3 | null;
+  hasArsenal: boolean;
   tier: "vpn" | "command_center" | null;
 }
 
@@ -41,6 +43,8 @@ export function useAccess() {
     hasAccess: query.data?.hasAccess ?? false,
     hasSubscription: query.data?.hasSubscription ?? false,
     hasCommandCenter: query.data?.hasCommandCenter ?? false,
+    devTier: query.data?.devTier ?? null,
+    hasArsenal: query.data?.hasArsenal ?? false,
     tier: query.data?.tier ?? null,
     email: query.data?.email ?? null,
     isLoading: query.isLoading || query.isFetching,

