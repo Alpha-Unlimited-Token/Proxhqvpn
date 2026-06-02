@@ -47,7 +47,7 @@ export default function GpsSpoofing() {
   async function applyCustom() {
     const latitude = parseFloat(lat);
     const longitude = parseFloat(lng);
-    if (isNaN(latitude) || isNaN(longitude)) return toast({ title: "Invalid coordinates", variant: "destructive" });
+    if (isNaN(latitude) || isNaN(longitude)) { toast({ title: "Invalid coordinates", variant: "destructive" }); return; }
     setLoading(true);
     try {
       const r = await fetch(`${BASE}/api/gps-spoof/set`, {
