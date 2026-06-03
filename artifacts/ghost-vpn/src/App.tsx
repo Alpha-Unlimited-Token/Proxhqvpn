@@ -71,6 +71,7 @@ import SubdomainScan from "@/pages/SubdomainScan";
 import Downloads from "@/pages/Downloads";
 import UserGuide from "@/pages/UserGuide";
 import ParrotTools from "@/pages/ParrotTools";
+import ImAutomation from "@/pages/ImAutomation";
 import HackAnon from "@/pages/HackAnon";
 import Employees from "@/pages/Employees";
 import UserManagement from "@/pages/UserManagement";
@@ -507,6 +508,9 @@ function AppRoutes() {
           </Route>
           <Route path="/parrot-tools">
             <CcLayout><ParrotTools /></CcLayout>
+          </Route>
+          <Route path="/im-auto">
+            <CcLayout><ImAutomation /></CcLayout>
           </Route>
           <Route path="/hackanon">
             <CcLayout><HackAnon /></CcLayout>
