@@ -72,6 +72,7 @@ import Downloads from "@/pages/Downloads";
 import UserGuide from "@/pages/UserGuide";
 import ParrotTools from "@/pages/ParrotTools";
 import ImAutomation from "@/pages/ImAutomation";
+import RedTeamScan from "@/pages/RedTeamScan";
 import HackAnon from "@/pages/HackAnon";
 import Employees from "@/pages/Employees";
 import UserManagement from "@/pages/UserManagement";
@@ -511,6 +512,9 @@ function AppRoutes() {
           </Route>
           <Route path="/im-auto">
             <CcLayout><ImAutomation /></CcLayout>
+          </Route>
+          <Route path="/redteam-scan">
+            <CcLayout><RedTeamScan /></CcLayout>
           </Route>
           <Route path="/hackanon">
             <CcLayout><HackAnon /></CcLayout>
