@@ -90,6 +90,7 @@ import sqliScannerRouter from "./sqli-scanner";
 import adminUsersRouter from "./admin-users";
 import imAutomationRouter from "./imautomation";
 import redteamScanRouter from "./redteamscan";
+import omegaAgentRouter from "./omega/agent";
 
 const router: IRouter = Router();
 
@@ -128,6 +129,10 @@ router.get("/t/:tokenId/redirect", (req, res, next) => {
   req.url = `/trigger/${req.params.tokenId}/redirect`;
   (canaryRouter as any).handle(req, res, next);
 });
+
+// Omega agent — public, receives callbacks from JS agents deployed on test sites
+// Must allow cross-origin (agents run on external domains)
+router.use("/omega-agent", omegaAgentRouter);
 
 // C2 ingest — public, receives callbacks from deployed red-team payloads cross-origin
 router.post("/redteam-scan/c2/ingest", (req, res, next) => {

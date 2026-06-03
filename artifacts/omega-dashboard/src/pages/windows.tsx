@@ -12,18 +12,18 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AppWindow, RefreshCw, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+const BASE = "/api";
 
 type WinEntry = { id: number; hostId: number; windowHandle: string; title: string; processName: string; isActive: boolean; isClosed: boolean; createdAt: string };
 
 async function fetchWindows(hostId: number): Promise<WinEntry[]> {
-  const r = await fetch(`${BASE}/api/windows/${hostId}`);
+  const r = await fetch(`${BASE}/windows/${hostId}`);
   if (!r.ok) throw new Error("Failed");
   return r.json();
 }
 
 async function closeWindow(hostId: number, handle: string) {
-  const r = await fetch(`${BASE}/api/windows/${hostId}/${handle}`, { method: "DELETE" });
+  const r = await fetch(`${BASE}/windows/${hostId}/${handle}`, { method: "DELETE" });
   if (!r.ok) throw new Error("Failed");
   return r.json();
 }
