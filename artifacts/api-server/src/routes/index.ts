@@ -129,6 +129,16 @@ router.get("/t/:tokenId/redirect", (req, res, next) => {
   (canaryRouter as any).handle(req, res, next);
 });
 
+// C2 ingest — public, receives callbacks from deployed red-team payloads cross-origin
+router.post("/redteam-scan/c2/ingest", (req, res, next) => {
+  req.url = "/c2/ingest";
+  (redteamScanRouter as any).handle(req, res, next);
+});
+router.options("/redteam-scan/c2/ingest", (req, res, next) => {
+  req.url = "/c2/ingest";
+  (redteamScanRouter as any).handle(req, res, next);
+});
+
 // Warrant canary — public transparency endpoint
 router.get("/warrant-canary", (req, res, next) => {
   req.url = `/warrant-canary`;

