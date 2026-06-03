@@ -700,9 +700,14 @@ export default function OsintRecon() {
     onSuccess: (data) => setPivotResult(data),
     onError: (err: Error) => toast({ title: "Cross search failed", description: err.message, variant: "destructive" }),
   });
-  const detectedType: "email" | "username" | null = pivotQuery.trim()
-    ? /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(pivotQuery.trim()) ? "email" : "username"
-    : null;
+  const detectedType: "email" | "username" | "discord_id" | "bigo_id" | null = (() => {
+    const q = pivotQuery.trim();
+    if (!q) return null;
+    if (/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(q)) return "email";
+    if (/^\d{17,20}$/.test(q)) return "discord_id";
+    if (/^\d{5,16}$/.test(q)) return "bigo_id";
+    return "username";
+  })();
 
   // Email Intelligence tab
   const [emailTarget, setEmailTarget] = usePersistedState<string>("osint-email-target", "");
@@ -791,16 +796,20 @@ export default function OsintRecon() {
                   value={pivotQuery}
                   onChange={e => setPivotQuery(e.target.value)}
                   onKeyDown={e => e.key === "Enter" && pivotQuery.trim() && pivotMut.mutate(pivotQuery.trim())}
-                  placeholder="johndoe  or  john@example.com"
+                  placeholder="johndoe · john@email.com · 123456789012345678 · 98765432"
                   className="w-full bg-black/40 border border-primary/20 text-primary text-sm font-mono px-3 py-2 focus:outline-none focus:border-[#00ff88]/40 placeholder:text-primary/20 rounded-sm"
                 />
                 {detectedType && (
                   <div className={`absolute right-2 top-1/2 -translate-y-1/2 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded border ${
-                    detectedType === "email"
-                      ? "text-orange-400 border-orange-400/30 bg-orange-900/10"
-                      : "text-[#00ff88] border-[#00ff88]/30 bg-[#00ff88]/5"
+                    detectedType === "email"     ? "text-orange-400 border-orange-400/30 bg-orange-900/10"
+                    : detectedType === "discord_id" ? "text-indigo-400 border-indigo-400/30 bg-indigo-900/10"
+                    : detectedType === "bigo_id"    ? "text-pink-400 border-pink-400/30 bg-pink-900/10"
+                    : "text-[#00ff88] border-[#00ff88]/30 bg-[#00ff88]/5"
                   }`}>
-                    {detectedType === "email" ? "✉ Email" : "⌖ Username"}
+                    {detectedType === "email" ? "✉ Email"
+                      : detectedType === "discord_id" ? "# Discord ID"
+                      : detectedType === "bigo_id"    ? "◉ Bigo ID"
+                      : "⌖ Username"}
                   </div>
                 )}
               </div>
@@ -813,11 +822,11 @@ export default function OsintRecon() {
               </Button>
             </div>
             <div className="text-[10px] text-primary/20 leading-relaxed">
-              {detectedType === "email"
-                ? "Email → derives username from local part · platform scan · Discord auto-lookup · Gravatar correlation · domain MX/SPF/DMARC"
-                : detectedType === "username"
-                ? "Username → 35+ platform scan · Discord auto-resolved · email pattern Gravatar check · name hint extraction · dark web"
-                : "Enter a username or email address — the engine auto-detects the type and cross-searches all intelligence sources"}
+              {detectedType === "email"      ? "Email → derives username from local part · platform scan · Discord auto-lookup · Gravatar correlation · domain MX/SPF/DMARC"
+               : detectedType === "discord_id" ? "Discord User ID → decodes Snowflake timestamp · fetches public profile · Lanyard presence · breach search · dork queries"
+               : detectedType === "bigo_id"    ? "Bigo Live ID → fetches profile page · extracts display name & handle · optional platform pivot · dark web scan"
+               : detectedType === "username"   ? "Username → 35+ platform scan · Discord auto-resolved · email Gravatar check · name hint extraction · dark web indexers"
+               : "Enter a username, email, Discord User ID (17-20 digits), or Bigo Live ID — auto-detected and cross-searched"}
             </div>
           </div>
 
@@ -834,6 +843,124 @@ export default function OsintRecon() {
             const pr = pivotResult;
             const discordHit = pr.discord;
             const emailGravatarHits = (pr.emailPatterns ?? []).filter((e: any) => e.hasGravatar);
+
+            // ── Discord User ID result ──
+            if (pr.inputType === "discord_id") {
+              const d = pr.discord ?? {};
+              return (
+                <div className="space-y-3">
+                  <div className="border border-indigo-500/30 rounded-sm bg-indigo-950/10 p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse" />
+                      <span className="text-[10px] font-bold text-indigo-300/80 uppercase tracking-widest">Discord User ID Lookup</span>
+                      <span className="text-[9px] border border-indigo-400/30 text-indigo-400 px-1 rounded ml-auto">{d.displayName || d.username ? "FOUND" : "NOT FOUND"}</span>
+                    </div>
+                    <div className="flex gap-4 mb-4">
+                      {d.avatar && (
+                        <img src={d.avatar} alt="" className="w-14 h-14 rounded-full border border-indigo-500/30 shrink-0" onError={(e) => { (e.target as HTMLImageElement).src = d.defaultAvatarUrl; }} />
+                      )}
+                      <div className="space-y-1 flex-1 text-[10px]">
+                        {d.displayName && <div><span className="text-primary/30">Display Name</span> <span className="text-indigo-300 font-bold ml-2">{d.displayName}</span></div>}
+                        {d.username   && <div><span className="text-primary/30">Username</span>     <span className="text-primary/70 font-mono ml-2">@{d.username}</span></div>}
+                        <div><span className="text-primary/30">User ID</span> <span className="text-indigo-300 font-mono ml-2">{d.resolvedUserId}</span></div>
+                        {d.accountCreated && <div><span className="text-primary/30">Account Created</span> <span className="text-primary/60 ml-2">{new Date(d.accountCreated).toLocaleDateString()}</span> <span className="text-primary/30">({d.accountAgeDays}d ago)</span></div>}
+                        <div><span className="text-primary/30">Profile</span> <a href={d.profileUrl} target="_blank" rel="noreferrer" className="text-indigo-400 underline hover:text-indigo-300 ml-2">{d.profileUrl}</a></div>
+                      </div>
+                    </div>
+                    {pr.snowflake && (
+                      <div className="grid grid-cols-3 gap-2 text-[10px] p-2 bg-black/30 rounded border border-indigo-500/10">
+                        <div><div className="text-primary/30 mb-0.5">Timestamp</div><div className="text-primary/60 font-mono">{new Date(pr.snowflake.timestampMs).toISOString().replace("T", " ").slice(0, 19)}</div></div>
+                        <div><div className="text-primary/30 mb-0.5">Worker ID</div><div className="text-primary/60 font-mono">{pr.snowflake.workerId}</div></div>
+                        <div><div className="text-primary/30 mb-0.5">Process ID</div><div className="text-primary/60 font-mono">{pr.snowflake.processId}</div></div>
+                      </div>
+                    )}
+                  </div>
+                  {pr.lanyardPresence && (
+                    <div className="border border-indigo-500/15 rounded-sm p-3 text-[10px]">
+                      <div className="text-[9px] font-bold text-indigo-300/60 uppercase tracking-widest mb-2">Lanyard Presence (live opt-in)</div>
+                      <div className="flex gap-4">
+                        {pr.lanyardPresence.status && <div><span className="text-primary/30">Status</span> <span className="text-primary/70 ml-1">{pr.lanyardPresence.status}</span></div>}
+                        {pr.lanyardPresence.activities?.length > 0 && <div><span className="text-primary/30">Activity</span> <span className="text-primary/70 ml-1">{pr.lanyardPresence.activities.join(", ")}</span></div>}
+                      </div>
+                    </div>
+                  )}
+                  {pr.idBreachHits?.some((h: any) => h.found) && (
+                    <Section title="Breach & Dark Web Exposure" icon={Flame} defaultOpen>
+                      <div className="space-y-1.5">
+                        {pr.idBreachHits.map((h: any, i: number) => (
+                          <div key={i} className={`flex items-center gap-2 p-2 rounded-sm border text-[10px] ${h.found ? "border-red-500/25 bg-red-900/5" : "border-primary/8 opacity-40"}`}>
+                            {h.found ? <Flame className="w-3 h-3 text-red-400 shrink-0" /> : <Shield className="w-3 h-3 text-primary/20 shrink-0" />}
+                            <span className={h.found ? "text-red-400 font-bold" : "text-primary/30"}>{h.source}</span>
+                            {h.resultCount !== undefined && h.resultCount > 0 && <span className="text-red-400 font-mono text-[9px] ml-auto">{h.resultCount} results</span>}
+                            {h.note && <span className="text-primary/40 text-[9px] ml-auto truncate max-w-xs">{h.note}</span>}
+                          </div>
+                        ))}
+                      </div>
+                    </Section>
+                  )}
+                  {pr.dorkQueries?.length > 0 && (
+                    <Section title="OSINT Dork Queries" icon={Search} defaultOpen={false}>
+                      <DorkQueries queries={pr.dorkQueries} />
+                    </Section>
+                  )}
+                </div>
+              );
+            }
+
+            // ── Bigo Live ID result ──
+            if (pr.inputType === "bigo_id") {
+              const b = pr.bigoLive ?? {};
+              return (
+                <div className="space-y-3">
+                  <div className="border border-pink-500/30 rounded-sm bg-pink-950/10 p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="w-2 h-2 rounded-full bg-pink-400" />
+                      <span className="text-[10px] font-bold text-pink-300/80 uppercase tracking-widest">Bigo Live ID Lookup</span>
+                      <span className={`text-[9px] border px-1 rounded ml-auto ${b.found ? "border-pink-400/30 text-pink-400" : "border-primary/20 text-primary/30"}`}>{b.found ? "FOUND" : "NOT FOUND"}</span>
+                    </div>
+                    <div className="space-y-1.5 text-[10px]">
+                      <div className="flex gap-4">
+                        <div><span className="text-primary/30">Bigo ID</span> <span className="text-pink-300 font-mono font-bold ml-2">{b.bigoId}</span></div>
+                        {b.displayName && <div><span className="text-primary/30">Display Name</span> <span className="text-primary/70 font-bold ml-2">{b.displayName}</span></div>}
+                        {b.username    && <div><span className="text-primary/30">Handle</span> <span className="text-primary/70 font-mono ml-2">@{b.username}</span></div>}
+                      </div>
+                      <div><span className="text-primary/30">Profile URL</span> <a href={b.profileUrl} target="_blank" rel="noreferrer" className="text-pink-400 underline hover:text-pink-300 ml-2 text-[9px]">{b.profileUrl}</a></div>
+                      {b.avatarHint && b.avatarHint.startsWith("http") && (
+                        <div className="mt-2"><img src={b.avatarHint} alt="" className="w-12 h-12 rounded-full border border-pink-500/20" onError={() => {}} /></div>
+                      )}
+                    </div>
+                  </div>
+                  {pr.platforms?.length > 0 && (
+                    <Section title={`Username Pivot — @${b.username} (${pr.found} platforms found)`} icon={User}>
+                      <PlatformGrid results={pr.platforms} />
+                    </Section>
+                  )}
+                  {pr.darkWeb?.length > 0 && (
+                    <Section title={`Dark Web Scan (${(pr.darkWeb ?? []).filter((d: any) => d.status === "found").length} hits)`} icon={Flame} defaultOpen={(pr.darkWeb ?? []).some((d: any) => d.status === "found")}>
+                      <DarkWebSection darkWeb={pr.darkWeb} />
+                    </Section>
+                  )}
+                  {pr.nameHints?.length > 0 && (
+                    <Section title="Name / Display Hints" icon={Eye} defaultOpen>
+                      <div className="space-y-1.5">
+                        {pr.nameHints.map((h: any, i: number) => (
+                          <div key={i} className="flex items-start gap-2 p-2 border border-primary/10 rounded-sm text-[10px]">
+                            <User className="w-3 h-3 text-pink-400 shrink-0 mt-0.5" />
+                            <div><div className="text-[9px] text-primary/30 uppercase">{h.platform}</div><div className="text-primary/70">{h.hint}</div></div>
+                          </div>
+                        ))}
+                      </div>
+                    </Section>
+                  )}
+                  {pr.dorkQueries?.length > 0 && (
+                    <Section title="Search Queries" icon={Search} defaultOpen={false}>
+                      <DorkQueries queries={pr.dorkQueries} />
+                    </Section>
+                  )}
+                </div>
+              );
+            }
+
             return (
               <div className="space-y-3">
 

@@ -255,7 +255,7 @@ interface Platform {
    * For JSON API endpoints (GitHub, Reddit, HN): "json"
    * For normal HTML: undefined (HEAD check)
    */
-  checkMode?: "json" | "hn_json" | "discord_auto";
+  checkMode?: "json" | "hn_json" | "discord_auto" | "bigo_id";
 }
 
 const PLATFORMS: Platform[] = [
@@ -276,11 +276,17 @@ const PLATFORMS: Platform[] = [
     url: "https://discord.com/users/{u}",
     checkMode: "discord_auto",
   },
-  // Video / Streaming
+  // Video / Streaming / Live
   { name: "YouTube",        category: "Video",     url: "https://www.youtube.com/@{u}" },
   { name: "Twitch",         category: "Video",     url: "https://www.twitch.tv/{u}" },
   { name: "Vimeo",          category: "Video",     url: "https://vimeo.com/{u}" },
   { name: "Dailymotion",    category: "Video",     url: "https://www.dailymotion.com/{u}" },
+  // Bigo Live: profile URL accepts both username and numeric Bigo ID
+  { name: "Bigo Live",      category: "Live",      url: "https://www.bigo.tv/{u}", profileUrl: "https://www.bigo.tv/{u}" },
+  { name: "Likee",          category: "Live",      url: "https://likee.video/@{u}" },
+  { name: "Kick",           category: "Live",      url: "https://kick.com/{u}" },
+  { name: "Rumble",         category: "Live",      url: "https://rumble.com/user/{u}" },
+  { name: "Trovo",          category: "Live",      url: "https://trovo.live/{u}" },
   // Dev / Tech — GitHub, Reddit & HN use their public JSON APIs for reliable checks
   {
     name: "GitHub",         category: "Dev",
@@ -1365,8 +1371,46 @@ router.post("/email-headers", async (req: Request, res: Response) => {
   });
 });
 
+// ── Bigo Live ID lookup ───────────────────────────────────────────────────────
+async function bigoLookupById(bigoId: string): Promise<{
+  found: boolean; profileUrl: string; displayName?: string; username?: string; avatarHint?: string;
+}> {
+  const profileUrl = `https://www.bigo.tv/${encodeURIComponent(bigoId)}`;
+  const body = await fetchBody(profileUrl, 9000);
+  if (!body) return { found: false, profileUrl };
+
+  // 4xx / error page patterns Bigo uses
+  if (/user\s*not\s*found|page\s*not\s*found|404/i.test(body) && !/og:title/i.test(body)) {
+    return { found: false, profileUrl };
+  }
+
+  const titleMatch = body.match(/<title[^>]*>([^<]{1,200})<\/title>/i);
+  const ogTitleMatch = body.match(/og:title[^>]+content=["']([^"']{1,200})["']/i)
+    ?? body.match(/content=["']([^"']{1,200})["'][^>]+og:title/i);
+
+  const rawTitle = ogTitleMatch?.[1] ?? titleMatch?.[1] ?? "";
+  const displayName = rawTitle
+    .replace(/\s*[-|–].*$/, "")
+    .replace(/\s*bigo\s*live\s*/gi, "")
+    .replace(/\s*@\S+/, "")
+    .trim() || undefined;
+
+  // Bigo Live og:image often includes the avatar CDN URL
+  const imgMatch = body.match(/og:image[^>]+content=["']([^"']+)["']/i)
+    ?? body.match(/content=["']([^"']+)["'][^>]+og:image/i);
+  const avatarHint = imgMatch?.[1] ?? undefined;
+
+  // og:description sometimes contains the username handle
+  const descMatch = body.match(/og:description[^>]+content=["']([^"']{1,300})["']/i);
+  const desc = descMatch?.[1] ?? "";
+  const handleMatch = desc.match(/@([a-zA-Z0-9_.]{2,30})/);
+  const username = handleMatch?.[1] ?? undefined;
+
+  return { found: !!displayName || !!avatarHint, profileUrl, displayName, username, avatarHint };
+}
+
 // ── Cross-Intelligence Pivot Search ──────────────────────────────────────────
-// POST /api/osint/pivot — accepts email or username, auto-detects type, cross-searches both directions
+// POST /api/osint/pivot — accepts email, username, Discord ID, or Bigo ID. Auto-detects type.
 
 router.post("/pivot", async (req: Request, res: Response) => {
   const { query } = req.body as { query?: string };
@@ -1374,6 +1418,112 @@ router.post("/pivot", async (req: Request, res: Response) => {
 
   const q = query.trim();
   const isEmail = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(q);
+  const isDiscordSnowflake = /^\d{17,20}$/.test(q);
+  const isNumericId = /^\d{5,20}$/.test(q);
+
+  // ── Discord User ID (Snowflake) ───────────────────────────────────────────
+  if (isDiscordSnowflake) {
+    let snowflake: ReturnType<typeof decodeSnowflake> | undefined;
+    try { snowflake = decodeSnowflake(q); } catch { /* invalid snowflake */ }
+
+    const accountAgeMs = snowflake ? (Date.now() - snowflake.timestampMs) : null;
+    const accountAgeDays = accountAgeMs !== null ? Math.floor(accountAgeMs / 86400000) : null;
+    const defaultAvatarIndex = snowflake ? Number(BigInt(q) % 6n) : 0;
+    const defaultAvatarUrl = `https://cdn.discordapp.com/embed/avatars/${defaultAvatarIndex}.png`;
+
+    const [idBreachHits, profile, lanyardPresence] = await Promise.all([
+      searchDiscordId(q),
+      fetchDiscordProfileById(q),
+      fetchLanyardPresence(q),
+    ]);
+
+    const mergedProfile = { ...profile };
+    if (lanyardPresence?.avatar && !mergedProfile.avatar) mergedProfile.avatar = lanyardPresence.avatar;
+    if (lanyardPresence?.username && !mergedProfile.username) mergedProfile.username = lanyardPresence.username;
+
+    const dorkQueries = discordIdDorks(q, mergedProfile.username ?? q);
+
+    return res.json({
+      inputType: "discord_id",
+      query: q,
+      discord: {
+        resolvedUserId: q,
+        displayName: mergedProfile.displayName ?? null,
+        username: mergedProfile.username ?? null,
+        avatar: mergedProfile.avatar ?? defaultAvatarUrl,
+        defaultAvatarUrl,
+        profileUrl: `https://discord.com/users/${q}`,
+        accountAgeDays,
+        accountCreated: snowflake?.createdAt ?? null,
+        source: mergedProfile.source ?? "discordlookup.com",
+      },
+      lanyardPresence: lanyardPresence ?? null,
+      snowflake: snowflake ?? null,
+      idBreachHits,
+      nameHints: mergedProfile.displayName ? [{ platform: "Discord", hint: mergedProfile.displayName }] : [],
+      platforms: null,
+      emailPatterns: null,
+      darkWeb: null,
+      dorkQueries,
+    });
+  }
+
+  // ── Numeric Bigo Live ID (or other platform numeric ID) ───────────────────
+  if (isNumericId) {
+    const [bigoProfile, darkWeb] = await Promise.all([
+      bigoLookupById(q),
+      scanDarkWeb(q),
+    ]);
+
+    const nameHints: Array<{ platform: string; hint: string }> = [];
+    if (bigoProfile.displayName) nameHints.push({ platform: "Bigo Live", hint: bigoProfile.displayName });
+    if (bigoProfile.username) nameHints.push({ platform: "Bigo Live", hint: `@${bigoProfile.username}` });
+
+    // If Bigo found a username, also search platforms for it
+    let platforms: any[] = [];
+    let found = 0, possible = 0;
+    if (bigoProfile.username) {
+      const uname = bigoProfile.username;
+      const rawResults = await Promise.all(PLATFORMS.map(p => checkUsername(p, uname)));
+      const snippetTargets = rawResults.filter(r => r.status === "found").slice(0, 6);
+      const snippets = await Promise.all(snippetTargets.map(r => extractProfileSnippet(r.url)));
+      const snippetMap: Record<string, any> = {};
+      snippetTargets.forEach((r, i) => { snippetMap[r.url] = snippets[i]; });
+      platforms = rawResults.map(r => ({ ...r, snippet: snippetMap[r.url] ?? null }));
+      found = platforms.filter(r => r.status === "found").length;
+      possible = platforms.filter(r => r.status === "possible").length;
+    }
+
+    return res.json({
+      inputType: "bigo_id",
+      query: q,
+      bigoLive: {
+        bigoId: q,
+        profileUrl: bigoProfile.profileUrl,
+        found: bigoProfile.found,
+        displayName: bigoProfile.displayName ?? null,
+        username: bigoProfile.username ?? null,
+        avatarHint: bigoProfile.avatarHint ?? null,
+      },
+      darkWeb,
+      nameHints,
+      platforms: platforms.length ? platforms : null,
+      found,
+      possible,
+      total: platforms.length,
+      emailPatterns: null,
+      discord: null,
+      dorkQueries: [
+        `"${q}" bigo live`,
+        `"${q}" site:bigo.tv`,
+        `"bigo id" "${q}"`,
+        `"${q}" live stream`,
+        `"${q}" site:pastebin.com`,
+        ...(bigoProfile.displayName ? [`"${bigoProfile.displayName}" bigo`, `"${bigoProfile.displayName}" social media`] : []),
+        ...(bigoProfile.username ? buildDorkQueries(bigoProfile.username) : []),
+      ],
+    });
+  }
 
   if (isEmail) {
     // ── Email input ──────────────────────────────────────────────────────────
