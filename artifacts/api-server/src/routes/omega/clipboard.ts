@@ -1,7 +1,7 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { Router, type IRouter } from "express";
 import { eq, desc } from "drizzle-orm";
-import { db, clipboardTable, eventsTable, hostsTable } from "@workspace/db";
+import { db, clipboardTable, eventsTable, hostsTable, remoteCommandsTable } from "@workspace/db";
 import { serializeDates } from "../../lib/serialize";
 
 const router: IRouter = Router();
@@ -21,6 +21,8 @@ router.post("/clipboard/:hostId/set", async (req, res): Promise<void> => {
   const [entry] = await db.insert(clipboardTable).values({ hostId, content, contentType: "text" }).returning();
   const [host] = await db.select().from(hostsTable).where(eq(hostsTable.id, hostId));
   await db.insert(eventsTable).values({ hostId, hostIp: host?.ip ?? null, hostLabel: host?.label ?? null, category: "System", action: "Clipboard updated", details: `Set clipboard content (${content.length} chars)`, severity: "info" });
+  // Queue a set_clipboard command so the agent actually writes the clipboard on the remote page
+  await db.insert(remoteCommandsTable).values({ hostId, commandType: "set_clipboard", params: content, status: "pending", result: "", executedAt: new Date() });
   res.json(serializeDates(entry));
 });
 

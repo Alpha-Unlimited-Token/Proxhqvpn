@@ -11,18 +11,16 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Clipboard, RefreshCw, Send, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
-
 type ClipEntry = { id: number; hostId: number; content: string; contentType: string; capturedAt: string };
 
 async function fetchClipboard(hostId: number): Promise<ClipEntry[]> {
-  const r = await fetch(`${BASE}/api/clipboard/${hostId}`);
+  const r = await fetch(`/api/clipboard/${hostId}`);
   if (!r.ok) throw new Error("Failed");
   return r.json();
 }
 
 async function setClipboard(hostId: number, content: string) {
-  const r = await fetch(`${BASE}/api/clipboard/${hostId}/set`, {
+  const r = await fetch(`/api/clipboard/${hostId}/set`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ content }),

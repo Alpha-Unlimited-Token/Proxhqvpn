@@ -12,8 +12,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { MessageSquareWarning, Send, RefreshCw, Info, AlertTriangle, XCircle, CheckCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
-
 type SentMsg = { id: number; hostId: number; title: string; body: string; iconType: string; buttonType: string; status: string; sentAt: string };
 
 const ICONS = [
@@ -26,13 +24,13 @@ const ICONS = [
 const BUTTONS = ["ok", "ok-cancel", "yes-no", "yes-no-cancel", "abort-retry-ignore", "retry-cancel"];
 
 async function fetchMessages(hostId: number): Promise<SentMsg[]> {
-  const r = await fetch(`${BASE}/api/messages/${hostId}`);
+  const r = await fetch(`/api/messages/${hostId}`);
   if (!r.ok) throw new Error("Failed");
   return r.json();
 }
 
 async function sendMessage(hostId: number, title: string, body: string, iconType: string, buttonType: string) {
-  const r = await fetch(`${BASE}/api/messages/${hostId}/send`, {
+  const r = await fetch(`/api/messages/${hostId}/send`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ title, body, iconType, buttonType }),
