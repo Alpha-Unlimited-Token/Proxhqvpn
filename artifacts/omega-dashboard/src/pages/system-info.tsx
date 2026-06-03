@@ -117,8 +117,29 @@ export default function SystemInfo() {
               <Card className="bg-card/40 border-border">
                 <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground flex items-center gap-2"><Monitor className="h-4 w-4" /> Platform</CardTitle></CardHeader>
                 <CardContent className="space-y-2">
-                  <div><p className="text-[10px] text-muted-foreground/60 uppercase tracking-wider">navigator.platform</p><p className="font-mono text-sm text-primary">{info.osName}</p></div>
-                  <div><p className="text-[10px] text-muted-foreground/60 uppercase tracking-wider">User Agent (truncated)</p><p className="font-mono text-xs leading-relaxed break-all">{info.osVersion.substring(0, 80)}</p></div>
+                  {/* navigator.platform always returns "Win32" even on 64-bit Windows — parse UA instead */}
+                  {(() => {
+                    const ua = info.osVersion ?? "";
+                    let arch = "Unknown";
+                    let archColor = "text-muted-foreground";
+                    if (/Win64.*x64|x64.*Win64/i.test(ua)) { arch = "x64 (native 64-bit)"; archColor = "text-green-400"; }
+                    else if (/WOW64/i.test(ua)) { arch = "x86 on WOW64 (32-bit browser on 64-bit OS)"; archColor = "text-yellow-400"; }
+                    else if (/ARM64/i.test(ua)) { arch = "ARM64"; archColor = "text-blue-400"; }
+                    else if (/Win32|Windows/i.test(ua)) { arch = "x86 or 64-bit (UA ambiguous)"; archColor = "text-orange-400"; }
+                    const winVer = ua.match(/Windows NT ([\d.]+)/)?.[1];
+                    const winName = winVer ? ({ "10.0": "Windows 10/11", "6.3": "Windows 8.1", "6.2": "Windows 8", "6.1": "Windows 7" } as Record<string, string>)[winVer] ?? `Windows NT ${winVer}` : null;
+                    return (
+                      <>
+                        <div>
+                          <p className="text-[10px] text-muted-foreground/60 uppercase tracking-wider">Architecture (from UA)</p>
+                          <p className={`font-mono text-sm font-semibold ${archColor}`}>{arch}</p>
+                          <p className="text-[9px] text-muted-foreground/40 mt-0.5">navigator.platform always returns "Win32" — UA parsing is the only accurate method</p>
+                        </div>
+                        {winName && <div><p className="text-[10px] text-muted-foreground/60 uppercase tracking-wider">Windows Version</p><p className="font-mono text-sm">{winName}</p></div>}
+                        <div><p className="text-[10px] text-muted-foreground/60 uppercase tracking-wider">User Agent</p><p className="font-mono text-xs leading-relaxed break-all text-muted-foreground/60">{ua.substring(0, 100)}</p></div>
+                      </>
+                    );
+                  })()}
                 </CardContent>
               </Card>
 

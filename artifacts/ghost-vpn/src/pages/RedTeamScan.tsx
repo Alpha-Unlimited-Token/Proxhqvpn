@@ -48,6 +48,7 @@ const SCAN_MODULES = [
   { id: "ui",          label: "UI / Clickjacking",         color: "#00ff88", bas: "disablectlaltdel.bas" },
   { id: "tracking",    label: "Fingerprinting",            color: "#7b68ee", bas: "Monitor.bas" },
   { id: "waf",         label: "WAF Fingerprint",           color: "#20b2aa", bas: "Firewall.bas" },
+  { id: "win64",       label: "Win64 Platform Analysis",   color: "#4db8ff", bas: "WinAPI x64" },
 ] as const;
 type ModuleId = typeof SCAN_MODULES[number]["id"];
 
@@ -143,6 +144,18 @@ const TOOLKIT_MODULES = [
       { id: "captureInterval", label: "Capture interval (s)",  type: "number", default: "30" },
     ],
     endpoint: "/redteam-scan/toolkit/screen-monitor",
+  },
+  {
+    id: "win64-recon", bas: "WinAPI x64", label: "Win64 Platform Recon",
+    color: "#4db8ff", icon: <Zap className="w-4 h-4" />,
+    desc: "Updated for modern 64-bit Windows (10/11). Generates two payloads: (1) PowerShell x64 script using native Win64 APIs — replaces all deprecated Win32 calls (GetVersionEx removed in Win8.1+, GetSystemInfo, GlobalMemoryStatusEx, EnumServicesStatus). Detects WOW64, x64/ARM64 arch, running AV/EDR via SecurityCenter2 WMI, 32-bit process count. (2) Browser JS that correctly detects x64 by parsing User-Agent — navigator.platform always returns 'Win32' even on 64-bit Windows (browser compat lie).",
+    params: [
+      { id: "detectWow64",  label: "Detect WOW64 (32-bit subsystem)", type: "checkbox", default: "true" },
+      { id: "enumRegistry", label: "Enumerate 64-bit registry hives",  type: "checkbox", default: "true" },
+      { id: "enumAV",       label: "Enumerate AV/EDR via WMI",         type: "checkbox", default: "true" },
+    ],
+    endpoint: "/redteam-scan/toolkit/win64-recon",
+    noC2: true,
   },
 ] as const;
 
