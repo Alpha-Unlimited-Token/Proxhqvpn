@@ -2,6 +2,7 @@
 import { useState, useRef, useEffect } from "react";
 
 import { useListHosts } from "@workspace/omega-api-client-react";
+import { NoHostsBanner } from "@/components/omega/NoHostsBanner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
@@ -80,6 +81,7 @@ export default function Chat() {
   return (
     
       <div className="space-y-4 flex flex-col h-full">
+        {hosts !== undefined && hosts.length === 0 && <NoHostsBanner />}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
             <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">

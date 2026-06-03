@@ -6,6 +6,7 @@ import {
   useListHosts,
   getListEventsQueryKey
 } from "@workspace/omega-api-client-react";
+import { NoHostsBanner } from "@/components/omega/NoHostsBanner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -42,6 +43,7 @@ export default function Events() {
   return (
     
       <div className="space-y-6">
+        {hosts !== undefined && hosts.length === 0 && <NoHostsBanner />}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Event Log</h1>
