@@ -65,6 +65,7 @@ import MyVPN from "@/pages/MyVPN";
 import Pricing from "@/pages/Pricing";
 import SqlmapScanner from "@/pages/SqlmapScanner";
 import AlphaTools from "@/pages/AlphaTools";
+import ToolRunner from "@/pages/ToolRunner";
 import HttpProbe from "@/pages/HttpProbe";
 import DirectoryFuzzer from "@/pages/DirectoryFuzzer";
 import SubdomainScan from "@/pages/SubdomainScan";
@@ -608,6 +609,9 @@ function AppRoutes() {
           </Route>
           <Route path="/alpha-tools">
             <CcLayout><AlphaTools /></CcLayout>
+          </Route>
+          <Route path="/tool-runner">
+            <CcLayout><ToolRunner /></CcLayout>
           </Route>
           <Route path="/security-audit">
             <CcLayout><SecurityAudit /></CcLayout>

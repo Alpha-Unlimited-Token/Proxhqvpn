@@ -39,6 +39,7 @@ import wireguardRouter from "./wireguard";
 import daemonInboundRouter from "./daemon-inbound";
 import nodeProvisionRouter from "./node-provision";
 import sqlmapRouter from "./sqlmap";
+import toolRunnerRouter from "./toolrunner";
 import alphaRouter from "./alpha";
 import httpProbeRouter from "./httpprobe";
 import intruderRouter from "./intruder";
@@ -372,6 +373,7 @@ router.use("/cve",            requireAccess, cveSearchRouter);         // CVE se
 router.use("/threatintel",     requireCommandCenter, threatintelRouter);
 router.use("/security-audit",  requireCommandCenter, securityauditRouter);
 router.use("/sqlmap",          requireCommandCenter, sqlmapRouter);
+router.use("/tool-runner",     requireCommandCenter, toolRunnerRouter);
 router.use("/alpha",           requireCommandCenter, alphaRouter);
 router.use("/http-probe",      requireCommandCenter, httpProbeRouter);
 router.use("/dir-fuzzer",      requireCommandCenter, dirFuzzerRouter);
