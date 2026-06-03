@@ -137,6 +137,7 @@ import CodeSentinel from "@/pages/CodeSentinel";
 import AgentStrike from "@/pages/AgentStrike";
 import LlmProbe from "@/pages/LlmProbe";
 import AiShield from "@/pages/AiShield";
+import AISecuritySuite from "@/pages/AISecuritySuite";
 import VpnTracker from "@/pages/VpnTracker";
 import OmegaOverview from "@/pages/omega/dashboard";
 import OmegaHosts from "@/pages/omega/hosts";
@@ -788,6 +789,9 @@ function AppRoutes() {
           </Route>
           <Route path="/ai-shield">
             <CcLayout><AiShield /></CcLayout>
+          </Route>
+          <Route path="/ai-security-suite">
+            <CcLayout><AISecuritySuite /></CcLayout>
           </Route>
 
           {/* ── Omega C2 Dashboard ── */}

@@ -181,7 +181,7 @@ const TOOL_TIER: Record<string, 1 | 2 | 3> = {
   "/oast-tester": 3, "/oast-server": 3, "/waf-bypass": 3, "/token-seq": 3,
   "/ws-tester": 3, "/quantum-audit": 3, "/ghost-pentest": 3, "/request-mind": 3,
   "/soc-copilot": 3, "/code-sentinel": 3, "/agent-strike": 3, "/llm-probe": 3,
-  "/ai-shield": 3,
+  "/ai-shield": 3, "/ai-security-suite": 3,
 };
 
 const TIER_LABEL: Record<1 | 2 | 3, string> = { 1: "Recon", 2: "Strike", 3: "Arsenal" };
@@ -242,6 +242,7 @@ const ADVANCED_NAV = [
   { href: "/agent-strike",       label: "AgentStrike",            icon: Zap },
   { href: "/llm-probe",          label: "LLMProbe",               icon: Cpu },
   { href: "/ai-shield",          label: "AIShield",               icon: ShieldPlus },
+  { href: "/ai-security-suite",  label: "AI Security Suite",      icon: ShieldAlert },
   { href: "/omega-dashboard",    label: "Omega — Overview",        icon: LayoutDashboard },
   { href: "/omega-hosts",        label: "Omega — Hosts",           icon: Server },
   { href: "/omega-events",       label: "Omega — Events",          icon: Activity },
