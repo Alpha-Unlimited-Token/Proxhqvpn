@@ -132,7 +132,6 @@ const USER_NAV = [
   { href: "/platforms",     label: "Setup Guide",     icon: BookOpen },
   { href: "/guide",         label: "User Guide",      icon: FileText },
   { href: "/manuals",       label: "Manuals Download", icon: BookMarked },
-  { href: "/parrot-tools",  label: "Parrot OS Tools",  icon: Package },
   { href: "/hackanon",      label: "HackAnon — Exploits", icon: Bug },
 ];
 
@@ -200,6 +199,7 @@ const ADVANCED_NAV = [
   { href: "/vpn-coexist",   label: "VPN Coexistence",       icon: Settings },
   { href: "/sqlmap",        label: "Vulnerability Scanner", icon: ScanSearch },
   { href: "/alpha-tools",   label: "Alpha Toolkit",         icon: Layers },
+  { href: "/parrot-tools",  label: "Parrot OS Arsenal",     icon: Package },
   { href: "/http-probe",    label: "HTTP Probe",            icon: Send },
   { href: "/intruder",      label: "Intruder",              icon: Swords },
   { href: "/dir-fuzzer",    label: "Directory Fuzzer",      icon: FolderSearch },
