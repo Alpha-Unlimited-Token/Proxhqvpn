@@ -132,7 +132,6 @@ const USER_NAV = [
   { href: "/platforms",     label: "Setup Guide",     icon: BookOpen },
   { href: "/guide",         label: "User Guide",      icon: FileText },
   { href: "/manuals",       label: "Manuals Download", icon: BookMarked },
-  { href: "/hackanon",      label: "HackAnon — Exploits", icon: Bug },
 ];
 
 const PROTECTION_NAV = [
@@ -171,7 +170,8 @@ const NETWORK_NAV = [
 const TOOL_TIER: Record<string, 1 | 2 | 3> = {
   "/http-probe": 1, "/dir-fuzzer": 1, "/subdomain-scan": 1,
   "/encoder": 1, "/comparer": 1, "/payloads": 1, "/cve-search": 1,
-  "/parrot-tools": 1, "/hackanon": 1, "/ip-exposure": 1,
+  "/parrot-tools": 1, "/ip-exposure": 1,
+  "/hackanon": 2,
   "/sqlmap": 2, "/alpha-tools": 2, "/intruder": 2, "/ghost-chain": 2,
   "/siem": 2, "/osint": 2, "/canary": 2, "/exploit-import": 2,
   "/omnistrike": 2, "/social-breach": 2, "/bug-bounty": 2,
@@ -200,6 +200,7 @@ const ADVANCED_NAV = [
   { href: "/sqlmap",        label: "Vulnerability Scanner", icon: ScanSearch },
   { href: "/alpha-tools",   label: "Alpha Toolkit",         icon: Layers },
   { href: "/parrot-tools",  label: "Parrot OS Arsenal",     icon: Package },
+  { href: "/hackanon",      label: "HackAnon — Exploits",   icon: Bug },
   { href: "/im-auto",       label: "Platform Automation",   icon: MessageSquare },
   { href: "/redteam-scan",  label: "Red Team Scanner",      icon: Crosshair },
   { href: "/http-probe",    label: "HTTP Probe",            icon: Send },
