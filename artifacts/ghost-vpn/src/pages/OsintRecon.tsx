@@ -700,14 +700,30 @@ export default function OsintRecon() {
     onSuccess: (data) => setPivotResult(data),
     onError: (err: Error) => toast({ title: "Cross search failed", description: err.message, variant: "destructive" }),
   });
-  const detectedType: "email" | "username" | "discord_id" | "bigo_id" | null = (() => {
+  const detectedType: "email" | "username" | "discord_id" | "bigo_id" | "phone" | "domain" | null = (() => {
     const q = pivotQuery.trim();
     if (!q) return null;
     if (/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(q)) return "email";
     if (/^\d{17,20}$/.test(q)) return "discord_id";
+    // Phone: + prefix (international) or US NANP patterns
+    if (/^\+[1-9][\d\s\-\(\)\.]{6,20}$/.test(q)) return "phone";
+    const digitsOnly = q.replace(/\D/g, "");
+    if ((digitsOnly.length === 10 || (digitsOnly.length === 11 && digitsOnly[0] === "1")) &&
+        /^[0-9\s\-\.\(\)\+]{7,17}$/.test(q)) return "phone";
+    // Domain / IPv4
+    if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(q)) return "domain";
+    if (/^[a-zA-Z0-9][a-zA-Z0-9\-\.]*\.[a-zA-Z]{2,}$/.test(q) && !q.includes(" ")) return "domain";
     if (/^\d{5,16}$/.test(q)) return "bigo_id";
     return "username";
   })();
+  const [smartLastType, setSmartLastType] = useState<string | null>(null);
+  const runSmartSearch = (q: string) => {
+    const type = detectedType;
+    setSmartLastType(type);
+    if (type === "phone") phoneMut.mutate(q);
+    else if (type === "domain") { setTarget(q); lookupMut.mutate(q); }
+    else pivotMut.mutate(q);
+  };
 
   // Email Intelligence tab
   const [emailTarget, setEmailTarget] = usePersistedState<string>("osint-email-target", "");
@@ -769,7 +785,7 @@ export default function OsintRecon() {
           <Badge className="text-[9px] border-[#00ff88]/30 bg-[#00ff88]/10 text-[#00ff88] font-mono uppercase tracking-widest px-1.5">Passive</Badge>
         </div>
         <p className="text-xs text-primary/40 max-w-xl leading-relaxed">
-          Passive intelligence gathering — domain recon, username enumeration across 35+ platforms, dark web indexer searches, email correlation, and breach surface mapping.
+          Passive intelligence gathering — phone numbers, domain/IP recon, username enumeration across 35+ platforms, email correlation, Discord/Bigo lookup, dark web breach scanning, and OSINT dork query generation.
         </p>
       </div>
 
@@ -801,57 +817,182 @@ export default function OsintRecon() {
       {activeTab === "smart" && (
         <>
           <div className="border border-primary/20 p-4 rounded-sm bg-primary/2 space-y-3">
-            <div className="text-[10px] text-primary/40 uppercase tracking-widest">Username or Email — auto-detected</div>
+            <div className="text-[10px] text-primary/40 uppercase tracking-widest">Search anything — auto-detected</div>
             <div className="flex gap-2">
               <div className="flex-1 relative">
                 <input
                   value={pivotQuery}
                   onChange={e => setPivotQuery(e.target.value)}
-                  onKeyDown={e => e.key === "Enter" && pivotQuery.trim() && pivotMut.mutate(pivotQuery.trim())}
-                  placeholder="johndoe · john@email.com · 123456789012345678 · 98765432"
+                  onKeyDown={e => e.key === "Enter" && pivotQuery.trim() && runSmartSearch(pivotQuery.trim())}
+                  placeholder="johndoe · +1 555 867-5309 · example.com · john@email.com · 123456789012345678"
                   className="w-full bg-black/40 border border-primary/20 text-primary text-sm font-mono px-3 py-2 focus:outline-none focus:border-[#00ff88]/40 placeholder:text-primary/20 rounded-sm"
                 />
                 {detectedType && (
                   <div className={`absolute right-2 top-1/2 -translate-y-1/2 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded border ${
-                    detectedType === "email"     ? "text-orange-400 border-orange-400/30 bg-orange-900/10"
+                    detectedType === "email"      ? "text-orange-400 border-orange-400/30 bg-orange-900/10"
                     : detectedType === "discord_id" ? "text-indigo-400 border-indigo-400/30 bg-indigo-900/10"
                     : detectedType === "bigo_id"    ? "text-pink-400 border-pink-400/30 bg-pink-900/10"
+                    : detectedType === "phone"      ? "text-cyan-400 border-cyan-400/30 bg-cyan-900/10"
+                    : detectedType === "domain"     ? "text-purple-400 border-purple-400/30 bg-purple-900/10"
                     : "text-[#00ff88] border-[#00ff88]/30 bg-[#00ff88]/5"
                   }`}>
-                    {detectedType === "email" ? "✉ Email"
+                    {detectedType === "email"      ? "✉ Email"
                       : detectedType === "discord_id" ? "# Discord ID"
                       : detectedType === "bigo_id"    ? "◉ Bigo ID"
+                      : detectedType === "phone"      ? "☎ Phone"
+                      : detectedType === "domain"     ? "⬡ Domain / IP"
                       : "⌖ Username"}
                   </div>
                 )}
               </div>
               <Button
-                onClick={() => pivotQuery.trim() && pivotMut.mutate(pivotQuery.trim())}
-                disabled={pivotMut.isPending || !pivotQuery.trim()}
+                onClick={() => pivotQuery.trim() && runSmartSearch(pivotQuery.trim())}
+                disabled={(pivotMut.isPending || phoneMut.isPending || lookupMut.isPending) || !pivotQuery.trim()}
                 className="bg-[#00ff88] hover:bg-[#00ff88]/80 text-black font-bold font-mono text-xs px-5 rounded-sm"
               >
-                {pivotMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Search"}
+                {(pivotMut.isPending || phoneMut.isPending || lookupMut.isPending) ? <Loader2 className="w-4 h-4 animate-spin" /> : "Search"}
               </Button>
             </div>
             <div className="text-[10px] text-primary/20 leading-relaxed">
-              {detectedType === "email"      ? "Email → derives username from local part · platform scan · Discord auto-lookup · Gravatar correlation · domain MX/SPF/DMARC"
+              {detectedType === "email"      ? "Email → derives username · 35+ platform scan · Discord auto-lookup · Gravatar correlation · domain MX/SPF/DMARC"
                : detectedType === "discord_id" ? "Discord User ID → decodes Snowflake timestamp · fetches public profile · Lanyard presence · breach search · dork queries"
                : detectedType === "bigo_id"    ? "Bigo Live ID → fetches profile page · extracts display name & handle · optional platform pivot · dark web scan"
-               : detectedType === "username"   ? "Username → 35+ platform scan · Discord auto-resolved · email Gravatar check · name hint extraction · dark web indexers"
-               : "Enter a username, email, Discord User ID (17-20 digits), or Bigo Live ID — auto-detected and cross-searched"}
+               : detectedType === "phone"      ? "Phone → carrier · area code / region · line type · reverse lookup directories · social search · OSINT dork queries"
+               : detectedType === "domain"     ? "Domain / IP → DNS records · TLS cert · HTTP headers · email security (SPF/DKIM/DMARC) · CDN · ASN · exposure score"
+               : detectedType === "username"   ? "Username → 35+ platform scan · Discord auto-resolved · Gravatar check · name hint extraction · dark web indexers"
+               : "Paste any identifier — phone · domain · IP · email · username · Discord ID · Bigo ID — auto-detected"}
             </div>
           </div>
 
-          {pivotMut.isPending && (
+          {(pivotMut.isPending || phoneMut.isPending || lookupMut.isPending) && (
             <div className="border border-primary/10 p-8 text-center rounded-sm space-y-2">
               <Loader2 className="w-6 h-6 text-[#00ff88] mx-auto animate-spin" />
-              <div className="text-xs text-primary/40">Cross-intelligence scan running...</div>
-              <div className="text-[10px] text-primary/20">Platforms · Discord · Email · Dark Web · Name hints</div>
-              <div className="text-[10px] text-primary/15">15–30 seconds</div>
+              <div className="text-xs text-primary/40">
+                {smartLastType === "phone"  ? "Running phone OSINT lookup..."
+                 : smartLastType === "domain" ? "Gathering domain intelligence..."
+                 : "Cross-intelligence scan running..."}
+              </div>
+              <div className="text-[10px] text-primary/20">
+                {smartLastType === "phone"  ? "Parsing · Carrier · Area code · Dork generation"
+                 : smartLastType === "domain" ? "DNS · TLS · HTTP · Email security · ASN"
+                 : "Platforms · Discord · Email · Dark Web · Name hints"}
+              </div>
+              {!smartLastType || !["phone","domain"].includes(smartLastType) ? (
+                <div className="text-[10px] text-primary/15">15–30 seconds</div>
+              ) : null}
             </div>
           )}
 
-          {pivotResult && !pivotMut.isPending && (() => {
+          {/* ── Smart: Phone result ── */}
+          {smartLastType === "phone" && phoneResult && !phoneMut.isPending && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-cyan-400" />
+                <span className="text-[10px] font-bold text-cyan-400/80 uppercase tracking-widest">Phone OSINT Result</span>
+                <button onClick={() => setActiveTab("phone")} className="ml-auto text-[9px] text-primary/30 hover:text-[#00ff88] border border-primary/10 hover:border-[#00ff88]/30 px-2 py-0.5 rounded-sm transition-colors">Full Phone Tab →</button>
+              </div>
+              {!phoneResult.valid ? (
+                <div className="border border-red-500/30 bg-red-900/8 rounded-sm p-4 text-xs text-red-400">{phoneResult.error}</div>
+              ) : (
+                <>
+                  <div className="border border-cyan-400/20 bg-cyan-900/5 rounded-sm p-4">
+                    <div className="flex items-start justify-between gap-4 flex-wrap">
+                      <div>
+                        <div className="text-[9px] text-primary/40 uppercase mb-1">Formatted Number</div>
+                        <div className="text-xl font-bold font-mono text-cyan-400">{phoneResult.formatted?.national ?? phoneResult.formatted?.e164}</div>
+                        <div className="text-[10px] text-primary/40 mt-0.5 font-mono">{phoneResult.formatted?.e164} · {phoneResult.formatted?.international}</div>
+                      </div>
+                      <div className="flex gap-1 flex-wrap justify-end">
+                        <span className="border border-cyan-400/30 text-cyan-400 text-[9px] px-1.5 py-0.5 uppercase bg-cyan-900/10">{phoneResult.countryName ?? phoneResult.country}</span>
+                        <span className={`text-[9px] px-1.5 py-0.5 uppercase border ${phoneResult.lineType === "Mobile" ? "border-orange-400/40 text-orange-400" : "border-primary/20 text-primary/50"}`}>{phoneResult.lineType}</span>
+                        {phoneResult.carrier && <span className="border border-blue-400/40 text-blue-400 text-[9px] px-1.5 py-0.5 uppercase bg-blue-900/10">{phoneResult.carrier}</span>}
+                      </div>
+                    </div>
+                  </div>
+                  {phoneResult.areaInfo && (
+                    <div className="border border-primary/10 rounded-sm p-3 grid grid-cols-3 gap-3 text-[10px]">
+                      <div><div className="text-[9px] text-primary/30 uppercase mb-0.5">Area Code</div><div className="font-mono text-primary font-bold">{phoneResult.areaCode}</div></div>
+                      <div><div className="text-[9px] text-primary/30 uppercase mb-0.5">State</div><div className="font-mono text-primary font-bold">{phoneResult.areaInfo.state}</div></div>
+                      <div><div className="text-[9px] text-primary/30 uppercase mb-0.5">Region</div><div className="font-mono text-primary/70 text-[9px] leading-tight">{phoneResult.areaInfo.region}</div></div>
+                      <div className="col-span-3"><div className="text-[9px] text-primary/30 uppercase mb-1">Top Carriers in NPA</div><div className="flex gap-1.5">{phoneResult.areaInfo.topCarriers?.map((c: string) => <span key={c} className="border border-blue-400/30 text-blue-400 text-[9px] px-1.5 py-0.5 bg-blue-900/10">{c}</span>)}</div></div>
+                    </div>
+                  )}
+                  <Section title="Reverse Lookup Directories" icon={Search} defaultOpen>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {phoneResult.osint?.reverseLookupLinks?.map((link: { name: string; url: string }) => (
+                        <a key={link.name} href={link.url} target="_blank" rel="noopener noreferrer"
+                          className="flex items-center justify-between border border-primary/10 rounded-sm px-2.5 py-1.5 hover:border-cyan-400/40 hover:bg-cyan-900/5 transition-colors group text-xs text-primary/60 group-hover:text-cyan-400">
+                          {link.name}<ExternalLink className="w-3 h-3 text-primary/20 group-hover:text-cyan-400" />
+                        </a>
+                      ))}
+                    </div>
+                  </Section>
+                  <Section title="OSINT Dork Queries" icon={Search} defaultOpen={false}>
+                    <DorkQueries queries={phoneResult.osint?.dorkQueries ?? []} />
+                  </Section>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* ── Smart: Domain / IP result ── */}
+          {smartLastType === "domain" && domainResult && !lookupMut.isPending && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-purple-400" />
+                <span className="text-[10px] font-bold text-purple-400/80 uppercase tracking-widest">Domain / IP Intelligence</span>
+                <button onClick={() => setActiveTab("domain")} className="ml-auto text-[9px] text-primary/30 hover:text-[#00ff88] border border-primary/10 hover:border-[#00ff88]/30 px-2 py-0.5 rounded-sm transition-colors">Full Domain Tab →</button>
+              </div>
+              {domainResult.exposure && (
+                <div className="border border-purple-500/20 bg-purple-900/5 rounded-sm p-4">
+                  <div className="text-[9px] text-primary/40 uppercase tracking-widest mb-3">Exposure Summary — {domainResult.target}</div>
+                  <div className="grid grid-cols-3 gap-3 text-center">
+                    <div><div className="text-[9px] text-primary/40 mb-1">TLS Risk</div><RiskPill risk={domainResult.exposure.tlsRisk?.risk || "info"} /></div>
+                    <div><div className="text-[9px] text-primary/40 mb-1">Headers</div><RiskPill risk={domainResult.exposure.headerRisk?.risk || "info"} /></div>
+                    <div>
+                      <div className="text-[9px] text-primary/40 mb-1">Email Security</div>
+                      <div className="flex justify-center gap-1 mt-1">
+                        {["SPF","DKIM","DMARC"].map((r, i) => {
+                          const has = i === 0 ? domainResult.exposure.emailSecurity?.hasSpf : i === 1 ? domainResult.exposure.emailSecurity?.hasDkim : domainResult.exposure.emailSecurity?.hasDmarc;
+                          return <span key={r} className={`text-[8px] font-bold border px-1 py-0.5 ${has ? "border-[#00ff88]/30 text-[#00ff88]" : "border-red-400/30 text-red-400/70 line-through"}`}>{r}</span>;
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {domainResult.ip && (
+                <div className="border border-primary/10 rounded-sm p-3 grid grid-cols-2 gap-3 text-[10px]">
+                  {domainResult.ip.address && <div><div className="text-[9px] text-primary/30 uppercase mb-0.5">IP Address</div><div className="font-mono text-primary/80">{domainResult.ip.address}</div></div>}
+                  {domainResult.ip.country && <div><div className="text-[9px] text-primary/30 uppercase mb-0.5">Country</div><div className="font-mono text-primary/80">{domainResult.ip.country}</div></div>}
+                  {domainResult.ip.org && <div className="col-span-2"><div className="text-[9px] text-primary/30 uppercase mb-0.5">Hosting / ASN</div><div className="font-mono text-primary/70 text-[9px]">{domainResult.ip.org}</div></div>}
+                </div>
+              )}
+              {domainResult.dns && (
+                <Section title={`DNS Records (${(domainResult.dns.a?.length ?? 0) + (domainResult.dns.mx?.length ?? 0) + (domainResult.dns.ns?.length ?? 0)} records)`} icon={Server} defaultOpen>
+                  <div className="space-y-1 text-[10px] font-mono">
+                    {(domainResult.dns.a ?? []).slice(0,3).map((r: string) => <div key={r} className="flex gap-2"><span className="text-primary/30 w-8">A</span><span className="text-primary/70">{r}</span></div>)}
+                    {(domainResult.dns.mx ?? []).slice(0,2).map((r: any) => <div key={r.exchange} className="flex gap-2"><span className="text-primary/30 w-8">MX</span><span className="text-primary/70">{r.exchange} ({r.priority})</span></div>)}
+                    {(domainResult.dns.ns ?? []).slice(0,2).map((r: string) => <div key={r} className="flex gap-2"><span className="text-primary/30 w-8">NS</span><span className="text-primary/70">{r}</span></div>)}
+                    {domainResult.dns.txt?.some((t: string) => t.startsWith("v=spf1")) && <div className="flex gap-2"><span className="text-primary/30 w-8">SPF</span><span className="text-[#00ff88]/80 truncate max-w-xs">{domainResult.dns.txt?.find((t: string) => t.startsWith("v=spf1"))?.slice(0,60)}…</span></div>}
+                  </div>
+                </Section>
+              )}
+              {domainResult.tls && (
+                <Section title="TLS Certificate" icon={Lock} defaultOpen={false}>
+                  <div className="grid grid-cols-2 gap-2 text-[10px]">
+                    {domainResult.tls.subject && <div><div className="text-[9px] text-primary/30 uppercase mb-0.5">Subject</div><div className="font-mono text-primary/70">{domainResult.tls.subject}</div></div>}
+                    {domainResult.tls.issuer && <div><div className="text-[9px] text-primary/30 uppercase mb-0.5">Issuer</div><div className="font-mono text-primary/70">{domainResult.tls.issuer}</div></div>}
+                    {domainResult.tls.validTo && <div><div className="text-[9px] text-primary/30 uppercase mb-0.5">Expires</div><div className="font-mono text-primary/70">{new Date(domainResult.tls.validTo).toLocaleDateString()}</div></div>}
+                    {domainResult.tls.daysUntilExpiry !== undefined && <div><div className="text-[9px] text-primary/30 uppercase mb-0.5">Days Left</div><div className={`font-mono font-bold ${domainResult.tls.daysUntilExpiry < 14 ? "text-red-400" : domainResult.tls.daysUntilExpiry < 30 ? "text-yellow-400" : "text-[#00ff88]"}`}>{domainResult.tls.daysUntilExpiry}</div></div>}
+                  </div>
+                </Section>
+              )}
+            </div>
+          )}
+
+          {/* ── Smart: Pivot result (email / username / discord / bigo) ── */}
+          {(!smartLastType || !["phone","domain"].includes(smartLastType)) && pivotResult && !pivotMut.isPending && (() => {
             const pr = pivotResult;
             const discordHit = pr.discord;
             const emailGravatarHits = (pr.emailPatterns ?? []).filter((e: any) => e.hasGravatar);
@@ -1106,11 +1247,15 @@ export default function OsintRecon() {
             );
           })()}
 
-          {!pivotResult && !pivotMut.isPending && (
+          {!smartLastType && !pivotResult && !phoneMut.isPending && !lookupMut.isPending && !pivotMut.isPending && (
             <div className="border border-primary/10 p-10 text-center rounded-sm">
               <Search className="w-8 h-8 text-primary/15 mx-auto mb-3" />
-              <div className="text-sm text-primary/25">Paste a username or email to begin cross-intelligence search</div>
-              <div className="text-xs text-primary/15 mt-1">Auto-detects type · Pivots email↔username · Discord auto-resolved · Name hints extracted</div>
+              <div className="text-sm text-primary/25">Paste any identifier to begin cross-intelligence search</div>
+              <div className="text-xs text-primary/15 mt-2 space-y-0.5">
+                <div>☎ Phone number · ⬡ Domain / IP address · ✉ Email address</div>
+                <div>⌖ Username · # Discord User ID · ◉ Bigo Live ID</div>
+                <div className="mt-1 text-primary/10">Auto-detected · 7 OSINT types supported</div>
+              </div>
             </div>
           )}
         </>
