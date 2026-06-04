@@ -669,7 +669,7 @@ function DorkQueries({ queries }: { queries: string[] }) {
 
 export default function OsintRecon() {
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = usePersistedState<"smart" | "domain" | "username" | "email">("osint-active-tab", "smart");
+  const [activeTab, setActiveTab] = usePersistedState<"smart" | "domain" | "username" | "email" | "phone">("osint-active-tab", "smart");
 
   // Domain/IP tab
   const [target, setTarget] = usePersistedState<string>("osint-target", "");
@@ -728,6 +728,17 @@ export default function OsintRecon() {
     onError: (err: Error) => toast({ title: "Header parse failed", description: err.message, variant: "destructive" }),
   });
 
+  // Phone OSINT tab
+  const [phoneTarget, setPhoneTarget] = usePersistedState<string>("osint-phone-target", "");
+  const [phoneResult, setPhoneResult] = useState<any>(null);
+  const [copiedDork, setCopiedDork] = useState<string | null>(null);
+
+  const phoneMut = useMutation({
+    mutationFn: (phone: string) => apiFetch("/osint/phone-lookup", { method: "POST", body: JSON.stringify({ phone }) }),
+    onSuccess: (data) => setPhoneResult(data),
+    onError: (err: Error) => toast({ title: "Phone lookup failed", description: err.message, variant: "destructive" }),
+  });
+
   const lookupMut = useMutation({
     mutationFn: (t: string) => apiFetch("/osint/lookup", { method: "POST", body: JSON.stringify({ target: t }) }),
     onSuccess: (data) => setDomainResult(data),
@@ -769,6 +780,7 @@ export default function OsintRecon() {
           { id: "domain", label: "Domain / IP", icon: Globe },
           { id: "username", label: "Username Scan", icon: User },
           { id: "email", label: "Email Intelligence", icon: Mail },
+          { id: "phone", label: "Phone OSINT", icon: Hash },
         ] as const).map(({ id, label, icon: Icon }) => (
           <button
             key={id}
@@ -1660,6 +1672,196 @@ export default function OsintRecon() {
               </div>
             )}
           </div>
+        </>
+      )}
+
+      {/* ── Phone OSINT tab ── */}
+      {activeTab === "phone" && (
+        <>
+          {/* Input */}
+          <div className="border border-primary/20 p-4 rounded-sm bg-primary/2">
+            <div className="text-[10px] text-primary/40 uppercase tracking-widest mb-2">Target Phone Number</div>
+            <div className="flex gap-2">
+              <input
+                value={phoneTarget}
+                onChange={e => setPhoneTarget(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && phoneTarget.trim() && phoneMut.mutate(phoneTarget.trim())}
+                placeholder="+1 (555) 867-5309  or  +44 20 7946 0958"
+                className="flex-1 bg-black/40 border border-primary/20 text-primary text-sm font-mono px-3 py-2 focus:outline-none focus:border-[#00ff88]/40 placeholder:text-primary/20 rounded-sm"
+              />
+              <Button
+                onClick={() => phoneTarget.trim() && phoneMut.mutate(phoneTarget.trim())}
+                disabled={phoneMut.isPending || !phoneTarget.trim()}
+                className="bg-[#00ff88] hover:bg-[#00ff88]/80 text-black font-bold font-mono text-xs px-5 rounded-sm"
+              >
+                {phoneMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Lookup"}
+              </Button>
+            </div>
+            <div className="mt-2 text-[10px] text-primary/20">US (NANP) + International (E.164) · Carrier · Region · Reverse lookup links · OSINT dork queries</div>
+          </div>
+
+          {phoneMut.isPending && (
+            <div className="border border-primary/10 p-8 text-center rounded-sm">
+              <Loader2 className="w-6 h-6 text-[#00ff88] mx-auto mb-2 animate-spin" />
+              <div className="text-xs text-primary/40">Running phone OSINT lookup...</div>
+              <div className="text-[10px] text-primary/20 mt-1">Parsing · Carrier resolution · Generating dork queries</div>
+            </div>
+          )}
+
+          {phoneResult && !phoneMut.isPending && (
+            <div className="space-y-3">
+              {!phoneResult.valid ? (
+                <div className="border border-red-500/30 bg-red-900/8 rounded-sm p-4">
+                  <div className="text-red-400 font-bold text-xs mb-1">Invalid Phone Number</div>
+                  <div className="text-primary/60 text-xs">{phoneResult.error}</div>
+                  {phoneResult.suggestions?.map((s: string, i: number) => (
+                    <div key={i} className="text-primary/40 text-[10px] mt-1 font-mono">• {s}</div>
+                  ))}
+                </div>
+              ) : (
+                <>
+                  {/* Number info card */}
+                  <div className="border border-[#00ff88]/20 bg-[#00ff88]/3 rounded-sm p-4">
+                    <div className="flex items-start justify-between gap-4 flex-wrap">
+                      <div>
+                        <div className="text-[10px] text-primary/40 uppercase tracking-widest mb-1">Formatted Number</div>
+                        <div className="text-2xl font-bold font-mono text-[#00ff88]">{phoneResult.formatted?.national ?? phoneResult.formatted?.e164}</div>
+                        <div className="text-[10px] text-primary/40 mt-0.5 font-mono">{phoneResult.formatted?.e164} · {phoneResult.formatted?.international}</div>
+                      </div>
+                      <div className="text-right text-xs font-mono space-y-1">
+                        <div className="flex gap-1 justify-end flex-wrap">
+                          <span className="border border-[#00ff88]/30 text-[#00ff88] text-[9px] px-1.5 py-0.5 uppercase bg-[#00ff88]/5">{phoneResult.countryName ?? phoneResult.country}</span>
+                          <span className={`text-[9px] px-1.5 py-0.5 uppercase border ${phoneResult.lineType === "Mobile" ? "border-orange-400/40 text-orange-400 bg-orange-900/10" : "border-primary/20 text-primary/50"}`}>{phoneResult.lineType}</span>
+                          {phoneResult.carrier && <span className="border border-blue-400/40 text-blue-400 text-[9px] px-1.5 py-0.5 uppercase bg-blue-900/10">{phoneResult.carrier}</span>}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Area Code / Region (US) */}
+                  {phoneResult.areaInfo && (
+                    <Section title="Area Code Intelligence" icon={Globe} defaultOpen>
+                      <div className="grid grid-cols-2 gap-3 text-xs">
+                        <div className="border border-primary/10 rounded-sm p-3">
+                          <div className="text-[9px] text-primary/40 uppercase mb-1">Area Code</div>
+                          <div className="font-mono text-primary font-bold text-lg">{phoneResult.areaCode}</div>
+                        </div>
+                        <div className="border border-primary/10 rounded-sm p-3">
+                          <div className="text-[9px] text-primary/40 uppercase mb-1">State</div>
+                          <div className="font-mono text-primary font-bold text-lg">{phoneResult.areaInfo.state}</div>
+                        </div>
+                        <div className="border border-primary/10 rounded-sm p-3 col-span-2">
+                          <div className="text-[9px] text-primary/40 uppercase mb-1">Region</div>
+                          <div className="font-mono text-primary/80">{phoneResult.areaInfo.region}</div>
+                        </div>
+                        <div className="border border-primary/10 rounded-sm p-3 col-span-2">
+                          <div className="text-[9px] text-primary/40 uppercase mb-1">Top Carriers in Area Code</div>
+                          <div className="flex gap-1.5 flex-wrap mt-1">
+                            {phoneResult.areaInfo.topCarriers?.map((c: string, i: number) => (
+                              <span key={i} className="border border-blue-400/30 text-blue-400 text-[9px] px-2 py-0.5 uppercase bg-blue-900/10">{c}</span>
+                            ))}
+                          </div>
+                          <div className="text-[9px] text-primary/25 mt-1.5">Source: {phoneResult.carrierSource}</div>
+                        </div>
+                      </div>
+                    </Section>
+                  )}
+
+                  {/* Live carrier enrichment */}
+                  {phoneResult.veriphoneEnriched && (
+                    <Section title="Carrier Enrichment (Live)" icon={Shield} defaultOpen>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        {([
+                          ["Carrier",       phoneResult.veriphoneEnriched.carrier],
+                          ["Line Type",     phoneResult.veriphoneEnriched.lineType],
+                          ["Country Code",  phoneResult.veriphoneEnriched.countryCode],
+                          ["Country",       phoneResult.veriphoneEnriched.countryName],
+                          ["Local Format",  phoneResult.veriphoneEnriched.local],
+                        ] as [string, string][]).filter(([, v]) => v).map(([label, val]) => (
+                          <div key={label} className="border border-primary/10 rounded-sm p-2.5">
+                            <div className="text-[9px] text-primary/40 uppercase mb-0.5">{label}</div>
+                            <div className="font-mono text-primary/80">{val}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </Section>
+                  )}
+
+                  {/* Reverse Lookup Links */}
+                  <Section title="Reverse Lookup Directories" icon={Search} defaultOpen>
+                    <div className="text-[10px] text-primary/30 mb-2">Click to open in a new tab. Results depend on registration in each directory.</div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {phoneResult.osint?.reverseLookupLinks?.map((link: { name: string; url: string }) => (
+                        <a
+                          key={link.name}
+                          href={link.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center justify-between border border-primary/15 rounded-sm px-3 py-2 hover:border-[#00ff88]/40 hover:bg-[#00ff88]/5 transition-colors group"
+                        >
+                          <span className="text-xs text-primary/70 group-hover:text-[#00ff88] transition-colors">{link.name}</span>
+                          <ExternalLink className="w-3 h-3 text-primary/30 group-hover:text-[#00ff88]" />
+                        </a>
+                      ))}
+                    </div>
+                  </Section>
+
+                  {/* Social Search Links */}
+                  <Section title="Social Media Search" icon={User} defaultOpen={false}>
+                    <div className="text-[10px] text-primary/30 mb-2">Search for the phone number across social platforms.</div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {phoneResult.osint?.socialSearchLinks?.map((link: { name: string; url: string }) => (
+                        <a
+                          key={link.name}
+                          href={link.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center justify-between border border-primary/15 rounded-sm px-3 py-2 hover:border-orange-400/40 hover:bg-orange-900/5 transition-colors group"
+                        >
+                          <span className="text-xs text-primary/70 group-hover:text-orange-400 transition-colors">{link.name}</span>
+                          <ExternalLink className="w-3 h-3 text-primary/30 group-hover:text-orange-400" />
+                        </a>
+                      ))}
+                    </div>
+                  </Section>
+
+                  {/* OSINT Dork Queries */}
+                  <Section title="OSINT Dork Queries" icon={Code2} defaultOpen={false}>
+                    <div className="text-[10px] text-primary/30 mb-2">Paste into Google or Bing to surface indexed records mentioning this number.</div>
+                    <div className="space-y-2">
+                      {phoneResult.osint?.dorkQueries?.map((dork: string, i: number) => (
+                        <div key={i} className="border border-primary/10 rounded-sm p-2.5 flex items-start justify-between gap-2">
+                          <div className="text-[10px] font-mono text-primary/60 leading-relaxed flex-1 break-all">{dork}</div>
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(dork);
+                              setCopiedDork(dork);
+                              setTimeout(() => setCopiedDork(null), 2000);
+                            }}
+                            className="shrink-0 text-primary/30 hover:text-[#00ff88] transition-colors"
+                          >
+                            {copiedDork === dork ? <CheckCircle2 className="w-3.5 h-3.5 text-[#00ff88]" /> : <Copy className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </Section>
+
+                  {/* Legal warnings */}
+                  {phoneResult.warnings?.length > 0 && (
+                    <div className="border border-yellow-500/20 bg-yellow-900/5 rounded-sm p-3 space-y-1">
+                      {phoneResult.warnings.map((w: string, i: number) => (
+                        <div key={i} className="flex items-start gap-2 text-[10px] text-yellow-400/80">
+                          <AlertCircle className="w-3 h-3 shrink-0 mt-0.5" />
+                          {w}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
         </>
       )}
 

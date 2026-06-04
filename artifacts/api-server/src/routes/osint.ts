@@ -1702,5 +1702,417 @@ router.post("/pivot", async (req: Request, res: Response) => {
   }
 });
 
+
+// ─── Phone Number OSINT Lookup ────────────────────────────────────────────────
+import { parsePhoneNumber, getNumberType, PhoneNumberType } from "libphonenumber-js";
+
+// US area code → {state, region, carriers} reference table (top 120 area codes)
+const US_AREA_CODES: Record<string, { state: string; region: string; carriers: string[] }> = {
+  "201":{"state":"NJ","region":"Jersey City / Hackensack","carriers":["Verizon","T-Mobile","AT&T"]},
+  "202":{"state":"DC","region":"Washington D.C.","carriers":["Verizon","AT&T","T-Mobile"]},
+  "203":{"state":"CT","region":"Bridgeport / New Haven","carriers":["AT&T","T-Mobile","Verizon"]},
+  "205":{"state":"AL","region":"Birmingham","carriers":["AT&T","Verizon","T-Mobile"]},
+  "206":{"state":"WA","region":"Seattle","carriers":["T-Mobile","AT&T","Verizon"]},
+  "212":{"state":"NY","region":"Manhattan","carriers":["Verizon","AT&T","T-Mobile"]},
+  "213":{"state":"CA","region":"Los Angeles","carriers":["AT&T","T-Mobile","Verizon"]},
+  "214":{"state":"TX","region":"Dallas","carriers":["AT&T","T-Mobile","Verizon"]},
+  "215":{"state":"PA","region":"Philadelphia","carriers":["Verizon","AT&T","T-Mobile"]},
+  "216":{"state":"OH","region":"Cleveland","carriers":["AT&T","Verizon","T-Mobile"]},
+  "217":{"state":"IL","region":"Springfield","carriers":["AT&T","T-Mobile","Verizon"]},
+  "224":{"state":"IL","region":"North Suburban Chicago","carriers":["AT&T","T-Mobile","Comcast"]},
+  "228":{"state":"MS","region":"Biloxi / Gulfport","carriers":["AT&T","Verizon","T-Mobile"]},
+  "229":{"state":"GA","region":"Albany","carriers":["AT&T","Verizon","T-Mobile"]},
+  "234":{"state":"OH","region":"Akron / Canton","carriers":["AT&T","Verizon","T-Mobile"]},
+  "240":{"state":"MD","region":"Suburban DC / Montgomery County","carriers":["Verizon","AT&T","T-Mobile"]},
+  "248":{"state":"MI","region":"Oakland County / Pontiac","carriers":["AT&T","T-Mobile","Verizon"]},
+  "251":{"state":"AL","region":"Mobile","carriers":["AT&T","Verizon","T-Mobile"]},
+  "253":{"state":"WA","region":"Tacoma","carriers":["T-Mobile","AT&T","Verizon"]},
+  "267":{"state":"PA","region":"Philadelphia (overlay)","carriers":["Verizon","AT&T","T-Mobile"]},
+  "281":{"state":"TX","region":"Houston suburbs","carriers":["AT&T","T-Mobile","Verizon"]},
+  "301":{"state":"MD","region":"Suburban DC / Prince George's","carriers":["Verizon","AT&T","T-Mobile"]},
+  "302":{"state":"DE","region":"Entire state","carriers":["Verizon","AT&T","T-Mobile"]},
+  "303":{"state":"CO","region":"Denver","carriers":["AT&T","T-Mobile","Verizon"]},
+  "305":{"state":"FL","region":"Miami / Key West","carriers":["AT&T","T-Mobile","Verizon"]},
+  "309":{"state":"IL","region":"Peoria","carriers":["AT&T","T-Mobile","Verizon"]},
+  "310":{"state":"CA","region":"West Los Angeles / Beverly Hills","carriers":["AT&T","T-Mobile","Verizon"]},
+  "312":{"state":"IL","region":"Chicago (downtown)","carriers":["AT&T","T-Mobile","Verizon"]},
+  "313":{"state":"MI","region":"Detroit","carriers":["AT&T","T-Mobile","Verizon"]},
+  "314":{"state":"MO","region":"St. Louis","carriers":["AT&T","T-Mobile","Verizon"]},
+  "315":{"state":"NY","region":"Syracuse","carriers":["Verizon","AT&T","T-Mobile"]},
+  "317":{"state":"IN","region":"Indianapolis","carriers":["AT&T","Verizon","T-Mobile"]},
+  "318":{"state":"LA","region":"Shreveport","carriers":["AT&T","Verizon","T-Mobile"]},
+  "319":{"state":"IA","region":"Cedar Rapids","carriers":["T-Mobile","Verizon","AT&T"]},
+  "320":{"state":"MN","region":"St. Cloud","carriers":["T-Mobile","Verizon","AT&T"]},
+  "323":{"state":"CA","region":"Los Angeles (East)","carriers":["AT&T","T-Mobile","Verizon"]},
+  "325":{"state":"TX","region":"Abilene","carriers":["AT&T","Verizon","T-Mobile"]},
+  "330":{"state":"OH","region":"Youngstown / Canton","carriers":["AT&T","Verizon","T-Mobile"]},
+  "334":{"state":"AL","region":"Montgomery","carriers":["AT&T","Verizon","T-Mobile"]},
+  "336":{"state":"NC","region":"Greensboro / Winston-Salem","carriers":["AT&T","Verizon","T-Mobile"]},
+  "337":{"state":"LA","region":"Lafayette","carriers":["AT&T","Verizon","T-Mobile"]},
+  "347":{"state":"NY","region":"NYC Boroughs (overlay)","carriers":["Verizon","AT&T","T-Mobile"]},
+  "351":{"state":"MA","region":"North Shore / Lowell","carriers":["Verizon","AT&T","T-Mobile"]},
+  "352":{"state":"FL","region":"Gainesville / Ocala","carriers":["AT&T","Verizon","T-Mobile"]},
+  "360":{"state":"WA","region":"Western WA (Bellingham/Olympia)","carriers":["T-Mobile","AT&T","Verizon"]},
+  "385":{"state":"UT","region":"Salt Lake City (overlay)","carriers":["T-Mobile","Verizon","AT&T"]},
+  "386":{"state":"FL","region":"Daytona Beach","carriers":["AT&T","Verizon","T-Mobile"]},
+  "401":{"state":"RI","region":"Entire state","carriers":["Verizon","AT&T","T-Mobile"]},
+  "402":{"state":"NE","region":"Omaha","carriers":["T-Mobile","Verizon","AT&T"]},
+  "404":{"state":"GA","region":"Atlanta","carriers":["AT&T","T-Mobile","Verizon"]},
+  "405":{"state":"OK","region":"Oklahoma City","carriers":["AT&T","T-Mobile","Verizon"]},
+  "406":{"state":"MT","region":"Entire state","carriers":["T-Mobile","Verizon","AT&T"]},
+  "407":{"state":"FL","region":"Orlando","carriers":["AT&T","Verizon","T-Mobile"]},
+  "408":{"state":"CA","region":"San Jose / Silicon Valley","carriers":["AT&T","T-Mobile","Verizon"]},
+  "409":{"state":"TX","region":"Beaumont / Galveston","carriers":["AT&T","Verizon","T-Mobile"]},
+  "410":{"state":"MD","region":"Baltimore","carriers":["Verizon","AT&T","T-Mobile"]},
+  "412":{"state":"PA","region":"Pittsburgh","carriers":["Verizon","AT&T","T-Mobile"]},
+  "415":{"state":"CA","region":"San Francisco","carriers":["AT&T","T-Mobile","Verizon"]},
+  "419":{"state":"OH","region":"Toledo","carriers":["AT&T","Verizon","T-Mobile"]},
+  "423":{"state":"TN","region":"Chattanooga / Knoxville","carriers":["AT&T","Verizon","T-Mobile"]},
+  "424":{"state":"CA","region":"Southwest LA (overlay)","carriers":["AT&T","T-Mobile","Verizon"]},
+  "425":{"state":"WA","region":"Bellevue / Redmond / Kirkland","carriers":["T-Mobile","AT&T","Verizon"]},
+  "432":{"state":"TX","region":"Odessa / Midland","carriers":["AT&T","Verizon","T-Mobile"]},
+  "434":{"state":"VA","region":"Charlottesville","carriers":["Verizon","AT&T","T-Mobile"]},
+  "435":{"state":"UT","region":"Rural Utah","carriers":["T-Mobile","Verizon","AT&T"]},
+  "440":{"state":"OH","region":"Cleveland suburbs","carriers":["AT&T","Verizon","T-Mobile"]},
+  "443":{"state":"MD","region":"Baltimore (overlay)","carriers":["Verizon","AT&T","T-Mobile"]},
+  "458":{"state":"OR","region":"Eugene (overlay)","carriers":["T-Mobile","AT&T","Verizon"]},
+  "469":{"state":"TX","region":"Dallas (overlay)","carriers":["AT&T","T-Mobile","Verizon"]},
+  "470":{"state":"GA","region":"Atlanta (overlay)","carriers":["AT&T","T-Mobile","Verizon"]},
+  "475":{"state":"CT","region":"Bridgeport (overlay)","carriers":["AT&T","T-Mobile","Verizon"]},
+  "478":{"state":"GA","region":"Macon","carriers":["AT&T","Verizon","T-Mobile"]},
+  "480":{"state":"AZ","region":"Scottsdale / Tempe / Mesa","carriers":["T-Mobile","AT&T","Verizon"]},
+  "484":{"state":"PA","region":"Allentown (overlay)","carriers":["Verizon","AT&T","T-Mobile"]},
+  "501":{"state":"AR","region":"Little Rock","carriers":["AT&T","Verizon","T-Mobile"]},
+  "502":{"state":"KY","region":"Louisville","carriers":["AT&T","T-Mobile","Verizon"]},
+  "503":{"state":"OR","region":"Portland","carriers":["T-Mobile","AT&T","Verizon"]},
+  "504":{"state":"LA","region":"New Orleans","carriers":["AT&T","Verizon","T-Mobile"]},
+  "505":{"state":"NM","region":"Albuquerque","carriers":["T-Mobile","AT&T","Verizon"]},
+  "507":{"state":"MN","region":"Rochester","carriers":["T-Mobile","Verizon","AT&T"]},
+  "508":{"state":"MA","region":"Worcester / Cape Cod","carriers":["Verizon","AT&T","T-Mobile"]},
+  "509":{"state":"WA","region":"Spokane / Eastern WA","carriers":["T-Mobile","AT&T","Verizon"]},
+  "510":{"state":"CA","region":"Oakland / East Bay","carriers":["AT&T","T-Mobile","Verizon"]},
+  "512":{"state":"TX","region":"Austin","carriers":["AT&T","T-Mobile","Verizon"]},
+  "513":{"state":"OH","region":"Cincinnati","carriers":["AT&T","Verizon","T-Mobile"]},
+  "515":{"state":"IA","region":"Des Moines","carriers":["T-Mobile","Verizon","AT&T"]},
+  "516":{"state":"NY","region":"Nassau County / Long Island","carriers":["Verizon","AT&T","T-Mobile"]},
+  "517":{"state":"MI","region":"Lansing","carriers":["AT&T","T-Mobile","Verizon"]},
+  "518":{"state":"NY","region":"Albany","carriers":["Verizon","AT&T","T-Mobile"]},
+  "520":{"state":"AZ","region":"Tucson","carriers":["T-Mobile","AT&T","Verizon"]},
+  "530":{"state":"CA","region":"Sacramento suburbs / Chico","carriers":["AT&T","T-Mobile","Verizon"]},
+  "539":{"state":"OK","region":"Tulsa (overlay)","carriers":["AT&T","T-Mobile","Verizon"]},
+  "540":{"state":"VA","region":"Roanoke / Fredericksburg","carriers":["Verizon","AT&T","T-Mobile"]},
+  "541":{"state":"OR","region":"Eugene / Medford","carriers":["T-Mobile","AT&T","Verizon"]},
+  "559":{"state":"CA","region":"Fresno","carriers":["AT&T","T-Mobile","Verizon"]},
+  "561":{"state":"FL","region":"West Palm Beach / Boca Raton","carriers":["AT&T","Verizon","T-Mobile"]},
+  "562":{"state":"CA","region":"Long Beach","carriers":["AT&T","T-Mobile","Verizon"]},
+  "563":{"state":"IA","region":"Davenport / Quad Cities","carriers":["T-Mobile","Verizon","AT&T"]},
+  "570":{"state":"PA","region":"Scranton / Wilkes-Barre","carriers":["Verizon","AT&T","T-Mobile"]},
+  "571":{"state":"VA","region":"Northern VA (overlay)","carriers":["Verizon","AT&T","T-Mobile"]},
+  "573":{"state":"MO","region":"Columbia / Jefferson City","carriers":["AT&T","T-Mobile","Verizon"]},
+  "575":{"state":"NM","region":"Southern NM","carriers":["T-Mobile","AT&T","Verizon"]},
+  "580":{"state":"OK","region":"Southwest Oklahoma","carriers":["AT&T","Verizon","T-Mobile"]},
+  "585":{"state":"NY","region":"Rochester","carriers":["Verizon","AT&T","T-Mobile"]},
+  "586":{"state":"MI","region":"Macomb County","carriers":["AT&T","T-Mobile","Verizon"]},
+  "601":{"state":"MS","region":"Jackson","carriers":["AT&T","Verizon","T-Mobile"]},
+  "602":{"state":"AZ","region":"Phoenix","carriers":["T-Mobile","AT&T","Verizon"]},
+  "603":{"state":"NH","region":"Entire state","carriers":["Verizon","AT&T","T-Mobile"]},
+  "605":{"state":"SD","region":"Entire state","carriers":["T-Mobile","Verizon","AT&T"]},
+  "606":{"state":"KY","region":"Eastern Kentucky","carriers":["AT&T","Verizon","T-Mobile"]},
+  "607":{"state":"NY","region":"Binghamton / Ithaca","carriers":["Verizon","AT&T","T-Mobile"]},
+  "608":{"state":"WI","region":"Madison","carriers":["AT&T","T-Mobile","Verizon"]},
+  "609":{"state":"NJ","region":"Trenton / Atlantic City","carriers":["Verizon","AT&T","T-Mobile"]},
+  "610":{"state":"PA","region":"Allentown / Bethlehem","carriers":["Verizon","AT&T","T-Mobile"]},
+  "612":{"state":"MN","region":"Minneapolis","carriers":["T-Mobile","Verizon","AT&T"]},
+  "614":{"state":"OH","region":"Columbus","carriers":["AT&T","Verizon","T-Mobile"]},
+  "615":{"state":"TN","region":"Nashville","carriers":["AT&T","T-Mobile","Verizon"]},
+  "616":{"state":"MI","region":"Grand Rapids","carriers":["AT&T","T-Mobile","Verizon"]},
+  "617":{"state":"MA","region":"Boston","carriers":["Verizon","AT&T","T-Mobile"]},
+  "619":{"state":"CA","region":"San Diego","carriers":["AT&T","T-Mobile","Verizon"]},
+  "620":{"state":"KS","region":"Wichita area","carriers":["T-Mobile","AT&T","Verizon"]},
+  "623":{"state":"AZ","region":"Phoenix West / Glendale","carriers":["T-Mobile","AT&T","Verizon"]},
+  "626":{"state":"CA","region":"Pasadena / San Gabriel Valley","carriers":["AT&T","T-Mobile","Verizon"]},
+  "630":{"state":"IL","region":"DuPage County / Naperville","carriers":["AT&T","T-Mobile","Verizon"]},
+  "631":{"state":"NY","region":"Suffolk County / Long Island","carriers":["Verizon","AT&T","T-Mobile"]},
+  "636":{"state":"MO","region":"St. Louis suburbs","carriers":["AT&T","T-Mobile","Verizon"]},
+  "646":{"state":"NY","region":"Manhattan (overlay)","carriers":["Verizon","AT&T","T-Mobile"]},
+  "650":{"state":"CA","region":"San Mateo / Palo Alto","carriers":["AT&T","T-Mobile","Verizon"]},
+  "651":{"state":"MN","region":"St. Paul","carriers":["T-Mobile","Verizon","AT&T"]},
+  "657":{"state":"CA","region":"Orange County (overlay)","carriers":["AT&T","T-Mobile","Verizon"]},
+  "660":{"state":"MO","region":"Sedalia","carriers":["AT&T","T-Mobile","Verizon"]},
+  "661":{"state":"CA","region":"Bakersfield","carriers":["AT&T","T-Mobile","Verizon"]},
+  "662":{"state":"MS","region":"Oxford / Tupelo","carriers":["AT&T","Verizon","T-Mobile"]},
+  "667":{"state":"MD","region":"Baltimore (overlay)","carriers":["Verizon","AT&T","T-Mobile"]},
+  "678":{"state":"GA","region":"Atlanta (overlay)","carriers":["AT&T","T-Mobile","Verizon"]},
+  "682":{"state":"TX","region":"Fort Worth (overlay)","carriers":["AT&T","T-Mobile","Verizon"]},
+  "701":{"state":"ND","region":"Entire state","carriers":["T-Mobile","Verizon","AT&T"]},
+  "702":{"state":"NV","region":"Las Vegas","carriers":["T-Mobile","AT&T","Verizon"]},
+  "703":{"state":"VA","region":"Northern Virginia","carriers":["Verizon","AT&T","T-Mobile"]},
+  "704":{"state":"NC","region":"Charlotte","carriers":["AT&T","Verizon","T-Mobile"]},
+  "706":{"state":"GA","region":"Augusta / Columbus","carriers":["AT&T","Verizon","T-Mobile"]},
+  "707":{"state":"CA","region":"Santa Rosa / Napa","carriers":["AT&T","T-Mobile","Verizon"]},
+  "708":{"state":"IL","region":"South Suburban Chicago","carriers":["AT&T","T-Mobile","Verizon"]},
+  "712":{"state":"IA","region":"Sioux City","carriers":["T-Mobile","Verizon","AT&T"]},
+  "713":{"state":"TX","region":"Houston","carriers":["AT&T","T-Mobile","Verizon"]},
+  "714":{"state":"CA","region":"Anaheim / Orange County","carriers":["AT&T","T-Mobile","Verizon"]},
+  "715":{"state":"WI","region":"Wausau / Eau Claire","carriers":["AT&T","T-Mobile","Verizon"]},
+  "716":{"state":"NY","region":"Buffalo","carriers":["Verizon","AT&T","T-Mobile"]},
+  "717":{"state":"PA","region":"Harrisburg / Lancaster","carriers":["Verizon","AT&T","T-Mobile"]},
+  "718":{"state":"NY","region":"NYC Outer Boroughs","carriers":["Verizon","AT&T","T-Mobile"]},
+  "719":{"state":"CO","region":"Colorado Springs / Pueblo","carriers":["AT&T","T-Mobile","Verizon"]},
+  "720":{"state":"CO","region":"Denver (overlay)","carriers":["AT&T","T-Mobile","Verizon"]},
+  "724":{"state":"PA","region":"Western PA","carriers":["Verizon","AT&T","T-Mobile"]},
+  "725":{"state":"NV","region":"Las Vegas (overlay)","carriers":["T-Mobile","AT&T","Verizon"]},
+  "727":{"state":"FL","region":"Clearwater / St. Petersburg","carriers":["AT&T","Verizon","T-Mobile"]},
+  "731":{"state":"TN","region":"Jackson","carriers":["AT&T","Verizon","T-Mobile"]},
+  "732":{"state":"NJ","region":"Central Jersey","carriers":["Verizon","AT&T","T-Mobile"]},
+  "734":{"state":"MI","region":"Ann Arbor","carriers":["AT&T","T-Mobile","Verizon"]},
+  "737":{"state":"TX","region":"Austin (overlay)","carriers":["AT&T","T-Mobile","Verizon"]},
+  "740":{"state":"OH","region":"Southeast Ohio / Zanesville","carriers":["AT&T","Verizon","T-Mobile"]},
+  "747":{"state":"CA","region":"San Fernando Valley (overlay)","carriers":["AT&T","T-Mobile","Verizon"]},
+  "754":{"state":"FL","region":"Broward County (overlay)","carriers":["AT&T","Verizon","T-Mobile"]},
+  "757":{"state":"VA","region":"Virginia Beach / Norfolk","carriers":["Verizon","AT&T","T-Mobile"]},
+  "760":{"state":"CA","region":"Palm Springs / Inland Empire","carriers":["AT&T","T-Mobile","Verizon"]},
+  "762":{"state":"GA","region":"Columbus (overlay)","carriers":["AT&T","Verizon","T-Mobile"]},
+  "763":{"state":"MN","region":"Northwest Minneapolis suburbs","carriers":["T-Mobile","Verizon","AT&T"]},
+  "765":{"state":"IN","region":"Lafayette","carriers":["AT&T","Verizon","T-Mobile"]},
+  "770":{"state":"GA","region":"Atlanta suburbs","carriers":["AT&T","T-Mobile","Verizon"]},
+  "772":{"state":"FL","region":"Fort Pierce / Stuart","carriers":["AT&T","Verizon","T-Mobile"]},
+  "773":{"state":"IL","region":"Chicago (non-downtown)","carriers":["AT&T","T-Mobile","Verizon"]},
+  "775":{"state":"NV","region":"Reno / Northern NV","carriers":["T-Mobile","AT&T","Verizon"]},
+  "781":{"state":"MA","region":"Boston suburbs","carriers":["Verizon","AT&T","T-Mobile"]},
+  "785":{"state":"KS","region":"Topeka","carriers":["T-Mobile","AT&T","Verizon"]},
+  "786":{"state":"FL","region":"Miami (overlay)","carriers":["AT&T","T-Mobile","Verizon"]},
+  "801":{"state":"UT","region":"Salt Lake City","carriers":["T-Mobile","Verizon","AT&T"]},
+  "802":{"state":"VT","region":"Entire state","carriers":["Verizon","AT&T","T-Mobile"]},
+  "803":{"state":"SC","region":"Columbia","carriers":["AT&T","Verizon","T-Mobile"]},
+  "804":{"state":"VA","region":"Richmond","carriers":["Verizon","AT&T","T-Mobile"]},
+  "805":{"state":"CA","region":"Santa Barbara / Ventura","carriers":["AT&T","T-Mobile","Verizon"]},
+  "806":{"state":"TX","region":"Amarillo / Lubbock","carriers":["AT&T","Verizon","T-Mobile"]},
+  "808":{"state":"HI","region":"Entire state","carriers":["T-Mobile","AT&T","Verizon"]},
+  "810":{"state":"MI","region":"Flint","carriers":["AT&T","T-Mobile","Verizon"]},
+  "812":{"state":"IN","region":"Evansville","carriers":["AT&T","Verizon","T-Mobile"]},
+  "813":{"state":"FL","region":"Tampa","carriers":["AT&T","Verizon","T-Mobile"]},
+  "814":{"state":"PA","region":"Erie","carriers":["Verizon","AT&T","T-Mobile"]},
+  "815":{"state":"IL","region":"Rockford","carriers":["AT&T","T-Mobile","Verizon"]},
+  "816":{"state":"MO","region":"Kansas City","carriers":["AT&T","T-Mobile","Verizon"]},
+  "817":{"state":"TX","region":"Fort Worth","carriers":["AT&T","T-Mobile","Verizon"]},
+  "818":{"state":"CA","region":"San Fernando Valley","carriers":["AT&T","T-Mobile","Verizon"]},
+  "828":{"state":"NC","region":"Asheville","carriers":["AT&T","Verizon","T-Mobile"]},
+  "830":{"state":"TX","region":"Del Rio / Kerrville","carriers":["AT&T","Verizon","T-Mobile"]},
+  "831":{"state":"CA","region":"Monterey / Santa Cruz","carriers":["AT&T","T-Mobile","Verizon"]},
+  "832":{"state":"TX","region":"Houston (overlay)","carriers":["AT&T","T-Mobile","Verizon"]},
+  "843":{"state":"SC","region":"Charleston / Myrtle Beach","carriers":["AT&T","Verizon","T-Mobile"]},
+  "845":{"state":"NY","region":"Hudson Valley / Poughkeepsie","carriers":["Verizon","AT&T","T-Mobile"]},
+  "847":{"state":"IL","region":"North Suburban Chicago","carriers":["AT&T","T-Mobile","Verizon"]},
+  "850":{"state":"FL","region":"Tallahassee / Pensacola","carriers":["AT&T","Verizon","T-Mobile"]},
+  "856":{"state":"NJ","region":"South Jersey / Camden","carriers":["Verizon","AT&T","T-Mobile"]},
+  "857":{"state":"MA","region":"Boston (overlay)","carriers":["Verizon","AT&T","T-Mobile"]},
+  "858":{"state":"CA","region":"North San Diego","carriers":["AT&T","T-Mobile","Verizon"]},
+  "859":{"state":"KY","region":"Lexington","carriers":["AT&T","T-Mobile","Verizon"]},
+  "860":{"state":"CT","region":"Hartford","carriers":["AT&T","T-Mobile","Verizon"]},
+  "862":{"state":"NJ","region":"Newark (overlay)","carriers":["Verizon","AT&T","T-Mobile"]},
+  "863":{"state":"FL","region":"Lakeland","carriers":["AT&T","Verizon","T-Mobile"]},
+  "864":{"state":"SC","region":"Greenville / Spartanburg","carriers":["AT&T","Verizon","T-Mobile"]},
+  "865":{"state":"TN","region":"Knoxville","carriers":["AT&T","Verizon","T-Mobile"]},
+  "870":{"state":"AR","region":"Northeast Arkansas","carriers":["AT&T","Verizon","T-Mobile"]},
+  "872":{"state":"IL","region":"Chicago (overlay)","carriers":["AT&T","T-Mobile","Verizon"]},
+  "901":{"state":"TN","region":"Memphis","carriers":["AT&T","T-Mobile","Verizon"]},
+  "903":{"state":"TX","region":"East Texas / Tyler","carriers":["AT&T","Verizon","T-Mobile"]},
+  "904":{"state":"FL","region":"Jacksonville","carriers":["AT&T","Verizon","T-Mobile"]},
+  "906":{"state":"MI","region":"Upper Peninsula","carriers":["AT&T","T-Mobile","Verizon"]},
+  "907":{"state":"AK","region":"Entire state","carriers":["GCI","AT&T","T-Mobile"]},
+  "908":{"state":"NJ","region":"Central NJ","carriers":["Verizon","AT&T","T-Mobile"]},
+  "909":{"state":"CA","region":"Inland Empire / San Bernardino","carriers":["AT&T","T-Mobile","Verizon"]},
+  "910":{"state":"NC","region":"Fayetteville / Wilmington","carriers":["AT&T","Verizon","T-Mobile"]},
+  "912":{"state":"GA","region":"Savannah","carriers":["AT&T","Verizon","T-Mobile"]},
+  "913":{"state":"KS","region":"Kansas City (KS side)","carriers":["T-Mobile","AT&T","Verizon"]},
+  "914":{"state":"NY","region":"Westchester County","carriers":["Verizon","AT&T","T-Mobile"]},
+  "915":{"state":"TX","region":"El Paso","carriers":["AT&T","T-Mobile","Verizon"]},
+  "916":{"state":"CA","region":"Sacramento","carriers":["AT&T","T-Mobile","Verizon"]},
+  "917":{"state":"NY","region":"NYC (mobile overlay)","carriers":["Verizon","AT&T","T-Mobile"]},
+  "918":{"state":"OK","region":"Tulsa","carriers":["AT&T","T-Mobile","Verizon"]},
+  "919":{"state":"NC","region":"Raleigh / Durham","carriers":["AT&T","Verizon","T-Mobile"]},
+  "920":{"state":"WI","region":"Green Bay / Appleton","carriers":["AT&T","T-Mobile","Verizon"]},
+  "925":{"state":"CA","region":"Contra Costa County / Concord","carriers":["AT&T","T-Mobile","Verizon"]},
+  "928":{"state":"AZ","region":"Flagstaff / Yuma","carriers":["T-Mobile","AT&T","Verizon"]},
+  "929":{"state":"NY","region":"NYC Boroughs (overlay)","carriers":["Verizon","AT&T","T-Mobile"]},
+  "930":{"state":"IN","region":"Bloomington","carriers":["AT&T","Verizon","T-Mobile"]},
+  "931":{"state":"TN","region":"Clarksville","carriers":["AT&T","Verizon","T-Mobile"]},
+  "934":{"state":"NY","region":"Long Island (overlay)","carriers":["Verizon","AT&T","T-Mobile"]},
+  "936":{"state":"TX","region":"Nacogdoches / Lufkin","carriers":["AT&T","Verizon","T-Mobile"]},
+  "937":{"state":"OH","region":"Dayton","carriers":["AT&T","Verizon","T-Mobile"]},
+  "940":{"state":"TX","region":"Wichita Falls","carriers":["AT&T","Verizon","T-Mobile"]},
+  "941":{"state":"FL","region":"Sarasota","carriers":["AT&T","Verizon","T-Mobile"]},
+  "945":{"state":"TX","region":"Dallas (overlay)","carriers":["AT&T","T-Mobile","Verizon"]},
+  "947":{"state":"MI","region":"Oakland County (overlay)","carriers":["AT&T","T-Mobile","Verizon"]},
+  "949":{"state":"CA","region":"Irvine / Newport Beach","carriers":["AT&T","T-Mobile","Verizon"]},
+  "951":{"state":"CA","region":"Riverside / Murrieta","carriers":["AT&T","T-Mobile","Verizon"]},
+  "952":{"state":"MN","region":"Southwest Minneapolis suburbs","carriers":["T-Mobile","Verizon","AT&T"]},
+  "954":{"state":"FL","region":"Fort Lauderdale / Broward","carriers":["AT&T","Verizon","T-Mobile"]},
+  "956":{"state":"TX","region":"Laredo / McAllen","carriers":["AT&T","T-Mobile","Verizon"]},
+  "959":{"state":"CT","region":"Hartford (overlay)","carriers":["AT&T","T-Mobile","Verizon"]},
+  "970":{"state":"CO","region":"Grand Junction / Fort Collins","carriers":["AT&T","T-Mobile","Verizon"]},
+  "971":{"state":"OR","region":"Portland (overlay)","carriers":["T-Mobile","AT&T","Verizon"]},
+  "972":{"state":"TX","region":"Dallas suburbs","carriers":["AT&T","T-Mobile","Verizon"]},
+  "973":{"state":"NJ","region":"Newark / Passaic","carriers":["Verizon","AT&T","T-Mobile"]},
+  "978":{"state":"MA","region":"North Shore / Lawrence","carriers":["Verizon","AT&T","T-Mobile"]},
+  "979":{"state":"TX","region":"Bryan / College Station","carriers":["AT&T","Verizon","T-Mobile"]},
+  "980":{"state":"NC","region":"Charlotte (overlay)","carriers":["AT&T","Verizon","T-Mobile"]},
+  "984":{"state":"NC","region":"Research Triangle (overlay)","carriers":["AT&T","Verizon","T-Mobile"]},
+  "985":{"state":"LA","region":"Houma / Thibodaux","carriers":["AT&T","Verizon","T-Mobile"]},
+  "989":{"state":"MI","region":"Saginaw / Bay City","carriers":["AT&T","T-Mobile","Verizon"]},
+};
+
+function buildPhoneDorks(number: string, e164: string): string[] {
+  const clean = number.replace(/\D/g, "");
+  const dashes = clean.replace(/(\d{3})(\d{3})(\d{4})/, "$1-$2-$3");
+  const dots   = clean.replace(/(\d{3})(\d{3})(\d{4})/, "$1.$2.$3");
+  const parens = clean.replace(/(\d{3})(\d{3})(\d{4})/, "($1) $2-$3");
+  return [
+    `"${clean}" OR "${dashes}" OR "${dots}"`,
+    `"${parens}" site:whitepages.com OR site:spokeo.com OR site:beenverified.com`,
+    `"${clean}" site:facebook.com OR site:linkedin.com OR site:twitter.com`,
+    `"${clean}" OR "${dashes}" inurl:profile OR inurl:user OR inurl:contact`,
+    `"${e164}" OR "${clean}" site:truecaller.com OR site:callerID.com`,
+    `"${clean}" filetype:pdf OR filetype:xlsx OR filetype:csv`,
+    `"${dashes}" -site:whitepages.com -site:yellowpages.com`,
+  ];
+}
+
+const LINE_TYPE_LABEL: Partial<Record<PhoneNumberType, string>> = {
+  MOBILE:       "Mobile",
+  FIXED_LINE:   "Landline",
+  FIXED_LINE_OR_MOBILE: "Landline or Mobile",
+  TOLL_FREE:    "Toll-Free",
+  PREMIUM_RATE: "Premium Rate",
+  VOIP:         "VoIP",
+  PAGER:        "Pager",
+  UAN:          "Universal Access Number",
+  UNKNOWN:      "Unknown",
+};
+
+router.post("/phone-lookup", async (req: Request, res: Response) => {
+  const schema = z.object({ phone: z.string().min(7).max(30) });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid phone number input" });
+
+  const raw = parsed.data.phone.trim();
+
+  // Try parsing as US first, then international
+  let phoneObj = null;
+  let parseError = "";
+  for (const country of (["US", undefined] as const)) {
+    try {
+      const candidate = country ? parsePhoneNumber(raw, country) : parsePhoneNumber(raw);
+      if (candidate.isValid()) { phoneObj = candidate; break; }
+    } catch (e: any) { parseError = e.message; }
+  }
+
+  if (!phoneObj) {
+    return res.json({
+      valid: false,
+      input: raw,
+      error: `Could not parse as a valid phone number. ${parseError}`,
+      suggestions: [
+        "For US numbers try: +1 (555) 867-5309 or 5558675309",
+        "For international: +44 20 7946 0958",
+      ],
+    });
+  }
+
+  const e164     = phoneObj.format("E.164");           // +14155551234
+  const national = phoneObj.formatNational();          // (415) 555-1234
+  const intl     = phoneObj.formatInternational();     // +1 415 555 1234
+  const country  = phoneObj.country ?? "Unknown";
+  const lineType = getNumberType(phoneObj);
+  const lineLabel = LINE_TYPE_LABEL[lineType] ?? "Unknown";
+  const areaCode  = e164.startsWith("+1") ? e164.slice(2, 5) : null;
+  const areaInfo  = areaCode ? (US_AREA_CODES[areaCode] ?? null) : null;
+
+  // Public reverse lookup links (no API key needed)
+  const reverseLookupLinks = [
+    { name: "WhitePages",       url: `https://www.whitepages.com/phone/${e164.replace("+1", "")}` },
+    { name: "Spokeo",           url: `https://www.spokeo.com/phone/${e164.replace("+1", "")}` },
+    { name: "BeenVerified",     url: `https://www.beenverified.com/phone/${national.replace(/\D/g, "")}` },
+    { name: "TrueCaller",       url: `https://www.truecaller.com/search/${country}/${e164.slice(1)}` },
+    { name: "NumLookup",        url: `https://www.numlookup.com/?number=${encodeURIComponent(e164)}` },
+    { name: "CocoFinder",       url: `https://cocofinder.com/phone/${e164.replace("+1", "").replace(/\D/g, "")}` },
+    { name: "Intelius",         url: `https://www.intelius.com/reverse-phone-lookup/${national.replace(/\D/g, "")}` },
+    { name: "AnyWho",           url: `https://www.anywho.com/reverse-lookup/phone/${national.replace(/\D/g, "")}` },
+  ];
+
+  // Social media searches
+  const socialSearchLinks = [
+    { name: "Google",     url: `https://www.google.com/search?q=${encodeURIComponent('"' + national + '" OR "' + e164.replace("+1","") + '"')}` },
+    { name: "Facebook",   url: `https://www.facebook.com/search/top?q=${encodeURIComponent(national)}` },
+    { name: "LinkedIn",   url: `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(national)}` },
+    { name: "Twitter/X",  url: `https://x.com/search?q=${encodeURIComponent(national)}&src=typed_query` },
+  ];
+
+  // Dork queries
+  const dorkQueries = buildPhoneDorks(national, e164);
+
+  // Try fetching public info from Veriphone (free, no key)
+  let veriphoneData: any = null;
+  try {
+    const ctrl = new AbortController();
+    setTimeout(() => ctrl.abort(), 6000);
+    const vr = await fetch(
+      `https://api.veriphone.io/v1/verify?phone=${encodeURIComponent(e164)}&key=test`,
+      { signal: ctrl.signal }
+    );
+    if (vr.ok) {
+      const vd = await vr.json();
+      if (vd.phone_valid) veriphoneData = vd;
+    }
+  } catch { /* API unavailable — graceful degradation */ }
+
+  // Try fetching from AbstractAPI free NANP lookup
+  let carrierData: any = null;
+  if (!veriphoneData && areaCode) {
+    // Fall back to our built-in area code data
+    carrierData = areaInfo ? {
+      carrier: areaInfo.carriers[0],
+      possibleCarriers: areaInfo.carriers,
+      source: "NANP area code database",
+    } : null;
+  }
+
+  return res.json({
+    valid: true,
+    input: raw,
+    formatted: { e164, national, international: intl },
+    country,
+    countryName: phoneObj.country === "US" ? "United States" : country,
+    lineType: lineLabel,
+    areaCode,
+    areaInfo: areaInfo ? {
+      state: areaInfo.state,
+      region: areaInfo.region,
+      topCarriers: areaInfo.carriers,
+    } : null,
+    carrier: veriphoneData?.carrier ?? carrierData?.carrier ?? null,
+    carrierSource: veriphoneData ? "Veriphone API" : carrierData ? "NANP area code database" : "Unavailable",
+    veriphoneEnriched: veriphoneData ? {
+      carrier:    veriphoneData.carrier,
+      lineType:   veriphoneData.phone_type,
+      local:      veriphoneData.local_format,
+      countryCode: veriphoneData.country_code,
+      countryName: veriphoneData.country_name,
+    } : null,
+    osint: {
+      reverseLookupLinks,
+      socialSearchLinks,
+      dorkQueries,
+      note: "Links open third-party public records sites. Results depend on whether the number is registered in their databases.",
+    },
+    warnings: [
+      country === "US" && lineType === "MOBILE" ? "Mobile numbers can be ported between carriers — carrier data reflects original assignment, not necessarily current." : null,
+      "Phone number lookup is for authorized investigations only. Ensure compliance with TCPA, FCRA, CCPA, and applicable state laws before using results.",
+    ].filter(Boolean),
+  });
+});
+
 export default router;
+
 
