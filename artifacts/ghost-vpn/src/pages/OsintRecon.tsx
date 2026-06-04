@@ -705,16 +705,15 @@ export default function OsintRecon() {
     if (!q) return null;
     if (/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(q)) return "email";
     if (/^\d{17,20}$/.test(q)) return "discord_id";
-    // Phone: + prefix (international E.164 style)
-    if (/^\+[1-9][\d\s\-\(\)\.]{6,20}$/.test(q)) return "phone";
     const digitsOnly = q.replace(/\D/g, "");
-    // US NANP: 10 digits or 11 digits starting with 1
-    if ((digitsOnly.length === 10 || (digitsOnly.length === 11 && digitsOnly[0] === "1")) &&
-        /^[0-9\s\-\.\(\)\+]{7,17}$/.test(q)) return "phone";
-    // Country code without +: e.g. "44 7926 549374" or "1 800 555 0199"
-    // Matches NN[N] <space> then 6-12 more digits with optional separators
-    if (/^\d{1,3}[\s\-]\d[\d\s\-\(\)\.]{5,18}$/.test(q) && digitsOnly.length >= 10 && digitsOnly.length <= 15) return "phone";
-    // UK local: 11 digits starting with 07 (mobile), 01 or 02 (landline), 08/03 (special)
+    // Phone detection — treat + as optional; strip it and match the same pattern either way
+    // e.g. "+44 7926 549374", "44 7926 549374", "+1 800 555 0199", "1 800 555 0199", "5558675309"
+    const withoutPlus = q.startsWith("+") ? q.slice(1) : q;
+    if (
+      /^[1-9][\d\s\-\(\)\.]{8,22}$/.test(withoutPlus) &&
+      digitsOnly.length >= 10 && digitsOnly.length <= 15
+    ) return "phone";
+    // UK / AU / NZ / IE local format: 11 digits starting with 0 (e.g. "07926 549374")
     if (digitsOnly.length === 11 && digitsOnly[0] === "0" && /^[0-9\s\-\(\)\.]{9,14}$/.test(q)) return "phone";
     // Domain / IPv4
     if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(q)) return "domain";
