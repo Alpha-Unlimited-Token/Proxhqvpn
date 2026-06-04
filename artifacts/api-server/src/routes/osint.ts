@@ -1998,12 +1998,31 @@ router.post("/phone-lookup", async (req: Request, res: Response) => {
 
   const raw = parsed.data.phone.trim();
 
-  // Try parsing as US first, then international
+  // Normalise common formats before parsing:
+  // 1. "44 7926 549374"  → "+44 7926 549374"  (country code without +)
+  // 2. "07926 549374"    → kept as-is, tried under GB
+  // 3. "00 44 ..."       → "+44 ..."
+  const normalise = (s: string): string => {
+    if (s.startsWith("00")) return "+" + s.slice(2).trim();          // 00-prefixed IDD
+    if (/^\d{1,3}[\s\-]/.test(s) && !s.startsWith("0")) return "+" + s; // bare CC like "44 7926..."
+    return s;
+  };
+  const normRaw = normalise(raw);
+
+  // Country hint for local-format numbers (no CC at all, starts with 0)
+  const isLocalFormat = /^0\d/.test(normRaw.replace(/\s/g, ""));
+  // Try parsing with multiple country contexts
+  const tryCountries = isLocalFormat
+    ? (["GB", "AU", "NZ", "IE", "ZA", "US", undefined] as const)
+    : (["US", undefined, "GB", "AU", "IN", "DE", "FR", "JP", "BR", "MX"] as const);
+
   let phoneObj = null;
   let parseError = "";
-  for (const country of (["US", undefined] as const)) {
+  for (const country of tryCountries) {
     try {
-      const candidate = country ? parsePhoneNumber(raw, country) : parsePhoneNumber(raw);
+      const candidate = country
+        ? parsePhoneNumber(normRaw, country as any)
+        : parsePhoneNumber(normRaw);
       if (candidate.isValid()) { phoneObj = candidate; break; }
     } catch (e: any) { parseError = e.message; }
   }
@@ -2014,8 +2033,9 @@ router.post("/phone-lookup", async (req: Request, res: Response) => {
       input: raw,
       error: `Could not parse as a valid phone number. ${parseError}`,
       suggestions: [
-        "For US numbers try: +1 (555) 867-5309 or 5558675309",
-        "For international: +44 20 7946 0958",
+        "US:  +1 (555) 867-5309  or  5558675309",
+        "UK:  +44 7926 549374  or  44 7926 549374  or  07926 549374",
+        "International: include country code, e.g. +33 6 12 34 56 78",
       ],
     });
   }
@@ -2029,24 +2049,51 @@ router.post("/phone-lookup", async (req: Request, res: Response) => {
   const areaCode  = e164.startsWith("+1") ? e164.slice(2, 5) : null;
   const areaInfo  = areaCode ? (US_AREA_CODES[areaCode] ?? null) : null;
 
-  // Public reverse lookup links (no API key needed)
-  const reverseLookupLinks = [
-    { name: "WhitePages",       url: `https://www.whitepages.com/phone/${e164.replace("+1", "")}` },
-    { name: "Spokeo",           url: `https://www.spokeo.com/phone/${e164.replace("+1", "")}` },
-    { name: "BeenVerified",     url: `https://www.beenverified.com/phone/${national.replace(/\D/g, "")}` },
-    { name: "TrueCaller",       url: `https://www.truecaller.com/search/${country}/${e164.slice(1)}` },
-    { name: "NumLookup",        url: `https://www.numlookup.com/?number=${encodeURIComponent(e164)}` },
-    { name: "CocoFinder",       url: `https://cocofinder.com/phone/${e164.replace("+1", "").replace(/\D/g, "")}` },
-    { name: "Intelius",         url: `https://www.intelius.com/reverse-phone-lookup/${national.replace(/\D/g, "")}` },
-    { name: "AnyWho",           url: `https://www.anywho.com/reverse-lookup/phone/${national.replace(/\D/g, "")}` },
+  // Country code → human-readable name map
+  const COUNTRY_NAMES: Record<string, string> = {
+    US: "United States", GB: "United Kingdom", AU: "Australia", CA: "Canada",
+    NZ: "New Zealand", IE: "Ireland", ZA: "South Africa", IN: "India",
+    DE: "Germany", FR: "France", JP: "Japan", BR: "Brazil", MX: "Mexico",
+    IT: "Italy", ES: "Spain", NL: "Netherlands", SE: "Sweden", NO: "Norway",
+    DK: "Denmark", FI: "Finland", PL: "Poland", PT: "Portugal", BE: "Belgium",
+    CH: "Switzerland", AT: "Austria", SG: "Singapore", HK: "Hong Kong",
+    KR: "South Korea", CN: "China", RU: "Russia", UA: "Ukraine",
+    NG: "Nigeria", GH: "Ghana", KE: "Kenya", PK: "Pakistan", BD: "Bangladesh",
+  };
+  const countryName = COUNTRY_NAMES[country] ?? country;
+
+  const isGB = country === "GB";
+  const digitsNational = national.replace(/\D/g, "");
+  const e164Digits = e164.slice(1); // without leading +
+
+  // Public reverse lookup links — universal + country-specific
+  const reverseLookupLinks: { name: string; url: string; region?: string }[] = [
+    { name: "TrueCaller",   url: `https://www.truecaller.com/search/${country}/${e164Digits}` },
+    { name: "NumLookup",    url: `https://www.numlookup.com/?number=${encodeURIComponent(e164)}` },
+    // UK-specific
+    ...(isGB ? [
+      { name: "BT Phone Book",    url: `https://www.thephonebook.bt.com/person/phoneNumber/${digitsNational}/`, region: "UK" },
+      { name: "192.com",          url: `https://www.192.com/search/people/phone/?q=${digitsNational}`, region: "UK" },
+      { name: "Who Called Me UK", url: `https://www.whocalledme.co.uk/Phone-Number/${national.replace(/\s/g, "-")}`, region: "UK" },
+      { name: "Say Who Is",       url: `https://www.saywho.co.uk/phone-number/${digitsNational}`, region: "UK" },
+      { name: "HiWho UK",         url: `https://hiwho.com/reverse-phone-lookup/gb/${digitsNational}`, region: "UK" },
+      { name: "ReversePhoneLookup.co.uk", url: `https://www.reversephonenumbers.co.uk/phone-number/${digitsNational}`, region: "UK" },
+    ] : [
+      { name: "WhitePages",   url: `https://www.whitepages.com/phone/${e164.replace("+1", "")}` },
+      { name: "Spokeo",       url: `https://www.spokeo.com/phone/${e164.replace("+1", "")}` },
+      { name: "BeenVerified", url: `https://www.beenverified.com/phone/${digitsNational}` },
+      { name: "CocoFinder",   url: `https://cocofinder.com/phone/${e164.replace("+1", "").replace(/\D/g, "")}` },
+      { name: "Intelius",     url: `https://www.intelius.com/reverse-phone-lookup/${digitsNational}` },
+      { name: "AnyWho",       url: `https://www.anywho.com/reverse-lookup/phone/${digitsNational}` },
+    ]),
   ];
 
   // Social media searches
   const socialSearchLinks = [
-    { name: "Google",     url: `https://www.google.com/search?q=${encodeURIComponent('"' + national + '" OR "' + e164.replace("+1","") + '"')}` },
-    { name: "Facebook",   url: `https://www.facebook.com/search/top?q=${encodeURIComponent(national)}` },
-    { name: "LinkedIn",   url: `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(national)}` },
-    { name: "Twitter/X",  url: `https://x.com/search?q=${encodeURIComponent(national)}&src=typed_query` },
+    { name: "Google",     url: `https://www.google.com/search?q=${encodeURIComponent('"' + intl + '" OR "' + national + '"')}` },
+    { name: "Facebook",   url: `https://www.facebook.com/search/top?q=${encodeURIComponent(intl)}` },
+    { name: "LinkedIn",   url: `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(intl)}` },
+    { name: "Twitter/X",  url: `https://x.com/search?q=${encodeURIComponent('"' + national + '"')}&src=typed_query` },
   ];
 
   // Dork queries
@@ -2083,7 +2130,7 @@ router.post("/phone-lookup", async (req: Request, res: Response) => {
     input: raw,
     formatted: { e164, national, international: intl },
     country,
-    countryName: phoneObj.country === "US" ? "United States" : country,
+    countryName,
     lineType: lineLabel,
     areaCode,
     areaInfo: areaInfo ? {
