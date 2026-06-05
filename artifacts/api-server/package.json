@@ -24,6 +24,7 @@
     "@workspace/omega-api-zod": "workspace:*",
     "@workspace/wallet-tx": "workspace:*",
     "adm-zip": "^0.5.17",
+    "archiver": "^7.0.1",
     "bitcoinjs-lib": "^7.0.1",
     "cookie-parser": "^1.4.7",
     "cors": "^2",
@@ -47,6 +48,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@types/archiver": "^6.0.4",
     "@types/cookie-parser": "^1.4.10",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",

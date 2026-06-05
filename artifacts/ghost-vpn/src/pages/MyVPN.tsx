@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useUser } from "@clerk/react";
-import { Download, Shield, CheckCircle, ChevronDown, ChevronUp, RefreshCw, Smartphone, Apple, Monitor, Loader2, ShieldCheck } from "lucide-react";
+import { Download, Shield, CheckCircle, ChevronDown, ChevronUp, RefreshCw, Smartphone, Apple, Monitor, Loader2, ShieldCheck, Package } from "lucide-react";
 import { useListNodes } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -356,6 +356,28 @@ export default function Connect() {
               Switch to {targetNode?.name} and get new config
             </button>
           )}
+        </div>
+      </div>
+
+      {/* Windows All-Servers Pack */}
+      <div className="bg-[#0d1610] border border-primary/20 rounded-2xl p-5">
+        <div className="flex items-start gap-3">
+          <div className="w-9 h-9 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0 mt-0.5">
+            <Package className="w-4 h-4 text-primary" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-semibold text-white/93 mb-0.5">Download All Servers Pack</div>
+            <div className="text-xs text-white/50 leading-relaxed mb-3">
+              Get configs for all 4 servers in one zip. Used by the Windows installer — lets you switch between Los Angeles, Chicago, London, and Tokyo anytime without re-downloading.
+            </div>
+            <a
+              href={`${BASE}/api/wireguard/all-configs-zip`}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary/10 border border-primary/25 text-primary text-sm font-medium hover:bg-primary/20 transition-all"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Download proxhqvpn-all-servers.zip
+            </a>
+          </div>
         </div>
       </div>
 

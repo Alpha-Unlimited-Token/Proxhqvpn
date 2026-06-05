@@ -224,6 +224,161 @@ router.get("/peer-status/:configId", async (req, res) => {
   return res.json({ status: cmd.status, appliedAt: cmd.appliedAt, errorMessage: cmd.errorMessage });
 });
 
+// ─── GET /all-configs-zip ─────────────────────────────────────────────────────
+// Generates (or reuses) WireGuard configs for ALL active nodes and returns
+// them bundled as a single .zip file. Used by the Windows installer to install
+// every server tunnel in one step so the user can switch servers any time.
+router.get("/all-configs-zip", async (req, res) => {
+  const { userId } = getAuth(req);
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+  const nodes = await db
+    .select()
+    .from(nodesTable)
+    .where(eq(nodesTable.status, "active"));
+
+  if (nodes.length === 0) {
+    return res.status(404).json({ error: "No active nodes" });
+  }
+
+  const entries: { filename: string; text: string }[] = [];
+
+  for (const node of nodes) {
+    let [cfg] = await db
+      .select()
+      .from(userWgConfigsTable)
+      .where(
+        and(
+          eq(userWgConfigsTable.userId, userId),
+          eq(userWgConfigsTable.nodeId, node.id),
+          isNull(userWgConfigsTable.revokedAt)
+        )
+      );
+
+    if (!cfg) {
+      const { privateKey, publicKey } = generateWireGuardKeyPair();
+      const assignedIp = await nextAvailableIp(node.id);
+      [cfg] = await db
+        .insert(userWgConfigsTable)
+        .values({ userId, nodeId: node.id, clientPrivateKey: privateKey, clientPublicKey: publicKey, assignedIp })
+        .returning();
+      await db.insert(wgPeerCommandsTable).values({
+        configId: cfg.id, nodeId: node.id, userId,
+        clientPublicKey: publicKey, assignedIp, status: "pending",
+      });
+    }
+
+    let psk = cfg.pskKey;
+    if (!psk) {
+      psk = crypto.randomBytes(32).toString("base64");
+      await db
+        .update(userWgConfigsTable)
+        .set({ pskKey: psk, pskRotatedAt: new Date() })
+        .where(eq(userWgConfigsTable.id, cfg.id));
+    }
+
+    const endpoint = node.publicIp
+      ? `${node.publicIp}:${node.listenPort}`
+      : `# SET_SERVER_PUBLIC_IP:${node.listenPort}`;
+
+    const slug = node.region.toLowerCase().replace(/[^a-z0-9]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
+    const filename = `proxhqvpn-${slug}.conf`;
+
+    const text = `[Interface]
+PrivateKey = ${cfg.clientPrivateKey}
+Address = ${cfg.assignedIp}/24
+DNS = 1.1.1.1, 1.0.0.1
+
+# ProxhqVPN — ${node.region} | Post-Quantum PSK mixed into WireGuard handshake
+# PSK rotated: ${cfg.pskRotatedAt?.toISOString() ?? new Date().toISOString()}
+
+[Peer]
+PublicKey = ${node.publicKey}
+PresharedKey = ${psk}
+AllowedIPs = 0.0.0.0/0, ::/0
+Endpoint = ${endpoint}
+PersistentKeepalive = 25
+`;
+    entries.push({ filename, text });
+  }
+
+  // Build zip manually (no extra deps — local zip format)
+  const { createDeflateRaw } = await import("node:zlib");
+  const { promisify } = await import("node:util");
+  const deflateRaw = promisify(createDeflateRaw);
+
+  function u16le(n: number) { const b = Buffer.alloc(2); b.writeUInt16LE(n, 0); return b; }
+  function u32le(n: number) { const b = Buffer.alloc(4); b.writeUInt32LE(n, 0); return b; }
+
+  function crc32(buf: Buffer): number {
+    let crc = 0xffffffff;
+    for (const byte of buf) {
+      crc ^= byte;
+      for (let j = 0; j < 8; j++) crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0);
+    }
+    return (crc ^ 0xffffffff) >>> 0;
+  }
+
+  const localHeaders: Buffer[] = [];
+  const centralDirs: Buffer[] = [];
+  let offset = 0;
+
+  for (const { filename, text } of entries) {
+    const data = Buffer.from(text, "utf8");
+    const compressed = await deflateRaw(data) as Buffer;
+    const crc = crc32(data);
+    const nameBytes = Buffer.from(filename, "utf8");
+
+    // Local file header
+    const lh = Buffer.concat([
+      Buffer.from([0x50, 0x4b, 0x03, 0x04]), // signature
+      u16le(20), u16le(0), u16le(8),          // version, flags, method (deflate)
+      u16le(0), u16le(0),                     // mod time/date
+      u32le(crc),
+      u32le(compressed.length),
+      u32le(data.length),
+      u16le(nameBytes.length), u16le(0),      // name len, extra len
+      nameBytes,
+      compressed,
+    ]);
+    localHeaders.push(lh);
+
+    // Central directory entry
+    const cd = Buffer.concat([
+      Buffer.from([0x50, 0x4b, 0x01, 0x02]),  // signature
+      u16le(20), u16le(20), u16le(0), u16le(8),
+      u16le(0), u16le(0),
+      u32le(crc),
+      u32le(compressed.length),
+      u32le(data.length),
+      u16le(nameBytes.length), u16le(0), u16le(0),
+      u16le(0), u16le(0), u32le(0),
+      u32le(offset),
+      nameBytes,
+    ]);
+    centralDirs.push(cd);
+    offset += lh.length;
+  }
+
+  const centralStart = offset;
+  const centralData = Buffer.concat(centralDirs);
+  const eocd = Buffer.concat([
+    Buffer.from([0x50, 0x4b, 0x05, 0x06]),
+    u16le(0), u16le(0),
+    u16le(entries.length), u16le(entries.length),
+    u32le(centralData.length),
+    u32le(centralStart),
+    u16le(0),
+  ]);
+
+  const zipBuf = Buffer.concat([...localHeaders, centralData, eocd]);
+
+  res.setHeader("Content-Type", "application/zip");
+  res.setHeader("Content-Disposition", 'attachment; filename="proxhqvpn-all-servers.zip"');
+  res.setHeader("Content-Length", zipBuf.length);
+  res.send(zipBuf);
+});
+
 router.get("/peer-list/:nodeId", async (req, res) => {
   const { userId } = getAuth(req);
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
