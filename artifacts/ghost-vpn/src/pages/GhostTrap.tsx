@@ -162,7 +162,7 @@ export default function GhostTrap() {
   const [reportLoading, setReportLoading] = useState<Record<string, boolean>>({});
   const [backtraceCache, setBacktraceCache] = useState<Record<string, BacktraceResult>>({});
   const [backtraceLoading, setBacktraceLoading] = useState<Record<string, boolean>>({});
-  const [activeTab, setActiveTab] = useState<"probes" | "info">("probes");
+  const [activeTab, setActiveTab] = useState<"probes" | "info" | "how">("probes");
 
   const load = useCallback(async () => {
     const [pr, cr] = await Promise.all([
@@ -328,7 +328,7 @@ export default function GhostTrap() {
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-white/[0.06]">
-        {([["probes", "Probe Feed"], ["info", "Attacker Intel"]] as const).map(([key, label]) => (
+        {([["probes", "Probe Feed"], ["info", "Attacker Intel"], ["how", "How It Works"]] as const).map(([key, label]) => (
           <button key={key} onClick={() => setActiveTab(key)}
             className={`px-4 py-2 text-sm rounded-t-lg transition-all ${
               activeTab === key ? "text-white bg-[#0d1610] border border-b-0 border-white/[0.07]" : "text-white/40 hover:text-white/60"
@@ -687,6 +687,185 @@ export default function GhostTrap() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* ── HOW IT WORKS ───────────────────────────────────────────────────────── */}
+      {activeTab === "how" && (
+        <div className="space-y-4">
+
+          {/* Intro banner */}
+          <div className="bg-[#0d1610] border border-primary/10 rounded-xl p-5 flex gap-4 items-start">
+            <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0 mt-0.5">
+              <Shield className="w-5 h-5 text-primary" />
+            </div>
+            <div>
+              <div className="text-base font-bold text-white mb-1">Ghost Trap — Active Counter-Intelligence System</div>
+              <p className="text-sm text-white/55 leading-relaxed">
+                Ghost Trap is a purpose-built honeypot and attacker attribution engine. It does not just detect hackers —
+                it lures them in, wastes their resources, feeds them poisoned intelligence, and builds a forensic dossier
+                on their real identity so you can report them to ISPs, hosting providers, or law enforcement.
+              </p>
+            </div>
+          </div>
+
+          {/* 7-stage pipeline */}
+          <div className="bg-[#0d1610] border border-white/[0.07] rounded-xl overflow-hidden">
+            <div className="px-5 py-4 border-b border-white/[0.06]">
+              <div className="text-sm font-semibold text-white">The 7-Stage Trap Pipeline</div>
+              <div className="text-xs text-white/40 mt-0.5">What happens from the moment a hacker touches your infrastructure to the moment you have a report</div>
+            </div>
+            <div className="divide-y divide-white/[0.04]">
+              {[
+                {
+                  num: "01",
+                  color: "text-red-400",
+                  bg: "bg-red-500/8",
+                  border: "border-l-red-500/50",
+                  icon: <AlertTriangle className="w-4 h-4" />,
+                  title: "Attacker Probes a Lure Endpoint",
+                  summary: "The trap is triggered the moment a hacker scans or requests a lure URL.",
+                  detail: "Ghost Trap exposes a set of convincing decoy endpoints that mimic real vulnerable servers — /login, /admin, /wp-admin, /.env, /config.php, /backup.sql, /api/users, /api/search. These look exactly like mis-configured or exposed web services. Any automated scanner, exploit kit, or manual hacker probing for weaknesses will naturally hit them. The moment any request arrives at a lure endpoint, Stage 2 begins instantly.",
+                },
+                {
+                  num: "02",
+                  color: "text-orange-400",
+                  bg: "bg-orange-500/8",
+                  border: "border-l-orange-500/50",
+                  icon: <Clock className="w-4 h-4" />,
+                  title: "Tarpit — Wasting the Attacker's Time",
+                  summary: "Every response is deliberately slow. The attacker's scanner grinds to a halt.",
+                  detail: "Ghost Trap artificially delays every response by 1,500–8,000 milliseconds (configurable). For an attacker running an automated scanner against thousands of targets, this is devastating — their threads block, their concurrency saturates, and their scan rate collapses. A scan that would normally take 30 seconds now takes hours. Meanwhile, every millisecond of that delay is time we are collecting data. The attacker receives no error and has no indication they've been detected.",
+                },
+                {
+                  num: "03",
+                  color: "text-yellow-400",
+                  bg: "bg-yellow-500/8",
+                  border: "border-l-yellow-500/50",
+                  icon: <Search className="w-4 h-4" />,
+                  title: "Deep Fingerprinting",
+                  summary: "Everything about the attacker's connection is captured silently.",
+                  detail: "During the tarpit delay, Ghost Trap records: IP address and source port (TCP source port reveals the attacker's NAT table and session), all HTTP headers, the exact attack payload and vector (SQL injection string, path traversal attempt, brute-force credentials, etc.), user agent, accept-language, encoding preferences, geo-location (country, city, ISP, ASN, timezone), VPN/datacenter detection, and Tor exit node detection. The source port is especially valuable — it persists across requests from the same attacker session and can help de-anonymize even VPN users.",
+                },
+                {
+                  num: "04",
+                  color: "text-primary",
+                  bg: "bg-primary/8",
+                  border: "border-l-primary/50",
+                  icon: <FileText className="w-4 h-4" />,
+                  title: "Poisoned Response with Embedded Beacons",
+                  summary: "The attacker receives fake data. Every piece of it is a tracking device.",
+                  detail: 'Ghost Trap serves a realistic but entirely fabricated response — fake database credentials, fake admin panel HTML, fake API keys, fake configuration files. Embedded inside every poisoned response is one or more tracking beacons: a 1×1 transparent image URL (web bug), a unique token URL, or a redirect URL. When the attacker copies the fake credentials into their tools, opens the fake admin panel, or shares the stolen data with a colleague, the beacon fires back to us — from their real browser, their real IP, their real device.',
+                },
+                {
+                  num: "05",
+                  color: "text-red-300",
+                  bg: "bg-red-400/8",
+                  border: "border-l-red-300/50",
+                  icon: <Radio className="w-4 h-4" />,
+                  title: "Beacon Fires — Attacker Confirmed Live",
+                  summary: "The moment the attacker uses the fake data, their real identity is revealed.",
+                  detail: "A beacon fire is the most powerful event in Ghost Trap. It means the attacker is confirmed live and active. Their real browser made a request — which means we now have their true IP (even if they were using a VPN to probe us), their real user agent (browser version, OS), and a precise timestamp. If the attacker was hiding behind Tor or a VPN during the probe but switched networks to test the stolen credentials, we capture their real address. The beacon fire timestamp, combined with the probe timestamp, is admissible forensic evidence.",
+                },
+                {
+                  num: "06",
+                  color: "text-purple-400",
+                  bg: "bg-purple-500/8",
+                  border: "border-l-purple-500/50",
+                  icon: <Network className="w-4 h-4" />,
+                  title: "Silk Web Trap — Infinite Decoy Maze",
+                  summary: "Repeat attackers are routed into a dead-end network that loops them forever.",
+                  detail: "After a configurable number of probes (default: 3), the attacker's IP is silently redirected into the SilkWeb decoy network. SilkWeb is a topology of 60 nodes organized into route types: Highway (fast-looking paths that loop back), Dead End (paths that terminate with convincing fake errors), Decoy (paths that mirror legitimate-looking services), and Collapse Zone (paths that simulate a crashing server). The attacker spends hours navigating what appears to be a complex network, generating no real damage, while we gather an increasingly complete picture of their tooling, timing, and methodology.",
+                },
+                {
+                  num: "07",
+                  color: "text-cyan-400",
+                  bg: "bg-cyan-500/8",
+                  border: "border-l-cyan-500/50",
+                  icon: <Shield className="w-4 h-4" />,
+                  title: "Auto-Block + Authority Report",
+                  summary: "Attacker is blocked. A law-enforcement-ready report is generated in one click.",
+                  detail: "After the trap threshold is reached, the attacker's IP is automatically added to your firewall block list with a timestamped reason. From the Attacker Intel tab, you can generate a full Authority Report — a structured document containing: all probe timestamps, attack vectors and payloads, source port, geo-location, ISP and ASN, VPN/Tor detection results, hop chain analysis, beacon fire confirmation, and a law enforcement note explaining what subpoena would be required to unmask the attacker's true identity. This report can be submitted directly to the attacker's hosting provider, their ISP, or law enforcement agencies.",
+                },
+              ].map(({ num, color, bg, border, icon, title, summary, detail }) => (
+                <div key={num} className={`flex gap-4 px-5 py-5 border-l-2 ${border} ${bg}`}>
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 border ${color} bg-black/20`}
+                    style={{ borderColor: "currentColor", opacity: 1 }}>
+                    <span className={color}>{icon}</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className={`text-[10px] font-bold uppercase tracking-widest opacity-50 ${color}`}>Stage {num}</span>
+                    </div>
+                    <div className={`text-sm font-semibold mb-1 ${color}`}>{title}</div>
+                    <div className="text-xs text-white/70 font-medium mb-2">{summary}</div>
+                    <p className="text-xs text-white/42 leading-relaxed">{detail}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Lure endpoints reference */}
+          <div className="bg-[#0d1610] border border-white/[0.07] rounded-xl p-5 space-y-3">
+            <div className="text-sm font-semibold text-white">Active Lure Endpoints</div>
+            <p className="text-xs text-white/45 leading-relaxed">
+              These paths are always live on your server. Attackers scanning for vulnerabilities will inevitably discover them.
+              They are designed to look exactly like real exposed attack surfaces.
+            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {["/login", "/admin", "/wp-admin", "/api/users", "/api/search", "/.env", "/config.php", "/backup.sql"].map(ep => (
+                <div key={ep} className="font-mono text-[11px] bg-black/40 border border-white/[0.06] rounded-lg px-3 py-2 text-primary/70">{ep}</div>
+              ))}
+            </div>
+            <p className="text-[11px] text-white/30 leading-relaxed">
+              Each endpoint serves a different poisoned payload type: /login returns fake credentials, /.env returns fake environment variables with embedded API keys (beacon-tracked), /backup.sql returns a fake database dump, /api/users returns fake user records with embedded tracking tokens.
+            </p>
+          </div>
+
+          {/* Data collected reference */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="bg-[#0d1610] border border-white/[0.07] rounded-xl p-5 space-y-3">
+              <div className="text-sm font-semibold text-white">What Ghost Trap Captures Per Probe</div>
+              <div className="space-y-1.5">
+                {[
+                  ["IP Address + Source Port", "text-red-400"],
+                  ["All HTTP Headers (UA, Accept, Encoding)", "text-orange-400"],
+                  ["Exact Attack Payload & Vector Type", "text-yellow-400"],
+                  ["Geo-location (Country, City, ISP, ASN)", "text-primary"],
+                  ["VPN Exit Node Detection", "text-red-300"],
+                  ["Tor Exit Node Detection", "text-purple-400"],
+                  ["Multi-hop X-Forwarded-For Chain", "text-cyan-400"],
+                  ["Precise Timestamp (ms resolution)", "text-white/60"],
+                ].map(([label, color]) => (
+                  <div key={label} className="flex items-center gap-2 text-xs">
+                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${color} bg-current`} />
+                    <span className="text-white/55">{label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="bg-[#0d1610] border border-white/[0.07] rounded-xl p-5 space-y-3">
+              <div className="text-sm font-semibold text-white">Authority Report Contains</div>
+              <div className="space-y-1.5">
+                {[
+                  ["Full probe timeline with all attack payloads", "text-primary"],
+                  ["Source port (TCP) for session correlation", "text-yellow-400"],
+                  ["Beacon fire timestamp + real IP (if different)", "text-red-300"],
+                  ["Hop chain: Attacker → VPN nodes → Your server", "text-orange-400"],
+                  ["ISP and hosting provider contact information", "text-cyan-400"],
+                  ["VPN provider identification + confidence %", "text-red-400"],
+                  ["Law enforcement subpoena guidance", "text-purple-400"],
+                  ["Formatted for direct ISP abuse submission", "text-white/60"],
+                ].map(([label, color]) => (
+                  <div key={label} className="flex items-center gap-2 text-xs">
+                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${color} bg-current`} />
+                    <span className="text-white/55">{label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

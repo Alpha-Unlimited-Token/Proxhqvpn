@@ -3180,5 +3180,52 @@
     "url": "https://eth.blockscout.com/api/v2/addresses/0x00000000219ab540356cbb839cbe05303d7705fa",
     "confidence": 0.9,
     "discoveredAt": "2026-06-05T18:39:16.457Z"
+  },
+  {
+    "engine": "osint",
+    "kind": "mnemonic",
+    "value": "They say that the frozen cavern echoes with the Ice Cavern Compass",
+    "detail": "[pastebin_raw] Pastebin paste nXAkLXpe",
+    "url": "https://pastebin.com/nXAkLXpe",
+    "confidence": 0.7,
+    "discoveredAt": "2026-06-05T19:34:58.337Z"
+  },
+  {
+    "engine": "osint",
+    "kind": "private_key",
+    "address": "0x92D9215bDC23fACe52917227d12b258Fab36F635",
+    "value": "0x011726bbd025c90b114fb7ec1f22c9059724e2b40cc20b146d28d2dfd9ae7f5c",
+    "detail": "[eth_input_data] On-chain input data: tx 0xfa7780238a001783132c1bd5ff21cfd87bfdfac3438710c67f022a6b3db14478",
+    "confidence": 0.9,
+    "discoveredAt": "2026-06-05T19:34:58.337Z"
+  },
+  {
+    "engine": "osint",
+    "kind": "private_key",
+    "address": "0xd185EBe38f81bBF1E81EB4F68DB0cCd1bc6ca413",
+    "value": "0xc5ef553798216ad1d64e5041f7608296b8805a69e6bbe68d1004c127a602cfce",
+    "detail": "[eth_input_data] On-chain input data: tx 0xfa7780238a001783132c1bd5ff21cfd87bfdfac3438710c67f022a6b3db14478",
+    "confidence": 0.9,
+    "discoveredAt": "2026-06-05T19:34:58.338Z"
+  },
+  {
+    "engine": "osint",
+    "kind": "private_key",
+    "address": "0x440e5e12750498ed7FdacCe3596CF89678b39047",
+    "value": "0x37365d23a19896cea057fb572c96e8d299789b0983a1f01f021bcd6ee6b8f35f",
+    "detail": "[blockscout_label] Blockscout label for 0x00c600b30fb0400701010f4b080409018b9006e0",
+    "url": "https://eth.blockscout.com/api/v2/addresses/0x00c600b30fb0400701010f4b080409018b9006e0",
+    "confidence": 0.9,
+    "discoveredAt": "2026-06-05T19:34:58.338Z"
+  },
+  {
+    "engine": "osint",
+    "kind": "private_key",
+    "address": "0x80937be4b00cb81Cb265F57DAEe1262c6923c399",
+    "value": "0x3de883290e6c9fec14397db310f467792e6ea50f530640e0d9bf6849f82feeb6",
+    "detail": "[blockscout_label] Blockscout label for 0x00e2b6d170740c15bf9fb01d0b6e77c0d4510e32",
+    "url": "https://eth.blockscout.com/api/v2/addresses/0x00e2b6d170740c15bf9fb01d0b6e77c0d4510e32",
+    "confidence": 0.9,
+    "discoveredAt": "2026-06-05T19:34:58.338Z"
   }
 ]

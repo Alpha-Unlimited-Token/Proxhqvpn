@@ -7,7 +7,7 @@ import {
   ArrowRight, Menu, X, Wifi, Server, Clock, Star, Bug, AlertTriangle,
   MapPin, Share2, Database, Code2, KeyRound, Swords, ShieldCheck,
   Terminal, Fingerprint, FlaskConical, ScanSearch, Layers, Bell,
-  GitMerge, FileCode2, Filter, Crosshair, Package,
+  GitMerge, FileCode2, Filter, Crosshair, Package, Search, FileText, Radio,
 } from "lucide-react";
 
 const BASE_API = import.meta.env.BASE_URL.replace(/\/$/, "") + "/api";
@@ -685,27 +685,123 @@ export default function Home() {
             ))}
           </div>
 
-          {/* Honeypot mesh banner */}
-          <div className="bg-[#0d1610] border border-yellow-500/20 rounded-2xl p-6 flex flex-col md:flex-row items-center gap-6">
-            <div className="w-12 h-12 rounded-xl bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center shrink-0">
-              <Bug className="w-6 h-6 text-yellow-400" />
-            </div>
-            <div className="flex-1 text-center md:text-left">
-              <div className="font-bold text-white mb-1">SilkWeb Honeypot Mesh</div>
-              <p className="text-sm text-white/83">
-                Every node runs a spider that emulates an open HTTP port — luring attackers in with a convincing fake server.
-                When they connect, they're silently fingerprinted and trapped in the SilkWeb decoy network. 
-                As the owner, you can then launch a full SQL injection scan against the trapped attacker's IP directly from your dashboard.
-              </p>
-            </div>
-            <div className="shrink-0 flex items-center gap-3">
-              <div className="text-center">
-                <div className="text-xl font-bold text-yellow-400">{liveStats ? liveStats.trappedAttackers : "—"}</div>
-                <div className="text-[10px] text-white/78 uppercase tracking-widest">Trapped</div>
+          {/* Ghost Trap — How It Works */}
+          <div className="bg-[#0d1610] border border-yellow-500/20 rounded-2xl overflow-hidden">
+            {/* Banner header */}
+            <div className="flex flex-col md:flex-row items-center gap-6 p-6 border-b border-yellow-500/10">
+              <div className="w-12 h-12 rounded-xl bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center shrink-0">
+                <Bug className="w-6 h-6 text-yellow-400" />
               </div>
-              <div className="text-center">
-                <div className="text-xl font-bold text-primary">{liveStats ? liveStats.silkRoutes : "—"}</div>
-                <div className="text-[10px] text-white/78 uppercase tracking-widest">Web Routes</div>
+              <div className="flex-1 text-center md:text-left">
+                <div className="font-bold text-white mb-1">Ghost Trap — Active Counter-Intelligence</div>
+                <p className="text-sm text-white/60">
+                  Every ProxhqVPN node runs a honeypot that silently lures, fingerprints, and traps attackers —
+                  feeding them poisoned data while tracking their real identity through the VPN layers.
+                </p>
+              </div>
+              <div className="shrink-0 flex items-center gap-4">
+                <div className="text-center">
+                  <div className="text-xl font-bold text-yellow-400">{liveStats ? liveStats.trappedAttackers : "—"}</div>
+                  <div className="text-[10px] text-white/50 uppercase tracking-widest">Trapped</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-xl font-bold text-primary">{liveStats ? liveStats.silkRoutes : "—"}</div>
+                  <div className="text-[10px] text-white/50 uppercase tracking-widest">Web Routes</div>
+                </div>
+              </div>
+            </div>
+
+            {/* How It Works — 7-stage flow */}
+            <div className="p-6">
+              <div className="text-xs font-semibold text-yellow-400/60 uppercase tracking-widest mb-5">How Ghost Trap Combats Hackers</div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
+                {[
+                  {
+                    step: "01",
+                    color: "text-red-400",
+                    bg: "bg-red-500/8",
+                    border: "border-red-500/20",
+                    icon: <AlertTriangle className="w-4 h-4" />,
+                    title: "Attacker Probes",
+                    desc: "A hacker scans your node's ports or hits a common attack path (e.g. /admin, /.env, /login). Ghost Trap's lure endpoints are always listening and look exactly like a vulnerable server.",
+                  },
+                  {
+                    step: "02",
+                    color: "text-orange-400",
+                    bg: "bg-orange-500/8",
+                    border: "border-orange-500/20",
+                    icon: <Clock className="w-4 h-4" />,
+                    title: "Tarpit Delay",
+                    desc: "The response is artificially slowed by 1.5–8 seconds per request. This wastes the attacker's time and scanner throughput while we silently log everything about their connection.",
+                  },
+                  {
+                    step: "03",
+                    color: "text-yellow-400",
+                    bg: "bg-yellow-500/8",
+                    border: "border-yellow-500/20",
+                    icon: <Search className="w-4 h-4" />,
+                    title: "Deep Fingerprinting",
+                    desc: "IP address, source port, user agent, HTTP headers, attack vector payload, geo-location, ISP, ASN, and VPN/Tor detection are all captured and stored for every single probe.",
+                  },
+                  {
+                    step: "04",
+                    color: "text-primary",
+                    bg: "bg-primary/8",
+                    border: "border-primary/20",
+                    icon: <FileText className="w-4 h-4" />,
+                    title: "Poisoned Response",
+                    desc: "The attacker receives convincing but entirely fake data — fake database credentials, fake admin panels, fake API keys — all laced with invisible tracking beacons that phone home.",
+                  },
+                ].map(({ step, color, bg, border, icon, title, desc }) => (
+                  <div key={step} className={`rounded-xl border ${border} ${bg} p-4 space-y-2`}>
+                    <div className={`flex items-center gap-2 ${color}`}>
+                      {icon}
+                      <span className="text-[10px] font-bold uppercase tracking-widest opacity-60">{step}</span>
+                    </div>
+                    <div className={`text-sm font-semibold ${color}`}>{title}</div>
+                    <p className="text-xs text-white/50 leading-relaxed">{desc}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {[
+                  {
+                    step: "05",
+                    color: "text-red-300",
+                    bg: "bg-red-400/8",
+                    border: "border-red-400/20",
+                    icon: <Radio className="w-4 h-4" />,
+                    title: "Beacon Fires",
+                    desc: "When the attacker opens or uses the poisoned data, a tracking beacon fires back to us — confirming their live browser session, real device, and often their real IP behind the VPN.",
+                  },
+                  {
+                    step: "06",
+                    color: "text-purple-400",
+                    bg: "bg-purple-500/8",
+                    border: "border-purple-500/20",
+                    icon: <Network className="w-4 h-4" />,
+                    title: "Silk Web Trap",
+                    desc: "After repeated probing, the attacker's IP is silently redirected into the SilkWeb decoy network — a maze of dead-end and collapse-zone routes that loop them endlessly, burning their resources while we gather more data.",
+                  },
+                  {
+                    step: "07",
+                    color: "text-cyan-400",
+                    bg: "bg-cyan-500/8",
+                    border: "border-cyan-500/20",
+                    icon: <Shield className="w-4 h-4" />,
+                    title: "Auto-Block + Report",
+                    desc: "The IP is automatically added to your firewall block list. A full authority report is generated — containing every captured detail — ready to submit to ISPs, hosting providers, or law enforcement.",
+                  },
+                ].map(({ step, color, bg, border, icon, title, desc }) => (
+                  <div key={step} className={`rounded-xl border ${border} ${bg} p-4 space-y-2`}>
+                    <div className={`flex items-center gap-2 ${color}`}>
+                      {icon}
+                      <span className="text-[10px] font-bold uppercase tracking-widest opacity-60">{step}</span>
+                    </div>
+                    <div className={`text-sm font-semibold ${color}`}>{title}</div>
+                    <p className="text-xs text-white/50 leading-relaxed">{desc}</p>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
