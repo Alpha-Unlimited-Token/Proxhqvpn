@@ -58,7 +58,7 @@ function getBigQuery(): BigQuery {
 
   _bq = new BigQuery({
     projectId:   (credentials.project_id as string) ?? "proxhq-scanner",
-    credentials: credentials as Parameters<typeof BigQuery>[0]["credentials"],
+    credentials: credentials as any,
   });
 
   return _bq;
@@ -179,7 +179,7 @@ async function batchRpcGetTxs(hashes: string[]): Promise<(RawRpcTx | null)[]> {
   const active = new Set<Promise<void>>();
   while (idx < batches.length || active.size > 0) {
     while (active.size < CONCURRENCY && idx < batches.length) {
-      const p = doOne(batches[idx++]).then(() => active.delete(p));
+      const p: Promise<void> = doOne(batches[idx++]).then(() => { active.delete(p); });
       active.add(p);
     }
     if (active.size > 0) await Promise.race(active);

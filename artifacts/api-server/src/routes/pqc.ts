@@ -63,7 +63,7 @@ function generatePqcKeyPair(algorithm: string, rotationHours: number): PqcKeyPai
 
 // GET /pqc/settings — current PQC configuration
 router.get("/settings", (req, res) => {
-  const userId = (req.auth as any)?.userId ?? "anonymous";
+  const userId = ((req as any).auth)?.userId ?? "anonymous";
   const settings = getSettings(userId);
   const keyPair  = keyStore[userId] ?? null;
 
@@ -91,7 +91,7 @@ router.get("/settings", (req, res) => {
 
 // POST /pqc/settings — update PQC configuration
 router.post("/settings", (req, res) => {
-  const userId = (req.auth as any)?.userId ?? "anonymous";
+  const userId = ((req as any).auth)?.userId ?? "anonymous";
   const body = z.object({
     enabled:           z.boolean().optional(),
     algorithm:         z.enum(["ML-KEM-768", "ML-KEM-1024", "Kyber-512"]).optional(),
@@ -109,7 +109,7 @@ router.post("/settings", (req, res) => {
 
 // POST /pqc/generate-keys — generate a new PQC key pair
 router.post("/generate-keys", (req, res) => {
-  const userId = (req.auth as any)?.userId ?? "anonymous";
+  const userId = ((req as any).auth)?.userId ?? "anonymous";
   const settings = getSettings(userId);
 
   const keyPair = generatePqcKeyPair(settings.algorithm, settings.keyRotationHours);
@@ -123,7 +123,7 @@ router.post("/generate-keys", (req, res) => {
 
 // GET /pqc/wireguard-config — generate WireGuard config snippet with PQC PSK
 router.get("/wireguard-config", (req, res) => {
-  const userId = (req.auth as any)?.userId ?? "anonymous";
+  const userId = ((req as any).auth)?.userId ?? "anonymous";
   const settings = getSettings(userId);
   const keyPair  = keyStore[userId];
 

@@ -316,7 +316,7 @@ function classifyResponse(
   }
 
   // ── Sync state disclosure ─────────────────────────────────────────────────
-  if (probe.method === "eth_syncing" && hasResult && typeof parsed?.["result"] === "object" && parsed?.["result"] !== false) {
+  if (probe.method === "eth_syncing" && hasResult && typeof parsed?.["result"] === "object" && true) {
     return {
       severity: "low",
       title: `Node is actively syncing — temporarily elevated attack surface`,

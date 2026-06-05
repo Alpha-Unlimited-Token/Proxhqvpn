@@ -52,7 +52,7 @@ function scheduleNext(settings: RotatorSettings): string {
 
 // GET /iprotator/settings
 router.get("/settings", async (req, res) => {
-  const userId   = (req.auth as any)?.userId ?? "anonymous";
+  const userId   = ((req as any).auth as any)?.userId ?? "anonymous";
   const settings = getSettings(userId);
   const nodes    = await db.select().from(nodesTable);
   const logs     = getLogs(userId).slice(-20); // last 20 rotations
@@ -67,7 +67,7 @@ router.get("/settings", async (req, res) => {
     currentNode,
     msUntilNext,
     logs,
-    availableNodes: nodes.map(n => ({ id: n.id, name: n.name, ipAddress: n.ipAddress, location: n.location, layer: n.layer })),
+    availableNodes: nodes.map(n => ({ id: n.id, name: n.name, ipAddress: n.ipAddress, location: (n as any).location ?? null, layer: n.layer })),
     intervalOptions: INTERVAL_OPTIONS.map(m => ({
       minutes: m,
       label: m < 60 ? `${m}m` : m < 1440 ? `${m / 60}h` : "24h",
@@ -77,7 +77,7 @@ router.get("/settings", async (req, res) => {
 
 // POST /iprotator/settings — update settings
 router.post("/settings", async (req, res) => {
-  const userId = (req.auth as any)?.userId ?? "anonymous";
+  const userId = ((req as any).auth as any)?.userId ?? "anonymous";
   const body   = z.object({
     enabled:         z.boolean().optional(),
     intervalMinutes: z.number().min(1).optional(),
@@ -107,7 +107,7 @@ router.post("/settings", async (req, res) => {
 
 // POST /iprotator/rotate — manually trigger an immediate rotation
 router.post("/rotate", async (req, res) => {
-  const userId = (req.auth as any)?.userId ?? "anonymous";
+  const userId = ((req as any).auth as any)?.userId ?? "anonymous";
   const settings = getSettings(userId);
 
   const nodes    = await db.select().from(nodesTable);

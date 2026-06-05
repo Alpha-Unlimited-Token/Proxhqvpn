@@ -134,7 +134,7 @@ export async function fetchSourceCode(address: string, chain: string): Promise<{
     if (source.startsWith("{{")) {
       try {
         const parsed = JSON.parse(source.slice(1, -1)) as Record<string, { content: string }>;
-        source = Object.values(parsed.sources ?? parsed).map(f => f.content ?? "").join("\n\n// ===FILE_BOUNDARY===\n\n");
+        source = Object.values((parsed.sources as unknown as Record<string, { content: string }>) ?? parsed).map((f: { content: string }) => f.content ?? "").join("\n\n// ===FILE_BOUNDARY===\n\n");
       } catch {
         // Keep as-is if parsing fails
       }

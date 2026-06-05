@@ -215,7 +215,7 @@ export default function VpnConnectScreen() {
 
       if (Platform.OS !== "web") {
         const { default: FileSystem } = await import("expo-file-system");
-        const path = `${FileSystem.cacheDirectory}proxhqvpn.conf`;
+        const path = `${(FileSystem as any).cacheDirectory}proxhqvpn.conf`;
         await FileSystem.writeAsStringAsync(path, config);
 
         const wgUrl = `wireguard://airdrop/${btoa(config)}`;

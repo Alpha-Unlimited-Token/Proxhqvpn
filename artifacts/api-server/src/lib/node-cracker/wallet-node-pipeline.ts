@@ -44,7 +44,7 @@ async function rpcCall(url: string, method: string, params: unknown[] = [], ms =
       signal: ctrl.signal,
     });
     clearTimeout(t);
-    const j = await r.json();
+    const j = await r.json() as { result?: unknown };
     return j?.result ?? null;
   } catch {
     clearTimeout(t);

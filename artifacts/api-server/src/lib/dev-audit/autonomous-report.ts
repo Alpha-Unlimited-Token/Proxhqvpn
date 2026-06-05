@@ -199,7 +199,7 @@ export async function runAutonomousReport(
   onProgress({ type: "progress", phase: "wallets", pct: 89, msg: `Scanning ${AUTO_WALLETS.length} wallets (nonce gaps, replay, EIP-7702)…` });
 
   try {
-    const nonceResult = await scanNonceBatch(AUTO_WALLETS, "https://ethereum.publicnode.com");
+    const nonceResult = await scanNonceBatch(AUTO_WALLETS);
 
     for (const addr of AUTO_WALLETS) {
       const nonceData = (nonceResult as any)?.results?.find((r: any) => r.address?.toLowerCase() === addr.toLowerCase());

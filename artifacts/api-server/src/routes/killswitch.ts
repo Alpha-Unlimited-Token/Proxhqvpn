@@ -500,7 +500,7 @@ reconnect() {
         return 0
       fi
     fi
-    log "Reconnect attempt $attempt failed. Retrying in ${RETRY_WAIT}s..."
+    log "Reconnect attempt $attempt failed. Retrying in $\{RETRY_WAIT}s..."
     sleep "$RETRY_WAIT"
   done
   log "ERROR: Failed to reconnect after $MAX_RETRIES attempts. Kill switch remains ARMED."
@@ -509,7 +509,7 @@ reconnect() {
 
 # ── Main loop ──────────────────────────────────────────────────────────────
 log "ProxhqVPN Watchdog started — monitoring interface $WG_IFACE"
-log "Config: $WG_CONFIG | Poll: ${POLL_INTERVAL}s | MaxRetries: $MAX_RETRIES"
+log "Config: $WG_CONFIG | Poll: $\{POLL_INTERVAL}s | MaxRetries: $MAX_RETRIES"
 
 trap 'log "Watchdog stopped by signal. Disarming kill switch."; disarm_kill_switch; exit 0' SIGTERM SIGINT
 

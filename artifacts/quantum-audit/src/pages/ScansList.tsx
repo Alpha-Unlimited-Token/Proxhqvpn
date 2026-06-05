@@ -1,5 +1,5 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
-import { useListScans } from "@workspace/api-client-react";
+import { useListScans, type ListScansStatus } from "@workspace/api-client-react";
 import { Link } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -15,7 +15,7 @@ export default function ScansList() {
   const [chain, setChain] = useState<string>("all");
   
   const { data, isLoading, error } = useListScans({ 
-    status: status !== "all" ? status : undefined,
+    status: status !== "all" ? (status as ListScansStatus) : undefined,
     chain: chain !== "all" ? chain : undefined
   });
 

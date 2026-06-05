@@ -134,7 +134,7 @@ async function fetchTronSigs(address: string, maxTx = 80): Promise<SigRecord[]> 
     const url = `https://apilist.tronscanapi.com/api/transaction?address=${address}&limit=${maxTx}&start=0`;
     const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
     if (!res.ok) return [];
-    const data: { data?: Array<{ hash: string; block: number }> } = await res.json();
+    const data = await res.json() as { data?: Array<{ hash: string; block: number }> };
     for (const tx of data.data ?? []) {
       // Fetch raw transaction hex
       const rawRes = await fetch(
@@ -142,7 +142,7 @@ async function fetchTronSigs(address: string, maxTx = 80): Promise<SigRecord[]> 
         { signal: AbortSignal.timeout(10_000) }
       ).catch(() => null);
       if (!rawRes?.ok) continue;
-      const raw: { signature?: string[] } = await rawRes.json();
+      const raw = await rawRes.json() as { signature?: string[] };
       for (let i = 0; i < (raw.signature?.length ?? 0); i++) {
         const sig65 = raw.signature![i]; // 65 bytes hex = r(32) + s(32) + v(1)
         if (sig65.length !== 130) continue;

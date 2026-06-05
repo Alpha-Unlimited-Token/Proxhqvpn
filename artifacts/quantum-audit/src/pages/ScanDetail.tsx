@@ -213,7 +213,7 @@ export default function ScanDetail() {
                   </div>
                 )}
 
-                {vuln.exploitPoC && (
+                {(vuln as any).exploitPoC && (
                   <div className="border border-orange-500/30 rounded-lg overflow-hidden mt-2">
                     <button
                       onClick={() => setExpandedExploit(p => ({ ...p, [vuln.id]: !p[vuln.id] }))}
@@ -221,26 +221,26 @@ export default function ScanDetail() {
                     >
                       <div className="flex items-center gap-2">
                         <Terminal className="w-4 h-4 text-orange-400" />
-                        <span className="text-sm font-bold text-orange-400 font-mono">Exploit PoC — {vuln.exploitPoC.exploitType}</span>
-                        <span className="text-xs text-muted-foreground">({vuln.exploitPoC.language})</span>
+                        <span className="text-sm font-bold text-orange-400 font-mono">Exploit PoC — {(vuln as any).exploitPoC.exploitType}</span>
+                        <span className="text-xs text-muted-foreground">({(vuln as any).exploitPoC.language})</span>
                       </div>
                       {expandedExploit[vuln.id] ? <ChevronDown className="w-4 h-4 text-orange-400" /> : <ChevronRight className="w-4 h-4 text-orange-400" />}
                     </button>
                     {expandedExploit[vuln.id] && (
                       <div className="p-4 space-y-4 bg-background/60">
-                        <p className="text-sm text-foreground/80">{vuln.exploitPoC.description}</p>
+                        <p className="text-sm text-foreground/80">{(vuln as any).exploitPoC.description}</p>
                         <div className="bg-orange-500/5 border border-orange-500/20 rounded p-3 text-sm">
                           <p className="text-xs font-mono text-orange-400 mb-1">ATTACK VECTOR</p>
-                          <p className="text-foreground/80">{vuln.exploitPoC.attackVector}</p>
+                          <p className="text-foreground/80">{(vuln as any).exploitPoC.attackVector}</p>
                         </div>
                         <div className="bg-destructive/5 border border-destructive/20 rounded p-3 text-sm">
                           <p className="text-xs font-mono text-destructive mb-1">IMPACT</p>
-                          <p className="text-foreground/80">{vuln.exploitPoC.impact}</p>
+                          <p className="text-foreground/80">{(vuln as any).exploitPoC.impact}</p>
                         </div>
                         <div>
                           <p className="text-xs font-mono text-orange-400 mb-2">STEPS TO REPRODUCE</p>
                           <ol className="space-y-1">
-                            {vuln.exploitPoC.stepsToReproduce.map((step: string, i: number) => (
+                            {(vuln as any).exploitPoC.stepsToReproduce.map((step: string, i: number) => (
                               <li key={i} className="text-xs text-muted-foreground flex gap-2">
                                 <span className="text-orange-400 font-mono font-bold flex-shrink-0">{i + 1}.</span>
                                 <span>{step}</span>
@@ -251,14 +251,14 @@ export default function ScanDetail() {
                         <div>
                           <p className="text-xs font-mono text-orange-400 mb-2">PROOF-OF-CONCEPT CODE</p>
                           <div className="bg-black/70 rounded border border-orange-500/20 p-3 overflow-x-auto max-h-96 overflow-y-auto">
-                            <pre className="text-xs font-mono text-orange-200 whitespace-pre">{vuln.exploitPoC.code}</pre>
+                            <pre className="text-xs font-mono text-orange-200 whitespace-pre">{(vuln as any).exploitPoC.code}</pre>
                           </div>
                         </div>
-                        {vuln.exploitPoC.defenseCode && (
+                        {(vuln as any).exploitPoC.defenseCode && (
                           <div>
                             <p className="text-xs font-mono text-green-400 mb-2">FIXED VERSION</p>
                             <div className="bg-black/70 rounded border border-green-500/20 p-3 overflow-x-auto max-h-64 overflow-y-auto">
-                              <pre className="text-xs font-mono text-green-200 whitespace-pre">{vuln.exploitPoC.defenseCode}</pre>
+                              <pre className="text-xs font-mono text-green-200 whitespace-pre">{(vuln as any).exploitPoC.defenseCode}</pre>
                             </div>
                           </div>
                         )}

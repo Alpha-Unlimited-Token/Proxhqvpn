@@ -74,7 +74,7 @@ router.post("/:clerkId/make-employee", requireAdmin, async (req, res) => {
   }).safeParse(req.body);
   if (!body.success) return res.status(400).json({ error: "Invalid input" });
 
-  const cu = await clerkClient.users.getUser(req.params.clerkId);
+  const cu = await clerkClient.users.getUser(String(req.params.clerkId));
   const email =
     cu.emailAddresses?.find((e: any) => e.id === cu.primaryEmailAddressId)
       ?.emailAddress ?? null;
@@ -146,7 +146,7 @@ router.post("/:clerkId/make-ambassador", requireAdmin, async (req, res) => {
  * DELETE /api/admin/users/:clerkId/remove-employee
  */
 router.delete("/:clerkId/remove-employee", requireAdmin, async (req, res) => {
-  const cu = await clerkClient.users.getUser(req.params.clerkId);
+  const cu = await clerkClient.users.getUser(String(req.params.clerkId));
   const email =
     cu.emailAddresses?.find((e: any) => e.id === cu.primaryEmailAddressId)
       ?.emailAddress ?? null;

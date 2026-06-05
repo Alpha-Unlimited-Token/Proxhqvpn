@@ -436,7 +436,7 @@ function FindingRow({ f, idx }: { f: Finding; idx: number }) {
             <SeverityBadge severity={f.severity} />
             {f.source && <span className="text-xs text-gray-500">[{f.source}]</span>}
           </div>
-          <p className="text-xs text-gray-400 mt-0.5 truncate">{f.detail ?? f.context ?? ""}</p>
+          <p className="text-xs text-gray-400 mt-0.5 truncate">{f.detail ?? ""}</p>
         </div>
         {open ? <ChevronDown className="w-3.5 h-3.5 text-gray-500 shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 text-gray-500 shrink-0" />}
       </button>

@@ -1154,12 +1154,12 @@ router.post("/email", async (req: Request, res: Response) => {
 
   // Parallel DNS lookups
   const [mxRecords, txtRecords, aRecords] = await Promise.allSettled([
-    dns.resolveMx(domain).catch(() => [] as dns.MxRecord[]),
+    dns.resolveMx(domain).catch(() => [] as any[]),
     dns.resolveTxt(domain).catch(() => [] as string[][]),
     dns.resolve4(domain).catch(() => [] as string[]),
   ]);
 
-  const mx: dns.MxRecord[] = mxRecords.status === "fulfilled" ? (mxRecords.value as dns.MxRecord[]) : [];
+  const mx: any[] = mxRecords.status === "fulfilled" ? (mxRecords.value as any[]) : [];
   const txt: string[][] = txtRecords.status === "fulfilled" ? (txtRecords.value as string[][]) : [];
   const ips: string[] = aRecords.status === "fulfilled" ? (aRecords.value as string[]) : [];
 
@@ -1979,7 +1979,7 @@ function buildPhoneDorks(number: string, e164: string): string[] {
   ];
 }
 
-const LINE_TYPE_LABEL: Partial<Record<PhoneNumberType, string>> = {
+const LINE_TYPE_LABEL: Record<string, string> = {
   MOBILE:       "Mobile",
   FIXED_LINE:   "Landline",
   FIXED_LINE_OR_MOBILE: "Landline or Mobile",
@@ -2045,7 +2045,7 @@ router.post("/phone-lookup", async (req: Request, res: Response) => {
   const intl     = phoneObj.formatInternational();     // +1 415 555 1234
   const country  = phoneObj.country ?? "Unknown";
   const lineType = getNumberType(e164);
-  const lineLabel = LINE_TYPE_LABEL[lineType] ?? "Unknown";
+  const lineLabel = lineType != null ? (LINE_TYPE_LABEL[String(lineType)] ?? "Unknown") : "Unknown";
   const areaCode  = e164.startsWith("+1") ? e164.slice(2, 5) : null;
   const areaInfo  = areaCode ? (US_AREA_CODES[areaCode] ?? null) : null;
 
@@ -2114,7 +2114,7 @@ router.post("/phone-lookup", async (req: Request, res: Response) => {
         );
         if (vr.ok) {
           const vd = await vr.json();
-          return vd?.phone_valid ? vd : null;
+          return (vd as any)?.phone_valid ? vd : null;
         }
         return null;
       } finally {

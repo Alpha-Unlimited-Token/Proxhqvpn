@@ -81,7 +81,7 @@ router.post("/session", (req: Request, res: Response) => {
 
 // ── Long-poll for callbacks (waits up to 20s) ─────────────────────────────────
 router.get("/poll/:sessionId", (req: Request, res: Response) => {
-  const session = sessions.get(req.params.sessionId);
+  const session = sessions.get(String(String(req.params.sessionId)));
   if (!session) return res.status(404).json({ error: "Session not found" });
 
   if (session.callbacks.length > 0) {
@@ -107,7 +107,7 @@ router.get("/poll/:sessionId", (req: Request, res: Response) => {
 
 // ── Get session status ────────────────────────────────────────────────────────
 router.get("/session/:sessionId", (req: Request, res: Response) => {
-  const session = sessions.get(req.params.sessionId);
+  const session = sessions.get(String(String(req.params.sessionId)));
   if (!session) return res.status(404).json({ error: "Session not found" });
   const { waiters, ...safe } = session;
   res.json(safe);
@@ -126,16 +126,16 @@ router.get("/sessions", (req: Request, res: Response) => {
 
 // ── Delete session ────────────────────────────────────────────────────────────
 router.delete("/session/:sessionId", (req: Request, res: Response) => {
-  const session = sessions.get(req.params.sessionId);
+  const session = sessions.get(String(String(req.params.sessionId)));
   if (!session) return res.status(404).json({ error: "Session not found" });
   tokenToSession.delete(session.token);
-  sessions.delete(req.params.sessionId);
+  sessions.delete(String(String(req.params.sessionId)));
   res.json({ deleted: true });
 });
 
 // ── PUBLIC: Callback receiver — OAST payloads fire here ───────────────────────
 router.all("/cb/:token", (req: Request, res: Response) => {
-  const sessionId = tokenToSession.get(req.params.token);
+  const sessionId = tokenToSession.get(String(req.params.token));
   if (!sessionId) {
     res.setHeader("Content-Type", "text/plain");
     return res.status(404).send("OAST: token not found");

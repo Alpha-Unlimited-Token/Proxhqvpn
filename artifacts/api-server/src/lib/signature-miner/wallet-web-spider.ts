@@ -408,9 +408,9 @@ async function scanWalletVulns(
     }
   } else if (["ethereum", "evm", "polygon", "bsc", "arbitrum"].includes(chain)) {
     try {
-      const { scanPermits }       = await import("../wallet-intel/permit-scanner");
-      const { detectPoisoning }   = await import("../wallet-intel/address-poisoning");
-      const { scanApprovals }     = await import("../wallet-intel/approval-scanner");
+      const _permitMod = await import("../wallet-intel/permit-scanner"); const scanPermits = (_permitMod as any).scanPermits;
+      const _poisonMod = await import("../wallet-intel/address-poisoning"); const detectPoisoning = (_poisonMod as any).detectPoisoning;
+      const _approvalMod = await import("../wallet-intel/approval-scanner"); const scanApprovals = (_approvalMod as any).scanApprovals;
 
       // Permit scan
       const permit = await scanPermits({ address, chain: "ethereum" });

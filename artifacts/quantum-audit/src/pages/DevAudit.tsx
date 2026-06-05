@@ -3133,7 +3133,7 @@ function MempoolEngine({ endpoint }: { endpoint: string }) {
       setSnapshots(prev => [snap, ...prev].slice(0, 25));
       setStatus(`Live — last update ${new Date(snap.timestamp).toLocaleTimeString()}`);
     });
-    es.addEventListener("error",    e => setStatus("Error: " + (JSON.parse((e as MessageEvent).data || "{}") as { message?: string }).message ?? "stream error"));
+    es.addEventListener("error",    e => setStatus(`Error: ${ (JSON.parse((e as MessageEvent).data || "{}") as { message?: string }).message ?? "stream error"}`));
     es.addEventListener("done",     () => { setStreaming(false); setStatus("Stream completed (90s window)"); es.close(); });
     es.onerror = () => { setStreaming(false); setStatus("Connection lost"); es.close(); };
   }, [endpoint]);
@@ -3701,7 +3701,7 @@ function NodeIntelEngine({ endpoint }: { endpoint: string }) {
               { label: "Gas Price",     value: data.gasPrice ?? "N/A" },
               { label: "Peer Count",    value: data.peerCount !== null ? String(data.peerCount) : "N/A" },
               { label: "Mining",        value: data.isMining ? "YES ⚠" : "No" },
-              { label: "Syncing",       value: data.syncing && data.syncing !== false ? "YES ⚠" : "Fully synced" },
+              { label: "Syncing",       value: data.syncing ? "YES ⚠" : "Fully synced" },
             ].map(({ label, value }) => (
               <div key={label} className="bg-muted/20 border border-border/40 rounded p-2">
                 <p className="text-muted-foreground text-xs">{label}</p>

@@ -485,7 +485,7 @@ function buildResult(
 
       // Weak-k brute force (only for small address sets or strong bias)
       if (bias.smallRCount > 0 || signatures.length <= 200) {
-        adv.push(...weakKBruteForce(address, signatures));
+        const _kFinds = await weakKBruteForce(address, signatures); adv.push(..._kFinds);
       }
 
       const keys = [...new Set(adv.filter(f => f.privateKey && f.verified).map(f => f.privateKey!))];

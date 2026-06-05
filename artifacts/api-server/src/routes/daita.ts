@@ -47,7 +47,7 @@ function intensityToParams(level: number): Omit<DaitaSettings, "enabled" | "inte
 
 // GET /daita/settings
 router.get("/settings", (req, res) => {
-  const userId = (req.auth as any)?.userId ?? "anonymous";
+  const userId = ((req as any).auth as any)?.userId ?? "anonymous";
   const settings = getSettings(userId);
 
   res.json({
@@ -74,7 +74,7 @@ router.get("/settings", (req, res) => {
 
 // POST /daita/settings
 router.post("/settings", (req, res) => {
-  const userId = (req.auth as any)?.userId ?? "anonymous";
+  const userId = ((req as any).auth as any)?.userId ?? "anonymous";
   const body = z.object({
     enabled:          z.boolean().optional(),
     intensity:        z.number().min(1).max(10).optional(),
@@ -105,7 +105,7 @@ router.post("/settings", (req, res) => {
 
 // GET /daita/rules — generate iptables/tc rules for DAITA
 router.get("/rules", (req, res) => {
-  const userId = (req.auth as any)?.userId ?? "anonymous";
+  const userId = ((req as any).auth as any)?.userId ?? "anonymous";
   const s = getSettings(userId);
 
   if (!s.enabled) {

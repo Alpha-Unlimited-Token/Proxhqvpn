@@ -303,9 +303,9 @@ PersistentKeepalive = 25
   }
 
   // Build zip manually (no extra deps — local zip format)
-  const { createDeflateRaw } = await import("node:zlib");
+  const { deflateRaw: _deflateRaw } = await import("node:zlib");
   const { promisify } = await import("node:util");
-  const deflateRaw = promisify(createDeflateRaw);
+  const deflateRaw = promisify(_deflateRaw);
 
   function u16le(n: number) { const b = Buffer.alloc(2); b.writeUInt16LE(n, 0); return b; }
   function u32le(n: number) { const b = Buffer.alloc(4); b.writeUInt32LE(n, 0); return b; }

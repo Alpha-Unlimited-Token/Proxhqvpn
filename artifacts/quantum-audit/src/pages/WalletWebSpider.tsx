@@ -607,7 +607,7 @@ export default function WalletWebSpider() {
                   <CardContent className="pt-8 pb-8 text-center text-muted-foreground text-sm">
                     <Network className="w-8 h-8 mx-auto mb-3 text-muted-foreground" />
                     No on-chain node links found.
-                    {!data.config?.followNodes && " Enable 'Follow on-chain nodes' to trace counterparty addresses."}
+                    {!(data as any).config?.followNodes && " Enable 'Follow on-chain nodes' to trace counterparty addresses."}
                   </CardContent>
                 </Card>
               ) : (

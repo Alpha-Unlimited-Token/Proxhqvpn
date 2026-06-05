@@ -96,7 +96,7 @@ async function fetchBlockstreamTxs(apiBase: string, address: string, maxTx = 100
 
     const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
     if (!res.ok) break;
-    const batch: BlockstreamTx[] = await res.json();
+    const batch = await res.json() as BlockstreamTx[];
     if (!batch.length) break;
     results.push(...batch);
     if (batch.length < batchSize) break;
@@ -159,7 +159,7 @@ async function fetchDogeTxs(address: string, max = 50): Promise<SigRecord[]> {
       { signal: AbortSignal.timeout(15_000) }
     );
     if (!res.ok) return [];
-    const data: { transactions?: DogeTransaction[] } = await res.json();
+    const data = await res.json() as { transactions?: DogeTransaction[] };
     const txs = data.transactions ?? [];
     const records: SigRecord[] = [];
     for (const tx of txs.slice(0, max)) {

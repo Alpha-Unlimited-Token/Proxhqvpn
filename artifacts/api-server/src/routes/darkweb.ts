@@ -94,7 +94,7 @@ router.post("/pwned-password", async (req, res) => {
 
 // GET /darkweb/status — API config status + email list
 router.get("/status", (req, res) => {
-  const userId = (req.auth as any)?.userId ?? "anonymous";
+  const userId = ((req as any).auth as any)?.userId ?? "anonymous";
   const emails = getEmails(userId);
 
   res.json({
@@ -112,7 +112,7 @@ router.get("/status", (req, res) => {
 
 // POST /darkweb/check — check an email against breach databases
 router.post("/check", async (req, res) => {
-  const userId = (req.auth as any)?.userId ?? "anonymous";
+  const userId = ((req as any).auth as any)?.userId ?? "anonymous";
   const { email } = z.object({ email: z.string().email() }).parse(req.body);
 
   const cached = breachCache[email];
@@ -141,7 +141,7 @@ router.post("/check", async (req, res) => {
 
 // POST /darkweb/monitor — add email to monitoring list
 router.post("/monitor", (req, res) => {
-  const userId = (req.auth as any)?.userId ?? "anonymous";
+  const userId = ((req as any).auth as any)?.userId ?? "anonymous";
   const { email } = z.object({ email: z.string().email() }).parse(req.body);
 
   if (!monitoredEmails[userId]) monitoredEmails[userId] = [];
@@ -160,7 +160,7 @@ router.post("/monitor", (req, res) => {
 
 // DELETE /darkweb/monitor/:email — remove email from monitoring
 router.delete("/monitor/:email", (req, res) => {
-  const userId = (req.auth as any)?.userId ?? "anonymous";
+  const userId = ((req as any).auth as any)?.userId ?? "anonymous";
   const email  = decodeURIComponent(req.params.email);
   const emails = getEmails(userId);
   const idx    = emails.findIndex(e => e.email === email);

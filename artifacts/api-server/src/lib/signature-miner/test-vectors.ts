@@ -57,7 +57,7 @@ function modInv(a: bigint, m: bigint = N): bigint {
 
 /** Derive (r, s) from a private key + message hash + nonce k */
 function signWithK(privKey: bigint, msgHash: bigint, k: bigint): { r: bigint; s: bigint } {
-  const P = secp256k1.ProjectivePoint.BASE.multiply(k);
+  const P = (secp256k1 as any).ProjectivePoint.BASE.multiply(k);
   const r = modN(P.x);
   if (r === 0n) throw new Error("r=0, bad k");
   const s = modN(modInv(k) * modN(privKey * r + msgHash));
@@ -126,9 +126,9 @@ export interface CalibrationReport {
 function buildSyntheticVector(
   id: string,
   privScalar: bigint,
-  k: bigint,
   title: string,
   description: string,
+  k: bigint,
 ): AttackVector {
   const privKeyHex = "0x" + privScalar.toString(16).padStart(64, "0");
   const address    = privKeyToAddress(privScalar);
@@ -278,9 +278,9 @@ export function buildTestVectors(): AttackVector[] {
       0xfeedf00dn),
     buildSyntheticVector("syn-003",
       BigInt("0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364140"), // N-1 (max valid key)
-      BigInt("0x5555555555555555555555555555555555555555555555555555555555555555"),
       "Synthetic — N-1 scalar (maximum valid key), k = N/3",
-      "Exercises the modular arithmetic at the upper boundary of the key space. N-1 is the largest valid private key. All arithmetic is mod N."),
+      "Exercises the modular arithmetic at the upper boundary of the key space. N-1 is the largest valid private key. All arithmetic is mod N.",
+      BigInt("0x5555555555555555555555555555555555555555555555555555555555555555")),
     buildSyntheticVector("syn-004", BigInt("0x" + "a".repeat(64)),
       "Synthetic — all-0xAA scalar (pattern key)",
       "Uniform byte pattern private key. Tests that the engine handles mid-range scalars correctly.",
@@ -345,7 +345,7 @@ export async function runCalibration(
       } else if (v.attackType === "weak_k") {
         // Brute-force small k values
         for (let k = 1n; k <= BigInt(2 ** 32); k++) {
-          const P  = secp256k1.ProjectivePoint.BASE.multiply(k);
+          const P  = (secp256k1 as any).ProjectivePoint.BASE.multiply(k);
           const rC = modN(P.x);
           if (rC !== r) continue;
           const d = modN(modN(s1 * k - z1) * modInv(r));

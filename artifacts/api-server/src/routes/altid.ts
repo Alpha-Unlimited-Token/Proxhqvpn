@@ -132,14 +132,14 @@ router.post("/generate", (req, res) => {
 
 // GET /altid/saved — list saved identities
 router.get("/saved", (req, res) => {
-  const userId    = (req.auth as any)?.userId ?? "anonymous";
+  const userId    = ((req as any).auth as any)?.userId ?? "anonymous";
   const identities = savedIdentities[userId] ?? [];
   res.json({ identities, count: identities.length });
 });
 
 // POST /altid/saved — save an identity
 router.post("/saved", (req, res) => {
-  const userId = (req.auth as any)?.userId ?? "anonymous";
+  const userId = ((req as any).auth as any)?.userId ?? "anonymous";
   const identity = z.object({
     id:         z.string(),
     gender:     z.enum(["male","female"]),
@@ -171,7 +171,7 @@ router.post("/saved", (req, res) => {
 
 // DELETE /altid/saved/:id — delete a saved identity
 router.delete("/saved/:id", (req, res) => {
-  const userId = (req.auth as any)?.userId ?? "anonymous";
+  const userId = ((req as any).auth as any)?.userId ?? "anonymous";
   const { id } = req.params;
   const list   = savedIdentities[userId] ?? [];
   const idx    = list.findIndex(i => i.id === id);

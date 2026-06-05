@@ -18,6 +18,7 @@ import { scanPolkadot, recoverSchnorrPrivateKey } from "../lib/scheme-auditor/po
 import { scanMonero, checkKeyImages } from "../lib/scheme-auditor/monero-scan";
 import { detectChain, getScanPlan } from "../lib/scheme-auditor/chain-detector";
 import { adaptiveScan } from "../lib/scheme-auditor/adaptive-scan";
+import { logger } from "../lib/logger";
 import { requireAdmin } from "../middlewares/requireAdmin";
 import { createBatchJob, getReportsDir } from "../lib/scheme-auditor/batch-worker";
 import { bulkScanViaBigQuery, isBigQueryConfigured } from "../lib/ecdsa-analyzer/bigquery-scanner";
@@ -929,7 +930,7 @@ router.post("/batch-jobs", requireAdmin, async (req: Request, res: Response) => 
 // Get job status + metadata
 router.get("/batch-jobs/:id", requireAdmin, async (req: Request, res: Response) => {
   try {
-    const id = parseInt(req.params.id, 10);
+    const id = parseInt(String(req.params.id), 10);
     const [job] = await db.select().from(batchScanJobsTable).where(eq(batchScanJobsTable.id, id));
     if (!job) return res.status(404).json({ error: "Job not found" });
     res.json({ job });
@@ -939,7 +940,7 @@ router.get("/batch-jobs/:id", requireAdmin, async (req: Request, res: Response) 
 // Get paginated results for a job
 router.get("/batch-jobs/:id/results", requireAdmin, async (req: Request, res: Response) => {
   try {
-    const id     = parseInt(req.params.id, 10);
+    const id     = parseInt(String(req.params.id), 10);
     const page   = Math.max(1, parseInt(String(req.query.page ?? "1"), 10));
     const limit  = Math.min(200, Math.max(1, parseInt(String(req.query.limit ?? "100"), 10)));
     const filter = String(req.query.filter ?? "all");
@@ -968,7 +969,7 @@ router.get("/batch-jobs/:id/results", requireAdmin, async (req: Request, res: Re
 // Get only vulnerable results (for quick findings view)
 router.get("/batch-jobs/:id/findings", requireAdmin, async (req: Request, res: Response) => {
   try {
-    const id = parseInt(req.params.id, 10);
+    const id = parseInt(String(req.params.id), 10);
     const findings = await db
       .select()
       .from(batchScanResultsTable)
@@ -983,22 +984,22 @@ router.get("/batch-jobs/:id/findings", requireAdmin, async (req: Request, res: R
 
 // Pause / resume / cancel a job
 router.post("/batch-jobs/:id/pause",   requireAdmin, async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   await db.update(batchScanJobsTable).set({ status: "paused" }).where(eq(batchScanJobsTable.id, id));
   res.json({ ok: true, status: "paused" });
 });
 router.post("/batch-jobs/:id/resume",  requireAdmin, async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   await db.update(batchScanJobsTable).set({ status: "pending" }).where(eq(batchScanJobsTable.id, id));
   res.json({ ok: true, status: "pending" });
 });
 router.post("/batch-jobs/:id/cancel",  requireAdmin, async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   await db.update(batchScanJobsTable).set({ status: "cancelled" }).where(eq(batchScanJobsTable.id, id));
   res.json({ ok: true, status: "cancelled" });
 });
 router.delete("/batch-jobs/:id",       requireAdmin, async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   await db.delete(batchScanJobsTable).where(eq(batchScanJobsTable.id, id));
   res.json({ ok: true });
 });
@@ -1006,7 +1007,7 @@ router.delete("/batch-jobs/:id",       requireAdmin, async (req: Request, res: R
 // List saved report files for a job
 router.get("/batch-jobs/:id/report-files", requireAdmin, async (req: Request, res: Response) => {
   try {
-    const id = parseInt(req.params.id, 10);
+    const id = parseInt(String(req.params.id), 10);
     const [job] = await db.select().from(batchScanJobsTable).where(eq(batchScanJobsTable.id, id));
     if (!job?.reportDir || !fs.existsSync(job.reportDir)) {
       return res.json({ files: [], reportDir: null });
@@ -1023,10 +1024,10 @@ router.get("/batch-jobs/:id/report-files", requireAdmin, async (req: Request, re
 // Download a specific report file
 router.get("/batch-jobs/:id/download/:filename", requireAdmin, async (req: Request, res: Response) => {
   try {
-    const id = parseInt(req.params.id, 10);
+    const id = parseInt(String(req.params.id), 10);
     const [job] = await db.select().from(batchScanJobsTable).where(eq(batchScanJobsTable.id, id));
     if (!job?.reportDir) return res.status(404).json({ error: "No report available" });
-    const filePath = path.join(job.reportDir, req.params.filename);
+    const filePath = path.join(job.reportDir, String(req.params.filename));
     if (!fs.existsSync(filePath) || !filePath.startsWith(getReportsDir())) {
       return res.status(404).json({ error: "File not found" });
     }
@@ -1065,7 +1066,7 @@ router.post("/pentest/app", async (_req: Request, res: Response) => {
 
 // ── Exploit PoC lookup by vulnerability category ──────────────────────────────
 router.get("/exploits/:category", (req: Request, res: Response) => {
-  const poc = generateExploit(req.params.category, req.params.category);
+  const poc = generateExploit(String(req.params.category), String(req.params.category));
   if (!poc) return res.status(404).json({ error: "No exploit PoC for this category" });
   res.json(poc);
 });
@@ -1110,6 +1111,7 @@ router.post("/bigquery-scan", requireAdmin, async (req: Request, res: Response) 
     res.json({ status: "started", addressCount: addresses.length, message: "BigQuery scan running in background — check server logs for results" });
 
     // Run async in background
+    let cpStream: ReturnType<typeof fs.createWriteStream> | undefined;
     setImmediate(async () => {
       try {
         const results = await bulkScanViaBigQuery(addresses);
@@ -1129,10 +1131,10 @@ router.post("/bigquery-scan", requireAdmin, async (req: Request, res: Response) 
             hasVulnerability:   true,
             vulnerabilityCount: r.nonceReusePairs.length,
             recoveredPrivateKey: pair.recovery.privateKey,
-            recoveredNonceK:    pair.recovery.nonceK,
-            sharedRValue:       pair.sharedR,
-            rawResult:          r as unknown as Record<string, unknown>,
-          });
+            recoveredNonceK:    (pair as any).recovery?.nonceK,
+            sharedRValue:       (pair as any).sharedR,
+            rawResult:          r as any,
+          } as any);
         }
 
         console.log(`BigQuery scan complete: ${results.length} addresses, ${vulnerable.length} vulnerable, ${keysFound.length} keys recovered`);
@@ -1213,8 +1215,8 @@ router.post("/advanced-attack-scan/internal", async (req: Request, res: Response
               displayName: "Ethereum (ETH) — Advanced Attack", schemeLabel: "secp256k1-ecdsa",
               signatureScheme: "secp256k1-ecdsa", hasVulnerability: true,
               vulnerabilityCount: totalFindings, recoveredPrivateKey: keys[0] ?? null,
-              rawResult: r as unknown as Record<string, unknown>,
-            });
+              rawResult: r as any,
+            } as any);
           } catch {}
         }
       }
@@ -1293,8 +1295,8 @@ router.post("/advanced-attack-scan", requireAdmin, async (req: Request, res: Res
               hasVulnerability:   true,
               vulnerabilityCount: totalFindings,
               recoveredPrivateKey: keys[0] ?? null,
-              rawResult:          r as unknown as Record<string, unknown>,
-            });
+              rawResult:          r as any,
+            } as any);
           } catch {}
         }
       }
@@ -1362,7 +1364,7 @@ router.get("/advanced-attack-status", requireAdmin, (_req: Request, res: Respons
 // GET /api/quantum/advanced-attack-report/:filename
 router.get("/advanced-attack-report/:filename", requireAdmin, (req: Request, res: Response) => {
   const reportsDir = path.join(getReportsDir(), "advanced-attacks");
-  const safe       = path.basename(req.params.filename);
+  const safe       = path.basename(String(req.params.filename));
   const full       = path.join(reportsDir, safe);
   if (!fs.existsSync(full)) return res.status(404).json({ error: "Report not found" });
   try {
@@ -1423,6 +1425,7 @@ router.get("/advanced-attack-report/:filename", requireAdmin, (req: Request, res
 
     mlog("Watchdog: triggering scan via setImmediate");
 
+    let cpStream: ReturnType<typeof fs.createWriteStream> | undefined;
     setImmediate(async () => {
       try {
         const targetedFile = "/home/runner/workspace/proxhq-reports/jobs/micro-targets.txt";
@@ -1438,7 +1441,7 @@ router.get("/advanced-attack-report/:filename", requireAdmin, (req: Request, res
 
         // JSONL checkpoint — write each result as it arrives so findings survive crashes
         const checkpointPath = path.join(REPORTS_DIR, "checkpoint.jsonl");
-        const cpStream = fs.createWriteStream(checkpointPath, { flags: "w" });
+        cpStream = fs.createWriteStream(checkpointPath, { flags: "w" });
 
         const results = await bulkScanViaBigQuery(
           addresses,
@@ -1456,7 +1459,7 @@ router.get("/advanced-attack-report/:filename", requireAdmin, (req: Request, res
               advCount:    (r.advancedFindings?.length ?? 0),
               keys:        r.recoveredKeys ?? [],
             };
-            try { cpStream.write(JSON.stringify(compact) + "\n"); } catch {}
+            try { cpStream?.write(JSON.stringify(compact) + "\n"); } catch {}
 
             // Immediately surface any r-collision / key recovery findings
             if (r.nonceReusePairs.length > 0) {
@@ -1498,7 +1501,7 @@ router.get("/advanced-attack-report/:filename", requireAdmin, (req: Request, res
           }
         }
 
-        cpStream.end(); // close checkpoint stream
+        cpStream?.end(); // close checkpoint stream
 
         // ENS summary across all results
         const ensAddressHits   = results.filter(r => r.ensName).length;
@@ -1559,7 +1562,7 @@ router.get("/advanced-attack-report/:filename", requireAdmin, (req: Request, res
         push(`ERROR: ${String(err)}`);
         mlog(`Scan error: ${String(err)}`);
         setStatus(`ERROR: ${String(err)}`);
-        try { cpStream.end(); } catch {}
+        try { cpStream?.end(); } catch {}
       } finally {
         advAttackState.running = false;
       }
@@ -1609,6 +1612,7 @@ router.get("/advanced-attack-report/:filename", requireAdmin, (req: Request, res
     threatState.error    = null;
     threatState.log      = [`[${new Date().toISOString()}] Threat scan started — ${addresses.length} addresses`];
 
+    let cpStream: ReturnType<typeof fs.createWriteStream> | undefined;
     setImmediate(async () => {
       try {
         const summary = await runThreatScan(addresses, (phase, pct) => {
@@ -1815,6 +1819,7 @@ router.get("/advanced-attack-report/:filename", requireAdmin, (req: Request, res
     spiderRunState.error   = null;
     spiderRunState.log     = [`[${new Date().toISOString()}] Spider started — ${seeds.length} seeds`];
 
+    let cpStream: ReturnType<typeof fs.createWriteStream> | undefined;
     setImmediate(async () => {
       try {
         await runSpider(
@@ -1939,7 +1944,7 @@ router.get("/advanced-attack-report/:filename", requireAdmin, (req: Request, res
       return;
     }
 
-    const cfg: UnifiedScanConfig = {
+    const cfg = {
       skipEcdsa:         req.body?.skipEcdsa         ?? false,
       skipThreat:        req.body?.skipThreat         ?? false,
       skipSpider:        req.body?.skipSpider         ?? false,
@@ -1947,7 +1952,7 @@ router.get("/advanced-attack-report/:filename", requireAdmin, (req: Request, res
       spiderConcurrency: Number(req.body?.spiderConcurrency ?? 8),
       spiderMinFreq:     Number(req.body?.spiderMinFreq     ?? 2),
       maxAddresses:      Number(req.body?.maxAddresses      ?? 50_000),
-    };
+    } as unknown as UnifiedScanConfig;
 
     mlog(`[unified] Starting — ${seeds.length} seeds, config=${JSON.stringify(cfg)}`);
 
@@ -2288,8 +2293,8 @@ router.get("/advanced-attack-report/:filename", requireAdmin, (req: Request, res
               concurrency: 6,
             });
             // Merge spider findings into the block-scanner result
-            (result as Record<string, unknown>).chainedSpiderFinds = spiderResult.finds;
-            (result as Record<string, unknown>).chainedUrlCount    = chainUrls.length;
+            (result as unknown as Record<string, unknown>).chainedSpiderFinds = spiderResult.finds;
+            (result as unknown as Record<string, unknown>).chainedUrlCount    = chainUrls.length;
             sigEngineState.result = result;
           } catch (spiderErr) {
             req.log.warn({ err: String(spiderErr) }, "Chained web spider failed");
@@ -3153,7 +3158,7 @@ router.post("/key-recovery/batch/upload", (req: Request, res: Response) => {
 
 // GET /api/quantum-audit/key-recovery/batch/:jobId — poll status
 router.get("/key-recovery/batch/:jobId", (req: Request, res: Response) => {
-  const job = _krJobs.get(req.params.jobId);
+  const job = _krJobs.get(String(req.params.jobId));
   if (!job) { res.status(404).json({ error: "Job not found" }); return; }
 
   const recovered = job.results.filter((r) => r.keyRecovered);
@@ -3179,7 +3184,7 @@ router.get("/key-recovery/batch/:jobId", (req: Request, res: Response) => {
 
 // DELETE /api/quantum-audit/key-recovery/batch/:jobId — cancel
 router.delete("/key-recovery/batch/:jobId", (req: Request, res: Response) => {
-  const job = _krJobs.get(req.params.jobId);
+  const job = _krJobs.get(String(req.params.jobId));
   if (!job) { res.status(404).json({ error: "Job not found" }); return; }
   job.cancelled = true;
   job.status = "cancelled";
@@ -3189,7 +3194,8 @@ router.delete("/key-recovery/batch/:jobId", (req: Request, res: Response) => {
 // ── Key Recovery: status check for a quick preflight (HEAD → tx count only) ──
 
 router.get("/key-recovery/preflight/:address", async (req: Request, res: Response) => {
-  const { address } = req.params;
+  const { address: _rawAddress } = req.params;
+  const address = String(_rawAddress ?? "");
   if (!address || !/^0x[0-9a-fA-F]{40}$/i.test(address)) {
     res.status(400).json({ error: "Invalid address" });
     return;

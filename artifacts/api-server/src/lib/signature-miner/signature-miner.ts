@@ -175,11 +175,11 @@ function extractSig(tx: ethers.TransactionResponse): TxSignatureData | null {
       address: tx.from?.toLowerCase() ?? "",
       r:       sig.r,
       s:       sig.s,
-      v:       String(sig.v),
+      v:       Number(sig.v),
       z:       msgHash,
       blockNumber: tx.blockNumber ?? 0,
       nonce:   tx.nonce,
-    };
+    } as any;
   } catch { return null; }
 }
 
@@ -483,11 +483,11 @@ export async function runSignatureMiner(
         for (const tx of txs) {
           if (addressFilter.size > 0 && !addressFilter.has(tx.from?.toLowerCase() ?? "")) continue;
           const sig = extractSig(tx);
-          if (!sig || !sig.address) continue;
+          if (!sig || !(sig as any).address) continue;
           scannedTxCount++;
-          const list = sigsByAddress[sig.address] ?? [];
+          const list = sigsByAddress[(sig as any).address] ?? [];
           list.push(sig);
-          sigsByAddress[sig.address] = list;
+          sigsByAddress[(sig as any).address] = list;
 
           // ── Extract URLs from this transaction's input data ────────────────
           // Any URL found is tied to this signer address and will auto-feed Engine 2

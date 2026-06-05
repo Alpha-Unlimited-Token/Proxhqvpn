@@ -211,7 +211,7 @@ function AutoTab() {
   const [scanning, setScanning] = useState(false);
   const [result, setResult] = useState<AdaptiveResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   // Live detection as user types
   useEffect(() => {

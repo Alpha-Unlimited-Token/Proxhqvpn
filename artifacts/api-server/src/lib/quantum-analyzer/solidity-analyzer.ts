@@ -1,6 +1,6 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import * as parser from "@solidity-parser/parser";
-import type { ASTNode } from "@solidity-parser/parser";
+
 
 export interface AnalysisFinding {
   title: string;
@@ -188,7 +188,7 @@ function detectAccessControl(ast: any, code: string): AnalysisFinding[] {
       if (fn.stateMutability === "view" || fn.stateMutability === "pure") return;
 
       const modifiers = (fn.modifiers ?? []).map((m: any) => m.name?.toLowerCase?.() ?? "");
-      const hasAccessControl = modifiers.some(m =>
+      const hasAccessControl = modifiers.some((m: string) =>
         ["onlyowner", "onlyadmin", "onlyrole", "requiresauth", "authorized",
           "hasrole", "onlygovernance", "restricted"].includes(m) ||
         m.startsWith("only") || m.startsWith("require") || m.includes("auth")

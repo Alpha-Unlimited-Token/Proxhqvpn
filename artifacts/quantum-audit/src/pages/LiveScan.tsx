@@ -442,7 +442,7 @@ export default function LiveScan() {
                       <Badge variant="outline" className={`text-xs font-mono ${SEV[f.type === "p2pk_pubkey" ? "critical" : "high"]}`}>
                         {String(f.type).replace(/_/g, " ").toUpperCase()}
                       </Badge>
-                      <span className="text-sm font-mono">{f.description as string}</span>
+                      <span className="text-sm font-mono">{String(f.description)}</span>
                     </div>
                     {expanded[`btc-f-${i}`] ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
                   </button>
@@ -483,9 +483,9 @@ export default function LiveScan() {
                         <div key={i} className={`flex items-center gap-3 p-2 rounded border text-xs font-mono ${u.isP2PK ? "border-red-500/30 bg-red-500/5" : "border-border/30 bg-card/30"}`}>
                           {u.isP2PK ? <AlertTriangle className="w-3 h-3 text-red-400 flex-shrink-0" /> : <CheckCircle className="w-3 h-3 text-green-400 flex-shrink-0" />}
                           <span className="text-muted-foreground truncate flex-1">{String(u.txid).slice(0, 20)}…</span>
-                          <span className="text-primary">{u.valueBTC as string} BTC</span>
-                          <span className="text-muted-foreground">{u.scriptType as string}</span>
-                          {u.isP2PK && <Badge className="bg-red-500/20 text-red-400 border-red-500/30 text-[10px]">P2PK</Badge>}
+                          <span className="text-primary">{String(u.valueBTC)} BTC</span>
+                          <span className="text-muted-foreground">{String(u.scriptType)}</span>
+                          {!!u.isP2PK && <Badge className="bg-red-500/20 text-red-400 border-red-500/30 text-[10px]">P2PK</Badge>}
                         </div>
                       ))}
                     </div>
@@ -541,7 +541,7 @@ export default function LiveScan() {
                   </button>
                   {expanded[`xmr-${i}`] && (
                     <div className="p-4 border-t border-current/20 bg-background/50 space-y-3">
-                      <p className="text-sm">{f.description as string}</p>
+                      <p className="text-sm">{String(f.description)}</p>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs font-mono">
                         <div className="bg-black/40 rounded p-2">
                           <p className="text-muted-foreground mb-1">AFFECTS</p>
@@ -655,15 +655,15 @@ export default function LiveScan() {
                   </button>
                   {expanded[`eth-f-${i}`] && (
                     <div className="p-4 border-t border-current/20 bg-background/50 space-y-2">
-                      <p className="text-sm">{f.description as string}</p>
+                      <p className="text-sm">{String(f.description)}</p>
                       <div className="bg-black/40 rounded p-2 text-xs font-mono">
                         <p className="text-muted-foreground mb-1">EVIDENCE</p>
-                        <p className="text-orange-300">{f.evidence as string}</p>
+                        <p className="text-orange-300">{String(f.evidence)}</p>
                       </div>
-                      {f.quantumContext && (
+                      {!!f.quantumContext && (
                         <div className="bg-red-500/5 border border-red-500/20 rounded p-2 text-xs">
                           <p className="text-red-400 font-mono mb-1">QUANTUM CONTEXT</p>
-                          <p className="text-muted-foreground">{f.quantumContext as string}</p>
+                          <p className="text-muted-foreground">{String(f.quantumContext)}</p>
                         </div>
                       )}
                     </div>
@@ -692,7 +692,7 @@ export default function LiveScan() {
                 ))}
               </div>
 
-              {data.upgradeAuthority && (
+              {!!data.upgradeAuthority && (
                 <Card className="border-orange-500/30 bg-orange-500/5">
                   <CardContent className="p-4">
                     <p className="text-xs font-mono text-orange-400 mb-1">UPGRADE AUTHORITY KEY</p>
@@ -716,15 +716,15 @@ export default function LiveScan() {
                   </button>
                   {expanded[`sol-f-${i}`] && (
                     <div className="p-4 border-t border-current/20 bg-background/50 space-y-2">
-                      <p className="text-sm">{f.description as string}</p>
+                      <p className="text-sm">{String(f.description)}</p>
                       <div className="bg-black/40 rounded p-2 text-xs font-mono">
                         <p className="text-muted-foreground mb-1">EVIDENCE</p>
-                        <p className="text-orange-300">{f.evidence as string}</p>
+                        <p className="text-orange-300">{String(f.evidence)}</p>
                       </div>
-                      {f.quantumContext && (
+                      {!!f.quantumContext && (
                         <div className="bg-red-500/5 border border-red-500/20 rounded p-2 text-xs">
                           <p className="text-red-400 font-mono mb-1">QUANTUM CONTEXT</p>
-                          <p className="text-muted-foreground">{f.quantumContext as string}</p>
+                          <p className="text-muted-foreground">{String(f.quantumContext)}</p>
                         </div>
                       )}
                     </div>

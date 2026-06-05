@@ -408,11 +408,11 @@ export default function ECDSAScanner() {
                         ))}
                       </div>
                     ) : null}
-                    {advReport.findingsByType && (
+                    {!!advReport.findingsByType && (
                       <div className="space-y-0.5">
                         {Object.entries(advReport.findingsByType as Record<string, number>).map(([t, c]) => (
                           <div key={t} className="flex justify-between text-xs font-mono text-muted-foreground">
-                            <span>{t}</span><span className="text-primary">{c}</span>
+                            <span>{t}</span><span className="text-primary">{String(c)}</span>
                           </div>
                         ))}
                       </div>

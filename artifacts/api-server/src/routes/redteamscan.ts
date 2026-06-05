@@ -204,14 +204,14 @@ function scanCredentialExposure(body: string, headers: Record<string, string>, u
         title: `${name} Exposed in Response Body`,
         description: `A hardcoded ${name} was found in the page source, making it trivially stealable.`,
         severity: "critical",
-        evidence: matches[0].substring(0, 60),
+        evidence: (matches[0] ?? "").substring(0, 60),
         recommendation: "Never include API keys in frontend code. Use server-side proxying or environment-only secrets.",
       });
     }
   }
 
   // Basic Auth in response
-  const wwwAuth = headers["www-authenticate"] ?? "";
+  const wwwAuth = String(headers["www-authenticate"] ?? "");
   if (wwwAuth.toLowerCase().includes("basic")) {
     findings.push({
       technique: "Password.bas — plaintext credential transmission",
@@ -281,7 +281,7 @@ function scanCryptoWeaknesses(body: string, headers: Record<string, string>): Fi
       title: "Large Base64 Blobs in Source",
       description: `${b64Blobs.length} large base64 strings found. May encode embedded scripts, exfiltration payloads, or hidden data.`,
       severity: "low",
-      evidence: b64Blobs[0].substring(0, 80),
+      evidence: (b64Blobs[0] ?? "").substring(0, 80),
       recommendation: "Audit all base64 values. Ensure none decode to executable code or sensitive data.",
     });
   }
@@ -460,7 +460,7 @@ function scanInfoDisclosure(body: string, headers: Record<string, string>, statu
         title: "Internal File Paths Exposed",
         description: "Server leaks internal file system paths, equivalent to Global.bas drive/directory enumeration. Aids in path traversal attacks.",
         severity: "medium",
-        evidence: matches[0].substring(0, 100),
+        evidence: (matches[0] ?? "").substring(0, 100),
         recommendation: "Disable verbose error output in production. Use a generic 500 error page.",
       });
       break;
@@ -515,7 +515,7 @@ function scanInfoDisclosure(body: string, headers: Record<string, string>, statu
       title: "Version Numbers in HTML Comments",
       description: "Version numbers in comments help attackers target specific CVEs.",
       severity: "low",
-      evidence: versionComments[0].substring(0, 80),
+      evidence: (versionComments[0] ?? "").substring(0, 80),
       recommendation: "Strip version comments from production builds. Use build tools to remove comments.",
     });
   }
@@ -834,7 +834,7 @@ function scanWin64Patterns(body: string, headers: Record<string, string>): Findi
       title: "Windows 64-bit Registry Paths Exposed (Wow6432Node)",
       description: "Wow6432Node is the 32-bit registry redirect on 64-bit Windows — 32-bit apps see HKLM\\SOFTWARE\\Wow6432Node instead of HKLM\\SOFTWARE. Its presence indicates registry enumeration artifacts or legacy 32-bit component configuration being leaked.",
       severity: "medium",
-      evidence: reg64Paths[0].substring(0, 80),
+      evidence: (reg64Paths[0] ?? "").substring(0, 80),
       recommendation: "Remove all registry path references from web responses. Enable production error suppression. Audit for path traversal vulnerabilities targeting Windows registry hive files.",
     });
   }

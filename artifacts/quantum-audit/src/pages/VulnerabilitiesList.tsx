@@ -1,5 +1,5 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
-import { useListVulnerabilities } from "@workspace/api-client-react";
+import { useListVulnerabilities, type ListVulnerabilitiesSeverity } from "@workspace/api-client-react";
 import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,8 +12,8 @@ export default function VulnerabilitiesList() {
   const [category, setCategory] = useState<string>("all");
 
   const { data, isLoading } = useListVulnerabilities({
-    severity: severity !== "all" ? severity : undefined,
-    category: category !== "all" ? category : undefined
+    severity: severity !== "all" ? (severity as ListVulnerabilitiesSeverity) : undefined,
+    category: category !== "all" ? (category as any) : undefined
   });
 
   const getSeverityColor = (sev: string) => {

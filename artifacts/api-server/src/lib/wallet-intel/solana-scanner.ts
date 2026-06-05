@@ -224,7 +224,7 @@ export async function scanSolanaAuthorities(address: string): Promise<AuthorityS
 
 // ── 2. Solana Poisoning Scanner ────────────────────────────────────────────────
 
-const KNOWN_SCAM_MINTS = new Set([
+const KNOWN_SCAM_MINTS = new Set<string>([
   // Placeholder — in production this would be backed by a community-maintained list
 ]);
 

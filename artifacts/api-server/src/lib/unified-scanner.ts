@@ -367,7 +367,7 @@ export class MegaScanner {
               threatSummary = summary;
               threatCrit = summary.riskBreakdown.critical ?? 0;
               threatHigh = summary.riskBreakdown.high     ?? 0;
-              extraSpiderSeeds = summary.highRiskAddresses.map(p => p.address);
+              extraSpiderSeeds = summary.highRiskAddresses.map((p: any) => p.address);
               this.log(`  [Threat] complete — ${threatCrit} critical, ${threatHigh} high → ${extraSpiderSeeds.length} flagged for spider`);
             }).catch(err => this.log(`  [Threat] error (continuing): ${String(err)}`)),
           );
@@ -624,10 +624,10 @@ export class MegaScanner {
       // ╚══════════════════════════════════════════════════════════════════════
       {
         // Use threat scanner findings to identify contract-related addresses
-        const contractAddrs = (threatSummary?.highRiskAddresses ?? [])
-          .filter(p => p.findings.some(f =>
+        const contractAddrs = ((threatSummary as any)?.highRiskAddresses ?? [])
+          .filter((p: any) => p.findings.some((f: any) =>
             ["bridge", "flash_loan", "exploit_contract", "token_drainer", "governance"].includes(f.category)))
-          .map(p => p.address)
+          .map((p: any) => p.address)
           .slice(0, config.contractMaxN);
 
         const phase = this.startPhase("phase_f_contracts",
@@ -742,8 +742,8 @@ export class MegaScanner {
         ecdsaStats.nonceReusePairs++;
         addFinding({
           source: "ecdsa", engine: "nonce-reuse", type: "nonce_reuse", severity: "critical", address: r.address,
-          title: "ECDSA nonce reuse", detail: `Identical r-value: tx ${pair.tx1.hash.slice(0,14)}… and ${pair.tx2.hash.slice(0,14)}…`,
-          txHashes: [pair.tx1.hash, pair.tx2.hash], extra: { r: pair.r }, timestamp: new Date().toISOString(),
+          title: "ECDSA nonce reuse", detail: `Identical r-value: tx ${(pair as any).tx1?.hash.slice(0,14)}… and ${(pair as any).tx2?.hash.slice(0,14)}…`,
+          txHashes: [(pair as any).tx1?.hash, (pair as any).tx2?.hash], extra: { r: (pair as any).r }, timestamp: new Date().toISOString(),
         });
       }
       for (const key of r.recoveredKeys ?? []) {
@@ -936,5 +936,4 @@ export type { MegaScanConfig   as UnifiedScanConfig };
 export type { MegaScanState    as UnifiedScanState };
 export type { MegaReport       as UnifiedReport };
 export type { MegaFinding      as UnifiedFinding };
-export type { PhaseResult };
 export const DEFAULT_UNIFIED_CONFIG = DEFAULT_MEGA_CONFIG;

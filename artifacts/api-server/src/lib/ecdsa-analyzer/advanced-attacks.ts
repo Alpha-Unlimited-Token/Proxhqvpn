@@ -647,9 +647,9 @@ function lllReduce(basis: bigint[][]): bigint[][] {
   const B     = basis.map(row => [...row]); // deep copy
 
   // Gram-Schmidt coefficients as rationals (μ_ij = num/den)
-  const mu  = Array.from({ length: N_dim }, () => new Array(N_dim).fill(0n));
+  const mu  = Array.from({ length: N_dim }, () => new Array<bigint>(N_dim).fill(0n));
   const muD = Array.from({ length: N_dim }, () => new Array(N_dim).fill(1n));
-  const B2N = new Array(N_dim).fill(0n); // ||b*_i||² numerators
+  const B2N = new Array<bigint>(N_dim).fill(0n); // ||b*_i||² numerators
   const B2D = new Array(N_dim).fill(1n); // ||b*_i||² denominators
 
   function dot(a: bigint[], b: bigint[]): bigint {
@@ -672,9 +672,9 @@ function lllReduce(basis: bigint[][]): bigint[][] {
 
   // Full LLL implementation using integer Gram-Schmidt (D-LLL / Bareiss-like)
   // This is the Cohen/Schnorr-Euchner version suitable for large integers.
-  const d    = new Array(N_dim + 1).fill(1n);   // d[0]=1, d[k]=||b*_{k-1}||² (scaled)
+  const d    = new Array<bigint>(N_dim + 1).fill(1n);   // d[0]=1, d[k]=||b*_{k-1}||² (scaled)
   const Bint = basis.map(r => [...r]);           // working copy
-  const lam  = Array.from({ length: N_dim }, () => new Array(N_dim).fill(0n));
+  const lam  = Array.from({ length: N_dim }, () => new Array<bigint>(N_dim).fill(0n));
 
   // Compute initial Gram matrix (integer)
   // Uses the "delta-LLL" algorithm from Cohen "A Course in Computational Algebraic Number Theory"
