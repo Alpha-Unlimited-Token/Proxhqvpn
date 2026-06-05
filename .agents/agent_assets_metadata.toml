@@ -437,3 +437,9 @@ id = "kc9JnRfox6HDfSUOd49HK"
 uri = "file://ProxhqVPN-Installer-Code.zip"
 type = "unspecified"
 title = "ProxhqVPN Installer Code (Fixed v5.1)"
+
+[[outputs]]
+id = "coMbNk7A_tM0QogyhmVF5"
+uri = "file://ProxhqVPN-Audit-Package.zip"
+type = "unspecified"
+title = "ProxhqVPN — Audit Package (Source Code + ChatGPT Prompt)"
