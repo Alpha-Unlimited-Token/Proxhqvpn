@@ -157,10 +157,15 @@ const PRIVACY_SUITE_NAV = [
 
 const NETWORK_NAV = [
   { href: "/vpngate",          label: "VPN Gate",          icon: Globe },
+  { href: "/wireguard",        label: "WireGuard Config",  icon: Cpu },
   { href: "/split-tunnel",     label: "Split Tunneling",   icon: GitBranch },
   { href: "/proxy",            label: "Proxy & Tor",       icon: Globe2 },
   { href: "/onion-browser",    label: "Onion Browser",     icon: Onion },
   { href: "/network-monitor",  label: "Network Monitor",   icon: Activity },
+  { href: "/smart-dns",        label: "Smart DNS",         icon: Zap },
+  { href: "/router-config",    label: "Router Setup",      icon: Router },
+  { href: "/vpn-coexist",      label: "VPN Coexistence",   icon: Settings },
+  { href: "/vpn-tracker",      label: "VPN Tracker",       icon: Activity },
   { href: "/port-forward",     label: "Port Forwarding",   icon: ArrowLeftRight },
   { href: "/dedicated-ip",     label: "Dedicated IP",      icon: Share2 },
   { href: "/meshnet",          label: "Meshnet P2P",       icon: GitMerge },
@@ -192,11 +197,6 @@ const TIER_COLOR: Record<1 | 2 | 3, string> = {
 };
 
 const ADVANCED_NAV = [
-  { href: "/vpn-tracker",   label: "VPN Tracker",           icon: Activity },
-  { href: "/wireguard",     label: "WireGuard Config",      icon: Cpu },
-  { href: "/router-config", label: "Router Setup",          icon: Router },
-  { href: "/smart-dns",     label: "Smart DNS",             icon: Zap },
-  { href: "/vpn-coexist",   label: "VPN Coexistence",       icon: Settings },
   { href: "/sqlmap",        label: "Vulnerability Scanner", icon: ScanSearch },
   { href: "/alpha-tools",   label: "Alpha Toolkit",         icon: Layers },
   { href: "/tool-runner",   label: "Parrot Tool Runner",    icon: Terminal },
