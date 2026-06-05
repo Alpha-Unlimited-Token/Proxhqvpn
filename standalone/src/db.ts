@@ -83,6 +83,38 @@ function initSchema(): void {
       auto_blocked INTEGER NOT NULL DEFAULT 0, hit_count INTEGER NOT NULL DEFAULT 1,
       blocked_at TEXT NOT NULL, expires_at TEXT
     );
+    CREATE TABLE IF NOT EXISTS ghost_trap_config (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, user_token TEXT UNIQUE,
+      device_mode TEXT NOT NULL DEFAULT 'personal',
+      user_domain TEXT, user_detected_ip TEXT,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      tarpit_min_ms INTEGER NOT NULL DEFAULT 1500,
+      tarpit_max_ms INTEGER NOT NULL DEFAULT 8000,
+      auto_block_after INTEGER NOT NULL DEFAULT 5,
+      silk_trap_after INTEGER NOT NULL DEFAULT 3,
+      fake_site_name TEXT NOT NULL DEFAULT 'AdminPanel v2.1',
+      fake_db_version TEXT NOT NULL DEFAULT 'MySQL 5.7.39-log',
+      updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS ghost_trap_probes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, probe_id TEXT NOT NULL UNIQUE,
+      attacker_ip TEXT NOT NULL, attacker_port INTEGER,
+      attacker_ua TEXT, method TEXT NOT NULL, endpoint TEXT NOT NULL,
+      probe_type TEXT NOT NULL DEFAULT 'other', attack_vector TEXT,
+      fake_response TEXT, tarpit_ms INTEGER NOT NULL DEFAULT 0,
+      auto_blocked INTEGER NOT NULL DEFAULT 0, silk_trapped INTEGER NOT NULL DEFAULT 0,
+      beacon_fired INTEGER NOT NULL DEFAULT 0, beacon_fired_at TEXT,
+      hop_chain TEXT, probe_headers TEXT,
+      vpn_detected INTEGER NOT NULL DEFAULT 0, tor_detected INTEGER NOT NULL DEFAULT 0,
+      geo_country TEXT, geo_city TEXT, geo_isp TEXT, geo_org TEXT,
+      geo_asn TEXT, geo_timezone TEXT,
+      probed_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS ghost_trap_beacons (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, probe_id TEXT NOT NULL,
+      attacker_ip TEXT NOT NULL, beacon_type TEXT NOT NULL DEFAULT 'http',
+      payload TEXT, fired_at TEXT NOT NULL
+    );
   `);
 }
 

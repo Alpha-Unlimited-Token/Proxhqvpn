@@ -86,8 +86,43 @@ async function createApp() {
   app.use(globalLimiter);
 
   // ─── Health ──────────────────────────────────────────────────────────────
+  const APP_VERSION = "2.0.0";
+
   app.get("/api/healthz", (_req, res) => {
-    res.json({ status: "ok", version: "1.0.0", timestamp: n() });
+    res.json({ status: "ok", version: APP_VERSION, timestamp: n() });
+  });
+
+  // ─── Update check (standalone auto-updater) ──────────────────────────────
+  app.get("/api/update/check", (_req, res) => {
+    res.json({
+      version: APP_VERSION,
+      releaseDate: "2026-06-05",
+      changelog: [
+        "Ghost Trap honeypot — personal device mode (IP:port lure URLs) and website/server mode (domain path lure URLs)",
+        "Per-user Ghost Trap isolation — each user's probes, beacons, and config are completely private",
+        "Auto-detects device type and builds trap URLs accordingly",
+        "Deploy configs: nginx proxy block (server mode) and iptables/Linux (device mode)",
+        "Instant law-enforcement incident report download for every attacker probe",
+        "JWT Analyzer — JWKS injection, X5U injection, Embedded JWK, kid SQL/path injection, Claim Escalation attacks",
+        "Subdomain Scanner — 9 passive OSINT sources (crt.sh, AlienVault OTX, HackerTarget, URLScan.io, Wayback, AnubisDB, RapidDNS, ThreatCrowd, BufferOver)",
+        "Directory Fuzzer — recursive scanning up to depth 3, response-size filtering",
+        "Canary Tokens — 12 token types including AWS Key, Redirect URL, SQL Token, PowerShell, PDF, Slack Webhook",
+        "Kill Switch — full IPv6 leak protection with ip6tables mirroring",
+        "DNS Sinkhole — Pi-hole style per-category blocking (Ads/Trackers/Malware/Phishing/Cryptomining/Botnet/Adult)",
+        "Network Monitor — real-time traffic flow analysis across all VPN nodes",
+        "Security Event Log (SIEM) — unified event timeline with severity filtering",
+        "OSINT Recon — DNS, TLS, HTTP headers, email security, ASN fingerprinting",
+        "QuantumAudit — standalone blockchain security auditing for classical + post-quantum vulnerabilities",
+      ],
+      downloadUrls: {
+        windows: "/downloads/ProxhqVPN-Windows-x64.zip",
+        macArm64: "/downloads/ProxhqVPN-macOS-arm64.zip",
+        macX64:   "/downloads/ProxhqVPN-macOS-x64.zip",
+        linux:    "/downloads/ProxhqVPN-Linux-x64.zip",
+        universal:"/downloads/ProxhqVPN-Universal-NodeJS.zip",
+        all:      "/downloads/ProxhqVPN-ALL-PLATFORMS.zip",
+      },
+    });
   });
 
   // ─── Nodes ───────────────────────────────────────────────────────────────
@@ -100,7 +135,7 @@ async function createApp() {
   });
 
   app.get("/api/nodes/:id", (req, res) => {
-    const nd: any = queryOne("SELECT * FROM nodes WHERE id=?", [parseInt(req.params.id)]);
+    const nd: any = queryOne("SELECT * FROM nodes WHERE id=?", [parseInt(String(req.params.id))]);
     if (!nd) return res.status(404).json({ error: "Node not found" });
     res.json({ ...nd, hasBeacon: !!nd.has_beacon, hasSpider: !!nd.has_spider, hasWorm: !!nd.has_worm });
   });
@@ -116,7 +151,7 @@ async function createApp() {
   });
 
   app.put("/api/nodes/:id", mutateLimiter, (req, res) => {
-    const id = parseInt(req.params.id);
+    const id = parseInt(String(req.params.id));
     const nd: any = queryOne("SELECT * FROM nodes WHERE id=?", [id]);
     if (!nd) return res.status(404).json({ error: "Node not found" });
     const body = z.object({ name: z.string().optional(), region: z.string().optional(), status: z.string().optional(), hasBeacon: z.boolean().optional(), hasSpider: z.boolean().optional(), hasWorm: z.boolean().optional() }).parse(req.body);
@@ -126,12 +161,12 @@ async function createApp() {
   });
 
   app.delete("/api/nodes/:id", mutateLimiter, (req, res) => {
-    run("DELETE FROM nodes WHERE id=?", [parseInt(req.params.id)]);
+    run("DELETE FROM nodes WHERE id=?", [parseInt(String(req.params.id))]);
     res.json({ deleted: true });
   });
 
   app.post("/api/nodes/:id/rotate-ip", mutateLimiter, (req, res) => {
-    const id = parseInt(req.params.id);
+    const id = parseInt(String(req.params.id));
     const nd: any = queryOne("SELECT * FROM nodes WHERE id=?", [id]);
     if (!nd) return res.status(404).json({ error: "Node not found" });
     const prevIp = nd.ip_address;
@@ -149,7 +184,7 @@ async function createApp() {
   });
 
   app.post("/api/nodes/:id/replace", mutateLimiter, (req, res) => {
-    const id = parseInt(req.params.id);
+    const id = parseInt(String(req.params.id));
     const nd: any = queryOne("SELECT * FROM nodes WHERE id=?", [id]);
     if (!nd) return res.status(404).json({ error: "Node not found" });
     const priv = genPri();
@@ -203,7 +238,7 @@ async function createApp() {
   });
 
   app.patch("/api/beacons/:id/dismiss", mutateLimiter, (req, res) => {
-    const id = parseInt(req.params.id);
+    const id = parseInt(String(req.params.id));
     const a: any = queryOne("SELECT * FROM beacon_alerts WHERE id=?", [id]);
     if (!a) return res.status(404).json({ error: "Alert not found" });
     run("UPDATE beacon_alerts SET status='dismissed' WHERE id=?", [id]);
@@ -297,7 +332,7 @@ async function createApp() {
   });
 
   app.put("/api/firewall/rules/:id", mutateLimiter, (req, res) => {
-    const id = parseInt(req.params.id);
+    const id = parseInt(String(req.params.id));
     const r: any = queryOne("SELECT * FROM firewall_rules WHERE id=?", [id]);
     if (!r) return res.status(404).json({ error: "Rule not found" });
     const body = z.object({ name: z.string().optional(), enabled: z.boolean().optional(), priority: z.number().optional(), description: z.string().optional() }).parse(req.body);
@@ -307,7 +342,7 @@ async function createApp() {
   });
 
   app.delete("/api/firewall/rules/:id", mutateLimiter, (req, res) => {
-    run("DELETE FROM firewall_rules WHERE id=?", [parseInt(req.params.id)]);
+    run("DELETE FROM firewall_rules WHERE id=?", [parseInt(String(req.params.id))]);
     res.json({ deleted: true });
   });
 
@@ -336,7 +371,7 @@ async function createApp() {
   });
 
   app.delete("/api/firewall/blocked-ips/:id", mutateLimiter, (req, res) => {
-    run("DELETE FROM blocked_ips WHERE id=?", [parseInt(req.params.id)]);
+    run("DELETE FROM blocked_ips WHERE id=?", [parseInt(String(req.params.id))]);
     res.json({ deleted: true });
   });
 
@@ -399,8 +434,224 @@ async function createApp() {
     }
   });
 
+  // ─── Ghost Trap ───────────────────────────────────────────────────────────
+  function gtTarpit(ms: number) { return new Promise(r => setTimeout(r, ms)); }
+
+  function gtGetIp(req: Request): string {
+    const fwd = req.headers["x-forwarded-for"];
+    const fwdStr = Array.isArray(fwd) ? fwd[0] : fwd;
+    return fwdStr?.split(",")[0]?.trim() || req.socket?.remoteAddress || "unknown";
+  }
+
+  function gtIsPrivate(ip: string): boolean {
+    return /^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|127\.|::1$|fc00:|fe80:)/.test(ip);
+  }
+
+  function gtDetectAttack(data: string): { type: string; vector: string } | null {
+    if (!data) return null;
+    const s = data.toLowerCase();
+    if (/union\s+select|'\s*or\s+['"]?\d|;\s*(drop|delete|insert|update)\s/i.test(s)) return { type: "sql_injection", vector: "SQL injection" };
+    if (/<script[\s>]|javascript:|on\w+\s*=|document\.cookie/i.test(s)) return { type: "xss", vector: "XSS" };
+    if (/;\s*(ls|cat|id|whoami|wget|curl)\b|\|\s*(ls|cat|id)\b|\$\([^)]+\)/i.test(s)) return { type: "cmd_injection", vector: "command injection" };
+    if (/\.\.(\/|%2f)|\/etc\/passwd|\/proc\/self/i.test(s)) return { type: "path_traversal", vector: "path traversal" };
+    return null;
+  }
+
+  function gtFakeResponse(endpoint: string, fakeSite: string, fakeDb: string): string {
+    const ep = endpoint.toLowerCase();
+    if (ep.includes("login") || ep.includes("admin")) return JSON.stringify({ error: "Invalid credentials", site: fakeSite, db: fakeDb });
+    if (ep.includes(".env")) return `DB_HOST=localhost\nDB_USER=admin\nDB_PASS=hunter2\nAPP_KEY=base64:${crypto.randomBytes(32).toString("base64")}`;
+    if (ep.includes(".git")) return `[core]\n\trepositoryformatversion = 0\n\tfilemode = true\n\tbare = false`;
+    if (ep.includes("backup") || ep.includes(".sql")) return `-- ${fakeDb} dump\n-- Host: localhost\nCREATE TABLE users (id INT, email VARCHAR(255), password_hash VARCHAR(255));`;
+    return JSON.stringify({ status: "ok", server: fakeSite, version: "2.1.4", db: fakeDb });
+  }
+
+  function gtGetOrCreateConfig() {
+    let cfg = queryOne("SELECT * FROM ghost_trap_config WHERE id=1") as any;
+    if (!cfg) {
+      const token = crypto.randomBytes(24).toString("hex");
+      run("INSERT INTO ghost_trap_config (user_token, device_mode, enabled, tarpit_min_ms, tarpit_max_ms, auto_block_after, silk_trap_after, fake_site_name, fake_db_version, updated_at) VALUES (?,?,1,1500,8000,5,3,'AdminPanel v2.1','MySQL 5.7.39-log',?)", [token, "personal", n()]);
+      cfg = queryOne("SELECT * FROM ghost_trap_config WHERE id=1");
+    }
+    return cfg;
+  }
+
+  async function gtHandleProbe(req: Request, res: Response, trapPath: string) {
+    const cfg = gtGetOrCreateConfig();
+    if (!cfg?.enabled) { res.status(404).send("Not found"); return; }
+
+    const ip = gtGetIp(req);
+    const probeId = crypto.randomUUID();
+    const probe = gtDetectAttack(`${req.url} ${JSON.stringify(req.body ?? "")} ${JSON.stringify(req.query)}`);
+    const probeType = probe?.type ?? "recon";
+    const fakeResp = gtFakeResponse(trapPath, cfg.fake_site_name, cfg.fake_db_version);
+
+    // Count prior probes from this IP
+    const priorCount = ((queryOne("SELECT COUNT(*) c FROM ghost_trap_probes WHERE attacker_ip=?", [ip]) as any)?.c ?? 0) as number;
+    const autoBlock = priorCount >= (cfg.auto_block_after ?? 5);
+    const silkTrap = priorCount >= (cfg.silk_trap_after ?? 3);
+
+    const tarpitMs = Math.floor(Math.random() * ((cfg.tarpit_max_ms ?? 8000) - (cfg.tarpit_min_ms ?? 1500)) + (cfg.tarpit_min_ms ?? 1500));
+    const xffRaw = req.headers["x-forwarded-for"];
+    const xffStr = Array.isArray(xffRaw) ? xffRaw.join(",") : (xffRaw ?? "");
+    const hopChain = xffStr ? JSON.stringify(xffStr.split(",").map((h: string) => h.trim())) : null;
+    const ua = Array.isArray(req.headers["user-agent"]) ? req.headers["user-agent"][0] : (req.headers["user-agent"] ?? null);
+
+    run(`INSERT INTO ghost_trap_probes (probe_id, attacker_ip, attacker_port, attacker_ua, method, endpoint, probe_type, attack_vector, fake_response, tarpit_ms, auto_blocked, silk_trapped, beacon_fired, hop_chain, probe_headers, probed_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,0,?,?,?)`,
+      [probeId, ip, req.socket?.remotePort ?? null, ua, req.method, trapPath, probeType, probe?.vector ?? null, fakeResp, tarpitMs, autoBlock ? 1 : 0, silkTrap ? 1 : 0, hopChain, JSON.stringify(req.headers), n()]);
+
+    if (autoBlock) {
+      run("INSERT OR IGNORE INTO blocked_ips (ip, reason, auto_blocked, hit_count, blocked_at) VALUES (?,?,1,?,?)", [ip, "Ghost Trap auto-block", priorCount + 1, n()]);
+    }
+
+    await gtTarpit(tarpitMs);
+
+    // Fire beacon after tarpit (non-blocking)
+    setImmediate(() => {
+      run("UPDATE ghost_trap_probes SET beacon_fired=1, beacon_fired_at=? WHERE probe_id=?", [n(), probeId]);
+      run("INSERT INTO ghost_trap_beacons (probe_id, attacker_ip, beacon_type, payload, fired_at) VALUES (?,?,?,?,?)",
+        [probeId, ip, "http", JSON.stringify({ endpoint: trapPath, ua }), n()]);
+    });
+
+    res.setHeader("Content-Type", "application/json");
+    res.setHeader("X-Powered-By", cfg.fake_site_name);
+    res.status(200).send(fakeResp);
+  }
+
+  // Platform lure routes — PUBLIC, no auth
+  const GT_TRAP_PATHS = ["/ssh","/http","/admin","/rdp","/ftp","/device","/secure-admin","/vnc","/wp-admin","/.env","/phpmyadmin","/api/users","/.git","/config.php","/api/login","/login","/backup.sql","/api/data"];
+  for (const tp of GT_TRAP_PATHS) {
+    app.all(`/api/ghost-trap/lure${tp}`, (req, res) => gtHandleProbe(req, res, tp));
+  }
+  app.all("/api/ghost-trap/lure/*splat", (req, res) => {
+    const splat = Array.isArray((req.params as any).splat) ? (req.params as any).splat[0] : (req.params as any).splat;
+    gtHandleProbe(req, res, `/${splat ?? "unknown"}`);
+  });
+
+  // Per-user lure (token-based)
+  app.all("/api/ghost-trap/u/:token/lure/*splat", async (req, res) => {
+    const { token } = req.params as { token: string };
+    const cfg = queryOne("SELECT * FROM ghost_trap_config WHERE user_token=?", [token]) as any;
+    if (!cfg) { res.status(404).send("Not found"); return; }
+    const splat = Array.isArray((req.params as any).splat) ? (req.params as any).splat[0] : (req.params as any).splat;
+    await gtHandleProbe(req, res, `/${splat ?? "unknown"}`);
+  });
+
+  // Ghost Trap config
+  app.get("/api/ghost-trap/config", (_req, res) => {
+    res.json(gtGetOrCreateConfig());
+  });
+
+  app.post("/api/ghost-trap/config", mutateLimiter, (req, res) => {
+    const cfg = gtGetOrCreateConfig();
+    const b = req.body as Record<string, unknown>;
+    const fields: string[] = [];
+    const vals: unknown[] = [];
+    if (b.enabled !== undefined)       { fields.push("enabled=?");         vals.push(b.enabled ? 1 : 0); }
+    if (b.tarpitMinMs !== undefined)   { fields.push("tarpit_min_ms=?");   vals.push(Number(b.tarpitMinMs)); }
+    if (b.tarpitMaxMs !== undefined)   { fields.push("tarpit_max_ms=?");   vals.push(Number(b.tarpitMaxMs)); }
+    if (b.autoBlockAfter !== undefined){ fields.push("auto_block_after=?");vals.push(Number(b.autoBlockAfter)); }
+    if (b.silkTrapAfter !== undefined) { fields.push("silk_trap_after=?"); vals.push(Number(b.silkTrapAfter)); }
+    if (b.fakeSiteName)                { fields.push("fake_site_name=?");  vals.push(String(b.fakeSiteName)); }
+    if (b.fakeDbVersion)               { fields.push("fake_db_version=?"); vals.push(String(b.fakeDbVersion)); }
+    if (b.deviceMode === "personal" || b.deviceMode === "server") { fields.push("device_mode=?"); vals.push(b.deviceMode); }
+    if (b.userDomain !== undefined)    { fields.push("user_domain=?");     vals.push(b.userDomain || null); }
+    if (fields.length) {
+      fields.push("updated_at=?"); vals.push(n()); vals.push(cfg.id);
+      run(`UPDATE ghost_trap_config SET ${fields.join(",")} WHERE id=?`, vals);
+    }
+    res.json(gtGetOrCreateConfig());
+  });
+
+  // Ghost Trap probes
+  app.get("/api/ghost-trap/probes", (_req, res) => {
+    const limit = 200;
+    const probes = query("SELECT * FROM ghost_trap_probes ORDER BY probed_at DESC LIMIT ?", [limit]);
+    const allP = query("SELECT * FROM ghost_trap_probes") as any[];
+    const stats = {
+      total: allP.length,
+      uniqueIps: new Set(allP.map((p: any) => p.attacker_ip)).size,
+      sqlCount: allP.filter((p: any) => p.probe_type === "sql_injection").length,
+      xssCount: allP.filter((p: any) => p.probe_type === "xss").length,
+      cmdCount: allP.filter((p: any) => p.probe_type === "cmd_injection").length,
+      blocked: allP.filter((p: any) => p.auto_blocked).length,
+      silkTrapped: allP.filter((p: any) => p.silk_trapped).length,
+      beaconFires: allP.filter((p: any) => p.beacon_fired).length,
+      vpnCount: allP.filter((p: any) => p.vpn_detected).length,
+      avgTarpit: allP.length ? Math.round(allP.reduce((s: number, p: any) => s + (p.tarpit_ms ?? 0), 0) / allP.length) : 0,
+    };
+    const mapped = (probes as any[]).map((p: any) => ({
+      id: p.id, probeId: p.probe_id, attackerIp: p.attacker_ip, attackerPort: p.attacker_port,
+      attackerUa: p.attacker_ua, method: p.method, endpoint: p.endpoint, probeType: p.probe_type,
+      attackVector: p.attack_vector, fakeResponse: p.fake_response, tarpitMs: p.tarpit_ms,
+      autoBlocked: !!p.auto_blocked, silkTrapped: !!p.silk_trapped, beaconFired: !!p.beacon_fired,
+      beaconFiredAt: p.beacon_fired_at, hopChain: p.hop_chain,
+      vpnDetected: !!p.vpn_detected, torDetected: !!p.tor_detected,
+      geoCountry: p.geo_country, geoCity: p.geo_city, geoIsp: p.geo_isp,
+      geoOrg: p.geo_org, geoAsn: p.geo_asn, probedAt: p.probed_at,
+    }));
+    res.json({ probes: mapped, stats });
+  });
+
+  app.delete("/api/ghost-trap/probes", mutateLimiter, (_req, res) => {
+    run("DELETE FROM ghost_trap_probes");
+    run("DELETE FROM ghost_trap_beacons");
+    res.json({ ok: true });
+  });
+
+  // Ghost Trap backtrace (simplified for standalone)
+  app.get("/api/ghost-trap/backtrace/:ip", (req, res) => {
+    const { ip } = req.params;
+    const probes = query("SELECT probe_headers, hop_chain FROM ghost_trap_probes WHERE attacker_ip=? ORDER BY probed_at DESC LIMIT 5", [ip]) as any[];
+    const hopIps = new Set<string>();
+    for (const p of probes) {
+      if (p.hop_chain) { try { (JSON.parse(p.hop_chain) as string[]).forEach(h => hopIps.add(h)); } catch {} }
+    }
+    const chain = Array.from(hopIps).filter(h => h !== ip).map(h => ({
+      ip: h, port: null, rdns: null, isp: null, org: null, country: null, city: null, asn: null,
+      nodeType: gtIsPrivate(h) ? "private_network" : "unknown", vpnProvider: null, confidence: 40, isPrivate: gtIsPrivate(h),
+    }));
+    res.json({ targetIp: ip, hopChain: chain, vpnDetected: false, vpnNodes: [], likelyRealOrigin: chain[0] ?? null, portHints: [], summary: `Attacker ${ip} — ${chain.length} hops recorded`, analysedAt: n() });
+  });
+
+  // Ghost Trap report
+  app.get("/api/ghost-trap/report/:ip", (req, res) => {
+    const { ip } = req.params;
+    const probes = query("SELECT * FROM ghost_trap_probes WHERE attacker_ip=? ORDER BY probed_at ASC", [ip]) as any[];
+    const isDownload = req.query.download === "1";
+    const report = [
+      "═══════════════════════════════════════════════════════════",
+      "  PROXHQVPN — CYBER ATTACK INCIDENT REPORT",
+      "  © 2026 Alpha Unlimited Technologies LLC",
+      "═══════════════════════════════════════════════════════════",
+      `Report generated: ${n()}`,
+      `Attacker IP address: ${ip}`,
+      `Total probe attempts: ${probes.length}`,
+      `First seen: ${probes[0]?.probed_at ?? "N/A"}`,
+      `Last seen: ${probes[probes.length - 1]?.probed_at ?? "N/A"}`,
+      "",
+      "ATTACK TIMELINE:",
+      ...probes.map((p: any, i: number) => `  ${i + 1}. [${p.probed_at}] ${p.method} ${p.endpoint} — ${p.probe_type} — tarpit ${p.tarpit_ms}ms`),
+      "",
+      "LEGAL DECLARATION:",
+      "This report documents unauthorized computer access attempts in",
+      "violation of 18 U.S.C. § 1030 (Computer Fraud and Abuse Act).",
+      "All data is recorded by automated security systems.",
+      "",
+      "For law enforcement inquiries, file at: www.ic3.gov",
+      "═══════════════════════════════════════════════════════════",
+    ].join("\n");
+
+    if (isDownload) {
+      res.setHeader("Content-Disposition", `attachment; filename="proxhqvpn-incident-${ip.replace(/[.:]/g, "_")}.txt"`);
+      res.setHeader("Content-Type", "text/plain");
+    }
+    res.send(report);
+  });
+
   // ─── SQL Interface ────────────────────────────────────────────────────────
-  const ALLOWED_TABLES = ["nodes","beacon_alerts","silk_web","silk_routes","trapped_attackers","firewall_rules","firewall_status","blocked_ips"];
+  const ALLOWED_TABLES = ["nodes","beacon_alerts","silk_web","silk_routes","trapped_attackers","firewall_rules","firewall_status","blocked_ips","ghost_trap_config","ghost_trap_probes","ghost_trap_beacons"];
 
   app.post("/api/sql/query", sqlLimiter, (req, res) => {
     const { query: q } = z.object({ query: z.string().max(2000) }).parse(req.body);

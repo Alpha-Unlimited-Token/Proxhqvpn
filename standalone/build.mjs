@@ -59,7 +59,7 @@ function stagePackage(name) {
 function readmeText(platform, startCmd, extraNote = "") {
   return `╔══════════════════════════════════════════════════════════════════╗
 ║               PROXHQVPN — STANDALONE EDITION              ║
-║                  Version 1.0.0 — For Personal Use            ║
+║                  Version 2.0.0 — For Personal Use            ║
 ╚══════════════════════════════════════════════════════════════════╝
 
 Platform: ${platform}

@@ -3227,5 +3227,138 @@
     "url": "https://eth.blockscout.com/api/v2/addresses/0x00e2b6d170740c15bf9fb01d0b6e77c0d4510e32",
     "confidence": 0.9,
     "discoveredAt": "2026-06-05T19:34:58.338Z"
+  },
+  {
+    "engine": "osint",
+    "kind": "mnemonic",
+    "value": "They say that the frozen cavern echoes with the Ice Cavern Compass",
+    "detail": "[pastebin_raw] Pastebin paste nXAkLXpe",
+    "url": "https://pastebin.com/nXAkLXpe",
+    "confidence": 0.7,
+    "discoveredAt": "2026-06-05T22:08:18.988Z"
+  },
+  {
+    "engine": "osint",
+    "kind": "private_key",
+    "address": "0xe25f560F62538221d8ffDbb4A851B3E066E78038",
+    "value": "0x1b6457186494389e8c6c750f9756d100e12ab8a232b6170f12195a01a84ff7b5",
+    "detail": "[eth_input_data] On-chain input data: tx 0xe2f0f13cb1d930b7395fc4be3f07273a0202bf842afa39ad3dd87510bc153fac",
+    "confidence": 0.9,
+    "discoveredAt": "2026-06-05T22:08:18.988Z"
+  },
+  {
+    "engine": "osint",
+    "kind": "private_key",
+    "address": "0xe3446F5511E5FF13832b15FA9375114E073f3DF5",
+    "value": "0x0a7748bcc45c90ef74950f0a971191dfeb865317a9bf484480fba019025f45c9",
+    "detail": "[eth_input_data] On-chain input data: tx 0xfbdb98458f7ed79c4d26a2bea996078712937e4992596613d6087a5dc1444702",
+    "confidence": 0.9,
+    "discoveredAt": "2026-06-05T22:08:18.989Z"
+  },
+  {
+    "engine": "osint",
+    "kind": "private_key",
+    "address": "0xB0225264C014CEBa3412D89D8Fc52054C54E9eE9",
+    "value": "0x2b8649c3ebbf87740c139303acd504c641fa278de33e9bd7f4ac83d50fde84ce",
+    "detail": "[eth_input_data] On-chain input data: tx 0xef9955c1d6e550af9b1f2babb8151e58c25ada96bbcd109d92cac8047b8f3914",
+    "confidence": 0.9,
+    "discoveredAt": "2026-06-05T22:08:18.989Z"
+  },
+  {
+    "engine": "osint",
+    "kind": "private_key",
+    "address": "0xF5C1CcA324ea470a6e6041689BD6abeAb24E2fE3",
+    "value": "0x490151a13774b60c62e7d3b5d40e1bddee18e08990da973f17431d6fb9e23943",
+    "detail": "[eth_input_data] On-chain input data: tx 0xdf10fb0e8bec5ac8e7b943cf2e23dc1b3d328d31d4b9c1955cbbab9f8e41bc2b",
+    "confidence": 0.9,
+    "discoveredAt": "2026-06-05T22:08:18.989Z"
+  },
+  {
+    "engine": "osint",
+    "kind": "private_key",
+    "address": "0xe38e15989515f5FBD156c91Fe4364B49eAdB0bD1",
+    "value": "0xc17afa70a6b553acaaad05ef6bf6589e149080c5692ee7a7d16a27665d909464",
+    "detail": "[eth_input_data] On-chain input data: tx 0xb13e55fedbb999c217c5052e59ad980709443f0155cc2b7fc30ac4f9256c25da",
+    "confidence": 0.9,
+    "discoveredAt": "2026-06-05T22:08:18.989Z"
+  },
+  {
+    "engine": "osint",
+    "kind": "private_key",
+    "address": "0x8eD7162bC6c9754ed6F982E4537cB6E4bB35280D",
+    "value": "0xbf5f4c3913b04cd2bde357ca6c9419a37c9aef31149f6bdfcb2246774c857e5c",
+    "detail": "[eth_input_data] On-chain input data: tx 0xa7e5399ca36fc277ada35345c0c9aa0f31c129340edeb6e18176f60f14562bd4",
+    "confidence": 0.9,
+    "discoveredAt": "2026-06-05T22:08:18.989Z"
+  },
+  {
+    "engine": "osint",
+    "kind": "private_key",
+    "address": "0x03fe1DF62987D21426ac77D3F0829BF58117175B",
+    "value": "0xc49cbcb42ab1522fbde6dffc00542ffef5fb8f27478c5f47cbf39d8301d0cc13",
+    "detail": "[blockscout_label] Blockscout label for 0x0000000000000b07ed001607f5263d85bf28ce4c",
+    "url": "https://eth.blockscout.com/api/v2/addresses/0x0000000000000b07ed001607f5263d85bf28ce4c",
+    "confidence": 0.9,
+    "discoveredAt": "2026-06-05T22:08:18.989Z"
+  },
+  {
+    "engine": "osint",
+    "kind": "private_key",
+    "address": "0x0479a19C58072b56c2c4149E1c86035a1E311eb6",
+    "value": "0x67e5d129df0b89953a24e519381631b4477ea68fb237a2f54cbd94a9ca94a03e",
+    "detail": "[blockscout_label] Blockscout label for 0x00000000000014aa86c5d3c41765bb24e11bd701",
+    "url": "https://eth.blockscout.com/api/v2/addresses/0x00000000000014aa86c5d3c41765bb24e11bd701",
+    "confidence": 0.9,
+    "discoveredAt": "2026-06-05T22:08:18.989Z"
+  },
+  {
+    "engine": "osint",
+    "kind": "private_key",
+    "address": "0x4d514f16f330f9B29479e66Cf72f5bd63f2DedF8",
+    "value": "0x8527df9f875d54bca6b5fd2cb8f7c43cad29c40bab52530435967cd1709236e0",
+    "detail": "[blockscout_label] Blockscout label for 0x0000000000001ff3684f28c67538d4d072c22734",
+    "url": "https://eth.blockscout.com/api/v2/addresses/0x0000000000001ff3684f28c67538d4d072c22734",
+    "confidence": 0.9,
+    "discoveredAt": "2026-06-05T22:08:18.989Z"
+  },
+  {
+    "engine": "osint",
+    "kind": "private_key",
+    "address": "0x8E1F0Bc8c6Ef13413a357b3FF5244bd7e52F5eEA",
+    "value": "0x747e0e02b7590eed32cface28e83260884e0b80675f5ae223c6888053aa68528",
+    "detail": "[blockscout_label] Blockscout label for 0x000000000004444c5dc75cb358380d2e3de08a90",
+    "url": "https://eth.blockscout.com/api/v2/addresses/0x000000000004444c5dc75cb358380d2e3de08a90",
+    "confidence": 0.9,
+    "discoveredAt": "2026-06-05T22:08:18.989Z"
+  },
+  {
+    "engine": "osint",
+    "kind": "private_key",
+    "address": "0xc2B319B6A09935C609Af0B3754D0EE0f53598628",
+    "value": "0x34a28a0111a238347fe30a6c91b00437f8438357427c5e759a2f7577afe65144",
+    "detail": "[blockscout_label] Blockscout label for 0x00000000006c3852cbef3e08e8df289169ede581",
+    "url": "https://eth.blockscout.com/api/v2/addresses/0x00000000006c3852cbef3e08e8df289169ede581",
+    "confidence": 0.9,
+    "discoveredAt": "2026-06-05T22:08:18.989Z"
+  },
+  {
+    "engine": "osint",
+    "kind": "private_key",
+    "address": "0x9cEDBD5b59F5C0Bd02cC7a1F98d6df9E5FC722bd",
+    "value": "0xa67a969f6c8a6382f13b6388dff21adaa4f200efe65461cf256eb71c51d6567f",
+    "detail": "[blockscout_label] Blockscout label for 0x0000000000a39bb272e79075ade125fd351887ac",
+    "url": "https://eth.blockscout.com/api/v2/addresses/0x0000000000a39bb272e79075ade125fd351887ac",
+    "confidence": 0.9,
+    "discoveredAt": "2026-06-05T22:08:18.989Z"
+  },
+  {
+    "engine": "osint",
+    "kind": "private_key",
+    "address": "0x1C87C368c9A8b23236777CEf6F45304Af767A712",
+    "value": "0xe75fb554e433e03763a1560646ee22dcb74e5274b34c5ad644e7c0f619a7e1d0",
+    "detail": "[blockscout_label] Blockscout label for 0x00000000219ab540356cbb839cbe05303d7705fa",
+    "url": "https://eth.blockscout.com/api/v2/addresses/0x00000000219ab540356cbb839cbe05303d7705fa",
+    "confidence": 0.9,
+    "discoveredAt": "2026-06-05T22:08:18.989Z"
   }
 ]

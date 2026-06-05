@@ -16,9 +16,14 @@ const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const WG_APK_URL      = "https://download.wireguard.com/android-client/com.wireguard.android-apk-latest.apk";
 const WG_WIN_URL      = "https://download.wireguard.com/windows-client/wireguard-installer.exe";
 const WG_APPSTORE_MAC = "https://apps.apple.com/us/app/wireguard/id1451685025";
-const PROXHQ_MAC_INSTALLER     = `${BASE}/downloads/ProxhqVPN-Mac-Installer.zip`;
-const PROXHQ_WIN_INSTALLER     = `${BASE}/downloads/ProxhqVPN-Windows-Setup.zip`;
-const PROXHQ_LINUX_INSTALLER   = `${BASE}/downloads/ProxhqVPN-Linux-Install.zip`;
+const PROXHQ_WIN_INSTALLER     = `${BASE}/downloads/ProxhqVPN-Windows-x64.zip`;
+const PROXHQ_MAC_INSTALLER     = `${BASE}/downloads/ProxhqVPN-macOS-arm64.zip`;
+const PROXHQ_MAC_INTEL         = `${BASE}/downloads/ProxhqVPN-macOS-x64.zip`;
+const PROXHQ_LINUX_INSTALLER   = `${BASE}/downloads/ProxhqVPN-Linux-x64.zip`;
+const PROXHQ_UNIVERSAL         = `${BASE}/downloads/ProxhqVPN-Universal-NodeJS.zip`;
+const PROXHQ_ALL_PLATFORMS     = `${BASE}/downloads/ProxhqVPN-ALL-PLATFORMS.zip`;
+const APP_VERSION               = "2.0.0";
+const RELEASE_DATE              = "June 5, 2026";
 const WG_APPSTORE_IOS = "https://apps.apple.com/us/app/wireguard/id1441195209";
 const WG_PLAY_URL     = "https://play.google.com/store/apps/details?id=com.wireguard.android";
 const WG_APPSTORE_TV  = "https://apps.apple.com/us/app/wireguard/id1451685025"; // tvOS App Store
@@ -112,10 +117,11 @@ const PLATFORMS: PlatformGroup[] = [
         badge: "Auto-Configure Installer", badgeColor: "text-blue-400 border-blue-500/30 bg-blue-900/10",
         canInstall: true,
         downloads: [
-          { label: "Download ProxhqVPN Setup (.zip)", url: PROXHQ_WIN_INSTALLER, variant: "primary", icon: Download },
+          { label: `Download ProxhqVPN v${APP_VERSION} — Windows x64 (.zip)`, url: PROXHQ_WIN_INSTALLER, variant: "primary", icon: Download },
         ],
         steps: [
-          { text: "Download the ProxhqVPN Setup .zip, extract it, and double-click 'Launch-ProxhqVPN-Setup.vbs'. Windows will prompt for admin permission — this is required so WireGuard can install and the tunnel can activate." },
+          { text: `v${APP_VERSION} — ${RELEASE_DATE}. Includes Ghost Trap honeypot, DNS Sinkhole, Network Monitor, SIEM, OSINT Recon, and all recent security upgrades. Auto-update notification built in.` },
+          { text: "Download the ProxhqVPN .zip, extract it, and run 'start.bat'. Windows will open the dashboard in your browser automatically." },
           { text: "SmartScreen warning? Click 'More info' → 'Run anyway'. Normal for any installer downloaded outside the Microsoft Store." },
           { text: "Screen 1 — Welcome: overview of everything that will install automatically. Click 'Get Started'." },
           { text: "Screen 2 — License & Tunnel Mode: tick the checkbox to accept, then pick Split Tunnel (★ Recommended — your apps work normally) or Full Tunnel (all traffic encrypted)." },
@@ -132,11 +138,13 @@ const PLATFORMS: PlatformGroup[] = [
         badge: "GUI Wizard Installer", badgeColor: "text-primary border-primary/30 bg-primary/10",
         canInstall: true,
         downloads: [
-          { label: "Download ProxhqVPN Installer (.zip)", url: PROXHQ_MAC_INSTALLER, variant: "primary", icon: Download },
+          { label: `Download ProxhqVPN v${APP_VERSION} — Apple Silicon (.zip)`, url: PROXHQ_MAC_INSTALLER, variant: "primary", icon: Download },
+          { label: `Download ProxhqVPN v${APP_VERSION} — Mac Intel (.zip)`, url: PROXHQ_MAC_INTEL, variant: "primary", icon: Download },
           { label: "WireGuard on Mac App Store", url: WG_APPSTORE_MAC, variant: "store", icon: Apple },
         ],
         steps: [
-          { text: "Download the ProxhqVPN Installer .zip above and unzip it — you will get 'ProxhqVPN-Mac-Installer.app'." },
+          { text: `v${APP_VERSION} — ${RELEASE_DATE}. Includes Ghost Trap honeypot, DNS Sinkhole, Network Monitor, SIEM, OSINT Recon, and all recent security upgrades. Auto-update notification built in.` },
+          { text: "Download the correct .zip for your Mac (Apple Silicon = M1/M2/M3/M4 chips, Intel = older Macs). Unzip and run 'start.sh'." },
           { text: "Double-click the app to launch the setup wizard." },
           { text: "If macOS says 'can't be opened because it's from an unidentified developer' — this is normal for apps downloaded outside the App Store." },
           { text: "To allow it: go to Apple Menu → System Settings → Privacy & Security → scroll to Security → click 'Open Anyway' next to ProxhqVPN." },
@@ -152,10 +160,12 @@ const PLATFORMS: PlatformGroup[] = [
         badge: "GUI Wizard Installer", badgeColor: "text-orange-400 border-orange-500/30 bg-orange-900/10",
         canInstall: true,
         downloads: [
-          { label: "Download ProxhqVPN Installer (.zip)", url: PROXHQ_LINUX_INSTALLER, variant: "primary", icon: Download },
+          { label: `Download ProxhqVPN v${APP_VERSION} — Linux x64 (.zip)`, url: PROXHQ_LINUX_INSTALLER, variant: "primary", icon: Download },
+          { label: `Download v${APP_VERSION} — Universal (any OS + Node.js)`, url: PROXHQ_UNIVERSAL, variant: "primary", icon: Download },
         ],
         steps: [
-          { text: "Download the ProxhqVPN Installer .zip above and extract it — you will get 'ProxhqVPN-Linux-Install.sh'." },
+          { text: `v${APP_VERSION} — ${RELEASE_DATE}. Includes Ghost Trap honeypot, DNS Sinkhole, Network Monitor, SIEM, OSINT Recon, and all recent security upgrades. Auto-update notification built in.` },
+          { text: "Download the Linux x64 .zip and extract it — you will get a self-contained 'ProxhqVPN' executable." },
           { text: "Make it executable: right-click → Properties → Permissions → check 'Allow executing file as program'." },
           { text: "Double-click the file in your file manager and choose 'Run' or 'Run in Terminal'." },
           { text: "The wizard uses your desktop's native GUI dialogs (GNOME, KDE, or terminal fallback) — Welcome → License → Install → WireGuard → Done." },
@@ -716,6 +726,41 @@ export default function Downloads() {
           <li className="flex gap-2"><span className="text-primary/25">3.</span><span>Install WireGuard on your device (use download button below)</span></li>
           <li className="flex gap-2"><span className="text-primary/25">4.</span><span>Import the .conf or scan the QR → Toggle ON → Done</span></li>
         </ol>
+      </div>
+
+      {/* v2.0.0 release banner + All Platforms download */}
+      <div className="border border-primary/30 rounded-xl p-4 bg-primary/5 space-y-3">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div>
+            <div className="text-[9px] font-mono font-bold text-primary uppercase tracking-widest flex items-center gap-2">
+              <Star className="w-3 h-3" /> ProxhqVPN v{APP_VERSION} — {RELEASE_DATE}
+            </div>
+            <div className="text-[10px] font-mono text-primary/55 mt-0.5">
+              Ghost Trap Honeypot · DNS Sinkhole · Network Monitor · SIEM · OSINT Recon · Signature Mining Engine · QuantumAudit · Auto-Update Notifications
+            </div>
+          </div>
+          <a href={PROXHQ_ALL_PLATFORMS} target="_blank" rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-[10px] font-mono font-bold px-4 py-2 rounded-lg bg-primary text-black hover:bg-primary/80 transition-colors shrink-0">
+            <Download className="w-3.5 h-3.5" /> All Platforms Bundle (.zip)
+          </a>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {[
+            { label: "Windows x64", url: PROXHQ_WIN_INSTALLER },
+            { label: "macOS Apple Silicon", url: PROXHQ_MAC_INSTALLER },
+            { label: "macOS Intel", url: PROXHQ_MAC_INTEL },
+            { label: "Linux x64", url: PROXHQ_LINUX_INSTALLER },
+          ].map(d => (
+            <a key={d.label} href={d.url} target="_blank" rel="noopener noreferrer"
+              className="flex items-center gap-1.5 text-[9px] font-mono text-primary/70 hover:text-primary border border-primary/20 hover:border-primary/50 bg-black rounded-lg px-3 py-2 transition-colors">
+              <Download className="w-2.5 h-2.5 shrink-0" /> {d.label}
+            </a>
+          ))}
+        </div>
+        <div className="text-[9px] font-mono text-primary/30 flex items-center gap-1.5">
+          <Wifi className="w-2.5 h-2.5" />
+          Auto-update: the standalone server checks <span className="text-primary/50">/api/update/check</span> on startup and notifies you when a new version is available.
+        </div>
       </div>
 
       {/* Search */}
