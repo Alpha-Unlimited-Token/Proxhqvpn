@@ -271,30 +271,32 @@ function P2($m,$pct){$p2step.Text=$m;$p2prog.Value=[Math]::Min([int]$pct,100);$f
 # PAGE 3 — SIGN IN & DOWNLOAD ALL SERVERS PACK
 # ══════════════════════════════════════════════════════════════════════════════
 $pg=$pages[3]
-$pg.Controls.Add((Lbl "Sign In & Download All Servers Pack" 30 14 560 28 (F 14 $true) $cWhite))
-$pg.Controls.Add((Lbl "Your default browser has opened. Follow these 3 steps:" 30 46 560 20 (F 10) $cDim))
+$pg.Controls.Add((Lbl "Sign In — Everything Else Is Automatic" 30 14 570 28 (F 14 $true) $cWhite))
+$pg.Controls.Add((Lbl "Sign in once. Your VPN configures itself — no extra steps." 30 46 560 20 (F 10) $cDim))
 
-$steps3=@(
-    "1.  Sign in to your ProxhqVPN account.",
-    "2.  Go to  My VPN  and click  Download All Servers Pack.",
-    "3.  Save  proxhqvpn-all-servers.zip  — wizard detects it and installs all tunnels."
+$autoSteps=@(
+    @("🔑","Sign in to your ProxhqVPN account in the browser that just opened."),
+    @("⚙","ProxhqVPN automatically generates your personal keys for all 4 servers."),
+    @("📦","Your configs download instantly — this installer detects them and finishes."),
+    @("✅","VPN is live. Switch servers anytime from the Done screen — no reinstall ever.")
 )
-$sy=74; foreach($s in $steps3){
-    $pg.Controls.Add((Lbl $s 30 $sy 570 24 (F 10 $true) $cGreen));$sy+=28
+$sy=76; foreach($s in $autoSteps){
+    $pg.Controls.Add((Lbl $s[0] 30 $sy 28 24 (F 12) $cGreen))
+    $pg.Controls.Add((Lbl $s[1] 60 $sy 520 24 (F 9.5) $cDim))
+    $sy+=28
 }
 
-$p3zipBadge=Pnl 30 162 572 28 ([Drawing.Color]::FromArgb(5,35,18))
-$p3zipLbl  =Lbl "Watching for  proxhqvpn-all-servers.zip  in your Downloads folder..." 10 5 552 18 (F 9) $cGreenD
+$p3zipBadge=Pnl 30 202 572 28 ([Drawing.Color]::FromArgb(5,35,18))
+$p3zipLbl  =Lbl "⏳  Sign in complete? Configs download automatically — installer is watching..." 10 5 552 18 (F 9) $cGreenD
 $p3zipBadge.Controls.Add($p3zipLbl)
 $pg.Controls.Add($p3zipBadge)
 
-$pg.Controls.Add((Lbl "Waiting for download..." 30 198 400 20 (F 9.5) $cDim))
-$p3timer=Lbl "" 30 220 570 22 (F 9.5) $cGreenD
-$p3bar  =PBar 30 246 572
-$p3log  =RBox 30 258 572 96
+$p3timer=Lbl "" 30 238 570 22 (F 9.5) $cGreenD
+$p3bar  =PBar 30 264 572
+$p3log  =RBox 30 278 572 76
 
 $p3noticeBox=Pnl 30 362 572 24 ([Drawing.Color]::FromArgb(5,35,18))
-$p3noticeLbl=Lbl "Browser not opened? Click here to reopen ProxhqVPN." 10 3 550 18 (F 9) $cGreen
+$p3noticeLbl=Lbl "Browser closed or timed out? Click here to reopen." 10 3 550 18 (F 9) $cGreen
 $p3noticeLbl.Cursor=[Windows.Forms.Cursors]::Hand
 $p3noticeBox.Controls.Add($p3noticeLbl)
 $pg.Controls.AddRange(@($p3timer,$p3bar,$p3log,$p3noticeBox))
@@ -499,11 +501,12 @@ function StartInstall {
 function StartSignIn {
     SetPhase $ph2;ShowPage 3
 
-    $redirectPath="/dashboard/wireguard?autosetup=1&hostname=$HOSTNAME&tunnelmode=$($Script:TunnelMode)&downloadall=1"
+    # After sign-in, /autosetup auto-downloads all configs with no user interaction
+    $redirectPath="/autosetup?tunnelmode=$($Script:TunnelMode)&hostname=$HOSTNAME"
     $signInUrl="$BASE_URL/sign-in?redirect_url="+[System.Uri]::EscapeDataString($redirectPath)
     Start-Process $signInUrl
-    L3 "Browser opened — sign in, then go to My VPN → Download All Servers Pack."
-    L3 "Save the zip to your Downloads folder — this wizard will detect it automatically."
+    L3 "Browser opened — sign in and your configs will download automatically."
+    L3 "Nothing else to do — this installer will detect the download and finish."
     $p3noticeLbl.Add_Click({Start-Process $signInUrl})
 
     # Watch for proxhqvpn-all-servers.zip

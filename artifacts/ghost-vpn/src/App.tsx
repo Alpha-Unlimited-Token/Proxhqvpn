@@ -62,6 +62,7 @@ import DnsShield from "@/pages/DnsShield";
 import RouterConfig from "@/pages/RouterConfig";
 import Account from "@/pages/Account";
 import MyVPN from "@/pages/MyVPN";
+import AutoSetup from "@/pages/AutoSetup";
 import Pricing from "@/pages/Pricing";
 import SqlmapScanner from "@/pages/SqlmapScanner";
 import AlphaTools from "@/pages/AlphaTools";
@@ -548,6 +549,11 @@ function AppRoutes() {
           </Route>
           <Route path="/checkout/success">
             <ProtectedLayout><CheckoutSuccess /></ProtectedLayout>
+          </Route>
+
+          {/* ── Auto-setup: triggered by Windows/desktop installer after sign-in ── */}
+          <Route path="/autosetup">
+            <AutoSetup />
           </Route>
 
           {/* ── VPN Basic — any active subscription ── */}
