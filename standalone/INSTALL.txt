@@ -1,785 +1,155 @@
-
 ╔══════════════════════════════════════════════════════════════════════════════╗
-║              GHOSTNET VPN — INSTALLATION MANUAL                            ║
-║              Version 3.0 — April 2026                                      ║
-║              Platforms: Windows, macOS (Apple Silicon + Intel), Linux       ║
+║                   PROXHQVPN — INSTALLATION GUIDE                           ║
+║              © Alpha Unlimited Technologies LLC  |  v2.0.0                 ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 
-══════════════════════════════════════════════════════════════════════════════
-  QUICK INSTALL — ONE COMMAND
-══════════════════════════════════════════════════════════════════════════════
-
-  The fastest way to install GhostNet. Copy and paste one line.
-
-  LINUX & MACOS
-  ─────────────
-  Open Terminal and run:
-
-    curl -fsSL https://get.ghostnet.app | bash
-
-  That's it. GhostNet downloads, installs, and opens in your browser.
-
-  OPTIONS (add after the command):
-    Different folder:       | bash -s -- --dir ~/apps/ghostnet
-    Different port:         | bash -s -- --port 8080
-    Install as service:     | bash -s -- --service
-    Folder + port + service:| bash -s -- --dir ~/ghostnet --port 8080 --service
-
-  WINDOWS
-  ───────
-  Open PowerShell as Administrator and run:
-
-    irm https://get.ghostnet.app/win | iex
-
-  GhostNet downloads, extracts to C:\GhostNet, creates a desktop shortcut,
-  and opens in your browser automatically.
-
-  OPTIONS (add before the pipe):
-    $env:GHOSTNET_PORT="8080"; irm https://get.ghostnet.app/win | iex
-
-  ─────────────────────────────────────────────────────────────────────────
-  IF YOU ALREADY DOWNLOADED THE ZIP — use the easy setup scripts inside:
-    Linux/macOS:  bash ghostnet-setup.sh    (in the extracted folder)
-    Windows:      Double-click ghostnet-setup.bat   (in the extracted folder)
-  ─────────────────────────────────────────────────────────────────────────
-
-  NOTE ON THE VPN DAEMON
-  GhostNet's management dashboard (the full web interface) requires no
-  additional software — it runs from the package above.
-  The VPN routing daemon (actual traffic tunnelling) additionally needs:
-    Linux/macOS: Python 3.9+, root access, and the TUN kernel module
-    Windows:     WinTun driver (ghostd.py will guide you through this)
-  Non-technical users can use all dashboard features without the daemon.
-  See Section 5 (Linux) or Section 2 (Windows) for daemon setup.
-
-
-TABLE OF CONTENTS
-─────────────────
-  1.  Choosing the Right Package
-  2.  Windows Installation
-  3.  macOS — Apple Silicon (M1 / M2 / M3 / M4)
-  4.  macOS — Intel
-  5.  Linux (x64)
-  6.  Universal — Any OS with Node.js
-  7.  All-Platforms Bundle
-  8.  Configuration Options
-  9.  First Launch & Interface Tour
-  10. Data Storage & Backup
-  11. Security Notes
-  12. Troubleshooting
-  13. VPN Coexistence Setup
-  14. Uninstalling
-
-
-══════════════════════════════════════════════════════════════════════════════
-  1. CHOOSING THE RIGHT PACKAGE
-══════════════════════════════════════════════════════════════════════════════
-
-  Package                          Who should use it                    Size
-  ───────────────────────────────────────────────────────────────────────────
-  GhostNet-Windows-x64.zip         Windows 10 or 11, 64-bit            ~16 MB
-  GhostNet-macOS-arm64.zip         Mac with Apple Silicon chip          ~18 MB
-  GhostNet-macOS-x64.zip           Mac with Intel processor             ~20 MB
-  GhostNet-Linux-x64.zip           Ubuntu, Debian, Fedora, Arch, etc.  ~20 MB
-  GhostNet-Universal-NodeJS.zip    Any OS with Node.js 20+ installed    ~5 MB
-  GhostNet-ALL-PLATFORMS.zip       All of the above in one bundle       ~79 MB
-
-  NOT SURE WHICH MAC YOU HAVE?
-  Click the Apple menu -> "About This Mac".
-    • Shows "Apple M1" (or M2/M3/M4) -> use GhostNet-macOS-arm64.zip
-    • Shows "Intel Core"              -> use GhostNet-macOS-x64.zip
-
-
-══════════════════════════════════════════════════════════════════════════════
-  2. WINDOWS INSTALLATION
-══════════════════════════════════════════════════════════════════════════════
-
-  REQUIREMENTS
-  • Windows 10 (version 1903 or later) or Windows 11
-  • 64-bit processor
-  • 200 MB free disk space
-  • No additional software required — GhostNet bundles its own runtime
-
-  STEPS
-
-  1. Download GhostNet-Windows-x64.zip
-
-  2. Extract the zip
-     Right-click the file -> "Extract All" -> choose a folder such as
-     C:\GhostNet -> click Extract.
-
-     IMPORTANT: Do not run GhostNet from inside the zip file.
-     You must extract it first.
-
-  3. Launch GhostNet
-     Open the extracted folder and double-click start.bat.
-     A command-prompt window will appear and display:
-
-       GhostNet VPN Orchestration Platform | Standalone Edition
-       Server running at http://localhost:7474
-
-  4. Open the interface
-     Your default browser should open automatically. If not, open any
-     browser and navigate to: http://localhost:7474
-
-  5. Windows Defender / SmartScreen (first run only)
-     Windows may show a blue "Windows protected your PC" dialog. This
-     appears because the executable is not code-signed.
-       -> Click "More info"
-       -> Click "Run anyway"
-     This is a one-time prompt. GhostNet does not connect to the internet
-     on its own; all data stays on your computer.
-
-  6. Windows Firewall prompt (optional)
-     If Windows asks whether to allow GhostNet on the network, choose
-     "Private networks" only. GhostNet only listens on localhost
-     (127.0.0.1) — there is no need to allow public network access.
-
-  STOPPING GHOSTNET
-  Close the command-prompt window, or press Ctrl + C inside it.
-
-  RUNNING AT STARTUP (OPTIONAL)
-  Press Win + R, type shell:startup, press Enter.
-  Copy a shortcut to start.bat into that folder.
-
-
-══════════════════════════════════════════════════════════════════════════════
-  3. MACOS — APPLE SILICON (M1 / M2 / M3 / M4)
-══════════════════════════════════════════════════════════════════════════════
-
-  REQUIREMENTS
-  • macOS 12 Monterey or later (macOS 13+ recommended)
-  • Apple Silicon chip (M1, M2, M3, or M4)
-  • 200 MB free disk space
-  • No additional software required
-
-  STEPS
-
-  1. Download GhostNet-macOS-arm64.zip
-
-  2. Extract the zip
-     Double-click the file in Finder. macOS will extract it to the
-     same folder automatically.
-
-  3. Move to Applications (recommended)
-     Drag the extracted GhostNet-macOS-arm64 folder to your Applications
-     folder, or leave it anywhere you find convenient.
-
-  4. Remove the macOS quarantine flag (required for first run)
-     macOS marks downloaded files as quarantined. Open Terminal
-     (Spotlight -> search "Terminal") and run:
-
-       xattr -cr ~/Downloads/GhostNet-macOS-arm64
-
-     Replace the path if you moved the folder elsewhere.
-
-  5. Make the launcher executable
-     In the same Terminal window:
-
-       chmod +x ~/Downloads/GhostNet-macOS-arm64/start.sh
-       chmod +x ~/Downloads/GhostNet-macOS-arm64/GhostNet
-
-  6. Launch GhostNet
-
-       cd ~/Downloads/GhostNet-macOS-arm64
-       ./start.sh
-
-  7. Open the interface
-     Navigate to http://localhost:7474 in any browser.
-
-  GATEKEEPER WARNING (alternative path)
-  If macOS blocks the app with "cannot be opened because the developer
-  cannot be verified":
-    -> Go to System Settings -> Privacy & Security
-    -> Scroll down and click "Allow Anyway" next to the GhostNet entry.
-
-  STOPPING GHOSTNET
-  Press Ctrl + C in the Terminal window where GhostNet is running.
-
-
-══════════════════════════════════════════════════════════════════════════════
-  4. MACOS — INTEL
-══════════════════════════════════════════════════════════════════════════════
-
-  REQUIREMENTS
-  • macOS 12 Monterey or later
-  • Intel Core processor
-  • 200 MB free disk space
-  • No additional software required
-
-  STEPS
-
-  1. Download GhostNet-macOS-x64.zip
-
-  2. Extract — double-click the zip in Finder.
-
-  3. Remove the quarantine flag:
-
-       xattr -cr ~/Downloads/GhostNet-macOS-x64
-
-  4. Make executables runnable:
-
-       chmod +x ~/Downloads/GhostNet-macOS-x64/start.sh
-       chmod +x ~/Downloads/GhostNet-macOS-x64/GhostNet
-
-  5. Launch:
-
-       cd ~/Downloads/GhostNet-macOS-x64
-       ./start.sh
-
-  6. Open http://localhost:7474 in your browser.
-
-  Everything else is identical to the Apple Silicon instructions above.
-
-
-══════════════════════════════════════════════════════════════════════════════
-  5. LINUX (x64)
-══════════════════════════════════════════════════════════════════════════════
-
-  REQUIREMENTS
-  • Any 64-bit Linux distribution
-    (Ubuntu 20.04+, Debian 11+, Fedora 35+, Arch, etc.)
-  • glibc 2.17 or later — all modern distros qualify
-  • 200 MB free disk space
-  • No additional software required
-
-  STEPS
-
-  1. Download GhostNet-Linux-x64.zip
-
-  2. Extract the zip:
-
-       cd ~/Downloads
-       unzip GhostNet-Linux-x64.zip -d GhostNet
-
-  3. Make the launcher and executable runnable:
-
-       cd GhostNet
-       chmod +x start.sh GhostNet
-
-  4. Launch GhostNet:
-
-       ./start.sh
-
-     You will see:
-       GhostNet VPN Orchestration Platform | Standalone Edition
-       Server running at http://localhost:7474
-
-  5. Open http://localhost:7474 in any browser.
-
-  RUNNING AS A SYSTEMD SERVICE (optional — for background operation)
-
-  Create a service file:
-
-    sudo nano /etc/systemd/system/ghostnet.service
-
-  Paste the following (replace YOUR_USERNAME and the path as needed):
-
-    [Unit]
-    Description=GhostNet VPN Platform
-    After=network.target
-
-    [Service]
-    Type=simple
-    User=YOUR_USERNAME
-    WorkingDirectory=/home/YOUR_USERNAME/GhostNet
-    ExecStart=/home/YOUR_USERNAME/GhostNet/GhostNet
-    Restart=on-failure
-    RestartSec=5
-    Environment=PORT=7474
-
-    [Install]
-    WantedBy=multi-user.target
-
-  Enable and start:
-
-    sudo systemctl daemon-reload
-    sudo systemctl enable ghostnet
-    sudo systemctl start ghostnet
-
-  Check status:      sudo systemctl status ghostnet
-  View logs:         journalctl -u ghostnet -f
-  Stop the service:  sudo systemctl stop ghostnet
-
-  STOPPING GHOSTNET (terminal mode)
-  Press Ctrl + C in the window where GhostNet is running.
-
-
-══════════════════════════════════════════════════════════════════════════════
-  6. UNIVERSAL — ANY OS WITH NODE.JS
-══════════════════════════════════════════════════════════════════════════════
-
-  Use this package if you already have Node.js installed, want the smallest
-  download, or are on an OS not covered by the platform builds
-  (e.g., FreeBSD, Raspberry Pi, ARM Linux).
-
-  REQUIREMENTS
-  • Node.js version 20 or later (https://nodejs.org)
-  • Any operating system
-  • About 5 MB disk space (plus your Node.js installation)
-
-  CHECK YOUR NODE.JS VERSION FIRST
-
-    node --version
-
-  It must show v20.x.x or higher. If not, update from https://nodejs.org
-
-  INSTALLING NODE.JS (if you don't have it)
-
-    Windows          Download the .msi installer from https://nodejs.org
-    macOS            brew install node  OR  download from nodejs.org
-    Ubuntu/Debian    curl -fsSL https://deb.nodesource.com/setup_22.x |
-                     sudo -E bash - && sudo apt-get install -y nodejs
-    Fedora/RHEL      sudo dnf install nodejs
-    Arch Linux       sudo pacman -S nodejs npm
-
-  STEPS
-
-  1. Download GhostNet-Universal-NodeJS.zip
-
-  2. Extract:
-       Windows: Right-click -> "Extract All"
-       macOS/Linux: unzip GhostNet-Universal-NodeJS.zip -d GhostNet
-
-  3. Launch:
-
-     Windows (double-click or run from Command Prompt):
-       start.bat
-
-     macOS / Linux:
-       chmod +x start.sh
-       ./start.sh
-
-  4. Open http://localhost:7474 in your browser.
-
-
-══════════════════════════════════════════════════════════════════════════════
-  7. ALL-PLATFORMS BUNDLE
-══════════════════════════════════════════════════════════════════════════════
-
-  GhostNet-ALL-PLATFORMS.zip contains all five packages in one download.
-  After extracting, you will see five sub-zips:
-
-    GhostNet-ALL-PLATFORMS/
-    ├── GhostNet-Windows-x64.zip
-    ├── GhostNet-macOS-arm64.zip
-    ├── GhostNet-macOS-x64.zip
-    ├── GhostNet-Linux-x64.zip
-    └── GhostNet-Universal-NodeJS.zip
-
-  Extract the sub-zip that matches your operating system and follow the
-  instructions for that OS above.
-
-
-══════════════════════════════════════════════════════════════════════════════
-  8. CONFIGURATION OPTIONS
-══════════════════════════════════════════════════════════════════════════════
-
-  All configuration is done via environment variables set before launching.
-  No config files need to be edited.
-
-  CUSTOM PORT (default is 7474)
-  ─────────────────────────────
-  Windows Command Prompt:
-    set PORT=8080 && GhostNet.exe
-
-  Windows PowerShell:
-    $env:PORT=8080; .\GhostNet.exe
-
-  macOS / Linux:
-    PORT=8080 ./GhostNet
-
-  CUSTOM DATA DIRECTORY
-  ──────────────────────
-  By default all data is stored in a data/ folder next to the executable.
-
-  macOS / Linux:
-    GHOSTNET_DATA=/var/lib/ghostnet ./GhostNet
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+QUICK INSTALL (Linux / macOS)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  curl -fsSL https://proxhqvpn.app/install | bash
+
+  This single command will:
+    1. Detect your OS and CPU architecture
+    2. Download the correct ProxhqVPN package
+    3. Extract to ~/ProxhqVPN
+    4. Remove macOS quarantine flags (if on macOS)
+    5. Optionally install as a background service
+    6. Open the dashboard in your browser
+
+With options:
+  curl -fsSL https://proxhqvpn.app/install | bash -s -- --port 8080 --dir ~/vpn
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+QUICK INSTALL (Windows PowerShell)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  irm https://proxhqvpn.app/install/win | iex
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MANUAL INSTALL — FROM THIS PACKAGE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Linux / macOS:
+    1. Extract this zip to your chosen folder
+    2. Open Terminal in that folder
+    3. Run:  ./start.sh
+    4. Open browser: http://localhost:7474
 
   Windows:
-    set GHOSTNET_DATA=D:\GhostNetData && GhostNet.exe
-
-  API KEY AUTHENTICATION (recommended if not on localhost)
-  ─────────────────────────────────────────────────────────
-  Set the API_KEY environment variable to require a bearer token:
-
-  macOS / Linux:
-    API_KEY=your-secret-key ./GhostNet
-
-  Windows:
-    set API_KEY=your-secret-key && GhostNet.exe
-
-  Then include this header in all API requests:
-    Authorization: Bearer your-secret-key
-
-
-══════════════════════════════════════════════════════════════════════════════
-  9. FIRST LAUNCH & INTERFACE TOUR
-══════════════════════════════════════════════════════════════════════════════
-
-  Open http://localhost:7474 to see the GhostNet dashboard.
-
-  CORE SECTION
-  ─────────────────────────────────────────────────────────────────────────
-  Dashboard      Live stats, active nodes, intrusion alerts, real-time feed
-  Node Manager   60-node swarm grid — add/delete nodes, trigger IP rotation
-  Beacons        Alert table for beacon, spider, and worm agents
-  Silk Web       SVG topology map of the trap network + trapped entity list
-  Monitor        CPU, RAM, network I/O, connection counts — live graphs
-
-  SECURITY SECTION
-  ─────────────────────────────────────────────────────────────────────────
-  Firewall       Stateful rules, blocked IPs, iptables export
-  Kill Switch    Arm/disarm; generate OS firewall lockdown scripts
-                 (Linux / macOS / Windows formats)
-  Leak Detect    DNS, IPv6, and WebRTC leak detection suite
-  Threat Intel   IP reputation checker, Tor exit feed, 6 intel feeds
-  Sec Audit      Live self-audit (Critical/High/Medium/Low findings),
-                 TLS cert inspector, HTTP security-header grader (A-F),
-                 WHOIS / RDAP lookup
-
-  TUNNEL SECTION
-  ─────────────────────────────────────────────────────────────────────────
-  WG Config      WireGuard config generator for all 60 nodes
-  Split Tunnel   Per-IP/CIDR/port routing rules; Linux & Windows scripts
-  Obfuscation    obfs4 / Shadowsocks / V2Ray-WS / Meek / Snowflake DPI
-                 bypass configuration
-  Proxy/Tor      SOCKS5, Tor Browser, port knocking documentation
-  Onion Browser  Proxied browser: Direct / GhostNet / Tor / Double-hop /
-                 Custom SOCKS4/5/HTTP modes
-
-  SYSTEM SECTION
-  ─────────────────────────────────────────────────────────────────────────
-  Terminal       4-tab shell interface:
-                   SHELL      — Sandboxed command execution (allowlist)
-                   HTTP CLIENT — Outbound HTTP requests to any URL
-                   PORT SCAN  — TCP port scanner
-                   AUDIT LOG  — Record of every executed command
-                 Enable Ghost Mode (top-right toggle) for full outbound
-                 access. All Ghost Mode commands are logged automatically.
-
-  SQL Interface  3-mode database interface:
-                   LOCAL DB   — SELECT-only queries on the GhostNet DB
-                   EXTERNAL DB — Full SQL on any PostgreSQL server you
-                                 connect to (including INSERT/UPDATE/DELETE)
-                   HTTP API   — Query any REST API, display results as table
-
-
-══════════════════════════════════════════════════════════════════════════════
-  10. DATA STORAGE & BACKUP
-══════════════════════════════════════════════════════════════════════════════
-
-  All GhostNet data lives in the data/ folder inside your installation
-  directory (or the path set by GHOSTNET_DATA).
-
-    data/
-    └── ghostnet.db    <- SQLite database — nodes, rules, config, audit logs
-
-  BACKUP
-  Copy data/ghostnet.db to a safe location. That single file contains
-  everything you need.
-
-  RESTORE
-  Stop GhostNet, replace data/ghostnet.db with your backup, restart.
-
-  RESET TO FACTORY DEFAULTS
-  Stop GhostNet, delete data/ghostnet.db, restart. GhostNet will
-  automatically re-seed all 60 nodes on next startup.
-
-
-══════════════════════════════════════════════════════════════════════════════
-  11. SECURITY NOTES
-══════════════════════════════════════════════════════════════════════════════
-
-  • LOCAL ONLY BY DEFAULT
-    GhostNet binds to 127.0.0.1 (localhost). It is not reachable from
-    other machines unless you deliberately change this.
-
-  • DO NOT EXPOSE PORT 7474 TO THE INTERNET
-    Without API key authentication and a TLS reverse proxy (nginx or
-    Caddy), the management interface would be unprotected. For local use
-    only, the default configuration is fine.
-
-  • TERMINAL GHOST MODE
-    When Ghost Mode is enabled, the terminal can run any outbound command.
-    All Ghost Mode commands are automatically recorded in the Audit Log.
-    Use Ghost Mode only in trusted environments.
-
-  • EXTERNAL SQL CONNECTIONS
-    When you connect to an external PostgreSQL server, the connection
-    string is masked in the UI (password replaced with ****). Connections
-    are held in memory only and are not written to disk.
-
-  • RATE LIMITING IS ACTIVE
-    500 requests/min global, 30/min terminal, 60/min SQL,
-    100/min write operations.
-
-  • WIREGUARD PRIVATE KEYS
-    Stored in the local SQLite database. Treat ghostnet.db as a sensitive
-    file and do not share it.
-
-
-══════════════════════════════════════════════════════════════════════════════
-  12. TROUBLESHOOTING
-══════════════════════════════════════════════════════════════════════════════
-
-  "Port 7474 is already in use"
-    Another process is using that port. Stop it, or launch GhostNet on a
-    different port:
-      PORT=7575 ./GhostNet   (macOS/Linux)
-      set PORT=7575 && GhostNet.exe   (Windows)
-
-  Browser shows "This site can't be reached"
-    • Make sure the GhostNet window is still open and shows "Server running"
-    • Try http://127.0.0.1:7474 instead of localhost (IPv6 conflict workaround)
-    • Make sure your browser is not adding https:// — GhostNet is plain HTTP
-
-  Windows: "Windows protected your PC" blocks the app
-    Click "More info" -> "Run anyway". One-time SmartScreen prompt.
-
-  macOS: "GhostNet cannot be opened because the developer cannot be verified"
-    Run in Terminal:
-      xattr -cr /path/to/GhostNet-macOS-arm64
-    Or go to System Settings -> Privacy & Security -> Allow Anyway.
-
-  Linux: "Permission denied" when running ./GhostNet
-    Run:  chmod +x GhostNet start.sh
-
-  Linux: Missing libc or GLIBC version error
-    Your distro is too old (glibc < 2.17). Use the Universal package with
-    Node.js 20+ instead.
-
-  Dashboard shows no nodes
-    The database is fresh or was reset. Go to Node Manager and click
-    "Initialize Swarm" to seed all 60 nodes.
-
-  External SQL connection fails
-    • Verify host, port, username, password, and database name.
-    • Ensure the PostgreSQL server allows remote connections
-      (check pg_hba.conf and listen_addresses in postgresql.conf).
-    • Check your firewall allows outbound connections to that host/port.
-
-  Terminal commands not working
-    • By default, only a safe allowlist of commands is permitted.
-    • For full access, enable Ghost Mode via the toggle in the top-right
-      of the Terminal page.
-    • All commands in Ghost Mode are logged to the Audit Log tab.
-
-
-══════════════════════════════════════════════════════════════════════════════
-  13. VPN COEXISTENCE SETUP
-══════════════════════════════════════════════════════════════════════════════
-
-  GhostNet can run alongside NordVPN, ExpressVPN, ProtonVPN, Mullvad,
-  Surfshark, or any WireGuard/OpenVPN-based VPN at the same time without
-  conflicts.
-
-  The VPN Coexistence page (Tunnel → VPN Coexist in the sidebar) handles
-  detection, exception rules, MTU calculation, and script generation.
-
-  For a complete walkthrough, see Section E7 of the User Guide.
-  Below is the quick-start for each platform.
-
-  ──────────────────────────────────────────────────────────────────────────
-  LINUX — FWMARK POLICY ROUTING (Recommended)
-  ──────────────────────────────────────────────────────────────────────────
-
-  Requirements: Linux kernel 3.x+, iproute2, iptables, root access.
-
-  Quick steps:
-  1. Start GhostNet and your commercial VPN.
-  2. Open http://localhost:7474 → Tunnel → VPN Coexist.
-  3. Select your VPN profile (NordVPN, ProtonVPN, etc.).
-  4. Set "Native VPN Interface" to your VPN's interface (nordlynx, tun0, etc.).
-  5. Choose mode: "fwmark Routing" (default, recommended).
-  6. Click GENERATE COEXISTENCE SCRIPTS → download the Enable script.
-  7. Run: sudo ./ghostnet-coexist-enable.sh
-  8. Verify: ip rule list | grep fwmark
-
-  To disable:
-    sudo ./ghostnet-coexist-disable.sh
-
-  Verify both VPNs are independently active:
-    ip route show table 200       <- GhostNet routing table
-    ip route show table main      <- Native VPN routing table
-
-  ──────────────────────────────────────────────────────────────────────────
-  LINUX — DOUBLE-HOP (Maximum Anonymity)
-  ──────────────────────────────────────────────────────────────────────────
-
-  Double-hop routes your traffic through GhostNet first, then through the
-  native VPN as the outer tunnel. Neither your ISP nor the VPN provider
-  can see your application traffic.
-
-  1. In VPN Coexist, select mode: "Double-Hop".
-  2. Run the MTU Optimizer with hop count 2 → apply result to ghostnet0:
-       ip link set ghostnet0 mtu 1380
-  3. Generate and run the Enable script as root.
-
-  NOTE: Double-hop slightly reduces speed due to double encryption.
-  If you notice large file transfers stalling, recheck MTU.
-
-  ──────────────────────────────────────────────────────────────────────────
-  LINUX — NETWORK NAMESPACE (Maximum Isolation)
-  ──────────────────────────────────────────────────────────────────────────
-
-  Runs GhostNet in a completely separate Linux network namespace.
-  The native VPN and GhostNet cannot interfere with each other at all.
-
-  1. In VPN Coexist, select mode: "Namespace Isolation".
-  2. Generate and run the Enable script. It creates a "ghostnet-ns" namespace.
-  3. Start ghostd.py inside the namespace:
-       sudo ip netns exec ghostnet-ns python3 ghostd.py --mode server
-
-  To run a specific application through GhostNet (namespace mode):
-       sudo ip netns exec ghostnet-ns curl ifconfig.me
-
-  ──────────────────────────────────────────────────────────────────────────
-  MACOS — ROUTING TABLE
-  ──────────────────────────────────────────────────────────────────────────
-
-  Requirements: macOS 12+, sudo access.
-  macOS does not support fwmark. GhostNet uses route add and interface
-  metrics instead.
-
-  1. Connect your commercial VPN (it will typically claim utun0 or utun2).
-  2. Open GhostNet → Tunnel → VPN Coexist.
-  3. Select your VPN profile.
-  4. Set Target OS to "macOS".
-  5. Generate and run the Enable script:
-       chmod +x ghostnet-coexist-enable.sh
-       sudo ./ghostnet-coexist-enable.sh
-  6. Verify: netstat -rn | grep -E 'utun|10.99'
-
-  ──────────────────────────────────────────────────────────────────────────
-  WINDOWS — ROUTING TABLE
-  ──────────────────────────────────────────────────────────────────────────
-
-  Requirements: Windows 10/11, Administrator account.
-  GhostNet uses interface metrics and static routes to separate traffic.
-
-  1. Connect your commercial VPN.
-  2. Open GhostNet → Tunnel → VPN Coexist.
-  3. Select your VPN profile.
-  4. Set Target OS to "Windows".
-  5. Generate and download the Enable script (.bat).
-  6. Right-click the .bat file → "Run as Administrator".
-  7. Verify: route print | findstr "10.99"
-
-  MTU on Windows (if needed):
-    Run in an Administrator command prompt:
-    netsh interface ipv4 set subinterface "GhostNet" mtu=1420 store=persistent
-
-  ──────────────────────────────────────────────────────────────────────────
-  INTERFACE NAMES REFERENCE
-  ──────────────────────────────────────────────────────────────────────────
-
-  Commercial VPN        Linux interface     macOS interface    Windows adapter
-  ─────────────────────────────────────────────────────────────────────────
-  NordVPN               nordlynx            utun0              NordLynx
-  ExpressVPN            tun0                utun0              ExpressVPN
-  ProtonVPN             proton0             utun1              ProtonVPN
-  Mullvad               wg0 / wg-mullvad    utun0              Mullvad
-  Surfshark             wg0 / tun0          utun2              Surfshark
-  WireGuard (generic)   wg0                 utun5              WireGuard Tunnel
-  OpenVPN (generic)     tun0                utun0              OpenVPN TAP
-
-  GhostNet default:     ghostnet0           utun10             GhostNet
-
-  ──────────────────────────────────────────────────────────────────────────
-  EXCEPTION RULES QUICK-ADD
-  ──────────────────────────────────────────────────────────────────────────
-
-  GhostNet pre-loads three private-range bypass exceptions automatically:
-    • 10.0.0.0/8        RFC 1918 — LAN traffic
-    • 172.16.0.0/12     RFC 1918 — LAN traffic
-    • 192.168.0.0/16    RFC 1918 — LAN traffic
-
-  To add the VPN provider's server IP ranges as bypass exceptions,
-  open Exception Rules → click "ADD ALL" next to your provider's name.
-  This prevents GhostNet from intercepting your VPN's tunnel keepalive.
-
-  ──────────────────────────────────────────────────────────────────────────
-  COEXISTENCE TROUBLESHOOTING
-  ──────────────────────────────────────────────────────────────────────────
-
-  Both VPNs use the same interface name (e.g., both claim tun0)
-    → Rename GhostNet's TUN interface by editing TUN_IFACE in ghostd.py
-      to "ghostnet0". Regenerate scripts.
-
-  After rebooting, coexistence rules are gone
-    → The enable script does not persist across reboots by default.
-      To persist: add the script to /etc/rc.local (Linux) or a Login Item
-      (macOS) or Task Scheduler (Windows).
-
-  DNS is leaking from one VPN to the other
-    → Go to GhostNet → Leak Detection and run TEST ALL LEAKS.
-      Add the leaking DNS server IP as a BYPASS exception rule.
-      Most common fix: add the native VPN's DNS server (e.g., 10.64.0.1
-      for Mullvad, 103.86.96.100 for NordVPN) as a bypass exception.
-
-  VPN speed dropped after enabling coexistence
-    → Check MTU. Run the MTU Optimizer for your mode and apply the result.
-      Most common: ip link set ghostnet0 mtu 1420
-
-  Script fails: "RTNETLINK answers: File exists"
-    → Rules already exist from a previous run. Run the disable script first,
-      then re-run the enable script.
-
-
-══════════════════════════════════════════════════════════════════════════════
-  14. UNINSTALLING
-══════════════════════════════════════════════════════════════════════════════
-
-  GhostNet is fully self-contained. Nothing is written to your system
-  registry, /usr/local, or any other system location.
-
-  TO UNINSTALL:
-  1. Stop GhostNet (close the terminal window or press Ctrl + C).
-  2. Delete the GhostNet folder.
-  3. Done. No cleanup scripts needed.
-
-  IF YOU SET UP A SYSTEMD SERVICE (Linux):
-
-    sudo systemctl stop ghostnet
-    sudo systemctl disable ghostnet
-    sudo rm /etc/systemd/system/ghostnet.service
-    sudo systemctl daemon-reload
-
-
-══════════════════════════════════════════════════════════════════════════════
-  API QUICK REFERENCE
-══════════════════════════════════════════════════════════════════════════════
-
-  Method   Endpoint                          Description
-  ───────────────────────────────────────────────────────────────────────────
-  GET      /api/healthz                      Health check
-  GET      /api/nodes                        List all 60 nodes
-  POST     /api/nodes/shuffle-all            Rotate all node IPs instantly
-  GET      /api/beacons                      Beacon / spider / worm alerts
-  GET      /api/silkweb                      Silk web trap topology
-  GET      /api/firewall/rules               Firewall rules
-  GET      /api/monitor/stats                CPU / RAM / network stats
-  POST     /api/terminal/exec               Run an allowed shell command
-  POST     /api/terminal/http-request        Outbound HTTP request
-  POST     /api/terminal/port-scan           TCP port scan
-  GET      /api/terminal/audit-log           Terminal command audit log
-  POST     /api/sql/query                    SELECT on local GhostNet DB
-  POST     /api/sql/external-query           Full SQL on external PostgreSQL
-  POST     /api/sql/connections              Register an external DB connection
-  GET      /api/sql/schema                   Inspect schema of a connection
-  POST     /api/sql/http-query               Query REST API, return as table
-  GET      /api/security-audit/self          Run the self-audit
-  POST     /api/security-audit/cert          Inspect a TLS certificate
-  POST     /api/security-audit/headers       Grade HTTP security headers
-  POST     /api/security-audit/whois         WHOIS / RDAP lookup
-  GET      /api/killswitch/status            Kill switch state
-  POST     /api/killswitch/arm               Arm the kill switch
-  GET      /api/leaks/test                   Run leak detection
-  GET      /api/threatintel/check            Check IP reputation
-
-
-─────────────────────────────────────────────────────────────────────────────
-  GhostNet v3.0 — For personal use only. All rights reserved.
-  (c) 2026 GhostNet Project
-─────────────────────────────────────────────────────────────────────────────
+    1. Extract this zip to your chosen folder
+    2. Double-click: start.bat
+    3. Browser opens automatically to http://localhost:7474
+
+  Universal (any OS — requires Node.js 20+):
+    1. Install Node.js 20+ from https://nodejs.org
+    2. Extract this zip
+    3. Linux/macOS: ./start.sh  |  Windows: start.bat
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SYSTEM REQUIREMENTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Platform             Min RAM    Disk    Notes
+  ─────────────────── ─────────  ──────  ──────────────────────────────────
+  Windows x64          512 MB    50 MB   Win 10 / Win 11
+  macOS arm64          512 MB    50 MB   Apple Silicon (M1/M2/M3/M4)
+  macOS x64            512 MB    50 MB   Intel Mac (macOS 12+)
+  Linux x64            256 MB    50 MB   Ubuntu 20+, Debian 11+, Arch, etc.
+  Universal/NodeJS     256 MB    30 MB   Node.js 20+ required
+
+  WireGuard (optional): Install separately for live tunnel management
+    Linux:  sudo apt install wireguard-tools
+    macOS:  brew install wireguard-tools
+    Windows: https://www.wireguard.com/install/
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+WHAT'S INCLUDED IN THIS PACKAGE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ┌─ CORE VPN ENGINE ──────────────────────────────────────────────────────┐
+  │  • 60-node mesh architecture (50 outer + 10 inner nodes)               │
+  │  • Beacon / Spider / Worm agents on every node                         │
+  │  • Silk Web trap network — fingerprints and loops attackers            │
+  │  • Stateful firewall with ISP masquerade + localhost hiding            │
+  │  • WireGuard configuration generator for all nodes                     │
+  │  • Instant IP rotation (single node or bulk)                           │
+  │  • Split tunneling — per-IP, per-CIDR, per-app routing rules           │
+  │  • Kill switch — arm/disarm with OS-native firewall rule generation    │
+  │  • VPN coexistence — run alongside NordVPN, ExpressVPN, ProtonVPN etc  │
+  └────────────────────────────────────────────────────────────────────────┘
+
+  ┌─ PRIVACY & OBFUSCATION ─────────────────────────────────────────────────┐
+  │  • DPI bypass: obfs4, Shadowsocks, V2Ray-WS, Meek, Snowflake, XOR     │
+  │  • DNS Shield — ad/tracker/malware/phishing blocking (Pi-hole style)   │
+  │  • Smart DNS — TV/console DNS routing (Samsung, Roku, Xbox, PS5, etc.) │
+  │  • Onion browser with 4 proxy modes (Direct/ProxhqVPN/Tor/Double)      │
+  │  • SOCKS5 / Tor integration with port knocking docs                    │
+  └────────────────────────────────────────────────────────────────────────┘
+
+  ┌─ MONITORING & ANALYSIS ─────────────────────────────────────────────────┐
+  │  • Real-time system monitor (CPU, RAM, network I/O, connections)        │
+  │  • Network Monitor — live traffic flow analysis across all nodes        │
+  │  • SIEM — unified security event log (Beacon + Firewall + Ghost Trace)  │
+  │  • Ghost Trace — outbound behavioral analysis, C2 beaconing detection   │
+  │  • Threat Intel — IP reputation, Tor exit feeds, blocklists            │
+  │  • Leak detection — DNS, IPv6, WebRTC leak test suite                  │
+  └────────────────────────────────────────────────────────────────────────┘
+
+  ┌─ SECURITY TOOLS ────────────────────────────────────────────────────────┐
+  │  • Security Audit — TLS inspector, HTTP header grader (A–F), WHOIS     │
+  │  • OSINT Recon — passive DNS, TLS certs, headers, ASN, email security  │
+  │  • Canary Tokens — URL, Web Bug, DNS, Email, UNC, AWS, PDF, SQL types  │
+  │  • Ghost Chain — automated attack path discovery and chain correlation  │
+  │  • Terminal — 4-tab shell (SHELL / HTTP CLIENT / PORT SCAN / AUDIT LOG) │
+  │  • SQL Interface — local SELECT-only + external PostgreSQL full CRUD    │
+  └────────────────────────────────────────────────────────────────────────┘
+
+  ┌─ DEVICE & PLATFORM SUPPORT ────────────────────────────────────────────┐
+  │  • Device Manager — WireGuard device registry + QR code generator      │
+  │  • Router Config — OpenWRT, DD-WRT, pfSense, GL.iNet, Ubiquiti         │
+  │  • Platform guides: Desktop, Mobile, TV, Console, Router, Browser       │
+  └────────────────────────────────────────────────────────────────────────┘
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CONFIGURATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Change port:
+    PORT=8080 ./ProxhqVPN          (Linux/macOS)
+    set PORT=8080 && ProxhqVPN.exe  (Windows cmd)
+
+  Change data directory:
+    PROXHQVPN_DATA=/path/to/data ./ProxhqVPN
+
+  All data stored in data/proxhqvpn.db (SQLite).
+  Back up this file to preserve your configuration.
+  Delete it to reset to factory defaults (60 nodes re-seeded).
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+UNINSTALL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Simply delete the ~/ProxhqVPN folder.
+  No system files are modified by this standalone package.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECURITY NOTICE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  • This is a LOCAL management interface — do NOT expose port 7474
+    to the internet without adding authentication middleware.
+  • The terminal command set is restricted to safe read-only commands.
+  • All SQL queries in local mode are SELECT-only (no data modification).
+  • Rate limiting: 500 req/min global | 100/min writes | 30/min terminal
+  • No telemetry, no cloud sync — all data stays on your machine.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SUPPORT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Website:     https://proxhqvpn.app
+  Downloads:   https://proxhqvpn.app/downloads
+  Support:     support@proxhqvpn.app
+  Copyright:   © 2026 Alpha Unlimited Technologies LLC
+

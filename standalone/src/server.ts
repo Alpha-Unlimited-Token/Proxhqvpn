@@ -16,8 +16,8 @@ import { initDb, query, queryOne, run, lastInsertId, saveDb } from "./db.js";
 
 const execAsync = promisify(exec);
 
-const DATA_DIR = process.env.GHOSTNET_DATA
-  ? path.resolve(process.env.GHOSTNET_DATA)
+const DATA_DIR = process.env.PROXHQVPN_DATA
+  ? path.resolve(process.env.PROXHQVPN_DATA)
   : path.join(process.cwd(), "data");
 
 const PORT = parseInt(process.env.PORT || "7474");
@@ -42,8 +42,8 @@ const SEVS = ["low","medium","high","critical"] as const;
 const ROUTE_TYPES = ["highway","dead_end","decoy","collapse_zone"] as const;
 const SIMULATED_EXT_IP = `${rb(100,200)}.${rb(0,254)}.${rb(0,254)}.${rb(1,254)}`;
 
-type ProxyMode = "direct" | "ghostnet-onion" | "tor-gateway" | "double-layer";
-let proxyConfig = { mode: "ghostnet-onion" as ProxyMode, socks5Host: "127.0.0.1", socks5Port: 9050 };
+type ProxyMode = "direct" | "proxhqvpn-onion" | "tor-gateway" | "double-layer";
+let proxyConfig = { mode: "proxhqvpn-onion" as ProxyMode, socks5Host: "127.0.0.1", socks5Port: 9050 };
 
 async function createApp() {
   // Initialize database
@@ -389,13 +389,13 @@ async function createApp() {
     const { command } = z.object({ command: z.string().max(512) }).parse(req.body);
     const cmd = command.trim().split(" ")[0].toLowerCase();
     if (!ALLOWED.has(cmd)) {
-      return res.json({ output: `ghostnet@standalone:~$ ${command}\nAccess denied: '${cmd}' not in allowlist.\nAllowed: ${[...ALLOWED].join(", ")}`, exitCode: 1 });
+      return res.json({ output: `proxhqvpn@standalone:~$ ${command}\nAccess denied: '${cmd}' not in allowlist.\nAllowed: ${[...ALLOWED].join(", ")}`, exitCode: 1 });
     }
     try {
       const { stdout, stderr } = await execAsync(command, { timeout: 5000 });
-      res.json({ output: `ghostnet@standalone:~$ ${command}\n${stdout||stderr}`, exitCode: 0 });
+      res.json({ output: `proxhqvpn@standalone:~$ ${command}\n${stdout||stderr}`, exitCode: 0 });
     } catch (e: any) {
-      res.json({ output: `ghostnet@standalone:~$ ${command}\n${e.stderr||e.message}`, exitCode: e.code||1 });
+      res.json({ output: `proxhqvpn@standalone:~$ ${command}\n${e.stderr||e.message}`, exitCode: e.code||1 });
     }
   });
 
@@ -428,23 +428,23 @@ async function createApp() {
   app.get("/api/proxy-browser/config", (_req, res) => res.json(proxyConfig));
 
   app.post("/api/proxy-browser/config", mutateLimiter, (req, res) => {
-    const body = z.object({ mode: z.enum(["direct","ghostnet-onion","tor-gateway","double-layer"]), socks5Host: z.string().default("127.0.0.1"), socks5Port: z.number().default(9050) }).parse(req.body);
+    const body = z.object({ mode: z.enum(["direct","proxhqvpn-onion","tor-gateway","double-layer"]), socks5Host: z.string().default("127.0.0.1"), socks5Port: z.number().default(9050) }).parse(req.body);
     proxyConfig = body;
     res.json(proxyConfig);
   });
 
   app.post("/api/proxy-browser/fetch", async (req, res) => {
-    const body = z.object({ url: z.string().url(), mode: z.enum(["direct","ghostnet-onion","tor-gateway","double-layer"]), socks5Host: z.string().default("127.0.0.1"), socks5Port: z.number().default(9050) }).parse(req.body);
+    const body = z.object({ url: z.string().url(), mode: z.enum(["direct","proxhqvpn-onion","tor-gateway","double-layer"]), socks5Host: z.string().default("127.0.0.1"), socks5Port: z.number().default(9050) }).parse(req.body);
     const start = Date.now();
     try {
       const fetch = (await import("node-fetch")).default;
-      const opts: any = { method: "GET", headers: { "User-Agent": "Mozilla/5.0 (compatible; GhostNet/1.0)" }, redirect: "follow", signal: AbortSignal.timeout(12000) };
+      const opts: any = { method: "GET", headers: { "User-Agent": "Mozilla/5.0 (compatible; ProxhqVPN/1.0)" }, redirect: "follow", signal: AbortSignal.timeout(12000) };
       if (body.mode !== "direct") {
         try { const { SocksProxyAgent } = await import("socks-proxy-agent"); opts.agent = new SocksProxyAgent(`socks5://${body.socks5Host}:${body.socks5Port}`); } catch {}
       }
       const resp = await fetch(body.url, opts);
       const html = await resp.text();
-      const layers = body.mode === "ghostnet-onion" ? ["Your Device","GhostNet Relay ×7","Destination"] : body.mode === "tor-gateway" ? ["Your Device","Tor Guard","Tor Relay","Tor Exit","Destination"] : body.mode === "double-layer" ? ["Your Device","GhostNet ×3","Tor Guard","Tor Relay","Tor Exit","Destination"] : ["Direct","Destination"];
+      const layers = body.mode === "proxhqvpn-onion" ? ["Your Device","ProxhqVPN Relay ×7","Destination"] : body.mode === "tor-gateway" ? ["Your Device","Tor Guard","Tor Relay","Tor Exit","Destination"] : body.mode === "double-layer" ? ["Your Device","GhostNet ×3","Tor Guard","Tor Relay","Tor Exit","Destination"] : ["Direct","Destination"];
       res.json({ html, url: body.url, statusCode: resp.status, timingMs: Date.now()-start, layers, title: "" });
     } catch (e: any) {
       res.json({ html: `<html><body style="background:#000;color:#0f0;font-family:monospace;padding:40px"><h2>Error</h2><p>${e.message}</p></body></html>`, url: body.url, statusCode: 0, timingMs: Date.now()-start, layers: [], title: "Error", error: e.message });
@@ -467,7 +467,7 @@ async function createApp() {
   }
   if (!servedFrontend) {
     app.get("*", (_req, res) => {
-      res.send(`<!DOCTYPE html><html><head><title>GhostNet VPN</title><style>*{margin:0;padding:0}body{background:#000;color:#00ff41;font-family:'Courier New',monospace;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:40px}.box{border:1px solid #00ff41;padding:40px;max-width:600px;text-align:center}h1{margin-bottom:24px;letter-spacing:.3em}p{color:#00ff4199;line-height:1.8;margin-bottom:16px}code{color:#0ff}</style></head><body><div class="box"><h1>GHOSTNET VPN</h1><p>Server running. API at <code>/api</code></p><p>Place the <code>frontend/</code> folder next to the executable.</p><p><code>GET /api/healthz</code></p></div></body></html>`);
+      res.send(`<!DOCTYPE html><html><head><title>ProxhqVPN</title><style>*{margin:0;padding:0}body{background:#000;color:#00ff41;font-family:'Courier New',monospace;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:40px}.box{border:1px solid #00ff41;padding:40px;max-width:600px;text-align:center}h1{margin-bottom:24px;letter-spacing:.3em}p{color:#00ff4199;line-height:1.8;margin-bottom:16px}code{color:#0ff}</style></head><body><div class="box"><h1>PROXHQVPN</h1><p>Server running. API at <code>/api</code></p><p>Place the <code>frontend/</code> folder next to the executable.</p><p><code>GET /api/healthz</code></p></div></body></html>`);
     });
   }
 
@@ -481,15 +481,15 @@ async function createApp() {
 
   // ─── Start ────────────────────────────────────────────────────────────────
   app.listen(PORT, "0.0.0.0", () => {
-    logger.info({ port: PORT, data: DATA_DIR }, "GhostNet standalone server started");
+    logger.info({ port: PORT, data: DATA_DIR }, "ProxhqVPN standalone server started");
     console.log(`\n  ██████╗ ██╗  ██╗ ██████╗ ███████╗████████╗███╗   ██╗███████╗████████╗`);
     console.log(`  ██╔════╝ ██║  ██║██╔═══██╗██╔════╝╚══██╔══╝████╗  ██║██╔════╝╚══██╔══╝`);
     console.log(`  ██║  ███╗███████║██║   ██║███████╗   ██║   ██╔██╗ ██║█████╗     ██║   `);
     console.log(`  ██║   ██║██╔══██║██║   ██║╚════██║   ██║   ██║╚██╗██║██╔══╝     ██║   `);
     console.log(`  ╚██████╔╝██║  ██║╚██████╔╝███████║   ██║   ██║ ╚████║███████╗   ██║   `);
     console.log(`   ╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚══════╝   ╚═╝   ╚═╝  ╚═══╝╚══════╝   ╚═╝`);
-    console.log(`\n  GhostNet VPN Orchestration Platform — Standalone Edition`);
-    console.log(`  Open your browser: http://localhost:${PORT}`);
+    console.log(`\n  ProxhqVPN — Standalone Edition`);
+    console.log(`  Dashboard: http://localhost:${PORT}`);
     console.log(`  Data directory:    ${DATA_DIR}\n`);
   });
 }

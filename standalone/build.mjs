@@ -1,12 +1,12 @@
 /**
- * GhostNet Standalone Build Script
+ * ProxhqVPN Standalone Build Script
  * Produces:
- *   dist/GhostNet-Windows-x64.zip
- *   dist/GhostNet-macOS-arm64.zip
- *   dist/GhostNet-macOS-x64.zip
- *   dist/GhostNet-Linux-x64.zip
- *   dist/GhostNet-Universal-NodeJS.zip
- *   dist/GhostNet-ALL-PLATFORMS.zip
+ *   dist/ProxhqVPN-Windows-x64.zip
+ *   dist/ProxhqVPN-macOS-arm64.zip
+ *   dist/ProxhqVPN-macOS-x64.zip
+ *   dist/ProxhqVPN-Linux-x64.zip
+ *   dist/ProxhqVPN-Universal-NodeJS.zip
+ *   dist/ProxhqVPN-ALL-PLATFORMS.zip
  */
 
 import { execSync } from "child_process";
@@ -58,7 +58,7 @@ function stagePackage(name) {
 
 function readmeText(platform, startCmd, extraNote = "") {
   return `╔══════════════════════════════════════════════════════════════════╗
-║               GHOSTNET VPN — STANDALONE EDITION              ║
+║               PROXHQVPN — STANDALONE EDITION              ║
 ║                  Version 1.0.0 — For Personal Use            ║
 ╚══════════════════════════════════════════════════════════════════╝
 
@@ -70,9 +70,9 @@ QUICK START
 
   Then open your browser to: http://localhost:7474
 
-WHAT IS GHOSTNET?
+WHAT IS PROXHQVPN?
 ──────────────────
-GhostNet is an advanced VPN orchestration platform featuring:
+ProxhqVPN is an advanced VPN orchestration and security platform featuring:
   • 60-node architecture (50 outer + 10 inner nodes)
   • Beacon / Spider / Worm agents on every node
   • Silk Web trap network for attacker detection & fingerprinting
@@ -123,20 +123,20 @@ API REFERENCE
 LICENSE
 ───────
   For personal use only. All rights reserved.
-  © 2026 GhostNet Project
+  © 2026 Alpha Unlimited Technologies LLC
 
 ─────────────────────────────────────────────────────────────────
 `;
 }
 
 const START_BAT = `@echo off
-title GhostNet VPN Standalone
+title ProxhqVPN Standalone
 echo.
 echo  GhostNet VPN Orchestration Platform ^| Standalone Edition
 echo  Starting server on http://localhost:7474 ...
 echo.
 start "" "http://localhost:7474"
-GhostNet.exe
+ProxhqVPN.exe
 pause
 `;
 
@@ -146,12 +146,12 @@ const START_SH_LINUX = [
   'DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"',
   'cd "$DIR"',
   'echo ""',
-  'echo "  GhostNet VPN Orchestration Platform | Standalone Edition"',
+  'echo "  ProxhqVPN Orchestration Platform | Standalone Edition"',
   'echo "  Starting on http://localhost:7474 ..."',
   'echo ""',
   "if command -v xdg-open &>/dev/null; then (sleep 2 && xdg-open http://localhost:7474) &",
   "elif command -v open &>/dev/null; then (sleep 2 && open http://localhost:7474) &; fi",
-  "./GhostNet",
+  "./ProxhqVPN",
 ].join("\n") + "\n";
 
 const START_SH_MAC = [
@@ -160,11 +160,11 @@ const START_SH_MAC = [
   'DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"',
   'cd "$DIR"',
   'echo ""',
-  'echo "  GhostNet VPN Orchestration Platform | Standalone Edition (macOS)"',
+  'echo "  ProxhqVPN Orchestration Platform | Standalone Edition (macOS)"',
   'echo "  Starting on http://localhost:7474 ..."',
   'echo ""',
   "(sleep 2 && open http://localhost:7474) &",
-  "./GhostNet",
+  "./ProxhqVPN",
 ].join("\n") + "\n";
 
 const START_NODE_SH = [
@@ -176,16 +176,16 @@ const START_NODE_SH = [
   'MAJOR=$(node -e "process.stdout.write(process.versions.node.split(\'.\')[0])")',
   '[ "$MAJOR" -lt 20 ] && { echo "ERROR: Node.js 20+ required"; exit 1; }',
   '[ ! -d node_modules ] && { echo "Installing dependencies..."; npm install --production --omit=dev; }',
-  'echo "GhostNet starting at http://localhost:7474"',
+  'echo "ProxhqVPN starting at http://localhost:7474"',
   '(sleep 2 && { command -v xdg-open && xdg-open http://localhost:7474 || command -v open && open http://localhost:7474 || true; }) &>/dev/null &',
   "node server.bundle.cjs",
 ].join("\n") + "\n";
 
 const START_NODE_BAT = `@echo off
-title GhostNet VPN (Universal)
+title ProxhqVPN (Universal)
 where node >nul 2>&1 || (echo ERROR: Node.js not found. Install from https://nodejs.org & pause & exit /b 1)
 if not exist node_modules\\ (echo Installing dependencies... & npm install --production --omit=dev)
-echo GhostNet starting at http://localhost:7474
+echo ProxhqVPN starting at http://localhost:7474
 start "" "http://localhost:7474"
 node server.bundle.cjs
 pause
@@ -194,7 +194,7 @@ pause
 // ─── Main ────────────────────────────────────────────────────────────────────
 async function main() {
   console.log("\n══════════════════════════════════════════════════════════");
-  console.log("  GHOSTNET STANDALONE BUILD — ALL PLATFORMS");
+  console.log("  PROXHQVPN STANDALONE BUILD — ALL PLATFORMS");
   console.log("══════════════════════════════════════════════════════════\n");
 
   // 1. Build frontend
@@ -222,10 +222,10 @@ async function main() {
   ensureDir(STAGE);
 
   const pkgTargets = [
-    { target: "node20-win-x64",    name: "GhostNet-Windows-x64",  bin: "GhostNet.exe", script: START_BAT,      scriptName: "start.bat",  platform: "Windows x64",          req: "" },
-    { target: "node20-macos-arm64",name: "GhostNet-macOS-arm64",  bin: "GhostNet",     script: START_SH_MAC,   scriptName: "start.sh",   platform: "macOS Apple Silicon",   req: "" },
-    { target: "node20-macos-x64",  name: "GhostNet-macOS-x64",    bin: "GhostNet",     script: START_SH_MAC,   scriptName: "start.sh",   platform: "macOS Intel",           req: "" },
-    { target: "node20-linux-x64",  name: "GhostNet-Linux-x64",    bin: "GhostNet",     script: START_SH_LINUX, scriptName: "start.sh",   platform: "Linux x64",             req: "" },
+    { target: "node20-win-x64",    name: "ProxhqVPN-Windows-x64",  bin: "ProxhqVPN.exe", script: START_BAT,      scriptName: "start.bat",  platform: "Windows x64",          req: "" },
+    { target: "node20-macos-arm64",name: "ProxhqVPN-macOS-arm64",  bin: "ProxhqVPN",     script: START_SH_MAC,   scriptName: "start.sh",   platform: "macOS Apple Silicon",   req: "" },
+    { target: "node20-macos-x64",  name: "ProxhqVPN-macOS-x64",    bin: "ProxhqVPN",     script: START_SH_MAC,   scriptName: "start.sh",   platform: "macOS Intel",           req: "" },
+    { target: "node20-linux-x64",  name: "ProxhqVPN-Linux-x64",    bin: "ProxhqVPN",     script: START_SH_LINUX, scriptName: "start.sh",   platform: "Linux x64",             req: "" },
   ];
 
   const builtZips = [];
@@ -271,19 +271,19 @@ async function main() {
         }
       }
       // Bundle one-command setup scripts
-      const setupSh  = path.join(__dirname, "ghostnet-setup.sh");
-      const setupBat = path.join(__dirname, "ghostnet-setup.bat");
-      const installSh  = path.join(__dirname, "ghostnet-install.sh");
-      const installPs1 = path.join(__dirname, "ghostnet-install.ps1");
-      if (fs.existsSync(setupSh))  { fs.copyFileSync(setupSh,  path.join(stageDir, "ghostnet-setup.sh"));  try { fs.chmodSync(path.join(stageDir, "ghostnet-setup.sh"), 0o755); } catch {} }
-      if (fs.existsSync(setupBat)) { fs.copyFileSync(setupBat, path.join(stageDir, "ghostnet-setup.bat")); }
-      if (fs.existsSync(installSh))  { fs.copyFileSync(installSh,  path.join(stageDir, "ghostnet-install.sh"));  try { fs.chmodSync(path.join(stageDir, "ghostnet-install.sh"), 0o755); } catch {} }
-      if (fs.existsSync(installPs1)) { fs.copyFileSync(installPs1, path.join(stageDir, "ghostnet-install.ps1")); }
+      const setupSh  = path.join(__dirname, "proxhqvpn-setup.sh");
+      const setupBat = path.join(__dirname, "proxhqvpn-setup.bat");
+      const installSh  = path.join(__dirname, "proxhqvpn-install.sh");
+      const installPs1 = path.join(__dirname, "proxhqvpn-install.ps1");
+      if (fs.existsSync(setupSh))  { fs.copyFileSync(setupSh,  path.join(stageDir, "proxhqvpn-setup.sh"));  try { fs.chmodSync(path.join(stageDir, "proxhqvpn-setup.sh"), 0o755); } catch {} }
+      if (fs.existsSync(setupBat)) { fs.copyFileSync(setupBat, path.join(stageDir, "proxhqvpn-setup.bat")); }
+      if (fs.existsSync(installSh))  { fs.copyFileSync(installSh,  path.join(stageDir, "proxhqvpn-install.sh"));  try { fs.chmodSync(path.join(stageDir, "proxhqvpn-install.sh"), 0o755); } catch {} }
+      if (fs.existsSync(installPs1)) { fs.copyFileSync(installPs1, path.join(stageDir, "proxhqvpn-install.ps1")); }
       // Bundle VPN Gate connect scripts
-      const connectSh  = path.join(__dirname, "ghostnet-connect.sh");
-      const connectPs1 = path.join(__dirname, "ghostnet-connect.ps1");
-      if (fs.existsSync(connectSh))  { fs.copyFileSync(connectSh,  path.join(stageDir, "ghostnet-connect.sh"));  try { fs.chmodSync(path.join(stageDir, "ghostnet-connect.sh"), 0o755); } catch {} }
-      if (fs.existsSync(connectPs1)) { fs.copyFileSync(connectPs1, path.join(stageDir, "ghostnet-connect.ps1")); }
+      const connectSh  = path.join(__dirname, "proxhqvpn-connect.sh");
+      const connectPs1 = path.join(__dirname, "proxhqvpn-connect.ps1");
+      if (fs.existsSync(connectSh))  { fs.copyFileSync(connectSh,  path.join(stageDir, "proxhqvpn-connect.sh"));  try { fs.chmodSync(path.join(stageDir, "proxhqvpn-connect.sh"), 0o755); } catch {} }
+      if (fs.existsSync(connectPs1)) { fs.copyFileSync(connectPs1, path.join(stageDir, "proxhqvpn-connect.ps1")); }
 
       const zipPath = path.join(DIST, `${name}.zip`);
       await zipDir(stageDir, zipPath, name);
@@ -300,7 +300,7 @@ async function main() {
 
   // 4. Universal package (Node.js 20+ required, works on ANY platform)
   console.log("\n▶ [4/5] Building Universal (Node.js) package...");
-  const univDir = stagePackage("GhostNet-Universal-NodeJS");
+  const univDir = stagePackage("ProxhqVPN-Universal-NodeJS");
   ensureDir(path.join(univDir, "data"));
   copyDir(frontendSrc, path.join(univDir, "frontend"));
   fs.copyFileSync(path.join(__dirname, "server.bundle.cjs"), path.join(univDir, "server.bundle.cjs"));
@@ -338,20 +338,20 @@ async function main() {
     }
   }
   // Bundle VPN Gate connect scripts
-  const connectShUniv  = path.join(__dirname, "ghostnet-connect.sh");
-  const connectPs1Univ = path.join(__dirname, "ghostnet-connect.ps1");
-  if (fs.existsSync(connectShUniv))  { fs.copyFileSync(connectShUniv,  path.join(univDir, "ghostnet-connect.sh"));  try { fs.chmodSync(path.join(univDir, "ghostnet-connect.sh"), 0o755); } catch {} }
-  if (fs.existsSync(connectPs1Univ)) { fs.copyFileSync(connectPs1Univ, path.join(univDir, "ghostnet-connect.ps1")); }
+  const connectShUniv  = path.join(__dirname, "proxhqvpn-connect.sh");
+  const connectPs1Univ = path.join(__dirname, "proxhqvpn-connect.ps1");
+  if (fs.existsSync(connectShUniv))  { fs.copyFileSync(connectShUniv,  path.join(univDir, "proxhqvpn-connect.sh"));  try { fs.chmodSync(path.join(univDir, "proxhqvpn-connect.sh"), 0o755); } catch {} }
+  if (fs.existsSync(connectPs1Univ)) { fs.copyFileSync(connectPs1Univ, path.join(univDir, "proxhqvpn-connect.ps1")); }
 
-  const univZip = path.join(DIST, "GhostNet-Universal-NodeJS.zip");
-  await zipDir(univDir, univZip, "GhostNet-Universal-NodeJS");
+  const univZip = path.join(DIST, "ProxhqVPN-Universal-NodeJS.zip");
+  await zipDir(univDir, univZip, "ProxhqVPN-Universal-NodeJS");
   builtZips.push(univZip);
-  console.log(`  ✓ GhostNet-Universal-NodeJS.zip (${(fs.statSync(univZip).size / 1024 / 1024).toFixed(1)} MB)`);
+  console.log(`  ✓ ProxhqVPN-Universal-NodeJS.zip (${(fs.statSync(univZip).size / 1024 / 1024).toFixed(1)} MB)`);
 
   // 5. Master zip with ALL platforms
   console.log("\n▶ [5/5] Creating master zip (all platforms)...");
   const archiver = (await import("archiver")).default;
-  const allZip = path.join(DIST, "GhostNet-ALL-PLATFORMS.zip");
+  const allZip = path.join(DIST, "ProxhqVPN-ALL-PLATFORMS.zip");
   await new Promise((resolve, reject) => {
     const out = createWriteStream(allZip);
     const archive = archiver("zip", { zlib: { level: 5 } });
@@ -361,7 +361,7 @@ async function main() {
     for (const z of builtZips) archive.file(z, { name: path.basename(z) });
     archive.finalize();
   });
-  console.log(`  ✓ GhostNet-ALL-PLATFORMS.zip (${(fs.statSync(allZip).size / 1024 / 1024).toFixed(1)} MB)`);
+  console.log(`  ✓ ProxhqVPN-ALL-PLATFORMS.zip (${(fs.statSync(allZip).size / 1024 / 1024).toFixed(1)} MB)`);
 
   // ─── Security Audit ─────────────────────────────────────────────────────
   console.log("\n══════════════════════════════════════════════════════════");
