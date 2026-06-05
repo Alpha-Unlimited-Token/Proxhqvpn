@@ -889,6 +889,13 @@ export default function OsintRecon() {
           )}
 
           {/* ── Smart: Phone result ── */}
+          {smartLastType === "phone" && phoneMut.isError && !phoneMut.isPending && (
+            <div className="border border-red-500/40 bg-red-900/20 rounded-sm p-4 space-y-1">
+              <div className="text-xs font-bold text-red-400">Phone lookup failed</div>
+              <div className="text-[10px] text-red-400/70">{(phoneMut.error as Error)?.message ?? "Unknown error"}</div>
+              <div className="text-[10px] text-primary/30 mt-1">Try including the country code — e.g. +44 7926 549374 or 44 7926 549374</div>
+            </div>
+          )}
           {smartLastType === "phone" && phoneResult && !phoneMut.isPending && (
             <div className="space-y-3">
               <div className="flex items-center gap-2">
@@ -897,7 +904,13 @@ export default function OsintRecon() {
                 <button onClick={() => setActiveTab("phone")} className="ml-auto text-[9px] text-primary/30 hover:text-[#00ff88] border border-primary/10 hover:border-[#00ff88]/30 px-2 py-0.5 rounded-sm transition-colors">Full Phone Tab →</button>
               </div>
               {!phoneResult.valid ? (
-                <div className="border border-red-500/30 bg-red-900/8 rounded-sm p-4 text-xs text-red-400">{phoneResult.error}</div>
+                <div className="border border-red-500/40 bg-red-900/20 rounded-sm p-4 space-y-1">
+                  <div className="text-xs font-bold text-red-400">Could not parse phone number</div>
+                  <div className="text-[10px] text-red-300/80">{phoneResult.error}</div>
+                  {phoneResult.suggestions?.map((s: string, i: number) => (
+                    <div key={i} className="text-[10px] text-primary/40 font-mono">· {s}</div>
+                  ))}
+                </div>
               ) : (
                 <>
                   <div className="border border-cyan-400/20 bg-cyan-900/5 rounded-sm p-4">
