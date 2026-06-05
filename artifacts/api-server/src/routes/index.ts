@@ -9,6 +9,7 @@ import { requireAccess } from "../middlewares/requireAccess";
 import { requireCommandCenter } from "../middlewares/requireCommandCenter";
 import fs from "fs";
 import path from "path";
+import crypto from "crypto";
 import healthRouter from "./health";
 import meRouter from "./me";
 import nodesRouter from "./nodes";
@@ -321,9 +322,18 @@ router.use("/notifications",  notificationsRouter);
 
 // Auth guard — all routes below require a valid Clerk session
 // Exception: localhost requests with correct X-Internal-Secret bypass Clerk auth
+// Uses timing-safe comparison to prevent timing-based secret oracle attacks.
+
 const requireAuth = (req: Request, res: Response, next: NextFunction) => {
   const internalSecret = req.headers["x-internal-secret"];
-  if (internalSecret && internalSecret === process.env.SESSION_SECRET) {
+  const sessionSecret = process.env.SESSION_SECRET ?? "";
+  if (
+    internalSecret &&
+    typeof internalSecret === "string" &&
+    sessionSecret.length >= 32 &&
+    internalSecret.length === sessionSecret.length &&
+    crypto.timingSafeEqual(Buffer.from(internalSecret), Buffer.from(sessionSecret))
+  ) {
     (req as any).internalBypass = true;
     return next();
   }

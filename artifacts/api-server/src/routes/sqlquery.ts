@@ -102,7 +102,10 @@ router.post("/connect", async (req, res) => {
       connectionTimeoutMillis: 10000,
     };
     if (body.ssl) {
-      (cfg as any).ssl = { rejectUnauthorized: false };
+      // Default: verify the server certificate to prevent MitM attacks.
+      // rejectUnauthorized is intentionally set to true. If the user's DB
+      // uses a self-signed cert they must pass allowSelfSigned: true explicitly.
+      (cfg as any).ssl = { rejectUnauthorized: !(body as any).allowSelfSigned };
     }
     pgPool = new PgPool(cfg);
 

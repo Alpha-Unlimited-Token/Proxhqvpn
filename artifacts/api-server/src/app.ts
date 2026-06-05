@@ -209,29 +209,82 @@ app.use((req: Request, _res: Response, next: NextFunction) => {
   next();
 });
 
+// ── IP Auto-Ban: block IPs with repeated auth failures ────────────────────────
+// Tracks 401 responses per IP. After BAN_THRESHOLD failures within BAN_WINDOW,
+// the IP is blocked for BAN_DURATION. Cleared on server restart (in-memory).
+const ipFailures = new Map<string, { count: number; since: number; bannedUntil: number }>();
+const BAN_THRESHOLD = 20;
+const BAN_WINDOW_MS = 5 * 60_000;   // 5 minutes
+const BAN_DURATION_MS = 30 * 60_000; // 30 minutes
+
+function getClientIp(req: Request): string {
+  const forwarded = req.headers["x-forwarded-for"];
+  const firstIp = Array.isArray(forwarded) ? forwarded[0] : forwarded?.split(",")[0];
+  return (firstIp ?? req.ip ?? "unknown").trim();
+}
+
+// Check ban before processing request
+app.use((req: Request, res: Response, next: NextFunction) => {
+  if (req.path === "/api/healthz") return next(); // never ban health checks
+  const ip = getClientIp(req);
+  const rec = ipFailures.get(ip);
+  if (rec && rec.bannedUntil > Date.now()) {
+    const mins = Math.ceil((rec.bannedUntil - Date.now()) / 60_000);
+    return res.status(429).json({ error: `Access suspended due to repeated failures. Retry in ${mins} min.` });
+  }
+  // Track 401 responses to update ban state
+  res.on("finish", () => {
+    if (res.statusCode === 401) {
+      const now = Date.now();
+      const existing = ipFailures.get(ip) ?? { count: 0, since: now, bannedUntil: 0 };
+      if (now - existing.since > BAN_WINDOW_MS) { existing.count = 0; existing.since = now; }
+      existing.count++;
+      if (existing.count >= BAN_THRESHOLD) {
+        existing.bannedUntil = now + BAN_DURATION_MS;
+        logger.warn({ ip, count: existing.count }, "[security] IP auto-banned for repeated auth failures");
+      }
+      ipFailures.set(ip, existing);
+    }
+  });
+  next();
+});
+
 // ── WAF-Light: Inline Request Inspection ─────────────────────────────────────
 // Blocks high-confidence attack signatures in query strings and path.
+// URL-decodes twice to catch double-encoded bypass attempts.
 // Does NOT block legitimate security tools — only obvious unsolicited attacks.
-const WAF_PATTERNS = [
-  /\.\.[\/\\].*\.\.[\/\\]/,                          // LFI/path traversal chaining
-  /<script[\s>]/i,                                    // XSS script tags
-  /on(?:load|error|click|focus|mouseover)[\s=]/i,    // XSS event handlers
-  /UNION[\s+/*]+(?:ALL\s+)?SELECT/i,                 // SQLi UNION
-  /(?:EXEC|EXECUTE)[\s(]+(?:xp_|sp_)/i,              // MSSQL stored proc injection
-  /;\s*DROP\s+TABLE/i,                               // SQL DROP TABLE
-  /(?:eval|setTimeout|setInterval)\s*\(/i,            // JS eval injection
-  /\$\{.*\}/,                                        // SSTI template expression
-  /\{\{.*\}\}/,                                      // Jinja2/Handlebars SSTI
+const WAF_PATTERNS: [RegExp, string][] = [
+  [/\.\.[\/\\].*\.\.[\/\\]/, "LFI path traversal chaining"],
+  [/<script[\s>]/i, "XSS script tag"],
+  [/on(?:load|error|click|focus|mouseover|onerror)[\s=]/i, "XSS event handler"],
+  [/UNION[\s+/*]+(?:ALL\s+)?SELECT/i, "SQL UNION injection"],
+  [/(?:EXEC|EXECUTE)[\s(]+(?:xp_|sp_)/i, "MSSQL stored proc injection"],
+  [/;\s*DROP\s+TABLE/i, "SQL DROP TABLE injection"],
+  [/(?:eval|setTimeout|setInterval)\s*\(/i, "JS eval injection"],
+  [/\$\{[^}]{0,200}\}/, "SSTI template expression"],
+  [/\{\{[^}]{0,200}\}\}/, "Jinja2/Handlebars SSTI"],
+  [/%27|%22.*(?:OR|AND|UNION|SELECT|DROP)/i, "URL-encoded SQLi"],
+  [/(?:\/etc\/passwd|\/etc\/shadow|\/proc\/self\/environ)/i, "LFI sensitive file"],
+  [/(?:system\s*\(|popen\s*\(|passthru\s*\()/i, "PHP RCE function"],
+  [/(?:\bwget\b|\bcurl\b)\s+http.*\|\s*(?:bash|sh)/i, "Dropper pattern"],
 ];
+
 app.use((req: Request, res: Response, next: NextFunction) => {
   // Skip Stripe webhook — raw buffer, not a user input path
   if (req.path === "/api/stripe/webhook") return next();
   // Skip OmniStrike/WAF tool routes — they intentionally carry payloads in their JSON body
   if (req.path.startsWith("/api/omnistrike") || req.path.startsWith("/api/waf")) return next();
-  const toCheck = [req.path, req.url, JSON.stringify(req.query)].join(" ");
-  for (const pattern of WAF_PATTERNS) {
+
+  // Decode once and twice to catch single and double URL-encoding bypasses
+  let decoded = req.url;
+  try { decoded = decodeURIComponent(req.url); } catch {}
+  let decodedTwice = decoded;
+  try { decodedTwice = decodeURIComponent(decoded); } catch {}
+
+  const toCheck = [req.path, req.url, decoded, decodedTwice, JSON.stringify(req.query)].join(" ");
+  for (const [pattern, label] of WAF_PATTERNS) {
     if (pattern.test(toCheck)) {
-      logger.warn({ pattern: pattern.toString(), path: req.path, ip: req.ip }, "WAF: Blocked attack pattern");
+      logger.warn({ label, path: req.path, ip: getClientIp(req) }, `WAF: Blocked — ${label}`);
       return res.status(403).json({ error: "Request blocked by security policy." });
     }
   }

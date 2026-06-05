@@ -83,11 +83,34 @@ const ALLOWED_STARTS: string[] = [
   "jq ", "tr ", "xargs ",
 ];
 
+// Shell chain injection patterns that bypass allowlist via command chaining.
+// Applied in NON-ghost-mode only. Ghost mode is admin-only and logs everything.
+const SHELL_CHAIN_BLOCKED: RegExp[] = [
+  /`[^`]{1,300}`/,                 // backtick command substitution
+  /\$\([^)]{1,300}\)/,             // $(...) command substitution
+  /\$\{[^}]{1,300}\}/,             // ${...} variable expansion used for injection
+  /;\s*\S/,                        // ; command separator
+  /&&\s*\S/,                       // && conditional chaining
+  /\|\|\s*\S/,                     // || conditional chaining
+  /\|\s*(?:bash|sh|python|perl|ruby|nc|netcat|socat)/i,  // pipe to shell/interpreter
+  />\s*\/(?!tmp\/)/,               // redirect to file outside /tmp
+  />>/,                            // append redirect (always dangerous)
+  /2>&1\s*>\s*\//,                 // stderr redirect to file
+  /\beval\s*['"`(]/i,              // eval injection
+  /\bexec\s+['"`\-]/i,             // exec injection
+  /\bsource\s+\//i,                // source /path injection
+  /\.\s+\//,                       // . /path (dot-source injection)
+];
+
 function isBlocked(cmd: string): string | null {
   for (const pat of HARD_BLOCKED) {
     if (pat.test(cmd)) return `BLOCKED: Destructive operation detected — "${pat.source}"`;
   }
   return null;
+}
+
+function hasShellChain(cmd: string): boolean {
+  return SHELL_CHAIN_BLOCKED.some(pat => pat.test(cmd));
 }
 
 function isAllowed(cmd: string): boolean {
@@ -118,6 +141,12 @@ router.post("/exec", async (req, res) => {
   if (blockReason) {
     auditLog.push({ ts: executedAt, cmd, exitCode: -1, ip: clientIp });
     return res.json({ command: cmd, stdout: "", stderr: blockReason, exitCode: 1, executedAt, blocked: true });
+  }
+
+  // In non-ghost mode, block shell chain injection even inside allowlisted commands
+  if (!body.ghostMode && hasShellChain(cmd)) {
+    auditLog.push({ ts: executedAt, cmd, exitCode: -2, ip: clientIp });
+    return res.json({ command: cmd, stdout: "", stderr: "BLOCKED: Shell chain injection detected. Enable GHOST MODE for complex pipelines.", exitCode: 1, executedAt, blocked: true });
   }
 
   // ProxhqVPN mode bypasses allowlist (full shell access)
@@ -179,13 +208,41 @@ router.post("/http-request", async (req, res) => {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), body.timeout);
 
-    const resp = await nodeFetch(body.url, {
-      method: body.method,
-      headers: { "User-Agent": "ProxhqVPN/3.0 curl/8.0", ...body.headers },
-      body: body.data,
-      redirect: body.followRedirects ? "follow" : "manual",
-      signal: controller.signal as any,
-    });
+    // Redirect SSRF re-validation: manually follow redirects so each hop is
+    // checked against the SSRF guard — prevents open-redirect chains that bypass
+    // the initial check and land on an internal/metadata address.
+    let currentUrl = body.url;
+    let resp: Awaited<ReturnType<typeof nodeFetch>>;
+    const MAX_REDIRECTS = 5;
+    let redirectCount = 0;
+    while (true) {
+      resp = await nodeFetch(currentUrl, {
+        method: body.method,
+        headers: { "User-Agent": "ProxhqVPN/3.0 curl/8.0", ...body.headers },
+        body: body.data,
+        redirect: "manual",   // always manual so we can inspect each hop
+        signal: controller.signal as any,
+      });
+      const location = resp.headers.get("location");
+      if (
+        body.followRedirects &&
+        location &&
+        [301, 302, 303, 307, 308].includes(resp.status) &&
+        redirectCount < MAX_REDIRECTS
+      ) {
+        // Re-validate the redirect target before following
+        const absLocation = new URL(location, currentUrl).toString();
+        const hopCheck = await checkSsrf(absLocation, true);
+        if (hopCheck.blocked) {
+          clearTimeout(timer);
+          return res.status(403).json({ error: `SSRF blocked on redirect hop ${redirectCount + 1}: ${hopCheck.reason}` });
+        }
+        currentUrl = absLocation;
+        redirectCount++;
+        continue;
+      }
+      break;
+    }
     clearTimeout(timer);
 
     const responseText = await resp.text();

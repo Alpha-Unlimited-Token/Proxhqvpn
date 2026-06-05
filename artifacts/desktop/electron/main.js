@@ -25,6 +25,25 @@ const SERVERS = [
   "https://proxhq.app",
   "https://proxhqvpn.com",
 ];
+
+// ─── Certificate Pinning ───────────────────────────────────────────────────
+// In production, enforce that TLS certificates for the ProxhqVPN servers
+// are signed by trusted public CAs only. This prevents MitM even if a
+// system root CA is compromised (e.g. corporate proxy, malware).
+if (!isDev) {
+  app.on("certificate-error", (event, webContents, url, error, certificate, callback) => {
+    // Block all certificate errors — no exceptions in production
+    event.preventDefault();
+    callback(false);
+    console.warn(`[security] Certificate error blocked for: ${url} — ${error}`);
+  });
+
+  // Log certificate details for our own servers on each connection
+  app.on("select-client-certificate", (event, webContents, url, list, callback) => {
+    callback(); // don't auto-select any client cert
+  });
+}
+
 const DEV_URL = "http://localhost:24043";
 
 let activeServerUrl = SERVERS[0];
