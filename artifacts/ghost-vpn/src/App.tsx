@@ -63,6 +63,7 @@ import RouterConfig from "@/pages/RouterConfig";
 import Account from "@/pages/Account";
 import MyVPN from "@/pages/MyVPN";
 import AutoSetup from "@/pages/AutoSetup";
+import GhostTrap from "@/pages/GhostTrap";
 import Pricing from "@/pages/Pricing";
 import SqlmapScanner from "@/pages/SqlmapScanner";
 import AlphaTools from "@/pages/AlphaTools";
@@ -652,6 +653,9 @@ function AppRoutes() {
           </Route>
           <Route path="/ip-exposure">
             <ToolLayout><IpExposure /></ToolLayout>
+          </Route>
+          <Route path="/ghost-trap">
+            <ToolLayout><GhostTrap /></ToolLayout>
           </Route>
           <Route path="/ghost-trace">
             <CcLayout><GhostTrace /></CcLayout>

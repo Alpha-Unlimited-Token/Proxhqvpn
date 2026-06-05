@@ -92,6 +92,7 @@ import adminUsersRouter from "./admin-users";
 import imAutomationRouter from "./imautomation";
 import redteamScanRouter from "./redteamscan";
 import omegaAgentRouter from "./omega/agent";
+import ghostTrapRouter from "./ghosttrap";
 
 const router: IRouter = Router();
 
@@ -143,6 +144,12 @@ router.post("/redteam-scan/c2/ingest", (req, res, next) => {
 router.options("/redteam-scan/c2/ingest", (req, res, next) => {
   req.url = "/c2/ingest";
   (redteamScanRouter as any).handle(req, res, next);
+});
+
+// Ghost Trap lure endpoints — public (attackers must be able to reach these)
+router.use("/ghost-trap", (req, res, next) => {
+  if (req.path.startsWith("/lure")) return (ghostTrapRouter as any).handle(req, res, next);
+  next();
 });
 
 // Warrant canary — public transparency endpoint
@@ -379,6 +386,7 @@ router.use("/http-probe",      requireCommandCenter, httpProbeRouter);
 router.use("/dir-fuzzer",      requireCommandCenter, dirFuzzerRouter);
 router.use("/subdomain-scan",  requireCommandCenter, subdomainScanRouter);
 router.use("/intruder",        requireCommandCenter, intruderRouter);
+router.use("/ghost-trap",       requireAccess,        ghostTrapRouter);
 router.use("/ghost-trace",      requireCommandCenter, ghostTraceRouter);
 router.use("/attack-chain",    requireCommandCenter, attackChainRouter);
 router.use("/network-monitor", requireAccess,        networkMonitorRouter);

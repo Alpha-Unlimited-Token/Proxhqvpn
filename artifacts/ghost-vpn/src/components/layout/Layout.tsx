@@ -11,7 +11,7 @@ import {
   LogOut, User, Menu, Download,
   Zap, Settings, Cpu, Router, ScanSearch, Layers, FileText, Users,
   Send, FolderSearch, Radar, Award, BarChart2,
-  Code2, GitCompare, Swords, Bug, Eye, BookMarked, Target,
+  Code2, GitCompare, Swords, Bug, Eye, BookMarked, Target, Skull,
   GitMerge, Ban, Bell, Fingerprint, Upload, ChevronDown,
   Lock, Shuffle, UserX, RefreshCcw,
   ShieldCheck, Key, FileCode2, Filter, FlaskConical,
@@ -142,6 +142,7 @@ const PROTECTION_NAV = [
   { href: "/threat-protection",  label: "Threat Protection",   icon: ShieldAlert },
   { href: "/obfuscation",        label: "Stealth Protocol",    icon: EyeOff },
   { href: "/ip-exposure",        label: "IP Exposure Scan",    icon: Eye },
+  { href: "/ghost-trap",         label: "Ghost Trap",          icon: Skull },
   { href: "/ghost-trace",        label: "Ghost Trace",         icon: Radar },
 ];
 
