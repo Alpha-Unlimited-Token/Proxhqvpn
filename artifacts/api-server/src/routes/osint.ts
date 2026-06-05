@@ -2100,18 +2100,28 @@ router.post("/phone-lookup", async (req: Request, res: Response) => {
   const dorkQueries = buildPhoneDorks(national, e164);
 
   // Try fetching public info from Veriphone (free, no key)
+  // Use Promise.race so the route ALWAYS resolves within 3s regardless of remote socket behaviour
   let veriphoneData: any = null;
   try {
-    const ctrl = new AbortController();
-    setTimeout(() => ctrl.abort(), 6000);
-    const vr = await fetch(
-      `https://api.veriphone.io/v1/verify?phone=${encodeURIComponent(e164)}&key=test`,
-      { signal: ctrl.signal }
-    );
-    if (vr.ok) {
-      const vd = await vr.json();
-      if (vd.phone_valid) veriphoneData = vd;
-    }
+    const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000));
+    const fetchVeriphone = (async () => {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 3000);
+      try {
+        const vr = await fetch(
+          `https://api.veriphone.io/v1/verify?phone=${encodeURIComponent(e164)}&key=test`,
+          { signal: ctrl.signal }
+        );
+        if (vr.ok) {
+          const vd = await vr.json();
+          return vd?.phone_valid ? vd : null;
+        }
+        return null;
+      } finally {
+        clearTimeout(timer);
+      }
+    })();
+    veriphoneData = await Promise.race([fetchVeriphone, timeout]);
   } catch { /* API unavailable — graceful degradation */ }
 
   // Try fetching from AbstractAPI free NANP lookup
