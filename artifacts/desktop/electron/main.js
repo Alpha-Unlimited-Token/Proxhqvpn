@@ -16,6 +16,9 @@ try {
   console.warn("[updater] electron-updater not available:", e.message);
 }
 
+// Track update state so tray menu and UI stay in sync
+const updateState = { checking: false, available: false, downloaded: false, version: null };
+
 const isDev = process.argv.includes("--dev");
 
 const SERVERS = [
@@ -519,37 +522,60 @@ function stopAppMonitor() {
 }
 
 // ─── System Tray ──────────────────────────────────────────────────────────
+function buildTrayMenu() {
+  const store = readStore();
+  const tunnelMode = store.tunnelMode || "split";
+  const vpnActive = store.vpnConfigInstalled === true;
+
+  // Dynamic update label based on state
+  let updateLabel = "Check for Updates";
+  if (updateState.checking) updateLabel = "Checking for updates…";
+  else if (updateState.downloaded) updateLabel = `✓ Restart to Install v${updateState.version}`;
+  else if (updateState.available) updateLabel = `Downloading v${updateState.version}…`;
+
+  return Menu.buildFromTemplate([
+    { label: "ProxhqVPN", type: "normal", enabled: false },
+    { type: "separator" },
+    { label: vpnActive ? "● VPN Connected" : "○ VPN Inactive", enabled: false },
+    { label: `Mode: ${tunnelMode === "split" ? "Split Tunnel" : "Full Tunnel"}`, enabled: false },
+    { type: "separator" },
+    {
+      label: "Open ProxhqVPN",
+      click: () => {
+        if (mainWindow) { mainWindow.show(); mainWindow.focus(); }
+        else createMainWindow();
+      },
+    },
+    { type: "separator" },
+    {
+      label: updateLabel,
+      enabled: !updateState.checking,
+      click: () => {
+        if (updateState.downloaded) {
+          if (autoUpdater) autoUpdater.quitAndInstall(false, true);
+        } else {
+          if (autoUpdater) autoUpdater.checkForUpdatesAndNotify().catch(() => {});
+          if (mainWindow) { mainWindow.show(); mainWindow.focus(); }
+        }
+      },
+    },
+    { type: "separator" },
+    { label: "Quit", click: () => app.quit() },
+  ]);
+}
+
+function rebuildTray() {
+  if (tray) tray.setContextMenu(buildTrayMenu());
+}
+
 function createTray() {
   const iconPath = path.join(__dirname, "..", "assets", "icon.png");
   if (!fs.existsSync(iconPath)) return;
 
   tray = new Tray(iconPath);
   tray.setToolTip("ProxhqVPN");
+  tray.setContextMenu(buildTrayMenu());
 
-  const updateMenu = () => {
-    const store = readStore();
-    const tunnelMode = store.tunnelMode || "split";
-    const vpnActive = store.vpnConfigInstalled === true;
-
-    tray.setContextMenu(Menu.buildFromTemplate([
-      { label: "ProxhqVPN", type: "normal", enabled: false },
-      { type: "separator" },
-      { label: vpnActive ? "● VPN Connected" : "○ VPN Inactive", enabled: false },
-      { label: `Mode: ${tunnelMode === "split" ? "Split Tunnel" : "Full Tunnel"}`, enabled: false },
-      { type: "separator" },
-      {
-        label: "Open ProxhqVPN",
-        click: () => {
-          if (mainWindow) { mainWindow.show(); mainWindow.focus(); }
-          else createMainWindow();
-        },
-      },
-      { type: "separator" },
-      { label: "Quit", click: () => app.quit() },
-    ]));
-  };
-
-  updateMenu();
   tray.on("double-click", () => {
     if (mainWindow) { mainWindow.show(); mainWindow.focus(); }
   });
@@ -630,6 +656,12 @@ ipcMain.handle("mark-setup-complete", () => {
 ipcMain.handle("launch-main-app", () => {
   if (setupWindow) { setupWindow.close(); setupWindow = null; }
   createMainWindow();
+  // Start auto-updater now that the main window exists
+  if (mainWindow) {
+    mainWindow.webContents.once("did-finish-load", () => configureUpdater(activeServerUrl));
+  } else {
+    configureUpdater(activeServerUrl);
+  }
 });
 
 ipcMain.handle("open-external", (_, url) => shell.openExternal(url));
@@ -642,8 +674,52 @@ ipcMain.handle("close-window", (event) => {
 });
 
 // ─── Auto-update logic ─────────────────────────────────────────────────────
+
+// Inject a floating update-ready banner into the loaded web page
+function injectUpdateBanner(info) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  const infoJson = JSON.stringify(info);
+  mainWindow.webContents.executeJavaScript(`
+    (function() {
+      var existing = document.getElementById('__proxhq_update_banner');
+      if (existing) existing.remove();
+      var info = ${infoJson};
+      if (!document.getElementById('__proxhq_update_style')) {
+        var s = document.createElement('style');
+        s.id = '__proxhq_update_style';
+        s.textContent = '@keyframes proxhqSlideIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}';
+        document.head.appendChild(s);
+      }
+      var b = document.createElement('div');
+      b.id = '__proxhq_update_banner';
+      b.style.cssText = [
+        'position:fixed', 'bottom:24px', 'right:24px', 'z-index:2147483647',
+        'background:#040a06', 'border:1.5px solid #00ff88', 'border-radius:10px',
+        'padding:14px 16px', 'display:flex', 'align-items:center', 'gap:12px',
+        'box-shadow:0 0 40px rgba(0,255,136,0.3)', 'max-width:340px',
+        'font-family:system-ui,-apple-system,sans-serif',
+        'animation:proxhqSlideIn 0.3s ease'
+      ].join(';');
+      b.innerHTML =
+        '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#00ff88" stroke-width="2" style="flex-shrink:0"><path d="M12 2L4 6v6c0 5.25 3.45 10.15 8 11.35C16.55 22.15 20 17.25 20 12V6L12 2z"/></svg>' +
+        '<div style="flex:1;min-width:0">' +
+          '<div style="font-size:13px;font-weight:700;color:#fff;margin-bottom:2px">Update Ready \u2014 v' + info.version + '</div>' +
+          '<div style="font-size:11px;color:rgba(0,255,136,0.6);line-height:1.4">Restart to install the latest ProxhqVPN</div>' +
+        '</div>' +
+        '<button id="__proxhq_install_btn" style="background:#00ff88;color:#040a06;border:none;border-radius:6px;padding:8px 13px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0">Restart &amp; Update</button>';
+      document.body.appendChild(b);
+      document.getElementById('__proxhq_install_btn').onclick = function() {
+        if (window.proxhq && window.proxhq.installUpdateNow) window.proxhq.installUpdateNow();
+      };
+    })()
+  `).catch(() => {});
+}
+
+let updaterConfigured = false;
+
 function configureUpdater(serverUrl) {
-  if (!autoUpdater || isDev) return;
+  if (!autoUpdater || isDev || updaterConfigured) return;
+  updaterConfigured = true;
   try {
     const platform = process.platform;
     const platformPath = platform === "win32" ? "win" : platform === "darwin" ? "mac" : "linux";
@@ -653,30 +729,70 @@ function configureUpdater(serverUrl) {
       channel: "latest",
     });
 
+    autoUpdater.on("checking-for-update", () => {
+      console.log("[updater] Checking for update...");
+      updateState.checking = true;
+      rebuildTray();
+    });
+
     autoUpdater.on("update-available", (info) => {
       console.log(`[updater] Update available: v${info.version}`);
-      if (mainWindow) {
-        mainWindow.webContents.executeJavaScript(
-          `window.__proxhqUpdateAvailable = ${JSON.stringify(info)};`
-        ).catch(() => {});
+      updateState.checking = false;
+      updateState.available = true;
+      updateState.version = info.version;
+      rebuildTray();
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send("update-available", info);
+      }
+      if (Notification.isSupported()) {
+        new Notification({
+          title: "ProxhqVPN Update Available",
+          body: `v${info.version} is downloading in the background.`,
+          icon: path.join(__dirname, "..", "assets", "icon.png"),
+        }).show();
+      }
+    });
+
+    autoUpdater.on("update-not-available", () => {
+      console.log("[updater] Already up to date.");
+      updateState.checking = false;
+      rebuildTray();
+    });
+
+    autoUpdater.on("download-progress", (progress) => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send("update-download-progress", progress);
       }
     });
 
     autoUpdater.on("update-downloaded", (info) => {
       console.log(`[updater] Update downloaded: v${info.version}`);
-      if (mainWindow) {
-        mainWindow.webContents.executeJavaScript(`
-          if (window.__proxhqShowUpdateBanner) {
-            window.__proxhqShowUpdateBanner(${JSON.stringify(info)});
-          }
-        `).catch(() => {});
+      updateState.checking = false;
+      updateState.downloaded = true;
+      updateState.version = info.version;
+      rebuildTray();
+      injectUpdateBanner(info);
+      if (Notification.isSupported()) {
+        const notif = new Notification({
+          title: "ProxhqVPN Update Ready",
+          body: `v${info.version} is ready. Restart to install.`,
+          icon: path.join(__dirname, "..", "assets", "icon.png"),
+        });
+        notif.show();
+        notif.on("click", () => {
+          if (mainWindow && !mainWindow.isDestroyed()) { mainWindow.show(); mainWindow.focus(); }
+          injectUpdateBanner(info);
+        });
       }
     });
 
     autoUpdater.on("error", (err) => {
       console.warn("[updater] Auto-update error:", err.message);
+      updateState.checking = false;
+      rebuildTray();
     });
 
+    // Check 10 seconds after launch, then every 4 hours
     setTimeout(() => { autoUpdater.checkForUpdatesAndNotify().catch(() => {}); }, 10_000);
     setInterval(() => { autoUpdater.checkForUpdatesAndNotify().catch(() => {}); }, 4 * 60 * 60 * 1000);
   } catch (e) {
@@ -686,6 +802,16 @@ function configureUpdater(serverUrl) {
 
 ipcMain.handle("install-update-now", () => {
   if (autoUpdater) autoUpdater.quitAndInstall(false, true);
+});
+
+ipcMain.handle("check-for-update", () => {
+  if (!autoUpdater || isDev) return { error: "Updater not available" };
+  try {
+    autoUpdater.checkForUpdatesAndNotify().catch(() => {});
+    return { ok: true };
+  } catch (e) {
+    return { error: e.message };
+  }
 });
 
 ipcMain.handle("get-app-version", () => app.getVersion());

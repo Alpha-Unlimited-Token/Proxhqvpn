@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld("proxhq", {
   minimizeWindow:     ()          => ipcRenderer.invoke("minimize-window"),
   closeWindow:        ()          => ipcRenderer.invoke("close-window"),
   installUpdateNow:   ()          => ipcRenderer.invoke("install-update-now"),
+  checkForUpdate:     ()          => ipcRenderer.invoke("check-for-update"),
   getAppVersion:      ()          => ipcRenderer.invoke("get-app-version"),
 
   // Tunnel mode
@@ -42,5 +43,18 @@ contextBridge.exposeInMainWorld("proxhq", {
     const handler = (_, data) => cb(data);
     ipcRenderer.on("app-alert", handler);
     return () => ipcRenderer.removeListener("app-alert", handler);
+  },
+
+  // Auto-update events — fired from main process
+  onUpdateAvailable: (cb) => {
+    const handler = (_, info) => cb(info);
+    ipcRenderer.on("update-available", handler);
+    return () => ipcRenderer.removeListener("update-available", handler);
+  },
+
+  onUpdateDownloadProgress: (cb) => {
+    const handler = (_, progress) => cb(progress);
+    ipcRenderer.on("update-download-progress", handler);
+    return () => ipcRenderer.removeListener("update-download-progress", handler);
   },
 });
