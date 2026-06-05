@@ -15,16 +15,97 @@ ACTIVE_TUNNEL=""
 WG_CONF_DIR="/etc/wireguard"
 INSTALL="$HOME/.config/proxhqvpn"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LOG_FILE="$INSTALL/install.log"
 
 # ── Colours ───────────────────────────────────────────────────────────────────
 RED='\033[0;31m'; GRN='\033[0;32m'; BLU='\033[0;34m'
 YLW='\033[1;33m'; CYN='\033[0;36m'; DIM='\033[2m'
 BLD='\033[1m';    NC='\033[0m'
-ok()   { echo -e "  ${GRN}✓${NC}  $*"; }
-info() { echo -e "  ${BLU}→${NC}  $*"; }
-warn() { echo -e "  ${YLW}!${NC}  $*"; }
-err()  { echo -e "\n  ${RED}✗  ERROR:${NC}  $*\n"; }
+ok()   { echo -e "  ${GRN}✓${NC}  $*"; write_log "INFO" "$*"; }
+info() { echo -e "  ${BLU}→${NC}  $*"; write_log "INFO" "$*"; }
+warn() { echo -e "  ${YLW}!${NC}  $*"; write_log "WARN" "$*"; }
+err()  { echo -e "\n  ${RED}✗  ERROR:${NC}  $*\n"; write_log "ERROR" "$*"; }
 sep()  { echo -e "${DIM}──────────────────────────────────────────────────────${NC}"; }
+
+# ── Logging ───────────────────────────────────────────────────────────────────
+write_log() {
+  local level="$1"; shift
+  mkdir -p "$INSTALL" 2>/dev/null || true
+  printf '[%s]  [%-5s]  %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$level" "$*" >> "$LOG_FILE" 2>/dev/null || true
+}
+
+# ── ZIP checksum verification ─────────────────────────────────────────────────
+verify_checksum() {
+  local zip_path="$1"
+  local sha_url="${BASE_URL}/downloads/proxhqvpn-all-servers.zip.sha256"
+  info "Verifying zip integrity..."
+  write_log "INFO" "Checksum URL: $sha_url"
+
+  local remote_hash
+  remote_hash=$(curl -fsSL --max-time 10 "$sha_url" 2>/dev/null | awk '{print $1}' | tr -d '[:space:]') || true
+
+  if [[ -z "$remote_hash" ]]; then
+    warn "Could not fetch checksum (network or endpoint not yet live) — skipping"
+    write_log "WARN" "Checksum fetch failed — skipping"
+    return 0
+  fi
+
+  local local_hash
+  local_hash=$(sha256sum "$zip_path" 2>/dev/null | awk '{print $1}') || \
+    local_hash=$(shasum -a 256 "$zip_path" 2>/dev/null | awk '{print $1}') || true
+
+  if [[ "$remote_hash" == "$local_hash" ]]; then
+    ok "Checksum verified ✓  ($local_hash)"
+    write_log "INFO" "Checksum OK: $local_hash"
+  else
+    err "CHECKSUM MISMATCH — the downloaded zip may be tampered or corrupted."
+    write_log "ERROR" "Checksum MISMATCH: expected=$remote_hash got=$local_hash"
+    echo -e "\n  ${RED}Delete the zip from ~/Downloads and try again.${NC}\n"
+    exit 1
+  fi
+}
+
+# ── Support bundle export ─────────────────────────────────────────────────────
+export_support_bundle() {
+  local bundle_name="ProxhqVPN-Support-$(date +%Y%m%d).zip"
+  local bundle_path="$HOME/Desktop/$bundle_name"
+  mkdir -p "$HOME/Desktop" 2>/dev/null || true
+  local tmp_dir; tmp_dir=$(mktemp -d)
+
+  [[ -f "$LOG_FILE" ]]             && cp "$LOG_FILE"           "$tmp_dir/install.log"
+  [[ -f "$INSTALL/config.json" ]]  && cp "$INSTALL/config.json" "$tmp_dir/config.json"
+
+  {
+    echo "=== ProxhqVPN Support Report ==="
+    echo "Date:     $(date -u)"
+    echo "Distro:   $(cat /etc/os-release 2>/dev/null | grep PRETTY_NAME | cut -d= -f2 | tr -d '"' || echo unknown)"
+    echo "Kernel:   $(uname -r)"
+    echo "Arch:     $(uname -m)"
+    echo "Hostname: $(hostname -s)"
+    echo "Tunnels installed: ${#CONFS_INSTALLED[@]}"
+    echo "Active tunnel: ${ACTIVE_TUNNEL:-none}"
+    echo "=== wg show ==="
+    sudo wg show 2>/dev/null || echo "(no active tunnels)"
+    echo "=== systemd wg-quick services ==="
+    systemctl list-units 'wg-quick@*' 2>/dev/null || echo "(systemctl not available)"
+  } > "$tmp_dir/system-info.txt"
+
+  if command -v python3 &>/dev/null; then
+    python3 -c "
+import zipfile, os
+with zipfile.ZipFile('$bundle_path', 'w', zipfile.ZIP_DEFLATED) as zf:
+    for f in os.listdir('$tmp_dir'):
+        zf.write(os.path.join('$tmp_dir', f), f)
+" 2>/dev/null && ok "Support bundle: $bundle_path" || warn "Could not create support bundle"
+  elif command -v zip &>/dev/null; then
+    (cd "$tmp_dir" && zip -q "$bundle_path" ./*) && ok "Support bundle: $bundle_path" || true
+  else
+    warn "Cannot create zip (no python3 or zip). Log at: $LOG_FILE"
+  fi
+
+  rm -rf "$tmp_dir"
+  write_log "INFO" "Support bundle exported: $bundle_path"
+}
 
 banner(){
   clear 2>/dev/null || true
@@ -60,6 +141,11 @@ region_label() {
 # ═════════════════════════════════════════════════════════════════════════════
 # PAGE 0 — WELCOME
 # ═════════════════════════════════════════════════════════════════════════════
+write_log "INFO" "ProxhqVPN Linux installer v5.1 started"
+write_log "INFO" "System: $(uname -s) $(uname -r) $(uname -m)"
+write_log "INFO" "Host: $(hostname -s)"
+write_log "INFO" "Distro: $(grep PRETTY_NAME /etc/os-release 2>/dev/null | cut -d= -f2 | tr -d '"' || echo unknown)"
+
 banner
 show_step 1 "Welcome"
 echo -e "  ${BLD}Welcome to ProxhqVPN Linux Setup${NC}"
@@ -255,7 +341,10 @@ if [[ -z "$FOUND_ZIP" ]]; then
   echo -e "  ${DIM}Download proxhqvpn-all-servers.zip from My VPN and re-run this installer.${NC}\n"
   exit 1
 fi
-ok "Detected: $ZIP_TARGET"
+ok "Detected: $ZIP_TARGET  ($(stat -c%s "$FOUND_ZIP" 2>/dev/null || echo ?) bytes)"
+write_log "INFO" "Zip path: $FOUND_ZIP"
+
+verify_checksum "$FOUND_ZIP"
 
 # ═════════════════════════════════════════════════════════════════════════════
 # PAGE 4 — INSTALL TUNNELS
@@ -423,6 +512,12 @@ echo -e "  ${DIM}Status:             sudo wg show${NC}"
 echo -e "  ${DIM}Uninstall:          bash $INSTALL/uninstall.sh${NC}"
 echo ""
 sep
+write_log "INFO" "Install complete — ${#CONFS_INSTALLED[@]} tunnels installed — mode=$TUNNEL_MODE"
+write_log "INFO" "Active tunnel: ${ACTIVE_TUNNEL:-none}"
+
+# Export support bundle to Desktop
+export_support_bundle
+
 echo -e "  ${GRN}${BLD}ProxhqVPN is ready. Open your dashboard:${NC}"
 echo -e "  ${CYN}${BLD}  ${BASE_URL}/dashboard${NC}\n"
 

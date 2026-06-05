@@ -3,52 +3,77 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>ProxhqVPN — iPhone & iPad Setup</title>
+<title>ProxhqVPN — iPhone &amp; iPad Manual Setup Guide</title>
 <style>
   :root{--g:#00ff88;--gd:#00c864;--bg:#04080a;--bg2:#08120a;--bg3:#0d1a0f;--w:#fff;--d:rgba(160,200,170,.7);--f:rgba(60,90,70,.8);--o:#ffb347;--r:#ff5050;--blue:#0a84ff}
   *{box-sizing:border-box;margin:0;padding:0}
-  body{background:var(--bg);color:var(--w);font-family:-apple-system,'SF Pro Display',system-ui,sans-serif;min-height:100vh;padding:0 0 40px}
-  .hdr{background:var(--bg2);border-bottom:1px solid var(--f);padding:18px 24px;display:flex;align-items:center;gap:16px}
-  .hdr-logo{width:42px;height:42px;border-radius:10px;background:linear-gradient(135deg,var(--g),var(--gd));display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0}
-  .hdr-title{font-size:20px;font-weight:700;color:var(--g)}
-  .hdr-sub{font-size:11px;color:var(--d);margin-top:2px;font-family:monospace}
-  .container{max-width:680px;margin:0 auto;padding:24px 20px}
-  .steps{display:flex;gap:0;margin-bottom:28px;border-radius:10px;overflow:hidden;border:1px solid var(--f)}
-  .step{flex:1;padding:10px 4px;text-align:center;font-size:10px;font-family:monospace;color:var(--f);border-right:1px solid var(--f);cursor:pointer;transition:all .2s}
-  .step:last-child{border-right:none}
-  .step.active{background:var(--g);color:#000;font-weight:700}
-  .step.done{background:rgba(0,200,100,.15);color:var(--gd)}
-  .page{display:none}.page.show{display:block}
-  h2{font-size:20px;font-weight:700;margin-bottom:8px}
-  h3{font-size:14px;font-weight:700;color:var(--g);margin:20px 0 10px;text-transform:uppercase;letter-spacing:.06em;font-family:monospace}
-  p{font-size:13px;color:var(--d);line-height:1.6;margin-bottom:12px}
-  .card{background:var(--bg3);border:1px solid var(--f);border-radius:12px;padding:20px;margin-bottom:16px}
-  .feature-row{display:flex;align-items:flex-start;gap:12px;margin-bottom:10px}
-  .feature-icon{font-size:18px;flex-shrink:0;width:28px;text-align:center}
-  .feature-text{font-size:13px;color:var(--d);line-height:1.5}
-  .feature-text strong{color:var(--w)}
-  .btn{display:inline-flex;align-items:center;gap:8px;background:var(--g);color:#000;font-weight:700;font-size:14px;padding:13px 24px;border-radius:10px;text-decoration:none;border:none;cursor:pointer;transition:all .2s;width:100%;justify-content:center;margin-bottom:10px}
+  body{background:var(--bg);color:var(--w);font-family:-apple-system,'SF Pro Display','Segoe UI',system-ui,sans-serif;min-height:100vh;padding:0 0 48px}
+  .hdr{background:var(--bg2);border-bottom:1px solid var(--f);padding:16px 20px;display:flex;align-items:center;gap:14px}
+  .hdr-logo{width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,var(--g),var(--gd));display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+  .hdr-title{font-size:18px;font-weight:700;color:var(--g)}
+  .hdr-sub{font-size:10px;color:var(--d);margin-top:2px;font-family:monospace;letter-spacing:.04em}
+  .wizard-badge{display:inline-block;background:rgba(10,132,255,.15);border:1px solid rgba(10,132,255,.4);color:var(--blue);font-family:monospace;font-size:9px;font-weight:700;padding:2px 8px;border-radius:4px;letter-spacing:.08em;text-transform:uppercase;margin-left:8px;vertical-align:middle}
+  .container{max-width:640px;margin:0 auto;padding:20px 16px}
+
+  .stepbar{display:flex;margin-bottom:24px;border-radius:10px;overflow:hidden;border:1px solid var(--f)}
+  .sb{flex:1;padding:9px 2px;text-align:center;font-size:9px;font-family:monospace;font-weight:600;color:var(--f);border-right:1px solid var(--f);cursor:pointer;transition:background .15s,color .15s;line-height:1.3}
+  .sb:last-child{border-right:none}
+  .sb.active{background:var(--blue);color:#fff}
+  .sb.done{background:rgba(10,132,255,.15);color:var(--blue)}
+
+  .pg{display:none}.pg.show{display:block}
+  .card{background:var(--bg3);border:1px solid var(--f);border-radius:12px;padding:18px;margin-bottom:14px}
+  .card.success{border-color:var(--gd);background:rgba(0,200,100,.05)}
+  .card.warn{border-color:rgba(255,179,71,.5);background:rgba(255,179,71,.04)}
+
+  h2{font-size:19px;font-weight:700;margin-bottom:6px}
+  h3{font-size:12px;font-weight:700;color:var(--blue);margin:16px 0 8px;text-transform:uppercase;letter-spacing:.06em;font-family:monospace}
+  p{font-size:13px;color:var(--d);line-height:1.6;margin-bottom:10px}
+  .divider{border:none;border-top:1px solid var(--f);margin:16px 0}
+
+  .frow{display:flex;align-items:flex-start;gap:10px;margin-bottom:8px}
+  .ficon{font-size:17px;flex-shrink:0;width:26px;text-align:center}
+  .ftext{font-size:13px;color:var(--d);line-height:1.5}
+  .ftext strong{color:var(--w)}
+
+  ol.wiz{list-style:none;padding:0;display:flex;flex-direction:column;gap:12px}
+  ol.wiz li{display:flex;gap:10px;align-items:flex-start}
+  .snum{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--blue);color:#fff;font-weight:700;font-size:11px;flex-shrink:0;margin-top:1px}
+  .stext{font-size:13px;color:var(--d);line-height:1.6}
+  .stext strong{color:var(--w)}
+  .stext code{font-family:monospace;background:var(--bg2);border:1px solid var(--f);border-radius:4px;padding:0 5px;font-size:11px;color:var(--blue)}
+
+  .screenshot{background:var(--bg2);border:1px dashed rgba(10,132,255,.25);border-radius:10px;padding:16px;text-align:center;color:var(--f);font-size:11px;font-family:monospace;margin:10px 0;line-height:1.8}
+  .screenshot .icon{font-size:28px;display:block;margin-bottom:6px;opacity:.5}
+
+  .btn{display:inline-flex;align-items:center;gap:8px;background:var(--g);color:#000;font-weight:700;font-size:13px;padding:12px 20px;border-radius:10px;text-decoration:none;border:none;cursor:pointer;transition:background .15s;width:100%;justify-content:center;margin-bottom:8px}
   .btn:hover{background:var(--gd)}
   .btn.secondary{background:transparent;color:var(--g);border:1px solid var(--g)}
+  .btn.secondary:hover{background:rgba(0,255,136,.07)}
   .btn.blue{background:var(--blue);color:#fff}
-  .nav{display:flex;gap:10px;margin-top:24px}
+  .btn.blue:hover{background:#0070e0}
+  .nav{display:flex;gap:8px;margin-top:20px}
   .nav .btn{margin:0}
-  .step-num{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--g);color:#000;font-weight:700;font-size:12px;flex-shrink:0}
-  ol.wizard{list-style:none;padding:0;display:flex;flex-direction:column;gap:14px}
-  ol.wizard li{display:flex;gap:12px;align-items:flex-start}
-  ol.wizard li .text{font-size:13px;color:var(--d);line-height:1.6;padding-top:3px}
-  ol.wizard li .text strong{color:var(--w)}
-  .server-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}
-  .server-card{background:var(--bg2);border:1px solid var(--f);border-radius:8px;padding:12px;font-size:12px;color:var(--d)}
-  .server-card .flag{font-size:20px;margin-bottom:4px}
-  .server-card .region{font-weight:700;color:var(--w);font-size:13px}
-  .server-card .ip{font-family:monospace;color:var(--f);font-size:10px;margin-top:2px}
-  .divider{border:none;border-top:1px solid var(--f);margin:20px 0}
-  .appstore-badge{display:block;margin:12px 0}
-  .appstore-badge img{height:50px;border-radius:8px}
-  .tip{background:rgba(0,255,136,.06);border:1px solid rgba(0,255,136,.2);border-radius:8px;padding:10px 14px;font-size:12px;color:var(--d);margin:10px 0}
-  .tip strong{color:var(--g)}
-  @media(max-width:480px){.server-grid{grid-template-columns:1fr}.steps .step{font-size:8px;padding:8px 2px}}
+
+  .sgrid{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin:10px 0}
+  .sc{background:var(--bg2);border:1px solid var(--f);border-radius:8px;padding:10px;font-size:12px;color:var(--d)}
+  .sc .flag{font-size:18px;margin-bottom:3px}
+  .sc .region{font-weight:700;color:var(--w);font-size:12px}
+  .sc .ip{font-family:monospace;color:var(--f);font-size:10px;margin-top:2px}
+
+  .help-acc{border:1px solid rgba(255,179,71,.3);border-radius:8px;overflow:hidden;margin-top:14px}
+  .help-header{background:rgba(255,179,71,.07);padding:10px 14px;cursor:pointer;display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:var(--o);user-select:none}
+  .help-header .arr{transition:transform .2s;font-size:10px}
+  .help-header.open .arr{transform:rotate(90deg)}
+  .help-body{display:none;padding:12px 14px;border-top:1px solid rgba(255,179,71,.2)}
+  .help-body.show{display:block}
+  .help-body p{font-size:12px;margin-bottom:8px}
+  .help-body ul{padding-left:16px;font-size:12px;color:var(--d);line-height:1.7}
+
+  .ios-note{background:rgba(10,132,255,.07);border:1px solid rgba(10,132,255,.25);border-radius:8px;padding:10px 14px;font-size:12px;color:var(--d);margin:10px 0}
+  .ios-note strong{color:var(--blue)}
+
+  @media(max-width:440px){.sgrid{grid-template-columns:1fr}.sb{font-size:8px;padding:7px 1px}}
 </style>
 </head>
 <body>
@@ -56,147 +81,268 @@
 <div class="hdr">
   <div class="hdr-logo">🛡</div>
   <div>
-    <div class="hdr-title">ProxhqVPN</div>
-    <div class="hdr-sub">IPHONE &amp; IPAD SETUP GUIDE · v2.0.0 · ALPHA UNLIMITED TECHNOLOGIES LLC</div>
+    <div class="hdr-title">ProxhqVPN <span class="wizard-badge">Manual Setup Guide</span></div>
+    <div class="hdr-sub">iPHONE &amp; iPAD · v5.1 · ALPHA UNLIMITED TECHNOLOGIES LLC</div>
   </div>
 </div>
 
 <div class="container">
 
-  <div class="steps" id="stepBar">
-    <div class="step active" data-page="0">1 Welcome</div>
-    <div class="step" data-page="1">2 Install WG</div>
-    <div class="step" data-page="2">3 Sign In</div>
-    <div class="step" data-page="3">4 Import</div>
-    <div class="step" data-page="4">5 Done</div>
+  <div class="stepbar" id="stepBar">
+    <div class="sb active" onclick="go(0)">1<br>Welcome</div>
+    <div class="sb" onclick="go(1)">2<br>WireGuard</div>
+    <div class="sb" onclick="go(2)">3<br>Sign In</div>
+    <div class="sb" onclick="go(3)">4<br>Import</div>
+    <div class="sb" onclick="go(4)">5<br>Connect</div>
   </div>
 
-  <!-- PAGE 0: WELCOME -->
-  <div class="page show" id="page0">
+  <!-- ═══ PAGE 0 — WELCOME ═══════════════════════════════════════════════════ -->
+  <div class="pg show" id="pg0">
     <div class="card">
       <h2>Welcome to ProxhqVPN 🛡</h2>
-      <p>Set up ProxhqVPN on your iPhone or iPad in under 5 minutes. Everything is automatic after you sign in.</p>
-      <hr class="divider"/>
-      <div class="feature-row"><div class="feature-icon">⚡</div><div class="feature-text"><strong>WireGuard VPN</strong> — the fastest, most secure tunneling protocol on iOS</div></div>
-      <div class="feature-row"><div class="feature-icon">🌍</div><div class="feature-text"><strong>4 servers</strong> — Los Angeles, Chicago, London, Tokyo</div></div>
-      <div class="feature-row"><div class="feature-icon">🔄</div><div class="feature-text"><strong>Switch servers</strong> anytime from the WireGuard app — no reinstall</div></div>
-      <div class="feature-row"><div class="feature-icon">🛡</div><div class="feature-text"><strong>Split or Full tunnel</strong> — choose what traffic routes through the VPN</div></div>
-      <div class="feature-row"><div class="feature-icon">🧹</div><div class="feature-text"><strong>Zero logs</strong> — no traffic, browsing, or connection times stored</div></div>
+      <p>This guide walks you through setting up ProxhqVPN on your iPhone or iPad. It takes about 5–10 minutes.</p>
+
+      <div class="ios-note">
+        <strong>ℹ️ iOS note:</strong> Apple requires VPN configs to be imported through the WireGuard app. This guide walks you through each tap. No computer needed.
+      </div>
+
+      <div class="divider"></div>
+      <div class="frow"><div class="ficon">📋</div><div class="ftext"><strong>What you need:</strong> iPhone or iPad (iOS 14+), a ProxhqVPN account</div></div>
+      <div class="frow"><div class="ficon">⚡</div><div class="ftext"><strong>WireGuard VPN</strong> — fastest protocol, free from the App Store (GPLv2)</div></div>
+      <div class="frow"><div class="ficon">🌍</div><div class="ftext"><strong>4 servers included</strong> — Los Angeles, Chicago, London, Tokyo</div></div>
+      <div class="frow"><div class="ficon">🔄</div><div class="ftext"><strong>Switch servers anytime</strong> — no reinstall, just toggle in the WireGuard app</div></div>
+      <div class="frow"><div class="ficon">🧹</div><div class="ftext"><strong>Zero logs</strong> — no traffic or connection times stored</div></div>
+      <div class="divider"></div>
+      <p style="font-size:12px;color:var(--f)">ℹ️ This is a <strong style="color:var(--o)">manual setup guide</strong>, not an automated installer. Each step requires a few taps. Everything is described clearly below.</p>
     </div>
-    <div class="nav"><button class="btn" onclick="go(1)">Get Started →</button></div>
+    <div class="nav"><button class="btn blue" onclick="go(1)">Get Started →</button></div>
   </div>
 
-  <!-- PAGE 1: INSTALL WIREGUARD -->
-  <div class="page" id="page1">
+  <!-- ═══ PAGE 1 — INSTALL WIREGUARD ═════════════════════════════════════════ -->
+  <div class="pg" id="pg1">
     <div class="card">
       <h2>Step 1 — Install WireGuard</h2>
-      <p>ProxhqVPN uses WireGuard as its VPN engine. Install it from the App Store — it's free.</p>
-      <hr class="divider"/>
-      <a class="btn blue" href="https://apps.apple.com/us/app/wireguard/id1441195209" target="_blank">
-        ⬇ Install WireGuard on the App Store
+      <p>Install the free WireGuard app from the App Store. This is the VPN engine ProxhqVPN uses.</p>
+
+      <a class="btn blue" href="https://apps.apple.com/app/wireguard/id1441195209" target="_blank">
+        🍎&nbsp; Install WireGuard — App Store
       </a>
-      <p style="margin-top:8px;font-size:11px;text-align:center;color:var(--f)">Free · Made by WireGuard Development Team · Requires iOS 15 or later</p>
-      <hr class="divider"/>
-      <div class="tip"><strong>Already installed?</strong> Skip to the next step.</div>
-      <div class="tip"><strong>iOS 14 or earlier?</strong> Update to iOS 15+ first: Settings → General → Software Update</div>
+      <p style="font-size:11px;text-align:center;color:var(--f);margin-top:0">Free · Open Source (GPLv2) · by Jason A. Donenfeld · Requires iOS 14+</p>
+
+      <div class="divider"></div>
+
+      <div class="screenshot">
+        <span class="icon">📱</span>
+        <strong style="color:var(--w);display:block;margin-bottom:4px">What you should see</strong>
+        App Store → WireGuard page → blue "GET" button → tap it → authenticate with Face ID / Touch ID → app installs → tap "Open"
+      </div>
+
+      <div class="ios-note">
+        <strong>iOS 16+ users:</strong> After WireGuard installs, iOS will ask "Allow VPN Configurations?" when you first import a config. Tap <strong>Allow</strong> — this is required for any VPN app on iPhone.
+      </div>
     </div>
+
+    <div class="help-acc">
+      <div class="help-header" onclick="toggleHelp(this)">
+        <span>🙋 I'm stuck — App Store won't let me install WireGuard</span><span class="arr">▶</span>
+      </div>
+      <div class="help-body">
+        <ul>
+          <li><strong style="color:var(--w)">Age restriction?</strong> WireGuard is rated 4+. Check Screen Time / parental controls if the install is blocked</li>
+          <li><strong style="color:var(--w)">Requires iOS update?</strong> WireGuard needs iOS 14 or later. Go to Settings → General → Software Update</li>
+          <li><strong style="color:var(--w)">No Apple ID?</strong> You need a free Apple ID to download from the App Store. Create one at appleid.apple.com</li>
+          <li><a href="https://proxhqvpn.com/support" target="_blank" style="color:var(--g)">Contact ProxhqVPN support</a></li>
+        </ul>
+      </div>
+    </div>
+
     <div class="nav">
       <button class="btn secondary" onclick="go(0)">← Back</button>
-      <button class="btn" onclick="go(2)">WireGuard is installed →</button>
+      <button class="btn blue" onclick="go(2)">WireGuard installed →</button>
     </div>
   </div>
 
-  <!-- PAGE 2: SIGN IN -->
-  <div class="page" id="page2">
+  <!-- ═══ PAGE 2 — SIGN IN + DOWNLOAD ════════════════════════════════════════ -->
+  <div class="pg" id="pg2">
     <div class="card">
-      <h2>Step 2 — Sign In to ProxhqVPN</h2>
-      <p>Sign in to your ProxhqVPN account. Your personal VPN configs generate automatically — one for each server location.</p>
-      <hr class="divider"/>
+      <h2>Step 2 — Sign In &amp; Download Configs</h2>
+      <p>Sign in to ProxhqVPN to get your personal WireGuard configuration files.</p>
+
       <a class="btn" href="https://proxhqvpn.com/sign-in" target="_blank">
         🔑 Sign In to ProxhqVPN
       </a>
-      <p style="font-size:11px;color:var(--f);text-align:center">Opens in Safari. Don't have an account? Sign up free.</p>
-      <hr class="divider"/>
-      <h3>After signing in:</h3>
-      <ol class="wizard">
-        <li><div class="step-num">1</div><div class="text">Go to <strong>WireGuard Config</strong> in the left sidebar</div></li>
-        <li><div class="step-num">2</div><div class="text">Tap <strong>Generate Config</strong> for each server, or use <strong>Show QR Code</strong> to scan directly with WireGuard</div></li>
-        <li><div class="step-num">3</div><div class="text">The QR code method is the fastest on iPhone — no file download needed</div></li>
-      </ol>
-    </div>
-    <div class="nav">
-      <button class="btn secondary" onclick="go(1)">← Back</button>
-      <button class="btn" onclick="go(3)">I'm signed in →</button>
-    </div>
-  </div>
+      <p style="font-size:11px;text-align:center;color:var(--f);margin-top:0">Opens in Safari. No account? Sign up free.</p>
 
-  <!-- PAGE 3: IMPORT -->
-  <div class="page" id="page3">
-    <div class="card">
-      <h2>Step 3 — Import VPN Configs</h2>
-      <p>Two ways to import — QR code is the fastest on iPhone.</p>
-      <hr class="divider"/>
-      <h3>Option A — QR Code (Fastest)</h3>
-      <ol class="wizard">
-        <li><div class="step-num">1</div><div class="text">On your computer, open <strong>ProxhqVPN → WireGuard Config</strong></div></li>
-        <li><div class="step-num">2</div><div class="text">Click <strong>Show QR Code</strong> next to any server</div></li>
-        <li><div class="step-num">3</div><div class="text">Open <strong>WireGuard</strong> on your iPhone → tap <strong>+</strong> → <strong>Create from QR code</strong></div></li>
-        <li><div class="step-num">4</div><div class="text">Scan the QR code — config imports instantly. Repeat for each server.</div></li>
+      <div class="divider"></div>
+      <h3>Download your configs</h3>
+      <ol class="wiz">
+        <li><div class="snum">1</div><div class="stext">After signing in, go to <strong>WireGuard Config</strong> (sidebar or <code>proxhqvpn.com/wireguard</code>)</div></li>
+        <li><div class="snum">2</div><div class="stext">Tap <strong>"Download All Servers Pack"</strong></div></li>
+        <li><div class="snum">3</div><div class="stext">Safari shows a download prompt — tap <strong>Download</strong></div></li>
+        <li><div class="snum">4</div><div class="stext">The zip file saves to <strong>Files app → Downloads</strong> — come back here when done</div></li>
       </ol>
-      <hr class="divider"/>
-      <h3>Option B — Import from File</h3>
-      <ol class="wizard">
-        <li><div class="step-num">1</div><div class="text">In ProxhqVPN → WireGuard Config → tap <strong>Download</strong> to save the <code>.conf</code> file</div></li>
-        <li><div class="step-num">2</div><div class="text">The file saves to <strong>Files</strong> app → Downloads</div></li>
-        <li><div class="step-num">3</div><div class="text">Open <strong>WireGuard</strong> → tap <strong>+</strong> → <strong>Import from Files and Archives</strong></div></li>
-        <li><div class="step-num">4</div><div class="text">Navigate to Downloads, select the <code>.conf</code> file — done</div></li>
-      </ol>
-      <hr class="divider"/>
-      <div class="server-grid">
-        <div class="server-card"><div class="flag">🇺🇸</div><div class="region">Los Angeles</div><div class="ip">108.61.219.202</div></div>
-        <div class="server-card"><div class="flag">🇺🇸</div><div class="region">Chicago</div><div class="ip">45.63.79.138</div></div>
-        <div class="server-card"><div class="flag">🇬🇧</div><div class="region">London</div><div class="ip">192.248.160.69</div></div>
-        <div class="server-card"><div class="flag">🇯🇵</div><div class="region">Tokyo</div><div class="ip">45.76.97.51</div></div>
+
+      <div class="screenshot">
+        <span class="icon">💾</span>
+        <strong style="color:var(--w);display:block;margin-bottom:4px">What you should see</strong>
+        Safari download bar shows <em>proxhqvpn-all-servers.zip</em> completing → Downloads indicator (↓) in Safari toolbar turns solid
+      </div>
+
+      <div class="ios-note">
+        <strong>Safari tip:</strong> If tapping the button just opens the zip in the browser, long-press it and tap <strong>"Download Linked File"</strong> to save it to Files.
+      </div>
+
+      <div class="divider"></div>
+      <h3>Servers in your pack</h3>
+      <div class="sgrid">
+        <div class="sc"><div class="flag">🇺🇸</div><div class="region">Los Angeles</div><div class="ip">108.61.219.202</div></div>
+        <div class="sc"><div class="flag">🇺🇸</div><div class="region">Chicago</div><div class="ip">45.63.79.138</div></div>
+        <div class="sc"><div class="flag">🇬🇧</div><div class="region">London</div><div class="ip">192.248.160.69</div></div>
+        <div class="sc"><div class="flag">🇯🇵</div><div class="region">Tokyo</div><div class="ip">45.76.97.51</div></div>
       </div>
     </div>
+
+    <div class="help-acc">
+      <div class="help-header" onclick="toggleHelp(this)">
+        <span>🙋 I'm stuck — Safari isn't downloading the file</span><span class="arr">▶</span>
+      </div>
+      <div class="help-body">
+        <ul>
+          <li><strong style="color:var(--w)">Zip opens as a webpage?</strong> Long-press the download button → "Download Linked File"</li>
+          <li><strong style="color:var(--w)">Can't find the file?</strong> Open the <strong>Files app</strong> → Browse → iCloud Drive or On My iPhone → Downloads</li>
+          <li><strong style="color:var(--w)">Using Chrome or Firefox on iOS?</strong> Safari gives the best download experience. Try opening <a href="https://proxhqvpn.com/wireguard" target="_blank" style="color:var(--g)">proxhqvpn.com/wireguard</a> in Safari instead</li>
+          <li>Prefer to import one server at a time? Each server card on the WireGuard Config page has a "Download .conf" option</li>
+        </ul>
+      </div>
+    </div>
+
     <div class="nav">
-      <button class="btn secondary" onclick="go(2)">← Back</button>
-      <button class="btn" onclick="go(4)">Configs imported →</button>
+      <button class="btn secondary" onclick="go(1)">← Back</button>
+      <button class="btn blue" onclick="go(3)">I have the zip →</button>
     </div>
   </div>
 
-  <!-- PAGE 4: DONE -->
-  <div class="page" id="page4">
-    <div class="card" style="border-color:var(--gd);background:rgba(0,200,100,.05)">
-      <h2 style="color:var(--g)">✓ You're all set!</h2>
-      <p>ProxhqVPN is ready on your iPhone/iPad.</p>
-      <hr class="divider"/>
-      <div class="feature-row"><div class="feature-icon">🔌</div><div class="feature-text"><strong>Connect:</strong> Open WireGuard → tap the toggle next to any server</div></div>
-      <div class="feature-row"><div class="feature-icon">🔄</div><div class="feature-text"><strong>Switch servers:</strong> Toggle off → toggle on a different server</div></div>
-      <div class="feature-row"><div class="feature-icon">🛡</div><div class="feature-text"><strong>Always-on VPN:</strong> Settings → VPN → ProxhqVPN → toggle "Connect On Demand"</div></div>
-      <div class="feature-row"><div class="feature-icon">🔔</div><div class="feature-text"><strong>Status:</strong> Green key icon in your iPhone status bar means VPN is active</div></div>
-      <div class="feature-row"><div class="feature-icon">🌐</div><div class="feature-text"><strong>Dashboard:</strong> Open Safari and go to your ProxhqVPN dashboard anytime</div></div>
-      <hr class="divider"/>
-      <a class="btn" href="https://proxhqvpn.com/dashboard" target="_blank">Open ProxhqVPN Dashboard →</a>
-      <a class="btn secondary" href="https://proxhqvpn.com/guide" target="_blank">📖 Full User Guide</a>
+  <!-- ═══ PAGE 3 — IMPORT ═════════════════════════════════════════════════════ -->
+  <div class="pg" id="pg3">
+    <div class="card">
+      <h2>Step 3 — Import Configs into WireGuard</h2>
+      <p>Import your downloaded configs into the WireGuard app. You can import all 4 servers at once.</p>
+
+      <h3>Method A — Import from Files app (recommended)</h3>
+      <ol class="wiz">
+        <li><div class="snum">1</div><div class="stext">Open the <strong>WireGuard</strong> app</div></li>
+        <li><div class="snum">2</div><div class="stext">Tap the <strong>+</strong> button (top right)</div></li>
+        <li><div class="snum">3</div><div class="stext">Tap <strong>"Import from file or archive"</strong></div></li>
+        <li><div class="snum">4</div><div class="stext">In Files, navigate to <strong>Downloads</strong> → tap <code>proxhqvpn-all-servers.zip</code></div></li>
+        <li><div class="snum">5</div><div class="stext">A confirmation screen shows 4 configs → tap <strong>Import All</strong></div></li>
+        <li><div class="snum">6</div><div class="stext">iOS asks <strong>"Allow VPN Configurations?"</strong> — tap <strong>Allow</strong> and authenticate</div></li>
+      </ol>
+
+      <div class="screenshot">
+        <span class="icon">📲</span>
+        <strong style="color:var(--w);display:block;margin-bottom:4px">What you should see after import</strong>
+        WireGuard app → 4 tunnel cards: "proxhqvpn-los-angeles", "proxhqvpn-chicago", "proxhqvpn-london", "proxhqvpn-tokyo" — each with a green toggle
+      </div>
+
+      <div class="divider"></div>
+
+      <h3>Method B — Share from Files app</h3>
+      <ol class="wiz">
+        <li><div class="snum">1</div><div class="stext">Open the <strong>Files app</strong> → Downloads → tap &amp; hold <code>proxhqvpn-all-servers.zip</code></div></li>
+        <li><div class="snum">2</div><div class="stext">Tap <strong>Share</strong> → scroll to find <strong>WireGuard</strong> → tap it</div></li>
+        <li><div class="snum">3</div><div class="stext">WireGuard opens with import confirmation → tap <strong>Import All</strong></div></li>
+      </ol>
+
+      <div class="divider"></div>
+
+      <h3>Method C — QR code (single server)</h3>
+      <ol class="wiz">
+        <li><div class="snum">1</div><div class="stext">On your computer, go to <strong>ProxhqVPN → WireGuard Config</strong> → click <strong>Show QR Code</strong></div></li>
+        <li><div class="snum">2</div><div class="stext">In WireGuard iOS app, tap <strong>+</strong> → <strong>"Create from QR Code"</strong></div></li>
+        <li><div class="snum">3</div><div class="stext">Scan the QR code — config imports instantly. Repeat for each server.</div></li>
+      </ol>
+    </div>
+
+    <div class="help-acc">
+      <div class="help-header" onclick="toggleHelp(this)">
+        <span>🙋 I'm stuck — WireGuard can't find the file or iOS blocks it</span><span class="arr">▶</span>
+      </div>
+      <div class="help-body">
+        <ul>
+          <li><strong style="color:var(--w)">Files app not showing Downloads?</strong> Tap "Browse" at the bottom → look under "iCloud Drive" or "On My iPhone"</li>
+          <li><strong style="color:var(--w)">iOS says WireGuard needs permission?</strong> Go to Settings → Privacy → VPN &amp; Device Management → allow WireGuard</li>
+          <li><strong style="color:var(--w)">"Allow VPN Configurations" prompt?</strong> Tap Allow — this is a one-time iOS security prompt, completely normal</li>
+          <li><strong style="color:var(--w)">Only imported some configs?</strong> You can repeat the import process — WireGuard won't duplicate existing tunnels</li>
+          <li>Need fresh configs? Sign in at <a href="https://proxhqvpn.com/wireguard" target="_blank" style="color:var(--g)">proxhqvpn.com/wireguard</a> and re-download</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="nav">
+      <button class="btn secondary" onclick="go(2)">← Back</button>
+      <button class="btn blue" onclick="go(4)">Configs imported →</button>
+    </div>
+  </div>
+
+  <!-- ═══ PAGE 4 — CONNECT + VERIFY ══════════════════════════════════════════ -->
+  <div class="pg" id="pg4">
+    <div class="card success">
+      <h2 style="color:var(--g)">✓ Setup Complete!</h2>
+      <p>ProxhqVPN is ready on your iPhone or iPad. Here's how to use it.</p>
+      <div class="divider"></div>
+
+      <div class="frow"><div class="ficon">🔌</div><div class="ftext"><strong>Connect:</strong> Open WireGuard → tap the toggle next to any server → VPN icon appears in your status bar</div></div>
+      <div class="frow"><div class="ficon">🔄</div><div class="ftext"><strong>Switch servers:</strong> Toggle OFF the current server → toggle ON a different one</div></div>
+      <div class="frow"><div class="ficon">⚡</div><div class="ftext"><strong>Quick toggle:</strong> Add WireGuard to Control Center — Settings → Control Center → add "VPN &amp; Device Management"</div></div>
+      <div class="frow"><div class="ficon">✅</div><div class="ftext"><strong>Verify:</strong> Visit <a href="https://proxhqvpn.com/leaks" target="_blank" style="color:var(--g)">proxhqvpn.com/leaks</a> to confirm your IP changed and no leaks exist</div></div>
+      <div class="frow"><div class="ficon">🌐</div><div class="ftext"><strong>Dashboard:</strong> <a href="https://proxhqvpn.com/dashboard" target="_blank" style="color:var(--g)">proxhqvpn.com/dashboard</a> for stats and settings while connected</div></div>
+
+      <div class="divider"></div>
+      <div class="card warn" style="margin-bottom:0">
+        <h3 style="margin-top:0;color:var(--o)">Tunnel mode note</h3>
+        <p style="margin-bottom:6px"><strong style="color:var(--w)">Split Tunnel</strong> (default): Only VPN subnet traffic is tunnelled. Other apps run normally. AllowedIPs = 10.8.0.0/24</p>
+        <p style="margin-bottom:0"><strong style="color:var(--w)">Full Tunnel</strong>: ALL internet traffic goes through VPN. In WireGuard, tap the tunnel → Edit → set AllowedIPs to <code>0.0.0.0/0, ::/0</code></p>
+      </div>
+    </div>
+
+    <a class="btn" href="https://proxhqvpn.com/dashboard" target="_blank">Open ProxhqVPN Dashboard →</a>
+    <a class="btn secondary" href="https://proxhqvpn.com/guide" target="_blank">📖 Full User Guide</a>
+
+    <div class="help-acc" style="margin-top:14px">
+      <div class="help-header" onclick="toggleHelp(this)">
+        <span>🙋 I'm stuck — VPN won't connect or IP didn't change</span><span class="arr">▶</span>
+      </div>
+      <div class="help-body">
+        <ul>
+          <li><strong style="color:var(--w)">Toggle spins but never connects?</strong> Try a different server (London, Chicago, Tokyo). The first server may be temporarily down</li>
+          <li><strong style="color:var(--w)">VPN key icon in status bar?</strong> That means iOS is connected — check <a href="https://proxhqvpn.com/leaks" target="_blank" style="color:var(--g)">proxhqvpn.com/leaks</a> to verify</li>
+          <li><strong style="color:var(--w)">iOS keeps disconnecting?</strong> Settings → General → VPN &amp; Device Management → tap your tunnel → enable "Connect On Demand"</li>
+          <li><strong style="color:var(--w)">Configs expired or keys rotated?</strong> Re-download fresh configs from <a href="https://proxhqvpn.com/wireguard" target="_blank" style="color:var(--g)">proxhqvpn.com/wireguard</a></li>
+          <li><strong style="color:var(--w)">iPhone behind corporate MDM?</strong> Some MDM profiles block custom VPN configs. Contact your IT department or use a personal device</li>
+          <li><a href="https://proxhqvpn.com/support" target="_blank" style="color:var(--g)">Contact ProxhqVPN support</a></li>
+        </ul>
+      </div>
     </div>
   </div>
 
 </div>
 
 <script>
-var cur=0;
-function go(n){
-  document.getElementById('page'+cur).className='page';
-  document.getElementById('page'+n).className='page show';
-  document.querySelectorAll('.step').forEach(function(el,i){
-    el.className='step'+(i===n?' active':i<n?' done':'');
+var cur = 0;
+function go(n) {
+  document.getElementById('pg'+cur).className = 'pg';
+  document.getElementById('pg'+n).className = 'pg show';
+  var sbs = document.querySelectorAll('.sb');
+  sbs.forEach(function(el, i) {
+    el.className = 'sb' + (i===n?' active':i<n?' done':'');
   });
-  cur=n;window.scrollTo(0,0);
+  cur = n;
+  window.scrollTo(0,0);
 }
-document.querySelectorAll('.step').forEach(function(el){
-  el.addEventListener('click',function(){go(parseInt(el.dataset.page));});
-});
+function toggleHelp(hdr) {
+  hdr.classList.toggle('open');
+  hdr.nextElementSibling.classList.toggle('show');
+}
 </script>
 </body>
 </html>

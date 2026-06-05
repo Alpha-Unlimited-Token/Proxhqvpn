@@ -36,6 +36,17 @@ $cOrange  = [Drawing.Color]::FromArgb(255, 179, 71)
 $cRed     = [Drawing.Color]::FromArgb(255, 80,  80)
 $cBlack   = [Drawing.Color]::Black
 
+# ── Logging ──────────────────────────────────────────────────────────────────
+$LOG_FILE = "$env:LOCALAPPDATA\ProxhqVPN\install.log"
+function WriteLog($level, $msg) {
+    try {
+        $ts = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+        $line = "[$ts]  [$($level.PadRight(5))]  $msg"
+        $null = New-Item -ItemType Directory -Force -Path (Split-Path $LOG_FILE) -ErrorAction SilentlyContinue
+        Add-Content -Path $LOG_FILE -Value $line -Encoding UTF8 -ErrorAction SilentlyContinue
+    } catch {}
+}
+
 # ── State ────────────────────────────────────────────────────────────────────
 $Script:TunnelMode     = "split"
 $Script:WgInstalled    = $false
@@ -401,10 +412,14 @@ function SwitchOnDone($name,$path){
 function StartInstall {
     $btnNext.Visible=$false;$btnBack.Visible=$false;$btnCancel.Enabled=$false
     ShowPage 2;SetPhase $ph1
+    WriteLog "INFO" "ProxhqVPN Windows installer v5.1 started"
+    WriteLog "INFO" "Host: $HOSTNAME  OS: $([System.Environment]::OSVersion.VersionString)"
+    WriteLog "INFO" "Tunnel mode: $($Script:TunnelMode)"
 
     New-Item -ItemType Directory -Force -Path $INSTALL|Out-Null
+    $installedAt = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
     [System.IO.File]::WriteAllText("$INSTALL\config.json",
-        "{`"tunnelMode`":`"$($Script:TunnelMode)`",`"hostname`":`"$HOSTNAME`",`"version`":`"5.0`"}")
+        "{`"tunnelMode`":`"$($Script:TunnelMode)`",`"hostname`":`"$HOSTNAME`",`"version`":`"5.1`",`"platform`":`"windows`",`"installedAt`":`"$installedAt`"}")
 
     if(Test-Path $WG_EXE){
         P2 "WireGuard already installed — skipping download." 68
@@ -535,7 +550,43 @@ function StartSignIn {
     }
 
     if($foundZip){
-        L3 "Detected: $([IO.Path]::GetFileName($foundZip))"
+        $zipSize = (Get-Item $foundZip).Length
+        L3 "Detected: $([IO.Path]::GetFileName($foundZip))  ($zipSize bytes)"
+        WriteLog "INFO" "Zip detected: $foundZip ($zipSize bytes)"
+
+        # ── Checksum verification ─────────────────────────────────────────────
+        $shaUrl = "$BASE_URL/downloads/proxhqvpn-all-servers.zip.sha256"
+        L3 "Verifying checksum..."
+        WriteLog "INFO" "Fetching checksum: $shaUrl"
+        try {
+            $wc2 = New-Object System.Net.WebClient
+            $wc2.Headers.Add("User-Agent","ProxhqVPN-Installer/5.1")
+            $remoteHash = ($wc2.DownloadString($shaUrl) -split '\s+')[0].Trim().ToLower()
+        } catch { $remoteHash = "" }
+
+        if([string]::IsNullOrEmpty($remoteHash)) {
+            L3 "Checksum endpoint unreachable — skipping verification (warn-and-continue)."
+            WriteLog "WARN" "Checksum fetch failed — skipping"
+        } else {
+            $localHash = (Get-FileHash -Path $foundZip -Algorithm SHA256).Hash.ToLower()
+            if($localHash -eq $remoteHash) {
+                L3 "Checksum OK ✓  ($localHash)"
+                WriteLog "INFO" "Checksum OK: $localHash"
+            } else {
+                L3 "ERROR: CHECKSUM MISMATCH!"
+                L3 "  Expected: $remoteHash"
+                L3 "  Got:      $localHash"
+                WriteLog "ERROR" "Checksum MISMATCH: expected=$remoteHash got=$localHash"
+                [System.Windows.Forms.MessageBox]::Show(
+                    "CHECKSUM MISMATCH`n`nThe downloaded zip file does not match the expected hash from proxhqvpn.com.`n`nThis may indicate a corrupted or tampered download.`n`nPlease delete proxhqvpn-all-servers.zip from your Downloads folder and try again.",
+                    "ProxhqVPN Installer — Integrity Error",
+                    [System.Windows.Forms.MessageBoxButtons]::OK,
+                    [System.Windows.Forms.MessageBoxIcon]::Error
+                ) | Out-Null
+                $form.Close(); return
+            }
+        }
+
         Start-Sleep -Milliseconds 300
         InstallAllTunnels $foundZip
     } else {
@@ -548,6 +599,7 @@ function StartSignIn {
 
 function InstallAllTunnels($zipPath){
     SetPhase $ph3;ShowPage 4
+    WriteLog "INFO" "InstallAllTunnels started: $zipPath"
 
     P4 "Extracting server configs..." 10
     L4 "Zip file: $([IO.Path]::GetFileName($zipPath))"
@@ -637,7 +689,49 @@ function InstallAllTunnels($zipPath){
     FinishSetup
 }
 
+function ExportSupportBundle {
+    $dateStr = (Get-Date).ToString("yyyyMMdd")
+    $bundleName = "ProxhqVPN-Support-$dateStr.zip"
+    $bundlePath = "$env:USERPROFILE\Desktop\$bundleName"
+    $tmpDir = [IO.Path]::Combine([IO.Path]::GetTempPath(), "proxhqvpn-support-$([System.Guid]::NewGuid().ToString('N').Substring(0,8))")
+    New-Item -ItemType Directory -Force -Path $tmpDir | Out-Null
+
+    if(Test-Path $LOG_FILE)            { Copy-Item $LOG_FILE           "$tmpDir\install.log"   -Force }
+    if(Test-Path "$INSTALL\config.json"){ Copy-Item "$INSTALL\config.json" "$tmpDir\config.json" -Force }
+
+    @"
+=== ProxhqVPN Support Report ===
+Date:    $((Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ"))
+OS:      $([System.Environment]::OSVersion.VersionString)
+Host:    $HOSTNAME
+WG.exe:  $(if(Test-Path $WG_EXE){"found"}else{"NOT found"})
+Tunnels: $($Script:InstalledConfs.Count)
+Active:  $($Script:ActiveTunnel)
+"@ | Out-File "$tmpDir\system-info.txt" -Encoding UTF8
+
+    try {
+        Add-Type -AssemblyName System.IO.Compression.FileSystem -ErrorAction SilentlyContinue
+        [System.IO.Compression.ZipFile]::CreateFromDirectory($tmpDir, $bundlePath)
+        [System.Windows.Forms.MessageBox]::Show(
+            "Support bundle saved to:`n$bundlePath`n`nSend this file to proxhqvpn.com/support for assistance.",
+            "ProxhqVPN — Support Bundle",
+            [System.Windows.Forms.MessageBoxButtons]::OK,
+            [System.Windows.Forms.MessageBoxIcon]::Information
+        ) | Out-Null
+        WriteLog "INFO" "Support bundle exported: $bundlePath"
+    } catch {
+        [System.Windows.Forms.MessageBox]::Show(
+            "Could not create bundle: $_`n`nYour log is at: $LOG_FILE",
+            "ProxhqVPN",
+            [System.Windows.Forms.MessageBoxButtons]::OK,
+            [System.Windows.Forms.MessageBoxIcon]::Warning
+        ) | Out-Null
+    }
+    Remove-Item $tmpDir -Recurse -Force -ErrorAction SilentlyContinue
+}
+
 function FinishSetup {
+    WriteLog "INFO" "FinishSetup: $($Script:InstalledConfs.Count) tunnels ready — mode=$($Script:TunnelMode)"
     # Activate the first installed tunnel by default
     if($Script:InstalledConfs.Count -gt 0 -and (Test-Path $WG_EXE)){
         $first=$Script:InstalledConfs[0]
@@ -645,6 +739,7 @@ function FinishSetup {
             $p=Start-Process -FilePath $WG_EXE -ArgumentList "/installtunnel `"$($first.path)`"" -PassThru -ErrorAction SilentlyContinue
             if($p){while(-not $p.HasExited){[System.Windows.Forms.Application]::DoEvents();Start-Sleep -ms 80}}
             $Script:ActiveTunnel=$first.name
+            WriteLog "INFO" "Default tunnel activated: $($first.name)"
         }catch{}
     }
 
@@ -654,6 +749,21 @@ function FinishSetup {
     }
     $count=$Script:InstalledConfs.Count
     $p5sub.Text=if($count -gt 0){"$count tunnel(s) installed · use the server cards below to switch anytime"}else{"WireGuard installed. Re-download the All Servers Pack from My VPN."}
+
+    # Add "Export Support Log" button on Done page (once)
+    if(-not ($pg5SupportBtn)){
+        $Script:pg5SupportBtn = New-Object Windows.Forms.Button
+        $Script:pg5SupportBtn.Text = "📋  Export Support Log"
+        $Script:pg5SupportBtn.Left = 30; $Script:pg5SupportBtn.Top = 364
+        $Script:pg5SupportBtn.Width = 200; $Script:pg5SupportBtn.Height = 26
+        $Script:pg5SupportBtn.FlatStyle = [Windows.Forms.FlatStyle]::Flat
+        $Script:pg5SupportBtn.BackColor = $cBg3
+        $Script:pg5SupportBtn.ForeColor = $cDim
+        $Script:pg5SupportBtn.Font = F 8.5
+        $Script:pg5SupportBtn.Add_Click({ ExportSupportBundle })
+        $pages[5].Controls.Add($Script:pg5SupportBtn)
+    }
+
     BuildDoneGrid
     ShowPage 5
     $btnNext.Text="Open ProxhqVPN";$btnNext.Visible=$true

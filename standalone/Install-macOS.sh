@@ -17,16 +17,93 @@ TUNNEL_MODE="split"
 CONFS_INSTALLED=()   # entries: "tunnelname|/path/to/tunnel.conf"
 ACTIVE_TUNNEL=""
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LOG_FILE="$INSTALL/install.log"
 
 # ── Colours ───────────────────────────────────────────────────────────────────
 RED='\033[0;31m'; GRN='\033[0;32m'; BLU='\033[0;34m'
 YLW='\033[1;33m'; CYN='\033[0;36m'; DIM='\033[2m'
 BLD='\033[1m';    NC='\033[0m'
-ok()   { echo -e "  ${GRN}✓${NC}  $*"; }
-info() { echo -e "  ${BLU}→${NC}  $*"; }
-warn() { echo -e "  ${YLW}!${NC}  $*"; }
-err()  { echo -e "\n  ${RED}✗  ERROR:${NC}  $*\n"; }
+ok()   { echo -e "  ${GRN}✓${NC}  $*"; write_log "INFO" "$*"; }
+info() { echo -e "  ${BLU}→${NC}  $*"; write_log "INFO" "$*"; }
+warn() { echo -e "  ${YLW}!${NC}  $*"; write_log "WARN" "$*"; }
+err()  { echo -e "\n  ${RED}✗  ERROR:${NC}  $*\n"; write_log "ERROR" "$*"; }
 sep()  { echo -e "${DIM}──────────────────────────────────────────────────────${NC}"; }
+
+# ── Logging ───────────────────────────────────────────────────────────────────
+write_log() {
+  local level="$1"; shift
+  mkdir -p "$INSTALL" 2>/dev/null || true
+  printf '[%s]  [%-5s]  %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$level" "$*" >> "$LOG_FILE" 2>/dev/null || true
+}
+
+# ── ZIP checksum verification ─────────────────────────────────────────────────
+# Downloads proxhqvpn-all-servers.zip.sha256 from the CDN and checks the zip.
+# WARN-and-continue if the endpoint is unreachable.
+# ERROR-and-exit if a checksum is returned but doesn't match (tampered zip).
+verify_checksum() {
+  local zip_path="$1"
+  local sha_url="${BASE_URL}/downloads/proxhqvpn-all-servers.zip.sha256"
+  info "Verifying zip integrity..."
+  write_log "INFO" "Checksum URL: $sha_url"
+
+  local remote_hash
+  remote_hash=$(curl -fsSL --max-time 10 "$sha_url" 2>/dev/null | awk '{print $1}' | tr -d '[:space:]') || true
+
+  if [[ -z "$remote_hash" ]]; then
+    warn "Could not fetch checksum (network issue or endpoint not yet live) — skipping verification"
+    write_log "WARN" "Checksum fetch failed — skipping"
+    return 0
+  fi
+
+  local local_hash
+  local_hash=$(shasum -a 256 "$zip_path" 2>/dev/null | awk '{print $1}') || true
+
+  if [[ "$remote_hash" == "$local_hash" ]]; then
+    ok "Checksum verified ✓  ($local_hash)"
+    write_log "INFO" "Checksum OK: $local_hash"
+  else
+    err "CHECKSUM MISMATCH — the downloaded zip may be tampered."
+    write_log "ERROR" "Checksum MISMATCH: expected=$remote_hash got=$local_hash"
+    write_log "ERROR" "Aborting install."
+    dlg_ok "❌  CHECKSUM MISMATCH\n\nThe downloaded zip file does not match the expected hash from proxhqvpn.com.\n\nThis may indicate a corrupted or tampered download.\n\nPlease delete the zip from your Downloads folder and try again." "OK" || true
+    exit 1
+  fi
+}
+
+# ── Support bundle export ─────────────────────────────────────────────────────
+export_support_bundle() {
+  local bundle_name="ProxhqVPN-Support-$(date +%Y%m%d).zip"
+  local bundle_path="$HOME/Desktop/$bundle_name"
+  local tmp_dir; tmp_dir=$(mktemp -d)
+
+  [[ -f "$LOG_FILE" ]]        && cp "$LOG_FILE" "$tmp_dir/install.log"
+  [[ -f "$INSTALL/config.json" ]] && cp "$INSTALL/config.json" "$tmp_dir/config.json"
+
+  # System info
+  {
+    echo "=== ProxhqVPN Support Report ==="
+    echo "Date: $(date -u)"
+    echo "macOS: $(sw_vers -productVersion 2>/dev/null || echo unknown)"
+    echo "Arch:  $(uname -m)"
+    echo "Hostname: $(hostname -s)"
+    echo "WG bin: ${WG_BIN:-not found}"
+    echo "WG conf dir: ${WG_CONF_DIR:-not set}"
+    echo "Tunnels installed: ${#CONFS_INSTALLED[@]}"
+    echo "Active tunnel: ${ACTIVE_TUNNEL:-none}"
+    echo "=== wg show ==="
+    sudo wg show 2>/dev/null || echo "(no active tunnels or sudo required)"
+  } > "$tmp_dir/system-info.txt"
+
+  python3 -c "
+import zipfile, os
+with zipfile.ZipFile('$bundle_path', 'w', zipfile.ZIP_DEFLATED) as zf:
+    for f in os.listdir('$tmp_dir'):
+        zf.write(os.path.join('$tmp_dir', f), f)
+" 2>/dev/null && ok "Support bundle saved: ~/Desktop/$bundle_name" || warn "Could not create support bundle"
+
+  rm -rf "$tmp_dir"
+  write_log "INFO" "Support bundle exported: $bundle_path"
+}
 
 banner(){
   clear 2>/dev/null || true
@@ -99,6 +176,10 @@ region_flag() {
 # ═════════════════════════════════════════════════════════════════════════════
 # PAGE 0 — WELCOME
 # ═════════════════════════════════════════════════════════════════════════════
+write_log "INFO" "ProxhqVPN macOS installer v5.1 started"
+write_log "INFO" "System: $(uname -s) $(uname -r) $(uname -m)"
+write_log "INFO" "Host: $(hostname -s)"
+
 banner
 show_step 1 "Welcome"
 echo -e "  ${BLD}Welcome to ProxhqVPN${NC}"
@@ -288,7 +369,10 @@ if [[ -z "$FOUND_ZIP" ]]; then
   dlg_ok "Timed out waiting for config download.\n\nTo try again:\n1. Sign in at $BASE_URL\n2. Go to My VPN → Download All Servers Pack\n3. Re-run this installer" "OK" || true
   exit 1
 fi
-ok "Detected: $ZIP_TARGET"
+ok "Detected: $ZIP_TARGET  ($(stat -f%z "$FOUND_ZIP" 2>/dev/null || echo ?) bytes)"
+write_log "INFO" "Zip path: $FOUND_ZIP"
+
+verify_checksum "$FOUND_ZIP"
 
 # ═════════════════════════════════════════════════════════════════════════════
 # PAGE 4 — INSTALL TUNNELS
@@ -429,6 +513,11 @@ echo -e "  ${DIM}Manual control:  sudo wg-quick up/down <tunnel-name>${NC}"
 echo ""
 sep
 notify "ProxhqVPN installed — ${#CONFS_INSTALLED[@]} servers ready"
+write_log "INFO" "Install complete — ${#CONFS_INSTALLED[@]} tunnels installed — mode=$TUNNEL_MODE"
+write_log "INFO" "Active tunnel: ${ACTIVE_TUNNEL:-none}"
+
+# Export support bundle to Desktop
+export_support_bundle
 
 # ── FIX: capture button name — do NOT use $? to detect which button was pressed
 FINAL=$(dlg_final "✓  All done!\n\n${#CONFS_INSTALLED[@]} VPN tunnel(s) installed.\nMode: $(echo "$TUNNEL_MODE" | tr '[:lower:]' '[:upper:]')\n\nSwitch servers anytime via 'Switch VPN Server.command' on your Desktop.") || true
