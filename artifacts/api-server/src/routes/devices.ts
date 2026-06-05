@@ -1,10 +1,9 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { devicesTable } from "@workspace/db/schema";
-import { eq } from "drizzle-orm";
+import { devicesTable, nodesTable } from "@workspace/db/schema";
+import { eq, isNotNull } from "drizzle-orm";
 import { z } from "zod";
-import { execSync } from "child_process";
 
 const router = Router();
 
@@ -51,27 +50,30 @@ router.get("/:id/config", async (req, res) => {
   const [device] = await db.select().from(devicesTable).where(eq(devicesTable.id, id));
   if (!device) return res.status(404).json({ error: "Device not found" });
 
-  let serverPublicKey = "ProxhqVPN_SERVER_PUBLIC_KEY";
-  let serverEndpoint = "YOUR_SERVER_IP:51820";
-  let serverDns = "1.1.1.1";
+  // Pull a real active node with a valid public IP and WireGuard key
+  const activeNodes = await db
+    .select()
+    .from(nodesTable)
+    .where(isNotNull(nodesTable.publicIp));
 
-  try {
-    const wgOut = execSync("wg show all public-key 2>/dev/null", { encoding: "utf8", timeout: 3000 }).trim();
-    const firstKey = wgOut.split("\n").find(l => l.trim().length > 10);
-    if (firstKey) {
-      const parts = firstKey.trim().split(/\s+/);
-      if (parts[1]) serverPublicKey = parts[1];
-    }
-  } catch { /* wg not available */ }
+  const node = activeNodes.find(n =>
+    n.publicKey && n.publicKey !== "PENDING_UPDATE" && n.publicIp
+  ) ?? activeNodes[0];
+
+  const serverPublicKey = node?.publicKey ?? "PENDING_SERVER_KEY";
+  const serverEndpoint  = node?.publicIp
+    ? `${node.publicIp}:${node.listenPort ?? 51820}`
+    : "PENDING_SERVER_IP:51820";
+  const serverName      = node?.name ?? "ProxhqVPN Server";
 
   const clientConfig = `[Interface]
 # Device: ${device.name}
 PrivateKey = <PASTE_YOUR_PRIVATE_KEY_HERE>
 Address = ${device.assignedIp}/24
-DNS = ${serverDns}
+DNS = 1.1.1.1, 1.0.0.1
 
 [Peer]
-# ProxhqVPN Server
+# ${serverName}
 PublicKey = ${serverPublicKey}
 AllowedIPs = ${device.allowedIps}
 Endpoint = ${serverEndpoint}
