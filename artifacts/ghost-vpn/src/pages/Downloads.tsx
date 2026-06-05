@@ -20,6 +20,8 @@ const PROXHQ_WIN_INSTALLER     = `${BASE}/downloads/ProxhqVPN-Windows-x64.zip`;
 const PROXHQ_MAC_INSTALLER     = `${BASE}/downloads/ProxhqVPN-macOS-arm64.zip`;
 const PROXHQ_MAC_INTEL         = `${BASE}/downloads/ProxhqVPN-macOS-x64.zip`;
 const PROXHQ_LINUX_INSTALLER   = `${BASE}/downloads/ProxhqVPN-Linux-x64.zip`;
+const PROXHQ_ANDROID_INSTALLER = `${BASE}/downloads/ProxhqVPN-Android.zip`;
+const PROXHQ_IOS_INSTALLER     = `${BASE}/downloads/ProxhqVPN-iOS.zip`;
 const PROXHQ_UNIVERSAL         = `${BASE}/downloads/ProxhqVPN-Universal-NodeJS.zip`;
 const PROXHQ_ALL_PLATFORMS     = `${BASE}/downloads/ProxhqVPN-ALL-PLATFORMS.zip`;
 const APP_VERSION               = "2.0.0";
@@ -200,8 +202,9 @@ const PLATFORMS: PlatformGroup[] = [
         badge: "Google Play", badgeColor: "text-green-400 border-green-500/30 bg-green-900/10",
         canInstall: true,
         downloads: [
-          { label: "WireGuard on Google Play", url: WG_PLAY_URL, variant: "primary" },
-          { label: "Download APK directly", url: WG_APK_URL, variant: "apk", icon: Package },
+          { label: "Download ProxhqVPN Setup Guide — Android (.zip)", url: PROXHQ_ANDROID_INSTALLER, variant: "primary", icon: Download },
+          { label: "WireGuard on Google Play", url: WG_PLAY_URL, variant: "apk" },
+          { label: "WireGuard APK (sideload)", url: WG_APK_URL, variant: "apk", icon: Package },
         ],
         steps: [
           { text: "Install WireGuard from Google Play (link above) — or sideload the APK if Play is unavailable." },
@@ -218,6 +221,7 @@ const PLATFORMS: PlatformGroup[] = [
         badge: "App Store", badgeColor: "text-blue-400 border-blue-500/30 bg-blue-900/10",
         canInstall: true,
         downloads: [
+          { label: "Download ProxhqVPN Setup Guide — iPhone (.zip)", url: PROXHQ_IOS_INSTALLER, variant: "primary", icon: Download },
           { label: "WireGuard on the App Store", url: WG_APPSTORE_IOS, variant: "store", icon: Apple },
         ],
         steps: [
@@ -673,10 +677,10 @@ export default function Downloads() {
       {/* Smart download for current device */}
       {!isFireOS && detectedPlatform && detectedPlatform !== "unknown" && (() => {
         const dlMap: Record<string, { label: string; url: string; variant: "primary"|"store"|"apk" }> = {
-          windows: { label: "Download WireGuard for Windows (.exe)", url: WG_WIN_URL, variant: "primary" },
-          mac:     { label: "Download ProxhqVPN Installer for Mac",  url: PROXHQ_MAC_INSTALLER, variant: "primary" },
-          android: { label: "WireGuard on Google Play",              url: WG_PLAY_URL, variant: "primary" },
-          ios:     { label: "WireGuard on the App Store",            url: WG_APPSTORE_IOS, variant: "store" },
+          windows: { label: "Download ProxhqVPN Installer for Windows (.zip)", url: PROXHQ_WIN_INSTALLER, variant: "primary" },
+          mac:     { label: "Download ProxhqVPN Installer for Mac (.zip)",     url: PROXHQ_MAC_INSTALLER, variant: "primary" },
+          android: { label: "Download ProxhqVPN Setup Guide for Android (.zip)", url: PROXHQ_ANDROID_INSTALLER, variant: "primary" },
+          ios:     { label: "Download ProxhqVPN Setup Guide for iPhone (.zip)",  url: PROXHQ_IOS_INSTALLER, variant: "primary" },
         };
         const dl = dlMap[detectedPlatform];
         if (!dl) return null;
@@ -750,6 +754,8 @@ export default function Downloads() {
             { label: "macOS Apple Silicon", url: PROXHQ_MAC_INSTALLER },
             { label: "macOS Intel", url: PROXHQ_MAC_INTEL },
             { label: "Linux x64", url: PROXHQ_LINUX_INSTALLER },
+            { label: "Android", url: PROXHQ_ANDROID_INSTALLER },
+            { label: "iPhone / iPad", url: PROXHQ_IOS_INSTALLER },
           ].map(d => (
             <a key={d.label} href={d.url} target="_blank" rel="noopener noreferrer"
               className="flex items-center gap-1.5 text-[9px] font-mono text-primary/70 hover:text-primary border border-primary/20 hover:border-primary/50 bg-black rounded-lg px-3 py-2 transition-colors">
