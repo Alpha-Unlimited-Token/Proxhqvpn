@@ -5,6 +5,7 @@ export const ghostTrapProbesTable = pgTable("ghost_trap_probes", {
   id:            serial("id").primaryKey(),
   probeId:       text("probe_id").notNull().unique(),
   attackerIp:    text("attacker_ip").notNull(),
+  attackerPort:  integer("attacker_port"),          // source TCP port
   attackerUa:    text("attacker_ua"),
   method:        text("method").notNull(),
   endpoint:      text("endpoint").notNull(),
@@ -19,7 +20,11 @@ export const ghostTrapProbesTable = pgTable("ghost_trap_probes", {
   beaconId:      text("beacon_id"),
   beaconFired:   boolean("beacon_fired").notNull().default(false),
   beaconFiredAt: timestamp("beacon_fired_at"),
-  // Geo/WHOIS enrichment (async, filled after probe)
+  // Hop chain — full XFF header chain stored as JSON array of IPs
+  hopChain:      text("hop_chain"),
+  vpnDetected:   boolean("vpn_detected").notNull().default(false),
+  torDetected:   boolean("tor_detected").notNull().default(false),
+  // Geo/WHOIS enrichment
   geoCountry:    text("geo_country"),
   geoCity:       text("geo_city"),
   geoIsp:        text("geo_isp"),
@@ -38,10 +43,9 @@ export const ghostTrapBeaconsTable = pgTable("ghost_trap_beacons", {
   probeId:     text("probe_id").notNull(),
   attackerIp:  text("attacker_ip").notNull(),
   firedAt:     timestamp("fired_at").defaultNow().notNull(),
-  firedFromIp: text("fired_from_ip"),           // could differ from original probe IP (VPN hop)
+  firedFromIp: text("fired_from_ip"),
   firedUa:     text("fired_ua"),
   firedHeaders:text("fired_headers"),
-  // Extra browser fingerprint data collected via JS beacon
   browserLang: text("browser_lang"),
   screenSize:  text("screen_size"),
   timezone:    text("timezone"),
