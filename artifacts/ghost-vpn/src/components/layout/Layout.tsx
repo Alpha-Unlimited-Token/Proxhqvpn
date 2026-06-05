@@ -198,6 +198,7 @@ const TIER_COLOR: Record<1 | 2 | 3, string> = {
 };
 
 const ADVANCED_NAV = [
+  { href: "/ghost-trap",    label: "Ghost Trap — Counter Intel", icon: Skull },
   { href: "/sqlmap",        label: "Vulnerability Scanner", icon: ScanSearch },
   { href: "/alpha-tools",   label: "Alpha Toolkit",         icon: Layers },
   { href: "/tool-runner",   label: "Parrot Tool Runner",    icon: Terminal },
