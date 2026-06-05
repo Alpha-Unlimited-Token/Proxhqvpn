@@ -66,14 +66,15 @@
     .screen {
       position: absolute; inset: 36px 0 0 0;
       display: flex; flex-direction: column; align-items: center; justify-content: center;
-      padding: 32px 48px;
+      padding: 28px 44px;
       opacity: 0; pointer-events: none; transition: opacity 0.3s;
+      overflow-y: auto;
     }
     .screen.active { opacity: 1; pointer-events: all; }
 
     /* ── Progress dots ─────────────────────────────────────────────── */
     #progress-dots {
-      position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
+      position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%);
       display: flex; gap: 7px; z-index: 100;
     }
     .dot {
@@ -84,57 +85,54 @@
     .dot.done   { background: var(--green-dim); }
 
     /* ── SCREEN 1: Welcome ─────────────────────────────────────────── */
-    #screen-welcome { gap: 24px; }
+    #screen-welcome { gap: 20px; }
     .logo-wrap {
-      width: 72px; height: 72px;
+      width: 68px; height: 68px;
       border: 1.5px solid var(--border2);
       border-radius: 18px;
       background: rgba(0,255,136,0.05);
       display: flex; align-items: center; justify-content: center;
       box-shadow: 0 0 40px rgba(0,255,136,0.08);
     }
-    .logo-wrap svg { width: 36px; height: 36px; fill: var(--green); }
-    .welcome-title { font-size: 24px; font-weight: 800; letter-spacing: -0.02em; color: #fff; text-align: center; }
+    .logo-wrap svg { width: 34px; height: 34px; fill: var(--green); }
+    .welcome-title { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; color: #fff; text-align: center; }
     .welcome-title span { color: var(--green); }
-    .welcome-sub { font-size: 13px; color: var(--text-dim); text-align: center; max-width: 340px; line-height: 1.6; }
-    .feature-list { display: flex; flex-direction: column; gap: 8px; width: 100%; max-width: 320px; }
+    .welcome-sub { font-size: 12px; color: var(--text-dim); text-align: center; max-width: 340px; line-height: 1.6; }
+    .feature-list { display: flex; flex-direction: column; gap: 7px; width: 100%; max-width: 320px; }
     .feature-item {
       display: flex; align-items: center; gap: 10px;
       background: var(--bg3); border: 1px solid var(--border);
-      border-radius: 6px; padding: 9px 12px;
+      border-radius: 6px; padding: 8px 12px;
     }
     .feature-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
     .feature-item span { font-size: 12px; color: var(--text); }
 
-    /* ── SCREEN 2: Consent ────────────────────────────────────────── */
-    #screen-consent { gap: 20px; align-items: flex-start; }
-    .consent-header { width: 100%; }
-    .consent-header h2 { font-size: 17px; font-weight: 700; color: #fff; margin-bottom: 4px; }
-    .consent-header p  { font-size: 12px; color: var(--text-dim); line-height: 1.5; }
+    /* ── SCREEN 2: Consent + Tunnel Mode ─────────────────────────── */
+    #screen-consent { gap: 14px; align-items: flex-start; }
+    .consent-header h2 { font-size: 16px; font-weight: 700; color: #fff; margin-bottom: 3px; }
+    .consent-header p  { font-size: 11px; color: var(--text-dim); line-height: 1.5; }
 
     .consent-box {
       width: 100%;
       background: var(--bg2); border: 1px solid var(--border);
-      border-radius: 6px; padding: 16px;
+      border-radius: 6px; padding: 14px;
     }
     .consent-os-badge {
       display: inline-flex; align-items: center; gap: 6px;
       font-size: 10px; font-weight: 600; letter-spacing: 0.06em;
       color: var(--green-dim); background: rgba(0,255,136,0.06);
       border: 1px solid var(--border); border-radius: 4px;
-      padding: 3px 8px; margin-bottom: 12px; text-transform: uppercase;
+      padding: 3px 8px; margin-bottom: 10px; text-transform: uppercase;
     }
     .consent-os-badge svg { width: 10px; height: 10px; fill: var(--green-dim); }
-    .consent-text {
-      font-size: 12px; color: var(--text-dim); line-height: 1.7;
-    }
+    .consent-text { font-size: 11px; color: var(--text-dim); line-height: 1.7; }
     .consent-text strong { color: var(--text); font-weight: 600; }
 
     .consent-check-row {
       display: flex; align-items: flex-start; gap: 12px;
       width: 100%;
       background: rgba(0,255,136,0.03); border: 1.5px solid var(--border);
-      border-radius: 6px; padding: 14px 16px; cursor: pointer;
+      border-radius: 6px; padding: 12px 14px; cursor: pointer;
       transition: all 0.2s;
     }
     .consent-check-row:hover { border-color: var(--border2); background: rgba(0,255,136,0.06); }
@@ -149,15 +147,45 @@
     .checkbox-custom.checked { background: var(--green); border-color: var(--green); }
     .checkbox-custom svg { width: 11px; height: 11px; stroke: #040a06; stroke-width: 2.5; fill: none; opacity: 0; transition: opacity 0.15s; }
     .checkbox-custom.checked svg { opacity: 1; }
-    .checkbox-label { font-size: 12px; color: var(--text); line-height: 1.6; }
+    .checkbox-label { font-size: 11px; color: var(--text); line-height: 1.6; }
     .checkbox-label em { color: var(--text-dim); font-style: normal; }
 
+    /* ── Tunnel mode selector ────────────────────────────────────── */
+    .tunnel-section { width: 100%; }
+    .tunnel-label { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 8px; }
+    .tunnel-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 100%; }
+    .tunnel-card {
+      border: 1.5px solid var(--border); border-radius: 6px;
+      background: var(--bg2); padding: 12px; cursor: pointer;
+      transition: all 0.2s; position: relative;
+    }
+    .tunnel-card:hover { border-color: var(--border2); background: var(--bg3); }
+    .tunnel-card.selected { border-color: var(--green); background: rgba(0,255,136,0.06); }
+    .tunnel-card-badge {
+      position: absolute; top: 8px; right: 8px;
+      font-size: 8px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+      background: var(--green); color: #040a06;
+      padding: 2px 6px; border-radius: 3px;
+      display: none;
+    }
+    .tunnel-card.selected .tunnel-card-badge { display: block; }
+    .tunnel-card-icon { font-size: 18px; margin-bottom: 6px; }
+    .tunnel-card-title { font-size: 12px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+    .tunnel-card-desc { font-size: 10px; color: var(--text-dim); line-height: 1.5; }
+    .tunnel-card-tag {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 9px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase;
+      margin-top: 6px; padding: 2px 6px; border-radius: 3px;
+    }
+    .tag-green { background: rgba(0,255,136,0.1); color: var(--green); border: 1px solid var(--border); }
+    .tag-orange { background: rgba(255,150,0,0.08); color: #ffb347; border: 1px solid rgba(255,150,0,0.2); }
+
     /* ── SCREEN 3: Installing ─────────────────────────────────────── */
-    #screen-installing { gap: 24px; }
-    .install-title { font-size: 17px; font-weight: 700; color: #fff; }
-    .install-subtitle { font-size: 12px; color: var(--text-dim); text-align: center; }
+    #screen-installing { gap: 20px; }
+    .install-title { font-size: 16px; font-weight: 700; color: #fff; }
+    .install-subtitle { font-size: 11px; color: var(--text-dim); text-align: center; line-height: 1.5; }
     .progress-track {
-      width: 100%; max-width: 400px; height: 4px;
+      width: 100%; max-width: 420px; height: 4px;
       background: var(--bg3); border-radius: 2px; overflow: hidden;
     }
     .progress-fill {
@@ -165,9 +193,9 @@
       border-radius: 2px; transition: width 0.6s ease;
       box-shadow: 0 0 12px rgba(0,255,136,0.6);
     }
-    .install-step { font-size: 12px; color: var(--text-dim); min-height: 18px; text-align: center; }
+    .install-step { font-size: 11px; color: var(--text-dim); min-height: 18px; text-align: center; }
     .install-log {
-      width: 100%; max-width: 460px; height: 120px;
+      width: 100%; max-width: 460px; height: 110px;
       background: var(--bg2); border: 1px solid var(--border);
       border-radius: 4px; padding: 10px 12px;
       font-family: 'Consolas', 'Courier New', monospace;
@@ -175,7 +203,7 @@
       overflow-y: auto; line-height: 1.6;
     }
     .spinner {
-      width: 36px; height: 36px;
+      width: 34px; height: 34px;
       border: 2px solid var(--border2);
       border-top-color: var(--green);
       border-radius: 50%;
@@ -183,16 +211,48 @@
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
+    /* Install phase badge */
+    .phase-badge {
+      font-size: 9px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase;
+      background: rgba(0,255,136,0.08); border: 1px solid var(--border);
+      color: var(--text-dim); padding: 3px 8px; border-radius: 4px;
+      transition: all 0.3s;
+    }
+    .phase-badge.active { background: rgba(0,255,136,0.15); border-color: var(--green); color: var(--green); }
+
     /* ── SCREEN 4: Complete ───────────────────────────────────────── */
-    #screen-done { gap: 20px; }
+    #screen-done { gap: 18px; }
     .done-icon {
-      width: 64px; height: 64px; border-radius: 50%;
+      width: 62px; height: 62px; border-radius: 50%;
       background: rgba(0,255,136,0.08); border: 1.5px solid rgba(0,255,136,0.4);
       display: flex; align-items: center; justify-content: center;
     }
-    .done-icon svg { width: 30px; height: 30px; stroke: var(--green); stroke-width: 2; fill: none; }
+    .done-icon svg { width: 28px; height: 28px; stroke: var(--green); stroke-width: 2; fill: none; }
     .done-title { font-size: 20px; font-weight: 800; color: #fff; }
-    .done-sub { font-size: 12px; color: var(--text-dim); text-align: center; max-width: 320px; line-height: 1.6; }
+    .done-sub { font-size: 12px; color: var(--text-dim); text-align: center; max-width: 340px; line-height: 1.6; }
+
+    .done-status-grid {
+      display: flex; flex-direction: column; gap: 7px;
+      width: 100%; max-width: 360px;
+    }
+    .done-status-row {
+      display: flex; align-items: center; gap: 10px;
+      background: var(--bg3); border: 1px solid var(--border);
+      border-radius: 6px; padding: 9px 12px;
+    }
+    .done-status-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .dot-green { background: var(--green); box-shadow: 0 0 6px rgba(0,255,136,0.6); }
+    .dot-orange { background: #ffb347; box-shadow: 0 0 6px rgba(255,179,71,0.5); }
+    .done-status-text { font-size: 11px; color: var(--text); flex: 1; }
+    .done-status-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-faint); }
+
+    .auth-notice {
+      width: 100%; max-width: 360px;
+      background: rgba(255,179,71,0.05); border: 1px solid rgba(255,179,71,0.2);
+      border-radius: 6px; padding: 10px 14px;
+      font-size: 11px; color: rgba(255,179,71,0.8); line-height: 1.6;
+      display: none;
+    }
 
     /* ── Error state ──────────────────────────────────────────────── */
     .error-box {
@@ -225,7 +285,7 @@
     }
     .btn-ghost:hover { border-color: var(--border2); color: var(--text); }
 
-    .btn-row { display: flex; gap: 10px; margin-top: 8px; }
+    .btn-row { display: flex; gap: 10px; margin-top: 6px; }
     .btn svg { width: 14px; height: 14px; fill: currentColor; }
     .btn-primary svg { fill: #040a06; }
   </style>
@@ -260,11 +320,11 @@
     <svg viewBox="0 0 24 24"><path d="M12 2L4 6v6c0 5.25 3.45 10.15 8 11.35C16.55 22.15 20 17.25 20 12V6L12 2z"/></svg>
   </div>
   <div class="welcome-title">Welcome to <span>ProxhqVPN</span></div>
-  <div class="welcome-sub">Military-grade WireGuard encryption, auto-configured on your device in seconds.</div>
+  <div class="welcome-sub">Military-grade WireGuard encryption. Auto-configured and ready in minutes — no manual steps.</div>
   <div class="feature-list">
-    <div class="feature-item"><div class="feature-dot"></div><span>WireGuard installed automatically — no manual steps</span></div>
-    <div class="feature-item"><div class="feature-dot"></div><span>Ghost Chain double-hop anonymity</span></div>
-    <div class="feature-item"><div class="feature-dot"></div><span>Kill switch &amp; leak protection always on</span></div>
+    <div class="feature-item"><div class="feature-dot"></div><span>WireGuard installed &amp; configured automatically</span></div>
+    <div class="feature-item"><div class="feature-dot"></div><span>Choose split tunnel or full tunnel mode</span></div>
+    <div class="feature-item"><div class="feature-dot"></div><span>Per-app allow/block monitor built in</span></div>
     <div class="feature-item"><div class="feature-dot"></div><span>Zero-logs — your data stays yours</span></div>
   </div>
   <div class="btn-row">
@@ -275,11 +335,11 @@
   </div>
 </div>
 
-<!-- ── SCREEN 2: Consent ─────────────────────────────────────────────── -->
+<!-- ── SCREEN 2: Consent + Tunnel Mode ──────────────────────────────── -->
 <div class="screen" id="screen-consent">
-  <div class="consent-header">
-    <h2>Installation Permission</h2>
-    <p>Please read and confirm before continuing.</p>
+  <div class="consent-header" style="width:100%">
+    <h2>Installation &amp; VPN Mode</h2>
+    <p>Confirm the installation and choose how your VPN tunnel works.</p>
   </div>
 
   <div class="consent-box">
@@ -287,9 +347,7 @@
       <svg viewBox="0 0 24 24"><path d="M12 2L4 6v6c0 5.25 3.45 10.15 8 11.35C16.55 22.15 20 17.25 20 12V6L12 2z"/></svg>
       <span id="os-label">Detecting OS...</span>
     </div>
-    <div class="consent-text" id="consent-text">
-      Loading...
-    </div>
+    <div class="consent-text" id="consent-text">Loading...</div>
   </div>
 
   <div class="consent-check-row" id="check-row" onclick="toggleConsent()">
@@ -298,7 +356,28 @@
     </div>
     <div class="checkbox-label">
       I understand and <strong>consent to ProxhqVPN installing WireGuard</strong> on my device.<br/>
-      <em>WireGuard is required for the VPN to function. It will be installed silently in the background and can be removed at any time through your system's software manager.</em>
+      <em>WireGuard is required for the VPN to function. It will be installed silently and can be removed at any time.</em>
+    </div>
+  </div>
+
+  <!-- Tunnel Mode Selector -->
+  <div class="tunnel-section">
+    <div class="tunnel-label">VPN Tunnel Mode</div>
+    <div class="tunnel-cards">
+      <div class="tunnel-card selected" id="card-split" onclick="selectTunnelMode('split')">
+        <div class="tunnel-card-badge">Selected</div>
+        <div class="tunnel-card-icon">⚡</div>
+        <div class="tunnel-card-title">Split Tunnel</div>
+        <div class="tunnel-card-desc">Only ProxhqVPN traffic goes through the tunnel. All your apps and browsing work normally.</div>
+        <div class="tunnel-card-tag tag-green">✓ Recommended</div>
+      </div>
+      <div class="tunnel-card" id="card-full" onclick="selectTunnelMode('full')">
+        <div class="tunnel-card-badge">Selected</div>
+        <div class="tunnel-card-icon">🔒</div>
+        <div class="tunnel-card-title">Full Tunnel</div>
+        <div class="tunnel-card-desc">All internet traffic routes through ProxhqVPN. Maximum privacy — every app protected.</div>
+        <div class="tunnel-card-tag tag-orange">⚠ May slow apps</div>
+      </div>
     </div>
   </div>
 
@@ -307,7 +386,7 @@
   <div class="btn-row">
     <button class="btn btn-ghost" onclick="goTo(0)">Back</button>
     <button class="btn btn-primary" id="btn-continue" disabled onclick="beginInstall()">
-      Continue &amp; Install
+      Install &amp; Configure
       <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
     </button>
   </div>
@@ -316,8 +395,16 @@
 <!-- ── SCREEN 3: Installing ──────────────────────────────────────────── -->
 <div class="screen" id="screen-installing">
   <div class="spinner" id="spinner"></div>
-  <div class="install-title">Installing WireGuard</div>
+  <div class="install-title" id="install-title">Installing WireGuard</div>
   <div class="install-subtitle">Please wait — this may take a moment.<br/>Do not close this window.</div>
+
+  <!-- Phase indicators -->
+  <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:center;">
+    <div class="phase-badge active" id="phase-wg">① WireGuard</div>
+    <div class="phase-badge" id="phase-config">② Generating Config</div>
+    <div class="phase-badge" id="phase-tunnel">③ Activating Tunnel</div>
+  </div>
+
   <div class="progress-track"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
   <div class="install-step" id="install-step">Preparing...</div>
   <div class="install-log" id="install-log"></div>
@@ -329,8 +416,44 @@
   <div class="done-icon">
     <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
   </div>
-  <div class="done-title">You're all set!</div>
-  <div class="done-sub">WireGuard has been installed and ProxhqVPN is ready. Sign in to activate your VPN.</div>
+  <div class="done-title" id="done-title">You're all set!</div>
+  <div class="done-sub" id="done-sub">WireGuard is installed and your VPN is active. Sign in to start protecting your connection.</div>
+
+  <div class="done-status-grid">
+    <div class="done-status-row">
+      <div class="done-status-dot dot-green"></div>
+      <div>
+        <div class="done-status-text">WireGuard Installed</div>
+        <div class="done-status-label">Encryption layer ready</div>
+      </div>
+    </div>
+    <div class="done-status-row" id="status-config">
+      <div class="done-status-dot dot-green" id="config-dot"></div>
+      <div>
+        <div class="done-status-text" id="config-status-text">VPN Config Generated</div>
+        <div class="done-status-label" id="config-status-label">Tunnel configured &amp; active</div>
+      </div>
+    </div>
+    <div class="done-status-row" id="status-mode">
+      <div class="done-status-dot dot-green"></div>
+      <div>
+        <div class="done-status-text" id="mode-status-text">Split Tunnel Mode</div>
+        <div class="done-status-label">Apps work normally — only VPN traffic tunneled</div>
+      </div>
+    </div>
+    <div class="done-status-row">
+      <div class="done-status-dot dot-green"></div>
+      <div>
+        <div class="done-status-text">Per-App Monitor</div>
+        <div class="done-status-label">New apps will be prompted on first connection</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="auth-notice" id="auth-notice">
+    Sign in to ProxhqVPN to automatically generate and activate your VPN tunnel config. WireGuard is installed and ready.
+  </div>
+
   <div class="btn-row">
     <button class="btn btn-primary" onclick="launchApp()">
       <svg viewBox="0 0 24 24"><path d="M12 2L4 6v6c0 5.25 3.45 10.15 8 11.35C16.55 22.15 20 17.25 20 12V6L12 2z"/></svg>
@@ -342,20 +465,14 @@
 <script>
   let currentScreen = 0;
   let consentChecked = false;
+  let tunnelMode = "split";
   let platformInfo = {};
-
-  const OS_ICONS = {
-    windows: "🪟",
-    mac:     "🍎",
-    linux:   "🐧",
-    unknown: "💻",
-  };
 
   const CONSENT_TEXTS = {
     windows: `ProxhqVPN requires <strong>WireGuard for Windows</strong> to establish secure encrypted connections. By continuing, you authorize ProxhqVPN to silently download and run the official WireGuard installer (<code>wireguard-installer.exe</code>) from <strong>wireguard.com</strong>. It will be installed to <code>C:\\Program Files\\WireGuard\\</code>. No other software will be installed. You can remove WireGuard at any time via <em>Windows Settings → Apps</em>.`,
-    mac:     `ProxhqVPN requires <strong>WireGuard Tools for macOS</strong> to establish secure encrypted connections. By continuing, you authorize ProxhqVPN to install <code>wireguard-tools</code> via Homebrew. If Homebrew is not present, it will also be installed. All software comes from official, open-source sources. You can remove WireGuard at any time via <em>brew uninstall wireguard-tools</em>.`,
-    linux:   `ProxhqVPN requires <strong>WireGuard Tools for Linux</strong> to establish secure encrypted connections. By continuing, you authorize ProxhqVPN to install <code>wireguard-tools</code> using your system's package manager (apt, dnf, yum, pacman, or zypper). Sudo access may be required. You can remove WireGuard at any time using your package manager.`,
-    unknown: `ProxhqVPN requires <strong>WireGuard</strong> to establish secure encrypted connections. By continuing, you authorize ProxhqVPN to install WireGuard using the appropriate method for your system. You can remove WireGuard at any time through your system's software manager.`,
+    mac:     `ProxhqVPN requires <strong>WireGuard Tools for macOS</strong>. By continuing, you authorize ProxhqVPN to install <code>wireguard-tools</code> via Homebrew. All software comes from official open-source sources. You can remove WireGuard at any time via <em>brew uninstall wireguard-tools</em>.`,
+    linux:   `ProxhqVPN requires <strong>WireGuard Tools for Linux</strong>. By continuing, you authorize ProxhqVPN to install <code>wireguard-tools</code> using your system's package manager (apt, dnf, yum, pacman, or zypper). Sudo access may be required.`,
+    unknown: `ProxhqVPN requires <strong>WireGuard</strong> to establish secure encrypted connections. By continuing, you authorize ProxhqVPN to install WireGuard using the appropriate method for your system.`,
   };
 
   async function initScreen1() {
@@ -393,21 +510,57 @@
     btn.disabled = !consentChecked;
   }
 
+  function selectTunnelMode(mode) {
+    tunnelMode = mode;
+    document.getElementById("card-split").classList.toggle("selected", mode === "split");
+    document.getElementById("card-full").classList.toggle("selected", mode === "full");
+    // Save preference to Electron store
+    if (window.proxhq.setTunnelMode) window.proxhq.setTunnelMode(mode);
+  }
+
+  function setPhase(phase) {
+    // phase: 'wg' | 'config' | 'tunnel'
+    ["wg", "config", "tunnel"].forEach(p => {
+      const el = document.getElementById("phase-" + p);
+      if (el) el.classList.toggle("active", p === phase);
+    });
+  }
+
   async function beginInstall() {
     if (!consentChecked) return;
+
+    // Save tunnel mode before starting
+    await window.proxhq.setTunnelMode(tunnelMode);
     goTo(2);
 
     const fillEl   = document.getElementById("progress-fill");
     const stepEl   = document.getElementById("install-step");
+    const titleEl  = document.getElementById("install-title");
     const logEl    = document.getElementById("install-log");
     const errEl    = document.getElementById("install-error");
     const spinner  = document.getElementById("spinner");
+
+    let configInstalled = false;
+    let needsAuth = false;
 
     const cleanup = window.proxhq.onInstallProgress((data) => {
       if (data.percent !== null && data.percent !== undefined) {
         fillEl.style.width = data.percent + "%";
       }
       if (data.step) stepEl.textContent = data.step;
+
+      // Update phase indicators based on progress
+      if (data.percent !== undefined) {
+        if (data.percent < 72) setPhase("wg");
+        else if (data.percent < 92) {
+          setPhase("config");
+          titleEl.textContent = "Generating VPN Config";
+        } else if (data.percent < 100) {
+          setPhase("tunnel");
+          titleEl.textContent = "Activating Tunnel";
+        }
+      }
+
       if (data.log) {
         const line = document.createElement("div");
         line.textContent = "> " + data.log;
@@ -415,9 +568,11 @@
         logEl.scrollTop = logEl.scrollHeight;
       }
       if (data.done) {
+        configInstalled = data.configInstalled !== false;
+        needsAuth = data.needsAuth === true;
         cleanup();
         spinner.style.display = "none";
-        setTimeout(() => goTo(3), 800);
+        setTimeout(() => showDoneScreen(configInstalled, needsAuth), 800);
       }
       if (data.error) {
         cleanup();
@@ -431,6 +586,42 @@
     if (!result.success && !document.getElementById("install-error").style.display.includes("block")) {
       errEl.style.display = "block";
       errEl.textContent = "Installation failed: " + (result.error || "Unknown error");
+    }
+  }
+
+  function showDoneScreen(configInstalled, needsAuth) {
+    goTo(3);
+
+    // Mode label
+    const modeText = document.getElementById("mode-status-text");
+    const modeSub  = document.getElementById("config-status-label");
+    if (modeText) {
+      modeText.textContent = tunnelMode === "split" ? "Split Tunnel Mode" : "Full Tunnel Mode";
+    }
+
+    // Config status
+    const configDot  = document.getElementById("config-dot");
+    const configText = document.getElementById("config-status-text");
+    const configSub  = document.getElementById("config-status-label");
+
+    if (configInstalled) {
+      if (configDot) { configDot.classList.add("dot-green"); configDot.classList.remove("dot-orange"); }
+      if (configText) configText.textContent = "VPN Config Installed";
+      if (configSub)  configSub.textContent = "Tunnel configured & active";
+      document.getElementById("done-title").textContent = "You're protected!";
+      document.getElementById("done-sub").textContent =
+        tunnelMode === "split"
+          ? "WireGuard is installed & your VPN tunnel is active. Split Tunnel mode means all your apps work normally."
+          : "WireGuard is installed & your full tunnel is active. All traffic is routed through ProxhqVPN.";
+    } else if (needsAuth) {
+      if (configDot) { configDot.classList.remove("dot-green"); configDot.classList.add("dot-orange"); }
+      if (configText) configText.textContent = "Config Pending Sign-In";
+      if (configSub)  configSub.textContent = "Auto-generates on first sign-in";
+      document.getElementById("auth-notice").style.display = "block";
+    } else {
+      if (configDot) { configDot.classList.remove("dot-green"); configDot.classList.add("dot-orange"); }
+      if (configText) configText.textContent = "Config Pending";
+      if (configSub)  configSub.textContent = "Will activate on first sign-in";
     }
   }
 
