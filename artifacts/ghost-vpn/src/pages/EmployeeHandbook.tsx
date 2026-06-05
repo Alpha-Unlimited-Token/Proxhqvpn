@@ -270,6 +270,8 @@ ss -tupn | grep LISTEN          # Listening ports`}</CB>
             { tool: "Token Sequencer", path: "/token-seq", desc: "Capture and analyze session tokens for entropy weakness. Perform statistical analysis and attempt prediction attacks on low-entropy token generators." },
             { tool: "WebSocket Tester", path: "/ws-tester", desc: "Connect, intercept, replay, and fuzz WebSocket frames. Equivalent to Burp Suite WebSocket testing. Supports ws:// and wss:// with auth header injection." },
             { tool: "Dependency Scanner", path: "/dep-scanner", desc: "Scan any project directory or package manifest (npm/pip/cargo/go/maven/composer) for known CVEs. Severity-ranked results with remediation guidance." },
+            { tool: "QuantumAudit", path: "/quantum-audit/", desc: "Standalone blockchain security auditing platform. Scans smart contracts and DeFi protocols for classical vulnerabilities (reentrancy, oracle manipulation, flash loan) and post-quantum cryptographic weaknesses (ECDSA nonce reuse, weak-k, r-collision, Shor's algorithm exposure). Includes 5-engine Signature Mining suite." },
+            { tool: "Sig Miner", path: "/quantum-audit/sig-miner", desc: "5-engine blockchain forensics suite: Block Scanner (on-chain ECDSA extraction), Web Spider (paste site crawl), OSINT Spider (GitHub/Pastebin), Peel Chain (fund-flow tracing), Hybrid Worm (all engines in parallel with shared intelligence pool). Use for authorized blockchain security research." },
           ].map(({ tool, path, desc }) => (
             <div key={tool} className="border border-primary/10 rounded px-2.5 py-2">
               <div className="flex items-center justify-between mb-0.5">
@@ -284,6 +286,7 @@ ss -tupn | grep LISTEN          # Listening ports`}</CB>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {[
             { tool: "SilkWeb Honeypot", path: "/silkweb", desc: "Deploy decoy services (SSH, HTTP, FTP, RDP). Captures attacker IPs and payloads. Integrates with SIEM." },
+            { tool: "Ghost Trace", path: "/ghost-trace", desc: "VPN-native agentless behavioral analysis of every WireGuard peer. Detects C2 beaconing (periodic fixed-IP packets), data exfiltration (asymmetric traffic spikes), and malicious destinations (threat feed matches). Per-device 0–100 anomaly score. Score >90 auto-populates Firewall quick-block." },
             { tool: "Firewall Manager", path: "/firewall", desc: "iptables/nftables rules across all VPN nodes. Block IPs, ports, and protocols with live rule editor." },
             { tool: "Threat Monitor", path: "/beacons", desc: "Real-time intrusion alert stream from all nodes + SilkWeb honeypot hits. Beacon-based persistent monitoring." },
             { tool: "SIEM", path: "/siem", desc: "Unified security event log: WireGuard events, SilkWeb hits, firewall blocks, DNS sinkhole, auth failures. Filter + export CSV/JSON. Alert rules." },

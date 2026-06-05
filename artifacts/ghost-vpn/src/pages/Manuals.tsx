@@ -1423,6 +1423,637 @@ INTERNAL DOCUMENT — DO NOT DISTRIBUTE
 Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
   },
 
+  // ── QUANTUM AUDIT ─────────────────────────────────────────────────────────
+  {
+    id: "quantum-audit-manual",
+    title: "QuantumAudit Manual",
+    subtitle: "Blockchain Smart Contract Security Auditing + Signature Mining Engine",
+    version: "1.0",
+    pages: 28,
+    icon: Zap,
+    iconColor: "text-cyan-400",
+    tier: "pro",
+    content: `ProxhqVPN: QuantumAudit Manual
+Version 1.0 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+legal@alphauntechnologies.com | proxhqvpn.com
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TABLE OF CONTENTS
+
+1. Overview & Architecture
+2. Running a Smart Contract Scan
+3. Vulnerability Categories
+4. Post-Quantum Cryptographic Risk Analysis
+5. Reading Scan Results & Reports
+6. Signature Mining Engine — All 5 Engines
+7. Cross-Engine Intelligence Pool
+8. Authorized Use Policy
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW & ARCHITECTURE
+
+QuantumAudit (/quantum-audit/) is a standalone blockchain security
+auditing platform integrated into the ProxhqVPN Command Center.
+It analyzes smart contracts and DeFi protocols for two categories
+of risk:
+
+Classical Vulnerabilities:
+• Reentrancy attacks (DAO-style, cross-function, cross-contract)
+• Integer overflow/underflow (pre-Solidity 0.8)
+• Unchecked external calls and return values
+• tx.origin authentication bypass
+• Unprotected SELFDESTRUCT
+• Front-running and MEV sandwich attack vectors
+• Flash loan attack vectors (single-block price manipulation)
+• Price oracle manipulation (Uniswap TWAP vs spot price)
+• Access control flaws (missing onlyOwner, role checks)
+• Proxy upgrade vulnerabilities (uninitialized implementation)
+• Governance token attacks (flash loan voting, timelock bypass)
+
+Post-Quantum Cryptographic Risk:
+• ECDSA signature weakness (nonce reuse, weak-k brute force)
+• R-value collision detection (shared nonce across transactions)
+• RSA key size inadequacy for quantum era (< 4096-bit flagged)
+• Shor's algorithm vulnerability scoring for secp256k1 curves
+• CRYSTALS-Kyber/Dilithium migration readiness assessment
+• BLS signature strength analysis
+
+Supported Chains:
+Ethereum (ETH), Binance Smart Chain (BSC), Polygon (MATIC),
+Solana (SOL), Avalanche (AVAX), and custom EVM-compatible chains.
+
+Scan Types:
+• Quick — Core classical vulnerability checks (3–5 min)
+• Standard — Full classical + access control + DeFi risk suite (8–15 min)
+• Quantum — Standard + full post-quantum cryptographic analysis (15–30 min)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2. RUNNING A SMART CONTRACT SCAN
+
+Method A — Contract Address:
+1. Navigate to /quantum-audit/.
+2. Click "New Scan" in the top navigation.
+3. Select the target chain from the dropdown.
+4. Enter the deployed contract address (0x... format for EVM chains).
+5. Select scan type: Quick / Standard / Quantum.
+6. Click "Start Scan."
+7. The platform fetches contract bytecode via the chain's RPC endpoint
+   and decompiles it for analysis.
+8. Poll the scan status — the status badge updates from "queued"
+   to "running" to "completed" automatically.
+9. Click the scan result to open the Scan Detail page.
+
+Method B — Source Code Direct Input:
+1. Navigate to New Scan.
+2. Select "Source Code" mode.
+3. Paste your Solidity (.sol) or Rust (Solana) source code directly.
+4. Select scan type and click "Start Scan."
+5. Source analysis provides more precise findings (exact line numbers
+   and variable names) than bytecode-only analysis.
+
+API Method (for CI/CD integration):
+  POST /api/quantum-audit/scan
+  Content-Type: application/json
+  {
+    "contractAddress": "0x...",
+    "chain": "ethereum",
+    "scanType": "standard",
+    "sourceCode": "(optional Solidity source)"
+  }
+
+  Poll: GET /api/quantum-audit/scans/:id
+  Download report: GET /api/quantum-audit/scans/:id/report
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3. VULNERABILITY CATEGORIES
+
+CRITICAL:
+• Reentrancy (state updated after external call — classic DAO attack)
+• Unprotected SELFDESTRUCT (any caller can destroy the contract)
+• Unchecked delegatecall (arbitrary code execution in caller's context)
+• Flash loan + oracle manipulation chained (full fund drain possible)
+
+HIGH:
+• Integer overflow/underflow (token minting, balance manipulation)
+• tx.origin authentication (phishing bypass)
+• Front-running (reveal-before-commit in games, auctions, AMMs)
+• Access control missing (mint/burn without role check)
+• Proxy uninitialized implementation (storage collision)
+
+MEDIUM:
+• Timestamp dependence (miner-manipulable within ~900s)
+• Denial of service via gas limit (unbounded loops in withdraw paths)
+• Event not emitted on state change (off-chain monitoring blind spot)
+• Hard-coded addresses (contract upgrade breaks assumptions)
+
+LOW / INFO:
+• Floating pragma version (use fixed compiler version)
+• Unused state variables (gas optimization)
+• Magic numbers (use named constants)
+• Missing zero-address checks on setters
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4. POST-QUANTUM CRYPTOGRAPHIC RISK ANALYSIS
+
+Why This Matters:
+Bitcoin and Ethereum use ECDSA on the secp256k1 curve. A sufficiently
+powerful quantum computer running Shor's algorithm could derive the
+private key from any exposed public key in polynomial time. While no
+such quantum computer exists today, the cryptographic community
+recommends proactive migration to post-quantum algorithms
+(NIST standards: CRYSTALS-Kyber for key exchange, CRYSTALS-Dilithium
+for signatures) for long-lived contracts and high-value wallets.
+
+What QuantumAudit Checks:
+  ECDSA Nonce Reuse:
+  If the same nonce (k) is used in two ECDSA signatures with different
+  messages, the private key can be derived algebraically in seconds
+  using only pen-and-paper math — no quantum computer required.
+  QuantumAudit's Block Scanner mines (r,s,z) tuples from on-chain
+  transactions and flags any address where the r-value (which encodes
+  the nonce) repeats across different message hashes.
+
+  Weak-k Detection:
+  Some early wallet implementations used weak random number generators.
+  The Block Scanner brute-forces k values in the range 0–2^24 for each
+  transaction signature. Any k in this range is recoverable in seconds
+  on commodity hardware.
+
+  RSA Key Adequacy:
+  For contracts that use RSA-based signature verification, key sizes
+  below 4096 bits are flagged as inadequate for post-quantum security.
+  RSA-2048 is breakable with a ~4,000 logical-qubit machine.
+
+  Quantum Risk Score (0–100):
+  • 0–30: Low risk — no detected classical ECDSA weaknesses; NIST PQC
+          migration recommended as a long-term roadmap item.
+  • 31–60: Medium risk — potential pattern weaknesses; audit nonce
+           generation in wallet software.
+  • 61–85: High risk — r-value clustering or timing bias detected.
+  • 86–100: Critical — active nonce reuse or weak-k detected; private
+            key recovery is possible now without quantum hardware.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+5. READING SCAN RESULTS & REPORTS
+
+Scan Detail Page (/quantum-audit/scans/:id):
+• Summary banner: severity breakdown (Critical/High/Medium/Low count)
+• Findings table: each finding has a title, severity badge, category,
+  affected line (if source provided), description, and remediation.
+• Quantum Analysis tab: post-quantum risk score, ECDSA assessment,
+  and migration recommendations.
+• Download Report: exports a full PDF-quality plain-text audit report.
+
+Reading a Finding:
+  Severity: CRITICAL
+  Category: Reentrancy
+  Finding: External call before state update in withdraw()
+  Location: Line 142, function withdraw(uint256 amount)
+  Description: The contract sends ETH to msg.sender before updating
+    balances[msg.sender]. An attacker's fallback() function can
+    re-enter withdraw() before the balance is decremented.
+  Remediation: Move balances[msg.sender] -= amount to BEFORE
+    the external call. Or use OpenZeppelin's ReentrancyGuard modifier.
+  References: SWC-107, https://swcregistry.io/docs/SWC-107
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+6. SIGNATURE MINING ENGINE — ALL 5 ENGINES
+
+Navigate to /quantum-audit/sig-miner. The Sig Miner deploys independent
+engines that hunt for weak ECDSA signatures on-chain and across the web.
+
+Engine 1 — Block Scanner (POST /sig-engine/block-scanner):
+  Purpose: Mine raw (r,s,z) tuples from on-chain transactions.
+  Input: target address or block range, chain selection.
+  Detects:
+  • Nonce reuse: same r-value in two transactions = private key exposed
+  • Weak-k: brute forces k in 0–2^24 range (~16 million attempts)
+  • R-collisions: r-value appears across multiple signing addresses
+  • MSB/LSB bias: statistical analysis of r/s distribution
+  • Polynomial nonce progressions: sequential or predictable k-values
+  Output: signing_addresses[], nonce_reuse[], weak_k_candidates[],
+          r_collision_addrs[], raw_sigs[]
+
+Engine 2 — Web Spider (POST /sig-engine/web-spider):
+  Purpose: BFS crawl of paste sites, GitHub Gists, and public pages.
+  Input: seed URL(s), max depth, max pages.
+  Regex extracts: private keys (WIF, hex), mnemonics (BIP-39 12/24 words),
+                  ECDSA signatures (r/s hex), xpub/xprv, keystore JSON.
+  Sources: Pastebin, GitHub Gists, HasteBin, Ghostbin, dpaste.
+  Output: private_keys[], mnemonics[], ecdsa_sigs[], addresses[]
+
+Engine 3 — OSINT Spider (POST /sig-engine/osint):
+  Purpose: Targeted intelligence from structured sources.
+  Input: address or ENS name to investigate.
+  Sources:
+  • GitHub code search (API): searches repos for hex private keys
+  • Pastebin archive: scrapes public paste archive for address mentions
+  • ENS text records: reads all text records for ENS names
+  • OP_RETURN Bitcoin data: scans OP_RETURN outputs for embedded data
+  • Ethereum tx input data: decodes input data of all txs from address
+  Output: source_urls[], derived_addresses[], rs_pairs[]
+
+Engine 4 — Peel Chain (POST /sig-engine/peel-chain):
+  Purpose: Follow fund-flow chains hop-by-hop.
+  Input: starting address, max hops (default 10), chain.
+  Process: For each hop, fetches all outgoing transactions, extracts
+           (r,s,z) tuples, runs nonce-reuse key recovery, and follows
+           the largest output to the next hop.
+  Detects: Nonce reuse across hops, amount correlation (peel pattern).
+  Output: hops[], nonce_reuse_per_hop[], amount_correlation_score
+
+Hybrid Worm Engine (POST /sig-engine/hybrid):
+  Runs all 4 engines in parallel as async worker threads with:
+  • Shared result queue (CrossEnginePool) — 12 active data-flow wires
+  • Adaptive load balancing between engines
+  • Jitter (random delays) to avoid detection/rate limiting
+  • Cross-worm deduplication (address and r-value registries)
+  Input: any combination of the 4 engines' inputs.
+  Control: POST /sig-engine/stop to halt all engines.
+           GET /sig-engine/status for live progress.
+           GET /sig-engine/result for current findings.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+7. CROSS-ENGINE INTELLIGENCE POOL
+
+The CrossEnginePool enables all 12 data-flow wires between engines:
+  E1→E3: Every signing address found by Block Scanner goes to OSINT
+  E1→E4: Nonce-reuse + r-collision addresses go to Peel Chain for tracing
+  E1→pool: All raw (r,s,z) sigs shared globally for r-value collision checks
+  E2→E3: Derived addresses from found private keys go to OSINT
+  E2→E4: Derived addresses go to Peel Chain for fund-flow tracing
+  E2→pool: All rs_pairs and ECDSA sigs from Web Spider shared globally
+  E3→E2: Source URLs found by OSINT go back to Web Spider for crawling
+  E3→E4: Derived addresses from found keys go to Peel Chain
+  E3→E1: Suspicious addresses from OSINT go to Block Scanner for tx mining
+  E4→E3: Hop outgoing addresses go to OSINT for investigation
+  E4→E1: Nonce-reuse addresses from hops go to Block Scanner
+  E4→pool: All hop r-values shared for cross-chain collision detection
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+8. AUTHORIZED USE POLICY
+
+QuantumAudit and the Signature Mining Engine are authorized for:
+• Security auditing of smart contracts you own or are hired to audit
+• Research on publicly disclosed vulnerable contracts (educational)
+• Bug bounty submissions on in-scope blockchain protocol contracts
+• Internal security review of your own wallets and private keys
+• Academic research on historical blockchain cryptographic weaknesses
+
+PROHIBITED:
+• Mining signatures from wallets you do not own or control
+• Attempting private key recovery from third-party addresses
+• Using derived keys to access, transfer, or interact with funds
+• Any unauthorized access to blockchain assets
+
+Violation of this policy constitutes unauthorized computer access
+under the CFAA and applicable international laws.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+INTERNAL DOCUMENT — DO NOT DISTRIBUTE
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+
+  // ── SECURITY HARDENING V2.1.0 ─────────────────────────────────────────────
+  {
+    id: "security-hardening-v21",
+    title: "Security Hardening Manual — v2.1.0",
+    subtitle: "Comprehensive Platform Security Audit & Patch Documentation",
+    version: "2.1",
+    pages: 18,
+    icon: Shield,
+    iconColor: "text-green-400",
+    tier: "both",
+    content: `ProxhqVPN: Security Hardening Manual v2.1.0
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+legal@alphauntechnologies.com | proxhqvpn.com
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+This document details all security vulnerabilities identified during
+the v2.1.0 audit, the remediation applied to each, and ongoing
+security architecture decisions relevant to administrators and
+security-conscious subscribers.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TABLE OF CONTENTS
+
+1. Executive Summary
+2. CVE-Equivalent Findings & Remediations (6 issues)
+3. Desktop App Certificate Pinning
+4. IP Auto-Ban System
+5. WAF Hardening — Double-Decode & New Patterns
+6. Security Architecture Overview
+7. Ongoing Security Commitments
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. EXECUTIVE SUMMARY
+
+ProxhqVPN v2.1.0 (released June 2026) is the result of a comprehensive
+internal security audit of all API routes, middleware, and client
+applications. Six vulnerabilities were identified — two CRITICAL,
+two HIGH, and two MEDIUM — and have been fully remediated.
+
+Severity Distribution:
+  CRITICAL: 2 findings (timing attack, SSL MitM)
+  HIGH:     2 findings (shell chain injection, SSRF redirect bypass)
+  HIGH:     1 finding  (missing brute-force protection → now IP auto-ban)
+  MEDIUM:   1 finding  (WAF URL-encoding bypass)
+
+All fixes are live in the web application. Desktop application
+users received the certificate pinning fix in v2.1.0 via auto-updater.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2. FINDINGS & REMEDIATIONS
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+FINDING 1 — CRITICAL: Timing Attack on Session Secret Comparison
+
+Summary:
+The internal API verified session authentication tokens using JavaScript
+string equality (===). String equality short-circuits on the first
+differing character, meaning the comparison time is proportional to
+how many characters of the secret are correct. An attacker making
+thousands of requests can statistically determine the secret character
+by character by measuring response time differences.
+
+Attack Vector:
+A timing oracle attack. The attacker submits tokens that share 0, 1, 2...
+N characters with the real secret, measuring response time for each.
+Modern CPU timing resolution and statistical averaging over hundreds of
+requests makes this exploitable even over the network.
+
+Remediation Applied:
+Replaced === with Node.js crypto.timingSafeEqual(). This function
+compares all bytes in constant time regardless of how many match,
+completely eliminating the timing side-channel. The comparison now
+takes the same amount of time whether 0 characters or all characters
+match.
+
+Code change (routes/index.ts):
+  BEFORE: if (token !== process.env.SESSION_SECRET) { ... }
+  AFTER:  const a = Buffer.from(token);
+          const b = Buffer.from(process.env.SESSION_SECRET || "");
+          if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) { ... }
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+FINDING 2 — CRITICAL: External PostgreSQL SSL Certificate Not Verified
+
+Summary:
+The SQL Interface allows connecting to external PostgreSQL databases.
+The connection pool was initialized with { ssl: { rejectUnauthorized: false } }
+which disables SSL certificate verification. This allows a man-in-the-middle
+attacker positioned between the ProxhqVPN server and the external database
+to intercept and read all database traffic, including sensitive queries,
+credentials in query parameters, and query results.
+
+Attack Vector:
+MITM attack on the network path between ProxhqVPN API server and the
+external PostgreSQL host. The attacker presents a self-signed certificate;
+rejectUnauthorized: false causes Node.js to accept it without validation.
+
+Remediation Applied:
+Changed default to rejectUnauthorized: true. An explicit opt-in flag
+(allowSelfSigned: true) in the connection request enables the old
+behavior for development/self-signed scenarios, with a visible warning
+in the UI that certificate verification is disabled.
+
+For subscribers: If your external PostgreSQL uses a self-signed cert,
+enable "Allow Self-Signed Certificate" in the SQL Interface connection
+dialog — but be aware this disables MITM protection for that connection.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+FINDING 3 — HIGH: Shell Chain Injection via Metacharacters
+
+Summary:
+The Remote Terminal's restricted mode enforces a command allowlist
+(curl, wget, nmap, dig, nslookup, ping, traceroute, etc.). However,
+it was possible to chain arbitrary commands by appending metacharacters
+after an allowlisted command. For example:
+  curl https://example.com ; rm -rf /tmp/data
+The allowlist matched "curl" and permitted the entire input string,
+including the shell chain operator ; and the destructive second command.
+
+Attack Vector:
+Any user with Terminal access could execute arbitrary OS commands
+by appending ; cmd, && cmd, || cmd, \`cmd\`, $(cmd), or $((cmd))
+to any allowlisted base command.
+
+Blocked Patterns (SHELL_CHAIN_BLOCKED — 14 patterns):
+  ;    &&    ||    |    \`    $(    $((    \n    \r
+  >    >>    <    2>    &
+
+Remediation Applied:
+All 14 shell chain injection metacharacters are now blocked in restricted
+mode BEFORE the allowlist is checked. Ghost Mode (ProxhqVPN Mode toggle)
+bypasses the allowlist but still enforces the HARD_BLOCKED list (rm -rf /,
+DROP TABLE, etc.) and logs every command to the audit trail.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+FINDING 4 — HIGH: SSRF Redirect Chain Bypass
+
+Summary:
+The HTTP Client (Terminal → HTTP CLIENT tab) validated the initial
+request URL against the SSRF guard (blocking 169.254.169.254,
+10.x.x.x, 192.168.x.x, etc.). However, it followed HTTP redirects
+(301/302/307/308) without re-validating each redirect destination.
+An attacker could use a publicly-accessible URL that redirected to
+an internal metadata endpoint (AWS EC2 metadata: 169.254.169.254/latest/).
+
+Attack Vector:
+  1. Set up a public URL: https://attacker.example.com/redirect
+  2. Configure it to 302 redirect to http://169.254.169.254/latest/meta-data/
+  3. Submit the public URL to the HTTP Client — initial check passes.
+  4. ProxhqVPN follows the redirect, reads the cloud metadata response,
+     and returns it to the attacker.
+
+Remediation Applied:
+The HTTP client now manually handles redirects (following up to 5 hops).
+Before following each redirect, the destination URL is re-validated
+against the SSRF guard. If any hop in the redirect chain targets a
+blocked address, the request is aborted with a 403 SSRF_BLOCKED error.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+FINDING 5 — HIGH: No Brute-Force Protection on API Endpoints
+
+Summary:
+No rate limiting existed beyond the global 300 requests/minute limiter,
+and no IP-level ban mechanism existed for repeated authentication failures.
+An attacker could attempt to brute-force session tokens, API endpoints
+requiring auth, or any other credential check at sustained high rates.
+
+Remediation Applied — IP Auto-Ban System:
+A new middleware layer tracks authentication failures per IP address.
+  • Threshold: 20 failed requests within a 5-minute sliding window
+  • Ban duration: 30 minutes automatic block
+  • Ban storage: In-memory Map (cleared on restart) with timestamp
+  • Logging: Every ban recorded with timestamp and IP
+  • Client response: HTTP 429 with "Rate limit exceeded. Try again later."
+
+The ban applies to all /api/* routes and is checked BEFORE all other
+middleware. Banned IPs cannot access any API endpoint until the ban expires.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+FINDING 6 — MEDIUM: WAF URL Double-Encoding Bypass
+
+Summary:
+The Web Application Firewall checked raw URL strings for attack patterns
+(SQL injection: 'UNION SELECT', XSS: '<script>', path traversal: '../').
+An attacker could double-URL-encode a payload to bypass all detections.
+Example: ' → %27 → %2527. The WAF matched against the raw string
+(%2527) and found no known SQL injection pattern.
+
+Remediation Applied:
+The WAF now decodes the URL string twice before pattern matching:
+  Raw string → decodeURIComponent() → decodeURIComponent() → check
+
+5 additional patterns added:
+  • LFI file access: /etc/passwd, /proc/self, /windows/system32
+  • Dropper user-agents: curl|wget|python-requests|go-http-client
+  • Excessive parameter pollution: > 50 query parameters
+  • Base64-encoded attack patterns (common WAF bypass)
+  • PHP object injection: O:\d+:" pattern
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3. DESKTOP APP — TLS CERTIFICATE PINNING (v2.1.0)
+
+The Windows, macOS, and Linux Electron desktop app (v2.1.0) adds
+TLS certificate pinning for all API connections in production mode.
+
+What This Protects Against:
+• Corporate SSL inspection proxies (MITM by employer-issued root CAs)
+• Malware that installs rogue root certificates to intercept traffic
+• Compromised system certificate stores
+• Targeted MITM by network-level attackers
+
+How It Works:
+The Electron app intercepts the certificate-error event. In production
+mode, any TLS error — regardless of whether the system CA trusts the
+cert — causes the connection to be aborted. Only the ProxhqVPN production
+certificate chain is trusted.
+
+Dev mode retains normal browser certificate behavior to allow local HTTPS
+testing with self-signed certs.
+
+Desktop auto-updater: v2.1.0 is distributed via the built-in Electron
+auto-updater. Users see an update banner on launch. The update is
+signed and verified before installation.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4. IP AUTO-BAN SYSTEM — OPERATIONAL DETAILS
+
+The IP auto-ban system protects all API endpoints.
+
+Ban Trigger:
+  • 20 failed auth requests from same IP within 5 minutes
+  • "Failed" = any 401 or 403 response from requireAuth middleware
+  • Timer resets on successful authentication
+
+Ban Duration: 30 minutes from last failed request
+
+What Happens During a Ban:
+  • ALL /api/* requests from the banned IP return HTTP 429
+  • No data is returned — not even error details
+  • The ban IP + timestamp are logged server-side
+
+Admin Note:
+  • Bans are stored in-memory — a server restart clears all bans
+  • If a legitimate user is banned (e.g., after session expiry + retry loop),
+    they are automatically unblocked after 30 minutes
+  • For emergency unblock, restart the API server
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+5. WAF — FULL PATTERN LIST (POST v2.1.0)
+
+The WAF runs on every incoming request before routing.
+
+Existing Patterns (pre-v2.1.0):
+  SQL injection:     UNION SELECT, DROP TABLE, INSERT INTO, --
+  XSS:               <script, javascript:, onerror=, onclick=
+  Path traversal:    ../, ..\
+  Command injection: /bin/sh, /bin/bash, cmd.exe, eval(, exec(
+
+New Patterns (v2.1.0):
+  LFI/RFI:          /etc/passwd, /proc/self, /windows/system32
+  Dropper UA:        curl|wget|python-requests|go-http-client in User-Agent
+  Param pollution:   > 50 query parameters in one request
+  Base64 attacks:    Patterns matching common base64-encoded payloads
+  PHP injection:     O:\d+:" (PHP serialized object pattern)
+
+Double-decode bypass protection is now applied to all patterns.
+Both the original and double-decoded versions of every request URL
+are checked against all patterns.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+6. SECURITY ARCHITECTURE OVERVIEW
+
+Existing security layers (unchanged in v2.1.0):
+  • Helmet.js: CSP, HSTS, noSniff, XSS filter, frameguard
+  • CORS: strict allowlist (Replit domain regex + production domains)
+  • Rate limiting: global 300/min, terminal 20/min, SQL 30/min
+  • 64kb body size limit on all routes
+  • Clerk requireAuth on all /api/* routes (except /api/healthz)
+  • SELECT-only enforcement in local SQL mode
+  • External PostgreSQL connection pool: 10-connection cap
+  • Shell command allowlist + HARD_BLOCKED destructive patterns
+  • Zod input validation on all POST endpoints
+  • Warrant canary: /api/warrant-canary (public, signed, 30-day refresh)
+
+New in v2.1.0:
+  • crypto.timingSafeEqual() for all secret comparisons
+  • rejectUnauthorized: true as default for external DB SSL
+  • SHELL_CHAIN_BLOCKED (14 metacharacter patterns)
+  • SSRF re-validation on every redirect hop (max 5)
+  • IP auto-ban: 20 failures / 5 min → 30 min block
+  • WAF double-decode + 5 new patterns
+  • Electron certificate pinning (production builds)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+7. ONGOING SECURITY COMMITMENTS
+
+ProxhqVPN's security program includes:
+  • No-log policy: No user activity, DNS queries, connection timestamps,
+    or IP addresses are logged at the VPN layer.
+  • Warrant canary: Updated every 30 days. Public endpoint at
+    /api/warrant-canary returns a cryptographically signed statement
+    confirming: no NSLs, no FISC orders, no gag orders, no key
+    handovers, no backdoors.
+  • Responsible disclosure: security@proxhqvpn.com (PGP available).
+    PGP key available on request. We aim to respond within 48 hours
+    and patch critical findings within 7 days.
+  • Continuous audit: Security review is conducted before every major
+    release. All high and critical findings are patched before release.
+  • Dependency auditing: All npm packages are audited weekly. Critical
+    CVEs in direct dependencies are patched within 24 hours of disclosure.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+INTERNAL DOCUMENT — DO NOT DISTRIBUTE
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+
   // ── DEV SECURITY TOOLS V2 ─────────────────────────────────────────────────
   {
     id: "dev-security-tools-v2",
@@ -1666,11 +2297,25 @@ const CATEGORIES = [
     ids: ["omnistrike-manual", "waf-analyzer-manual", "social-breach-manual", "bug-bounty-hub-manual", "dev-security-tools-v2"],
   },
   {
-    label: "Intelligence & Monitoring",
+    label: "Blockchain Security",
     color: "text-cyan-400",
     border: "border-cyan-900",
     bg: "bg-cyan-950/20",
+    ids: ["quantum-audit-manual"],
+  },
+  {
+    label: "Intelligence & Monitoring",
+    color: "text-blue-400",
+    border: "border-blue-900",
+    bg: "bg-blue-950/20",
     ids: ["osint-recon-manual", "canary-tokens-manual", "siem-manual"],
+  },
+  {
+    label: "Platform Security",
+    color: "text-green-400",
+    border: "border-green-900",
+    bg: "bg-green-950/20",
+    ids: ["security-hardening-v21"],
   },
   {
     label: "Employee & Administration",

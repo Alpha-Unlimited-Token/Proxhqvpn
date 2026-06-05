@@ -73,6 +73,9 @@ const SECTIONS: Section[] = [
             { t: "Network Traffic Monitor", d: "Real-time flow table showing every connection through the tunnel — IPs, ports, bytes, country, threat flags, and PCAP export." },
             { t: "SilkWeb Honeypot Mesh", d: "Decoy network that lures, fingerprints, and blocks attackers in real time." },
             { t: "SIEM — Security Event Log", d: "Unified event log aggregating WireGuard events, honeypot hits, firewall blocks, auth failures, and DNS sinkhole blocks." },
+            { t: "Ghost Trace — Behavioral Analysis", d: "VPN-native agentless monitoring of every WireGuard peer. Detects C2 beaconing, data exfiltration, and malicious destinations — no agent needed on devices. Per-device anomaly scoring with Firewall quick-block integration. Command Center Pro." },
+            { t: "QuantumAudit", d: "Standalone blockchain security auditing platform. Scans smart contracts and DeFi protocols for reentrancy, oracle manipulation, flash loan attacks, and post-quantum cryptographic weaknesses (ECDSA nonce reuse, Shor's algorithm exposure). Includes a 5-engine Signature Mining suite." },
+            { t: "Security Hardening v2.1.0", d: "6 vulnerabilities patched: timing-safe secret comparison, SSL MitM prevention, shell-chain injection blocking, SSRF redirect re-validation, IP auto-ban (20 failures → 30-min block), WAF double-decode bypass protection. Desktop v2.1.0 adds TLS certificate pinning." },
             { t: "OSINT Recon Engine", d: "15+ passive intelligence sources (Shodan, Censys, AbuseIPDB, CT logs, HaveIBeenPwned) queried in parallel, all routed through the VPN." },
             { t: "Canary Tokens", d: "Invisible tripwires — HTTP URLs, DNS tokens, document beacons, AWS fake keys — that alert you the instant someone accesses them." },
             { t: "Ghost Chain Exploit Arsenal", d: "200+ categorized exploits (SQLi, XSS, RCE, SSRF, XXE, JWT, deserialization) with Details and PoC code tabs. Integrates with HTTP Probe and Intruder." },
@@ -1119,6 +1122,36 @@ Table: metadata      → Crawl session info, start time, depth`}</CB>
     ),
   },
   {
+    id: "ghost-trace", title: "Ghost Trace — Behavioral Analysis", icon: Eye,
+    content: (
+      <div className="space-y-3">
+        <p><strong>Ghost Trace</strong> (<code>/ghost-trace</code>) is ProxhqVPN's VPN-native agentless behavioral analysis engine. It monitors every WireGuard peer for anomalous outbound patterns — C2 beaconing, data exfiltration, cryptominer callbacks, and lateral movement — without installing anything on the device itself. Command Center Pro only.</p>
+        <h4 className="font-bold text-primary text-[11px]">How It Works</h4>
+        <p className="text-[10px] font-mono text-primary/83">Ghost Trace passively observes all outbound traffic flows from each registered WireGuard peer. It builds a behavioral baseline over the first 24 hours, then flags anything that deviates: unusual destination IPs, high-frequency small packets (beaconing pattern), data spikes to unusual countries, or traffic to known threat infrastructure.</p>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Detection Categories</h4>
+        <div className="space-y-2">
+          {[
+            { t: "C2 Beaconing", d: "Periodic small-packet traffic to a fixed IP at regular intervals (e.g. every 60s). Classic pattern of malware checking in with its command-and-control server." },
+            { t: "Data Exfiltration", d: "Sustained large outbound data transfers to IPs not on the device's normal traffic pattern. Flags when bytes-out >> bytes-in over 30+ minutes." },
+            { t: "Malicious Destination", d: "Any connection to an IP or domain on threat intelligence feeds (AbuseIPDB, Emerging Threats, Tor exit nodes, known botnet infrastructure)." },
+            { t: "Ghost Traffic", d: "Traffic originating from a peer that is not associated with any running application — consistent with rootkits or process-hidden malware." },
+            { t: "Anomaly Score", d: "Each peer gets a 0–100 anomaly score. Score > 70 triggers a high-priority alert. Score > 90 auto-populates the Firewall quick-block with the offending IP." },
+          ].map(({ t, d }) => (
+            <div key={t} className="border border-primary/10 rounded px-3 py-2">
+              <div className="text-[10px] font-mono font-bold text-primary">{t}</div>
+              <div className="text-[9px] font-mono text-primary/83 mt-0.5">{d}</div>
+            </div>
+          ))}
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Per-Device Timeline Heatmap</h4>
+        <p className="text-[10px] font-mono text-primary/83">Each peer gets a 24-hour traffic timeline heatmap showing hourly activity intensity. Gaps in activity followed by sudden spikes are a common indicator of scheduled malware activity (e.g. nightly exfiltration jobs).</p>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Quick-Block Integration</h4>
+        <p className="text-[10px] font-mono text-primary/83">Click <strong>Block IP</strong> on any Ghost Trace observation to push the offending IP directly to your Firewall blocklist across all nodes. The peer is still connected to your VPN — only the suspicious destination is blocked.</p>
+        <Note type="info">Ghost Trace builds its baseline from the first 24 hours of traffic per peer. New devices added to your WireGuard network will not show alerts for the first 24 hours while the baseline is being established.</Note>
+      </div>
+    ),
+  },
+  {
     id: "canary", title: "Canary Tokens", icon: Bell,
     content: (
       <div className="space-y-3">
@@ -1620,6 +1653,36 @@ Table: metadata      → Crawl session info, start time, depth`}</CB>
           <div>• <strong>Ambassador Promo Code</strong> — enter at checkout for a 10% discount and to support your chosen ambassador</div>
         </div>
         <Note type="info">ProxhqVPN never stores your payment card details. All payment data is handled exclusively by Stripe's PCI-DSS Level 1 certified systems.</Note>
+      </div>
+    ),
+  },
+  {
+    id: "security-hardening", title: "Platform Security — v2.1.0 Hardening", icon: ShieldAlert,
+    content: (
+      <div className="space-y-3">
+        <p>ProxhqVPN v2.1.0 is the platform's most security-focused release to date. Following a comprehensive third-party security audit, six vulnerabilities were patched and three new security layers were added. This section documents what changed and what it means for your protection.</p>
+        <h4 className="font-bold text-primary text-[11px]">Vulnerabilities Patched (v2.1.0)</h4>
+        <div className="space-y-2">
+          {[
+            { sev: "CRITICAL", t: "Timing Attack on Session Secret Fixed", d: "The internal API authentication compared secrets using === (string equality), which leaks secret length via response timing. Now uses crypto.timingSafeEqual() — constant-time comparison that reveals no information about the secret regardless of response timing." },
+            { sev: "CRITICAL", t: "External DB SSL MitM Vulnerability Fixed", d: "External PostgreSQL connections in the SQL Interface previously had rejectUnauthorized: false — allowing a man-in-the-middle to intercept your database traffic with a forged certificate. Now defaults to true (verified certificates only)." },
+            { sev: "CRITICAL", t: "Shell Chain Injection Blocked in Terminal", d: "Allowlisted terminal commands (like curl) could be chained with ; && || backticks $() to execute arbitrary commands — even in restricted mode. A 14-pattern SHELL_CHAIN_BLOCKED regex set now catches all injection metacharacters in non-Ghost-Mode sessions." },
+            { sev: "HIGH", t: "SSRF Redirect Chain Bypass Fixed", d: "The HTTP Client in the terminal validated the initial URL against the SSRF guard, but followed redirects without re-checking each hop. An open redirect to 169.254.169.254 (cloud metadata) would bypass the guard. Now validates every redirect hop individually (max 5 hops)." },
+            { sev: "HIGH", t: "IP Auto-Ban System Added", d: "No brute-force protection existed for repeated authentication failures. Now: 20 failed requests from a single IP within 5 minutes triggers a 30-minute automatic block. All bans are logged with timestamp and IP." },
+            { sev: "MEDIUM", t: "WAF URL-Encoding Bypass Patched", d: "The WAF only checked raw URL strings. Double-encoded payloads like %2527 (double-encoded ') bypassed all SQL injection detection. The WAF now decodes URLs twice and checks all decoded variants. 5 new attack patterns added including LFI file paths and dropper patterns." },
+          ].map(({ sev, t, d }) => (
+            <div key={t} className="border border-primary/10 rounded px-3 py-2">
+              <div className="flex items-center gap-2 mb-0.5">
+                <span className={`text-[8px] font-mono font-bold px-1.5 py-0.5 rounded ${sev === "CRITICAL" ? "bg-red-900/40 text-red-400" : sev === "HIGH" ? "bg-orange-900/40 text-orange-400" : "bg-yellow-900/40 text-yellow-400"}`}>{sev}</span>
+                <div className="text-[10px] font-mono font-bold text-primary">{t}</div>
+              </div>
+              <div className="text-[9px] font-mono text-primary/83 mt-0.5">{d}</div>
+            </div>
+          ))}
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Desktop App — v2.1.0 Certificate Pinning</h4>
+        <p className="text-[10px] font-mono text-primary/83">The Windows, macOS, and Linux desktop apps (v2.1.0) now enforce <strong>certificate pinning</strong> in production mode. All TLS errors are blocked — even if a system root CA has been compromised by corporate proxy software or malware. Dev mode retains normal behavior for testing. The desktop app will automatically update to v2.1.0 via the built-in auto-updater — look for the update banner in the app header.</p>
+        <Note type="info">All v2.1.0 security fixes apply to every ProxhqVPN plan — VPN Basic and Command Center Pro alike. No action required from users. Web app users are already protected. Desktop users will receive the update automatically.</Note>
       </div>
     ),
   },
