@@ -8,7 +8,7 @@ import {
   ghostTrapProbesTable, ghostTrapConfigTable, ghostTrapBeaconsTable,
   blockedIpsTable, trappedAttackersTable, silkWebTable,
 } from "@workspace/db";
-import { eq, desc, sql, inArray } from "drizzle-orm";
+import { eq, desc, sql, inArray, and, isNull } from "drizzle-orm";
 import crypto from "crypto";
 import dns from "dns/promises";
 
@@ -84,10 +84,14 @@ function parseHopChain(req: Request): string[] {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const tarpit = (ms: number) => new Promise(r => setTimeout(r, ms));
 
-async function getConfig() {
-  const rows = await db.select().from(ghostTrapConfigTable).limit(1);
+async function getConfig(userId: string) {
+  const rows = await db.select().from(ghostTrapConfigTable)
+    .where(eq(ghostTrapConfigTable.userId, userId)).limit(1);
   if (rows.length) return rows[0];
-  const [cfg] = await db.insert(ghostTrapConfigTable).values({}).returning();
+  const token = crypto.randomBytes(24).toString("hex");
+  const [cfg] = await db.insert(ghostTrapConfigTable)
+    .values({ userId, userToken: token })
+    .returning();
   return cfg;
 }
 
@@ -268,8 +272,8 @@ function buildFakeResponse(
 }
 
 // ─── Main probe handler ───────────────────────────────────────────────────────
-async function handleProbe(req: Request, res: Response, endpointName: string) {
-  const cfg = await getConfig();
+async function handleProbe(req: Request, res: Response, endpointName: string, userId?: string) {
+  const cfg = await getConfig(userId ?? "platform");
   if (!cfg.enabled) { res.status(503).end(); return; }
 
   const ip         = getIp(req);
@@ -309,6 +313,7 @@ async function handleProbe(req: Request, res: Response, endpointName: string) {
     hopChain: hopChain.length > 1 ? JSON.stringify(hopChain) : null,
     referer:      (req.headers.referer ?? "").substring(0, 512),
     probeHeaders: JSON.stringify(req.headers).substring(0, 1024),
+    userId:       userId ?? null,
   }).catch(() => {});
 
   // Async geo enrichment + VPN/Tor detection
@@ -317,7 +322,10 @@ async function handleProbe(req: Request, res: Response, endpointName: string) {
   const [ipCount] = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(ghostTrapProbesTable)
-    .where(eq(ghostTrapProbesTable.attackerIp, ip));
+    .where(and(
+      eq(ghostTrapProbesTable.attackerIp, ip),
+      userId ? eq(ghostTrapProbesTable.userId, userId) : isNull(ghostTrapProbesTable.userId),
+    ));
   const count = ipCount?.count ?? 1;
 
   if (count >= cfg.autoBlockAfter) {
@@ -378,10 +386,16 @@ router.get("/beacon/:beaconId", async (req, res) => {
   const { beaconId } = req.params;
   const firedFromIp  = getIp(req);
   const firedUa      = (req.headers["user-agent"] ?? "").substring(0, 512);
+  // Look up the userId from the originating probe so we can attribute the beacon correctly
+  const probeRows = await db.select({ userId: ghostTrapProbesTable.userId })
+    .from(ghostTrapProbesTable)
+    .where(eq(ghostTrapProbesTable.beaconId, String(beaconId))).limit(1).catch(() => []);
+  const beaconUserId = probeRows[0]?.userId ?? null;
   await db.insert(ghostTrapBeaconsTable).values({
-    beaconId, probeId: beaconId,
+    beaconId: String(beaconId), probeId: String(beaconId),
     attackerIp: firedFromIp, firedFromIp,
     firedUa, firedHeaders: JSON.stringify(req.headers).substring(0, 1024),
+    userId: beaconUserId,
   }).catch(() => {});
   await db.update(ghostTrapProbesTable)
     .set({ beaconFired: true, beaconFiredAt: new Date() })
@@ -425,13 +439,30 @@ router.post("/beacon/:beaconId/cb", async (req, res) => {
   res.json({ ok: true });
 });
 
+// ─── Per-user lure endpoints (PUBLIC — attributed via userToken in URL) ────────
+// Each VPN user gets a unique URL like /api/ghost-trap/u/:token/lure/login
+// Anyone hitting that URL is recorded as a probe against that specific user's account.
+// Users share these URLs in honeypot files, fake configs, decoy pages, etc.
+router.all("/u/:userToken/lure/{*path}", async (req, res) => {
+  const userToken = String(req.params.userToken);
+  const cfgRows = await db.select({ userId: ghostTrapConfigTable.userId })
+    .from(ghostTrapConfigTable)
+    .where(eq(ghostTrapConfigTable.userToken, userToken)).limit(1);
+  if (!cfgRows.length) { res.status(404).end(); return; }
+  const userId = cfgRows[0]!.userId;
+  await handleProbe(req, res, req.path, userId);
+});
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // AUTH-PROTECTED DASHBOARD ENDPOINTS
 // ═══════════════════════════════════════════════════════════════════════════════
 
 router.get("/probes", async (req, res) => {
+  const userId = ((req as any).auth)?.userId as string | undefined;
+  if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
   const limit  = Math.min(Number(req.query.limit) || 200, 500);
   const probes = await db.select().from(ghostTrapProbesTable)
+    .where(eq(ghostTrapProbesTable.userId, userId))
     .orderBy(desc(ghostTrapProbesTable.probedAt)).limit(limit);
   const [stats] = await db.select({
     total:       sql<number>`count(*)::int`,
@@ -444,16 +475,21 @@ router.get("/probes", async (req, res) => {
     beaconFires: sql<number>`count(*) filter (where beacon_fired = true)::int`,
     avgTarpit:   sql<number>`avg(tarpit_ms)::int`,
     vpnCount:    sql<number>`count(*) filter (where vpn_detected = true)::int`,
-  }).from(ghostTrapProbesTable);
+  }).from(ghostTrapProbesTable)
+    .where(eq(ghostTrapProbesTable.userId, userId));
   res.json({ probes, stats });
 });
 
-router.get("/config", async (_req, res) => {
-  res.json(await getConfig());
+router.get("/config", async (req, res) => {
+  const userId = ((req as any).auth)?.userId as string | undefined;
+  if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+  res.json(await getConfig(userId));
 });
 
 router.post("/config", async (req, res) => {
-  const cfg = await getConfig();
+  const userId = ((req as any).auth)?.userId as string | undefined;
+  if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const cfg = await getConfig(userId);
   const {
     enabled, tarpitMinMs, tarpitMaxMs, autoBlockAfter, silkTrapAfter,
     fakeSiteName, fakeDbVersion,
@@ -471,9 +507,11 @@ router.post("/config", async (req, res) => {
   res.json(updated);
 });
 
-router.delete("/probes", async (_req, res) => {
-  await db.delete(ghostTrapProbesTable);
-  await db.delete(ghostTrapBeaconsTable);
+router.delete("/probes", async (req, res) => {
+  const userId = ((req as any).auth)?.userId as string | undefined;
+  if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+  await db.delete(ghostTrapProbesTable).where(eq(ghostTrapProbesTable.userId, userId));
+  await db.delete(ghostTrapBeaconsTable).where(eq(ghostTrapBeaconsTable.userId, userId));
   res.json({ ok: true });
 });
 
@@ -496,6 +534,8 @@ router.get("/whois/:ip", async (req, res) => {
 // attempt reverse DNS, detect VPN providers, and estimate real origin.
 router.get("/backtrace/:ip", async (req, res) => {
   const { ip } = req.params;
+  const userId = ((req as any).auth)?.userId as string | undefined;
+  if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
 
   // Gather all stored probes for this attacker to extract any XFF header chains
   const probes = await db.select({
@@ -509,7 +549,10 @@ router.get("/backtrace/:ip", async (req, res) => {
     geoCity:      ghostTrapProbesTable.geoCity,
     geoAsn:       ghostTrapProbesTable.geoAsn,
   }).from(ghostTrapProbesTable)
-    .where(eq(ghostTrapProbesTable.attackerIp, ip))
+    .where(and(
+      eq(ghostTrapProbesTable.attackerIp, String(ip)),
+      eq(ghostTrapProbesTable.userId, userId),
+    ))
     .orderBy(desc(ghostTrapProbesTable.probedAt))
     .limit(50);
 
@@ -703,14 +746,22 @@ function buildTraceSummary(
 
 // ─── Authority Report ─────────────────────────────────────────────────────────
 router.get("/report/:ip", async (req, res) => {
-  const { ip }     = req.params;
-  const download   = req.query.download === "1";
+  const { ip }   = req.params;
+  const download = req.query.download === "1";
+  const userId   = ((req as any).auth)?.userId as string | undefined;
+  if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
 
   const probes = await db.select().from(ghostTrapProbesTable)
-    .where(eq(ghostTrapProbesTable.attackerIp, ip))
+    .where(and(
+      eq(ghostTrapProbesTable.attackerIp, String(ip)),
+      eq(ghostTrapProbesTable.userId, userId),
+    ))
     .orderBy(ghostTrapProbesTable.probedAt);
   const beacons = await db.select().from(ghostTrapBeaconsTable)
-    .where(eq(ghostTrapBeaconsTable.attackerIp, ip))
+    .where(and(
+      eq(ghostTrapBeaconsTable.attackerIp, String(ip)),
+      eq(ghostTrapBeaconsTable.userId, userId),
+    ))
     .orderBy(ghostTrapBeaconsTable.firedAt);
 
   if (!probes.length) return res.status(404).json({ error: "No probes found for this IP" });

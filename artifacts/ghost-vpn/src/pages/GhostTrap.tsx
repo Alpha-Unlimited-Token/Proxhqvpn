@@ -5,6 +5,7 @@ import {
   AlertTriangle, ChevronDown, ChevronUp, ToggleLeft, ToggleRight,
   Download, Radio, MapPin, Building2, Wifi, Shield, FileText,
   Network, ArrowRight, Server, Home, Layers, Search,
+  Copy, Check, Link2,
 } from "lucide-react";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -49,6 +50,7 @@ interface Stats {
 interface Config {
   id: number; enabled: boolean; tarpitMinMs: number; tarpitMaxMs: number;
   autoBlockAfter: number; silkTrapAfter: number; fakeSiteName: string; fakeDbVersion: string;
+  userToken: string | null;
 }
 
 interface HopNode {
@@ -228,7 +230,26 @@ export default function GhostTrap() {
     setWhoisCache({}); setBacktraceCache({}); await load(); setClearing(false);
   };
 
-  const lureBase = `${window.location.origin}${BASE}/api/ghost-trap/lure`;
+  const [copied, setCopied] = useState<string | null>(null);
+  const copyUrl = (url: string) => {
+    navigator.clipboard.writeText(url).catch(() => {});
+    setCopied(url);
+    setTimeout(() => setCopied(null), 2000);
+  };
+
+  const lureTokenBase = config?.userToken
+    ? `${window.location.origin}${BASE}/api/ghost-trap/u/${config.userToken}/lure`
+    : null;
+  const lureEndpoints = [
+    { ep: "/login",       label: "Login Page" },
+    { ep: "/admin",       label: "Admin Panel" },
+    { ep: "/wp-admin",    label: "WP Admin" },
+    { ep: "/.env",        label: ".env Config" },
+    { ep: "/config.php",  label: "config.php" },
+    { ep: "/api/users",   label: "User API" },
+    { ep: "/backup.sql",  label: "DB Backup" },
+    { ep: "/api/data",    label: "Data API" },
+  ];
   const uniqueIps = [...new Set(probes.map(p => p.attackerIp))];
 
   return (
@@ -267,19 +288,59 @@ export default function GhostTrap() {
         </div>
       </div>
 
-      {/* Lure endpoints */}
-      <div className="bg-[#0d1610] border border-primary/10 rounded-xl p-4">
-        <div className="text-xs font-semibold text-primary/60 uppercase tracking-widest mb-2">Active Honeypot Endpoints</div>
-        <div className="text-xs text-white/40 mb-3">
-          Publicly reachable. Attackers hitting these are tarpitted ({config?.tarpitMinMs ?? 1500}–{config?.tarpitMaxMs ?? 8000}ms delay), fed poisoned data with embedded beacons, port-logged, and auto-blocked after {config?.autoBlockAfter ?? 5} hits.
+      {/* Per-user honeypot lure URLs */}
+      <div className="bg-[#0d1610] border border-primary/20 rounded-xl p-4 space-y-3">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2">
+            <Link2 className="w-4 h-4 text-primary" />
+            <span className="text-sm font-semibold text-white">Your Personal Honeypot URLs</span>
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 border border-primary/20 text-primary/70 uppercase tracking-widest">Private to You</span>
+          </div>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
-          {["/login", "/admin", "/wp-admin", "/api/users", "/api/search", "/.env", "/config.php", "/backup.sql"].map(ep => (
-            <div key={ep} className="font-mono text-[10px] bg-black/40 rounded-lg px-3 py-1.5 text-primary/70 truncate">
-              {lureBase}{ep}
+        <p className="text-xs text-white/50 leading-relaxed">
+          These URLs are <span className="text-white/80 font-medium">unique to your account</span> — no other user sees the probes they generate.
+          Deploy them anywhere you want to catch attackers: paste them into fake <span className="font-mono text-primary/60">.env</span> files,
+          server configs, README files, or decoy web pages. When a hacker hits any of these URLs their
+          IP address, attack method, browser fingerprint, and full hop chain are logged here and you can
+          download a law-enforcement report instantly.
+        </p>
+
+        {!lureTokenBase ? (
+          <div className="text-xs text-white/30 italic">Loading your trap URLs…</div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+            {lureEndpoints.map(({ ep, label }) => {
+              const url = `${lureTokenBase}${ep}`;
+              const isCopied = copied === url;
+              return (
+                <button
+                  key={ep}
+                  onClick={() => copyUrl(url)}
+                  className="group flex items-center justify-between bg-black/40 hover:bg-black/60 border border-white/5 hover:border-primary/20 rounded-lg px-3 py-2 text-left transition-all"
+                >
+                  <div className="min-w-0">
+                    <div className="text-[10px] font-semibold text-white/60 mb-0.5">{label}</div>
+                    <div className="font-mono text-[9px] text-primary/50 truncate">/lure{ep}</div>
+                  </div>
+                  <div className={`ml-2 shrink-0 transition-colors ${isCopied ? "text-green-400" : "text-white/20 group-hover:text-white/50"}`}>
+                    {isCopied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {lureTokenBase && (
+          <div className="flex items-start gap-2 bg-orange-500/5 border border-orange-500/15 rounded-lg px-3 py-2">
+            <AlertTriangle className="w-3.5 h-3.5 text-orange-400/60 mt-0.5 shrink-0" />
+            <div className="text-[10px] text-orange-300/60 leading-relaxed">
+              <span className="font-semibold text-orange-300/80">Deploy tip:</span> Paste these URLs into fake <span className="font-mono">.env</span> files,
+              nginx configs, or decoy HTML pages on any public server. Attackers scanning for vulnerabilities will hit them automatically —
+              every hit gets logged here with full attacker intelligence. Tarpitted {config?.tarpitMinMs ?? 1500}–{config?.tarpitMaxMs ?? 8000}ms · auto-blocked after {config?.autoBlockAfter ?? 5} hits.
             </div>
-          ))}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Stats */}

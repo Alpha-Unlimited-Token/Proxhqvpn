@@ -4,8 +4,9 @@ import { pgTable, serial, text, integer, boolean, timestamp } from "drizzle-orm/
 export const ghostTrapProbesTable = pgTable("ghost_trap_probes", {
   id:            serial("id").primaryKey(),
   probeId:       text("probe_id").notNull().unique(),
+  userId:        text("user_id"),                          // null = platform probe; Clerk userId = user probe
   attackerIp:    text("attacker_ip").notNull(),
-  attackerPort:  integer("attacker_port"),          // source TCP port
+  attackerPort:  integer("attacker_port"),                 // source TCP port
   attackerUa:    text("attacker_ua"),
   method:        text("method").notNull(),
   endpoint:      text("endpoint").notNull(),
@@ -41,6 +42,7 @@ export const ghostTrapBeaconsTable = pgTable("ghost_trap_beacons", {
   id:          serial("id").primaryKey(),
   beaconId:    text("beacon_id").notNull().unique(),
   probeId:     text("probe_id").notNull(),
+  userId:      text("user_id"),                            // null = platform; Clerk userId = user
   attackerIp:  text("attacker_ip").notNull(),
   firedAt:     timestamp("fired_at").defaultNow().notNull(),
   firedFromIp: text("fired_from_ip"),
@@ -53,6 +55,8 @@ export const ghostTrapBeaconsTable = pgTable("ghost_trap_beacons", {
 
 export const ghostTrapConfigTable = pgTable("ghost_trap_config", {
   id:              serial("id").primaryKey(),
+  userId:          text("user_id").notNull().default("platform"), // "platform" or Clerk userId
+  userToken:       text("user_token").unique(),                   // secret hex token for per-user lure URLs
   enabled:         boolean("enabled").notNull().default(true),
   tarpitMinMs:     integer("tarpit_min_ms").notNull().default(1500),
   tarpitMaxMs:     integer("tarpit_max_ms").notNull().default(8000),

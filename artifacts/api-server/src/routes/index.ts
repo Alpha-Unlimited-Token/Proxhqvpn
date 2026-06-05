@@ -147,9 +147,16 @@ router.options("/redteam-scan/c2/ingest", (req, res, next) => {
   (redteamScanRouter as any).handle(req, res, next);
 });
 
-// Ghost Trap lure endpoints — public (attackers must be able to reach these)
+// Ghost Trap lure + beacon endpoints — public (attackers must reach these without auth)
+// /lure/* = platform honeypot endpoints
+// /u/:token/lure/* = per-user honeypot endpoints (attributed via userToken)
+// /beacon/* = tracking pixel / JS callback (fired by attacker browsers)
 router.use("/ghost-trap", (req, res, next) => {
-  if (req.path.startsWith("/lure")) return (ghostTrapRouter as any).handle(req, res, next);
+  if (
+    req.path.startsWith("/lure") ||
+    req.path.startsWith("/u/") ||
+    req.path.startsWith("/beacon/")
+  ) return (ghostTrapRouter as any).handle(req, res, next);
   next();
 });
 
