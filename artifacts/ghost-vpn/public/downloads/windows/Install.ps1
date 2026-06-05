@@ -1,10 +1,9 @@
-# ProxhqVPN Windows Installer v3
+# ProxhqVPN Windows Installer v4
 # © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
 # Requires: Windows 10/11, PowerShell 5+, internet connection
 # Run via: Launch-ProxhqVPN-Setup.vbs
 
-# ── FIX #2: Self-elevate to admin at startup ──────────────────────────────────
-# wireguard.exe /installtunnel and C:\ProgramData\WireGuard writes need admin.
+# ── Self-elevate to admin at startup ─────────────────────────────────────────
 if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     $args0 = '-ExecutionPolicy Bypass -WindowStyle Hidden -File "' + $MyInvocation.MyCommand.Path + '"'
     Start-Process powershell.exe -ArgumentList $args0 -Verb RunAs
@@ -38,12 +37,23 @@ $cFaint   = [Drawing.Color]::FromArgb(60,  90,  70)
 $cOrange  = [Drawing.Color]::FromArgb(255, 179, 71)
 $cRed     = [Drawing.Color]::FromArgb(255, 80,  80)
 $cBlack   = [Drawing.Color]::Black
+$cBlue    = [Drawing.Color]::FromArgb(30, 80, 160)
 
 # ── State ────────────────────────────────────────────────────────────────────
 $Script:TunnelMode   = "split"
+$Script:ServerRegion = "Los Angeles, US"
+$Script:ServerNodeId = "63"
 $Script:WgInstalled  = $false
 $Script:CfgInstalled = $false
-$Script:FinishBound  = $false   # FIX #4: prevent double-binding Next on done screen
+$Script:FinishBound  = $false
+
+# ── VPN Server Nodes ─────────────────────────────────────────────────────────
+$Script:Nodes = @(
+    @{ id="63"; flag="🇺🇸"; city="Los Angeles"; region="US-West";  country="United States"; ip="108.61.219.202"; latency="12ms";  tier="Premium" },
+    @{ id="61"; flag="🇺🇸"; city="Chicago";     region="US-East";  country="United States"; ip="45.63.79.138";   latency="18ms";  tier="Premium" },
+    @{ id="62"; flag="🇬🇧"; city="London";      region="EMEA";     country="United Kingdom"; ip="192.248.160.69"; latency="24ms";  tier="Premium" },
+    @{ id="64"; flag="🇯🇵"; city="Tokyo";       region="Asia-Pac"; country="Japan";          ip="45.76.97.51";    latency="38ms";  tier="Premium" }
+)
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 function F($sz, $bold=$false) {
@@ -91,7 +101,7 @@ function Btn($text, $x, $y, $w, $h, $primary=$false) {
 # MAIN FORM
 # ══════════════════════════════════════════════════════════════════════════════
 $form = New-Object Windows.Forms.Form
-$form.Text = "ProxhqVPN Setup"; $form.Size = New-Object Drawing.Size(640, 560)
+$form.Text = "ProxhqVPN Setup"; $form.Size = New-Object Drawing.Size(640, 580)
 $form.StartPosition = "CenterScreen"; $form.BackColor = $cBg
 $form.FormBorderStyle = "FixedDialog"; $form.MaximizeBox = $false; $form.MinimizeBox = $true
 $form.Icon = [Drawing.SystemIcons]::Shield
@@ -100,46 +110,47 @@ $form.Icon = [Drawing.SystemIcons]::Shield
 $hdrPnl = Pnl 0 0 640 72 $cBg2
 $hdrPnl.Controls.Add((Lbl "ProxhqVPN Setup" 20 10 400 34 (F 17 $true) $cGreen))
 $hdrPnl.Controls.Add((Lbl "ALPHA UNLIMITED TECHNOLOGIES LLC" 20 46 400 18 (F 8) $cGreenD))
+$hdrPnl.Controls.Add((Lbl "v4.0" 590 54 40 14 (F 7) $cFaint))
 $form.Controls.Add($hdrPnl)
 $form.Controls.Add((Pnl 0 72 640 1 $cFaint))
 
-# Step indicator
+# Step indicator — 7 steps
 $stepBar = Pnl 0 73 640 44 $cBg3
 $form.Controls.AddRange(@($stepBar, (Pnl 0 117 640 1 $cFaint)))
-$stepLabels = @("1  Welcome","2  License","3  Install","4  Sign In","5  Activate","6  Done")
-$stepEls = @(); $stepW = [int](620/$stepLabels.Count)
+$stepLabels = @("1  Welcome","2  License","3  Server","4  Install","5  Sign In","6  Activate","7  Done")
+$stepEls = @(); $stepW = [int](630/$stepLabels.Count)
 for ($i=0;$i -lt $stepLabels.Count;$i++) {
     $sl = New-Object Windows.Forms.Label
-    $sl.Text=$stepLabels[$i]; $sl.Left=10+$i*$stepW; $sl.Top=12; $sl.Width=$stepW-4; $sl.Height=20
-    $sl.TextAlign="MiddleCenter"; $sl.Font=F 8; $sl.ForeColor=$cFaint
+    $sl.Text=$stepLabels[$i]; $sl.Left=5+$i*$stepW; $sl.Top=12; $sl.Width=$stepW-2; $sl.Height=20
+    $sl.TextAlign="MiddleCenter"; $sl.Font=F 7.5; $sl.ForeColor=$cFaint
     $sl.BackColor=[Drawing.Color]::Transparent; $stepBar.Controls.Add($sl); $stepEls+=$sl
 }
 function SetStep($n) {
     for ($i=0;$i -lt $stepEls.Count;$i++) {
-        if ($i -lt $n)      { $stepEls[$i].ForeColor=$cGreenD; $stepEls[$i].Font=F 8 }
-        elseif ($i -eq $n)  { $stepEls[$i].ForeColor=$cGreen;  $stepEls[$i].Font=F 8 $true }
-        else                { $stepEls[$i].ForeColor=$cFaint;  $stepEls[$i].Font=F 8 }
+        if ($i -lt $n)      { $stepEls[$i].ForeColor=$cGreenD; $stepEls[$i].Font=F 7.5 }
+        elseif ($i -eq $n)  { $stepEls[$i].ForeColor=$cGreen;  $stepEls[$i].Font=F 7.5 $true }
+        else                { $stepEls[$i].ForeColor=$cFaint;  $stepEls[$i].Font=F 7.5 }
     }
     $form.Refresh()
 }
 
 # Nav buttons
-$btnBack   = Btn "< Back"   20 506  90 32 $false
-$btnNext   = Btn "Next >"  520 506 100 32 $true
-$btnCancel = Btn "Cancel"  415 506  95 32 $false
+$btnBack   = Btn "< Back"   20 526  90 32 $false
+$btnNext   = Btn "Next >"  520 526 100 32 $true
+$btnCancel = Btn "Cancel"  415 526  95 32 $false
 $form.Controls.AddRange(@($btnBack,$btnNext,$btnCancel))
 $btnBack.Visible = $false
 $btnCancel.Add_Click({ $form.Close() })
 
-# Page panels
-$pages=@(); for ($i=0;$i -lt 6;$i++) {
-    $p=Pnl 0 118 640 380; $p.Visible=($i -eq 0); $form.Controls.Add($p); $pages+=$p
+# Page panels — 7 pages
+$pages=@(); for ($i=0;$i -lt 7;$i++) {
+    $p=Pnl 0 118 640 400; $p.Visible=($i -eq 0); $form.Controls.Add($p); $pages+=$p
 }
 $Script:CurPage=0
 function ShowPage($n) {
     for ($i=0;$i -lt $pages.Count;$i++) { $pages[$i].Visible=($i -eq $n) }
     $Script:CurPage=$n; SetStep $n
-    $btnBack.Visible=($n -gt 0 -and $n -lt 5); $form.Refresh()
+    $btnBack.Visible=($n -gt 0 -and $n -lt 6); $form.Refresh()
 }
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -147,24 +158,30 @@ function ShowPage($n) {
 # ══════════════════════════════════════════════════════════════════════════════
 $pg=$pages[0]
 $pg.Controls.Add((Lbl "Welcome to ProxhqVPN" 30 18 520 32 (F 16 $true) $cWhite))
-$pg.Controls.Add((Lbl "Fully automatic setup — WireGuard installs silently, VPN activates without leaving this wizard." 30 52 570 22 (F 10) $cDim))
+$pg.Controls.Add((Lbl "Fully automatic setup — WireGuard installs silently, choose your server, VPN activates without leaving this wizard." 30 52 570 36 (F 10) $cDim))
 $feats=@(
     @("⚡","WireGuard downloaded from wireguard.com and installed silently — no prompts"),
-    @("🛡","Choose Split Tunnel or Full Tunnel mode on the next screen"),
+    @("🌍","Pick your VPN server: US West, US East, UK (London), or Japan (Tokyo)"),
+    @("🛡","Choose Split Tunnel or Full Tunnel mode"),
     @("🌐","Sign in at ProxhqVPN — wizard detects your downloaded config automatically"),
     @("🔒","Tunnel activates via wireguard.exe /installtunnel — VPN is live, no manual steps"),
-    @("👁","Per-app network monitor watches new app connections"),
     @("🧹","Zero-logs policy — traffic never stored or monitored")
 )
-$fy=88; foreach ($f in $feats) {
+$fy=96; foreach ($f in $feats) {
     $pg.Controls.Add((Lbl $f[0] 30 $fy 28 26 (F 13) $cGreen))
     $pg.Controls.Add((Lbl $f[1] 62 $fy 540 26 (F 10) $cDim))
-    $fy+=32
+    $fy+=30
 }
 
 $btnNext.Add_Click({
-    if ($Script:CurPage -eq 0) { ShowPage 1; $btnNext.Text="Install >"; return }
-    if ($Script:CurPage -eq 1) { StartInstall; return }
+    if ($Script:CurPage -eq 0) { ShowPage 1; $btnNext.Text="Next >"; return }
+    if ($Script:CurPage -eq 1) {
+        if (-not $chkLic.Checked) {
+            [Windows.Forms.MessageBox]::Show("Please accept the license agreement to continue.","ProxhqVPN","OK","Warning")|Out-Null; return
+        }
+        ShowPage 2; $btnNext.Text="Next >"; return
+    }
+    if ($Script:CurPage -eq 2) { ShowPage 1; StartInstall; return }
 })
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -174,7 +191,7 @@ $pg=$pages[1]
 $pg.Controls.Add((Lbl "License Agreement & VPN Tunnel Mode" 30 14 570 28 (F 14 $true) $cWhite))
 $pg.Controls.Add((Lbl "Accept the license, then choose how your tunnel routes traffic." 30 44 570 20 (F 10) $cDim))
 
-$licBox=RBox 30 68 572 108
+$licBox=RBox 30 68 572 100
 $licBox.Text=@"
 PROXHQVPN END USER LICENSE AGREEMENT — Copyright (c) 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
 
@@ -187,23 +204,23 @@ WireGuard(R) is a registered trademark of Jason A. Donenfeld.
 "@
 $pg.Controls.Add($licBox)
 
-$chk=New-Object Windows.Forms.CheckBox
-$chk.Left=30;$chk.Top=182;$chk.Width=570;$chk.Height=22
-$chk.Text="I accept the license agreement and consent to WireGuard installation"
-$chk.ForeColor=$cWhite;$chk.Font=F 10;$chk.BackColor=[Drawing.Color]::Transparent
-$pg.Controls.Add($chk)
-$pg.Controls.Add((Lbl "VPN TUNNEL MODE" 30 216 300 16 (F 8 $true) $cGreenD))
+$chkLic=New-Object Windows.Forms.CheckBox
+$chkLic.Left=30;$chkLic.Top=174;$chkLic.Width=570;$chkLic.Height=22
+$chkLic.Text="I accept the license agreement and consent to WireGuard installation"
+$chkLic.ForeColor=$cWhite;$chkLic.Font=F 10;$chkLic.BackColor=[Drawing.Color]::Transparent
+$pg.Controls.Add($chkLic)
+$pg.Controls.Add((Lbl "VPN TUNNEL MODE" 30 208 300 16 (F 8 $true) $cGreenD))
 
-function MakeCard($x,$title,$desc,$tag,$tagClr,$isDefault) {
-    $c=Pnl $x 234 272 118 $cBg3; $c.Cursor=[Windows.Forms.Cursors]::Hand
+function MakeTunnelCard($x,$title,$desc,$tag,$tagClr,$isDefault) {
+    $c=Pnl $x 226 272 118 $cBg3; $c.Cursor=[Windows.Forms.Cursors]::Hand
     if ($isDefault) { $c.BackColor=[Drawing.Color]::FromArgb(5,35,18) }
     $tl=Lbl $title 10 10 252 20 (F 10 $true) (if($isDefault){$cGreen}else{$cOrange}); $c.Controls.Add($tl)
     $ds=Lbl $desc  10 34 252 46 (F 8.5) $cDim;        $c.Controls.Add($ds)
     $tg=Lbl $tag   10 86 200 18 (F 8) $tagClr;         $c.Controls.Add($tg)
     return $c
 }
-$cardSplit=MakeCard 30  "⚡ Split Tunnel  ★ Recommended" "Only ProxhqVPN traffic tunnels. All apps and streaming work normally." "✓ Apps unaffected" $cGreenD $true
-$cardFull =MakeCard 336 "🔒 Full Tunnel"                 "All internet traffic routes through ProxhqVPN. Maximum privacy."      "⚠ May slow some apps" $cOrange $false
+$cardSplit=MakeTunnelCard 30  "⚡ Split Tunnel  ★ Recommended" "Only ProxhqVPN traffic tunnels. All apps and streaming work normally." "✓ Apps unaffected" $cGreenD $true
+$cardFull =MakeTunnelCard 336 "🔒 Full Tunnel"                 "All internet traffic routes through ProxhqVPN. Maximum privacy."      "⚠ May slow some apps" $cOrange $false
 $pg.Controls.AddRange(@($cardSplit,$cardFull))
 
 function SelTunnel($m) {
@@ -215,14 +232,78 @@ function SelTunnel($m) {
 $cardSplit.Add_Click({SelTunnel "split"}); foreach($c in $cardSplit.Controls){$c.Add_Click({SelTunnel "split"})}
 $cardFull.Add_Click({SelTunnel "full"});  foreach($c in $cardFull.Controls) {$c.Add_Click({SelTunnel "full"})}
 SelTunnel "split"
-$chk.Add_CheckedChanged({ $btnNext.Enabled=$chk.Checked })
-$btnNext.Enabled=$false
-$btnBack.Add_Click({ if($Script:CurPage -eq 1){ShowPage 0;$btnNext.Text="Next >";$btnNext.Enabled=$true} })
+$btnBack.Add_Click({
+    if($Script:CurPage -eq 1){ShowPage 0;$btnNext.Text="Next >"}
+    elseif($Script:CurPage -eq 2){ShowPage 1;$btnNext.Text="Next >"}
+})
 
 # ══════════════════════════════════════════════════════════════════════════════
-# PAGE 2 — WIREGUARD INSTALL (non-blocking)
+# PAGE 2 — SERVER SELECTION
 # ══════════════════════════════════════════════════════════════════════════════
 $pg=$pages[2]
+$pg.Controls.Add((Lbl "Select VPN Server" 30 14 570 28 (F 14 $true) $cWhite))
+$pg.Controls.Add((Lbl "Choose the ProxhqVPN server your device will connect to. You can switch servers anytime from the dashboard." 30 44 570 36 (F 10) $cDim))
+
+$Script:SelNodeId = "63"
+$Script:ServerCards = @{}
+
+function MakeServerCard($node, $row, $col) {
+    $x = 30 + $col * 300
+    $y = 90 + $row * 130
+    $c = Pnl $x $y 282 118 $cBg3
+    $c.Cursor = [Windows.Forms.Cursors]::Hand
+    $c.BorderStyle = "FixedSingle"
+
+    $flagLbl  = Lbl $node.flag  10 10  36 32 (F 18) $cWhite;                  $c.Controls.Add($flagLbl)
+    $cityLbl  = Lbl $node.city  52 10 218 20 (F 11 $true) $cWhite;            $c.Controls.Add($cityLbl)
+    $cntryLbl = Lbl $node.country 52 32 218 16 (F 8) $cDim;                   $c.Controls.Add($cntryLbl)
+    $regLbl   = Lbl $node.region  10 60 140 16 (F 8) $cGreenD;                $c.Controls.Add($regLbl)
+    $latLbl   = Lbl ("~"+$node.latency) 156 60 110 16 (F 8) $cDim;            $c.Controls.Add($latLbl)
+    $ipLbl    = Lbl $node.ip   10 80  260 16 (F 7.5) $cFaint;                 $c.Controls.Add($ipLbl)
+    $tierLbl  = Lbl $node.tier 186 80  88 16 (F 7.5) $cGreenD;                $c.Controls.Add($tierLbl)
+
+    $Script:ServerCards[$node.id] = $c
+
+    $nodeId = $node.id
+    $clickFn = [scriptblock]::Create("SelectServer '$nodeId'")
+    $c.Add_Click($clickFn)
+    foreach ($child in $c.Controls) { $child.Add_Click($clickFn) }
+    return $c
+}
+
+function SelectServer($id) {
+    $Script:SelNodeId = $id
+    $node = $Script:Nodes | Where-Object { $_.id -eq $id } | Select-Object -First 1
+    $Script:ServerRegion = "$($node.city), $($node.country)"
+    $Script:ServerNodeId = $id
+    foreach ($key in $Script:ServerCards.Keys) {
+        $card = $Script:ServerCards[$key]
+        if ($key -eq $id) {
+            $card.BackColor = [Drawing.Color]::FromArgb(5, 40, 20)
+            $card.FlatStyle = [Windows.Forms.FlatStyle]::Flat
+        } else {
+            $card.BackColor = $cBg3
+        }
+    }
+    $srvSelectedLbl.Text = "Selected: $($node.flag)  $($node.city), $($node.country)"
+    $form.Refresh()
+}
+
+$row=0; $col=0
+foreach ($node in $Script:Nodes) {
+    $card = MakeServerCard $node $row $col
+    $pg.Controls.Add($card)
+    $col++; if ($col -ge 2) { $col=0; $row++ }
+}
+
+$srvSelectedLbl = Lbl "Selected: 🇺🇸  Los Angeles, United States" 30 356 572 22 (F 9 $true) $cGreen
+$pg.Controls.Add($srvSelectedLbl)
+SelectServer "63"
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PAGE 3 — WIREGUARD INSTALL (non-blocking)
+# ══════════════════════════════════════════════════════════════════════════════
+$pg=$pages[3]
 $p2hdr  = Lbl "Installing WireGuard" 30 14 520 28 (F 14 $true) $cWhite
 $p2sub  = Lbl "Downloading and installing silently — takes about 30 seconds." 30 44 570 20 (F 10) $cDim
 $p2prog = PBar 30 74 572
@@ -234,13 +315,13 @@ $p2errL = Lbl "" 10 10 552 28 (F 9) $cRed; $p2err.Controls.Add($p2errL); $p2err.
 
 function MkBadge($txt,$x) {
     $b=New-Object Windows.Forms.Label
-    $b.Text=$txt;$b.Left=$x;$b.Top=328;$b.Width=178;$b.Height=24
-    $b.TextAlign="MiddleCenter";$b.Font=F 9;$b.ForeColor=$cFaint;$b.BackColor=$cBg3
+    $b.Text=$txt;$b.Left=$x;$b.Top=328;$b.Width=168;$b.Height=24
+    $b.TextAlign="MiddleCenter";$b.Font=F 8.5;$b.ForeColor=$cFaint;$b.BackColor=$cBg3
     return $b
 }
 $ph1=MkBadge "① WireGuard"  30
-$ph2=MkBadge "② Sign In"    216
-$ph3=MkBadge "③ Activate"   402
+$ph2=MkBadge "② Sign In"    210
+$ph3=MkBadge "③ Activate"   390
 $pg.Controls.AddRange(@($p2hdr,$p2sub,$p2prog,$p2step,$p2log,$p2err,$ph1,$ph2,$ph3))
 
 function SetPhase($which) {
@@ -251,77 +332,82 @@ function L2($m){ $p2log.AppendText("> $m`n");$p2log.ScrollToCaret();$form.Refres
 function P2($m,$pct){ $p2step.Text=$m;$p2prog.Value=[Math]::Min([int]$pct,100);$form.Refresh() }
 
 # ══════════════════════════════════════════════════════════════════════════════
-# PAGE 3 — SIGN IN (open default browser; wizard watches Downloads for .conf)
-# FIX #3: removed IE/Trident WebBrowser — Clerk React won't render in IE engine
+# PAGE 4 — SIGN IN (open default browser; wizard watches Downloads for .conf)
 # ══════════════════════════════════════════════════════════════════════════════
-$pg=$pages[3]
+$pg=$pages[4]
 $pg.Controls.Add((Lbl "Sign In & Download Your Config" 30 14 560 28 (F 14 $true) $cWhite))
-$pg.Controls.Add((Lbl "Your default browser has opened. Follow these 3 steps:" 30 46 560 20 (F 10) $cDim))
 
-$steps3=@(
+$p4serverBadge = Pnl 30 48 572 28 ([Drawing.Color]::FromArgb(5,35,18))
+$p4serverLbl   = Lbl "Server: loading..." 12 5 548 18 (F 9 $true) $cGreen
+$p4serverBadge.Controls.Add($p4serverLbl)
+$pg.Controls.Add($p4serverBadge)
+
+$pg.Controls.Add((Lbl "Your default browser has opened. Follow these 3 steps:" 30 84 560 20 (F 10) $cDim))
+
+$steps4=@(
     "1.  Sign in to your ProxhqVPN account in the browser window that opened.",
-    "2.  Go to  WireGuard Config  →  click  Generate Config.",
-    "3.  Click  Download  — the wizard detects the file and activates your tunnel."
+    "2.  Go to  WireGuard Config  —  your server is pre-selected.",
+    "3.  Click  Generate Config  then  Download  — wizard activates your tunnel."
 )
-$sy=74
-foreach ($s in $steps3) {
+$sy=108
+foreach ($s in $steps4) {
     $pg.Controls.Add((Lbl $s 30 $sy 570 24 (F 10 $true) $cGreen))
-    $sy+=30
+    $sy+=28
 }
 
-$pg.Controls.Add((Lbl "Waiting for config download..." 30 170 400 20 (F 9.5) $cDim))
-$p3timer = Lbl "" 30 196 570 22 (F 9.5) $cGreenD
-$p3bar   = PBar 30 222 572
-$p3log   = RBox 30 238 572 106
+$pg.Controls.Add((Lbl "Waiting for config download..." 30 196 400 20 (F 9.5) $cDim))
+$p3timer = Lbl "" 30 218 570 22 (F 9.5) $cGreenD
+$p3bar   = PBar 30 244 572
+$p3log   = RBox 30 258 572 96
 
-$p3noticeBox = Pnl 30 350 572 24 ([Drawing.Color]::FromArgb(5,35,18))
-$p3noticeLbl = Lbl "Browser not opened yet? Click here to open ProxhqVPN." 10 3 550 18 (F 9) $cGreen
+$p3noticeBox = Pnl 30 360 572 24 ([Drawing.Color]::FromArgb(5,35,18))
+$p3noticeLbl = Lbl "Browser not opened? Click here to reopen ProxhqVPN." 10 3 550 18 (F 9) $cGreen
 $p3noticeLbl.Cursor=[Windows.Forms.Cursors]::Hand
 $p3noticeBox.Controls.Add($p3noticeLbl)
-
 $pg.Controls.AddRange(@($p3timer,$p3bar,$p3log,$p3noticeBox))
 
 function L3($m){ $p3log.AppendText("> $m`n");$p3log.ScrollToCaret();$form.Refresh() }
 
 # ══════════════════════════════════════════════════════════════════════════════
-# PAGE 4 — ACTIVATE TUNNEL
-# ══════════════════════════════════════════════════════════════════════════════
-$pg=$pages[4]
-$p4hdr  = Lbl "Activating VPN Tunnel" 30 14 520 28 (F 14 $true) $cWhite
-$p4sub  = Lbl "Applying your tunnel mode and activating WireGuard." 30 44 570 20 (F 10) $cDim
-$p4prog = PBar 30 74 572
-$p4step = Lbl "Starting..." 30 88 570 20 (F 9.5) $cGreenD
-$p4log  = RBox 30 112 572 230
-$pg.Controls.AddRange(@($p4hdr,$p4sub,$p4prog,$p4step,$p4log))
-function L4($m){ $p4log.AppendText("> $m`n");$p4log.ScrollToCaret();$form.Refresh() }
-function P4($m,$pct){ $p4step.Text=$m;$p4prog.Value=[Math]::Min([int]$pct,100);$form.Refresh() }
-
-# ══════════════════════════════════════════════════════════════════════════════
-# PAGE 5 — DONE
+# PAGE 5 — ACTIVATE TUNNEL
 # ══════════════════════════════════════════════════════════════════════════════
 $pg=$pages[5]
+$p5hdr  = Lbl "Activating VPN Tunnel" 30 14 520 28 (F 14 $true) $cWhite
+$p5sub  = Lbl "Applying your tunnel mode and activating WireGuard." 30 44 570 20 (F 10) $cDim
+$p5prog = PBar 30 74 572
+$p5step = Lbl "Starting..." 30 88 570 20 (F 9.5) $cGreenD
+$p5log  = RBox 30 112 572 230
+$pg.Controls.AddRange(@($p5hdr,$p5sub,$p5prog,$p5step,$p5log))
+function L5($m){ $p5log.AppendText("> $m`n");$p5log.ScrollToCaret();$form.Refresh() }
+function P5($m,$pct){ $p5step.Text=$m;$p5prog.Value=[Math]::Min([int]$pct,100);$form.Refresh() }
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PAGE 6 — DONE
+# ══════════════════════════════════════════════════════════════════════════════
+$pg=$pages[6]
 $pg.Controls.Add((Lbl "✓" 26 16 52 52 (F 28 $true) $cGreen))
-$p5title  = Lbl "ProxhqVPN is Ready!" 82 22 460 30 (F 16 $true) $cWhite
-$p5sub    = Lbl "" 82 56 460 20 (F 10) $cDim
-$p5grid   = Pnl 30 90 572 190 $cBg3
-$p5notice = Lbl "" 30 288 572 56 (F 9) $cOrange; $p5notice.Visible=$false
-$pg.Controls.AddRange(@($p5title,$p5sub,$p5grid,$p5notice))
+$p6title  = Lbl "ProxhqVPN is Ready!" 82 22 460 30 (F 16 $true) $cWhite
+$p6sub    = Lbl "" 82 56 460 20 (F 10) $cDim
+$p6grid   = Pnl 30 90 572 210 $cBg3
+$p6notice = Lbl "" 30 308 572 56 (F 9) $cOrange; $p6notice.Visible=$false
+$pg.Controls.AddRange(@($p6title,$p6sub,$p6grid,$p6notice))
 
 function BuildGrid() {
-    $p5grid.Controls.Clear()
+    $p6grid.Controls.Clear()
     $rows=@(
-        @{l="WireGuard";        v="Installed & ready";                                                                              ok=$true},
+        @{l="WireGuard";        v="Installed & ready";                                                                                      ok=$true},
+        @{l="Server";           v=$Script:ServerRegion;                                                                                     ok=$true},
         @{l="VPN Tunnel";       v=if($Script:CfgInstalled){"Active — you are connected"}else{"Open WireGuard → Add Tunnel → import proxhqvpn.conf"}; ok=$Script:CfgInstalled},
         @{l="Tunnel Mode";      v=if($Script:TunnelMode -eq "split"){"Split Tunnel — apps work normally"}else{"Full Tunnel — all traffic encrypted"}; ok=$true},
-        @{l="Desktop Shortcut"; v="Created";                                                                                        ok=$true},
-        @{l="Per-App Monitor";  v="Active on next launch";                                                                          ok=$true}
+        @{l="Desktop Shortcut"; v="Created";                                                                                                ok=$true},
+        @{l="Per-App Monitor";  v="Active on next launch";                                                                                  ok=$true}
     )
     $ry=10
     foreach ($r in $rows) {
         $dot=Pnl 14 ($ry+6) 9 9; $dot.BackColor=if($r.ok){$cGreen}else{$cOrange}
         $lk=Lbl $r.l 32 $ry 130 22 (F 9 $true) $cWhite; $lk.BackColor=[Drawing.Color]::Transparent
         $lv=Lbl $r.v 168 $ry 390 22 (F 9) $cDim;         $lv.BackColor=[Drawing.Color]::Transparent
-        $p5grid.Controls.AddRange(@($dot,$lk,$lv)); $ry+=34
+        $p6grid.Controls.AddRange(@($dot,$lk,$lv)); $ry+=34
     }
 }
 
@@ -330,11 +416,11 @@ function BuildGrid() {
 # ══════════════════════════════════════════════════════════════════════════════
 function StartInstall {
     $btnNext.Visible=$false; $btnBack.Visible=$false; $btnCancel.Enabled=$false
-    ShowPage 2; SetPhase $ph1
+    ShowPage 3; SetPhase $ph1
 
     New-Item -ItemType Directory -Force -Path $INSTALL | Out-Null
     [System.IO.File]::WriteAllText("$INSTALL\config.json",
-        "{`"tunnelMode`":`"$($Script:TunnelMode)`",`"hostname`":`"$HOSTNAME`"}")
+        "{`"tunnelMode`":`"$($Script:TunnelMode)`",`"server`":`"$($Script:ServerRegion)`",`"nodeId`":`"$($Script:ServerNodeId)`",`"hostname`":`"$HOSTNAME`"}")
 
     # ── Check if already installed ────────────────────────────────────────────
     if (Test-Path $WG_EXE) {
@@ -350,7 +436,7 @@ function StartInstall {
 
         try {
             $wc=New-Object System.Net.WebClient
-            $wc.Headers.Add("User-Agent","ProxhqVPN-Installer/3.0")
+            $wc.Headers.Add("User-Agent","ProxhqVPN-Installer/4.0")
             $wc.Add_DownloadProgressChanged({
                 P2 ("Downloading WireGuard... "+$_.ProgressPercentage+"%") ([int]($_.ProgressPercentage*0.55)+5)
             })
@@ -373,12 +459,10 @@ function StartInstall {
         }
 
         if ($dlOk) {
-            # ── FIX #1: Non-blocking install — poll with DoEvents ─────────────
             P2 "Installing WireGuard silently (/S flag)..." 62
             L2 "Running wireguard-installer.exe /S ..."
             try {
                 $proc=Start-Process -FilePath $tmp -ArgumentList "/S" -PassThru -ErrorAction Stop
-                # Poll for completion without freezing the UI
                 while (-not $proc.HasExited) {
                     [System.Windows.Forms.Application]::DoEvents()
                     Start-Sleep -Milliseconds 100
@@ -420,7 +504,7 @@ function StartInstall {
         $reg="HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\ProxhqVPN"
         New-Item -Path $reg -Force|Out-Null
         Set-ItemProperty $reg "DisplayName" "ProxhqVPN"
-        Set-ItemProperty $reg "DisplayVersion" "3.0.0"
+        Set-ItemProperty $reg "DisplayVersion" "4.0.0"
         Set-ItemProperty $reg "Publisher" $PUBLISHER
         Set-ItemProperty $reg "URLInfoAbout" $BASE_URL
         L2 "Registered in Add/Remove Programs."
@@ -433,22 +517,26 @@ function StartInstall {
 
 function StartSignIn {
     SetPhase $ph2
-    ShowPage 3
+    ShowPage 4
 
-    # Open default browser (Edge/Chrome/Firefox — NOT IE embedded)
-    $signInUrl="$BASE_URL/sign-in?redirect_url="+[System.Uri]::EscapeDataString("/dashboard/wireguard?autosetup=1&hostname=$HOSTNAME&tunnelmode=$($Script:TunnelMode)")
+    # Update the server badge on the sign-in page
+    $node = $Script:Nodes | Where-Object { $_.id -eq $Script:SelNodeId } | Select-Object -First 1
+    $p4serverLbl.Text = "Server: $($node.flag)  $($node.city), $($node.country)  ($($node.ip):51820)  |  Tunnel: $(if($Script:TunnelMode -eq 'split'){'Split'}else{'Full'})"
+
+    # Build sign-in URL — pre-selects chosen server on the WireGuard config page
+    $redirectPath = "/dashboard/wireguard?autosetup=1&hostname=$HOSTNAME&tunnelmode=$($Script:TunnelMode)&nodeid=$($Script:SelNodeId)"
+    $signInUrl = "$BASE_URL/sign-in?redirect_url=" + [System.Uri]::EscapeDataString($redirectPath)
     Start-Process $signInUrl
-    L3 "Browser opened: sign in then go to WireGuard Config → Download."
-    L3 "Watching your Downloads folder for a .conf file..."
+    L3 "Browser opened → sign in, then WireGuard Config is pre-set to $($node.city)."
+    L3 "Click Generate Config → Download. Watching Downloads folder..."
 
-    # Wire the "open browser again" link
     $p3noticeLbl.Add_Click({ Start-Process $signInUrl })
 
-    # Snapshot existing .conf files (ignore any pre-existing ones)
+    # Snapshot existing .conf files
     $dlDir="$env:USERPROFILE\Downloads"
     $existing=@(Get-ChildItem -Path $dlDir -Filter "*.conf" -ErrorAction SilentlyContinue|Select-Object -ExpandProperty FullName)
 
-    $waitSec=300; $elapsed=0; $confFile=$null; $pct=0
+    $waitSec=300; $elapsed=0; $confFile=$null
     while ($elapsed -lt $waitSec) {
         [System.Windows.Forms.Application]::DoEvents()
         Start-Sleep -Milliseconds 500
@@ -478,87 +566,85 @@ function StartSignIn {
 }
 
 function ActivateTunnel($confFile) {
-    SetPhase $ph3; ShowPage 4
+    SetPhase $ph3; ShowPage 5
 
-    P4 "Reading config..." 20
-    L4 "Config file: $([IO.Path]::GetFileName($confFile))"
+    P5 "Reading config..." 20
+    L5 "Config file: $([IO.Path]::GetFileName($confFile))"
     $conf=[System.IO.File]::ReadAllText($confFile)
 
     # Apply tunnel mode
-    P4 "Applying tunnel mode: $($Script:TunnelMode)..." 40
+    P5 "Applying tunnel mode: $($Script:TunnelMode)..." 40
     if ($Script:TunnelMode -eq "split") {
         $conf=[System.Text.RegularExpressions.Regex]::Replace($conf,
             "(?m)AllowedIPs\s*=\s*0\.0\.0\.0/0[^\r\n]*","AllowedIPs = 10.8.0.0/24")
         $conf=[System.Text.RegularExpressions.Regex]::Replace($conf,",\s*::[/0-9]+","")
-        L4 "Split Tunnel applied: AllowedIPs = 10.8.0.0/24"
+        L5 "Split Tunnel applied: AllowedIPs = 10.8.0.0/24"
     } else {
-        L4 "Full Tunnel: routing all traffic through ProxhqVPN"
+        L5 "Full Tunnel: routing all traffic through ProxhqVPN"
     }
 
-    # Save to WireGuard config dir (we have admin, this will work)
-    P4 "Saving config to WireGuard directory..." 60
+    # Save to WireGuard config dir
+    P5 "Saving config to WireGuard directory..." 60
     $destPath="$env:USERPROFILE\Downloads\proxhqvpn.conf"
     try {
         if (-not (Test-Path $WG_DIR)){ New-Item -ItemType Directory -Force -Path $WG_DIR|Out-Null }
         $wgPath="$WG_DIR\proxhqvpn.conf"
         [System.IO.File]::WriteAllText($wgPath,$conf)
-        $destPath=$wgPath; L4 "Config saved: $wgPath"
+        $destPath=$wgPath; L5 "Config saved: $wgPath"
     } catch {
         [System.IO.File]::WriteAllText($destPath,$conf)
-        L4 "Saved to Downloads: $destPath"
+        L5 "Saved to Downloads: $destPath"
     }
     try { [System.IO.File]::WriteAllText("$INSTALL\proxhqvpn.conf",$conf) } catch {}
 
     # Activate tunnel
-    P4 "Activating WireGuard tunnel..." 80
+    P5 "Activating WireGuard tunnel..." 80
     if (Test-Path $WG_EXE) {
-        L4 "Running: wireguard.exe /installtunnel `"$destPath`" ..."
+        L5 "Running: wireguard.exe /installtunnel `"$destPath`" ..."
         try {
-            # FIX #1 (also here): non-blocking poll for wireguard /installtunnel
             $tp=Start-Process -FilePath $WG_EXE -ArgumentList "/installtunnel `"$destPath`"" -PassThru -ErrorAction Stop
             while (-not $tp.HasExited) {
                 [System.Windows.Forms.Application]::DoEvents()
                 Start-Sleep -Milliseconds 100
             }
             if ($tp.ExitCode -eq 0) {
-                $Script:CfgInstalled=$true; L4 "Tunnel active! VPN is ON."
+                $Script:CfgInstalled=$true; L5 "Tunnel active! VPN is ON."
             } else {
-                L4 "Exit code $($tp.ExitCode) — attempting with RunAs elevation..."
+                L5 "Exit code $($tp.ExitCode) — attempting with RunAs elevation..."
                 $ep=Start-Process -FilePath $WG_EXE -ArgumentList "/installtunnel `"$destPath`"" -Verb RunAs -PassThru -ErrorAction SilentlyContinue
                 if ($ep) {
                     while (-not $ep.HasExited) {
                         [System.Windows.Forms.Application]::DoEvents(); Start-Sleep -Milliseconds 100
                     }
                 }
-                $Script:CfgInstalled=$true; L4 "Tunnel activated."
+                $Script:CfgInstalled=$true; L5 "Tunnel activated."
             }
         } catch {
-            L4 "Auto-activate error: $_"
-            L4 "Open WireGuard app → Add Tunnel → Import: $destPath"
+            L5 "Auto-activate error: $_"
+            L5 "Open WireGuard app → Add Tunnel → Import: $destPath"
         }
     } else {
-        L4 "wireguard.exe not found at expected path."
-        L4 "Install WireGuard from wireguard.com then import: $destPath"
+        L5 "wireguard.exe not found at expected path."
+        L5 "Install WireGuard from wireguard.com then import: $destPath"
     }
 
-    P4 "Done!" 100
+    P5 "Done!" 100
     Start-Sleep -Milliseconds 800
     FinishSetup $Script:CfgInstalled
 }
 
 function FinishSetup($ok) {
-    # FIX #4: only bind the "Open ProxhqVPN" handler once
     if (-not $Script:FinishBound) {
         $Script:FinishBound=$true
         $btnNext.Add_Click({ Start-Process "$BASE_URL/dashboard"; $form.Close() })
     }
-    $p5sub.Text=if($ok){"WireGuard installed, config applied, tunnel active."}else{"WireGuard installed. Activate tunnel from the dashboard."}
+    $p6sub.Text=if($ok){"WireGuard installed, config applied, tunnel active."}else{"WireGuard installed. Activate tunnel from the dashboard."}
     BuildGrid
     if (-not $ok) {
-        $p5notice.Text="To activate: open the WireGuard app → Add Tunnel → Import tunnel(s) from file → select proxhqvpn.conf"
-        $p5notice.Visible=$true
+        $p6notice.Text="To activate: open the WireGuard app → Add Tunnel → Import tunnel(s) from file → select proxhqvpn.conf"
+        $p6notice.Visible=$true
     }
-    ShowPage 5
+    ShowPage 6
     $btnNext.Text="Open ProxhqVPN"; $btnNext.Visible=$true
     $btnBack.Visible=$false
     $btnCancel.Text="Close"; $btnCancel.Enabled=$true
