@@ -57,6 +57,9 @@ export const ghostTrapConfigTable = pgTable("ghost_trap_config", {
   id:              serial("id").primaryKey(),
   userId:          text("user_id").notNull().default("platform"), // "platform" or Clerk userId
   userToken:       text("user_token").unique(),                   // secret hex token for per-user lure URLs
+  deviceMode:      text("device_mode").notNull().default("personal"), // "personal" | "server"
+  userDomain:      text("user_domain"),                           // user's website domain (server mode)
+  userDetectedIp:  text("user_detected_ip"),                     // user's detected public IP (personal mode)
   enabled:         boolean("enabled").notNull().default(true),
   tarpitMinMs:     integer("tarpit_min_ms").notNull().default(1500),
   tarpitMaxMs:     integer("tarpit_max_ms").notNull().default(8000),

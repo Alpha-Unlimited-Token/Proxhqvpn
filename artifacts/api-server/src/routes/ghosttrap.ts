@@ -84,13 +84,21 @@ function parseHopChain(req: Request): string[] {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const tarpit = (ms: number) => new Promise(r => setTimeout(r, ms));
 
-async function getConfig(userId: string) {
+async function getConfig(userId: string, detectedIp?: string) {
   const rows = await db.select().from(ghostTrapConfigTable)
     .where(eq(ghostTrapConfigTable.userId, userId)).limit(1);
-  if (rows.length) return rows[0];
+  if (rows.length) {
+    // Back-fill IP if we now know it and didn't before
+    if (detectedIp && !rows[0].userDetectedIp) {
+      await db.update(ghostTrapConfigTable).set({ userDetectedIp: detectedIp })
+        .where(eq(ghostTrapConfigTable.id, rows[0].id));
+      return { ...rows[0], userDetectedIp: detectedIp };
+    }
+    return rows[0];
+  }
   const token = crypto.randomBytes(24).toString("hex");
   const [cfg] = await db.insert(ghostTrapConfigTable)
-    .values({ userId, userToken: token })
+    .values({ userId, userToken: token, userDetectedIp: detectedIp ?? null })
     .returning();
   return cfg;
 }
@@ -483,7 +491,9 @@ router.get("/probes", async (req, res) => {
 router.get("/config", async (req, res) => {
   const userId = ((req as any).auth)?.userId as string | undefined;
   if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
-  res.json(await getConfig(userId));
+  const rawIp = getIp(req);
+  const detectedIp = !isPrivateIp(rawIp) ? rawIp : undefined;
+  res.json(await getConfig(userId, detectedIp));
 });
 
 router.post("/config", async (req, res) => {
@@ -492,16 +502,18 @@ router.post("/config", async (req, res) => {
   const cfg = await getConfig(userId);
   const {
     enabled, tarpitMinMs, tarpitMaxMs, autoBlockAfter, silkTrapAfter,
-    fakeSiteName, fakeDbVersion,
-  } = req.body as Partial<typeof cfg>;
+    fakeSiteName, fakeDbVersion, deviceMode, userDomain,
+  } = req.body as Record<string, unknown>;
   const [updated] = await db.update(ghostTrapConfigTable).set({
-    ...(enabled !== undefined       && { enabled: Boolean(enabled) }),
-    ...(tarpitMinMs !== undefined   && { tarpitMinMs: Number(tarpitMinMs) }),
-    ...(tarpitMaxMs !== undefined   && { tarpitMaxMs: Number(tarpitMaxMs) }),
+    ...(enabled !== undefined        && { enabled: Boolean(enabled) }),
+    ...(tarpitMinMs !== undefined    && { tarpitMinMs: Number(tarpitMinMs) }),
+    ...(tarpitMaxMs !== undefined    && { tarpitMaxMs: Number(tarpitMaxMs) }),
     ...(autoBlockAfter !== undefined && { autoBlockAfter: Number(autoBlockAfter) }),
     ...(silkTrapAfter !== undefined  && { silkTrapAfter: Number(silkTrapAfter) }),
-    ...(fakeSiteName  && { fakeSiteName }),
-    ...(fakeDbVersion && { fakeDbVersion }),
+    ...(fakeSiteName  !== undefined && fakeSiteName  !== null && { fakeSiteName: String(fakeSiteName) }),
+    ...(fakeDbVersion !== undefined && fakeDbVersion !== null && { fakeDbVersion: String(fakeDbVersion) }),
+    ...(typeof deviceMode === "string" && (deviceMode === "personal" || deviceMode === "server") && { deviceMode }),
+    ...(userDomain !== undefined && { userDomain: userDomain === "" || userDomain === null ? null : String(userDomain) }),
     updatedAt: new Date(),
   }).where(eq(ghostTrapConfigTable.id, cfg.id)).returning();
   res.json(updated);

@@ -5,7 +5,7 @@ import {
   AlertTriangle, ChevronDown, ChevronUp, ToggleLeft, ToggleRight,
   Download, Radio, MapPin, Building2, Wifi, Shield, FileText,
   Network, ArrowRight, Server, Home, Layers, Search,
-  Copy, Check, Link2,
+  Copy, Check, Link2, Laptop,
 } from "lucide-react";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -51,6 +51,9 @@ interface Config {
   id: number; enabled: boolean; tarpitMinMs: number; tarpitMaxMs: number;
   autoBlockAfter: number; silkTrapAfter: number; fakeSiteName: string; fakeDbVersion: string;
   userToken: string | null;
+  deviceMode: "personal" | "server";
+  userDomain: string | null;
+  userDetectedIp: string | null;
 }
 
 interface HopNode {
@@ -237,19 +240,41 @@ export default function GhostTrap() {
     setTimeout(() => setCopied(null), 2000);
   };
 
+  const [domainInput, setDomainInput] = useState(config?.userDomain ?? "");
+  useEffect(() => { if (config?.userDomain) setDomainInput(config.userDomain); }, [config?.userDomain]);
+
   const lureTokenBase = config?.userToken
     ? `${window.location.origin}${BASE}/api/ghost-trap/u/${config.userToken}/lure`
     : null;
-  const lureEndpoints = [
-    { ep: "/login",       label: "Login Page" },
-    { ep: "/admin",       label: "Admin Panel" },
-    { ep: "/wp-admin",    label: "WP Admin" },
-    { ep: "/.env",        label: ".env Config" },
-    { ep: "/config.php",  label: "config.php" },
-    { ep: "/api/users",   label: "User API" },
-    { ep: "/backup.sql",  label: "DB Backup" },
-    { ep: "/api/data",    label: "Data API" },
+
+  const PERSONAL_PORTS = [
+    { port: 22,   service: "SSH remote access",         trapPath: "/ssh" },
+    { port: 80,   service: "Web server (HTTP)",          trapPath: "/http" },
+    { port: 8080, service: "Router / NAS admin",         trapPath: "/admin" },
+    { port: 3389, service: "Remote Desktop (RDP)",       trapPath: "/rdp" },
+    { port: 21,   service: "FTP file transfer",          trapPath: "/ftp" },
+    { port: 9090, service: "Smart device panel",         trapPath: "/device" },
+    { port: 8443, service: "Secure admin (HTTPS)",       trapPath: "/secure-admin" },
+    { port: 5900, service: "VNC remote display",         trapPath: "/vnc" },
   ];
+
+  const SERVER_PATHS = [
+    { path: "/wp-admin/",     label: "WordPress admin",     trapPath: "/wp-admin" },
+    { path: "/.env",          label: "Config / secrets",    trapPath: "/.env" },
+    { path: "/phpmyadmin/",   label: "Database admin",      trapPath: "/phpmyadmin" },
+    { path: "/api/users",     label: "User data API",       trapPath: "/api/users" },
+    { path: "/.git/config",   label: "Git repository",      trapPath: "/.git" },
+    { path: "/config.php",    label: "PHP config file",     trapPath: "/config.php" },
+    { path: "/admin/login",   label: "Admin panel login",   trapPath: "/admin" },
+    { path: "/api/v1/login",  label: "REST auth endpoint",  trapPath: "/api/login" },
+  ];
+
+  const deploySnippet = lureTokenBase
+    ? (config?.deviceMode === "server"
+      ? `# ProxhqVPN Ghost Trap — nginx config\n# Paste inside your server { } block\n\nlocation ~ ^/(wp-admin|\\.env|phpmyadmin|api/users|\\.git|config\\.php|admin|api/v1) {\n    proxy_pass ${lureTokenBase}$request_uri;\n    proxy_set_header X-Real-IP $remote_addr;\n    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n    proxy_ssl_verify off;\n}`
+      : `# ProxhqVPN Ghost Trap — Linux port setup\n# Run as root on your device\n\nTRAP_BASE="${lureTokenBase}"\n\nfor PORT in 22 80 8080 3389 21 9090 8443 5900; do\n  iptables -t nat -A PREROUTING -p tcp --dport $PORT \\\\\n    -j DNAT --to-destination 127.0.0.1:7070\ndone\n\n# /etc/nginx/conf.d/ghosttrap.conf:\n# server {\n#   listen 7070;\n#   location / { proxy_pass $TRAP_BASE/; }\n# }`)
+    : "";
+
   const uniqueIps = [...new Set(probes.map(p => p.attackerIp))];
 
   return (
@@ -288,56 +313,179 @@ export default function GhostTrap() {
         </div>
       </div>
 
-      {/* Per-user honeypot lure URLs */}
-      <div className="bg-[#0d1610] border border-primary/20 rounded-xl p-4 space-y-3">
+      {/* Ghost Trap — Mode & Decoy Setup */}
+      <div className="bg-[#0d1610] border border-primary/20 rounded-xl p-4 space-y-4">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-2">
             <Link2 className="w-4 h-4 text-primary" />
-            <span className="text-sm font-semibold text-white">Your Personal Honeypot URLs</span>
+            <span className="text-sm font-semibold text-white">Ghost Trap Setup</span>
             <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 border border-primary/20 text-primary/70 uppercase tracking-widest">Private to You</span>
           </div>
+          {/* Mode picker */}
+          <div className="flex items-center gap-1 bg-black/40 rounded-lg p-1">
+            <button
+              onClick={() => saveConfig({ deviceMode: "personal" })}
+              className={`px-3 py-1.5 text-xs rounded-md transition-all flex items-center gap-1.5 ${
+                (config?.deviceMode ?? "personal") !== "server"
+                  ? "bg-primary/20 text-primary border border-primary/30"
+                  : "text-white/40 hover:text-white/60"
+              }`}
+            >
+              <Laptop className="w-3 h-3" /> Personal Device
+            </button>
+            <button
+              onClick={() => saveConfig({ deviceMode: "server" })}
+              className={`px-3 py-1.5 text-xs rounded-md transition-all flex items-center gap-1.5 ${
+                config?.deviceMode === "server"
+                  ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30"
+                  : "text-white/40 hover:text-white/60"
+              }`}
+            >
+              <Server className="w-3 h-3" /> Website / Server
+            </button>
+          </div>
         </div>
+
+        {/* Plain-language description — no raw endpoints shown */}
         <p className="text-xs text-white/50 leading-relaxed">
-          These URLs are <span className="text-white/80 font-medium">unique to your account</span> — no other user sees the probes they generate.
-          Deploy them anywhere you want to catch attackers: paste them into fake <span className="font-mono text-primary/60">.env</span> files,
-          server configs, README files, or decoy web pages. When a hacker hits any of these URLs their
-          IP address, attack method, browser fingerprint, and full hop chain are logged here and you can
-          download a law-enforcement report instantly.
+          Ghost Trap silently places fake services on your{" "}
+          {config?.deviceMode === "server" ? "website" : "connection"} that look
+          completely real to attackers. The moment someone tries to break in, their full
+          identity is captured — IP address, real location, what they were targeting, and
+          how they tried to hide. Every hit generates an instant incident report you can
+          file directly with law enforcement.
         </p>
 
-        {!lureTokenBase ? (
-          <div className="text-xs text-white/30 italic">Loading your trap URLs…</div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
-            {lureEndpoints.map(({ ep, label }) => {
-              const url = `${lureTokenBase}${ep}`;
-              const isCopied = copied === url;
-              return (
-                <button
-                  key={ep}
-                  onClick={() => copyUrl(url)}
-                  className="group flex items-center justify-between bg-black/40 hover:bg-black/60 border border-white/5 hover:border-primary/20 rounded-lg px-3 py-2 text-left transition-all"
-                >
-                  <div className="min-w-0">
-                    <div className="text-[10px] font-semibold text-white/60 mb-0.5">{label}</div>
-                    <div className="font-mono text-[9px] text-primary/50 truncate">/lure{ep}</div>
-                  </div>
-                  <div className={`ml-2 shrink-0 transition-colors ${isCopied ? "text-green-400" : "text-white/20 group-hover:text-white/50"}`}>
-                    {isCopied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                  </div>
-                </button>
-              );
-            })}
+        {/* ── Personal device mode ─────────────────────────────────────────── */}
+        {(config?.deviceMode ?? "personal") !== "server" && (
+          <div className="space-y-3">
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="text-xs text-white/40">Your detected public IP:</div>
+              <div className="font-mono text-sm text-primary/80 bg-black/40 rounded-lg px-3 py-1">
+                {config?.userDetectedIp ?? "Detecting…"}
+              </div>
+            </div>
+
+            {!lureTokenBase || !config?.userDetectedIp ? (
+              <div className="text-xs text-white/30 italic">Configuring trap…</div>
+            ) : (
+              <div className="space-y-1.5">
+                <div className="text-[10px] text-white/30 uppercase tracking-widest mb-1">
+                  What an attacker scanning your IP sees — these look like real device services
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                  {PERSONAL_PORTS.map(({ port, service, trapPath }) => {
+                    const trapUrl = `${lureTokenBase}${trapPath}`;
+                    const isCopied = copied === trapUrl;
+                    return (
+                      <button
+                        key={port}
+                        onClick={() => copyUrl(trapUrl)}
+                        className="group flex items-center justify-between bg-black/40 hover:bg-black/60 border border-white/5 hover:border-primary/20 rounded-lg px-3 py-2 text-left transition-all"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="font-mono text-xs text-primary/70 truncate">
+                            {config.userDetectedIp}:{port}/
+                          </div>
+                          <div className="text-[10px] text-white/35 mt-0.5">{service}</div>
+                        </div>
+                        <div className={`ml-2 shrink-0 transition-colors ${isCopied ? "text-green-400" : "text-white/20 group-hover:text-white/50"}`}>
+                          {isCopied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="text-[10px] text-white/25 pt-1">
+                  Copy any trap URL above and paste into your proxy/redirect config below. The copied URL routes silently to your private Ghost Trap.
+                </div>
+              </div>
+            )}
           </div>
         )}
 
-        {lureTokenBase && (
-          <div className="flex items-start gap-2 bg-orange-500/5 border border-orange-500/15 rounded-lg px-3 py-2">
-            <AlertTriangle className="w-3.5 h-3.5 text-orange-400/60 mt-0.5 shrink-0" />
-            <div className="text-[10px] text-orange-300/60 leading-relaxed">
-              <span className="font-semibold text-orange-300/80">Deploy tip:</span> Paste these URLs into fake <span className="font-mono">.env</span> files,
-              nginx configs, or decoy HTML pages on any public server. Attackers scanning for vulnerabilities will hit them automatically —
-              every hit gets logged here with full attacker intelligence. Tarpitted {config?.tarpitMinMs ?? 1500}–{config?.tarpitMaxMs ?? 8000}ms · auto-blocked after {config?.autoBlockAfter ?? 5} hits.
+        {/* ── Website / server mode ────────────────────────────────────────── */}
+        {config?.deviceMode === "server" && (
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs text-white/50 mb-1.5 block">Your website domain</label>
+              <div className="flex gap-2 max-w-sm">
+                <input
+                  value={domainInput}
+                  onChange={e => setDomainInput(e.target.value)}
+                  placeholder="yourdomain.com"
+                  className="flex-1 text-sm bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-white placeholder-white/20 focus:outline-none focus:border-cyan-500/30"
+                />
+                <button
+                  onClick={() => domainInput && saveConfig({ userDomain: domainInput })}
+                  className="px-3 py-2 text-xs bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 rounded-lg hover:bg-cyan-500/15 transition-all"
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+
+            {!lureTokenBase ? (
+              <div className="text-xs text-white/30 italic">Configuring trap…</div>
+            ) : (
+              <div className="space-y-1.5">
+                <div className="text-[10px] text-white/30 uppercase tracking-widest mb-1">
+                  What an attacker targeting your site sees — these blend into your real site structure
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                  {SERVER_PATHS.map(({ path, label, trapPath }) => {
+                    const domain = config.userDomain || "yourdomain.com";
+                    const trapUrl = `${lureTokenBase}${trapPath}`;
+                    const isCopied = copied === trapUrl;
+                    return (
+                      <button
+                        key={path}
+                        onClick={() => copyUrl(trapUrl)}
+                        className="group flex items-center justify-between bg-black/40 hover:bg-black/60 border border-white/5 hover:border-cyan-400/20 rounded-lg px-3 py-2 text-left transition-all"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="font-mono text-xs text-cyan-400/60 truncate">
+                            {domain}{path}
+                          </div>
+                          <div className="text-[10px] text-white/35 mt-0.5">{label}</div>
+                        </div>
+                        <div className={`ml-2 shrink-0 transition-colors ${isCopied ? "text-green-400" : "text-white/20 group-hover:text-white/50"}`}>
+                          {isCopied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="text-[10px] text-white/25 pt-1">
+                  Copy any trap URL above and paste it into your nginx proxy config below. The copied URL routes to your private Ghost Trap — your visitors never see it.
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Deploy config ─────────────────────────────────────────────────── */}
+        {lureTokenBase && deploySnippet && (
+          <div className="border-t border-white/5 pt-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="text-[10px] text-white/30 uppercase tracking-widest">
+                {config?.deviceMode === "server" ? "nginx proxy config — paste into your server { } block" : "Linux setup — run as root on your device"}
+              </div>
+              <button
+                onClick={() => copyUrl(deploySnippet)}
+                className="flex items-center gap-1.5 px-2 py-1 text-[10px] text-white/40 hover:text-white/70 border border-white/10 rounded-lg transition-all"
+              >
+                {copied === deploySnippet ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
+                Copy
+              </button>
+            </div>
+            <pre className="text-[10px] font-mono text-primary/40 bg-black/50 rounded-lg p-3 overflow-x-auto leading-relaxed whitespace-pre">
+              {deploySnippet}
+            </pre>
+            <div className="text-[10px] text-white/25 leading-relaxed">
+              {config?.deviceMode === "server"
+                ? "Attackers hitting these paths are silently proxied to your Ghost Trap and captured. They see a convincing fake response and have no idea they've been logged."
+                : "Port scanners and brute-force bots targeting your IP hit these ports and get routed into your Ghost Trap. For Windows and macOS, the ProxhqVPN desktop app configures this automatically."}
             </div>
           </div>
         )}
