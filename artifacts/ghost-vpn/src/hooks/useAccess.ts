@@ -30,9 +30,9 @@ export function useAccess() {
       return res.json();
     },
     enabled: !!isSignedIn,
-    staleTime: 60 * 1000,
+    staleTime: 15 * 1000,
     retry: false,
-    refetchOnWindowFocus: false,
+    refetchOnWindowFocus: true,
   });
 
   return {
