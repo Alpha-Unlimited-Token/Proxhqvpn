@@ -6,6 +6,8 @@ import {
   Download, Radio, MapPin, Building2, Wifi, Shield, FileText,
   Network, ArrowRight, Server, Home, Layers, Search,
   Copy, Check, Link2, Laptop,
+  Crosshair, Swords, ExternalLink, Play, Database, Key, Eye,
+  Radar, FlaskConical, ShieldAlert, Target, Flame, Lock,
 } from "lucide-react";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -167,7 +169,18 @@ export default function GhostTrap() {
   const [reportLoading, setReportLoading] = useState<Record<string, boolean>>({});
   const [backtraceCache, setBacktraceCache] = useState<Record<string, BacktraceResult>>({});
   const [backtraceLoading, setBacktraceLoading] = useState<Record<string, boolean>>({});
-  const [activeTab, setActiveTab] = useState<"probes" | "info" | "how">("probes");
+  const [activeTab, setActiveTab] = useState<"probes" | "info" | "how" | "counter">("probes");
+
+  // ── Counter-Attack tool state ──────────────────────────────────────────────
+  const [counterIp,       setCounterIp]       = useState<string | null>(null);
+  const [portScanResult,  setPortScanResult]   = useState<any>(null);
+  const [portScanLoading, setPortScanLoading]  = useState(false);
+  const [osintResult,     setOsintResult]      = useState<any>(null);
+  const [osintLoading,    setOsintLoading]     = useState(false);
+  const [canaryResult,    setCanaryResult]     = useState<any>(null);
+  const [canaryLoading,   setCanaryLoading]    = useState(false);
+  const [canaryType,      setCanaryType]       = useState("pixel");
+  const [counterCopied,   setCounterCopied]    = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const [pr, cr] = await Promise.all([
@@ -225,6 +238,55 @@ export default function GhostTrap() {
       URL.revokeObjectURL(a.href);
     }
     setReportLoading(r => ({ ...r, [ip]: false }));
+  };
+
+  // ── Counter-Attack helpers ─────────────────────────────────────────────────
+  const runPortScan = async () => {
+    if (!counterIp) return;
+    setPortScanLoading(true); setPortScanResult(null);
+    try {
+      const r = await fetch(`${BASE}/api/ghost-trap/counter/port-scan`, {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ip: counterIp }),
+      });
+      setPortScanResult(await r.json());
+    } catch { setPortScanResult({ error: "Scan failed" }); }
+    setPortScanLoading(false);
+  };
+
+  const runOsint = async () => {
+    if (!counterIp) return;
+    setOsintLoading(true); setOsintResult(null);
+    try {
+      const r = await fetch(`${BASE}/api/ghost-trap/counter/osint`, {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ip: counterIp }),
+      });
+      setOsintResult(await r.json());
+    } catch { setOsintResult({ error: "OSINT failed" }); }
+    setOsintLoading(false);
+  };
+
+  const runCanaryInject = async () => {
+    if (!counterIp) return;
+    setCanaryLoading(true); setCanaryResult(null);
+    try {
+      const r = await fetch(`${BASE}/api/ghost-trap/counter/canary-inject`, {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ip: counterIp, type: canaryType }),
+      });
+      setCanaryResult(await r.json());
+    } catch { setCanaryResult({ error: "Injection failed" }); }
+    setCanaryLoading(false);
+  };
+
+  const ccopy = (text: string, key: string) => {
+    navigator.clipboard.writeText(text).catch(() => {});
+    setCounterCopied(key);
+    setTimeout(() => setCounterCopied(null), 2000);
   };
 
   const clearProbes = async () => {
@@ -537,7 +599,7 @@ export default function GhostTrap() {
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-white/[0.06]">
-        {([["probes", "Probe Feed"], ["info", "Attacker Intel"], ["how", "How It Works"]] as const).map(([key, label]) => (
+        {([["probes", "Probe Feed"], ["info", "Attacker Intel"], ["how", "How It Works"], ["counter", "⚔ Counter Attack"]] as const).map(([key, label]) => (
           <button key={key} onClick={() => setActiveTab(key)}
             className={`px-4 py-2 text-sm rounded-t-lg transition-all ${
               activeTab === key ? "text-white bg-[#0d1610] border border-b-0 border-white/[0.07]" : "text-white/40 hover:text-white/60"
@@ -1077,6 +1139,348 @@ export default function GhostTrap() {
           </div>
         </div>
       )}
+
+      {/* ── COUNTER ATTACK ─────────────────────────────────────────────────────── */}
+      {activeTab === "counter" && (
+        <div className="space-y-5">
+
+          {/* Disclaimer */}
+          <div className="bg-red-950/40 border border-red-500/40 rounded-xl p-4 flex gap-3">
+            <ShieldAlert className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <div className="text-sm font-bold text-red-300 tracking-wide">⚠ EDUCATIONAL & DEFENSIVE USE ONLY</div>
+              <p className="text-[11px] text-red-300/65 leading-relaxed">
+                All tools on this page operate strictly against IP addresses that have <strong className="text-red-300/80">already attacked your infrastructure</strong> and are logged in your Ghost Trap probe feed.
+                Scanning, injecting canaries into, or performing OSINT on third-party IPs that have not attacked you is illegal under 18 U.S.C. § 1030 (CFAA) and equivalent laws globally.
+                This information is provided for defensive security research and lawful counter-intelligence against active adversaries only.
+                Alpha Unlimited Technologies LLC assumes no liability for misuse.
+              </p>
+            </div>
+          </div>
+
+          {/* IP selector */}
+          {uniqueIps.length === 0 ? (
+            <div className="bg-[#0d1610] border border-white/[0.07] rounded-xl p-10 text-center space-y-2">
+              <Skull className="w-8 h-8 text-white/15 mx-auto" />
+              <div className="text-sm text-white/30">No attacker IPs captured yet</div>
+              <div className="text-xs text-white/20">When Ghost Trap logs a probe, counter-attack tools appear here pre-loaded with that attacker's IP.</div>
+            </div>
+          ) : (
+            <>
+              <div className="bg-[#0d1610] border border-white/[0.07] rounded-xl p-4 space-y-3">
+                <div className="flex items-center gap-2 text-sm font-semibold text-white">
+                  <Crosshair className="w-4 h-4 text-red-400" /> Select Target IP
+                  <span className="text-[10px] font-normal text-white/30 ml-1">— only IPs from your probe log</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {uniqueIps.map(ip => {
+                    const ipProbes = probes.filter(p => p.attackerIp === ip);
+                    const types = [...new Set(ipProbes.map(p => p.probeType))];
+                    return (
+                      <button key={ip} onClick={() => { setCounterIp(ip); setPortScanResult(null); setOsintResult(null); setCanaryResult(null); }}
+                        className={`font-mono text-xs px-3 py-2 rounded-lg border transition-all text-left ${counterIp === ip ? "bg-red-500/15 border-red-500/40 text-red-300" : "bg-black/40 border-white/10 text-white/50 hover:text-white/70 hover:border-white/20"}`}>
+                        <div className="font-bold">{ip}</div>
+                        <div className="text-[9px] mt-0.5 opacity-60">{ipProbes.length} probe{ipProbes.length !== 1 ? "s" : ""} · {types.join(", ")}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {counterIp && (
+                <div className="space-y-4">
+                  {/* Target banner */}
+                  <div className="flex items-center gap-3 px-4 py-2.5 bg-red-950/30 border border-red-500/25 rounded-xl">
+                    <Target className="w-4 h-4 text-red-400 shrink-0" />
+                    <span className="text-sm font-mono font-bold text-red-300">Target: {counterIp}</span>
+                    <span className="text-xs text-red-300/50 ml-auto">{probes.filter(p => p.attackerIp === counterIp).length} probes logged</span>
+                  </div>
+
+                  {/* Tools grid */}
+                  <div className="grid gap-4 lg:grid-cols-2">
+
+                    {/* ── Tool 1: Port Scanner ─────────────────────────────── */}
+                    <div className="bg-[#0d1610] border border-white/[0.07] rounded-xl overflow-hidden">
+                      <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.05]">
+                        <div className="flex items-center gap-2 text-sm font-semibold text-white">
+                          <Radar className="w-4 h-4 text-cyan-400" /> Port Scanner
+                        </div>
+                        <button onClick={runPortScan} disabled={portScanLoading}
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-cyan-500/10 border border-cyan-500/25 text-cyan-400 rounded-lg hover:bg-cyan-500/15 transition-all disabled:opacity-50">
+                          {portScanLoading ? <><RefreshCw className="w-3 h-3 animate-spin" /> Scanning…</> : <><Play className="w-3 h-3" /> Run Scan</>}
+                        </button>
+                      </div>
+                      <div className="px-4 py-3 text-[10px] text-white/35 border-b border-white/[0.04]">
+                        TCP connect scan across 24 attacker-relevant ports — C2 listeners, reverse shells, exposed databases, Tor infrastructure, attack proxies.
+                      </div>
+                      {portScanResult?.error && (
+                        <div className="px-4 py-3 text-xs text-red-400">{portScanResult.error}</div>
+                      )}
+                      {portScanResult && !portScanResult.error && (
+                        <div className="divide-y divide-white/[0.04] max-h-64 overflow-y-auto">
+                          {portScanResult.intelligence && (
+                            <div className="px-4 py-2.5 text-[11px] text-yellow-300/80 bg-yellow-500/5 border-b border-yellow-500/10">{portScanResult.intelligence}</div>
+                          )}
+                          <div className="px-4 py-2 flex gap-4 text-[10px] text-white/30">
+                            <span className="text-green-400">{portScanResult.openCount} open</span>
+                            <span className="text-white/30">{portScanResult.closedCount} closed</span>
+                            <span className="text-white/20">{portScanResult.filteredCount} filtered</span>
+                          </div>
+                          {(portScanResult.results as any[])?.filter((r: any) => r.status === "open").map((r: any) => (
+                            <div key={r.port} className="flex items-center gap-3 px-4 py-2">
+                              <span className="w-2 h-2 rounded-full bg-green-400 shrink-0" />
+                              <span className="font-mono text-[11px] text-green-300 w-12 shrink-0">{r.port}</span>
+                              <span className="text-[11px] text-white/70 flex-1">{r.service}</span>
+                              <span className="text-[10px] text-orange-300/60">{r.note}</span>
+                            </div>
+                          ))}
+                          {portScanResult.openCount === 0 && (
+                            <div className="px-4 py-3 text-xs text-white/30 text-center">All ports closed or filtered — attacker is behind NAT/VPN</div>
+                          )}
+                        </div>
+                      )}
+                      {!portScanResult && !portScanLoading && (
+                        <div className="px-4 py-6 text-center text-xs text-white/20">
+                          Scans {counterIp} for active C2 listeners, reverse shells, attack proxies, and exposed infrastructure.
+                          <br />Only possible because this IP hit your Ghost Trap first.
+                        </div>
+                      )}
+                    </div>
+
+                    {/* ── Tool 2: OSINT Deep Dive ──────────────────────────── */}
+                    <div className="bg-[#0d1610] border border-white/[0.07] rounded-xl overflow-hidden">
+                      <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.05]">
+                        <div className="flex items-center gap-2 text-sm font-semibold text-white">
+                          <Eye className="w-4 h-4 text-purple-400" /> OSINT Deep Dive
+                        </div>
+                        <button onClick={runOsint} disabled={osintLoading}
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-purple-500/10 border border-purple-500/25 text-purple-400 rounded-lg hover:bg-purple-500/15 transition-all disabled:opacity-50">
+                          {osintLoading ? <><RefreshCw className="w-3 h-3 animate-spin" /> Querying…</> : <><Search className="w-3 h-3" /> Run OSINT</>}
+                        </button>
+                      </div>
+                      <div className="px-4 py-3 text-[10px] text-white/35 border-b border-white/[0.04]">
+                        Reverse DNS · live geo · ISP · ASN · abuse contact · hosting provider identification.
+                      </div>
+                      {osintResult?.error && (
+                        <div className="px-4 py-3 text-xs text-red-400">{osintResult.error}</div>
+                      )}
+                      {osintResult && !osintResult.error && (
+                        <div className="px-4 py-3 space-y-2 text-xs">
+                          {(osintResult.rdns as string[])?.length > 0 && (
+                            <div className="flex gap-2"><span className="text-white/30 w-20 shrink-0">Reverse DNS</span><span className="font-mono text-purple-300">{(osintResult.rdns as string[]).join(", ")}</span></div>
+                          )}
+                          {osintResult.liveGeo && Object.entries(osintResult.liveGeo as Record<string, string>).filter(([, v]) => v).map(([k, v]) => (
+                            <div key={k} className="flex gap-2"><span className="text-white/30 w-20 shrink-0 capitalize">{k.replace(/_/g, " ")}</span><span className="text-white/70">{String(v)}</span></div>
+                          ))}
+                          {osintResult.abuseHint && (
+                            <div className="mt-2 px-3 py-2 bg-orange-500/8 border border-orange-500/20 rounded-lg text-orange-300/80 text-[11px]">
+                              <span className="font-semibold">Abuse Report: </span>{osintResult.abuseHint}
+                            </div>
+                          )}
+                          <button onClick={() => ccopy(JSON.stringify(osintResult, null, 2), "osint")}
+                            className="flex items-center gap-1.5 text-[10px] text-white/30 hover:text-white/60 transition-colors mt-1">
+                            {counterCopied === "osint" ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />} Copy raw
+                          </button>
+                        </div>
+                      )}
+                      {!osintResult && !osintLoading && (
+                        <div className="px-4 py-6 text-center text-xs text-white/20">
+                          Reverse DNS, live geo, ISP/ASN lookup, and abuse contact for <span className="font-mono text-white/35">{counterIp}</span>.
+                        </div>
+                      )}
+                    </div>
+
+                    {/* ── Tool 3: Canary Beacon Injector ───────────────────── */}
+                    <div className="bg-[#0d1610] border border-white/[0.07] rounded-xl overflow-hidden lg:col-span-2">
+                      <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.05] flex-wrap gap-2">
+                        <div className="flex items-center gap-2 text-sm font-semibold text-white">
+                          <FlaskConical className="w-4 h-4 text-orange-400" /> Counter-Beacon Injector
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {[
+                            { key: "pixel",  label: "Pixel",    color: "text-green-400 border-green-500/30 bg-green-500/8" },
+                            { key: "js",     label: "JS",       color: "text-blue-400 border-blue-500/30 bg-blue-500/8" },
+                            { key: "aws",    label: "AWS Key",  color: "text-yellow-400 border-yellow-500/30 bg-yellow-500/8" },
+                            { key: "jwt",    label: "JWT",      color: "text-purple-400 border-purple-500/30 bg-purple-500/8" },
+                            { key: "dns",    label: "DNS",      color: "text-cyan-400 border-cyan-500/30 bg-cyan-500/8" },
+                            { key: "sql",    label: "SQL OOB",  color: "text-red-400 border-red-500/30 bg-red-500/8" },
+                          ].map(({ key, label, color }) => (
+                            <button key={key} onClick={() => { setCanaryType(key); setCanaryResult(null); }}
+                              className={`px-2.5 py-1 text-[11px] font-mono rounded-md border transition-all ${canaryType === key ? color : "text-white/30 border-white/10 hover:text-white/50"}`}>
+                              {label}
+                            </button>
+                          ))}
+                          <button onClick={runCanaryInject} disabled={canaryLoading}
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-orange-500/10 border border-orange-500/25 text-orange-400 rounded-lg hover:bg-orange-500/15 transition-all disabled:opacity-50">
+                            {canaryLoading ? <><RefreshCw className="w-3 h-3 animate-spin" /> Generating…</> : <><FlaskConical className="w-3 h-3" /> Generate Canary</>}
+                          </button>
+                        </div>
+                      </div>
+                      <div className="px-4 py-3 text-[10px] text-white/35 border-b border-white/[0.04]">
+                        Generate a tracking beacon to embed in poisoned data you feed to the attacker.
+                        When they open, execute, or use the stolen data, the beacon fires — revealing their real operational IP (often different from their scanning IP).
+                      </div>
+                      {canaryResult?.error && <div className="px-4 py-3 text-xs text-red-400">{canaryResult.error}</div>}
+                      {canaryResult && !canaryResult.error && (
+                        <div className="px-4 py-4 space-y-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <div className="text-[11px] font-bold text-orange-300">{canaryResult.label}</div>
+                              <div className="text-[10px] text-white/40 mt-0.5">{canaryResult.description}</div>
+                            </div>
+                            <span className="text-[9px] font-mono text-white/20 bg-black/40 px-2 py-1 rounded border border-white/[0.06] shrink-0">{canaryResult.canaryId?.substring(0, 12)}…</span>
+                          </div>
+                          <div className="relative group">
+                            <pre className="font-mono text-[10px] bg-black/50 border border-orange-500/15 rounded-lg p-3 text-orange-200/70 overflow-x-auto whitespace-pre-wrap leading-relaxed">{canaryResult.embed}</pre>
+                            <button onClick={() => ccopy(canaryResult.embed, "canary-embed")}
+                              className="absolute top-2 right-2 p-1.5 rounded text-white/20 hover:text-white/60 bg-black/60 border border-white/10 opacity-0 group-hover:opacity-100 transition-all">
+                              {counterCopied === "canary-embed" ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
+                            </button>
+                          </div>
+                          <div className="px-3 py-2 bg-orange-500/5 border border-orange-500/15 rounded-lg text-[11px] text-orange-300/70 leading-relaxed">
+                            <span className="text-orange-300/90 font-semibold">How to use: </span>{canaryResult.instructions}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] text-white/30">Beacon URL:</span>
+                            <code className="font-mono text-[10px] text-primary/60 bg-black/40 px-2 py-0.5 rounded">{canaryResult.beaconUrl}</code>
+                            <button onClick={() => ccopy(canaryResult.beaconUrl, "canary-url")} className="text-white/20 hover:text-white/60 transition-colors">
+                              {counterCopied === "canary-url" ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                      {!canaryResult && !canaryLoading && (
+                        <div className="px-4 py-5 text-xs text-white/20 text-center">
+                          Select a beacon type above then click Generate. Embed the output in any fake response you serve to the attacker — pixel in HTML, AWS keys in .env, JS in fake pages, SQL in fake dumps.
+                        </div>
+                      )}
+                    </div>
+
+                    {/* ── Tool 4: External Tool Launchers ──────────────────── */}
+                    <div className="bg-[#0d1610] border border-white/[0.07] rounded-xl p-4 space-y-3 lg:col-span-2">
+                      <div className="text-sm font-semibold text-white flex items-center gap-2"><Swords className="w-4 h-4 text-primary" /> Launch Full Attack-Chain Analysis</div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        {[
+                          { label: "Ghost Chain", desc: "Map full attack path + kill chain from this IP", href: `/ghost-chain`, icon: Network, color: "text-primary border-primary/25 bg-primary/8" },
+                          { label: "Subdomain Scout", desc: "Enumerate all domains / subdomains on this IP", href: `/subdomain-scan?ip=${counterIp}`, icon: Globe, color: "text-blue-400 border-blue-500/25 bg-blue-500/8" },
+                          { label: "OSINT Recon", desc: "Full passive recon — DNS, TLS, headers, ASN", href: `/osint?target=${counterIp}`, icon: Search, color: "text-purple-400 border-purple-500/25 bg-purple-500/8" },
+                          { label: "Threat Intel", desc: "Check IP reputation across 6 threat feeds", href: `/threat-intel?ip=${counterIp}`, icon: ShieldAlert, color: "text-orange-400 border-orange-500/25 bg-orange-500/8" },
+                        ].map(({ label, desc, href, icon: Icon, color }) => (
+                          <a key={label} href={href} className={`flex flex-col gap-1.5 px-3 py-3 rounded-xl border transition-all hover:scale-[1.02] ${color}`}>
+                            <div className="flex items-center gap-2">
+                              <Icon className="w-3.5 h-3.5 shrink-0" />
+                              <span className="text-xs font-semibold">{label}</span>
+                              <ExternalLink className="w-2.5 h-2.5 ml-auto opacity-50" />
+                            </div>
+                            <div className="text-[10px] opacity-60 leading-snug">{desc}</div>
+                          </a>
+                        ))}
+                      </div>
+                      <div className="pt-1 flex items-center gap-3">
+                        <button onClick={() => downloadReport(counterIp)}
+                          disabled={reportLoading[counterIp]}
+                          className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold bg-white/5 border border-white/10 text-white/60 rounded-xl hover:text-white hover:border-white/20 transition-all disabled:opacity-50">
+                          <FileText className="w-3.5 h-3.5" />
+                          {reportLoading[counterIp] ? "Generating…" : "Download Authority Report"}
+                        </button>
+                        <span className="text-[10px] text-white/25">Full forensic incident report formatted for ISP abuse desks and law enforcement</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* ── Full step-by-step counter-attack playbook ─────────────────────── */}
+          <div className="bg-[#0d1610] border border-white/[0.07] rounded-xl overflow-hidden">
+            <div className="px-5 py-4 border-b border-white/[0.06]">
+              <div className="text-sm font-bold text-white flex items-center gap-2"><Flame className="w-4 h-4 text-orange-400" /> Counter-Attack Playbook — Turn the Tables</div>
+              <div className="text-[10px] text-white/35 mt-0.5">Step-by-step: from the moment a hacker hits your trap to the moment they become the subject of investigation. Educational purposes only.</div>
+            </div>
+            <div className="divide-y divide-white/[0.04]">
+              {[
+                {
+                  phase: "Phase 1", label: "Harvest Everything Ghost Trap Captured",
+                  icon: <Eye className="w-4 h-4 text-primary" />, color: "text-primary",
+                  steps: [
+                    { title: "Download the Authority Report immediately", detail: "Go to the Probe Feed tab → expand the attacker's IP → click Download Report. This gives you their IP, source port, exact timestamp (ms precision), all HTTP headers, attack payloads, hop chain, and VPN exit node identification. This is your forensic record — timestamp it." },
+                    { title: "Note the TCP source port", detail: "The source port (e.g. 52341) combined with the exact timestamp uniquely identifies their TCP session in ISP logs. This is the key data a court order or subpoena request to their ISP needs to correlate to a specific subscriber. Without this, you only have the VPN exit IP." },
+                    { title: "Capture the User-Agent string", detail: "The User-Agent reveals their exact tooling. 'sqlmap/1.7' means they ran SQLmap. 'Nmap Scripting Engine' means Nmap NSE. 'python-requests/2.28' means a custom script. 'Mozilla/5.0' on a SQLi probe means they used a browser. The tool fingerprint tells you their skill level and what to expect next." },
+                    { title: "Read the full X-Forwarded-For hop chain", detail: "This shows every proxy they routed through: [real_ip] → [vpn_exit] → [your_server]. The leftmost IP in the chain is closest to their real identity. If they used Tor, you'll see a Tor exit node. If they used a VPN, Ghost Trap's VPN detection identifies the provider." },
+                  ]
+                },
+                {
+                  phase: "Phase 2", label: "Fingerprint Their Infrastructure",
+                  icon: <Radar className="w-4 h-4 text-cyan-400" />, color: "text-cyan-400",
+                  steps: [
+                    { title: "Run the Port Scanner (above) on their IP", detail: "TCP connect scan across 24 attack-relevant ports. If port 4444 is open → active Metasploit listener. Port 8080 → Burp Suite proxy or C2 web panel. Port 9001/9050 → they're running a Tor relay on their attack box. Port 6379 (Redis) or 27017 (MongoDB) open without auth → their own infrastructure is vulnerable." },
+                    { title: "Run OSINT Deep Dive (above)", detail: "Reverse DNS often reveals their hosting provider ('ip-123-45.digitalocean.com'), VPS region, and sometimes their own domain. Their ISP identifies whether they're on residential internet (harder to stay anonymous), a datacenter VPS, or a commercial VPN exit." },
+                    { title: "Cross-reference their attack payload with known tools", detail: "SQLmap payloads have a specific structure. Nikto probes hit exact known paths. Metasploit modules leave recognizable headers. If their User-Agent is generic but their payloads are automated, they're running a script. Match the payload signature against public exploit databases." },
+                    { title: "Check if they're using a known compromised/botnet IP", detail: "Use the Threat Intel launcher above to check their IP against 6 threat feeds. Many attackers use previously-compromised residential IPs or botnets — if it's on a blocklist, it confirms malicious actor. If clean, they may be using a freshly-provisioned VPS." },
+                  ]
+                },
+                {
+                  phase: "Phase 3", label: "Use Their Active Connection Against Them",
+                  icon: <Lock className="w-4 h-4 text-yellow-400" />, color: "text-yellow-400",
+                  steps: [
+                    { title: "Ghost Trap is already tarpitting their connection", detail: "Every response your Ghost Trap sends is deliberately delayed by tarpitMinMs–tarpitMaxMs (configurable in Config). This wastes their scanner's threads — automated tools often have limited concurrency. The longer they're stuck in your tarpit, the more data you collect and the more time you have to analyze them." },
+                    { title: "Feed them progressively deeper poisoned data", detail: "Every request to your lure endpoints gets a fake but realistic response: /login gives a fake JWT token, /.env gives fake AWS keys + DB credentials, /backup.sql gives a fake database dump, /api/users gives fake user records. Each response contains an embedded pixel beacon. When their tool or browser loads any of these, a new beacon fires revealing their real IP." },
+                    { title: "Plant counter-beacons in every fake response (Canary Injector above)", detail: "Generate a new canary for each category of fake data: pixel beacon in HTML responses, AWS key canary in .env responses, JWT canary in login responses. When the attacker USES the stolen data in their own environment (tries the AWS keys, replays the JWT, imports the DB dump), the beacon fires from their operational IP — which is often completely different from their scanning IP, revealing their real location." },
+                    { title: "The stolen .env AWS keys will beacon from their real machine", detail: "When an attacker steals fake AWS credentials and runs 'aws s3 ls' or 'aws sts get-caller-identity', two things happen: (1) AWS blocks the call because the keys are fake, AND (2) the MONITORING_ENDPOINT in your .env fires a beacon from whatever machine they're running the AWS CLI on. That's their actual workstation or attack server IP — not the VPN exit node they scanned from." },
+                  ]
+                },
+                {
+                  phase: "Phase 4", label: "Per-Attack-Type Counter Techniques",
+                  icon: <Swords className="w-4 h-4 text-red-400" />, color: "text-red-400",
+                  steps: [
+                    { title: "SQL Injection attacker → reflect a tool-crashing payload", detail: "SQLmap and similar tools parse your responses to detect injection points. Return a malformed 'database error' that contains a recursive JSON structure or extremely long strings — this can crash or freeze poorly-coded tools. Simultaneously, embed an out-of-band DNS beacon in the fake SQL error message (see SQL OOB canary type above). If they run the injected SQL in their own test database, the OOB beacon fires from their server." },
+                    { title: "XSS attacker → reflect their payload back as a stored XSS trigger", detail: "Your fake HTML responses already contain beacon scripts. But for XSS attackers specifically: reflect their own submitted XSS payload back in the fake response body. If they're using a browser to test (not just a scanner), their own payload will execute in their browser — and the accompanying beacon script will exfil their browser's cookies, localStorage, language, screen size, and timezone. This builds a full browser fingerprint of their machine." },
+                    { title: "Command injection attacker → fake shell with embedded wget beacon", detail: "When someone sends '$(id)' or '; cat /etc/passwd', Ghost Trap's fake shell returns convincing-looking output. Enhance this by including a command in the fake output that looks like a legitimate system process but contains a wget/curl to your beacon URL: embed 'Monitoring: curl -s http://[beacon] >/dev/null &' in the fake cron output. If they copy-paste the fake output into a report or re-run it in their own shell, the beacon fires from their machine." },
+                    { title: "Auth brute-force attacker → let them 'succeed' then track usage", detail: "After N failed login attempts, Ghost Trap returns a fake 'success' response with a poisoned session token (see JWT canary type). This token contains an embedded monitoring URL. Every API call they make with this fake token will attempt to hit the monitoring URL — revealing their operational IP and what they're trying to access with the 'stolen' credentials. If they automate exploitation, you get a full timeline of their post-exploitation attempts." },
+                    { title: "Path traversal / LFI attacker → fake files with embedded trackers", detail: "When attackers try ../../../../etc/passwd, Ghost Trap serves a convincing fake passwd file. Embed a unique DNS subdomain in the fake file — if they run any processing against it (import into a script, try to crack the fake password hashes, DNS-resolve any hostname in the file), the beacon fires. For /proc/net files, embed fake IP addresses that route back to your infrastructure." },
+                    { title: "Recon scanner → identify their full tool chain from probe patterns", detail: "Nikto sends requests in a specific order. Nmap scripts leave characteristic headers. Gobuster/ffuf have identifiable timing patterns. Identify their tool from the probe sequence, then customize your response to maximize deception for that specific tool. Nmap service detection responds to banner probes — return convincing fake banners (Apache 2.4.49 — a known vulnerable version) to make them think they've found a real vulnerability. They'll spend time attempting exploits against your honeypot instead of finding real targets." },
+                  ]
+                },
+                {
+                  phase: "Phase 5", label: "Trace, Report, and Expose",
+                  icon: <Globe className="w-4 h-4 text-green-400" />, color: "text-green-400",
+                  steps: [
+                    { title: "File ISP abuse report immediately with Authority Report", detail: "Use the abuse contact found in OSINT Deep Dive. Most VPS providers (DigitalOcean, Hetzner, Vultr, OVH, Linode) respond to abuse reports within 24 hours and will terminate the account. Include: their IP, your IP, the exact attack timestamp, the attack vector, and the authority report as an attachment. This is the fastest way to take down their attack infrastructure." },
+                    { title: "If they used a commercial VPN — report to that VPN provider", detail: "Ghost Trap identifies VPN providers from the exit node's ASN. NordVPN, ExpressVPN, Mullvad, ProtonVPN, Surfshark — all have abuse desks. They will not hand over user identity without a court order, but they will terminate the VPN account for TOS violations. This forces the attacker to get a new VPN account, disrupting their operational continuity." },
+                    { title: "If they used Tor — report to the relay operator", detail: "Tor exit nodes are operated by volunteers. The exit relay's IP is public — you can look it up in the Tor metrics. Contact the relay operator (many have abuse contacts). More importantly: report to your own ISP that you were attacked from a Tor exit so they can add it to their threat intelligence." },
+                    { title: "If attacks continue — file with law enforcement", detail: "Your Authority Report is formatted for this purpose. In the US: file with IC3.gov (FBI Internet Crime Complaint Center), your local FBI field office for serious incidents, and CISA (cisa.gov/report). In the EU: contact your national CERT. The Authority Report includes all data needed: timestamps, IPs, attack payloads, hop chains, and legal declaration language. Attach beacon confirmation screenshots as evidence of unauthorized access." },
+                    { title: "Broadcast attacker intelligence to the community", detail: "After reporting, you can submit the attacker's IP to public threat intelligence feeds: AbuseIPDB (abuseipdb.com), VirusTotal (virustotal.com), AlienVault OTX (otx.alienvault.com). This protects other targets by flagging the IP across the community. Use the Authority Report as source material for your submission." },
+                  ]
+                },
+              ].map(({ phase, label, icon, color, steps }) => (
+                <div key={phase} className="px-5 py-4 space-y-3">
+                  <div className="flex items-center gap-2.5">
+                    {icon}
+                    <div>
+                      <div className={`text-[10px] font-bold uppercase tracking-widest ${color} opacity-70`}>{phase}</div>
+                      <div className="text-sm font-semibold text-white leading-tight">{label}</div>
+                    </div>
+                  </div>
+                  <div className="space-y-2 pl-6">
+                    {steps.map((s, i) => (
+                      <div key={i} className="flex gap-3">
+                        <div className={`text-[10px] font-bold ${color} opacity-60 w-4 shrink-0 mt-0.5`}>{i + 1}.</div>
+                        <div>
+                          <div className="text-xs font-semibold text-white/80 leading-snug">{s.title}</div>
+                          <div className="text-[11px] text-white/40 leading-relaxed mt-0.5">{s.detail}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+        </div>
+      )}
+
     </div>
   );
 }
