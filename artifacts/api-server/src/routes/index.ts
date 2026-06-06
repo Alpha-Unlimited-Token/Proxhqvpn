@@ -116,6 +116,12 @@ router.get("/my-ip", (req: Request, res: Response) => {
 // Admin sub-routes (/publish, /admin) are protected inside the router
 router.use("/updates", updatesRouter);
 
+// Public version check — used by the Downloads page "Check for Updates" button
+// (alias of /updates/check so both web users and standalone users hit the same path)
+router.get("/update/check", (_req, res) => {
+  res.redirect(307, "/api/updates/check");
+});
+
 // Daemon inbound — authenticated via PSK header (not Clerk), public route
 router.use("/daemon-inbound", daemonInboundRouter);
 

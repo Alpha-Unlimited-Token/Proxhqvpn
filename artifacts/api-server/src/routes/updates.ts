@@ -234,4 +234,40 @@ router.delete("/admin/:platform", requireAdmin, (req: Request, res: Response) =>
   res.json({ ok: true });
 });
 
+// ── Public: version check endpoint (used by web app "Check for Updates" button)
+// Returns the latest published version and changelog so the Downloads page
+// can show "up to date" vs "update available" without needing the standalone server.
+const CURRENT_VERSION   = "2.1.0";
+const CURRENT_RELEASE_DATE = "2026-06-06";
+const CURRENT_CHANGELOG = [
+  "⚔ Counter Attack tab on Ghost Trap — live interactive tools to counter captured hackers",
+  "Counter Attack: TCP port scanner across 24 attacker-relevant ports (C2, reverse shells, Tor, attack proxies)",
+  "Counter Attack: OSINT Deep Dive — reverse DNS, live geo, ISP/ASN, auto-generated abuse report contacts",
+  "Counter Attack: Canary Beacon Injector — 6 beacon types (Pixel, JS fingerprint, Fake AWS Key, JWT, DNS, SQL OOB)",
+  "Counter Attack: External tool launchers (Ghost Chain, Subdomain Scout, OSINT Recon, Threat Intel)",
+  "Counter Attack: 5-phase counter-attack playbook (Harvest → Fingerprint → Active Connection → Per-Attack Techniques → Report)",
+  "Counter Attack: Per-attack-type counter cards (SQLi, XSS, CMDi, auth brute, LFI, recon scanner)",
+  "Ghost Trap honeypot — personal device & website modes with instant law-enforcement incident reports",
+  "Canary Tokens — 12 token types including AWS Key, Redirect URL, SQL Token, PowerShell, PDF, Slack Webhook",
+  "Kill Switch — full IPv6 leak protection with ip6tables mirroring",
+  "DNS Sinkhole — Pi-hole style per-category blocking (Ads/Trackers/Malware/Phishing/Cryptomining/Botnet/Adult)",
+  "Network Monitor — real-time traffic flow analysis across all 60 VPN nodes",
+  "Security Event Log (SIEM) — unified event timeline with severity filtering",
+  "OSINT Recon — DNS, TLS, HTTP headers, email security, ASN fingerprinting",
+  "QuantumAudit — standalone blockchain security auditing for classical + post-quantum vulnerabilities",
+  "Signature Mining Engine — 5-engine parallel ECDSA key recovery and blockchain intelligence suite",
+  "JWT Analyzer — JWKS injection, X5U, Embedded JWK, kid SQL/path injection, Claim Escalation attacks",
+  "Subdomain Scanner — 9 passive OSINT sources (crt.sh, AlienVault OTX, HackerTarget, URLScan.io, Wayback, AnubisDB, RapidDNS, ThreatCrowd, BufferOver)",
+  "Directory Fuzzer — recursive scanning depth 3 with response-size filtering",
+  "Security hardening: SSRF guard, DB index layer, pool limits, spawn hardening",
+];
+
+router.get("/check", (_req, res) => {
+  res.json({
+    version: CURRENT_VERSION,
+    releaseDate: CURRENT_RELEASE_DATE,
+    changelog: CURRENT_CHANGELOG,
+  });
+});
+
 export default router;
