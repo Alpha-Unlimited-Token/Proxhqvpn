@@ -1,2 +1,7 @@
 artifacts/ghost-vpn/public/downloads/ProxhqVPN-ALL-PLATFORMS.zip filter=lfs diff=lfs merge=lfs -text
 standalone/_pkg_tmp_ProxhqVPN-macOS-arm64/ProxhqVPN filter=lfs diff=lfs merge=lfs -text
+standalone/_stage/ProxhqVPN-Linux-x64/ProxhqVPN filter=lfs diff=lfs merge=lfs -text
+standalone/_stage/ProxhqVPN-Linux-x64/frontend/downloads/ProxhqVPN-ALL-PLATFORMS.zip filter=lfs diff=lfs merge=lfs -text
+standalone/_stage/ProxhqVPN-Universal-NodeJS/frontend/downloads/ProxhqVPN-ALL-PLATFORMS.zip filter=lfs diff=lfs merge=lfs -text
+standalone/_stage/ProxhqVPN-macOS-x64/ProxhqVPN filter=lfs diff=lfs merge=lfs -text
+standalone/_stage/ProxhqVPN-macOS-x64/frontend/downloads/ProxhqVPN-ALL-PLATFORMS.zip filter=lfs diff=lfs merge=lfs -text

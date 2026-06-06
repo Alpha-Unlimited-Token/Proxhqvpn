@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" fill="none">
+  <rect width="120" height="120" fill="#000000"/>
+  <!-- Outer ring -->
+  <circle cx="60" cy="60" r="52" stroke="#00ff88" stroke-width="1" stroke-opacity="0.3"/>
+  <circle cx="60" cy="60" r="44" stroke="#00ff88" stroke-width="0.5" stroke-opacity="0.15"/>
+  <!-- Shield body -->
+  <path d="M60 18 L88 30 L88 62 C88 78 75 90 60 96 C45 90 32 78 32 62 L32 30 Z"
+        fill="#000" stroke="#00ff88" stroke-width="1.5" stroke-linejoin="round"/>
+  <!-- Inner shield glow -->
+  <path d="M60 24 L84 34.5 L84 62 C84 75.5 72.5 86 60 91.5 C47.5 86 36 75.5 36 62 L36 34.5 Z"
+        fill="none" stroke="#00ff88" stroke-width="0.5" stroke-opacity="0.3"/>
+  <!-- Ghost shape inside shield -->
+  <path d="M60 38 C53 38 47 44 47 51 L47 65 L51 62 L55 65 L60 62 L65 65 L69 62 L73 65 L73 51 C73 44 67 38 60 38 Z"
+        fill="#00ff88" fill-opacity="0.9"/>
+  <!-- Ghost eyes -->
+  <circle cx="55" cy="50" r="2.5" fill="#000"/>
+  <circle cx="65" cy="50" r="2.5" fill="#000"/>
+  <!-- Network dots at corners -->
+  <circle cx="60" cy="14" r="2" fill="#00ff88" fill-opacity="0.6"/>
+  <circle cx="95" cy="32" r="1.5" fill="#00ff88" fill-opacity="0.4"/>
+  <circle cx="95" cy="88" r="1.5" fill="#00ff88" fill-opacity="0.4"/>
+  <circle cx="60" cy="106" r="2" fill="#00ff88" fill-opacity="0.6"/>
+  <circle cx="25" cy="88" r="1.5" fill="#00ff88" fill-opacity="0.4"/>
+  <circle cx="25" cy="32" r="1.5" fill="#00ff88" fill-opacity="0.4"/>
+  <!-- Connecting lines -->
+  <line x1="60" y1="14" x2="95" y2="32" stroke="#00ff88" stroke-width="0.5" stroke-opacity="0.2"/>
+  <line x1="95" y1="32" x2="95" y2="88" stroke="#00ff88" stroke-width="0.5" stroke-opacity="0.2"/>
+  <line x1="95" y1="88" x2="60" y2="106" stroke="#00ff88" stroke-width="0.5" stroke-opacity="0.2"/>
+  <line x1="60" y1="106" x2="25" y2="88" stroke="#00ff88" stroke-width="0.5" stroke-opacity="0.2"/>
+  <line x1="25" y1="88" x2="25" y2="32" stroke="#00ff88" stroke-width="0.5" stroke-opacity="0.2"/>
+  <line x1="25" y1="32" x2="60" y2="14" stroke="#00ff88" stroke-width="0.5" stroke-opacity="0.2"/>
+</svg>
