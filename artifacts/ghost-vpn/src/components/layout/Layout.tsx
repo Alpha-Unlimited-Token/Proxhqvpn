@@ -377,6 +377,19 @@ interface UpdateInfo {
   version: string;
 }
 
+// Latest published standalone version — bump this whenever a new build ships
+const LATEST_STANDALONE_VERSION = "2.0.0";
+
+function semverGt(a: string, b: string): boolean {
+  const pa = a.split(".").map(Number);
+  const pb = b.split(".").map(Number);
+  for (let i = 0; i < 3; i++) {
+    if ((pa[i] ?? 0) > (pb[i] ?? 0)) return true;
+    if ((pa[i] ?? 0) < (pb[i] ?? 0)) return false;
+  }
+  return false;
+}
+
 export function Layout({ children }: LayoutProps) {
   const [location] = useLocation();
   const { user } = useUser();
@@ -388,6 +401,11 @@ export function Layout({ children }: LayoutProps) {
   const [pendingUpdate, setPendingUpdate] = useState<UpdateInfo | null>(null);
   const [updateDismissed, setUpdateDismissed] = useState(false);
   const [restarting, setRestarting] = useState(false);
+
+  // Standalone mode: show "newer version available" banner when the running
+  // server is older than LATEST_STANDALONE_VERSION (port 7474 = standalone).
+  const [standaloneOldVer, setStandaloneOldVer] = useState<string | null>(null);
+  const [standaloneUpdateDismissed, setStandaloneUpdateDismissed] = useState(false);
 
   const { notifications, unreadCount, newAlert, markRead, markAllRead, dismissAlert } = useNotifications(30_000);
   const [alertVisible, setAlertVisible] = useState(false);
@@ -409,6 +427,25 @@ export function Layout({ children }: LayoutProps) {
     return () => { delete (window as any).__proxhqShowUpdateBanner; };
   }, []);
 
+  // Standalone update check — only runs when loaded from the standalone server
+  // (port 7474). Compares the running server version to LATEST_STANDALONE_VERSION
+  // and surfaces a banner if the user needs to re-download.
+  useEffect(() => {
+    const port = window.location.port;
+    if (port !== "7474") return;
+    const DISMISS_KEY = `proxhq_standalone_update_dismissed_${LATEST_STANDALONE_VERSION}`;
+    if (localStorage.getItem(DISMISS_KEY) === "1") return;
+    fetch("/api/update/check")
+      .then((r) => r.json())
+      .then((data: { version?: string }) => {
+        const running = data.version ?? "0.0.0";
+        if (semverGt(LATEST_STANDALONE_VERSION, running)) {
+          setStandaloneOldVer(running);
+        }
+      })
+      .catch(() => {/* offline or API unavailable — silently ignore */});
+  }, []);
+
   function updateNow() {
     setRestarting(true);
     // Give the UI a moment to show "Restarting…" before Electron kills the window
@@ -418,6 +455,13 @@ export function Layout({ children }: LayoutProps) {
   }
 
   const showBanner = pendingUpdate && !updateDismissed;
+  const showStandaloneBanner = standaloneOldVer !== null && !standaloneUpdateDismissed;
+
+  function dismissStandaloneUpdate() {
+    const DISMISS_KEY = `proxhq_standalone_update_dismissed_${LATEST_STANDALONE_VERSION}`;
+    localStorage.setItem(DISMISS_KEY, "1");
+    setStandaloneUpdateDismissed(true);
+  }
 
   const pageName = PAGE_NAMES[location] ?? "ProxhqVPN";
   const closeSidebar = () => setSidebarOpen(false);
@@ -748,6 +792,55 @@ export function Layout({ children }: LayoutProps) {
             >
               <X className="w-3.5 h-3.5" />
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Standalone update banner — shown when running an older local server build */}
+      {showStandaloneBanner && (
+        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 w-full max-w-lg px-4 animate-in slide-in-from-top-4 duration-300">
+          <div className="bg-[#0d1a0f] border border-primary/40 rounded-xl shadow-2xl shadow-black/60 p-4 flex flex-col gap-3">
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 rounded-lg bg-primary/15 border border-primary/25 flex items-center justify-center shrink-0">
+                <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-[13px] font-semibold text-white leading-tight">
+                  ProxhqVPN {LATEST_STANDALONE_VERSION} is available
+                </div>
+                <div className="text-[11px] text-white/60 mt-0.5 leading-snug">
+                  You are running v{standaloneOldVer}. New: Ghost Trap, DNS Sinkhole, SIEM, Network Monitor, QuantumAudit, and security audit fixes.
+                </div>
+              </div>
+              <button
+                onClick={dismissStandaloneUpdate}
+                className="text-white/30 hover:text-white/60 transition-colors shrink-0 mt-0.5"
+                aria-label="Dismiss"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="flex gap-2">
+              <a
+                href="/downloads"
+                className="flex-1 bg-primary text-black text-[12px] font-semibold py-2 rounded-lg hover:bg-primary/90 transition-colors flex items-center justify-center gap-1.5"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Download Update
+              </a>
+              <button
+                onClick={dismissStandaloneUpdate}
+                className="px-4 text-[12px] font-medium text-white/60 hover:text-white/50 border border-white/10 rounded-lg hover:border-white/20 transition-colors"
+              >
+                Later
+              </button>
+            </div>
           </div>
         </div>
       )}

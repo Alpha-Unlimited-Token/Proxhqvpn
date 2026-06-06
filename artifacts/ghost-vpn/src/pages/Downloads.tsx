@@ -671,6 +671,51 @@ export default function Downloads() {
         </p>
       </div>
 
+      {/* ── What's New in v2.0.0 ───────────────────────────────────────────── */}
+      <div className="border border-primary/20 rounded-xl overflow-hidden bg-primary/[0.03]">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-primary/15 bg-primary/[0.04]">
+          <div className="flex items-center gap-2.5">
+            <Star className="w-3.5 h-3.5 text-primary/70" />
+            <span className="text-[12px] font-bold tracking-widest uppercase text-primary/80">What's New in v{APP_VERSION}</span>
+            <span className="text-[9px] font-bold uppercase tracking-widest text-black bg-primary px-1.5 py-0.5 rounded-full leading-none">NOW LIVE</span>
+          </div>
+          <span className="text-[10px] text-primary/40 font-mono">{RELEASE_DATE}</span>
+        </div>
+        <div className="px-5 py-4 grid gap-2 sm:grid-cols-2">
+          {[
+            { label: "Ghost Trap Honeypot", desc: "Personal device & website modes — instant attacker reports" },
+            { label: "DNS Sinkhole", desc: "Pi-hole style blocking: Ads, Trackers, Malware, Phishing, Botnet C2" },
+            { label: "Network Monitor", desc: "Real-time traffic flow analysis across all 60 VPN nodes" },
+            { label: "SIEM Event Log", desc: "Unified security timeline with severity filtering across all sources" },
+            { label: "OSINT Recon", desc: "DNS, TLS, HTTP headers, email security, ASN fingerprinting" },
+            { label: "QuantumAudit", desc: "Blockchain smart contract + post-quantum vulnerability scanner" },
+            { label: "Ghost Trace", desc: "VPN-native outbound behavioral analysis — detects C2 beaconing" },
+            { label: "Ghost Chain", desc: "Automated kill-chain discovery and attack-path intelligence" },
+            { label: "JWT Analyzer", desc: "JWKS injection, X5U, Embedded JWK, kid SQL/path injection attacks" },
+            { label: "Subdomain Scanner", desc: "9 passive OSINT sources including crt.sh, AlienVault, Wayback" },
+            { label: "Directory Fuzzer", desc: "Recursive scanning (depth 3) with response-size filtering" },
+            { label: "Security Audit Fixes", desc: "SSRF guard, DB index layer, pool limits, spawn hardening" },
+          ].map(({ label, desc }) => (
+            <div key={label} className="flex items-start gap-2.5">
+              <CheckCircle className="w-3.5 h-3.5 text-primary/60 shrink-0 mt-0.5" />
+              <div>
+                <div className="text-[11px] font-semibold text-white/80 leading-snug">{label}</div>
+                <div className="text-[10px] text-primary/40 font-mono leading-snug mt-0.5">{desc}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="px-5 py-3 border-t border-primary/10 flex items-center justify-between gap-3 flex-wrap">
+          <span className="text-[10px] text-primary/35 font-mono">Already running the standalone app? Re-download below to get all updates.</span>
+          <a
+            href={PROXHQ_ALL_PLATFORMS}
+            className="inline-flex items-center gap-1.5 text-[11px] font-bold text-black bg-primary px-3 py-1.5 rounded-lg hover:bg-primary/85 transition-colors"
+          >
+            <Archive className="w-3 h-3" /> Download v{APP_VERSION} — All Platforms
+          </a>
+        </div>
+      </div>
+
       {/* Fire OS detection banner */}
       {isFireOS && <FireStickBanner />}
 

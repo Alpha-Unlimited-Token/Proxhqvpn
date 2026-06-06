@@ -702,6 +702,33 @@ async function createApp() {
     }
   });
 
+  // ─── Update banner injected into index.html for standalone clients ────────
+  // This script runs in the browser the moment index.html loads — no React
+  // dependency — so users with an older downloaded build see a native DOM
+  // banner pointing them to the newest release.
+  const STANDALONE_UPDATE_SCRIPT = `
+<script id="proxhq-updater">
+(function(){
+  var LATEST="2.0.0";
+  var SK="proxhq_update_dismissed_v";
+  function gt(a,b){var pa=a.split(".").map(Number),pb=b.split(".").map(Number);for(var i=0;i<3;i++){if((pa[i]||0)>(pb[i]||0))return true;if((pa[i]||0)<(pb[i]||0))return false;}return false;}
+  function show(running){
+    if(localStorage.getItem(SK+LATEST)==="1")return;
+    var d=document.createElement("div");
+    d.id="proxhq-update-banner";
+    d.style.cssText="position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#0d1a0f;border-bottom:1.5px solid rgba(0,255,136,.4);padding:9px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;font-family:system-ui,-apple-system,sans-serif;font-size:13px;color:#fff;box-shadow:0 2px 12px rgba(0,0,0,.6)";
+    d.innerHTML='<div style="display:flex;align-items:center;gap:10px;min-width:0"><div style="width:28px;height:28px;border-radius:8px;background:rgba(0,255,136,.12);border:1px solid rgba(0,255,136,.25);display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="14" height="14" fill="none" stroke="#00ff88" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg></div><div style="min-width:0"><span style="font-weight:700;color:#00ff88">ProxhqVPN v'+LATEST+' is available</span><span style="color:rgba(255,255,255,.55);margin-left:8px;font-size:12px">You are running v'+running+' &mdash; Ghost Trap, DNS Sinkhole, SIEM, Network Monitor, QuantumAudit, security fixes</span></div></div><div style="display:flex;align-items:center;gap:8px;flex-shrink:0"><a href="/downloads" style="background:#00ff88;color:#000;font-weight:700;font-size:11px;padding:6px 13px;border-radius:6px;text-decoration:none;white-space:nowrap">Download Update</a><button id="proxhq-upd-dismiss" style="background:none;border:1px solid rgba(255,255,255,.15);color:rgba(255,255,255,.5);font-size:11px;padding:5px 10px;border-radius:6px;cursor:pointer;white-space:nowrap">Dismiss</button></div>';
+    document.body.prepend(d);
+    document.body.style.paddingTop=(d.offsetHeight||44)+"px";
+    document.getElementById("proxhq-upd-dismiss").onclick=function(){localStorage.setItem(SK+LATEST,"1");d.remove();document.body.style.paddingTop="";};
+  }
+  fetch("/api/update/check").then(function(r){return r.json();}).then(function(data){
+    var running=data.version||"0.0.0";
+    if(gt(LATEST,running))show(running);
+  }).catch(function(){});
+})();
+</script>`;
+
   // ─── Static frontend ──────────────────────────────────────────────────────
   const FRONTEND_DIRS = [
     path.join(process.cwd(), "frontend"),
@@ -711,7 +738,20 @@ async function createApp() {
   for (const dir of FRONTEND_DIRS) {
     if (fs.existsSync(dir)) {
       app.use(express.static(dir));
-      app.get("*", (_req, res) => res.sendFile(path.join(dir, "index.html")));
+      // Serve index.html with the update-check script injected before </body>
+      app.get("*", (_req, res) => {
+        const indexPath = path.join(dir, "index.html");
+        try {
+          let html = fs.readFileSync(indexPath, "utf8");
+          if (html.includes("</body>")) {
+            html = html.replace("</body>", `${STANDALONE_UPDATE_SCRIPT}</body>`);
+          }
+          res.setHeader("Content-Type", "text/html; charset=utf-8");
+          res.send(html);
+        } catch {
+          res.sendFile(indexPath);
+        }
+      });
       servedFrontend = true;
       break;
     }
