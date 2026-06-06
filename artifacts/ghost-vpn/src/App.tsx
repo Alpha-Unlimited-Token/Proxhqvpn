@@ -99,6 +99,7 @@ import NetworkMonitor from "@/pages/NetworkMonitor";
 import DnsSinkhole from "@/pages/DnsSinkhole";
 import Siem from "@/pages/Siem";
 const OsintRecon      = lazy(() => import("@/pages/OsintRecon"));
+const UsernameIntel   = lazy(() => import("@/pages/UsernameIntel"));
 const CanaryTokens    = lazy(() => import("@/pages/CanaryTokens"));
 const ExploitImporter = lazy(() => import("@/pages/ExploitImporter"));
 const OmniStrike      = lazy(() => import("@/pages/OmniStrike"));
@@ -684,6 +685,9 @@ function AppRoutes() {
           </Route>
           <Route path="/osint">
             <CcLayout><OsintRecon /></CcLayout>
+          </Route>
+          <Route path="/username-intel">
+            <CcLayout><UsernameIntel /></CcLayout>
           </Route>
           <Route path="/canary">
             <CcLayout><CanaryTokens /></CcLayout>
