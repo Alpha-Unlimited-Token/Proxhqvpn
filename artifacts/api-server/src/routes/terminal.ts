@@ -6,6 +6,32 @@ import { promisify } from "util";
 import { z } from "zod";
 
 const execAsync = promisify(exec);
+
+// Non-ghost mode command execution via spawn(shell:false) to prevent shell
+// metacharacter injection even if the allowlist check is somehow bypassed.
+// Simple whitespace tokenizer is sufficient since the allowlist only permits
+// known tool invocations that don't use shell quoting.
+function spawnCommand(cmd: string, timeoutMs: number): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+  return new Promise((resolve) => {
+    const parts = cmd.trim().match(/\S+/g) ?? [];
+    const [file, ...args] = parts;
+    if (!file) return resolve({ stdout: "", stderr: "Empty command", exitCode: 1 });
+
+    const child = spawn(file, args, {
+      shell: false,
+      timeout: timeoutMs,
+      env: { ...process.env, HOME: process.env.HOME ?? "/tmp" },
+    });
+
+    let stdout = "";
+    let stderr = "";
+    const MAX = 4 * 1024 * 1024; // 4 MB cap
+    child.stdout?.on("data", (d: Buffer) => { stdout += d; if (stdout.length > MAX) stdout = stdout.slice(-MAX); });
+    child.stderr?.on("data", (d: Buffer) => { stderr += d; if (stderr.length > 512 * 1024) stderr = stderr.slice(-512 * 1024); });
+    child.on("close", (code) => resolve({ stdout, stderr, exitCode: code ?? 0 }));
+    child.on("error", (err) => resolve({ stdout: "", stderr: err.message, exitCode: 1 }));
+  });
+}
 const router = Router();
 
 // ─── Audit log ───────────────────────────────────────────────────────────────
@@ -162,25 +188,34 @@ router.post("/exec", async (req, res) => {
     });
   }
 
-  try {
-    const { stdout, stderr } = await execAsync(cmd, {
-      timeout: body.timeout,
-      maxBuffer: 1024 * 1024 * 4, // 4MB
-      shell: "/bin/bash",
-      env: { ...process.env, HOME: process.env.HOME ?? "/tmp" },
-    });
-    auditLog.push({ ts: executedAt, cmd, exitCode: 0, ip: clientIp });
-    res.json({ command: cmd, stdout: stdout || "", stderr: stderr || "", exitCode: 0, executedAt, ghostMode: body.ghostMode });
-  } catch (err: any) {
-    auditLog.push({ ts: executedAt, cmd, exitCode: err.code ?? 1, ip: clientIp });
-    res.json({
-      command: cmd,
-      stdout: err.stdout || "",
-      stderr: err.stderr || err.message || "Command failed",
-      exitCode: typeof err.code === "number" ? err.code : 1,
-      executedAt,
-      ghostMode: body.ghostMode,
-    });
+  // Ghost mode (ProxhqVPN Mode) = full outbound shell, admin-only, everything audited.
+  // Non-ghost mode = spawn(shell:false) with allowlist — prevents shell metacharacter injection.
+  if (body.ghostMode) {
+    try {
+      const { stdout, stderr } = await execAsync(cmd, {
+        timeout: body.timeout,
+        maxBuffer: 1024 * 1024 * 4,
+        shell: "/bin/bash",
+        env: { ...process.env, HOME: process.env.HOME ?? "/tmp" },
+      });
+      auditLog.push({ ts: executedAt, cmd, exitCode: 0, ip: clientIp });
+      res.json({ command: cmd, stdout: stdout || "", stderr: stderr || "", exitCode: 0, executedAt, ghostMode: true });
+    } catch (err: any) {
+      auditLog.push({ ts: executedAt, cmd, exitCode: err.code ?? 1, ip: clientIp });
+      res.json({
+        command: cmd,
+        stdout: err.stdout || "",
+        stderr: err.stderr || err.message || "Command failed",
+        exitCode: typeof err.code === "number" ? err.code : 1,
+        executedAt,
+        ghostMode: true,
+      });
+    }
+  } else {
+    // Allowlisted commands use spawn(shell:false) — no shell expansion, no injection risk
+    const result = await spawnCommand(cmd, body.timeout);
+    auditLog.push({ ts: executedAt, cmd, exitCode: result.exitCode, ip: clientIp });
+    res.json({ command: cmd, stdout: result.stdout, stderr: result.stderr, exitCode: result.exitCode, executedAt, ghostMode: false });
   }
 });
 

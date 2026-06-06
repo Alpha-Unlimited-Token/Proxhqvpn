@@ -13,6 +13,7 @@ import { clerkMiddleware } from "@clerk/express";
 import { CLERK_PROXY_PATH, clerkProxyMiddleware } from "./middlewares/clerkProxyMiddleware";
 import router from "./routes";
 import omegaRouter from "./routes/omega";
+const OMEGA_ENABLED = process.env.PROXHQ_ENABLE_OMEGA !== "0"; // default ON; set to "0" to disable at deploy time
 import walletTxRouter from "./routes/wallet-tx";
 import walletIntelRouter from "./routes/wallet-intel";
 import nodeCrackerRouter from "./routes/node-cracker";
@@ -217,10 +218,11 @@ const BAN_THRESHOLD = 20;
 const BAN_WINDOW_MS = 5 * 60_000;   // 5 minutes
 const BAN_DURATION_MS = 30 * 60_000; // 30 minutes
 
+// trust proxy = 1 is set above, so req.ip is already the de-proxied client IP.
+// Reading x-forwarded-for directly would let an attacker spoof their IP by
+// injecting a forged XFF header, poisoning the IP-ban accounting.
 function getClientIp(req: Request): string {
-  const forwarded = req.headers["x-forwarded-for"];
-  const firstIp = Array.isArray(forwarded) ? forwarded[0] : forwarded?.split(",")[0];
-  return (firstIp ?? req.ip ?? "unknown").trim();
+  return req.ip ?? req.socket.remoteAddress ?? "unknown";
 }
 
 // Check ban before processing request
@@ -341,7 +343,12 @@ app.use("/api/wallet-intel", walletIntelRouter);
 app.use("/api/node-cracker", nodeCrackerRouter);
 app.use("/api/dev-audit", devAuditRouter);
 app.use("/api", router);
-app.use("/api/omega", omegaRouter);
+// Omega is mounted AFTER the main /api router (which enforces requireAuth) so all
+// requests to /api/omega/* are authenticated. It is also gated by requireAdmin inside
+// routes/index.ts. Set PROXHQ_ENABLE_OMEGA=0 at deploy time to fully disable.
+if (OMEGA_ENABLED) {
+  app.use("/api/omega", omegaRouter);
+}
 
 app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
   if (err && typeof err === "object" && "name" in err && (err as any).name === "ZodError") {

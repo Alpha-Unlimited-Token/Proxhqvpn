@@ -74,16 +74,25 @@ function autoInstallDependencies() {
 autoInstallDependencies();
 
 // ── Ensure Tor daemon is running (port 9050) ─────────────────────────────────
+// Tor is required for the OnionBrowser, Ghost Chain, and SOCKS5 proxy features.
+// Set PROXHQ_ENABLE_TOR=0 to disable Tor startup (e.g. in restricted environments).
+// Default: enabled (runs whenever Tor binary is available, skipped in deployment).
 function ensureTor() {
-  const dataDir = "/tmp/tor-data";
-  fs.mkdirSync(dataDir, { recursive: true });
+  if (process.env.PROXHQ_ENABLE_TOR === "0") {
+    logger.info("Tor disabled by PROXHQ_ENABLE_TOR=0 — Tor routing unavailable");
+    return;
+  }
+  const dataDir = process.env.TOR_DATA_DIR ?? pathLib.join(process.cwd(), ".runtime", "tor-data");
+  try {
+    fs.mkdirSync(dataDir, { recursive: true, mode: 0o700 });
+  } catch { /* non-fatal if dir already exists */ }
   exec(
     `tor --RunAsDaemon 1 --DataDirectory ${dataDir} --SocksPort 9050 --ControlPort 9051 --Log "warn stderr"`,
     (err) => {
       if (err && !err.message?.includes("already")) {
         logger.warn({ err }, "Tor failed to start — Tor routing unavailable");
       } else {
-        logger.info("Tor daemon started on 127.0.0.1:9050");
+        logger.info({ dataDir }, "Tor daemon started on 127.0.0.1:9050");
       }
     },
   );

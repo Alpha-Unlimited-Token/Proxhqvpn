@@ -8,19 +8,31 @@ import { URL } from "url";
 // any outbound fetch/tcp-connect that accepts user-supplied URLs or hostnames.
 
 const PRIVATE_RANGES: [number, number, number][] = [
+  // This host on this network: 0.0.0.0/8
+  [0x00000000, 0xff000000, 4],
   // Loopback: 127.0.0.0/8
   [0x7f000000, 0xff000000, 4],
   // Private: 10.0.0.0/8
   [0x0a000000, 0xff000000, 4],
+  // CGNAT: 100.64.0.0/10 (shared address space — also used by cloud metadata)
+  [0x64400000, 0xffc00000, 4],
+  // Link-local: 169.254.0.0/16 (AWS/GCP/Azure metadata — 169.254.169.254)
+  [0xa9fe0000, 0xffff0000, 4],
   // Private: 172.16.0.0/12
   [0xac100000, 0xfff00000, 4],
+  // IETF Protocol Assignments: 192.0.0.0/24
+  [0xc0000000, 0xffffff00, 4],
+  // TEST-NET-1: 192.0.2.0/24 (documentation range — should never be routed)
+  [0xc0000200, 0xffffff00, 4],
   // Private: 192.168.0.0/16
   [0xc0a80000, 0xffff0000, 4],
-  // Link-local: 169.254.0.0/16 (AWS/GCP/Azure metadata)
-  [0xa9fe0000, 0xffff0000, 4],
+  // TEST-NET-2: 198.51.100.0/24
+  [0xc6336400, 0xffffff00, 4],
+  // TEST-NET-3: 203.0.113.0/24
+  [0xcb007100, 0xffffff00, 4],
   // Multicast: 224.0.0.0/4
   [0xe0000000, 0xf0000000, 4],
-  // Broadcast / Reserved: 240.0.0.0/4
+  // Reserved: 240.0.0.0/4
   [0xf0000000, 0xf0000000, 4],
 ];
 

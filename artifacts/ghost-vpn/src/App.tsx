@@ -1,5 +1,5 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
-import { useEffect, useRef, Component, type ReactNode } from "react";
+import { useEffect, useRef, Component, type ReactNode, lazy, Suspense } from "react";
 import { useAccess } from "@/hooks/useAccess";
 import { ClerkProvider, SignIn, SignUp, Show, useClerk, useUser } from "@clerk/react";
 
@@ -53,7 +53,7 @@ import ThreatIntel from "@/pages/ThreatIntel";
 import SplitTunnel from "@/pages/SplitTunnel";
 import Obfuscation from "@/pages/Obfuscation";
 import SecurityAudit from "@/pages/SecurityAudit";
-import VpnCoexist from "@/pages/VpnCoexist";
+const VpnCoexist = lazy(() => import("@/pages/VpnCoexist"));
 import VpnGate from "@/pages/VpnGate";
 import Platforms from "@/pages/Platforms";
 import DeviceManager from "@/pages/DeviceManager";
@@ -71,10 +71,10 @@ import ToolRunner from "@/pages/ToolRunner";
 import HttpProbe from "@/pages/HttpProbe";
 import DirectoryFuzzer from "@/pages/DirectoryFuzzer";
 import SubdomainScan from "@/pages/SubdomainScan";
-import Downloads from "@/pages/Downloads";
-import UserGuide from "@/pages/UserGuide";
-import ParrotTools from "@/pages/ParrotTools";
-import ImAutomation from "@/pages/ImAutomation";
+const Downloads    = lazy(() => import("@/pages/Downloads"));
+const UserGuide    = lazy(() => import("@/pages/UserGuide"));
+const ParrotTools  = lazy(() => import("@/pages/ParrotTools"));
+const ImAutomation = lazy(() => import("@/pages/ImAutomation"));
 import RedTeamScan from "@/pages/RedTeamScan";
 import HackAnon from "@/pages/HackAnon";
 import Employees from "@/pages/Employees";
@@ -98,14 +98,14 @@ import GhostChain from "@/pages/GhostChain";
 import NetworkMonitor from "@/pages/NetworkMonitor";
 import DnsSinkhole from "@/pages/DnsSinkhole";
 import Siem from "@/pages/Siem";
-import OsintRecon from "@/pages/OsintRecon";
-import CanaryTokens from "@/pages/CanaryTokens";
-import ExploitImporter from "@/pages/ExploitImporter";
-import OmniStrike from "@/pages/OmniStrike";
-import WafAnalyzer from "@/pages/WafAnalyzer";
-import SocialBreach from "@/pages/SocialBreach";
-import BugBountyHub from "@/pages/BugBountyHub";
-import Manuals from "@/pages/Manuals";
+const OsintRecon      = lazy(() => import("@/pages/OsintRecon"));
+const CanaryTokens    = lazy(() => import("@/pages/CanaryTokens"));
+const ExploitImporter = lazy(() => import("@/pages/ExploitImporter"));
+const OmniStrike      = lazy(() => import("@/pages/OmniStrike"));
+const WafAnalyzer     = lazy(() => import("@/pages/WafAnalyzer"));
+const SocialBreach    = lazy(() => import("@/pages/SocialBreach"));
+const BugBountyHub    = lazy(() => import("@/pages/BugBountyHub"));
+const Manuals         = lazy(() => import("@/pages/Manuals"));
 import PostQuantum from "@/pages/PostQuantum";
 import Daita from "@/pages/Daita";
 import DarkWebMonitor from "@/pages/DarkWebMonitor";
@@ -485,12 +485,22 @@ function ScrollToTop() {
   return null;
 }
 
+const LazyFallback = () => (
+  <div className="min-h-screen bg-black flex items-center justify-center">
+    <div className="flex flex-col items-center gap-3">
+      <div className="w-8 h-8 rounded-full border-2 border-primary/40 border-t-primary animate-spin" />
+      <span className="text-primary/60 text-xs font-mono">Loading…</span>
+    </div>
+  </div>
+);
+
 function AppRoutes() {
   return (
     <QueryClientProvider client={queryClient}>
       <ClerkQueryClientCacheInvalidator />
       <ScrollToTop />
       <TooltipProvider>
+        <Suspense fallback={<LazyFallback />}>
         <Switch>
           <Route path="/" component={HomeRedirect} />
           <Route path="/sign-in/*?" component={SignInPage} />
@@ -897,6 +907,7 @@ function AppRoutes() {
             </ProtectedLayout>
           </Route>
         </Switch>
+        </Suspense>
         <Toaster />
       </TooltipProvider>
     </QueryClientProvider>

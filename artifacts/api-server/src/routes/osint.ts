@@ -7,6 +7,7 @@ import tls from "tls";
 import { URL } from "url";
 import crypto from "crypto";
 import { z } from "zod";
+import { checkSsrf } from "../lib/ssrfGuard";
 
 const router = Router();
 
@@ -93,8 +94,9 @@ router.post("/lookup", async (req: Request, res: Response) => {
 
   target = target.trim().replace(/^https?:\/\//, "").replace(/\/.*/, "").toLowerCase();
 
-  if (target === "localhost" || target.startsWith("127.") || target.startsWith("192.168.") || target.startsWith("10.")) {
-    return res.status(400).json({ error: "Private/internal targets not allowed" });
+  const ssrfCheck = await checkSsrf(`https://${target}`, true);
+  if (ssrfCheck.blocked) {
+    return res.status(400).json({ error: `Private/internal targets not allowed: ${ssrfCheck.reason}` });
   }
 
   const result: Record<string, unknown> = { target, timestamp: new Date().toISOString() };

@@ -39,6 +39,7 @@ import {
   runNodeIntel,
 } from "../lib/dev-audit/exploit-engines";
 import { runAutonomousReport } from "../lib/dev-audit/autonomous-report";
+import { checkSsrf }           from "../lib/ssrfGuard";
 import { logger }              from "../lib/logger";
 
 const router = Router();
@@ -58,11 +59,9 @@ router.post("/rpc-probe", async (req: Request, res: Response) => {
   } catch {
     return res.status(400).json({ error: "endpoint must be a valid http:// or https:// URL" });
   }
-  // Block private/loopback ranges for external scanning
-  const host = parsed.hostname.toLowerCase();
-  const isInternal = /^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(host);
-  if (isInternal) {
-    return res.status(400).json({ error: "Cannot probe internal/loopback addresses. The tool scans external endpoints only." });
+  const ssrf1 = await checkSsrf(endpoint.trim(), true);
+  if (ssrf1.blocked) {
+    return res.status(400).json({ error: `Cannot probe that address: ${ssrf1.reason}` });
   }
   try {
     const result = await probeRpcEndpoint(endpoint.trim());
@@ -83,16 +82,14 @@ router.post("/headers-check", async (req: Request, res: Response) => {
   if (!normalized.startsWith("http://") && !normalized.startsWith("https://")) {
     normalized = "https://" + normalized;
   }
-  let parsed: URL;
   try {
-    parsed = new URL(normalized);
+    new URL(normalized);
   } catch {
     return res.status(400).json({ error: "url must be a valid URL" });
   }
-  const host = parsed.hostname.toLowerCase();
-  const isInternal = /^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(host);
-  if (isInternal) {
-    return res.status(400).json({ error: "Cannot scan internal/loopback addresses. Provide a publicly accessible URL." });
+  const ssrf2 = await checkSsrf(normalized, true);
+  if (ssrf2.blocked) {
+    return res.status(400).json({ error: `Cannot scan that address: ${ssrf2.reason}` });
   }
   try {
     const result = await checkSecurityHeaders(normalized);
