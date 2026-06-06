@@ -1,5 +1,5 @@
 # ══════════════════════════════════════════════════════════════════════════════
-#  GhostNet VPN — Windows Installer (PowerShell)
+#  ProxhqVPN — Windows Installer (PowerShell)
 #  Installs daemon and dashboard as Windows Services.
 #  Run as Administrator in PowerShell:
 #    Set-ExecutionPolicy Bypass -Scope Process -Force
@@ -7,14 +7,14 @@
 # ══════════════════════════════════════════════════════════════════════════════
 
 param(
-    [string]$Psk  = "ghostnet-change-me",
+    [string]$Psk  = "proxhqvpn-change-me",
     [int]   $Port = 51820
 )
 
 $ErrorActionPreference = "Stop"
-$InstallDir = "C:\GhostNet"
-$DataDir    = "C:\ProgramData\GhostNet"
-$LogDir     = "C:\ProgramData\GhostNet\logs"
+$InstallDir = "C:\ProxhqVPN"
+$DataDir    = "C:\ProgramData\ProxhqVPN"
+$LogDir     = "C:\ProgramData\ProxhqVPN\logs"
 $CtrlPort   = 7475
 $NodePort   = 7474
 
@@ -72,7 +72,7 @@ if (-not $wintunFound) {
     }
 }
 
-Write-Step "Installing GhostNet files"
+Write-Step "Installing ProxhqVPN files"
 New-Item -ItemType Directory -Force -Path $InstallDir, $DataDir, $LogDir | Out-Null
 $ScriptDir = Split-Path (Split-Path $MyInvocation.MyCommand.Path -Parent) -Parent
 
@@ -98,11 +98,11 @@ CTRL_PORT=$CtrlPort
 NODE_PORT=$NodePort
 DATA_DIR=$DataDir
 "@
-Set-Content "$DataDir\ghostnet.conf" $confContent
-icacls "$DataDir\ghostnet.conf" /inheritance:r /grant:r "SYSTEM:F" /grant:r "Administrators:F" | Out-Null
-Write-Ok "Config written to $DataDir\ghostnet.conf"
+Set-Content "$DataDir\proxhqvpn.conf" $confContent
+icacls "$DataDir\proxhqvpn.conf" /inheritance:r /grant:r "SYSTEM:F" /grant:r "Administrators:F" | Out-Null
+Write-Ok "Config written to $DataDir\proxhqvpn.conf"
 
-Write-Step "Creating Windows Service — GhostNet-Daemon"
+Write-Step "Creating Windows Service — ProxhqVPN-Daemon"
 # Use NSSM if available, otherwise sc.exe with wrapper
 $nssmPath = "$InstallDir\nssm.exe"
 if (-not (Test-Path $nssmPath)) {
@@ -122,52 +122,52 @@ if (-not (Test-Path $nssmPath)) {
 
 if (Test-Path $nssmPath) {
     # Remove existing service if present
-    & $nssmPath stop  GhostNet-Daemon 2>$null
-    & $nssmPath remove GhostNet-Daemon confirm 2>$null
+    & $nssmPath stop  ProxhqVPN-Daemon 2>$null
+    & $nssmPath remove ProxhqVPN-Daemon confirm 2>$null
 
-    & $nssmPath install GhostNet-Daemon python "$InstallDir\ghostd.py" `
+    & $nssmPath install ProxhqVPN-Daemon python "$InstallDir\ghostd.py" `
         "--mode server --port $Port --psk `"$Psk`" --ctrl-port $CtrlPort"
-    & $nssmPath set GhostNet-Daemon AppDirectory $InstallDir
-    & $nssmPath set GhostNet-Daemon AppStdout "$LogDir\daemon.log"
-    & $nssmPath set GhostNet-Daemon AppStderr "$LogDir\daemon.err"
-    & $nssmPath set GhostNet-Daemon Start SERVICE_AUTO_START
-    Write-Ok "Windows Service: GhostNet-Daemon (via NSSM)"
+    & $nssmPath set ProxhqVPN-Daemon AppDirectory $InstallDir
+    & $nssmPath set ProxhqVPN-Daemon AppStdout "$LogDir\daemon.log"
+    & $nssmPath set ProxhqVPN-Daemon AppStderr "$LogDir\daemon.err"
+    & $nssmPath set ProxhqVPN-Daemon Start SERVICE_AUTO_START
+    Write-Ok "Windows Service: ProxhqVPN-Daemon (via NSSM)"
 } else {
     # Fallback: create a simple wrapper batch and register with sc
     $wrapperPath = "$InstallDir\daemon-wrapper.bat"
     Set-Content $wrapperPath "@echo off`npython `"$InstallDir\ghostd.py`" --mode server --port $Port --psk `"$Psk`" --ctrl-port $CtrlPort"
-    & sc.exe create GhostNet-Daemon binPath= "cmd /c $wrapperPath" start= auto | Out-Null
-    Write-Ok "Windows Service: GhostNet-Daemon (sc.exe)"
+    & sc.exe create ProxhqVPN-Daemon binPath= "cmd /c $wrapperPath" start= auto | Out-Null
+    Write-Ok "Windows Service: ProxhqVPN-Daemon (sc.exe)"
 }
 
-Write-Step "Creating Windows Service — GhostNet-Dashboard"
+Write-Step "Creating Windows Service — ProxhqVPN-Dashboard"
 if (Test-Path $nssmPath) {
-    & $nssmPath stop  GhostNet-Dashboard 2>$null
-    & $nssmPath remove GhostNet-Dashboard confirm 2>$null
-    & $nssmPath install GhostNet-Dashboard node "$InstallDir\server.bundle.cjs"
-    & $nssmPath set GhostNet-Dashboard AppDirectory $InstallDir
-    & $nssmPath set GhostNet-Dashboard AppEnvironmentExtra "PORT=$NodePort" "GHOSTNET_DATA=$DataDir"
-    & $nssmPath set GhostNet-Dashboard AppStdout "$LogDir\dashboard.log"
-    & $nssmPath set GhostNet-Dashboard AppStderr "$LogDir\dashboard.err"
-    & $nssmPath set GhostNet-Dashboard Start SERVICE_AUTO_START
-    Write-Ok "Windows Service: GhostNet-Dashboard (via NSSM)"
+    & $nssmPath stop  ProxhqVPN-Dashboard 2>$null
+    & $nssmPath remove ProxhqVPN-Dashboard confirm 2>$null
+    & $nssmPath install ProxhqVPN-Dashboard node "$InstallDir\server.bundle.cjs"
+    & $nssmPath set ProxhqVPN-Dashboard AppDirectory $InstallDir
+    & $nssmPath set ProxhqVPN-Dashboard AppEnvironmentExtra "PORT=$NodePort" "PROXHQVPN_DATA=$DataDir"
+    & $nssmPath set ProxhqVPN-Dashboard AppStdout "$LogDir\dashboard.log"
+    & $nssmPath set ProxhqVPN-Dashboard AppStderr "$LogDir\dashboard.err"
+    & $nssmPath set ProxhqVPN-Dashboard Start SERVICE_AUTO_START
+    Write-Ok "Windows Service: ProxhqVPN-Dashboard (via NSSM)"
 }
 
 Write-Step "Configuring Windows Firewall"
-Remove-NetFirewallRule -DisplayName "GhostNet VPN" -ErrorAction SilentlyContinue
-New-NetFirewallRule -DisplayName "GhostNet VPN"       -Direction Inbound  -Protocol UDP -LocalPort $Port    -Action Allow | Out-Null
-New-NetFirewallRule -DisplayName "GhostNet Dashboard" -Direction Inbound  -Protocol TCP -LocalPort $NodePort -Action Allow | Out-Null
-New-NetFirewallRule -DisplayName "GhostNet VPN Out"   -Direction Outbound -Protocol UDP -LocalPort $Port    -Action Allow | Out-Null
+Remove-NetFirewallRule -DisplayName "ProxhqVPN VPN" -ErrorAction SilentlyContinue
+New-NetFirewallRule -DisplayName "ProxhqVPN VPN"       -Direction Inbound  -Protocol UDP -LocalPort $Port    -Action Allow | Out-Null
+New-NetFirewallRule -DisplayName "ProxhqVPN Dashboard" -Direction Inbound  -Protocol TCP -LocalPort $NodePort -Action Allow | Out-Null
+New-NetFirewallRule -DisplayName "ProxhqVPN VPN Out"   -Direction Outbound -Protocol UDP -LocalPort $Port    -Action Allow | Out-Null
 Write-Ok "Firewall rules created (UDP $Port, TCP $NodePort)"
 
 Write-Step "Starting services"
-Start-Service GhostNet-Daemon    -ErrorAction SilentlyContinue
+Start-Service ProxhqVPN-Daemon    -ErrorAction SilentlyContinue
 Start-Sleep -Seconds 2
-Start-Service GhostNet-Dashboard -ErrorAction SilentlyContinue
+Start-Service ProxhqVPN-Dashboard -ErrorAction SilentlyContinue
 
 Write-Host ""
 Write-Host "══════════════════════════════════════════════════════" -ForegroundColor Green
-Write-Host "  GhostNet VPN installed successfully!" -ForegroundColor Green
+Write-Host "  ProxhqVPN installed successfully!" -ForegroundColor Green
 Write-Host "══════════════════════════════════════════════════════" -ForegroundColor Green
 Write-Host ""
 Write-Host "  Dashboard :  http://localhost:$NodePort"
@@ -175,8 +175,8 @@ Write-Host "  VPN port  :  UDP $Port"
 Write-Host "  PSK       :  $Psk"
 Write-Host ""
 Write-Host "  Service commands:"
-Write-Host "    Get-Service GhostNet-Daemon, GhostNet-Dashboard"
-Write-Host "    Start-Service / Stop-Service GhostNet-Daemon"
+Write-Host "    Get-Service ProxhqVPN-Daemon, ProxhqVPN-Dashboard"
+Write-Host "    Start-Service / Stop-Service ProxhqVPN-Daemon"
 Write-Host "    Get-Content $LogDir\daemon.log -Tail 50 -Wait"
 Write-Host ""
 Write-Host "  Control API (PowerShell):"

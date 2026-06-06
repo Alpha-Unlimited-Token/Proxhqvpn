@@ -386,7 +386,7 @@ async function createApp() {
   });
 
   // ─── Monitor ──────────────────────────────────────────────────────────────
-  const PROCS = ["wireguard","ghostnet","node","nginx","sshd","systemd","tor","wg-quick"];
+  const PROCS = ["wireguard","proxhqvpn","node","nginx","sshd","systemd","tor","wg-quick"];
   const STATES = ["ESTABLISHED","LISTEN","TIME_WAIT","CLOSE_WAIT"];
   const PROTOS = ["TCP","UDP","WireGuard"];
 
@@ -695,7 +695,7 @@ async function createApp() {
       }
       const resp = await fetch(body.url, opts);
       const html = await resp.text();
-      const layers = body.mode === "proxhqvpn-onion" ? ["Your Device","ProxhqVPN Relay ×7","Destination"] : body.mode === "tor-gateway" ? ["Your Device","Tor Guard","Tor Relay","Tor Exit","Destination"] : body.mode === "double-layer" ? ["Your Device","GhostNet ×3","Tor Guard","Tor Relay","Tor Exit","Destination"] : ["Direct","Destination"];
+      const layers = body.mode === "proxhqvpn-onion" ? ["Your Device","ProxhqVPN Relay ×7","Destination"] : body.mode === "tor-gateway" ? ["Your Device","Tor Guard","Tor Relay","Tor Exit","Destination"] : body.mode === "double-layer" ? ["Your Device","ProxhqVPN ×3","Tor Guard","Tor Relay","Tor Exit","Destination"] : ["Direct","Destination"];
       res.json({ html, url: body.url, statusCode: resp.status, timingMs: Date.now()-start, layers, title: "" });
     } catch (e: any) {
       res.json({ html: `<html><body style="background:#000;color:#0f0;font-family:monospace;padding:40px"><h2>Error</h2><p>${e.message}</p></body></html>`, url: body.url, statusCode: 0, timingMs: Date.now()-start, layers: [], title: "Error", error: e.message });

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-GhostNet VPN Daemon  (ghostd.py)  v2.0
+ProxhqVPN Daemon  (ghostd.py)  v2.0
 =======================================
 A real, self-contained VPN daemon implementing:
   - TUN virtual interface (Linux /dev/net/tun, macOS utun, Windows WinTun)
@@ -16,7 +16,7 @@ A real, self-contained VPN daemon implementing:
 
 Modes:
   server  --  Accept client peers, NAT their traffic, route to internet
-  client  --  Connect to a GhostNet server, route local traffic through it
+  client  --  Connect to a ProxhqVPN server, route local traffic through it
   local   --  Route through a local SOCKS5 proxy (Tor)
 
 Requirements:
@@ -70,7 +70,7 @@ try:
 except ImportError:
     CRYPTO_OK = False
     print(
-        "[GhostNet] FATAL: 'cryptography' package not found.\n"
+        "[ProxhqVPN] FATAL: 'cryptography' package not found.\n"
         "  Install with:  pip install cryptography\n"
         "  Or run:        pip install -r requirements.txt",
         file=sys.stderr,
@@ -95,7 +95,7 @@ TUN_NAME_LINUX  = "ghost0"
 TUN_ADDR        = "10.99.0.1"
 TUN_PEER_ADDR   = "10.99.0.2"
 TUN_CIDR        = "10.99.0.0/24"
-DNS_GHOSTNET    = ["1.1.1.1", "9.9.9.9"]   # Cloudflare + Quad9
+DNS_PROXHQVPN    = ["1.1.1.1", "9.9.9.9"]   # Cloudflare + Quad9
 
 TUNSETIFF = 0x400454CA
 IFF_TUN   = 0x0001
@@ -106,10 +106,10 @@ CTRL_PORT = 7475
 # ─── Logging ──────────────────────────────────────────────────────────────────
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s  [GhostNet]  %(levelname)-8s  %(message)s",
+    format="%(asctime)s  [ProxhqVPN]  %(levelname)-8s  %(message)s",
     datefmt="%H:%M:%S",
 )
-log = logging.getLogger("ghostnet")
+log = logging.getLogger("proxhqvpn")
 
 # ─── Shared state ─────────────────────────────────────────────────────────────
 _lock = threading.Lock()
@@ -303,7 +303,7 @@ class TunInterface:
         # WintunCreateAdapter(name, tunnel_type, guid)
         import uuid
         guid_str = str(uuid.UUID("12345678-1234-5678-1234-567812345678"))
-        adapter  = dll.WintunCreateAdapter("GhostNet", "VPN", None)
+        adapter  = dll.WintunCreateAdapter("ProxhqVPN", "VPN", None)
         if not adapter:
             raise RuntimeError("WintunCreateAdapter failed")
         session = dll.WintunStartSession(adapter, 0x400000)  # 4MB ring
@@ -312,7 +312,7 @@ class TunInterface:
         self._wintun_dll     = dll
         self._wintun_adapter = adapter
         self._wintun_session = session
-        self.name = "GhostNet"
+        self.name = "ProxhqVPN"
         # Configure IP via netsh
         self._run(
             f'netsh interface ip set address name="{self.name}" static {TUN_ADDR} 255.255.255.0'
@@ -505,9 +505,9 @@ def restore_default_route(gw: str, iface: str) -> None:
         os.system(f"route delete 0.0.0.0 2>nul")
 
 # ─── Kill switch ──────────────────────────────────────────────────────────────
-_IPTABLES_BACKUP = "/tmp/ghostnet-iptables.rules"
-_PF_ANCHOR       = "com.ghostnet.killswitch"
-_PF_CONF         = "/tmp/ghostnet-pf.conf"
+_IPTABLES_BACKUP = "/tmp/proxhqvpn-iptables.rules"
+_PF_ANCHOR       = "com.proxhqvpn.killswitch"
+_PF_CONF         = "/tmp/proxhqvpn-pf.conf"
 
 def enable_kill_switch(tun_name: str, server_ip: str, server_port: int) -> None:
     sys_name = platform.system()
@@ -563,7 +563,7 @@ def _ks_linux_off() -> None:
 
 def _ks_darwin_on(tun: str, srv_ip: str, srv_port: int) -> None:
     conf = f"""
-# GhostNet kill switch
+# ProxhqVPN kill switch
 set skip on lo0
 block all
 pass on {tun} all
@@ -584,9 +584,9 @@ def _ks_darwin_off() -> None:
 
 def _ks_windows_on(tun: str, srv_ip: str, srv_port: int) -> None:
     cmds = [
-        'netsh advfirewall firewall add rule name="GhostNet-KS-Block" dir=out action=block',
-        f'netsh advfirewall firewall add rule name="GhostNet-KS-VPN" dir=out action=allow protocol=UDP remoteip={srv_ip} remoteport={srv_port}',
-        f'netsh advfirewall firewall add rule name="GhostNet-KS-TUN" dir=out action=allow localip={TUN_ADDR}',
+        'netsh advfirewall firewall add rule name="ProxhqVPN-KS-Block" dir=out action=block',
+        f'netsh advfirewall firewall add rule name="ProxhqVPN-KS-VPN" dir=out action=allow protocol=UDP remoteip={srv_ip} remoteport={srv_port}',
+        f'netsh advfirewall firewall add rule name="ProxhqVPN-KS-TUN" dir=out action=allow localip={TUN_ADDR}',
     ]
     for cmd in cmds:
         os.system(cmd + " >nul 2>&1")
@@ -594,20 +594,20 @@ def _ks_windows_on(tun: str, srv_ip: str, srv_port: int) -> None:
 
 def _ks_windows_off() -> None:
     cmds = [
-        'netsh advfirewall firewall delete rule name="GhostNet-KS-Block"',
-        'netsh advfirewall firewall delete rule name="GhostNet-KS-VPN"',
-        'netsh advfirewall firewall delete rule name="GhostNet-KS-TUN"',
+        'netsh advfirewall firewall delete rule name="ProxhqVPN-KS-Block"',
+        'netsh advfirewall firewall delete rule name="ProxhqVPN-KS-VPN"',
+        'netsh advfirewall firewall delete rule name="ProxhqVPN-KS-TUN"',
     ]
     for cmd in cmds:
         os.system(cmd + " >nul 2>&1")
     log.info("Kill switch DISABLED (netsh)")
 
 # ─── DNS leak protection ──────────────────────────────────────────────────────
-_RESOLV_BACKUP = "/tmp/ghostnet-resolv.conf.bak"
+_RESOLV_BACKUP = "/tmp/proxhqvpn-resolv.conf.bak"
 
 def enable_dns_protection() -> None:
     sys_name = platform.system()
-    audit("dns.protect", f"Forcing DNS to {DNS_GHOSTNET}")
+    audit("dns.protect", f"Forcing DNS to {DNS_PROXHQVPN}")
     if sys_name == "Linux":
         _dns_linux_on()
     elif sys_name == "Darwin":
@@ -630,7 +630,7 @@ def disable_dns_protection() -> None:
 def _dns_linux_on() -> None:
     if os.path.exists("/etc/resolv.conf"):
         os.system(f"cp /etc/resolv.conf {_RESOLV_BACKUP}")
-    content = "\n".join([f"nameserver {d}" for d in DNS_GHOSTNET]) + "\n"
+    content = "\n".join([f"nameserver {d}" for d in DNS_PROXHQVPN]) + "\n"
     try:
         # Remove immutable flag if present
         os.system("chattr -i /etc/resolv.conf 2>/dev/null")
@@ -651,7 +651,7 @@ def _dns_linux_off() -> None:
 
 def _dns_darwin_on() -> None:
     for svc in _darwin_network_services():
-        for d in DNS_GHOSTNET:
+        for d in DNS_PROXHQVPN:
             os.system(f'networksetup -setdnsservers "{svc}" {d} 2>/dev/null')
     log.info("DNS leak protection ENABLED (networksetup)")
 
@@ -670,7 +670,7 @@ def _dns_windows_on() -> None:
         parts = line.split()
         if len(parts) >= 4 and parts[0] == "Enabled":
             iface = " ".join(parts[3:])
-            for i, d in enumerate(DNS_GHOSTNET):
+            for i, d in enumerate(DNS_PROXHQVPN):
                 action = "set" if i == 0 else "add"
                 os.system(f'netsh interface ip {action} dns name="{iface}" addr={d} 2>nul')
     log.info("DNS protection ENABLED (netsh)")
@@ -778,7 +778,7 @@ class GhostServer:
         threading.Thread(target=self._tun_to_clients, daemon=True).start()
         threading.Thread(target=self._keepalive_loop, daemon=True).start()
 
-        log.info(f"GhostNet server running on 0.0.0.0:{self.port}")
+        log.info(f"ProxhqVPN server running on 0.0.0.0:{self.port}")
         _stop.wait()
         self._shutdown()
 
@@ -881,7 +881,7 @@ class GhostServer:
 # ─── Client mode ──────────────────────────────────────────────────────────────
 class GhostClient:
     """
-    VPN client — connects to a GhostNet server peer, routes all local
+    VPN client — connects to a ProxhqVPN server peer, routes all local
     traffic through the encrypted tunnel.
     """
     def __init__(self, servers: List[str], psk: str):
@@ -923,7 +923,7 @@ class GhostClient:
         threading.Thread(target=self._tun_to_peer, daemon=True).start()
         threading.Thread(target=self._ka_loop,     daemon=True).start()
 
-        log.info("GhostNet client running — all traffic routed through tunnel")
+        log.info("ProxhqVPN client running — all traffic routed through tunnel")
         _stop.wait()
         self._shutdown()
 
@@ -1152,14 +1152,14 @@ def main() -> None:
     # Privilege check
     if platform.system() != "Windows":
         if os.geteuid() != 0:
-            log.error("GhostNet daemon requires root privileges. Use: sudo python3 ghostd.py ...")
+            log.error("ProxhqVPN daemon requires root privileges. Use: sudo python3 ghostd.py ...")
             sys.exit(1)
 
-    ap = argparse.ArgumentParser(description=f"GhostNet VPN Daemon v{VERSION}")
+    ap = argparse.ArgumentParser(description=f"ProxhqVPN Daemon v{VERSION}")
     ap.add_argument("--mode",        choices=["server","client","local"], required=True)
     ap.add_argument("--port",        type=int, default=51820, help="Server listen port (server mode)")
     ap.add_argument("--server",      default="", help="Server addr host:port[,host:port,...] (client mode)")
-    ap.add_argument("--psk",         default="ghostnet-default-psk", help="Pre-shared key / passphrase")
+    ap.add_argument("--psk",         default="proxhqvpn-default-psk", help="Pre-shared key / passphrase")
     ap.add_argument("--ctrl-port",   type=int, default=CTRL_PORT, help="Control API HTTP port")
     ap.add_argument("--killswitch",  action="store_true", help="Enable kill switch on start (client mode)")
     ap.add_argument("--dns-protect", action="store_true", help="Enable DNS leak protection (client mode)")
@@ -1179,7 +1179,7 @@ def main() -> None:
     threading.Thread(target=run_control_server, args=(args.ctrl_port,), daemon=True).start()
 
     if args.mode == "server":
-        if not args.psk or args.psk == "ghostnet-default-psk":
+        if not args.psk or args.psk == "proxhqvpn-default-psk":
             log.warning("Using default PSK — set a strong --psk in production!")
         server_mode(args)
     elif args.mode == "client":
@@ -1197,7 +1197,7 @@ def main() -> None:
         state["running"] = False
 
     audit("daemon.stop", "Clean exit")
-    log.info("GhostNet daemon stopped.")
+    log.info("ProxhqVPN daemon stopped.")
 
 if __name__ == "__main__":
     main()

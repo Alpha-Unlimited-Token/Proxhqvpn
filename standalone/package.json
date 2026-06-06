@@ -1,11 +1,11 @@
 {
-  "name": "ghostnet-standalone",
-  "version": "1.0.0",
+  "name": "proxhqvpn-standalone",
+  "version": "2.0.0",
   "private": true,
-  "description": "GhostNet VPN Orchestration Platform — Standalone Build",
+  "description": "ProxhqVPN Orchestration Platform — Standalone Build",
   "main": "server.bundle.cjs",
   "bin": {
-    "ghostnet": "server.bundle.cjs"
+    "proxhqvpn": "server.bundle.cjs"
   },
   "scripts": {
     "build": "node build.mjs",

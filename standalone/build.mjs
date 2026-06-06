@@ -80,7 +80,7 @@ ProxhqVPN is an advanced VPN orchestration and security platform featuring:
   • WireGuard configuration generator for all nodes
   • Continuous IP rotation (instant or scheduled every 3s)
   • SOCKS5 / Tor / Multi-OS proxy compatibility
-  • GhostNet Onion Browser with double-layer protection
+  • ProxhqVPN Onion Browser with double-layer protection
   • SQL interface (SELECT queries against all VPN tables)
   • Live system monitor (CPU, memory, network, connections)
   • Sandboxed terminal (read-only safe command set)
@@ -90,7 +90,7 @@ DATA STORAGE
 ────────────
 All configuration and node data is stored in the "data/" folder
 inside the same directory as this package.
-  • Backup "data/ghostnet.db" to preserve your configuration.
+  • Backup "data/proxhqvpn.db" to preserve your configuration.
   • Delete it to reset to defaults (60 nodes will be re-seeded).
 
 CUSTOM PORT
@@ -99,7 +99,7 @@ CUSTOM PORT
 
 CUSTOM DATA DIRECTORY
 ──────────────────────
-  GHOSTNET_DATA=/path/to/data ${startCmd.split(/\s/)[0]}
+  PROXHQVPN_DATA=/path/to/data ${startCmd.split(/\s/)[0]}
 
 SECURITY NOTES
 ──────────────
@@ -132,7 +132,7 @@ LICENSE
 const START_BAT = `@echo off
 title ProxhqVPN Standalone
 echo.
-echo  GhostNet VPN Orchestration Platform ^| Standalone Edition
+echo  ProxhqVPN Orchestration Platform ^| Standalone Edition
 echo  Starting server on http://localhost:7474 ...
 echo.
 start "" "http://localhost:7474"
@@ -362,6 +362,30 @@ async function main() {
     archive.finalize();
   });
   console.log(`  ✓ ProxhqVPN-ALL-PLATFORMS.zip (${(fs.statSync(allZip).size / 1024 / 1024).toFixed(1)} MB)`);
+
+  // ─── SHA256 manifest ────────────────────────────────────────────────────
+  console.log("\n▶ Generating SHA256 manifest...");
+  const { createHash } = await import("crypto");
+  const allDistZips = fs.readdirSync(DIST).filter(f => f.endsWith(".zip")).sort();
+  const manifestEntries = [];
+  for (const zipName of allDistZips) {
+    const zipPath = path.join(DIST, zipName);
+    const fileBuffer = fs.readFileSync(zipPath);
+    const sha256 = createHash("sha256").update(fileBuffer).digest("hex");
+    const sizeBytes = fs.statSync(zipPath).size;
+    manifestEntries.push({ file: zipName, sha256, sizeBytes });
+    // Write per-file .sha256 sidecar (shasum -a 256 format)
+    fs.writeFileSync(`${zipPath}.sha256`, `${sha256}  ${zipName}\n`);
+    console.log(`  ✓ ${zipName}.sha256`);
+  }
+  const manifestPath = path.join(DIST, "manifest.json");
+  fs.writeFileSync(manifestPath, JSON.stringify({
+    product: "ProxhqVPN",
+    version: "2.0.0",
+    buildDate: new Date().toISOString(),
+    files: manifestEntries,
+  }, null, 2) + "\n");
+  console.log(`  ✓ manifest.json (${manifestEntries.length} entries)`);
 
   // ─── Security Audit ─────────────────────────────────────────────────────
   console.log("\n══════════════════════════════════════════════════════════");

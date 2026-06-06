@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ══════════════════════════════════════════════════════════════════════════════
-#  GhostNet VPN — Linux Installer
-#  Installs the GhostNet server + daemon and wires them up as systemd services.
+#  ProxhqVPN — Linux Installer
+#  Installs the ProxhqVPN server + daemon and wires them up as systemd services.
 #  Tested: Ubuntu 20.04+, Debian 11+, Fedora 38+, Arch Linux
 #
 #  Run as root:
@@ -17,11 +17,11 @@ step() { echo -e "\n${YLW}▶ $*${NC}"; }
 
 [[ $EUID -ne 0 ]] && err "Run as root:  sudo bash install-linux.sh"
 
-INSTALL_DIR="/opt/ghostnet"
-DATA_DIR="/var/lib/ghostnet"
-LOG_DIR="/var/log/ghostnet"
-PSK="${GHOSTNET_PSK:-ghostnet-change-me}"
-VPN_PORT="${GHOSTNET_PORT:-51820}"
+INSTALL_DIR="/opt/proxhqvpn"
+DATA_DIR="/var/lib/proxhqvpn"
+LOG_DIR="/var/log/proxhqvpn"
+PSK="${PROXHQVPN_PSK:-proxhqvpn-change-me}"
+VPN_PORT="${PROXHQVPN_PORT:-51820}"
 CTRL_PORT=7475
 NODE_PORT=7474
 
@@ -65,11 +65,11 @@ fi
 
 step "Checking IP forwarding"
 echo 1 > /proc/sys/net/ipv4/ip_forward
-echo "net.ipv4.ip_forward=1" > /etc/sysctl.d/99-ghostnet.conf
-sysctl -p /etc/sysctl.d/99-ghostnet.conf >/dev/null 2>&1
+echo "net.ipv4.ip_forward=1" > /etc/sysctl.d/99-proxhqvpn.conf
+sysctl -p /etc/sysctl.d/99-proxhqvpn.conf >/dev/null 2>&1
 ok "IP forwarding enabled"
 
-step "Installing GhostNet files"
+step "Installing ProxhqVPN files"
 mkdir -p "$INSTALL_DIR" "$DATA_DIR" "$LOG_DIR"
 
 # Copy files from current directory
@@ -88,8 +88,8 @@ pip3 install -r "$INSTALL_DIR/requirements.txt" --quiet
 ok "cryptography installed"
 
 step "Writing config file"
-cat > "$DATA_DIR/ghostnet.conf" <<EOF
-# GhostNet Configuration
+cat > "$DATA_DIR/proxhqvpn.conf" <<EOF
+# ProxhqVPN Configuration
 # Generated: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
 PSK=$PSK
 VPN_PORT=$VPN_PORT
@@ -99,13 +99,13 @@ DATA_DIR=$DATA_DIR
 LOG_DIR=$LOG_DIR
 INSTALL_DIR=$INSTALL_DIR
 EOF
-chmod 600 "$DATA_DIR/ghostnet.conf"
-ok "Config written to $DATA_DIR/ghostnet.conf"
+chmod 600 "$DATA_DIR/proxhqvpn.conf"
+ok "Config written to $DATA_DIR/proxhqvpn.conf"
 
-step "Creating systemd service — ghostnet-daemon (VPN tunnel daemon)"
-cat > /etc/systemd/system/ghostnet-daemon.service <<EOF
+step "Creating systemd service — proxhqvpn-daemon (VPN tunnel daemon)"
+cat > /etc/systemd/system/proxhqvpn-daemon.service <<EOF
 [Unit]
-Description=GhostNet VPN Daemon
+Description=ProxhqVPN Daemon
 After=network.target
 Wants=network-online.target
 
@@ -125,20 +125,20 @@ ProtectHome=false
 [Install]
 WantedBy=multi-user.target
 EOF
-ok "systemd service created: ghostnet-daemon"
+ok "systemd service created: proxhqvpn-daemon"
 
-step "Creating systemd service — ghostnet (Node.js dashboard)"
-cat > /etc/systemd/system/ghostnet.service <<EOF
+step "Creating systemd service — proxhqvpn (Node.js dashboard)"
+cat > /etc/systemd/system/proxhqvpn.service <<EOF
 [Unit]
-Description=GhostNet Dashboard
-After=ghostnet-daemon.service
-Requires=ghostnet-daemon.service
+Description=ProxhqVPN Dashboard
+After=proxhqvpn-daemon.service
+Requires=proxhqvpn-daemon.service
 
 [Service]
 Type=simple
 WorkingDirectory=$INSTALL_DIR
 Environment=PORT=$NODE_PORT
-Environment=GHOSTNET_DATA=$DATA_DIR
+Environment=PROXHQVPN_DATA=$DATA_DIR
 ExecStart=/usr/bin/node $INSTALL_DIR/server.bundle.cjs
 Restart=on-failure
 RestartSec=3
@@ -148,10 +148,10 @@ StandardError=append:$LOG_DIR/dashboard.err
 [Install]
 WantedBy=multi-user.target
 EOF
-ok "systemd service created: ghostnet"
+ok "systemd service created: proxhqvpn"
 
-step "Creating ghostnet CLI tool"
-cat > /usr/local/bin/ghostnet <<'SCRIPT'
+step "Creating proxhqvpn CLI tool"
+cat > /usr/local/bin/proxhqvpn <<'SCRIPT'
 #!/usr/bin/env bash
 CTRL="http://127.0.0.1:7475"
 case "$1" in
@@ -165,13 +165,13 @@ case "$1" in
   peers)     curl -s "$CTRL/peers" | python3 -m json.tool ;;
   logs)      curl -s "$CTRL/logs" | python3 -m json.tool | head -100 ;;
   *)
-    echo "GhostNet CLI"
-    echo "Usage: ghostnet [status|stop|ks-on|ks-off|dns-on|dns-off|rotate|peers|logs]"
+    echo "ProxhqVPN CLI"
+    echo "Usage: proxhqvpn [status|stop|ks-on|ks-off|dns-on|dns-off|rotate|peers|logs]"
     ;;
 esac
 SCRIPT
-chmod +x /usr/local/bin/ghostnet
-ok "CLI tool installed: /usr/local/bin/ghostnet"
+chmod +x /usr/local/bin/proxhqvpn
+ok "CLI tool installed: /usr/local/bin/proxhqvpn"
 
 step "Opening firewall ports"
 # iptables
@@ -187,17 +187,17 @@ ok "Ports $VPN_PORT/udp and $NODE_PORT/tcp opened"
 
 step "Enabling and starting services"
 systemctl daemon-reload
-systemctl enable ghostnet-daemon ghostnet
-systemctl start  ghostnet-daemon
+systemctl enable proxhqvpn-daemon proxhqvpn
+systemctl start  proxhqvpn-daemon
 sleep 2
-systemctl start  ghostnet
+systemctl start  proxhqvpn
 
-ok "ghostnet-daemon started"
-ok "ghostnet dashboard started"
+ok "proxhqvpn-daemon started"
+ok "proxhqvpn dashboard started"
 
 echo ""
 echo -e "${GRN}══════════════════════════════════════════════════════${NC}"
-echo -e "${GRN}  GhostNet VPN installed successfully!${NC}"
+echo -e "${GRN}  ProxhqVPN installed successfully!${NC}"
 echo -e "${GRN}══════════════════════════════════════════════════════${NC}"
 echo ""
 echo "  Dashboard :  http://localhost:$NODE_PORT"
@@ -205,16 +205,16 @@ echo "  VPN port  :  UDP $VPN_PORT"
 echo "  PSK       :  $PSK"
 echo ""
 echo "  CLI commands:"
-echo "    ghostnet status    — show daemon status"
-echo "    ghostnet ks-on     — enable kill switch"
-echo "    ghostnet dns-on    — enable DNS protection"
-echo "    ghostnet peers     — list connected peers"
-echo "    ghostnet logs      — show audit log"
+echo "    proxhqvpn status    — show daemon status"
+echo "    proxhqvpn ks-on     — enable kill switch"
+echo "    proxhqvpn dns-on    — enable DNS protection"
+echo "    proxhqvpn peers     — list connected peers"
+echo "    proxhqvpn logs      — show audit log"
 echo ""
 echo "  Service commands:"
-echo "    systemctl status ghostnet-daemon"
-echo "    systemctl status ghostnet"
-echo "    journalctl -u ghostnet-daemon -f"
+echo "    systemctl status proxhqvpn-daemon"
+echo "    systemctl status proxhqvpn"
+echo "    journalctl -u proxhqvpn-daemon -f"
 echo ""
 echo "  Connect a client:"
 echo "    sudo python3 ghostd.py --mode client --server YOUR_IP:$VPN_PORT --psk \"$PSK\""

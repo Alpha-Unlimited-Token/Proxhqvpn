@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ══════════════════════════════════════════════════════════════════════════════
-#  GhostNet VPN — macOS Installer
-#  Installs the GhostNet daemon and dashboard as launchd services.
+#  ProxhqVPN — macOS Installer
+#  Installs the ProxhqVPN daemon and dashboard as launchd services.
 #  Tested: macOS 12 Monterey+, macOS 13 Ventura, macOS 14 Sonoma
 #
 #  Run as root:
@@ -17,11 +17,11 @@ step() { echo -e "\n${YLW}▶ $*${NC}"; }
 
 [[ $EUID -ne 0 ]] && err "Run as root:  sudo bash install-macos.sh"
 
-INSTALL_DIR="/opt/ghostnet"
-DATA_DIR="/var/lib/ghostnet"
-LOG_DIR="/var/log/ghostnet"
-PSK="${GHOSTNET_PSK:-ghostnet-change-me}"
-VPN_PORT="${GHOSTNET_PORT:-51820}"
+INSTALL_DIR="/opt/proxhqvpn"
+DATA_DIR="/var/lib/proxhqvpn"
+LOG_DIR="/var/log/proxhqvpn"
+PSK="${PROXHQVPN_PSK:-proxhqvpn-change-me}"
+VPN_PORT="${PROXHQVPN_PORT:-51820}"
 CTRL_PORT=7475
 NODE_PORT=7474
 
@@ -46,7 +46,7 @@ if ! command -v pip3 &>/dev/null; then
 fi
 ok "pip3"
 
-step "Installing GhostNet files"
+step "Installing ProxhqVPN files"
 mkdir -p "$INSTALL_DIR" "$DATA_DIR" "$LOG_DIR"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cp "$SCRIPT_DIR/ghostd.py"                "$INSTALL_DIR/"
@@ -62,23 +62,23 @@ pip3 install -r "$INSTALL_DIR/requirements.txt" --quiet
 ok "cryptography installed"
 
 step "Writing config"
-cat > "$DATA_DIR/ghostnet.conf" <<EOF
+cat > "$DATA_DIR/proxhqvpn.conf" <<EOF
 PSK=$PSK
 VPN_PORT=$VPN_PORT
 CTRL_PORT=$CTRL_PORT
 NODE_PORT=$NODE_PORT
 DATA_DIR=$DATA_DIR
 EOF
-chmod 600 "$DATA_DIR/ghostnet.conf"
+chmod 600 "$DATA_DIR/proxhqvpn.conf"
 ok "Config written"
 
-step "Creating launchd plist — ghostnet-daemon"
-cat > /Library/LaunchDaemons/com.ghostnet.daemon.plist <<EOF
+step "Creating launchd plist — proxhqvpn-daemon"
+cat > /Library/LaunchDaemons/com.proxhqvpn.daemon.plist <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>Label</key>            <string>com.ghostnet.daemon</string>
+  <key>Label</key>            <string>com.proxhqvpn.daemon</string>
   <key>ProgramArguments</key>
   <array>
     <string>/usr/bin/python3</string>
@@ -96,15 +96,15 @@ cat > /Library/LaunchDaemons/com.ghostnet.daemon.plist <<EOF
 </dict>
 </plist>
 EOF
-ok "launchd plist: com.ghostnet.daemon"
+ok "launchd plist: com.proxhqvpn.daemon"
 
-step "Creating launchd plist — ghostnet dashboard"
-cat > /Library/LaunchDaemons/com.ghostnet.dashboard.plist <<EOF
+step "Creating launchd plist — proxhqvpn dashboard"
+cat > /Library/LaunchDaemons/com.proxhqvpn.dashboard.plist <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>Label</key>             <string>com.ghostnet.dashboard</string>
+  <key>Label</key>             <string>com.proxhqvpn.dashboard</string>
   <key>ProgramArguments</key>
   <array>
     <string>/usr/local/bin/node</string>
@@ -113,7 +113,7 @@ cat > /Library/LaunchDaemons/com.ghostnet.dashboard.plist <<EOF
   <key>EnvironmentVariables</key>
   <dict>
     <key>PORT</key>             <string>$NODE_PORT</string>
-    <key>GHOSTNET_DATA</key>    <string>$DATA_DIR</string>
+    <key>PROXHQVPN_DATA</key>   <string>$DATA_DIR</string>
   </dict>
   <key>WorkingDirectory</key>  <string>$INSTALL_DIR</string>
   <key>RunAtLoad</key>         <true/>
@@ -124,10 +124,10 @@ cat > /Library/LaunchDaemons/com.ghostnet.dashboard.plist <<EOF
 </dict>
 </plist>
 EOF
-ok "launchd plist: com.ghostnet.dashboard"
+ok "launchd plist: com.proxhqvpn.dashboard"
 
-step "Creating ghostnet CLI"
-cat > /usr/local/bin/ghostnet <<'SCRIPT'
+step "Creating proxhqvpn CLI"
+cat > /usr/local/bin/proxhqvpn <<'SCRIPT'
 #!/usr/bin/env bash
 CTRL="http://127.0.0.1:7475"
 case "$1" in
@@ -141,35 +141,35 @@ case "$1" in
   peers)    curl -s "$CTRL/peers" | python3 -m json.tool ;;
   logs)     curl -s "$CTRL/logs" | python3 -m json.tool | head -100 ;;
   *)
-    echo "Usage: ghostnet [status|stop|ks-on|ks-off|dns-on|dns-off|rotate|peers|logs]"
+    echo "Usage: proxhqvpn [status|stop|ks-on|ks-off|dns-on|dns-off|rotate|peers|logs]"
     ;;
 esac
 SCRIPT
-chmod +x /usr/local/bin/ghostnet
-ok "CLI installed: /usr/local/bin/ghostnet"
+chmod +x /usr/local/bin/proxhqvpn
+ok "CLI installed: /usr/local/bin/proxhqvpn"
 
 step "Opening firewall port $VPN_PORT/udp"
 /usr/libexec/ApplicationFirewall/socketfilterfw --add /usr/bin/python3 2>/dev/null || true
 ok "Firewall configured"
 
 step "Loading launchd services"
-launchctl load -w /Library/LaunchDaemons/com.ghostnet.daemon.plist
+launchctl load -w /Library/LaunchDaemons/com.proxhqvpn.daemon.plist
 sleep 2
-launchctl load -w /Library/LaunchDaemons/com.ghostnet.dashboard.plist
+launchctl load -w /Library/LaunchDaemons/com.proxhqvpn.dashboard.plist
 
 echo ""
 echo -e "${GRN}══════════════════════════════════════════════════════${NC}"
-echo -e "${GRN}  GhostNet VPN installed successfully!${NC}"
+echo -e "${GRN}  ProxhqVPN installed successfully!${NC}"
 echo -e "${GRN}══════════════════════════════════════════════════════${NC}"
 echo ""
 echo "  Dashboard :  http://localhost:$NODE_PORT"
 echo "  VPN port  :  UDP $VPN_PORT"
 echo "  PSK       :  $PSK"
 echo ""
-echo "  CLI:  ghostnet status | ks-on | dns-on | peers | logs"
+echo "  CLI:  proxhqvpn status | ks-on | dns-on | peers | logs"
 echo ""
 echo "  Service management:"
-echo "    launchctl list | grep ghostnet"
+echo "    launchctl list | grep proxhqvpn"
 echo "    tail -f $LOG_DIR/daemon.log"
 echo ""
 echo "  Connect a client:"

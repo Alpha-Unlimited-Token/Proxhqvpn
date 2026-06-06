@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-GhostNet TUN Interface Daemon
+ProxhqVPN TUN Interface Daemon
 Captures all OS-level network traffic via a TUN virtual interface,
 encrypts each packet with XOR+AES-like obfuscation, and forwards
-it over UDP through the GhostNet node swarm.
+it over UDP through the ProxhqVPN node swarm.
 
 Requires root/Administrator privileges.
 Linux: uses /dev/net/tun (TUN kernel module)
@@ -30,16 +30,16 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s  [GhostNet-TUN]  %(levelname)s  %(message)s",
+    format="%(asctime)s  [ProxhqVPN-TUN]  %(levelname)s  %(message)s",
     datefmt="%H:%M:%S",
 )
-log = logging.getLogger("ghostnet-tun")
+log = logging.getLogger("proxhqvpn-tun")
 
 TUNSETIFF   = 0x400454CA
 IFF_TUN     = 0x0001
 IFF_NO_PI   = 0x1000
 
-KEY = hashlib.sha256(b"GhostNetTunKey-v1").digest()
+KEY = hashlib.sha256(b"ProxhqVPNTunKey-v1").digest()
 
 stats = {
     "packets_in":   0,
@@ -232,14 +232,14 @@ def main() -> None:
     global tun_fd, udp_sock
 
     if os.geteuid() != 0 if hasattr(os, "geteuid") else False:
-        log.error("GhostNet TUN daemon requires root privileges (sudo).")
+        log.error("ProxhqVPN TUN daemon requires root privileges (sudo).")
         sys.exit(1)
 
-    p = argparse.ArgumentParser(description="GhostNet TUN Daemon")
+    p = argparse.ArgumentParser(description="ProxhqVPN TUN Daemon")
     p.add_argument("--iface",     default="tun0",        help="TUN interface name (Linux)")
     p.add_argument("--port",      type=int, default=7475, help="Control HTTP port")
-    p.add_argument("--node-host", default="127.0.0.1",   help="GhostNet node UDP host")
-    p.add_argument("--node-port", type=int, default=4141, help="GhostNet node UDP port")
+    p.add_argument("--node-host", default="127.0.0.1",   help="ProxhqVPN node UDP host")
+    p.add_argument("--node-port", type=int, default=4141, help="ProxhqVPN node UDP port")
     args = p.parse_args()
 
     def _sig(_s, _f):
@@ -249,7 +249,7 @@ def main() -> None:
     signal.signal(signal.SIGTERM, _sig)
     signal.signal(signal.SIGINT,  _sig)
 
-    log.info("Starting GhostNet TUN Daemon …")
+    log.info("Starting ProxhqVPN TUN Daemon …")
     tun_fd = create_tun(args.iface)
     stats["iface"]      = args.iface
     stats["running"]    = True
@@ -280,7 +280,7 @@ def main() -> None:
     except Exception:
         pass
     destroy_tun(args.iface)
-    log.info("GhostNet TUN daemon stopped cleanly.")
+    log.info("ProxhqVPN TUN daemon stopped cleanly.")
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 version: "3.8"
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  GhostNet VPN — Docker Services
+#  ProxhqVPN — Docker Services
 #  Run with: docker compose up -d
 #  Requires: Docker Engine 24+ with Compose v2
 # ─────────────────────────────────────────────────────────────────────────────
@@ -11,13 +11,13 @@ services:
   # ── WireGuard Easy — web-managed WireGuard VPN ───────────────────────────
   wg-easy:
     image: ghcr.io/wg-easy/wg-easy:latest
-    container_name: ghostnet-wg-easy
+    container_name: proxhqvpn-wg-easy
     restart: unless-stopped
     environment:
       # REQUIRED: Set to your server's public IP or domain
       - WG_HOST=${WG_HOST:-YOUR_SERVER_IP}
       # REQUIRED: Change this password before deploying
-      - PASSWORD=${WG_PASSWORD:-GhostNetSecure2024!}
+      - PASSWORD=${WG_PASSWORD:-ProxhqVPNSecure2026!}
       # WireGuard listen port (UDP)
       - WG_PORT=${WG_PORT:-51820}
       # Web UI port (TCP)
@@ -46,21 +46,21 @@ services:
       timeout: 10s
       retries: 3
 
-  # ── GhostNet Standalone API + Frontend ───────────────────────────────────
-  ghostnet:
+  # ── ProxhqVPN Standalone API + Frontend ──────────────────────────────────
+  proxhqvpn:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: ghostnet-app
+    container_name: proxhqvpn-app
     restart: unless-stopped
     environment:
       - PORT=7474
-      - GHOSTNET_DATA=/data
+      - PROXHQVPN_DATA=/data
       - NODE_ENV=production
     volumes:
-      - ./data/ghostnet:/data
+      - ./data/proxhqvpn:/data
     ports:
-      - "${GHOSTNET_PORT:-7474}:7474"
+      - "${PROXHQVPN_PORT:-7474}:7474"
     depends_on:
       - wg-easy
     healthcheck:
@@ -72,7 +72,7 @@ services:
   # ── Optional: Tor SOCKS5 proxy for Onion Browser ─────────────────────────
   tor:
     image: peterdavehello/tor-socks-proxy:latest
-    container_name: ghostnet-tor
+    container_name: proxhqvpn-tor
     restart: unless-stopped
     ports:
       - "9050:9050"
@@ -81,11 +81,11 @@ services:
 
 volumes:
   wireguard_data:
-  ghostnet_data:
+  proxhqvpn_data:
 
 networks:
   default:
-    name: ghostnet_network
+    name: proxhqvpn_network
     driver: bridge
     ipam:
       config:

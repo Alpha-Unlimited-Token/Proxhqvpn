@@ -194,7 +194,7 @@ export function lastInsertId(): number {
 
 export async function initDb(dataDir: string): Promise<void> {
   if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
-  dbFilePath = path.join(dataDir, "ghostnet.db");
+  dbFilePath = path.join(dataDir, "proxhqvpn.db");
 
   const SQL = await initSqlJs();
   const fileBuffer = fs.existsSync(dbFilePath) ? fs.readFileSync(dbFilePath) : undefined;
