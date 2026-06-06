@@ -24,8 +24,8 @@ const PROXHQ_ANDROID_INSTALLER = `${BASE}/downloads/ProxhqVPN-Android.zip`;
 const PROXHQ_IOS_INSTALLER     = `${BASE}/downloads/ProxhqVPN-iOS.zip`;
 const PROXHQ_UNIVERSAL         = `${BASE}/downloads/ProxhqVPN-Universal-NodeJS.zip`;
 const PROXHQ_ALL_PLATFORMS     = `${BASE}/downloads/ProxhqVPN-ALL-PLATFORMS.zip`;
-const APP_VERSION               = "2.0.0";
-const RELEASE_DATE              = "June 5, 2026";
+const APP_VERSION               = "2.1.0";
+const RELEASE_DATE              = "June 6, 2026";
 const WG_APPSTORE_IOS = "https://apps.apple.com/us/app/wireguard/id1441195209";
 const WG_PLAY_URL     = "https://play.google.com/store/apps/details?id=com.wireguard.android";
 const WG_APPSTORE_TV  = "https://apps.apple.com/us/app/wireguard/id1451685025"; // tvOS App Store
@@ -122,7 +122,7 @@ const PLATFORMS: PlatformGroup[] = [
           { label: `Download ProxhqVPN v${APP_VERSION} — Windows x64 (.zip)`, url: PROXHQ_WIN_INSTALLER, variant: "primary", icon: Download },
         ],
         steps: [
-          { text: `v${APP_VERSION} — ${RELEASE_DATE}. Includes Ghost Trap honeypot, DNS Sinkhole, Network Monitor, SIEM, OSINT Recon, and all recent security upgrades. Auto-update notification built in.` },
+          { text: `v${APP_VERSION} — ${RELEASE_DATE}. Includes ⚔ Counter Attack tab, Ghost Trap honeypot, DNS Sinkhole, Network Monitor, SIEM, OSINT Recon, and all recent security upgrades. Force-update available on Downloads page.` },
           { text: "Download the ProxhqVPN .zip, extract it, and run 'start.bat'. Windows will open the dashboard in your browser automatically." },
           { text: "SmartScreen warning? Click 'More info' → 'Run anyway'. Normal for any installer downloaded outside the Microsoft Store." },
           { text: "Screen 1 — Welcome: overview of everything that will install automatically. Click 'Get Started'." },
@@ -145,7 +145,7 @@ const PLATFORMS: PlatformGroup[] = [
           { label: "WireGuard on Mac App Store", url: WG_APPSTORE_MAC, variant: "store", icon: Apple },
         ],
         steps: [
-          { text: `v${APP_VERSION} — ${RELEASE_DATE}. Includes Ghost Trap honeypot, DNS Sinkhole, Network Monitor, SIEM, OSINT Recon, and all recent security upgrades. Auto-update notification built in.` },
+          { text: `v${APP_VERSION} — ${RELEASE_DATE}. Includes ⚔ Counter Attack tab, Ghost Trap honeypot, DNS Sinkhole, Network Monitor, SIEM, OSINT Recon, and all recent security upgrades. Force-update available on Downloads page.` },
           { text: "Download the correct .zip for your Mac (Apple Silicon = M1/M2/M3/M4 chips, Intel = older Macs). Unzip and run 'start.sh'." },
           { text: "Double-click the app to launch the setup wizard." },
           { text: "If macOS says 'can't be opened because it's from an unidentified developer' — this is normal for apps downloaded outside the App Store." },
@@ -166,7 +166,7 @@ const PLATFORMS: PlatformGroup[] = [
           { label: `Download v${APP_VERSION} — Universal (any OS + Node.js)`, url: PROXHQ_UNIVERSAL, variant: "primary", icon: Download },
         ],
         steps: [
-          { text: `v${APP_VERSION} — ${RELEASE_DATE}. Includes Ghost Trap honeypot, DNS Sinkhole, Network Monitor, SIEM, OSINT Recon, and all recent security upgrades. Auto-update notification built in.` },
+          { text: `v${APP_VERSION} — ${RELEASE_DATE}. Includes ⚔ Counter Attack tab, Ghost Trap honeypot, DNS Sinkhole, Network Monitor, SIEM, OSINT Recon, and all recent security upgrades. Force-update available on Downloads page.` },
           { text: "Download the Linux x64 .zip and extract it — you will get a self-contained 'ProxhqVPN' executable." },
           { text: "Make it executable: right-click → Properties → Permissions → check 'Allow executing file as program'." },
           { text: "Double-click the file in your file manager and choose 'Run' or 'Run in Terminal'." },
@@ -627,6 +627,41 @@ export default function Downloads() {
   const [isFireOS, setIsFireOS]             = useState(false);
   const [detectedPlatform, setDetectedPlatform] = useState<string | null>(null);
 
+  // ── Update checker ────────────────────────────────────────────────────────
+  const [updateChecking,  setUpdateChecking]  = useState(false);
+  const [updateResult,    setUpdateResult]    = useState<null | { upToDate: boolean; runningVersion?: string; latestVersion: string; changelog?: string[] }>(null);
+
+  function semverGt(a: string, b: string): boolean {
+    const pa = a.split(".").map(Number);
+    const pb = b.split(".").map(Number);
+    for (let i = 0; i < 3; i++) {
+      if ((pa[i] ?? 0) > (pb[i] ?? 0)) return true;
+      if ((pa[i] ?? 0) < (pb[i] ?? 0)) return false;
+    }
+    return false;
+  }
+
+  const checkForUpdates = async () => {
+    setUpdateChecking(true);
+    setUpdateResult(null);
+    try {
+      const r = await fetch("/api/update/check");
+      if (!r.ok) throw new Error("unreachable");
+      const data = await r.json() as { version?: string; changelog?: string[] };
+      const running = data.version ?? "0.0.0";
+      setUpdateResult({
+        upToDate: !semverGt(APP_VERSION, running),
+        runningVersion: running,
+        latestVersion: APP_VERSION,
+        changelog: data.changelog,
+      });
+    } catch {
+      // Web app — always served at latest version; standalone server unreachable
+      setUpdateResult({ upToDate: true, runningVersion: APP_VERSION, latestVersion: APP_VERSION });
+    }
+    setUpdateChecking(false);
+  };
+
   useEffect(() => {
     const fire = detectFireOS();
     setIsFireOS(!!fire);
@@ -683,23 +718,26 @@ export default function Downloads() {
         </div>
         <div className="px-5 py-4 grid gap-2 sm:grid-cols-2">
           {[
-            { label: "Ghost Trap Honeypot", desc: "Personal device & website modes — instant attacker reports" },
-            { label: "DNS Sinkhole", desc: "Pi-hole style blocking: Ads, Trackers, Malware, Phishing, Botnet C2" },
-            { label: "Network Monitor", desc: "Real-time traffic flow analysis across all 60 VPN nodes" },
-            { label: "SIEM Event Log", desc: "Unified security timeline with severity filtering across all sources" },
-            { label: "OSINT Recon", desc: "DNS, TLS, HTTP headers, email security, ASN fingerprinting" },
-            { label: "QuantumAudit", desc: "Blockchain smart contract + post-quantum vulnerability scanner" },
-            { label: "Ghost Trace", desc: "VPN-native outbound behavioral analysis — detects C2 beaconing" },
-            { label: "Ghost Chain", desc: "Automated kill-chain discovery and attack-path intelligence" },
-            { label: "JWT Analyzer", desc: "JWKS injection, X5U, Embedded JWK, kid SQL/path injection attacks" },
-            { label: "Subdomain Scanner", desc: "9 passive OSINT sources including crt.sh, AlienVault, Wayback" },
-            { label: "Directory Fuzzer", desc: "Recursive scanning (depth 3) with response-size filtering" },
-            { label: "Security Audit Fixes", desc: "SSRF guard, DB index layer, pool limits, spawn hardening" },
-          ].map(({ label, desc }) => (
+            { label: "⚔ Counter Attack Tab",  desc: "Ghost Trap: live tools to strike back — port scan, OSINT, canary inject, payload reflect", badge: "NEW" },
+            { label: "Canary Beacon Injector", desc: "6 beacon types: Pixel, JS fingerprint, Fake AWS Key, JWT session, DNS, SQL OOB exfil", badge: "NEW" },
+            { label: "Ghost Trap Honeypot",    desc: "Personal device & website modes — instant attacker reports + counter-intelligence" },
+            { label: "DNS Sinkhole",           desc: "Pi-hole style blocking: Ads, Trackers, Malware, Phishing, Botnet C2" },
+            { label: "Network Monitor",        desc: "Real-time traffic flow analysis across all 60 VPN nodes" },
+            { label: "SIEM Event Log",         desc: "Unified security timeline with severity filtering across all sources" },
+            { label: "OSINT Recon",            desc: "DNS, TLS, HTTP headers, email security, ASN fingerprinting" },
+            { label: "QuantumAudit",           desc: "Blockchain smart contract + post-quantum vulnerability scanner" },
+            { label: "Ghost Trace",            desc: "VPN-native outbound behavioral analysis — detects C2 beaconing" },
+            { label: "Ghost Chain",            desc: "Automated kill-chain discovery and attack-path intelligence" },
+            { label: "JWT Analyzer",           desc: "JWKS injection, X5U, Embedded JWK, kid SQL/path injection attacks" },
+            { label: "Subdomain Scanner",      desc: "9 passive OSINT sources including crt.sh, AlienVault, Wayback" },
+          ].map(({ label, desc, badge }) => (
             <div key={label} className="flex items-start gap-2.5">
               <CheckCircle className="w-3.5 h-3.5 text-primary/60 shrink-0 mt-0.5" />
               <div>
-                <div className="text-[11px] font-semibold text-white/80 leading-snug">{label}</div>
+                <div className="flex items-center gap-1.5">
+                  <div className="text-[11px] font-semibold text-white/80 leading-snug">{label}</div>
+                  {badge && <span className="text-[8px] font-bold uppercase tracking-widest text-black bg-primary px-1 py-0.5 rounded-full leading-none">{badge}</span>}
+                </div>
                 <div className="text-[10px] text-primary/40 font-mono leading-snug mt-0.5">{desc}</div>
               </div>
             </div>
@@ -713,6 +751,117 @@ export default function Downloads() {
           >
             <Archive className="w-3 h-3" /> Download v{APP_VERSION} — All Platforms
           </a>
+        </div>
+      </div>
+
+      {/* ── Software Update Checker ───────────────────────────────────────── */}
+      <div className="border border-primary/20 rounded-xl overflow-hidden bg-primary/[0.02]">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-primary/10 bg-primary/[0.03]">
+          <div className="flex items-center gap-2.5">
+            <svg className="w-3.5 h-3.5 text-primary/70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            <span className="text-[12px] font-bold tracking-widest uppercase text-primary/80">Software Updates</span>
+            <span className="text-[10px] font-mono text-primary/40 ml-1">Latest: v{APP_VERSION}</span>
+          </div>
+          <span className="text-[10px] text-primary/30 font-mono">{RELEASE_DATE}</span>
+        </div>
+        <div className="px-5 py-4 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+          <div className="flex-1 min-w-0 space-y-1">
+            {!updateResult ? (
+              <div className="space-y-0.5">
+                <div className="text-[12px] font-semibold text-white/80">ProxhqVPN v{APP_VERSION}</div>
+                <div className="text-[11px] text-white/40 leading-snug">
+                  Web app users are always on the latest version automatically.
+                  Standalone app users can click <span className="text-primary/70">Check for Updates</span> to see if a newer version is available without waiting for the background check.
+                </div>
+              </div>
+            ) : updateResult.upToDate ? (
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-full bg-green-500/15 border border-green-500/25 flex items-center justify-center shrink-0">
+                  <svg className="w-3.5 h-3.5 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <div>
+                  <div className="text-[12px] font-semibold text-green-300">You're up to date — v{updateResult.runningVersion}</div>
+                  <div className="text-[10px] text-white/35 font-mono mt-0.5">
+                    {updateResult.runningVersion === APP_VERSION ? "Running the latest version. No action needed." : "Web app is always current. Re-check after a new build ships."}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-7 h-7 rounded-full bg-primary/15 border border-primary/30 flex items-center justify-center shrink-0 animate-pulse">
+                    <svg className="w-3.5 h-3.5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                  </div>
+                  <div>
+                    <div className="text-[12px] font-semibold text-primary">
+                      Update available — v{updateResult.latestVersion}
+                    </div>
+                    <div className="text-[10px] text-white/40 font-mono mt-0.5">
+                      You are running v{updateResult.runningVersion}. Download the new version below.
+                    </div>
+                  </div>
+                </div>
+                {updateResult.changelog && updateResult.changelog.length > 0 && (
+                  <div className="pl-9 space-y-1 max-h-36 overflow-y-auto">
+                    {updateResult.changelog.slice(0, 8).map((item, i) => (
+                      <div key={i} className="flex items-start gap-1.5 text-[10px] text-white/50">
+                        <span className="text-primary/50 shrink-0 mt-0.5">▸</span>
+                        <span>{item}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="pl-9 flex flex-wrap gap-2">
+                  <a href={PROXHQ_ALL_PLATFORMS}
+                    className="inline-flex items-center gap-1.5 text-[11px] font-bold text-black bg-primary px-3 py-1.5 rounded-lg hover:bg-primary/85 transition-colors">
+                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    Update Now — All Platforms
+                  </a>
+                  <a href={`#windows`} onClick={() => setTimeout(() => document.getElementById("windows")?.scrollIntoView({ behavior: "smooth" }), 100)}
+                    className="inline-flex items-center gap-1.5 text-[11px] font-medium text-primary/70 border border-primary/25 px-3 py-1.5 rounded-lg hover:bg-primary/5 transition-colors">
+                    See platform-specific downloads ↓
+                  </a>
+                </div>
+              </div>
+            )}
+          </div>
+          <div className="flex flex-col items-end gap-2 shrink-0">
+            <button
+              onClick={checkForUpdates}
+              disabled={updateChecking}
+              className="inline-flex items-center gap-2 text-[11px] font-semibold px-4 py-2 rounded-lg border border-primary/30 bg-primary/8 text-primary hover:bg-primary/15 transition-all disabled:opacity-50 whitespace-nowrap"
+            >
+              {updateChecking ? (
+                <>
+                  <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                  </svg>
+                  Checking…
+                </>
+              ) : (
+                <>
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  Check for Updates
+                </>
+              )}
+            </button>
+            {updateResult && (
+              <button onClick={() => setUpdateResult(null)} className="text-[9px] text-white/25 hover:text-white/40 transition-colors font-mono">
+                Clear result
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -785,7 +934,7 @@ export default function Downloads() {
               <Star className="w-3 h-3" /> ProxhqVPN v{APP_VERSION} — {RELEASE_DATE}
             </div>
             <div className="text-[10px] font-mono text-primary/55 mt-0.5">
-              Ghost Trap Honeypot · DNS Sinkhole · Network Monitor · SIEM · OSINT Recon · Signature Mining Engine · QuantumAudit · Auto-Update Notifications
+              ⚔ Counter Attack · Ghost Trap · DNS Sinkhole · Network Monitor · SIEM · OSINT Recon · QuantumAudit · Signature Mining Engine · Force-Update
             </div>
           </div>
           <a href={PROXHQ_ALL_PLATFORMS} target="_blank" rel="noopener noreferrer"

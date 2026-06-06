@@ -378,7 +378,7 @@ interface UpdateInfo {
 }
 
 // Latest published standalone version — bump this whenever a new build ships
-const LATEST_STANDALONE_VERSION = "2.0.0";
+const LATEST_STANDALONE_VERSION = "2.1.0";
 
 function semverGt(a: string, b: string): boolean {
   const pa = a.split(".").map(Number);
@@ -811,7 +811,7 @@ export function Layout({ children }: LayoutProps) {
                   ProxhqVPN {LATEST_STANDALONE_VERSION} is available
                 </div>
                 <div className="text-[11px] text-white/60 mt-0.5 leading-snug">
-                  You are running v{standaloneOldVer}. New: Ghost Trap, DNS Sinkhole, SIEM, Network Monitor, QuantumAudit, and security audit fixes.
+                  You are running v{standaloneOldVer}. New in v{LATEST_STANDALONE_VERSION}: ⚔ Counter Attack tab, canary beacon injector, port scanner, OSINT tools, and all Ghost Trap enhancements.
                 </div>
               </div>
               <button

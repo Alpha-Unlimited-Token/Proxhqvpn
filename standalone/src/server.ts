@@ -86,22 +86,27 @@ async function createApp() {
   app.use(globalLimiter);
 
   // ─── Health ──────────────────────────────────────────────────────────────
-  const APP_VERSION = "2.0.0";
+  const APP_VERSION = "2.1.0";
 
   app.get("/api/healthz", (_req, res) => {
     res.json({ status: "ok", version: APP_VERSION, timestamp: n() });
   });
 
-  // ─── Update check (standalone auto-updater) ──────────────────────────────
+  // ─── Update check (standalone auto-updater + manual force-check) ─────────
   app.get("/api/update/check", (_req, res) => {
     res.json({
       version: APP_VERSION,
-      releaseDate: "2026-06-05",
+      releaseDate: "2026-06-06",
       changelog: [
+        "⚔ Counter Attack tab on Ghost Trap — live interactive tools to counter captured hackers",
+        "Counter Attack: TCP port scanner across 24 attacker-relevant ports (C2, reverse shells, Tor, attack proxies)",
+        "Counter Attack: OSINT Deep Dive — reverse DNS, live geo, ISP/ASN, auto-generated abuse report contacts",
+        "Counter Attack: Canary Beacon Injector — 6 beacon types (Pixel, JS fingerprint, Fake AWS Key, JWT, DNS, SQL OOB)",
+        "Counter Attack: External tool launchers (Ghost Chain, Subdomain Scout, OSINT Recon, Threat Intel — all pre-filled with attacker IP)",
+        "Counter Attack: 5-phase counter-attack playbook (Harvest → Fingerprint → Active Connection → Per-Attack Techniques → Report)",
+        "Counter Attack: Per-attack-type counter cards (SQLi, XSS, CMDi, auth brute, LFI, recon scanner)",
         "Ghost Trap honeypot — personal device mode (IP:port lure URLs) and website/server mode (domain path lure URLs)",
         "Per-user Ghost Trap isolation — each user's probes, beacons, and config are completely private",
-        "Auto-detects device type and builds trap URLs accordingly",
-        "Deploy configs: nginx proxy block (server mode) and iptables/Linux (device mode)",
         "Instant law-enforcement incident report download for every attacker probe",
         "JWT Analyzer — JWKS injection, X5U injection, Embedded JWK, kid SQL/path injection, Claim Escalation attacks",
         "Subdomain Scanner — 9 passive OSINT sources (crt.sh, AlienVault OTX, HackerTarget, URLScan.io, Wayback, AnubisDB, RapidDNS, ThreatCrowd, BufferOver)",
