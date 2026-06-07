@@ -21,6 +21,7 @@ import Windows from "@/pages/windows";
 import ClipboardPage from "@/pages/clipboard";
 import MessageManager from "@/pages/message-manager";
 import RemoteCommands from "@/pages/remote-commands";
+import ProxhqTools from "@/pages/proxhq-tools";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -50,6 +51,7 @@ function Router() {
       <Route path="/clipboard" component={ClipboardPage} />
       <Route path="/message-manager" component={MessageManager} />
       <Route path="/remote-commands" component={RemoteCommands} />
+      <Route path="/proxhq-tools" component={ProxhqTools} />
       <Route component={NotFound} />
     </Switch>
   );

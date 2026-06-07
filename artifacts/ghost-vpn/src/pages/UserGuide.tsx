@@ -437,13 +437,14 @@ uci commit network
     id: "vpncoexist", title: "VPN Coexistence", icon: Settings,
     content: (
       <div className="space-y-3">
-        <p>VPN Coexistence (<code>/vpn-coexist</code>) lets ProxhqVPN run alongside other VPN clients (corporate VPNs, Tailscale, Zerotier) without conflicts.</p>
-        <h4 className="font-bold text-primary text-[11px]">Common Scenarios</h4>
+        <p><strong>VPN Coexistence</strong> (<code>/vpn-coexist</code>) lets ProxhqVPN run alongside other VPN clients simultaneously — corporate VPNs, NordVPN, ExpressVPN, Tailscale, ZeroTier — with 4 coexistence modes and auto-detection of running VPN processes. Command Center Pro only.</p>
+        <h4 className="font-bold text-primary text-[11px]">4 Coexistence Modes</h4>
         <div className="space-y-2">
           {[
-            { t: "Corporate VPN + ProxhqVPN", d: "Use split tunneling to route corporate subnets through the corporate VPN and all other traffic through ProxhqVPN." },
-            { t: "Tailscale + ProxhqVPN", d: "Both use WireGuard. Set fwmark values to not conflict. ProxhqVPN detects Tailscale automatically and adjusts routing tables." },
-            { t: "Tor + ProxhqVPN", d: "Your traffic goes: ProxhqVPN → Tor. Both are active simultaneously on different ports/interfaces." },
+            { t: "fwmark Mode (recommended)", d: "Each VPN uses a different Linux fwmark value for its traffic. Separate routing tables keep traffic isolated. ProxhqVPN uses mark 51820 by default — auto-adjusted if conflict detected." },
+            { t: "Double-Hop Mode", d: "Traffic routes: Device → Commercial VPN (NordVPN/Express/etc.) → ProxhqVPN exit node. Both tunnels active simultaneously. Your IP at exit = ProxhqVPN node IP. Use for maximum anonymity." },
+            { t: "Network Namespace Mode", d: "ProxhqVPN runs in its own Linux network namespace. Completely isolated from other VPN interfaces. Most compatible but requires root on Linux." },
+            { t: "Routing Table Mode", d: "Uses separate routing table (table 100 by default) for ProxhqVPN traffic. Coexists with any VPN that uses the main routing table. Compatible with all commercial VPN clients." },
           ].map(({ t, d }) => (
             <div key={t} className="border border-primary/10 rounded px-3 py-2">
               <div className="text-[10px] font-mono font-bold text-primary">{t}</div>
@@ -451,6 +452,20 @@ uci commit network
             </div>
           ))}
         </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Auto-Detection</h4>
+        <p className="text-[10px] font-mono text-primary/83">VPN Coexistence auto-detects running VPN processes: NordVPN, ExpressVPN, ProtonVPN, Mullvad, Surfshark, Tailscale, ZeroTier. The detected VPN's fwmark and interface are shown, and ProxhqVPN configures itself to avoid conflicts automatically.</p>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Exception Rules</h4>
+        <div className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <div>• <strong>bypass-proxhq</strong> — route specific subnets (e.g. 10.0.0.0/8) through the commercial VPN instead of ProxhqVPN</div>
+          <div>• <strong>force-proxhq</strong> — force specific destinations to always use ProxhqVPN regardless of the commercial VPN's routing</div>
+          <div>• <strong>block</strong> — block specific IPs or ranges entirely (neither VPN route used)</div>
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Script Generator</h4>
+        <p className="text-[10px] font-mono text-primary/83">Click <strong>Generate Script</strong> to download a shell script for your selected mode. The script sets up the correct ip rule, ip route, and iptables/nftables configuration for your system. Supports Linux (fwmark/namespace/routing-table) and macOS (routing-table only).</p>
+        <CB label="fwmark mode — verify no conflict">{`wg show          # See ProxhqVPN fwmark value
+ip rule show     # List all routing policy rules
+ip route show table 100  # See ProxhqVPN routing table`}</CB>
+        <Note type="info">If two VPNs use the same fwmark value, traffic routing becomes unpredictable. Always run the auto-detection step before enabling coexistence mode.</Note>
       </div>
     ),
   },
@@ -529,14 +544,14 @@ uci commit network
     id: "firewall", title: "Firewall (Admin)", icon: Shield,
     content: (
       <div className="space-y-3">
-        <p>The <strong>Firewall</strong> page (<code>/firewall</code>) manages iptables/nftables rules across all ProxhqVPN nodes from a single interface.</p>
+        <p>The <strong>Firewall</strong> (<code>/firewall</code>) manages iptables/nftables rules across all 60 ProxhqVPN nodes simultaneously. Three tabs: <strong>Rules</strong>, <strong>Blocked IPs</strong>, and <strong>Export</strong>. Admin role required.</p>
         <h4 className="font-bold text-primary text-[11px]">Rule Types</h4>
         <div className="space-y-2">
           {[
-            { t: "Block IP / CIDR", d: "Drop all packets from a specific IP or range. Applied to all nodes simultaneously." },
-            { t: "Allow Port", d: "Allow inbound traffic on specific ports (e.g. allow 51820/UDP for WireGuard)." },
-            { t: "Rate Limit", d: "Limit connection rate per IP to mitigate DDoS and brute force attacks." },
-            { t: "GeoIP Block", d: "Block all traffic from entire countries by ASN/country code." },
+            { t: "Block IP / CIDR", d: "Drop all packets from an IP or range (e.g. 185.220.101.0/24). Set expiry: permanent / 24h / 7 days / 30 days. Applied across all 60 nodes instantly." },
+            { t: "Allow Port", d: "Allow inbound on a port/protocol. Required: 51820/UDP (WireGuard), 443/TCP. SSH lockdown: allow 22/TCP from YOUR_IP/32 only, then block 22 for all others." },
+            { t: "Rate Limit", d: "Limit new connections per source IP. SSH brute force protection: 5/min burst 10 DROP. Prevents automated attacks without blocking legitimate users." },
+            { t: "GeoIP Block", d: "Block traffic from specific countries using MaxMind GeoIP (updated weekly). ~99% accuracy — sophisticated attackers use VPNs to evade geo-blocks." },
           ].map(({ t, d }) => (
             <div key={t} className="border border-primary/10 rounded px-3 py-2">
               <div className="text-[10px] font-mono font-bold text-primary">{t}</div>
@@ -544,12 +559,28 @@ uci commit network
             </div>
           ))}
         </div>
-        <h4 className="font-bold text-primary text-[11px] mt-3">Generate iptables Rules</h4>
-        <CB label="generated output example">{`# ProxhqVPN Auto-generated firewall rules
-iptables -A INPUT -s 192.168.100.50 -j DROP          # Blocked attacker IP
-iptables -A INPUT -p tcp --dport 22 -m limit --limit 5/min -j ACCEPT  # SSH rate limit
-iptables -A INPUT -p udp --dport 51820 -j ACCEPT     # WireGuard
-iptables -A INPUT -j DROP                             # Default deny all`}</CB>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Priority Ordering</h4>
+        <p className="text-[10px] font-mono text-primary/83">Rules are evaluated lowest-priority-number first. ALLOW rules for a port must have a lower number than DROP rules for the same port, or the allow is never reached.</p>
+        <CB label="recommended priority order">{`Priority 1:   Allow loopback (lo interface)
+Priority 5:   Allow admin SSH (YOUR_IP/32, port 22)
+Priority 10:  Allow WireGuard (51820/UDP)
+Priority 20:  Allow established connections
+Priority 50:  Rate limit SSH (all IPs, 5/min)
+Priority 90:  Block known attacker IPs
+Priority 100: Default deny all (DROP)`}</CB>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Auto-Block Sources</h4>
+        <div className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <div>• <strong>Ghost Trap</strong> — IPs hitting 3+ trap endpoints in 60 min auto-added to Blocked IPs</div>
+          <div>• <strong>Ghost Trace</strong> — malicious destination IPs suggested when peer anomaly score &gt; 90</div>
+          <div>• <strong>AbuseIPDB</strong> — if auto-block enabled in Threat Intel, IPs with confidence &gt;90 blocked automatically</div>
+        </div>
+        <CB label="verify firewall state">{`sudo iptables -L INPUT -n --line-numbers   # All INPUT rules
+sudo iptables -L OUTPUT -n | grep REJECT   # Kill switch rules
+sudo ip6tables -L -n | grep DROP           # IPv6 rules active?
+sudo iptables -L INPUT | grep limit        # Rate limit active?`}</CB>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Export iptables Script</h4>
+        <p className="text-[10px] font-mono text-primary/83">Firewall → Export → "Generate iptables Script" downloads a .sh applying all active rules. Includes ip6tables mirroring for full IPv6 protection. Also available as nftables format (Settings → Export Format).</p>
+        <Note type="warn">Never block 51820/UDP — it disconnects all WireGuard peers. Emergency recovery: sudo iptables -F &amp;&amp; sudo iptables -P INPUT ACCEPT</Note>
       </div>
     ),
   },
@@ -557,20 +588,41 @@ iptables -A INPUT -j DROP                             # Default deny all`}</CB>
     id: "terminal", title: "Remote Terminal (Admin)", icon: Terminal,
     content: (
       <div className="space-y-3">
-        <p>The <strong>Terminal</strong> (<code>/terminal</code>) provides a web-based shell for executing commands on your ProxhqVPN server infrastructure. Rate limited to 20 commands/minute. All commands are logged in the audit trail.</p>
-        <h4 className="font-bold text-primary text-[11px]">Useful Commands</h4>
-        <CB label="wireguard status">{`wg show                         # Show all WireGuard interfaces and peers
-wg show wg0 latest-handshakes   # When each peer last connected
-ip route show table main        # Full routing table`}</CB>
-        <CB label="system diagnostics">{`ss -tupn                        # All open sockets and listening services
-df -h                           # Disk usage
-free -m                         # RAM usage
-journalctl -u wg-quick@wg0 -n 50  # WireGuard service logs`}</CB>
-        <CB label="network debugging">{`curl -s https://api64.ipify.org   # Check public IP
-ping -c 4 8.8.8.8               # Basic connectivity
-traceroute 8.8.8.8              # Route tracing
-nmap -sV localhost              # Local port scan`}</CB>
-        <Note type="warn">The terminal is protected by Clerk auth and admin role. Never share your session or run commands from untrusted input. All commands are audit-logged.</Note>
+        <p>The <strong>Terminal</strong> (<code>/terminal</code>) provides a web-based shell for executing commands on your ProxhqVPN server. It has 4 tabs: <strong>Shell</strong>, <strong>HTTP Client</strong>, <strong>Port Scanner</strong>, and <strong>Audit Log</strong>. Rate limited to 20 commands/min. Admin only.</p>
+        <h4 className="font-bold text-primary text-[11px]">Tab 1 — Shell</h4>
+        <p className="text-[10px] font-mono text-primary/83">Run Linux commands on the ProxhqVPN server. Commands are validated against an allowlist in standard mode. Toggle <strong>ProxhqVPN Mode</strong> (red banner) for full outbound access — nmap, nc, socat, python3, curl, wget, dig, whois and more. All commands logged.</p>
+        <div className="space-y-2">
+          {[
+            { t: "ProxhqVPN Mode", d: "Unlocks full shell access beyond the allowlist. The red 'PROXHQVPN MODE ACTIVE' banner appears. HARD_BLOCKED patterns still enforced: rm -rf /, mkfs, dd if=/dev/zero, shutdown, halt." },
+            { t: "Standard Mode", d: "Allowlist-only: ps, top, df, free, ss, netstat, ip, wg, ping, traceroute, curl (GET), cat, grep, journalctl, iptables -L, and more." },
+          ].map(({ t, d }) => (
+            <div key={t} className="border border-primary/10 rounded px-3 py-2">
+              <div className="text-[10px] font-mono font-bold text-primary">{t}</div>
+              <div className="text-[9px] font-mono text-primary/83 mt-0.5">{d}</div>
+            </div>
+          ))}
+        </div>
+        <CB label="wireguard status">{`wg show                          # All WireGuard interfaces and peers
+wg show wg0 latest-handshakes    # When each peer last connected
+wg show wg0 transfer             # Bytes transferred per peer
+ip route show table main         # Full routing table`}</CB>
+        <CB label="network diagnostics">{`ss -tnp | grep ESTABLISHED       # Active external connections
+netstat -an | grep LISTEN        # Listening services
+curl -s https://api64.ipify.org  # Verify exit IP
+ping -c 4 8.8.8.8                # Connectivity check
+journalctl -u wg-quick@wg0 -n 50 # WireGuard logs`}</CB>
+        <CB label="proxhqvpn mode — recon">{`nmap -sV -p 1-10000 target.com   # Full port + version scan
+nmap --script vuln target.com    # Vulnerability scripts
+masscan -p 1-65535 target.com --rate 10000  # Fast scan
+nc -zv target.com 443            # TCP connectivity
+whois target.com                 # WHOIS data`}</CB>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Tab 2 — HTTP Client</h4>
+        <p className="text-[10px] font-mono text-primary/83">Make arbitrary HTTP/HTTPS requests from the <em>server's</em> IP (not your browser). Set method, URL, headers, and body. Useful for testing APIs, verifying server-to-server reachability, or testing endpoints without browser CORS restrictions.</p>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Tab 3 — Port Scanner</h4>
+        <p className="text-[10px] font-mono text-primary/83">TCP scanner running from the server. Enter target IP/hostname and port range (e.g. <code>1-1024</code> or <code>22,80,443,8080</code>). Results show OPEN / CLOSED / FILTERED with service banner where available. Rate: 5 scans/min.</p>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Tab 4 — Audit Log</h4>
+        <p className="text-[10px] font-mono text-primary/83">Immutable timestamped record of every command: timestamp (UTC), user, mode (standard/proxhqvpn), command, exit code, duration. Filter by user, mode, or date. Exportable as CSV/JSON. Stored indefinitely in PostgreSQL.</p>
+        <Note type="warn">All Terminal activity is audit-logged and visible to all admins. Never execute untrusted input. ProxhqVPN Mode is powerful — use it only for authorized operations on systems you own or have written permission to test.</Note>
       </div>
     ),
   },

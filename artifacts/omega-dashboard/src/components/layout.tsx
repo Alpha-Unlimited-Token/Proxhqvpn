@@ -4,7 +4,7 @@ import { Link, useLocation } from "wouter";
 import {
   Activity, Server, LayoutDashboard, TerminalSquare, Menu, X,
   KeyRound, Camera, FolderOpen, MessageSquare, ScanLine, Network, Cpu,
-  Monitor, AppWindow, Clipboard, MessageSquareWarning, Command
+  Monitor, AppWindow, Clipboard, MessageSquareWarning, Command, Shield
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -46,6 +46,12 @@ const NAV_GROUPS = [
     items: [
       { name: "IP Scanner", href: "/ip-scanner", icon: ScanLine },
       { name: "IP Tool",    href: "/ip-tool",    icon: Network },
+    ],
+  },
+  {
+    label: "PROXHQ TOOLS",
+    items: [
+      { name: "All Tools", href: "/proxhq-tools", icon: Shield },
     ],
   },
 ];
