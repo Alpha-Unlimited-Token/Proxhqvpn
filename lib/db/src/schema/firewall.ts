@@ -155,15 +155,41 @@ export const firewallTranscriberLogTable = pgTable("firewall_transcriber_log", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-export type InsertFirewallRule = typeof firewallRulesTable.$inferInsert;
-export type FirewallRule = typeof firewallRulesTable.$inferSelect;
-export type FirewallStatus = typeof firewallStatusTable.$inferSelect;
-export type BlockedIp = typeof blockedIpsTable.$inferSelect;
-export type IpsSignature = typeof firewallIpsSignaturesTable.$inferSelect;
-export type DpiRule = typeof firewallDpiRulesTable.$inferSelect;
-export type GeoBlock = typeof firewallGeoBlocksTable.$inferSelect;
-export type ThreatFeed = typeof firewallThreatFeedsTable.$inferSelect;
-export type FirewallZone = typeof firewallZonesTable.$inferSelect;
-export type FqdnRule = typeof firewallFqdnRulesTable.$inferSelect;
-export type GhostOsRule = typeof firewallGhostOsRulesTable.$inferSelect;
-export type TranscriberLog = typeof firewallTranscriberLogTable.$inferSelect;
+// ── Connection Approval Queue ──────────────────────────────────────────────────
+// Inbound connections that require user approval before being allowed, blocked, or trapped.
+// Populated by the WAF, GhostTrap, or any detection system. The frontend polls this
+// table and shows a popup asking the user: Allow | Block | Trap.
+export const firewallConnectionQueueTable = pgTable("firewall_connection_queue", {
+  id:            serial("id").primaryKey(),
+  ip:            text("ip").notNull(),
+  sourcePort:    integer("source_port"),
+  destPort:      integer("dest_port"),
+  protocol:      text("protocol").notNull().default("tcp"),
+  detectedFrom:  text("detected_from").notNull().default("waf"),  // waf | ghosttrap | beacon | ips | manual
+  attackType:    text("attack_type"),
+  anomalyScore:  integer("anomaly_score").notNull().default(0),
+  payload:       text("payload"),
+  userAgent:     text("user_agent"),
+  geoCountry:    text("geo_country"),
+  geoIsp:        text("geo_isp"),
+  reason:        text("reason"),
+  status:        text("status").notNull().default("pending"),  // pending | approved | blocked | trapped | dismissed
+  resolvedBy:    text("resolved_by"),
+  resolvedAt:    timestamp("resolved_at"),
+  expiresAt:     timestamp("expires_at"),  // auto-dismiss after this time if not resolved
+  createdAt:     timestamp("created_at").defaultNow().notNull(),
+});
+
+export type InsertFirewallRule    = typeof firewallRulesTable.$inferInsert;
+export type FirewallRule          = typeof firewallRulesTable.$inferSelect;
+export type FirewallStatus        = typeof firewallStatusTable.$inferSelect;
+export type BlockedIp             = typeof blockedIpsTable.$inferSelect;
+export type IpsSignature          = typeof firewallIpsSignaturesTable.$inferSelect;
+export type DpiRule               = typeof firewallDpiRulesTable.$inferSelect;
+export type GeoBlock              = typeof firewallGeoBlocksTable.$inferSelect;
+export type ThreatFeed            = typeof firewallThreatFeedsTable.$inferSelect;
+export type FirewallZone          = typeof firewallZonesTable.$inferSelect;
+export type FqdnRule              = typeof firewallFqdnRulesTable.$inferSelect;
+export type GhostOsRule           = typeof firewallGhostOsRulesTable.$inferSelect;
+export type TranscriberLog        = typeof firewallTranscriberLogTable.$inferSelect;
+export type ConnectionQueueEntry  = typeof firewallConnectionQueueTable.$inferSelect;

@@ -70,6 +70,36 @@ export const ghostTrapConfigTable = pgTable("ghost_trap_config", {
   updatedAt:       timestamp("updated_at").defaultNow().notNull(),
 });
 
-export type GhostTrapProbe  = typeof ghostTrapProbesTable.$inferSelect;
-export type GhostTrapBeacon = typeof ghostTrapBeaconsTable.$inferSelect;
-export type GhostTrapConfig = typeof ghostTrapConfigTable.$inferSelect;
+// ── Infinite Loop Tarpit Sessions ─────────────────────────────────────────────
+// Tracks attackers as they cycle through the multi-stage honeypot state machine.
+// Each stage returns increasingly convincing fake data, looping back indefinitely.
+export const ghostTrapLoopSessionsTable = pgTable("ghost_trap_loop_sessions", {
+  id:                   serial("id").primaryKey(),
+  sessionId:            text("session_id").notNull().unique(),
+  attackerIp:           text("attacker_ip").notNull(),
+  attackerPort:         integer("attacker_port"),
+  attackerUa:           text("attacker_ua"),
+  stage:                integer("stage").notNull().default(0),
+  stageLabel:           text("stage_label").notNull().default("initial_contact"),
+  loopCount:            integer("loop_count").notNull().default(0),
+  interactionCount:     integer("interaction_count").notNull().default(0),
+  totalTarpitMs:        integer("total_tarpit_ms").notNull().default(0),
+  triggerType:          text("trigger_type").notNull().default("waf"),  // waf | injection | xss | cmd | recon | manual
+  initialPayload:       text("initial_payload"),
+  intelligenceJson:     text("intelligence_json"),  // accumulated attack intel as JSON
+  fakeSessionToken:     text("fake_session_token"), // the fake JWT/token we gave them
+  fakeUsername:         text("fake_username"),      // which fake identity they think they are
+  lastStageResponse:    text("last_stage_response"),
+  geoCountry:           text("geo_country"),
+  geoIsp:               text("geo_isp"),
+  autoBlockScheduled:   boolean("auto_block_scheduled").notNull().default(false),
+  silkTrapped:          boolean("silk_trapped").notNull().default(false),
+  isActive:             boolean("is_active").notNull().default(true),
+  lastSeenAt:           timestamp("last_seen_at").defaultNow().notNull(),
+  createdAt:            timestamp("created_at").defaultNow().notNull(),
+});
+
+export type GhostTrapProbe        = typeof ghostTrapProbesTable.$inferSelect;
+export type GhostTrapBeacon       = typeof ghostTrapBeaconsTable.$inferSelect;
+export type GhostTrapConfig       = typeof ghostTrapConfigTable.$inferSelect;
+export type GhostTrapLoopSession  = typeof ghostTrapLoopSessionsTable.$inferSelect;

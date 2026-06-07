@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { useAccess } from "@/hooks/useAccess";
 import { useNotifications } from "@/hooks/useNotifications";
+import { ConnectionApprovalPopup } from "@/components/ConnectionApprovalPopup";
 
 interface LayoutProps {
   children: ReactNode;
@@ -918,6 +919,9 @@ export function Layout({ children }: LayoutProps) {
           All rights reserved. Patent pending.
         </p>
       </div>
+
+      {/* Global Connection Approval Popup — polls /api/firewall/connection-queue every 5s */}
+      <ConnectionApprovalPopup />
     </div>
   );
 }

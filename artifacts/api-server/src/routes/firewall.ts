@@ -7,6 +7,7 @@ import {
   firewallIpsSignaturesTable, firewallDpiRulesTable, firewallGeoBlocksTable,
   firewallThreatFeedsTable, firewallZonesTable, firewallFqdnRulesTable,
   firewallGhostOsRulesTable, firewallTranscriberLogTable,
+  firewallConnectionQueueTable,
 } from "@workspace/db";
 import { eq, sql, lt, desc, asc, inArray } from "drizzle-orm";
 import { z } from "zod";
@@ -904,6 +905,153 @@ router.post("/rules/check-conflicts", async (_req, res) => {
   if (allowAll) conflicts.push({ type: "overly-permissive", rule1: allowAll.name, rule2: "", description: `Rule "${allowAll.name}" allows ALL inbound traffic — likely unintentional. Consider adding source IP restrictions.`, severity: "critical" });
 
   res.json({ conflicts, total: conflicts.length, clean: conflicts.length === 0 });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ── Connection Approval Queue ──────────────────────────────────────────────
+// Attackers detected by WAF/GhostTrap/IPS are queued here for admin approval.
+// Frontend polls this endpoint and shows a non-intrusive popup with
+// [Allow] [Block] [Trap] buttons for each pending entry.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// GET /connection-queue — list pending (and recent resolved) entries
+router.get("/connection-queue", async (req, res) => {
+  const status = String(req.query.status ?? "pending");
+  const limit  = Math.min(Number(req.query.limit ?? 50), 200);
+
+  // Auto-expire entries older than 2 minutes that are still pending
+  await db.update(firewallConnectionQueueTable)
+    .set({ status: "dismissed", resolvedAt: new Date() })
+    .where(
+      sql`status = 'pending' AND expires_at IS NOT NULL AND expires_at < NOW()`
+    ).catch(() => {});
+
+  const rows = status === "all"
+    ? await db.select().from(firewallConnectionQueueTable).orderBy(desc(firewallConnectionQueueTable.createdAt)).limit(limit)
+    : await db.select().from(firewallConnectionQueueTable)
+        .where(eq(firewallConnectionQueueTable.status, status))
+        .orderBy(desc(firewallConnectionQueueTable.createdAt)).limit(limit);
+
+  const [counts] = await db.select({
+    pending:   sql<number>`count(*) filter (where status = 'pending')::int`,
+    approved:  sql<number>`count(*) filter (where status = 'approved')::int`,
+    blocked:   sql<number>`count(*) filter (where status = 'blocked')::int`,
+    trapped:   sql<number>`count(*) filter (where status = 'trapped')::int`,
+  }).from(firewallConnectionQueueTable);
+
+  res.json({ entries: rows, counts, total: rows.length });
+});
+
+// POST /connection-queue — create a new pending entry (called by WAF, GhostTrap, IPS)
+router.post("/connection-queue", async (req, res) => {
+  const body = z.object({
+    ip:           z.string(),
+    sourcePort:   z.number().optional(),
+    destPort:     z.number().optional(),
+    protocol:     z.string().default("tcp"),
+    detectedFrom: z.string().default("waf"),
+    attackType:   z.string().optional(),
+    anomalyScore: z.number().default(0),
+    payload:      z.string().max(2000).optional(),
+    userAgent:    z.string().max(512).optional(),
+    geoCountry:   z.string().optional(),
+    geoIsp:       z.string().optional(),
+    reason:       z.string().optional(),
+  }).parse(req.body);
+
+  // Deduplicate: if this IP already has a pending entry, just update it
+  const existing = await db.select().from(firewallConnectionQueueTable)
+    .where(
+      sql`ip = ${body.ip} AND status = 'pending'`
+    ).limit(1);
+
+  if (existing.length > 0) {
+    const [updated] = await db.update(firewallConnectionQueueTable)
+      .set({
+        anomalyScore: Math.max(existing[0].anomalyScore, body.anomalyScore),
+        attackType:   body.attackType ?? existing[0].attackType,
+        payload:      body.payload ?? existing[0].payload,
+        reason:       body.reason ?? existing[0].reason,
+      })
+      .where(eq(firewallConnectionQueueTable.id, existing[0].id))
+      .returning();
+    return res.json(updated);
+  }
+
+  const expiresAt = new Date(Date.now() + 2 * 60 * 1000); // 2 min TTL
+  const [entry] = await db.insert(firewallConnectionQueueTable).values({
+    ...body,
+    status: "pending",
+    expiresAt,
+  }).returning();
+  res.status(201).json(entry);
+});
+
+// POST /connection-queue/:id/approve — whitelist the IP
+router.post("/connection-queue/:id/approve", async (req, res) => {
+  const id = parseInt(req.params.id);
+  const userId = ((req as any).auth)?.userId as string | undefined;
+  const [entry] = await db.update(firewallConnectionQueueTable)
+    .set({ status: "approved", resolvedBy: userId ?? "system", resolvedAt: new Date() })
+    .where(eq(firewallConnectionQueueTable.id, id))
+    .returning();
+  if (!entry) return res.status(404).json({ error: "Entry not found" });
+  // Add to firewall rules to allow this IP inbound
+  await db.insert(firewallRulesTable).values({
+    name: `Auto-approved: ${entry.ip}`,
+    direction: "inbound" as const,
+    action: "allow" as const,
+    protocol: "any" as const,
+    sourceIp: entry.ip,
+    priority: 50,
+    description: `Manually approved via Connection Queue at ${new Date().toISOString()}`,
+  }).catch(() => {});
+  res.json({ ok: true, entry });
+});
+
+// POST /connection-queue/:id/deny — block the IP in the firewall
+router.post("/connection-queue/:id/deny", async (req, res) => {
+  const id = parseInt(req.params.id);
+  const userId = ((req as any).auth)?.userId as string | undefined;
+  const [entry] = await db.update(firewallConnectionQueueTable)
+    .set({ status: "blocked", resolvedBy: userId ?? "system", resolvedAt: new Date() })
+    .where(eq(firewallConnectionQueueTable.id, id))
+    .returning();
+  if (!entry) return res.status(404).json({ error: "Entry not found" });
+  // Auto-add to blocked IPs table
+  const alreadyBlocked = await db.select().from(blockedIpsTable)
+    .where(eq(blockedIpsTable.ip, entry.ip)).limit(1);
+  if (!alreadyBlocked.length) {
+    await db.insert(blockedIpsTable).values({
+      ip: entry.ip,
+      reason: `Connection Queue: blocked by admin (${entry.attackType ?? "unknown"})`,
+      autoBlocked: false,
+    }).catch(() => {});
+  }
+  res.json({ ok: true, entry });
+});
+
+// POST /connection-queue/:id/trap — route into GhostTrap tarpit loop
+router.post("/connection-queue/:id/trap", async (req, res) => {
+  const id = parseInt(req.params.id);
+  const userId = ((req as any).auth)?.userId as string | undefined;
+  const [entry] = await db.update(firewallConnectionQueueTable)
+    .set({ status: "trapped", resolvedBy: userId ?? "system", resolvedAt: new Date() })
+    .where(eq(firewallConnectionQueueTable.id, id))
+    .returning();
+  if (!entry) return res.status(404).json({ error: "Entry not found" });
+  res.json({ ok: true, entry, tarpitEngaged: true });
+});
+
+// DELETE /connection-queue/:id — dismiss without action
+router.delete("/connection-queue/:id", async (req, res) => {
+  const id = parseInt(req.params.id);
+  const [entry] = await db.update(firewallConnectionQueueTable)
+    .set({ status: "dismissed", resolvedAt: new Date() })
+    .where(eq(firewallConnectionQueueTable.id, id))
+    .returning();
+  if (!entry) return res.status(404).json({ error: "Entry not found" });
+  res.json({ ok: true });
 });
 
 export default router;

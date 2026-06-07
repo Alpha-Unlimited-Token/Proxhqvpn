@@ -6,7 +6,9 @@ import { Router, Request, Response } from "express";
 import { db } from "@workspace/db";
 import {
   ghostTrapProbesTable, ghostTrapConfigTable, ghostTrapBeaconsTable,
+  ghostTrapLoopSessionsTable,
   blockedIpsTable, trappedAttackersTable, silkWebTable,
+  firewallConnectionQueueTable,
 } from "@workspace/db";
 import { eq, desc, sql, inArray, and, isNull } from "drizzle-orm";
 import crypto from "crypto";
@@ -1212,6 +1214,352 @@ router.post("/counter/canary-inject", async (req, res) => {
     note: "⚠ EDUCATIONAL/DEFENSIVE USE ONLY — plant these payloads in fake responses to attackers who have already probed your system.",
     createdAt: new Date().toISOString(),
   });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ── NEVER-ENDING TARPIT LOOP STATE MACHINE ────────────────────────────────────
+// When an attacker triggers WAF/GhostTrap detection, they can be routed into
+// this multi-stage honeypot loop. Each stage feeds convincing fake data and
+// embeds tracking beacons. Stage 6 wraps back to stage 1 — the loop never ends.
+// Attackers waste time, we collect full intelligence on their TTPs.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const LOOP_STAGES = [
+  { stage: 0, label: "initial_contact",   tarpitMin: 800,  tarpitMax: 2000 },
+  { stage: 1, label: "login_success",     tarpitMin: 1500, tarpitMax: 4000 },
+  { stage: 2, label: "admin_dashboard",   tarpitMin: 2000, tarpitMax: 5000 },
+  { stage: 3, label: "database_access",   tarpitMin: 2500, tarpitMax: 6000 },
+  { stage: 4, label: "server_creds",      tarpitMin: 2000, tarpitMax: 5500 },
+  { stage: 5, label: "deeper_access",     tarpitMin: 3000, tarpitMax: 7000 },
+  { stage: 6, label: "exfil_complete",    tarpitMin: 1500, tarpitMax: 4000 },
+];
+
+const FAKE_USERNAMES = ["admin", "sysop", "root", "superuser", "devops", "jsmith", "mwilliams"];
+
+function buildLoopStageResponse(
+  stage: number, sessionId: string, fakeUser: string, beaconBase: string, loopCount: number
+): { body: unknown; contentType: string } {
+  const pixelUrl = `${beaconBase}/beacon/${sessionId}`;
+  const nextStep  = `${beaconBase}/loop/${sessionId}`;
+
+  switch (stage % 7) {
+    case 0: // Initial contact — looks like a generic API welcome
+      return { contentType: "application/json", body: {
+        status: "ok", version: "2.4.1", server: "Apache/2.4.54 (Ubuntu)",
+        session: sessionId, next: nextStep,
+        timestamp: new Date().toISOString(),
+        _debug: { uptime: "14d 7h", pid: Math.floor(Math.random()*30000+1000) },
+      }};
+
+    case 1: // Login success — fake JWT + admin user
+      return { contentType: "application/json", body: {
+        success: true, message: "Authentication successful",
+        token: `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJ1c2VybmFtZSI6IiR7ZmFrZVVzZXJ9Iiwicm9sZSI6InN1cGVyYWRtaW4iLCJpYXQiOjE3MTcwMDAwMDB9.${Buffer.from(sessionId).toString("base64")}`,
+        user: { id: 1, username: fakeUser, email: `${fakeUser}@corp.internal`, role: "superadmin",
+          last_login: new Date(Date.now() - 86400000).toISOString(), mfa_enabled: false,
+          permissions: ["admin", "db_read", "db_write", "ssh", "logs", "billing"],
+          session_id: sessionId,
+        },
+        expires_in: 3600, next_action: nextStep,
+        monitoring_hook: pixelUrl,
+      }};
+
+    case 2: // Admin dashboard — fake server stats + user list
+      return { contentType: "application/json", body: {
+        dashboard: true, server: { os: "Ubuntu 22.04.3 LTS", cpu: "Intel Xeon E5-2670 × 16",
+          ram_total: "64GB", ram_used: `${Math.floor(Math.random()*20+30)}GB`,
+          disk_total: "2TB", disk_used: `${Math.floor(Math.random()*300+500)}GB`,
+          uptime: "47d 3h 22m", load: `${(Math.random()*2+0.3).toFixed(2)}`,
+        },
+        users_online: Math.floor(Math.random()*8+2),
+        recent_actions: [
+          { user: "admin", action: "SSH login", ip: "192.168.1.55", time: "2m ago" },
+          { user: "jsmith", action: "DB export", ip: "10.0.0.20", time: "17m ago" },
+          { user: "devops", action: "Cron update", ip: "10.0.0.5", time: "1h ago" },
+        ],
+        alerts: 0, session: sessionId, continue: nextStep,
+        health_beacon: pixelUrl,
+      }};
+
+    case 3: // Database access — fake SQL dump
+      return { contentType: "application/json", body: {
+        query: "SELECT * FROM users LIMIT 50",
+        database: "app_production", db_version: "PostgreSQL 14.5",
+        query_time: `${(Math.random()*0.05+0.01).toFixed(4)}s`,
+        rows: [
+          { id: 1, username: "admin", email: "admin@corp.internal", password_hash: "$argon2id$v=19$m=65536,t=3,p=4$FakeArgon2HashGhostTrap$AAAAAAAAAdmin", role: "superadmin", phone: "+1-555-0100", ssn_last4: "4821", created_at: "2023-01-15T09:00:00Z", avatar: pixelUrl },
+          { id: 2, username: "jsmith", email: "j.smith@corp.internal", password_hash: "$argon2id$v=19$m=65536,t=3,p=4$FakeArgon2HashGhostTrap$AAAAAAAASmith", role: "admin", phone: "+1-555-0101", ssn_last4: "7743", created_at: "2023-02-20T11:00:00Z", avatar: pixelUrl },
+          { id: 3, username: "mwilliams", email: "m.williams@corp.internal", password_hash: "$argon2id$v=19$m=65536,t=3,p=4$FakeArgon2HashGhostTrap$AAAAAAAAWill", role: "dev", phone: "+1-555-0102", ssn_last4: "1190", created_at: "2023-03-10T14:30:00Z", avatar: pixelUrl },
+        ],
+        total: 247, session: sessionId, next_page: nextStep,
+      }};
+
+    case 4: // Server credentials — fake SSH keys, API keys, env vars
+      return { contentType: "text/plain", body: [
+        "# Production Server Credentials — CONFIDENTIAL",
+        "# Generated: " + new Date().toISOString(),
+        `DB_HOST=prod-db-01.corp.internal:5432`,
+        `DB_USER=app_prod`, `DB_PASS=Pr0d_S3cr3t_2024!GhostTrap`,
+        `DB_NAME=app_production`,
+        `STRIPE_SECRET=sk_live_GHOSTTRAP_FAKE_${sessionId.slice(0,8)}`,
+        `AWS_ACCESS_KEY_ID=AKIA_GHOSTTRAP_${sessionId.slice(0,12).toUpperCase()}`,
+        `AWS_SECRET=GhostTrapFakeAWSSecret+${sessionId.slice(0,16)}`,
+        `JWT_SECRET=GhostTrapFakeJWTSecret_${sessionId}`,
+        `SSH_KEY_PASSPHRASE=Ssh_Pr0d_2024!`,
+        `-----BEGIN RSA PRIVATE KEY-----`,
+        `MIIEowIBAAKCAQEA${Buffer.from("GHOSTTRAP_FAKE_KEY_"+sessionId).toString("base64")}`,
+        `AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA`,
+        `-----END RSA PRIVATE KEY-----`,
+        `MONITORING_URL=${pixelUrl}`,
+        `ANALYTICS_HOOK=${nextStep}`,
+      ].join("\n") };
+
+    case 5: // Deeper access — fake root shell simulation
+      return { contentType: "application/json", body: {
+        shell: "bash", user: "root", hostname: "prod-01",
+        cwd: "/var/www/app",
+        history: [
+          `$ id\nuid=0(root) gid=0(root) groups=0(root)`,
+          `$ cat /etc/passwd\nroot:x:0:0:root:/root:/bin/bash\n...${loopCount} more lines`,
+          `$ ls -la /home\ndrwxr-xr-x admin jsmith mwilliams devops`,
+          `$ cat /root/.ssh/authorized_keys\n${pixelUrl} root@monitoring`,
+          `$ curl ${nextStep}\n{"status":"ok","session":"${sessionId}"}`,
+        ],
+        env: { TERM: "xterm-256color", SHELL: "/bin/bash", SESSION: sessionId },
+        next: nextStep, beacon: pixelUrl,
+      }};
+
+    case 6: // Exfil complete — fake "upload finished" then loop back
+      return { contentType: "application/json", body: {
+        exfil: true, status: "complete",
+        files_transferred: Math.floor(Math.random()*150+50),
+        bytes_transferred: Math.floor(Math.random()*50000000+10000000),
+        destination: `ftp://upload.attacker-c2.xyz/stolen_data_${sessionId.slice(0,8)}`,
+        checksum: crypto.randomBytes(16).toString("hex"),
+        note: "Session will re-authenticate to continue. Use your token.",
+        session_expired: true,
+        re_authenticate: `${beaconBase}/lure/login`,  // loops them back to start
+        beacon_confirm: pixelUrl,
+      }};
+
+    default:
+      return { contentType: "application/json", body: { ok: true, session: sessionId } };
+  }
+}
+
+// POST /engage — start an infinite tarpit loop session for an IP (auth required)
+router.post("/engage", async (req, res) => {
+  const userId = ((req as any).auth)?.userId as string | undefined;
+  if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const body = req.body as { ip: string; triggerType?: string; initialPayload?: string };
+  const ip = String(body.ip ?? "").trim();
+  if (!ip) { res.status(400).json({ error: "ip required" }); return; }
+
+  const sessionId = crypto.randomUUID();
+  const fakeUser  = FAKE_USERNAMES[Math.floor(Math.random() * FAKE_USERNAMES.length)]!;
+
+  const [session] = await db.insert(ghostTrapLoopSessionsTable).values({
+    sessionId, attackerIp: ip,
+    stage: 0, stageLabel: "initial_contact",
+    loopCount: 0, interactionCount: 0, totalTarpitMs: 0,
+    triggerType: String(body.triggerType ?? "manual"),
+    initialPayload: body.initialPayload ? String(body.initialPayload).substring(0, 2000) : null,
+    fakeSessionToken: sessionId, fakeUsername: fakeUser,
+    isActive: true,
+  }).returning();
+
+  // Also create a connection queue entry so admin can see it
+  await db.insert(firewallConnectionQueueTable).values({
+    ip, detectedFrom: "ghosttrap",
+    attackType: String(body.triggerType ?? "manual"),
+    anomalyScore: 80, reason: "GhostTrap loop engaged",
+    status: "trapped",
+    expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+  }).catch(() => {});
+
+  const proto = req.headers["x-forwarded-proto"] ?? "https";
+  const host  = req.headers["x-forwarded-host"] ?? req.headers.host ?? "";
+  const beaconBase = `${proto}://${host}/api/ghost-trap`;
+
+  res.json({
+    sessionId,
+    loopUrl: `${beaconBase}/loop/${sessionId}`,
+    fakeUser,
+    stage: session.stage,
+    message: "Tarpit loop engaged. Share the loopUrl in fake responses to trap the attacker.",
+  });
+});
+
+// POST /loop/:sessionId — PUBLIC endpoint. Attackers hit this thinking it's a real API.
+// Each call advances the stage and returns convincing fake data.
+router.all("/loop/:sessionId", async (req, res) => {
+  const { sessionId } = req.params;
+  const ip = getIp(req);
+
+  const rows = await db.select().from(ghostTrapLoopSessionsTable)
+    .where(eq(ghostTrapLoopSessionsTable.sessionId, String(sessionId))).limit(1);
+
+  let session = rows[0];
+  const isNewSession = !session;
+
+  if (!session) {
+    // Unknown session → create a new one automatically (catch any scanner that guesses IDs)
+    const fakeUser = FAKE_USERNAMES[Math.floor(Math.random() * FAKE_USERNAMES.length)]!;
+    const [created] = await db.insert(ghostTrapLoopSessionsTable).values({
+      sessionId: String(sessionId), attackerIp: ip, stage: 0,
+      stageLabel: "initial_contact", loopCount: 0, interactionCount: 0,
+      totalTarpitMs: 0, triggerType: "unknown", fakeUsername: fakeUser,
+      fakeSessionToken: String(sessionId), isActive: true,
+    }).returning().catch(() => []);
+    if (!created) { res.status(404).json({ error: "Not found" }); return; }
+    session = created;
+  }
+
+  if (!session.isActive) {
+    res.status(410).json({ error: "Session expired" });
+    return;
+  }
+
+  const currentStage = session.stage % 7;
+  const stageDef = LOOP_STAGES[currentStage] ?? LOOP_STAGES[0]!;
+  const tarpitMs = stageDef.tarpitMin + Math.floor(Math.random() * (stageDef.tarpitMax - stageDef.tarpitMin));
+
+  // Tarpit delay — waste attacker's time
+  await tarpit(tarpitMs);
+
+  const proto = req.headers["x-forwarded-proto"] ?? "https";
+  const host  = req.headers["x-forwarded-host"] ?? req.headers.host ?? "";
+  const beaconBase = `${proto}://${host}/api/ghost-trap`;
+
+  const response = buildLoopStageResponse(
+    currentStage, session.sessionId, session.fakeUsername ?? "admin",
+    beaconBase, session.loopCount
+  );
+
+  // Advance to next stage, wrap at 7
+  const nextStage = (currentStage + 1) % 7;
+  const nextLabel = LOOP_STAGES[nextStage]?.label ?? "login_success";
+  const newLoopCount = nextStage === 1 ? session.loopCount + 1 : session.loopCount;
+
+  // Accumulate intelligence from request
+  const rawPayload = JSON.stringify({ query: req.query, body: req.body, path: req.path }).substring(0, 2000);
+  const prevIntel = session.intelligenceJson ? JSON.parse(session.intelligenceJson) : {};
+  const newIntel = {
+    ...prevIntel,
+    payloads: [...(prevIntel.payloads ?? []).slice(-10), rawPayload.substring(0, 200)],
+    stages_visited: [...(prevIntel.stages_visited ?? []), stageDef.label],
+    total_tarpit_ms: (prevIntel.total_tarpit_ms ?? 0) + tarpitMs,
+    last_ua: (req.headers["user-agent"] ?? "").substring(0, 256),
+    last_seen: new Date().toISOString(),
+    loop_count: newLoopCount,
+    ip_confirmed: ip,
+  };
+
+  await db.update(ghostTrapLoopSessionsTable).set({
+    stage: nextStage, stageLabel: nextLabel, loopCount: newLoopCount,
+    interactionCount: session.interactionCount + 1,
+    totalTarpitMs: session.totalTarpitMs + tarpitMs,
+    intelligenceJson: JSON.stringify(newIntel),
+    lastStageResponse: JSON.stringify(response.body).substring(0, 2000),
+    lastSeenAt: new Date(),
+    attackerIp: ip, // update in case they're behind a proxy and IP changes
+  }).where(eq(ghostTrapLoopSessionsTable.sessionId, session.sessionId)).catch(() => {});
+
+  // Auto-block after 10 loop interactions
+  if (session.interactionCount >= 10) {
+    const alreadyBlocked = await db.select().from(blockedIpsTable).where(eq(blockedIpsTable.ip, ip)).limit(1);
+    if (!alreadyBlocked.length) {
+      await db.insert(blockedIpsTable).values({
+        ip, reason: `GhostTrap loop: ${session.interactionCount + 1} interactions (${session.triggerType})`,
+        autoBlocked: true,
+      }).catch(() => {});
+    }
+  }
+
+  // Auto SilkWeb trap after 3 interactions
+  if (session.interactionCount >= 3 && !session.silkTrapped) {
+    const webRows = await db.select().from(silkWebTable).limit(1);
+    if (webRows.length) {
+      await db.insert(trappedAttackersTable).values({
+        ip, fingerprint: `LOOP|${session.sessionId}|STAGE:${currentStage}|LOOPS:${newLoopCount}`,
+        entryNodeId: 1, honeypotPort: 443,
+        probeType: `loop_trap_${session.triggerType}`,
+        dataCollected: JSON.stringify({ sessionId: session.sessionId, interactionCount: session.interactionCount, loopCount: newLoopCount }),
+        sqlmapStatus: "idle",
+      }).catch(() => {});
+      await db.update(ghostTrapLoopSessionsTable).set({ silkTrapped: true })
+        .where(eq(ghostTrapLoopSessionsTable.sessionId, session.sessionId)).catch(() => {});
+    }
+  }
+
+  // Respond with fake Apache headers
+  res.setHeader("X-Powered-By", "Apache/2.4.54");
+  res.setHeader("Server", "Apache/2.4.54 (Ubuntu)");
+  res.setHeader("X-Session", session.sessionId);
+  res.setHeader("Content-Type", response.contentType);
+  if (typeof response.body === "string") res.status(200).send(response.body);
+  else res.status(200).json(response.body);
+});
+
+// GET /sessions — list active tarpit loop sessions (auth required)
+router.get("/sessions", async (req, res) => {
+  const userId = ((req as any).auth)?.userId as string | undefined;
+  if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const limit = Math.min(Number(req.query.limit ?? 100), 500);
+  const sessions = await db.select().from(ghostTrapLoopSessionsTable)
+    .orderBy(desc(ghostTrapLoopSessionsTable.lastSeenAt)).limit(limit);
+
+  const [stats] = await db.select({
+    total:    sql<number>`count(*)::int`,
+    active:   sql<number>`count(*) filter (where is_active = true)::int`,
+    loops:    sql<number>`sum(loop_count)::int`,
+    blocked:  sql<number>`count(*) filter (where auto_block_scheduled = true)::int`,
+    silkTrapped: sql<number>`count(*) filter (where silk_trapped = true)::int`,
+    avgInteractions: sql<number>`avg(interaction_count)::int`,
+  }).from(ghostTrapLoopSessionsTable);
+
+  res.json({ sessions, stats });
+});
+
+// GET /sessions/:sessionId — session detail (auth required)
+router.get("/sessions/:sessionId", async (req, res) => {
+  const userId = ((req as any).auth)?.userId as string | undefined;
+  if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const rows = await db.select().from(ghostTrapLoopSessionsTable)
+    .where(eq(ghostTrapLoopSessionsTable.sessionId, String(req.params.sessionId))).limit(1);
+  if (!rows.length) { res.status(404).json({ error: "Session not found" }); return; }
+  res.json(rows[0]);
+});
+
+// DELETE /sessions/:sessionId — terminate a tarpit session and block the attacker
+router.delete("/sessions/:sessionId", async (req, res) => {
+  const userId = ((req as any).auth)?.userId as string | undefined;
+  if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const rows = await db.select().from(ghostTrapLoopSessionsTable)
+    .where(eq(ghostTrapLoopSessionsTable.sessionId, String(req.params.sessionId))).limit(1);
+  if (!rows.length) { res.status(404).json({ error: "Session not found" }); return; }
+
+  const session = rows[0]!;
+  await db.update(ghostTrapLoopSessionsTable).set({ isActive: false })
+    .where(eq(ghostTrapLoopSessionsTable.sessionId, session.sessionId));
+
+  const action = (req.query.action ?? "block") as string;
+  if (action === "block") {
+    const alreadyBlocked = await db.select().from(blockedIpsTable)
+      .where(eq(blockedIpsTable.ip, session.attackerIp)).limit(1);
+    if (!alreadyBlocked.length) {
+      await db.insert(blockedIpsTable).values({
+        ip: session.attackerIp,
+        reason: `GhostTrap loop terminated: ${session.interactionCount} interactions, ${session.loopCount} loops`,
+        autoBlocked: false,
+      }).catch(() => {});
+    }
+  }
+  res.json({ ok: true, action, session });
 });
 
 export default router;
