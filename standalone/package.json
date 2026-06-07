@@ -1,6 +1,6 @@
 {
   "name": "proxhqvpn-standalone",
-  "version": "2.0.0",
+  "version": "2.2.0",
   "private": true,
   "description": "ProxhqVPN Orchestration Platform — Standalone Build",
   "main": "server.bundle.cjs",

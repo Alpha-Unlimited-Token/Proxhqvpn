@@ -24,8 +24,8 @@ const PROXHQ_ANDROID_INSTALLER = `${BASE}/downloads/ProxhqVPN-Android.zip`;
 const PROXHQ_IOS_INSTALLER     = `${BASE}/downloads/ProxhqVPN-iOS.zip`;
 const PROXHQ_UNIVERSAL         = `${BASE}/downloads/ProxhqVPN-Universal-NodeJS.zip`;
 const PROXHQ_ALL_PLATFORMS     = `${BASE}/downloads/ProxhqVPN-ALL-PLATFORMS.zip`;
-const APP_VERSION               = "2.1.0";
-const RELEASE_DATE              = "June 6, 2026";
+const APP_VERSION               = "2.2.0";
+const RELEASE_DATE              = "June 7, 2026";
 const WG_APPSTORE_IOS = "https://apps.apple.com/us/app/wireguard/id1441195209";
 const WG_PLAY_URL     = "https://play.google.com/store/apps/details?id=com.wireguard.android";
 const WG_APPSTORE_TV  = "https://apps.apple.com/us/app/wireguard/id1451685025"; // tvOS App Store
@@ -122,7 +122,7 @@ const PLATFORMS: PlatformGroup[] = [
           { label: `Download ProxhqVPN v${APP_VERSION} — Windows x64 (.zip)`, url: PROXHQ_WIN_INSTALLER, variant: "primary", icon: Download },
         ],
         steps: [
-          { text: `v${APP_VERSION} — ${RELEASE_DATE}. Includes ⚔ Counter Attack tab, Ghost Trap honeypot, DNS Sinkhole, Network Monitor, SIEM, OSINT Recon, and all recent security upgrades. Force-update available on Downloads page.` },
+          { text: `v${APP_VERSION} — ${RELEASE_DATE}. Security hardening release: all synthetic metrics eliminated, standalone auth system, CORS lockdown, real network probes, Ghost Chain real DNS/HTTP checks. Plus: Counter Attack, Ghost Trap, DNS Sinkhole, Network Monitor, SIEM, OSINT Recon, QuantumAudit.` },
           { text: "Download the ProxhqVPN .zip, extract it, and run 'start.bat'. Windows will open the dashboard in your browser automatically." },
           { text: "SmartScreen warning? Click 'More info' → 'Run anyway'. Normal for any installer downloaded outside the Microsoft Store." },
           { text: "Screen 1 — Welcome: overview of everything that will install automatically. Click 'Get Started'." },
@@ -145,7 +145,7 @@ const PLATFORMS: PlatformGroup[] = [
           { label: "WireGuard on Mac App Store", url: WG_APPSTORE_MAC, variant: "store", icon: Apple },
         ],
         steps: [
-          { text: `v${APP_VERSION} — ${RELEASE_DATE}. Includes ⚔ Counter Attack tab, Ghost Trap honeypot, DNS Sinkhole, Network Monitor, SIEM, OSINT Recon, and all recent security upgrades. Force-update available on Downloads page.` },
+          { text: `v${APP_VERSION} — ${RELEASE_DATE}. Security hardening release: all synthetic metrics eliminated, standalone auth system, CORS lockdown, real network probes, Ghost Chain real DNS/HTTP checks. Plus: Counter Attack, Ghost Trap, DNS Sinkhole, Network Monitor, SIEM, OSINT Recon, QuantumAudit.` },
           { text: "Download the correct .zip for your Mac (Apple Silicon = M1/M2/M3/M4 chips, Intel = older Macs). Unzip and run 'start.sh'." },
           { text: "Double-click the app to launch the setup wizard." },
           { text: "If macOS says 'can't be opened because it's from an unidentified developer' — this is normal for apps downloaded outside the App Store." },
@@ -166,7 +166,7 @@ const PLATFORMS: PlatformGroup[] = [
           { label: `Download v${APP_VERSION} — Universal (any OS + Node.js)`, url: PROXHQ_UNIVERSAL, variant: "primary", icon: Download },
         ],
         steps: [
-          { text: `v${APP_VERSION} — ${RELEASE_DATE}. Includes ⚔ Counter Attack tab, Ghost Trap honeypot, DNS Sinkhole, Network Monitor, SIEM, OSINT Recon, and all recent security upgrades. Force-update available on Downloads page.` },
+          { text: `v${APP_VERSION} — ${RELEASE_DATE}. Security hardening release: all synthetic metrics eliminated, standalone auth system, CORS lockdown, real network probes, Ghost Chain real DNS/HTTP checks. Plus: Counter Attack, Ghost Trap, DNS Sinkhole, Network Monitor, SIEM, OSINT Recon, QuantumAudit.` },
           { text: "Download the Linux x64 .zip and extract it — you will get a self-contained 'ProxhqVPN' executable." },
           { text: "Make it executable: right-click → Properties → Permissions → check 'Allow executing file as program'." },
           { text: "Double-click the file in your file manager and choose 'Run' or 'Run in Terminal'." },
@@ -706,7 +706,7 @@ export default function Downloads() {
         </p>
       </div>
 
-      {/* ── What's New in v2.0.0 ───────────────────────────────────────────── */}
+      {/* ── What's New in v2.2.0 ───────────────────────────────────────────── */}
       <div className="border border-primary/20 rounded-xl overflow-hidden bg-primary/[0.03]">
         <div className="flex items-center justify-between px-5 py-3 border-b border-primary/15 bg-primary/[0.04]">
           <div className="flex items-center gap-2.5">
@@ -926,7 +926,7 @@ export default function Downloads() {
         </ol>
       </div>
 
-      {/* v2.0.0 release banner + All Platforms download */}
+      {/* v2.2.0 release banner + All Platforms download */}
       <div className="border border-primary/30 rounded-xl p-4 bg-primary/5 space-y-3">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div>

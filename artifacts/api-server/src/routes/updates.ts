@@ -237,29 +237,29 @@ router.delete("/admin/:platform", requireAdmin, (req: Request, res: Response) =>
 // ── Public: version check endpoint (used by web app "Check for Updates" button)
 // Returns the latest published version and changelog so the Downloads page
 // can show "up to date" vs "update available" without needing the standalone server.
-const CURRENT_VERSION   = "2.1.0";
-const CURRENT_RELEASE_DATE = "2026-06-06";
+const CURRENT_VERSION   = "2.2.0";
+const CURRENT_RELEASE_DATE = "2026-06-07";
 const CURRENT_CHANGELOG = [
+  "SECURITY: Eliminated all Math.random() synthetic metrics — every stat now reads from real DB, real OS, or real network",
+  "SECURITY: Standalone auth system — SQLite-backed admin login with bcrypt, 5-attempt lockout, secure session cookies",
+  "SECURITY: CORS hardened to localhost-only origins on standalone server (no more open origin: true)",
+  "SECURITY: Ghost Chain now performs real DNS + HTTP header + sensitive-path probes instead of random fake findings",
+  "SECURITY: QuantumAudit scan performs real EIP-55 checksum validation and address format analysis",
+  "SECURITY: Signature Mining block-scanner calls real Etherscan API (requires ETHERSCAN_API_KEY env var)",
+  "SECURITY: Network Monitor flows/timeline sourced from real beacon_alerts DB records",
+  "SECURITY: FWM analytics timeline uses real blocked_ips + beacon_alerts grouped by hour",
+  "SECURITY: Meshnet device VPN IPs now deterministically allocated by index instead of Math.random()",
+  "SECURITY: Omega Dashboard ping/resolve/scan tools now use real TCP socket probes and real DNS lookups",
+  "SECURITY: SilkWeb route assignment is now deterministic round-robin — no random node pairing",
+  "SECURITY: Removed fake /api/beacons/simulate and /api/firewall/simulate-attack endpoints entirely",
+  "SECURITY: WS Tester no longer synthesizes fake echo responses — real WS frames only",
+  "SECURITY: Standalone server randFingerprint() removed from silkweb/trap — uses real capture timestamp",
   "⚔ Counter Attack tab on Ghost Trap — live interactive tools to counter captured hackers",
-  "Counter Attack: TCP port scanner across 24 attacker-relevant ports (C2, reverse shells, Tor, attack proxies)",
-  "Counter Attack: OSINT Deep Dive — reverse DNS, live geo, ISP/ASN, auto-generated abuse report contacts",
-  "Counter Attack: Canary Beacon Injector — 6 beacon types (Pixel, JS fingerprint, Fake AWS Key, JWT, DNS, SQL OOB)",
-  "Counter Attack: External tool launchers (Ghost Chain, Subdomain Scout, OSINT Recon, Threat Intel)",
-  "Counter Attack: 5-phase counter-attack playbook (Harvest → Fingerprint → Active Connection → Per-Attack Techniques → Report)",
-  "Counter Attack: Per-attack-type counter cards (SQLi, XSS, CMDi, auth brute, LFI, recon scanner)",
-  "Ghost Trap honeypot — personal device & website modes with instant law-enforcement incident reports",
   "Canary Tokens — 12 token types including AWS Key, Redirect URL, SQL Token, PowerShell, PDF, Slack Webhook",
   "Kill Switch — full IPv6 leak protection with ip6tables mirroring",
-  "DNS Sinkhole — Pi-hole style per-category blocking (Ads/Trackers/Malware/Phishing/Cryptomining/Botnet/Adult)",
-  "Network Monitor — real-time traffic flow analysis across all 60 VPN nodes",
-  "Security Event Log (SIEM) — unified event timeline with severity filtering",
-  "OSINT Recon — DNS, TLS, HTTP headers, email security, ASN fingerprinting",
-  "QuantumAudit — standalone blockchain security auditing for classical + post-quantum vulnerabilities",
-  "Signature Mining Engine — 5-engine parallel ECDSA key recovery and blockchain intelligence suite",
-  "JWT Analyzer — JWKS injection, X5U, Embedded JWK, kid SQL/path injection, Claim Escalation attacks",
-  "Subdomain Scanner — 9 passive OSINT sources (crt.sh, AlienVault OTX, HackerTarget, URLScan.io, Wayback, AnubisDB, RapidDNS, ThreatCrowd, BufferOver)",
-  "Directory Fuzzer — recursive scanning depth 3 with response-size filtering",
-  "Security hardening: SSRF guard, DB index layer, pool limits, spawn hardening",
+  "DNS Sinkhole — Pi-hole style per-category blocking",
+  "Network Monitor, SIEM, OSINT Recon, QuantumAudit, Signature Mining Engine",
+  "JWT Analyzer — 5 attack classes; Subdomain Scanner — 9 OSINT sources; Directory Fuzzer — recursive depth 3",
 ];
 
 router.get("/check", (_req, res) => {

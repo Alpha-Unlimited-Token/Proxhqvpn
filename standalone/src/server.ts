@@ -198,7 +198,7 @@ async function createApp() {
   });
 
   // ─── Health ──────────────────────────────────────────────────────────────
-  const APP_VERSION = "2.1.0";
+  const APP_VERSION = "2.2.0";
 
   app.get("/api/healthz", (_req, res) => {
     res.json({ status: "ok", version: APP_VERSION, timestamp: n() });
@@ -2089,7 +2089,7 @@ PersistentKeepalive = 25`;
   });
 
   // ─── Update check (for update banner in frontend) ─────────────────────────
-  app.get("/api/update/check", (_req, res) => res.json({ version: "2.1.0", latestVersion: "2.1.0", updateAvailable: false }));
+  app.get("/api/update/check", (_req, res) => res.json({ version: "2.2.0", latestVersion: "2.2.0", updateAvailable: false }));
 
   // ─── FWM — Military Firewall Dashboard Routes (Standalone) ───────────────
   app.get("/api/fwm/overview", (_req, res) => {
@@ -2235,7 +2235,7 @@ PersistentKeepalive = 25`;
   const STANDALONE_UPDATE_SCRIPT = `
 <script id="proxhq-updater">
 (function(){
-  var LATEST="2.1.0";
+  var LATEST="2.2.0";
   var SK="proxhq_update_dismissed_v";
   function gt(a,b){var pa=a.split(".").map(Number),pb=b.split(".").map(Number);for(var i=0;i<3;i++){if((pa[i]||0)>(pb[i]||0))return true;if((pa[i]||0)<(pb[i]||0))return false;}return false;}
   function show(running){

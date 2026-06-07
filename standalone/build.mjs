@@ -59,7 +59,7 @@ function stagePackage(name) {
 function readmeText(platform, startCmd, extraNote = "") {
   return `╔══════════════════════════════════════════════════════════════════╗
 ║               PROXHQVPN — STANDALONE EDITION              ║
-║                  Version 2.1.0 — For Personal Use            ║
+║                  Version 2.2.0 — For Personal Use            ║
 ╚══════════════════════════════════════════════════════════════════╝
 
 Platform: ${platform}
@@ -441,7 +441,7 @@ async function main() {
   const manifestPath = path.join(DIST, "manifest.json");
   fs.writeFileSync(manifestPath, JSON.stringify({
     product: "ProxhqVPN",
-    version: "2.1.0",
+    version: "2.2.0",
     buildDate: new Date().toISOString(),
     files: manifestEntries,
   }, null, 2) + "\n");

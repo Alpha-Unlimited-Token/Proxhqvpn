@@ -182,7 +182,7 @@ function fetchJson<T = unknown>(urlStr: string, timeoutMs = 8000): Promise<T | n
         port: parsed.port || (parsed.protocol === "https:" ? 443 : 80),
         method: "GET",
         headers: {
-          "User-Agent": "ProxhqVPN-OSINT/2.1.0",
+          "User-Agent": "ProxhqVPN-OSINT/2.2.0",
           "Accept": "application/json",
         },
         timeout: timeoutMs,
