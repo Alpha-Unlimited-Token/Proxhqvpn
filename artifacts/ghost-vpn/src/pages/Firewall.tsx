@@ -59,6 +59,8 @@ const TAB_ICONS: Record<string, React.ReactNode> = {
   rpki:        <Globe2 size={13} />,
   deception:   <Eye size={13} />,
   geoip:       <Map size={13} />,
+  // ── Quarantine Engine ──
+  quarantine:  <FileX size={13} />,
   // ── Military-Grade (NSA/DARPA/SELinux) ──
   selinux:     <ShieldCheck size={13} />,
   apparmor:    <Lock size={13} />,
@@ -109,6 +111,8 @@ const TABS = [
   { id:"rpki",        label:"RPKI/BGP" },
   { id:"deception",   label:"Deception" },
   { id:"geoip",       label:"Geo-IP" },
+  // ── Quarantine Engine ────────────────────────────────────────────────────
+  { id:"quarantine",  label:"File Quarantine" },
   // ── Military-Grade (NSA/DARPA research) ──────────────────────────────────
   { id:"selinux",     label:"SELinux MAC" },
   { id:"apparmor",    label:"AppArmor" },
@@ -3434,6 +3438,341 @@ function GeoipTab() {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
+// ── FILE QUARANTINE ENGINE ───────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════════════════
+const QUARANTINE_API = "/api/fwm/quarantine";
+async function qPost(path: string, body: unknown) {
+  const r = await fetch(`${QUARANTINE_API}${path}`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body) });
+  return r.json();
+}
+async function qPut(path: string, body: unknown) {
+  const r = await fetch(`${QUARANTINE_API}${path}`, { method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body) });
+  return r.json();
+}
+
+type QEntry = {
+  id: number; fileName: string; originalPath: string; quarantinePath: string;
+  downloadedFrom: string | null; fileHash: string | null; fileSizeBytes: number | null;
+  mimeType: string | null; threatType: string | null; threatName: string | null;
+  severity: string; scanEngine: string; detectionReason: string | null;
+  status: string; userNote: string | null; detectedAt: string; reviewedAt: string | null;
+};
+type QSettings = {
+  containerPath: string; scanOnDownload: boolean; scanOnOpen: boolean;
+  autoQuarantine: boolean; maxContainerSizeMb: number; retentionDays: number;
+  notifyOnDetection: boolean; scanArchives: boolean; scanMacros: boolean;
+};
+
+function QuarantineTab() {
+  const [entries, setEntries] = useState<QEntry[]>([]);
+  const [stats, setStats] = useState<{ total:number; quarantined:number; critical:number; high:number; deleted:number; restored:number; allowed:number } | null>(null);
+  const [settings, setSettings] = useState<QSettings | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [activeView, setActiveView] = useState<"list"|"scan"|"settings">("list");
+  const [statusFilter, setStatusFilter] = useState("quarantined");
+  const [search, setSearch] = useState("");
+  const [scanForm, setScanForm] = useState({ filePath:"", downloadedFrom:"" });
+  const [scanning, setScanning] = useState(false);
+  const [scanResult, setScanResult] = useState<{detected:boolean;threatName?:string;severity?:string;reason?:string;message?:string}|null>(null);
+  const [actionNote, setActionNote] = useState<Record<number, string>>({});
+  const [pendingAction, setPendingAction] = useState<number | null>(null);
+
+  const reload = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (statusFilter && statusFilter !== "all") params.set("status", statusFilter);
+      if (search) params.set("search", search);
+      const r = await fetch(`${QUARANTINE_API}/entries?${params}`);
+      const d = await r.json();
+      setEntries(d.entries ?? []);
+      setStats(d.stats ?? null);
+      setSettings(d.settings ?? null);
+    } catch {}
+    setLoading(false);
+  }, [statusFilter, search]);
+
+  useEffect(() => { void reload(); }, [reload]);
+
+  const doAction = async (id: number, action: "delete"|"restore"|"allow"|"quarantined") => {
+    setPendingAction(id);
+    await qPost("/action", { id, action, userNote: actionNote[id] });
+    await reload();
+    setPendingAction(null);
+  };
+
+  const doScan = async () => {
+    setScanning(true); setScanResult(null);
+    const r = await qPost("/scan", { filePath: scanForm.filePath, downloadedFrom: scanForm.downloadedFrom || undefined });
+    setScanResult(r);
+    if (r.detected) await reload();
+    setScanning(false);
+  };
+
+  const SEV: Record<string,string> = { critical:"#ff2244", high:"#ff6600", medium:"#ffaa00", low:"#4488ff", clean:"#00ff88" };
+  const STAT: Record<string,string> = { quarantined:"#ffaa00", deleted:"#ff4444", restored:"#00ff88", allowed:"#4488ff", review_pending:"#cc44ff" };
+  const THREAT: Record<string,string> = { malware:"#ff2244", ransomware:"#ff0000", trojan:"#ff4444", spyware:"#ff6600", adware:"#ffaa00", pup:"#ffcc00", exploit:"#ff2244", dropper:"#ff4444", cryptominer:"#cc44ff", rootkit:"#ff0000", keylogger:"#ff6600", worm:"#ff4444", virus:"#ff2244", phishing:"#ff9900", suspicious:"#888", unknown:"#555" };
+
+  const fmtBytes = (b: number | null) => !b ? "?" : b > 1_048_576 ? `${(b/1_048_576).toFixed(1)} MB` : b > 1024 ? `${(b/1024).toFixed(0)} KB` : `${b} B`;
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+      {/* Header */}
+      <div style={{ background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:8, padding:16 }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+            <FileX size={18} color="#ff6600"/>
+            <span style={{ fontFamily:"monospace", fontWeight:800, fontSize:14, color:"#fff" }}>File Quarantine Engine</span>
+            <Bdg label="REAL-TIME PROTECTION" color="#ff6600" sm/>
+          </div>
+          <div style={{ display:"flex", gap:6 }}>
+            {(["list","scan","settings"] as const).map(v=>(
+              <button key={v} onClick={()=>setActiveView(v)} style={{ background:activeView===v?"#ff660022":"#111", border:`1px solid ${activeView===v?"#ff660044":"#2a2a2a"}`, borderRadius:6, padding:"5px 14px", fontFamily:"monospace", fontSize:10, color:activeView===v?"#ff6600":"#555", cursor:"pointer" }}>
+                {v === "list" ? "📋 Quarantine Container" : v === "scan" ? "🔍 Scan File" : "⚙️ Settings"}
+              </button>
+            ))}
+            <button onClick={async()=>{await qPost("/seed",{}); await reload();}} style={{ background:"#4488ff22", border:"1px solid #4488ff44", borderRadius:6, padding:"5px 14px", fontFamily:"monospace", fontSize:10, color:"#4488ff", cursor:"pointer" }}>Seed Examples</button>
+          </div>
+        </div>
+        <div style={{ background:"#050505", border:"1px solid #ff660022", borderRadius:6, padding:"8px 12px", fontSize:10, color:"#666", fontFamily:"monospace", marginBottom:12 }}>
+          🛡️ ProxhqVPN intercepts all file downloads and open attempts. Suspicious files are moved to an encrypted container folder at <span style={{color:"#ff9900"}}>{settings?.containerPath ?? "/var/proxhq/quarantine"}</span> before they can execute. You decide: <span style={{color:"#ff4444"}}>Delete permanently</span> · <span style={{color:"#00ff88"}}>Restore to original location</span> · <span style={{color:"#4488ff"}}>Allow (mark safe)</span> · <span style={{color:"#ffaa00"}}>Keep in quarantine</span>
+        </div>
+        {stats && (
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:8 }}>
+            {[
+              { l:"Total Caught",   v:stats.total,       c:"#fff"     },
+              { l:"In Quarantine",  v:stats.quarantined, c:"#ffaa00"  },
+              { l:"Critical",       v:stats.critical,    c:"#ff2244"  },
+              { l:"High",           v:stats.high,        c:"#ff6600"  },
+              { l:"Deleted",        v:stats.deleted,     c:"#ff4444"  },
+              { l:"Restored",       v:stats.restored,    c:"#00ff88"  },
+              { l:"Allowed",        v:stats.allowed,     c:"#4488ff"  },
+            ].map(s=>(
+              <div key={s.l} style={{ textAlign:"center", background:"#111", borderRadius:6, padding:"8px 4px" }}>
+                <div style={{ fontSize:20, fontWeight:700, color:s.c, fontFamily:"monospace" }}>{s.v}</div>
+                <div style={{ fontSize:9, color:"#444" }}>{s.l}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── QUARANTINE LIST ── */}
+      {activeView === "list" && (
+        <div style={{ background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:8, padding:16 }}>
+          <div style={{ display:"flex", gap:8, marginBottom:12, flexWrap:"wrap", alignItems:"center" }}>
+            <span style={{ fontFamily:"monospace", fontSize:12, fontWeight:700, color:"#fff" }}>Quarantine Container</span>
+            <div style={{ display:"flex", gap:4, marginLeft:"auto" }}>
+              {(["all","quarantined","deleted","restored","allowed"] as const).map(s=>(
+                <button key={s} onClick={()=>setStatusFilter(s)} style={{ background:statusFilter===s?`${STAT[s]??'#fff'}22`:"#111", border:`1px solid ${statusFilter===s?`${STAT[s]??'#fff'}44`:"#2a2a2a"}`, borderRadius:5, padding:"3px 10px", fontFamily:"monospace", fontSize:9, color:statusFilter===s?(STAT[s]??"#fff"):"#555", cursor:"pointer", textTransform:"uppercase" }}>{s}</button>
+              ))}
+            </div>
+            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search files..." style={{ background:"#111", border:"1px solid #2a2a2a", borderRadius:6, padding:"4px 10px", fontFamily:"monospace", fontSize:10, color:"#ccc", width:160 }}/>
+          </div>
+
+          {loading ? (
+            <div style={{ textAlign:"center", padding:40, fontFamily:"monospace", color:"#444" }}>Scanning quarantine container...</div>
+          ) : entries.length === 0 ? (
+            <div style={{ textAlign:"center", padding:40, fontFamily:"monospace", color:"#00ff88", fontSize:13 }}>✅ Quarantine container is empty — no threats detected</div>
+          ) : (
+            <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+              {entries.map(e=>(
+                <div key={e.id} style={{ background: e.severity==="critical"?"#0f0505":e.severity==="high"?"#0a0500":"#0a0a0a", border:`2px solid ${SEV[e.severity]??"#333"}33`, borderRadius:8, padding:14 }}>
+                  {/* Row 1 — File identity */}
+                  <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", marginBottom:8 }}>
+                    <div style={{ flex:1 }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
+                        <span style={{ fontFamily:"monospace", fontSize:13, fontWeight:700, color:"#fff" }}>{e.fileName}</span>
+                        {e.threatType && <Bdg label={e.threatType.replace(/_/g," ").toUpperCase()} color={THREAT[e.threatType]??"#888"} sm/>}
+                        <Bdg label={e.severity.toUpperCase()} color={SEV[e.severity]??"#888"} sm/>
+                        <Bdg label={e.status.replace(/_/g," ").toUpperCase()} color={STAT[e.status]??"#888"} sm/>
+                      </div>
+                      <div style={{ fontSize:10, color:"#555", fontFamily:"monospace", marginBottom:2 }}>
+                        <span style={{ color:"#ff4444" }}>⚠ {e.threatName ?? "Unknown threat"}</span>
+                        <span style={{ color:"#333", margin:"0 8px" }}>·</span>
+                        <span style={{ color:"#444" }}>{e.scanEngine}</span>
+                        <span style={{ color:"#333", margin:"0 8px" }}>·</span>
+                        <span style={{ color:"#555" }}>{fmtBytes(e.fileSizeBytes)}</span>
+                      </div>
+                      <div style={{ fontSize:10, color:"#666", fontFamily:"monospace", marginBottom:4 }}>
+                        📁 <span style={{ color:"#888" }}>Original:</span> <span style={{ color:"#aaa" }}>{e.originalPath}</span>
+                      </div>
+                      {e.downloadedFrom && (
+                        <div style={{ fontSize:9, color:"#555", fontFamily:"monospace", marginBottom:4 }}>
+                          🌐 Downloaded from: <span style={{ color:"#ff9900" }}>{e.downloadedFrom}</span>
+                        </div>
+                      )}
+                      {e.detectionReason && (
+                        <div style={{ fontSize:9, color:"#666", fontFamily:"monospace", background:"#111", borderRadius:4, padding:"4px 8px", border:`1px solid ${SEV[e.severity]??"#333"}22` }}>
+                          🔬 {e.detectionReason}
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ fontSize:9, color:"#333", fontFamily:"monospace", textAlign:"right", marginLeft:12 }}>
+                      {new Date(e.detectedAt).toLocaleString()}<br/>
+                      {e.fileHash && <span title={e.fileHash}>SHA256: {e.fileHash.substring(0,16)}…</span>}
+                    </div>
+                  </div>
+
+                  {/* Row 2 — Quarantine path */}
+                  <div style={{ background:"#050505", border:"1px solid #1a1a1a", borderRadius:5, padding:"5px 10px", fontFamily:"monospace", fontSize:8, color:"#444", marginBottom:10 }}>
+                    🔒 Quarantine path: <span style={{ color:"#555" }}>{e.quarantinePath}</span>
+                  </div>
+
+                  {/* Row 3 — Action buttons */}
+                  {e.status === "quarantined" && (
+                    <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
+                      <button
+                        onClick={()=>doAction(e.id,"delete")}
+                        disabled={pendingAction===e.id}
+                        style={{ background:"#ff444422", border:"1px solid #ff444444", borderRadius:6, padding:"6px 16px", fontFamily:"monospace", fontSize:11, color:"#ff4444", cursor:"pointer", fontWeight:700 }}>
+                        🗑 Delete Permanently
+                      </button>
+                      <button
+                        onClick={()=>doAction(e.id,"restore")}
+                        disabled={pendingAction===e.id}
+                        style={{ background:"#00ff8822", border:"1px solid #00ff8844", borderRadius:6, padding:"6px 16px", fontFamily:"monospace", fontSize:11, color:"#00ff88", cursor:"pointer", fontWeight:700 }}>
+                        ↩ Restore to Original Location
+                      </button>
+                      <button
+                        onClick={()=>doAction(e.id,"allow")}
+                        disabled={pendingAction===e.id}
+                        style={{ background:"#4488ff22", border:"1px solid #4488ff44", borderRadius:6, padding:"6px 16px", fontFamily:"monospace", fontSize:11, color:"#4488ff", cursor:"pointer", fontWeight:700 }}>
+                        ✅ Mark Safe &amp; Allow
+                      </button>
+                      <input
+                        value={actionNote[e.id]??""}
+                        onChange={ev=>setActionNote(p=>({...p,[e.id]:ev.target.value}))}
+                        placeholder="Add note (optional)..."
+                        style={{ flex:1, minWidth:160, background:"#111", border:"1px solid #2a2a2a", borderRadius:6, padding:"5px 10px", fontFamily:"monospace", fontSize:10, color:"#ccc" }}/>
+                    </div>
+                  )}
+                  {e.status !== "quarantined" && (
+                    <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+                      <div style={{ fontSize:10, color:"#555", fontFamily:"monospace" }}>
+                        {e.status === "deleted" && "🗑 Permanently deleted from quarantine container"}
+                        {e.status === "restored" && "↩ Restored to original path"}
+                        {e.status === "allowed" && "✅ Marked as safe — allowed to execute"}
+                      </div>
+                      {e.userNote && <span style={{ fontSize:9, color:"#444", fontFamily:"monospace" }}>Note: {e.userNote}</span>}
+                      <button onClick={()=>doAction(e.id,"quarantined")} style={{ marginLeft:"auto", background:"#ffaa0022", border:"1px solid #ffaa0044", borderRadius:5, padding:"4px 12px", fontFamily:"monospace", fontSize:9, color:"#ffaa00", cursor:"pointer" }}>Re-quarantine</button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── SCAN FILE ── */}
+      {activeView === "scan" && (
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
+          <div style={{ background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:8, padding:16 }}>
+            <div style={{ fontFamily:"monospace", fontWeight:800, fontSize:13, color:"#fff", marginBottom:12 }}>🔍 Scan File for Threats</div>
+            <div style={{ background:"#111", border:"1px solid #ff660022", borderRadius:6, padding:"8px 12px", fontSize:10, color:"#666", fontFamily:"monospace", marginBottom:14 }}>
+              Heuristic engine checks: executable in temp directories · double extension tricks (file.pdf.exe) · macro-enabled Office docs (Emotet/QBot vectors) · suspicious download sources (Pastebin, MediaFire, AnonFiles) · unusually large scripts · file hash lookups
+            </div>
+            <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:12 }}>
+              <label style={{ fontSize:10, color:"#555", fontFamily:"monospace" }}>File Path</label>
+              <input value={scanForm.filePath} onChange={e=>setScanForm(p=>({...p,filePath:e.target.value}))} placeholder="/home/user/Downloads/file.exe  or  C:\Users\User\Downloads\file.exe" style={{ background:"#111", border:"1px solid #2a2a2a", borderRadius:6, padding:"8px 12px", fontFamily:"monospace", fontSize:11, color:"#ccc" }}/>
+              <label style={{ fontSize:10, color:"#555", fontFamily:"monospace" }}>Downloaded From (optional)</label>
+              <input value={scanForm.downloadedFrom} onChange={e=>setScanForm(p=>({...p,downloadedFrom:e.target.value}))} placeholder="https://pastebin.com/..." style={{ background:"#111", border:"1px solid #2a2a2a", borderRadius:6, padding:"8px 12px", fontFamily:"monospace", fontSize:11, color:"#ccc" }}/>
+            </div>
+            <button onClick={doScan} disabled={scanning||!scanForm.filePath} style={{ width:"100%", background:scanning||!scanForm.filePath?"#111":"#ff660022", border:`1px solid ${scanning||!scanForm.filePath?"#2a2a2a":"#ff660044"}`, borderRadius:6, padding:"10px", fontFamily:"monospace", fontSize:12, color:scanning||!scanForm.filePath?"#444":"#ff6600", cursor:scanning||!scanForm.filePath?"not-allowed":"pointer", fontWeight:700 }}>
+              {scanning ? "⌛ Scanning..." : "🔍 Scan File"}
+            </button>
+          </div>
+          <div style={{ background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:8, padding:16 }}>
+            <div style={{ fontFamily:"monospace", fontWeight:800, fontSize:13, color:"#fff", marginBottom:12 }}>Scan Result</div>
+            {!scanResult && <div style={{ color:"#333", fontFamily:"monospace", fontSize:11, padding:"40px 0", textAlign:"center" }}>No scan performed yet</div>}
+            {scanResult && !scanResult.detected && (
+              <div style={{ textAlign:"center", padding:"30px 0" }}>
+                <div style={{ fontSize:40 }}>✅</div>
+                <div style={{ fontFamily:"monospace", fontSize:14, fontWeight:700, color:"#00ff88", marginTop:10 }}>File is Clean</div>
+                <div style={{ fontSize:11, color:"#444", marginTop:8 }}>{scanResult.message}</div>
+              </div>
+            )}
+            {scanResult && scanResult.detected && (
+              <div style={{ background:"#0f0505", border:"2px solid #ff444444", borderRadius:8, padding:16 }}>
+                <div style={{ fontSize:32, textAlign:"center", marginBottom:8 }}>🚨</div>
+                <div style={{ fontFamily:"monospace", fontSize:14, fontWeight:700, color:"#ff4444", textAlign:"center", marginBottom:12 }}>THREAT DETECTED — File Quarantined</div>
+                <div style={{ display:"flex", justifyContent:"center", gap:8, marginBottom:12 }}>
+                  <Bdg label={scanResult.threatName ?? "Unknown"} color="#ff4444" sm/>
+                  <Bdg label={(scanResult.severity ?? "medium").toUpperCase()} color={SEV[scanResult.severity ?? "medium"]??"#ff4444"} sm/>
+                </div>
+                <div style={{ background:"#111", borderRadius:6, padding:"8px 12px", fontSize:10, color:"#ff9900", fontFamily:"monospace" }}>🔬 {scanResult.reason}</div>
+                <div style={{ marginTop:12, fontSize:10, color:"#555", fontFamily:"monospace", textAlign:"center" }}>
+                  File moved to quarantine. Go to the Quarantine Container to take action.
+                </div>
+              </div>
+            )}
+            <div style={{ marginTop:20 }}>
+              <div style={{ fontSize:10, color:"#444", fontFamily:"monospace", marginBottom:8 }}>Quick Scan Examples (high-risk patterns)</div>
+              {[
+                { path:"/tmp/update.sh",                      from:"https://pastebin.com/raw/abc" },
+                { path:"C:\\Users\\User\\Downloads\\doc.pdf.exe", from:""                          },
+                { path:"/home/user/Downloads/Invoice.xlsm",   from:"https://sendspace.com/abc"   },
+              ].map((ex,i)=>(
+                <button key={i} onClick={()=>setScanForm({filePath:ex.path,downloadedFrom:ex.from})} style={{ display:"block", width:"100%", textAlign:"left", background:"#111", border:"1px solid #2a2a2a", borderRadius:5, padding:"6px 10px", fontFamily:"monospace", fontSize:9, color:"#555", cursor:"pointer", marginBottom:4 }}>
+                  {ex.path}{ex.from && ` ← ${ex.from.substring(0,40)}`}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── SETTINGS ── */}
+      {activeView === "settings" && settings && (
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
+          <div style={{ background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:8, padding:16 }}>
+            <div style={{ fontFamily:"monospace", fontWeight:800, fontSize:13, color:"#fff", marginBottom:14 }}>⚙️ Quarantine Settings</div>
+            <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+              <div>
+                <label style={{ fontSize:10, color:"#555", fontFamily:"monospace", display:"block", marginBottom:4 }}>Container Path</label>
+                <input defaultValue={settings.containerPath} onBlur={async e=>{ await qPut("/settings",{containerPath:e.target.value}); await reload(); }} style={{ width:"100%", background:"#111", border:"1px solid #2a2a2a", borderRadius:6, padding:"6px 10px", fontFamily:"monospace", fontSize:10, color:"#ccc", boxSizing:"border-box" }}/>
+              </div>
+              <div>
+                <label style={{ fontSize:10, color:"#555", fontFamily:"monospace", display:"block", marginBottom:4 }}>Max Container Size (MB)</label>
+                <input type="number" defaultValue={settings.maxContainerSizeMb} onBlur={async e=>{ await qPut("/settings",{maxContainerSizeMb:parseInt(e.target.value)}); await reload(); }} style={{ width:"100%", background:"#111", border:"1px solid #2a2a2a", borderRadius:6, padding:"6px 10px", fontFamily:"monospace", fontSize:10, color:"#ccc", boxSizing:"border-box" }}/>
+              </div>
+              <div>
+                <label style={{ fontSize:10, color:"#555", fontFamily:"monospace", display:"block", marginBottom:4 }}>Auto-delete After (days)</label>
+                <input type="number" defaultValue={settings.retentionDays} onBlur={async e=>{ await qPut("/settings",{retentionDays:parseInt(e.target.value)}); await reload(); }} style={{ width:"100%", background:"#111", border:"1px solid #2a2a2a", borderRadius:6, padding:"6px 10px", fontFamily:"monospace", fontSize:10, color:"#ccc", boxSizing:"border-box" }}/>
+              </div>
+            </div>
+          </div>
+          <div style={{ background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:8, padding:16 }}>
+            <div style={{ fontFamily:"monospace", fontWeight:800, fontSize:13, color:"#fff", marginBottom:14 }}>Intercept Options</div>
+            <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+              {([
+                { key:"scanOnDownload",    label:"Scan on Download",          desc:"Intercept files as they're downloaded" },
+                { key:"scanOnOpen",        label:"Scan on Open/Execute",      desc:"Block files before they open" },
+                { key:"autoQuarantine",    label:"Auto-Quarantine Threats",   desc:"Automatically move threats to container" },
+                { key:"notifyOnDetection", label:"Alert on Detection",        desc:"Show notification when threat caught" },
+                { key:"scanArchives",      label:"Scan Inside Archives",      desc:"Scan contents of .zip/.7z/.tar files" },
+                { key:"scanMacros",        label:"Block Macro Documents",     desc:"Block all macro-enabled Office docs" },
+              ] as { key: keyof QSettings; label: string; desc: string }[]).map(({ key, label, desc }) => (
+                <div key={key} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", background:"#111", borderRadius:6, padding:"8px 12px" }}>
+                  <div>
+                    <div style={{ fontFamily:"monospace", fontSize:11, color:"#ccc" }}>{label}</div>
+                    <div style={{ fontSize:9, color:"#444" }}>{desc}</div>
+                  </div>
+                  <button onClick={async()=>{ await qPut("/settings",{[key]:!settings[key]}); await reload(); }} style={{ background: (settings[key] as boolean)?"#00ff8822":"#ff444422", border:`1px solid ${(settings[key] as boolean)?"#00ff8844":"#ff444444"}`, borderRadius:6, padding:"4px 12px", fontFamily:"monospace", fontSize:10, color:(settings[key] as boolean)?"#00ff88":"#ff4444", cursor:"pointer", minWidth:48 }}>
+                    {(settings[key] as boolean) ? "ON" : "OFF"}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
 // ── MILITARY-GRADE + SPYBOT API HELPERS ─────────────────────────────────────
 // ════════════════════════════════════════════════════════════════════════════
 const APIFWM = "/api/fwm";
@@ -4472,6 +4811,7 @@ export default function Firewall() {
       {tab==="rpki"        &&<RpkiTab/>}
       {tab==="deception"   &&<DeceptionTab/>}
       {tab==="geoip"       &&<GeoipTab/>}
+      {tab==="quarantine"  &&<QuarantineTab/>}
       {/* ── Military-Grade (NSA/DARPA research) ── */}
       {tab==="selinux"     &&<SelinuxTab/>}
       {tab==="apparmor"    &&<ApparmorTab/>}

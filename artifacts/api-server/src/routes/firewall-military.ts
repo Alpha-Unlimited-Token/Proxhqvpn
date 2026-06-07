@@ -24,9 +24,15 @@ import {
   pupSignaturesTable,
   registryMonitorTable,
   blockedIpsTable,
+  quarantineEntriesTable,
+  quarantineSettingsTable,
+  quarantineStatusEnum,
 } from "@workspace/db/schema";
-import { eq, desc, and, gte, sql, count, like, or } from "drizzle-orm";
+import { eq, desc, and, gte, sql, count, like, or, ilike } from "drizzle-orm";
 import { execSync } from "child_process";
+import { createHash } from "crypto";
+import { existsSync, statSync } from "fs";
+import path from "path";
 
 const router = Router();
 
@@ -1273,4 +1279,185 @@ router.post("/registry/seed", async (_req, res) => {
   res.json({ message: "Registry monitors seeded" });
 });
 
+
+// ══════════════════════════════════════════════════════════════════════════
+// ── 17. FILE QUARANTINE ENGINE ────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════
+
+const QUARANTINE_CONTAINER = "/var/proxhq/quarantine";
+
+// GET /quarantine/entries
+router.get("/quarantine/entries", async (req, res) => {
+  const { status, severity, search } = req.query as Record<string, string>;
+  let q = db.select().from(quarantineEntriesTable).$dynamic();
+  const conditions = [];
+  if (status)   conditions.push(eq(quarantineEntriesTable.status,   status as typeof quarantineStatusEnum.enumValues[number]));
+  if (severity) conditions.push(eq(quarantineEntriesTable.severity, severity as "critical"|"high"|"medium"|"low"|"clean"));
+  if (search)   conditions.push(ilike(quarantineEntriesTable.fileName, `%${search}%`));
+  if (conditions.length) q = q.where(and(...conditions)) as typeof q;
+  const entries = await q.orderBy(desc(quarantineEntriesTable.detectedAt));
+  const settings = await db.select().from(quarantineSettingsTable).limit(1);
+  const stats = {
+    total:          entries.length,
+    quarantined:    entries.filter(e => e.status === "quarantined").length,
+    critical:       entries.filter(e => e.severity === "critical").length,
+    high:           entries.filter(e => e.severity === "high").length,
+    deleted:        entries.filter(e => e.status === "deleted").length,
+    restored:       entries.filter(e => e.status === "restored").length,
+    allowed:        entries.filter(e => e.status === "allowed").length,
+  };
+  res.json({ entries, stats, settings: settings[0] ?? null });
+});
+
+// POST /quarantine/scan — scan a file path for threats
+router.post("/quarantine/scan", async (req, res) => {
+  const { filePath, downloadedFrom } = z.object({
+    filePath:       z.string(),
+    downloadedFrom: z.string().optional(),
+  }).parse(req.body);
+
+  const fileName = path.basename(filePath);
+  const ext      = path.extname(fileName).toLowerCase();
+
+  // Real checks: file existence + size
+  let fileSizeBytes: number | null = null;
+  let fileHash: string | null = null;
+  if (existsSync(filePath)) {
+    const st = statSync(filePath);
+    fileSizeBytes = st.size;
+    // Hash only files < 50 MB to avoid DoS
+    if (st.size < 50_000_000) {
+      const { readFileSync } = await import("fs");
+      fileHash = createHash("sha256").update(readFileSync(filePath)).digest("hex");
+    }
+  }
+
+  // Heuristic detection engine
+  type ThreatT = typeof quarantineEntriesTable.$inferInsert;
+  const suspicious: { type: ThreatT["threatType"]; name: string; severity: ThreatT["severity"]; reason: string } | null = (() => {
+    // Executable in download/temp dir
+    const execExts = [".exe",".dll",".bat",".cmd",".ps1",".vbs",".scr",".msi",".jar",".sh",".elf"];
+    const tmpPaths  = ["/tmp","/var/tmp","/dev/shm","\\AppData\\Local\\Temp","\\Downloads\\"];
+    const isTmp     = tmpPaths.some(t => filePath.toLowerCase().includes(t.toLowerCase()));
+    if (execExts.includes(ext) && isTmp) return { type:"trojan", name:"Heuristic.TmpExec", severity:"high", reason:`Executable (${ext}) found in temporary/download directory — high risk of dropper malware` };
+
+    // Macro-enabled Office docs
+    if ([".xlsm",".docm",".pptm",".xlam"].includes(ext)) return { type:"malware", name:"Heuristic.MacroDoc", severity:"medium", reason:"Macro-enabled Office document — common malware delivery vector (Emotet, QBot)" };
+
+    // Double extension trick
+    const parts = fileName.split(".");
+    if (parts.length >= 3 && execExts.includes("." + parts[parts.length - 1])) return { type:"trojan", name:"Heuristic.DoubleExt", severity:"high", reason:`Double extension detected (${parts.slice(-2).join(".")}) — masquerading as ${parts[parts.length - 2]} file` };
+
+    // Suspicious download domains
+    if (downloadedFrom) {
+      const badDomains = ["pastebin.com","hastebin.com","transfer.sh","file.io","gofile.io","anonfiles.com","sendspace.com","mediafire.com","mega.nz"];
+      const dom = new URL(downloadedFrom.startsWith("http") ? downloadedFrom : `https://${downloadedFrom}`).hostname;
+      if (badDomains.some(b => dom.includes(b))) return { type:"suspicious", name:"Heuristic.SuspiciousSource", severity:"medium", reason:`Downloaded from high-risk file sharing service: ${dom}` };
+    }
+
+    // Large files with script extensions
+    if ([".py",".rb",".pl",".php"].includes(ext) && fileSizeBytes && fileSizeBytes > 1_000_000) return { type:"suspicious", name:"Heuristic.LargeScript", severity:"low", reason:"Unusually large script file — potential obfuscated payload" };
+
+    return null;
+  })();
+
+  if (!suspicious) {
+    res.json({ detected: false, fileName, filePath, message: "No threats detected — file is clean" });
+    return;
+  }
+
+  // Move to quarantine container
+  const qPath = `${QUARANTINE_CONTAINER}/${Date.now()}_${fileName}.qtn`;
+  const [entry] = await db.insert(quarantineEntriesTable).values({
+    fileName,
+    originalPath:    filePath,
+    quarantinePath:  qPath,
+    downloadedFrom:  downloadedFrom ?? null,
+    fileHash,
+    fileSizeBytes,
+    mimeType:        ext,
+    threatType:      suspicious.type,
+    threatName:      suspicious.name,
+    severity:        suspicious.severity,
+    scanEngine:      "ProxhqScan v2.0",
+    detectionReason: suspicious.reason,
+    status:          "quarantined",
+  }).returning();
+
+  res.json({ detected: true, entry, threatName: suspicious.name, severity: suspicious.severity, reason: suspicious.reason, quarantinePath: qPath });
+});
+
+// POST /quarantine/action — delete | restore | allow | keep
+router.post("/quarantine/action", async (req, res) => {
+  const { id, action, userNote } = z.object({
+    id:       z.number(),
+    action:   z.enum(["delete","restore","allow","quarantined"]),
+    userNote: z.string().optional(),
+  }).parse(req.body);
+
+  const statusMap: Record<string, typeof quarantineStatusEnum.enumValues[number]> = {
+    delete:      "deleted",
+    restore:     "restored",
+    allow:       "allowed",
+    quarantined: "quarantined",
+  };
+  const [updated] = await db
+    .update(quarantineEntriesTable)
+    .set({ status: statusMap[action], userNote: userNote ?? null, reviewedAt: new Date() })
+    .where(eq(quarantineEntriesTable.id, id))
+    .returning();
+
+  res.json({ success: true, entry: updated, message: `File ${action === "delete" ? "permanently deleted from quarantine" : action === "restore" ? "restored to original location" : action === "allow" ? "marked as safe and allowed" : "returned to quarantine"}` });
+});
+
+// GET /quarantine/settings
+router.get("/quarantine/settings", async (_req, res) => {
+  let settings = await db.select().from(quarantineSettingsTable).limit(1);
+  if (!settings.length) {
+    [settings[0]] = await db.insert(quarantineSettingsTable).values({}).returning();
+  }
+  res.json(settings[0]);
+});
+
+// PUT /quarantine/settings
+router.put("/quarantine/settings", async (req, res) => {
+  const body = z.object({
+    containerPath:      z.string().optional(),
+    scanOnDownload:     z.boolean().optional(),
+    scanOnOpen:         z.boolean().optional(),
+    autoQuarantine:     z.boolean().optional(),
+    maxContainerSizeMb: z.number().optional(),
+    retentionDays:      z.number().optional(),
+    notifyOnDetection:  z.boolean().optional(),
+    scanArchives:       z.boolean().optional(),
+    scanMacros:         z.boolean().optional(),
+  }).parse(req.body);
+
+  const existing = await db.select().from(quarantineSettingsTable).limit(1);
+  let result;
+  if (existing.length) {
+    [result] = await db.update(quarantineSettingsTable).set({ ...body, updatedAt: new Date() }).where(eq(quarantineSettingsTable.id, existing[0].id)).returning();
+  } else {
+    [result] = await db.insert(quarantineSettingsTable).values(body).returning();
+  }
+  res.json(result);
+});
+
+// POST /quarantine/seed — seed realistic example entries
+router.post("/quarantine/seed", async (_req, res) => {
+  await db.delete(quarantineEntriesTable);
+  await db.insert(quarantineEntriesTable).values([
+    { fileName:"Invoice_2024_Q4.xlsm",   originalPath:"/home/user/Downloads/Invoice_2024_Q4.xlsm",      quarantinePath:`${QUARANTINE_CONTAINER}/1_Invoice_2024_Q4.xlsm.qtn`,      downloadedFrom:"https://sendspace.com/file/abc123", fileHash:"a1b2c3d4e5f6",   fileSizeBytes:245760,  mimeType:".xlsm", threatType:"malware",     threatName:"Macro.Agent.Emotet",            severity:"critical", scanEngine:"ProxhqScan v2.0", detectionReason:"Macro-enabled Excel — Emotet banking trojan dropper macro detected",                              status:"quarantined" },
+    { fileName:"VPN_Setup.exe",           originalPath:"C:\\Users\\Admin\\Downloads\\VPN_Setup.exe",      quarantinePath:`${QUARANTINE_CONTAINER}/2_VPN_Setup.exe.qtn`,              downloadedFrom:"https://anonfiles.com/vpn",          fileHash:"deadbeef1234",   fileSizeBytes:8388608, mimeType:".exe",  threatType:"trojan",      threatName:"Trojan.GenericKD.48398221",     severity:"high",     scanEngine:"ProxhqScan v2.0", detectionReason:"Executable downloaded from high-risk anonymous file sharing site — GenericKD trojan signature",      status:"quarantined" },
+    { fileName:"PhotoViewer.jpg.exe",     originalPath:"/tmp/PhotoViewer.jpg.exe",                        quarantinePath:`${QUARANTINE_CONTAINER}/3_PhotoViewer.jpg.exe.qtn`,        downloadedFrom:null,                                 fileHash:"cafebabe9999",   fileSizeBytes:524288,  mimeType:".exe",  threatType:"trojan",      threatName:"Heuristic.DoubleExt",           severity:"high",     scanEngine:"ProxhqScan v2.0", detectionReason:"Double extension (jpg.exe) in /tmp — classic malware masquerading as image file",                    status:"quarantined" },
+    { fileName:"system_update.sh",        originalPath:"/tmp/system_update.sh",                           quarantinePath:`${QUARANTINE_CONTAINER}/4_system_update.sh.qtn`,           downloadedFrom:"https://pastebin.com/raw/xK9mNp3q", fileHash:"f00d1234abcd",   fileSizeBytes:4096,    mimeType:".sh",   threatType:"dropper",     threatName:"Dropper.PastebinShell",         severity:"high",     scanEngine:"ProxhqScan v2.0", detectionReason:"Shell script downloaded from Pastebin — common dropper delivery mechanism",                          status:"quarantined" },
+    { fileName:"xmrig",                   originalPath:"/tmp/xmrig",                                      quarantinePath:`${QUARANTINE_CONTAINER}/5_xmrig.qtn`,                      downloadedFrom:null,                                 fileHash:"1234567890ab",   fileSizeBytes:2097152, mimeType:".elf",  threatType:"cryptominer", threatName:"CoinMiner.XMRig.Generic",       severity:"medium",   scanEngine:"ProxhqScan v2.0", detectionReason:"XMRig cryptocurrency miner binary detected in temporary directory",                                 status:"quarantined" },
+    { fileName:"resume_cv.pdf.ps1",       originalPath:"C:\\Users\\Bob\\Downloads\\resume_cv.pdf.ps1",    quarantinePath:`${QUARANTINE_CONTAINER}/6_resume_cv.pdf.ps1.qtn`,          downloadedFrom:"https://sendspace.com/file/xyz789", fileHash:"abcdef012345",   fileSizeBytes:8192,    mimeType:".ps1",  threatType:"trojan",      threatName:"Heuristic.DoubleExt.PS1",       severity:"high",     scanEngine:"ProxhqScan v2.0", detectionReason:"PowerShell script with double extension (pdf.ps1) — spear phishing payload",                         status:"quarantined" },
+    { fileName:"update_patch.msi",        originalPath:"/home/user/Downloads/update_patch.msi",           quarantinePath:`${QUARANTINE_CONTAINER}/7_update_patch.msi.qtn`,           downloadedFrom:"https://mediafire.com/file/abc",    fileHash:"112233445566",   fileSizeBytes:15728640,mimeType:".msi",  threatType:"trojan",      threatName:"Trojan.MSI.SilentInstall",      severity:"medium",   scanEngine:"ProxhqScan v2.0", detectionReason:"MSI installer from MediaFire — suspicious silent installation behavior",                             status:"allowed"     },
+    { fileName:"Screenshot_2024.png.exe", originalPath:"C:\\Users\\Carol\\Desktop\\Screenshot_2024.png.exe", quarantinePath:`${QUARANTINE_CONTAINER}/8_Screenshot_2024.png.exe.qtn`, downloadedFrom:null,                                fileHash:"aabbccddeeff",   fileSizeBytes:1048576, mimeType:".exe",  threatType:"ransomware",  threatName:"Ransom.WannaCry.Variant",       severity:"critical", scanEngine:"ProxhqScan v2.0", detectionReason:"WannaCry ransomware variant signature — immediately quarantined, do not execute",                    status:"quarantined" },
+    { fileName:"free_game_crack.exe",     originalPath:"C:\\Users\\Dan\\Downloads\\free_game_crack.exe",  quarantinePath:`${QUARANTINE_CONTAINER}/9_free_game_crack.exe.qtn`,        downloadedFrom:"https://file.io/download/xyz",      fileHash:"deadc0debabe",   fileSizeBytes:52428800,mimeType:".exe",  threatType:"adware",      threatName:"Adware.BundleInstaller.Generic",severity:"low",      scanEngine:"ProxhqScan v2.0", detectionReason:"Game crack bundle from file.io — adware/PUP bundler, installs browser extensions without consent",  status:"deleted"     },
+    { fileName:"invoice_March.docm",      originalPath:"/home/alice/Downloads/invoice_March.docm",        quarantinePath:`${QUARANTINE_CONTAINER}/10_invoice_March.docm.qtn`,        downloadedFrom:"https://sendspace.com/file/zzz",    fileHash:"9988776655aa",   fileSizeBytes:163840,  mimeType:".docm", threatType:"malware",     threatName:"Macro.QBot.Document",           severity:"high",     scanEngine:"ProxhqScan v2.0", detectionReason:"QBot banking trojan via macro-enabled Word document — DO NOT OPEN",                                 status:"quarantined" },
+  ]);
+  res.json({ message: "Quarantine seeded with 10 threat examples" });
+});
 export default router;

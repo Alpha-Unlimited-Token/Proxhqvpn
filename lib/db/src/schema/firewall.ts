@@ -948,3 +948,42 @@ export const registryMonitorTable = pgTable("registry_monitor", {
   risk:         text("risk").notNull().default("medium"),
   checkedAt:    timestamp("checked_at").defaultNow().notNull(),
 });
+
+// ── 17. File Quarantine Engine ─────────────────────────────────────────────
+export const quarantineStatusEnum = pgEnum("quarantine_status", ["quarantined","deleted","restored","allowed","review_pending"]);
+export const quarantineSeverityEnum = pgEnum("quarantine_severity", ["critical","high","medium","low","clean"]);
+export const quarantineThreatEnum = pgEnum("quarantine_threat", ["malware","ransomware","trojan","spyware","adware","pup","exploit","dropper","cryptominer","rootkit","keylogger","worm","virus","phishing","suspicious","unknown"]);
+
+export const quarantineEntriesTable = pgTable("quarantine_entries", {
+  id:              serial("id").primaryKey(),
+  fileName:        text("file_name").notNull(),
+  originalPath:    text("original_path").notNull(),
+  quarantinePath:  text("quarantine_path").notNull(),
+  downloadedFrom:  text("downloaded_from"),             // URL or null
+  fileHash:        text("file_hash"),                   // SHA-256
+  fileSizeBytes:   integer("file_size_bytes"),
+  mimeType:        text("mime_type"),
+  threatType:      quarantineThreatEnum("threat_type"),
+  threatName:      text("threat_name"),                 // e.g. "Trojan.GenericKD.48398221"
+  severity:        quarantineSeverityEnum("severity").notNull().default("medium"),
+  scanEngine:      text("scan_engine").notNull().default("ProxhqScan"),
+  detectionReason: text("detection_reason"),
+  status:          quarantineStatusEnum("status").notNull().default("quarantined"),
+  userNote:        text("user_note"),
+  detectedAt:      timestamp("detected_at").defaultNow().notNull(),
+  reviewedAt:      timestamp("reviewed_at"),
+});
+
+export const quarantineSettingsTable = pgTable("quarantine_settings", {
+  id:                  serial("id").primaryKey(),
+  containerPath:       text("container_path").notNull().default("/var/proxhq/quarantine"),
+  scanOnDownload:      boolean("scan_on_download").notNull().default(true),
+  scanOnOpen:          boolean("scan_on_open").notNull().default(true),
+  autoQuarantine:      boolean("auto_quarantine").notNull().default(true),
+  maxContainerSizeMb:  integer("max_container_size_mb").notNull().default(2048),
+  retentionDays:       integer("retention_days").notNull().default(30),
+  notifyOnDetection:   boolean("notify_on_detection").notNull().default(true),
+  scanArchives:        boolean("scan_archives").notNull().default(true),
+  scanMacros:          boolean("scan_macros").notNull().default(true),
+  updatedAt:           timestamp("updated_at").defaultNow().notNull(),
+});
