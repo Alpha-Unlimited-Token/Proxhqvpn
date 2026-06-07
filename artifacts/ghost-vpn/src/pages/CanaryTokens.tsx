@@ -7,6 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Bell, BellRing, Plus, Trash2, Copy, ChevronRight,
   Globe, FileText, Mail, Code2, Link2, Clock, AlertTriangle,
+  MapPin, Building2, Network, Wifi,
 } from "lucide-react";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -53,6 +54,92 @@ function TriggerBadge({ count }: { count: number }) {
     : <span className="text-[10px] text-primary/25 font-mono">never</span>;
 }
 
+function TriggerRow({ tr }: { tr: any }) {
+  const [showHeaders, setShowHeaders] = useState(false);
+
+  let parsedHeaders: Record<string, string> | null = null;
+  if (tr.headers) {
+    try { parsedHeaders = JSON.parse(tr.headers); } catch {}
+  }
+
+  return (
+    <div className="border border-red-400/15 bg-red-400/5 rounded-sm overflow-hidden">
+      {/* Main trigger line */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-2 py-2">
+        <Clock className="w-3 h-3 text-red-400/50 shrink-0" />
+        <span className="text-red-400/70 text-[10px] font-mono">{new Date(tr.triggeredAt).toLocaleString()}</span>
+        <span className="text-primary/60 text-[10px] font-mono font-bold">{tr.sourceIp || "unknown"}</span>
+        {tr.reverseDns && (
+          <span className="flex items-center gap-1 text-[10px] text-amber-400/70 font-mono">
+            <Network className="w-3 h-3" />{tr.reverseDns}
+          </span>
+        )}
+      </div>
+
+      {/* Enrichment row */}
+      {(tr.geoCountry || tr.geoCity || tr.geoOrg || tr.geoAsn || tr.cfRay) && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-2 pb-2 border-t border-red-400/10 pt-1.5">
+          {(tr.geoCountry || tr.geoCity) && (
+            <span className="flex items-center gap-1 text-[10px] text-primary/50 font-mono">
+              <MapPin className="w-3 h-3 text-primary/30" />
+              {[tr.geoCity, tr.geoCountry].filter(Boolean).join(", ")}
+            </span>
+          )}
+          {tr.geoOrg && (
+            <span className="flex items-center gap-1 text-[10px] text-primary/50 font-mono">
+              <Building2 className="w-3 h-3 text-primary/30" />{tr.geoOrg}
+            </span>
+          )}
+          {tr.geoAsn && (
+            <span className="flex items-center gap-1 text-[10px] text-primary/40 font-mono">
+              <Wifi className="w-3 h-3 text-primary/25" />{tr.geoAsn}
+            </span>
+          )}
+          {tr.cfRay && (
+            <span className="text-[10px] text-cyan-400/40 font-mono">CF-Ray: {tr.cfRay}</span>
+          )}
+        </div>
+      )}
+
+      {/* UA + referer */}
+      {(tr.userAgent || tr.referer) && (
+        <div className="flex flex-wrap gap-x-3 gap-y-0.5 px-2 pb-2">
+          {tr.userAgent && (
+            <span className="text-[10px] text-primary/25 font-mono truncate max-w-[340px]" title={tr.userAgent}>
+              UA: {tr.userAgent.slice(0, 60)}{tr.userAgent.length > 60 ? "…" : ""}
+            </span>
+          )}
+          {tr.referer && (
+            <span className="text-[10px] text-primary/25 font-mono truncate max-w-[240px]" title={tr.referer}>
+              Ref: {tr.referer.slice(0, 50)}{tr.referer.length > 50 ? "…" : ""}
+            </span>
+          )}
+          {tr.acceptLanguage && (
+            <span className="text-[10px] text-primary/20 font-mono">Lang: {tr.acceptLanguage}</span>
+          )}
+        </div>
+      )}
+
+      {/* Full headers toggle */}
+      {parsedHeaders && (
+        <div className="px-2 pb-2">
+          <button
+            onClick={() => setShowHeaders(s => !s)}
+            className="text-[10px] text-primary/25 hover:text-primary/50 font-mono transition-colors"
+          >
+            {showHeaders ? "▲ hide headers" : "▼ show all headers"}
+          </button>
+          {showHeaders && (
+            <pre className="mt-1 text-[9px] text-primary/30 font-mono bg-black/30 p-2 rounded overflow-x-auto whitespace-pre-wrap max-h-48">
+              {Object.entries(parsedHeaders).map(([k, v]) => `${k}: ${v}`).join("\n")}
+            </pre>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function CanaryTokens() {
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -73,6 +160,7 @@ export default function CanaryTokens() {
     queryKey: ["canary-triggers", expanded],
     queryFn: () => apiFetch(`/canary/tokens/${expanded}/triggers`),
     enabled: !!expanded,
+    refetchInterval: 10_000,
   });
 
   const createMut = useMutation({
@@ -119,7 +207,7 @@ export default function CanaryTokens() {
             <Badge className="text-[9px] border-[#00ff88]/30 bg-[#00ff88]/10 text-[#00ff88] font-mono uppercase tracking-widest px-1.5">Trap</Badge>
           </div>
           <p className="text-xs text-primary/40 max-w-xl leading-relaxed">
-            Deploy invisible tracking tokens in documents, emails, paths, and web pages. Instant alerts when accessed — detect insider threats, data leaks, and unauthorized access.
+            Deploy invisible tracking tokens. Every trigger captures IP, reverse DNS hostname, ISP/org, ASN, geo location, browser fingerprint, and all request headers — even behind proxies and VPNs.
           </p>
         </div>
         <Button
@@ -145,6 +233,29 @@ export default function CanaryTokens() {
         <div className="border border-primary/10 bg-primary/2 p-3 rounded-sm">
           <div className="text-[10px] text-primary/40 uppercase tracking-wider mb-1">Types Available</div>
           <span className="text-xl font-bold text-[#00ff88]">{TOKEN_TYPES.length}</span>
+        </div>
+      </div>
+
+      {/* What gets captured info box */}
+      <div className="border border-primary/10 bg-primary/3 p-3 rounded-sm">
+        <div className="text-[10px] text-primary/40 uppercase tracking-widest mb-2">Captured on every trigger</div>
+        <div className="flex flex-wrap gap-2">
+          {[
+            { icon: Network, label: "Source IP" },
+            { icon: Network, label: "Reverse DNS (PTR)" },
+            { icon: Building2, label: "ISP / Organization" },
+            { icon: Wifi, label: "ASN" },
+            { icon: MapPin, label: "Country & City" },
+            { icon: Globe, label: "User Agent" },
+            { icon: Link2, label: "Referer" },
+            { icon: FileText, label: "All HTTP Headers" },
+            { icon: Globe, label: "Accept-Language" },
+            { icon: Globe, label: "CF-Ray (if Cloudflare)" },
+          ].map(({ icon: Icon, label }) => (
+            <span key={label} className="flex items-center gap-1 text-[10px] text-primary/50 border border-primary/10 px-2 py-0.5 rounded-sm">
+              <Icon className="w-3 h-3 text-[#00ff88]/50" />{label}
+            </span>
+          ))}
         </div>
       </div>
 
@@ -296,7 +407,7 @@ export default function CanaryTokens() {
                 </div>
 
                 {expanded === token.id && (
-                  <div className="border-t border-primary/10 bg-black/20 p-3 space-y-2">
+                  <div className="border-t border-primary/10 bg-black/20 p-3 space-y-3">
                     {meta && (
                       <div>
                         <div className="text-[10px] text-primary/30 uppercase tracking-wider mb-2">Token Payload</div>
@@ -309,17 +420,17 @@ export default function CanaryTokens() {
                     {triggers.length > 0 && (
                       <div>
                         <div className="text-[10px] text-red-400/70 uppercase tracking-wider mb-2 flex items-center gap-1">
-                          <BellRing className="w-3 h-3" />Trigger Log ({triggers.length})
+                          <BellRing className="w-3 h-3" />Trigger Log ({triggers.length}) — full intel captured
                         </div>
-                        <div className="space-y-1">
-                          {triggers.slice(0, 10).map((tr: any) => (
-                            <div key={tr.id} className="text-[10px] font-mono flex items-center gap-3 border border-red-400/15 bg-red-400/5 px-2 py-1.5 rounded-sm">
-                              <Clock className="w-3 h-3 text-red-400/50 shrink-0" />
-                              <span className="text-red-400/60">{new Date(tr.triggeredAt).toLocaleString()}</span>
-                              <span className="text-primary/50">from {tr.sourceIp || "unknown"}</span>
-                              {tr.userAgent && <span className="text-primary/25 truncate">{tr.userAgent.slice(0, 40)}</span>}
-                            </div>
+                        <div className="space-y-1.5">
+                          {triggers.slice(0, 20).map((tr: any) => (
+                            <TriggerRow key={tr.id} tr={tr} />
                           ))}
+                          {triggers.length > 20 && (
+                            <div className="text-[10px] text-primary/25 text-center py-1">
+                              + {triggers.length - 20} older triggers
+                            </div>
+                          )}
                         </div>
                       </div>
                     )}

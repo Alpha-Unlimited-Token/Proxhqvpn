@@ -28,6 +28,11 @@ export const canaryTriggersTable = pgTable("canary_triggers", {
   headers: text("headers"),
   geoCountry: text("geo_country"),
   geoCity: text("geo_city"),
+  geoOrg: text("geo_org"),
+  geoAsn: text("geo_asn"),
+  reverseDns: text("reverse_dns"),
+  cfRay: text("cf_ray"),
+  acceptLanguage: text("accept_language"),
 });
 
 export type CanaryToken = typeof canaryTokensTable.$inferSelect;

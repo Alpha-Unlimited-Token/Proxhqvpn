@@ -5,6 +5,7 @@ import { canaryTokensTable, canaryTriggersTable } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
 import { getAuth } from "@clerk/express";
 import crypto from "crypto";
+import dns from "dns";
 
 const router = Router();
 
@@ -93,9 +94,66 @@ function buildTokenPayload(tokenId: string, type: string, domain: string) {
   }
 }
 
+// Priority: CF-Connecting-IP (Cloudflare real IP) → X-Forwarded-For → socket address
 function getRealIp(req: Request): string {
+  const cf = req.headers["cf-connecting-ip"];
+  if (cf) return Array.isArray(cf) ? cf[0] : cf;
   const fwd = req.headers["x-forwarded-for"];
   return (Array.isArray(fwd) ? fwd[0] : fwd)?.split(",")[0]?.trim() || req.socket?.remoteAddress || req.ip || "unknown";
+}
+
+// Reverse DNS: PTR record lookup — reveals ISP hostname, corporate network, or VPN provider
+async function reverseDnsLookup(ip: string): Promise<string | null> {
+  if (!ip || ip === "unknown" || ip.startsWith("127.") || ip.startsWith("10.") || ip.startsWith("192.168.") || ip === "::1") return null;
+  try {
+    const hosts = await dns.promises.reverse(ip);
+    return hosts[0] || null;
+  } catch {
+    return null;
+  }
+}
+
+// IP geo/org/ASN enrichment via ip-api.com (free, no API key required)
+interface IpInfo {
+  country: string | null;
+  city: string | null;
+  org: string | null;
+  asn: string | null;
+}
+
+async function enrichIp(ip: string): Promise<IpInfo> {
+  const empty: IpInfo = { country: null, city: null, org: null, asn: null };
+  if (!ip || ip === "unknown" || ip.startsWith("127.") || ip.startsWith("10.") || ip.startsWith("192.168.") || ip === "::1") return empty;
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3000);
+    const res = await fetch(`http://ip-api.com/json/${ip}?fields=country,city,org,as`, { signal: controller.signal });
+    clearTimeout(timeout);
+    if (!res.ok) return empty;
+    const data = await res.json() as { country?: string; city?: string; org?: string; as?: string };
+    return {
+      country: data.country || null,
+      city: data.city || null,
+      org: data.org || null,
+      asn: data.as || null,
+    };
+  } catch {
+    return empty;
+  }
+}
+
+// Collect all enrichment data in parallel
+async function collectEnrichment(req: Request, ip: string) {
+  const [geo, rdns] = await Promise.all([enrichIp(ip), reverseDnsLookup(ip)]);
+  return {
+    geoCountry: geo.country,
+    geoCity: geo.city,
+    geoOrg: geo.org,
+    geoAsn: geo.asn,
+    reverseDns: rdns,
+    cfRay: (req.headers["cf-ray"] as string) || null,
+    acceptLanguage: (req.headers["accept-language"] as string) || null,
+  };
 }
 
 router.get("/tokens", async (req: Request, res: Response) => {
@@ -171,25 +229,34 @@ router.get("/tokens/:id/triggers", async (req: Request, res: Response) => {
   res.json(triggers);
 });
 
+// Public trigger endpoints — no auth, always respond fast then enrich async
+
 router.get("/trigger/:tokenId", async (req: Request, res: Response) => {
   const tokenId = String(req.params.tokenId);
   const ip = getRealIp(req);
   const ua = req.headers["user-agent"] || "";
   const ref = req.headers["referer"] || "";
 
+  // Respond immediately with 1x1 GIF — don't block caller
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+  res.setHeader("Content-Type", "image/gif");
+  res.send(Buffer.from("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7", "base64"));
+
+  // Enrich and save after response
   try {
     const [token] = await db.select().from(canaryTokensTable)
       .where(eq(canaryTokensTable.tokenId, tokenId)).limit(1);
 
     if (token && token.active) {
+      const enrichment = await collectEnrichment(req, ip);
       await db.insert(canaryTriggersTable).values({
         tokenId,
         sourceIp: ip,
         userAgent: ua,
         referer: ref,
-        headers: JSON.stringify({ "user-agent": ua, "referer": ref, "x-forwarded-for": req.headers["x-forwarded-for"] }),
+        headers: JSON.stringify(req.headers),
+        ...enrichment,
       });
-
       await db.update(canaryTokensTable).set({
         triggerCount: token.triggerCount + 1,
         lastTriggeredAt: new Date(),
@@ -198,10 +265,6 @@ router.get("/trigger/:tokenId", async (req: Request, res: Response) => {
       }).where(eq(canaryTokensTable.tokenId, tokenId));
     }
   } catch {}
-
-  res.setHeader("Cache-Control", "no-store");
-  res.setHeader("Content-Type", "image/gif");
-  res.send(Buffer.from("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7", "base64"));
 });
 
 router.get("/trigger/:tokenId/redirect", async (req: Request, res: Response) => {
@@ -209,17 +272,64 @@ router.get("/trigger/:tokenId/redirect", async (req: Request, res: Response) => 
   const ip = getRealIp(req);
   const ua = req.headers["user-agent"] || "";
   const ref = req.headers["referer"] || "";
+
+  // Redirect immediately — enrich async
+  res.redirect(302, "https://proxhqvpn.com");
+
   try {
     const [token] = await db.select().from(canaryTokensTable)
       .where(eq(canaryTokensTable.tokenId, tokenId)).limit(1);
     if (token && token.active) {
-      await db.insert(canaryTriggersTable).values({ tokenId, sourceIp: ip, userAgent: ua, referer: ref, headers: JSON.stringify(req.headers) });
+      const enrichment = await collectEnrichment(req, ip);
+      await db.insert(canaryTriggersTable).values({
+        tokenId,
+        sourceIp: ip,
+        userAgent: ua,
+        referer: ref,
+        headers: JSON.stringify(req.headers),
+        ...enrichment,
+      });
       await db.update(canaryTokensTable).set({
-        triggerCount: token.triggerCount + 1, lastTriggeredAt: new Date(), lastTriggeredIp: ip, lastTriggeredUserAgent: ua,
+        triggerCount: token.triggerCount + 1,
+        lastTriggeredAt: new Date(),
+        lastTriggeredIp: ip,
+        lastTriggeredUserAgent: ua,
       }).where(eq(canaryTokensTable.tokenId, tokenId));
     }
   } catch {}
-  res.redirect(302, "https://proxhqvpn.com");
+});
+
+router.get("/trigger/:tokenId/pixel.gif", async (req: Request, res: Response) => {
+  const tokenId = String(req.params.tokenId);
+  const ip = getRealIp(req);
+  const ua = req.headers["user-agent"] || "";
+  const ref = req.headers["referer"] || "";
+
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+  res.setHeader("Content-Type", "image/gif");
+  res.send(Buffer.from("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7", "base64"));
+
+  try {
+    const [token] = await db.select().from(canaryTokensTable)
+      .where(eq(canaryTokensTable.tokenId, tokenId)).limit(1);
+    if (token && token.active) {
+      const enrichment = await collectEnrichment(req, ip);
+      await db.insert(canaryTriggersTable).values({
+        tokenId,
+        sourceIp: ip,
+        userAgent: ua,
+        referer: ref,
+        headers: JSON.stringify(req.headers),
+        ...enrichment,
+      });
+      await db.update(canaryTokensTable).set({
+        triggerCount: token.triggerCount + 1,
+        lastTriggeredAt: new Date(),
+        lastTriggeredIp: ip,
+        lastTriggeredUserAgent: ua,
+      }).where(eq(canaryTokensTable.tokenId, tokenId));
+    }
+  } catch {}
 });
 
 router.get("/warrant-canary", (_req: Request, res: Response) => {
@@ -251,28 +361,6 @@ router.get("/warrant-canary", (_req: Request, res: Response) => {
     pgpNote: "For cryptographic verification, sign this canary with the ProxhqVPN PGP key.",
     canaryVersion: 1,
   });
-});
-
-router.get("/trigger/:tokenId/pixel.gif", async (req: Request, res: Response) => {
-  const tokenId = String(req.params.tokenId);
-  const ip = getRealIp(req);
-  const ua = req.headers["user-agent"] || "";
-  const ref = req.headers["referer"] || "";
-
-  try {
-    const [token] = await db.select().from(canaryTokensTable)
-      .where(eq(canaryTokensTable.tokenId, tokenId)).limit(1);
-    if (token && token.active) {
-      await db.insert(canaryTriggersTable).values({ tokenId, sourceIp: ip, userAgent: ua, referer: ref });
-      await db.update(canaryTokensTable).set({
-        triggerCount: token.triggerCount + 1,
-        lastTriggeredAt: new Date(),
-        lastTriggeredIp: ip,
-      }).where(eq(canaryTokensTable.tokenId, tokenId));
-    }
-  } catch {}
-  res.setHeader("Content-Type", "image/gif");
-  res.send(Buffer.from("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7", "base64"));
 });
 
 export default router;
