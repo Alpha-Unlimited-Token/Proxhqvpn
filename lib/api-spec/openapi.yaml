@@ -518,6 +518,665 @@ paths:
               schema:
                 $ref: "#/components/schemas/IptablesExport"
 
+  /firewall/ghostos/rules:
+    get:
+      operationId: listGhostOsRules
+      tags: [firewall]
+      summary: List all GhostOS SymScript rules
+      responses:
+        "200":
+          description: GhostOS rules
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GhostOsRuleList"
+    post:
+      operationId: createGhostOsRule
+      tags: [firewall]
+      summary: Create a GhostOS SymScript rule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateGhostOsRuleBody"
+      responses:
+        "201":
+          description: Rule created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GhostOsRule"
+
+  /firewall/ghostos/rules/{id}:
+    put:
+      operationId: updateGhostOsRule
+      tags: [firewall]
+      summary: Update a GhostOS rule
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                symbolicRule:
+                  type: string
+                description:
+                  type: string
+                enabled:
+                  type: boolean
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GhostOsRule"
+    delete:
+      operationId: deleteGhostOsRule
+      tags: [firewall]
+      summary: Delete a GhostOS rule
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /firewall/ghostos/transcribe:
+    post:
+      operationId: transcribeToSymscript
+      tags: [firewall]
+      summary: Transcribe plain English or iptables to GhostOS SymScript
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TranscribeBody"
+      responses:
+        "200":
+          description: Transcription result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TranscribeResult"
+
+  /firewall/ghostos/parse:
+    post:
+      operationId: parseGhostOsRule
+      tags: [firewall]
+      summary: Parse and explain a SymScript rule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                rule:
+                  type: string
+              required: [rule]
+      responses:
+        "200":
+          description: Parse result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TranscribeResult"
+
+  /firewall/ghostos/spec:
+    get:
+      operationId: getGhostOsSpec
+      tags: [firewall]
+      summary: Get the full GhostOS SymScript language specification
+      responses:
+        "200":
+          description: SymScript spec
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /firewall/ghostos/transcriber-log:
+    get:
+      operationId: listTranscriberLog
+      tags: [firewall]
+      summary: List transcriber history
+      responses:
+        "200":
+          description: Log entries
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /firewall/ips/signatures:
+    get:
+      operationId: listIpsSignatures
+      tags: [firewall]
+      summary: List all IPS signatures
+      responses:
+        "200":
+          description: IPS signatures
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IpsSignatureList"
+
+  /firewall/ips/signatures/{id}/toggle:
+    post:
+      operationId: toggleIpsSignature
+      tags: [firewall]
+      summary: Enable or disable an IPS signature
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                enabled:
+                  type: boolean
+              required: [enabled]
+      responses:
+        "200":
+          description: Updated signature
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IpsSignature"
+
+  /firewall/ips/bulk-toggle:
+    post:
+      operationId: bulkToggleIpsCategory
+      tags: [firewall]
+      summary: Enable or disable all signatures in a category
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BulkToggleBody"
+      responses:
+        "200":
+          description: Bulk update result
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /firewall/ips/signatures/{id}:
+    delete:
+      operationId: deleteIpsSignature
+      tags: [firewall]
+      summary: Delete a custom IPS signature
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /firewall/dpi/rules:
+    get:
+      operationId: listDpiRules
+      tags: [firewall]
+      summary: List DPI content inspection rules
+      responses:
+        "200":
+          description: DPI rules
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DpiRuleList"
+    post:
+      operationId: createDpiRule
+      tags: [firewall]
+      summary: Create a DPI rule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateDpiRuleBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DpiRule"
+
+  /firewall/dpi/rules/{id}:
+    put:
+      operationId: updateDpiRule
+      tags: [firewall]
+      summary: Update a DPI rule
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                enabled:
+                  type: boolean
+                action:
+                  type: string
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DpiRule"
+    delete:
+      operationId: deleteDpiRule
+      tags: [firewall]
+      summary: Delete a DPI rule
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /firewall/dpi/test:
+    post:
+      operationId: testDpiPattern
+      tags: [firewall]
+      summary: Test a DPI pattern against sample input
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                pattern:
+                  type: string
+                patternType:
+                  type: string
+                testInput:
+                  type: string
+              required: [pattern, patternType, testInput]
+      responses:
+        "200":
+          description: Test result
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /firewall/geo:
+    get:
+      operationId: listGeoBlocks
+      tags: [firewall]
+      summary: List geo-IP blocks
+      responses:
+        "200":
+          description: Geo blocks
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeoBlockList"
+    post:
+      operationId: addGeoBlock
+      tags: [firewall]
+      summary: Add a country-level geo-IP block
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddGeoBlockBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeoBlock"
+
+  /firewall/geo/{id}:
+    put:
+      operationId: updateGeoBlock
+      tags: [firewall]
+      summary: Enable or disable a geo block
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                enabled:
+                  type: boolean
+              required: [enabled]
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeoBlock"
+    delete:
+      operationId: removeGeoBlock
+      tags: [firewall]
+      summary: Remove a geo-IP block
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /firewall/threat-feeds:
+    get:
+      operationId: listThreatFeeds
+      tags: [firewall]
+      summary: List threat intelligence feeds
+      responses:
+        "200":
+          description: Threat feeds
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ThreatFeedList"
+
+  /firewall/threat-feeds/{id}:
+    put:
+      operationId: updateThreatFeed
+      tags: [firewall]
+      summary: Enable or disable a threat feed
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                enabled:
+                  type: boolean
+                autoSync:
+                  type: boolean
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ThreatFeed"
+
+  /firewall/threat-feeds/{id}/sync:
+    post:
+      operationId: syncThreatFeed
+      tags: [firewall]
+      summary: Manually sync a threat feed
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Sync result
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /firewall/zones:
+    get:
+      operationId: listFirewallZones
+      tags: [firewall]
+      summary: List security zones
+      responses:
+        "200":
+          description: Zones
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FirewallZoneList"
+    post:
+      operationId: createFirewallZone
+      tags: [firewall]
+      summary: Create a security zone
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateZoneBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FirewallZone"
+
+  /firewall/zones/{id}:
+    put:
+      operationId: updateFirewallZone
+      tags: [firewall]
+      summary: Update zone policy
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                inboundPolicy:
+                  type: string
+                outboundPolicy:
+                  type: string
+                trustLevel:
+                  type: string
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FirewallZone"
+    delete:
+      operationId: deleteFirewallZone
+      tags: [firewall]
+      summary: Delete a security zone
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /firewall/fqdn-rules:
+    get:
+      operationId: listFqdnRules
+      tags: [firewall]
+      summary: List FQDN/domain-based firewall rules
+      responses:
+        "200":
+          description: FQDN rules
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FqdnRuleList"
+    post:
+      operationId: createFqdnRule
+      tags: [firewall]
+      summary: Create a domain-based rule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateFqdnRuleBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FqdnRule"
+
+  /firewall/fqdn-rules/{id}:
+    put:
+      operationId: updateFqdnRule
+      tags: [firewall]
+      summary: Toggle or update an FQDN rule
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                enabled:
+                  type: boolean
+                action:
+                  type: string
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FqdnRule"
+    delete:
+      operationId: deleteFqdnRule
+      tags: [firewall]
+      summary: Delete an FQDN rule
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /firewall/analytics:
+    get:
+      operationId: getFirewallAnalytics
+      tags: [firewall]
+      summary: Get firewall analytics, top blocked IPs, and IPS breakdown
+      responses:
+        "200":
+          description: Analytics data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FirewallAnalytics"
+
+  /firewall/threat-profiles:
+    get:
+      operationId: listThreatProfiles
+      tags: [firewall]
+      summary: List available one-click threat profiles
+      responses:
+        "200":
+          description: Threat profiles
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ThreatProfileList"
+
+  /firewall/threat-profiles/{id}/apply:
+    post:
+      operationId: applyThreatProfile
+      tags: [firewall]
+      summary: Apply a threat profile to the firewall
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Profile applied
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /firewall/rules/check-conflicts:
+    post:
+      operationId: checkRuleConflicts
+      tags: [firewall]
+      summary: Detect shadowed or conflicting firewall rules
+      responses:
+        "200":
+          description: Conflict analysis
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConflictResult"
+
   /quantum-audit/scan:
     post:
       operationId: runBlockchainScan
@@ -1249,6 +1908,10 @@ components:
           type: boolean
         dnsMasked:
           type: boolean
+        ipsSignatures:
+          type: integer
+        ghostOsRules:
+          type: integer
         lastUpdated:
           type: string
           format: date-time
@@ -1326,6 +1989,515 @@ components:
           type: string
           format: date-time
       required: [iptablesRules, nftablesRules, wireguardMasquerade, portKnockRules, exportedAt]
+
+    GhostOsRule:
+      type: object
+      properties:
+        id:
+          type: integer
+        symbolicRule:
+          type: string
+        description:
+          type: string
+        compiledIptables:
+          type: string
+        compiledNftables:
+          type: string
+        ruleType:
+          type: string
+        enabled:
+          type: boolean
+        hitCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, symbolicRule, ruleType, enabled, hitCount, createdAt]
+
+    GhostOsRuleList:
+      type: object
+      properties:
+        rules:
+          type: array
+          items:
+            $ref: "#/components/schemas/GhostOsRule"
+        total:
+          type: integer
+        enabledCount:
+          type: integer
+        spec:
+          type: object
+      required: [rules, total, enabledCount]
+
+    CreateGhostOsRuleBody:
+      type: object
+      properties:
+        symbolicRule:
+          type: string
+        description:
+          type: string
+        ruleType:
+          type: string
+      required: [symbolicRule]
+
+    TranscribeBody:
+      type: object
+      properties:
+        input:
+          type: string
+        format:
+          type: string
+          enum: [english, iptables, nftables]
+        apply:
+          type: boolean
+      required: [input]
+
+    TranscribeResult:
+      type: object
+      properties:
+        symscript:
+          type: string
+        explanation:
+          type: string
+        confidence:
+          type: integer
+        compiledIptables:
+          type: string
+        compiledNftables:
+          type: string
+        parsed:
+          type: object
+        logId:
+          type: integer
+        valid:
+          type: boolean
+        error:
+          type: string
+      required: [symscript, explanation, confidence, compiledIptables]
+
+    IpsSignature:
+      type: object
+      properties:
+        id:
+          type: integer
+        sid:
+          type: string
+        name:
+          type: string
+        category:
+          type: string
+        severity:
+          type: string
+        pattern:
+          type: string
+        patternType:
+          type: string
+        description:
+          type: string
+        cveId:
+          type: string
+        references:
+          type: string
+        enabled:
+          type: boolean
+        hitCount:
+          type: integer
+        action:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, sid, name, category, severity, pattern, patternType, enabled, hitCount, action, createdAt]
+
+    IpsSignatureList:
+      type: object
+      properties:
+        signatures:
+          type: array
+          items:
+            $ref: "#/components/schemas/IpsSignature"
+        total:
+          type: integer
+        enabledCount:
+          type: integer
+        categoryCounts:
+          type: object
+      required: [signatures, total, enabledCount, categoryCounts]
+
+    BulkToggleBody:
+      type: object
+      properties:
+        category:
+          type: string
+        enabled:
+          type: boolean
+      required: [category, enabled]
+
+    DpiRule:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        pattern:
+          type: string
+        patternType:
+          type: string
+        action:
+          type: string
+        enabled:
+          type: boolean
+        hitCount:
+          type: integer
+        description:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, name, pattern, patternType, action, enabled, hitCount, createdAt]
+
+    DpiRuleList:
+      type: object
+      properties:
+        rules:
+          type: array
+          items:
+            $ref: "#/components/schemas/DpiRule"
+        total:
+          type: integer
+        enabledCount:
+          type: integer
+      required: [rules, total, enabledCount]
+
+    CreateDpiRuleBody:
+      type: object
+      properties:
+        name:
+          type: string
+        pattern:
+          type: string
+        patternType:
+          type: string
+          enum: [url, header, body, user-agent, host, method]
+        action:
+          type: string
+          enum: [block, alert, log]
+        description:
+          type: string
+      required: [name, pattern, patternType]
+
+    GeoBlock:
+      type: object
+      properties:
+        id:
+          type: integer
+        countryCode:
+          type: string
+        countryName:
+          type: string
+        enabled:
+          type: boolean
+        hitCount:
+          type: integer
+        blockedAt:
+          type: string
+          format: date-time
+      required: [id, countryCode, countryName, enabled, hitCount, blockedAt]
+
+    GeoBlockList:
+      type: object
+      properties:
+        blocks:
+          type: array
+          items:
+            $ref: "#/components/schemas/GeoBlock"
+        total:
+          type: integer
+        enabledCount:
+          type: integer
+      required: [blocks, total, enabledCount]
+
+    AddGeoBlockBody:
+      type: object
+      properties:
+        countryCode:
+          type: string
+        countryName:
+          type: string
+        enabled:
+          type: boolean
+      required: [countryCode, countryName]
+
+    ThreatFeed:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        url:
+          type: string
+        feedType:
+          type: string
+        enabled:
+          type: boolean
+        autoSync:
+          type: boolean
+        lastSyncedAt:
+          type: string
+          format: date-time
+        entryCount:
+          type: integer
+        status:
+          type: string
+        errorMessage:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, name, url, feedType, enabled, autoSync, entryCount, status, createdAt]
+
+    ThreatFeedList:
+      type: object
+      properties:
+        feeds:
+          type: array
+          items:
+            $ref: "#/components/schemas/ThreatFeed"
+        total:
+          type: integer
+        enabledCount:
+          type: integer
+      required: [feeds, total, enabledCount]
+
+    FirewallZone:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        trustLevel:
+          type: string
+        interfaces:
+          type: string
+        description:
+          type: string
+        inboundPolicy:
+          type: string
+        outboundPolicy:
+          type: string
+        color:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, name, trustLevel, inboundPolicy, outboundPolicy, color, createdAt]
+
+    FirewallZoneList:
+      type: object
+      properties:
+        zones:
+          type: array
+          items:
+            $ref: "#/components/schemas/FirewallZone"
+        total:
+          type: integer
+      required: [zones, total]
+
+    CreateZoneBody:
+      type: object
+      properties:
+        name:
+          type: string
+        trustLevel:
+          type: string
+          enum: [trusted, untrusted, dmz, management]
+        interfaces:
+          type: string
+        description:
+          type: string
+        inboundPolicy:
+          type: string
+          enum: [allow, deny]
+        outboundPolicy:
+          type: string
+          enum: [allow, deny]
+        color:
+          type: string
+      required: [name, trustLevel]
+
+    FqdnRule:
+      type: object
+      properties:
+        id:
+          type: integer
+        domain:
+          type: string
+        action:
+          type: string
+        direction:
+          type: string
+        priority:
+          type: integer
+        enabled:
+          type: boolean
+        hitCount:
+          type: integer
+        description:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, domain, action, direction, priority, enabled, hitCount, createdAt]
+
+    FqdnRuleList:
+      type: object
+      properties:
+        rules:
+          type: array
+          items:
+            $ref: "#/components/schemas/FqdnRule"
+        total:
+          type: integer
+        enabledCount:
+          type: integer
+      required: [rules, total, enabledCount]
+
+    CreateFqdnRuleBody:
+      type: object
+      properties:
+        domain:
+          type: string
+        action:
+          type: string
+          enum: [allow, block]
+        direction:
+          type: string
+          enum: [both, inbound, outbound]
+        priority:
+          type: integer
+        description:
+          type: string
+      required: [domain, action]
+
+    FirewallAnalytics:
+      type: object
+      properties:
+        topBlockedIps:
+          type: array
+          items:
+            type: object
+            properties:
+              ip:
+                type: string
+              hits:
+                type: integer
+              reason:
+                type: string
+            required: [ip, hits, reason]
+        topTriggeredRules:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              hits:
+                type: integer
+              action:
+                type: string
+            required: [name, hits, action]
+        topGhostOsRules:
+          type: array
+          items:
+            type: object
+        ipsCategoryBreakdown:
+          type: array
+          items:
+            type: object
+            properties:
+              category:
+                type: string
+              total:
+                type: integer
+              enabled:
+                type: integer
+              hits:
+                type: integer
+            required: [category, total, enabled, hits]
+        recentBlocks:
+          type: array
+          items:
+            type: object
+        threatLevel:
+          type: string
+          enum: [critical, high, medium, low, safe]
+        totalBlocked24h:
+          type: integer
+        totalIpsHits24h:
+          type: integer
+        totalDpiHits24h:
+          type: integer
+      required: [topBlockedIps, topTriggeredRules, ipsCategoryBreakdown, recentBlocks, threatLevel, totalBlocked24h, totalIpsHits24h, totalDpiHits24h]
+
+    ThreatProfile:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        vendor:
+          type: string
+        description:
+          type: string
+        severity:
+          type: string
+        color:
+          type: string
+        actions:
+          type: array
+          items:
+            type: string
+      required: [id, name, vendor, description, severity, color, actions]
+
+    ThreatProfileList:
+      type: object
+      properties:
+        profiles:
+          type: array
+          items:
+            $ref: "#/components/schemas/ThreatProfile"
+        total:
+          type: integer
+      required: [profiles, total]
+
+    ConflictResult:
+      type: object
+      properties:
+        conflicts:
+          type: array
+          items:
+            type: object
+            properties:
+              type:
+                type: string
+              rule1:
+                type: string
+              rule2:
+                type: string
+              description:
+                type: string
+              severity:
+                type: string
+            required: [type, rule1, description, severity]
+        total:
+          type: integer
+        clean:
+          type: boolean
+      required: [conflicts, total, clean]
 
     ScanRequest:
       type: object

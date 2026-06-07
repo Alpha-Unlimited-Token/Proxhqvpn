@@ -46,7 +46,124 @@ export const blockedIpsTable = pgTable("blocked_ips", {
   expiresAt: timestamp("expires_at"),
 });
 
+// ── IPS Signature Engine ───────────────────────────────────────────────────
+export const firewallIpsSignaturesTable = pgTable("firewall_ips_signatures", {
+  id: serial("id").primaryKey(),
+  sid: text("sid").notNull().unique(),
+  name: text("name").notNull(),
+  category: text("category").notNull(),
+  severity: text("severity").notNull(),
+  pattern: text("pattern").notNull(),
+  patternType: text("pattern_type").notNull().default("signature"),
+  description: text("description"),
+  cveId: text("cve_id"),
+  references: text("references"),
+  enabled: boolean("enabled").notNull().default(true),
+  hitCount: integer("hit_count").notNull().default(0),
+  action: text("action").notNull().default("drop"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// ── Deep Packet Inspection Rules ───────────────────────────────────────────
+export const firewallDpiRulesTable = pgTable("firewall_dpi_rules", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  pattern: text("pattern").notNull(),
+  patternType: text("pattern_type").notNull(),
+  action: text("action").notNull().default("block"),
+  enabled: boolean("enabled").notNull().default(true),
+  hitCount: integer("hit_count").notNull().default(0),
+  description: text("description"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// ── Geo-IP Blocking ────────────────────────────────────────────────────────
+export const firewallGeoBlocksTable = pgTable("firewall_geo_blocks", {
+  id: serial("id").primaryKey(),
+  countryCode: text("country_code").notNull().unique(),
+  countryName: text("country_name").notNull(),
+  enabled: boolean("enabled").notNull().default(true),
+  hitCount: integer("hit_count").notNull().default(0),
+  blockedAt: timestamp("blocked_at").defaultNow().notNull(),
+});
+
+// ── Threat Intelligence Feeds ──────────────────────────────────────────────
+export const firewallThreatFeedsTable = pgTable("firewall_threat_feeds", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  url: text("url").notNull(),
+  feedType: text("feed_type").notNull(),
+  enabled: boolean("enabled").notNull().default(true),
+  autoSync: boolean("auto_sync").notNull().default(true),
+  lastSyncedAt: timestamp("last_synced_at"),
+  entryCount: integer("entry_count").notNull().default(0),
+  status: text("status").notNull().default("pending"),
+  errorMessage: text("error_message"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// ── Security Zones ─────────────────────────────────────────────────────────
+export const firewallZonesTable = pgTable("firewall_zones", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  trustLevel: text("trust_level").notNull(),
+  interfaces: text("interfaces"),
+  description: text("description"),
+  inboundPolicy: text("inbound_policy").notNull().default("deny"),
+  outboundPolicy: text("outbound_policy").notNull().default("allow"),
+  color: text("color").notNull().default("#00ff88"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// ── FQDN / Domain-Based Rules ──────────────────────────────────────────────
+export const firewallFqdnRulesTable = pgTable("firewall_fqdn_rules", {
+  id: serial("id").primaryKey(),
+  domain: text("domain").notNull(),
+  action: text("action").notNull(),
+  direction: text("direction").notNull().default("both"),
+  priority: integer("priority").notNull().default(100),
+  enabled: boolean("enabled").notNull().default(true),
+  hitCount: integer("hit_count").notNull().default(0),
+  description: text("description"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// ── GhostOS™ ProxhqOS SymScript™ Rules ────────────────────────────────────
+// Proprietary symbolic firewall command language — unknown to standard attack tools
+export const firewallGhostOsRulesTable = pgTable("firewall_ghostos_rules", {
+  id: serial("id").primaryKey(),
+  symbolicRule: text("symbolic_rule").notNull(),
+  description: text("description"),
+  compiledIptables: text("compiled_iptables"),
+  compiledNftables: text("compiled_nftables"),
+  ruleType: text("rule_type").notNull().default("symscript"),
+  enabled: boolean("enabled").notNull().default(true),
+  hitCount: integer("hit_count").notNull().default(0),
+  lastTriggeredAt: timestamp("last_triggered_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// ── GhostOS™ Transcriber Log ───────────────────────────────────────────────
+export const firewallTranscriberLogTable = pgTable("firewall_transcriber_log", {
+  id: serial("id").primaryKey(),
+  inputText: text("input_text").notNull(),
+  inputFormat: text("input_format").notNull().default("english"),
+  outputSymscript: text("output_symscript").notNull(),
+  compiledIptables: text("compiled_iptables"),
+  applied: boolean("applied").notNull().default(false),
+  appliedAt: timestamp("applied_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export type InsertFirewallRule = typeof firewallRulesTable.$inferInsert;
 export type FirewallRule = typeof firewallRulesTable.$inferSelect;
 export type FirewallStatus = typeof firewallStatusTable.$inferSelect;
 export type BlockedIp = typeof blockedIpsTable.$inferSelect;
+export type IpsSignature = typeof firewallIpsSignaturesTable.$inferSelect;
+export type DpiRule = typeof firewallDpiRulesTable.$inferSelect;
+export type GeoBlock = typeof firewallGeoBlocksTable.$inferSelect;
+export type ThreatFeed = typeof firewallThreatFeedsTable.$inferSelect;
+export type FirewallZone = typeof firewallZonesTable.$inferSelect;
+export type FqdnRule = typeof firewallFqdnRulesTable.$inferSelect;
+export type GhostOsRule = typeof firewallGhostOsRulesTable.$inferSelect;
+export type TranscriberLog = typeof firewallTranscriberLogTable.$inferSelect;
