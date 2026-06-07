@@ -1013,7 +1013,7 @@ export default function Downloads() {
 const QUICK_START_TXT = `ProxhqVPN — Quick Start Guide
 ==============================
 ALPHA UNLIMITED TECHNOLOGIES LLC | https://proxhqvpn.com
-Version 4.0 | Updated 2025
+Version 2.2.0 | June 2026
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 STEP 1 — CREATE YOUR ACCOUNT
@@ -1052,7 +1052,7 @@ STEP 6 — VERIFY YOU'RE PROTECTED
   Run a full leak test at: https://proxhqvpn.com/leaks
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-WHAT'S NEW IN VERSION 4.0
+WHAT'S NEW IN VERSION 2.2.0
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   ★ Exploit Importer — Instructions Tab
     Every detected vulnerability now includes a complete
@@ -1085,10 +1085,10 @@ const USER_GUIDE_TXT = `ProxhqVPN — Full User Guide
 ============================
 ALPHA UNLIMITED TECHNOLOGIES LLC
 https://proxhqvpn.com | support@proxhqvpn.com
-Version 4.0 | Updated 2025
+Version 2.2.0 | June 2026
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-WHAT'S NEW IN VERSION 4.0
+WHAT'S NEW IN VERSION 2.2.0
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ★ Exploit Importer — Instructions Tab
   Each detected vulnerability now opens a complete exploitation
@@ -1416,7 +1416,7 @@ const README_CONTENT: Record<string, string> = {
 ========================================
 ALPHA UNLIMITED TECHNOLOGIES LLC
 https://proxhqvpn.com | support@proxhqvpn.com
-Version 4.0 | Updated 2025
+Version 2.2.0 | June 2026
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 REQUIREMENTS
@@ -1481,7 +1481,7 @@ WINDOWS-SPECIFIC FEATURES
       DNS = 1.1.1.1, 1.0.0.1
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-WHAT'S NEW IN VERSION 4.0
+WHAT'S NEW IN VERSION 2.2.0
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   Exploit Importer (/exploit-import) — Command Center Pro:
   Upload scan reports (Nessus, Burp Suite, Nikto, ZAP, OpenVAS)
@@ -1505,7 +1505,7 @@ SUPPORT
 ========================================
 ALPHA UNLIMITED TECHNOLOGIES LLC
 https://proxhqvpn.com | support@proxhqvpn.com
-Version 4.0 | Updated 2025
+Version 2.2.0 | June 2026
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 REQUIREMENTS
@@ -1568,7 +1568,7 @@ MACOS-SPECIFIC FEATURES
   DNS Shield: Set DNS = 1.1.1.1 in your .conf for encrypted DNS.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-WHAT'S NEW IN VERSION 4.0
+WHAT'S NEW IN VERSION 2.2.0
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   Exploit Importer — 24 built-in vulnerability guides, three-tab
   result cards (Details / Instructions / Exploit Code), and the
@@ -1584,7 +1584,7 @@ SUPPORT
 ========================================
 ALPHA UNLIMITED TECHNOLOGIES LLC
 https://proxhqvpn.com | support@proxhqvpn.com
-Version 4.0 | Updated 2025
+Version 2.2.0 | June 2026
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 REQUIREMENTS
@@ -1667,7 +1667,7 @@ LINUX-SPECIFIC FEATURES
     Raspberry Pi: tested on Raspberry Pi OS Bullseye (64-bit).
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-WHAT'S NEW IN VERSION 4.0
+WHAT'S NEW IN VERSION 2.2.0
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   Exploit Importer — 24 built-in vulnerability guides, three-tab
   result cards (Details / Instructions / Exploit Code), and the
@@ -1685,7 +1685,7 @@ SUPPORT
 ========================================
 ALPHA UNLIMITED TECHNOLOGIES LLC
 https://proxhqvpn.com | support@proxhqvpn.com
-Version 4.0 | Updated 2025
+Version 2.2.0 | June 2026
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 REQUIREMENTS
@@ -1743,7 +1743,7 @@ ANDROID TV / NVIDIA SHIELD
   Alternatively, use ADB to push the .conf file and import it.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-WHAT'S NEW IN VERSION 4.0
+WHAT'S NEW IN VERSION 2.2.0
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   Exploit Importer — 24 built-in vulnerability guides, three-tab
   result cards (Details / Instructions / Exploit Code), and the
@@ -1760,7 +1760,7 @@ SUPPORT
 ============================================
 ALPHA UNLIMITED TECHNOLOGIES LLC
 https://proxhqvpn.com | support@proxhqvpn.com
-Version 4.0 | Updated 2025
+Version 2.2.0 | June 2026
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 REQUIREMENTS
@@ -1821,7 +1821,7 @@ iOS-SPECIFIC TIPS
     iPhone → VPN ON → Personal Hotspot ON → Apple TV connects to hotspot.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-WHAT'S NEW IN VERSION 4.0
+WHAT'S NEW IN VERSION 2.2.0
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   Exploit Importer — 24 built-in vulnerability guides, three-tab
   result cards (Details / Instructions / Exploit Code), and the
@@ -1837,7 +1837,7 @@ SUPPORT
 ====================================================
 ALPHA UNLIMITED TECHNOLOGIES LLC
 https://proxhqvpn.com | support@proxhqvpn.com
-Version 4.0 | Updated 2025
+Version 2.2.0 | June 2026
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 REQUIREMENTS
@@ -1913,7 +1913,7 @@ FIRE STICK TIPS
     to WireGuard → Import from file, and copy the .conf via USB.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-WHAT'S NEW IN VERSION 4.0
+WHAT'S NEW IN VERSION 2.2.0
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   Exploit Importer — 24 built-in vulnerability guides with
   step-by-step attack walkthroughs and downloadable .md reports.
@@ -1928,7 +1928,7 @@ SUPPORT
 ========================================
 ALPHA UNLIMITED TECHNOLOGIES LLC
 https://proxhqvpn.com | support@proxhqvpn.com
-Version 4.0 | Updated 2025
+Version 2.2.0 | June 2026
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 WHY USE A ROUTER?
@@ -2021,7 +2021,7 @@ WHICH DEVICES ARE COVERED BY ROUTER VPN?
   ✓ Any phone, tablet, or laptop on your Wi-Fi
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-WHAT'S NEW IN VERSION 4.0
+WHAT'S NEW IN VERSION 2.2.0
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   Exploit Importer — 24 built-in vulnerability guides with
   step-by-step attack walkthroughs and downloadable .md reports.
@@ -2036,7 +2036,7 @@ SUPPORT
 ==================================
 ALPHA UNLIMITED TECHNOLOGIES LLC
 https://proxhqvpn.com | support@proxhqvpn.com
-Version 4.0 | Updated 2025
+Version 2.2.0 | June 2026
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 REQUIREMENTS
@@ -2098,7 +2098,7 @@ VERIFY
     curl https://api64.ipify.org
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-WHAT'S NEW IN VERSION 4.0
+WHAT'S NEW IN VERSION 2.2.0
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   Exploit Importer — 24 built-in vulnerability guides with
   step-by-step attack walkthroughs and downloadable .md reports.
@@ -2119,7 +2119,48 @@ const CHANGELOG_TXT = `ProxhqVPN — Changelog
 ALPHA UNLIMITED TECHNOLOGIES LLC | https://proxhqvpn.com
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-VERSION 4.0 — 2025
+VERSION 2.2.0 — June 2026
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECURITY: Full platform data-integrity audit
+  All 47 API routes and 40+ frontend pages audited for simulated data.
+  Network Monitor now wired to real /proc/net/dev + PostgreSQL event tables.
+  DNS Sinkhole stats (totalAllowed, categoryCounts, topBlockedDomains) now
+  read from real DB rows; lookup increments hitCount in real time.
+
+SECURITY: Standalone auth hardening
+  bcrypt password hashing (cost 12) for standalone admin accounts.
+  IP-based brute-force lockout: 5 failed attempts → 15-minute lockout per IP.
+  crypto.timingSafeEqual() used for all token comparisons (timing-safe).
+  CORS policy tightened to localhost-only on standalone builds.
+
+NEW: QuantumAudit — Blockchain Security Auditing Platform
+  Standalone blockchain security auditing integrated into Command Center.
+  Scans smart contracts and protocols for classical and post-quantum
+  cryptographic vulnerabilities.
+  Signature Mining Engine Suite: 5 engines (Block Scanner, Web Sig Spider,
+  OSINT Spider, Peel Chain Tracer, Hybrid Worm) with 12 cross-engine
+  data flows via shared CrossEnginePool.
+
+IMPROVED: JWT Analyzer — 5 new attack classes
+  JWKS injection (jku header), X5U header injection, Embedded JWK attack
+  (server-side RSA keygen), kid SQL/path injection (6 payloads),
+  Claim Escalation (role/admin/scope/plan).
+
+IMPROVED: Subdomain Scanner — 9 passive OSINT sources
+  crt.sh, AlienVault OTX, HackerTarget, URLScan.io, Wayback CDX,
+  AnubisDB, RapidDNS, ThreatCrowd, BufferOver (was 2 sources).
+
+IMPROVED: Directory Fuzzer — recursive mode + size filtering
+  Recursive scanning up to depth 3; response-size false-positive filtering.
+
+IMPROVED: Canary Tokens — 12 token types (was 6)
+  AWS Key, Redirect URL, SQL Token, PowerShell cradle, PDF action, Slack hook.
+
+IMPROVED: Kill Switch — full IPv6 leak protection
+  ip6tables mirrors all iptables rules; prevents IPv6 bypass attacks.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+VERSION 2.1.0 — May 2026
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 NEW: Exploit Importer — Instructions Tab
   Every detected vulnerability card now has a dedicated Instructions tab
@@ -2141,50 +2182,34 @@ NEW: 24 Built-In Vulnerability Guides
   Default Credentials, GraphQL Security, CVE-Based Exploits.
 
 NEW: Download Full Report
-  Green "Download Full Report" button in Exploit Importer results header.
   Exports a complete Markdown (.md) pentest report — every finding,
   full instruction guide, PoC code, remediation, and reference links.
-  Ideal for client deliverables and team briefings.
 
-NEW: Three-Tab Result Cards
-  Every Exploit Importer finding now has three tabs:
-    [Details]      Raw evidence, CVE ID, severity badge
-    [Instructions] Complete step-by-step exploitation guide
-    [Exploit Code] Ready-to-run PoC code (Python/Bash/SQL/JS/XML)
-
-IMPROVED: Expanded Exploit Importer Detection
-  30+ pattern categories now include SSTI (FreeMarker, ERB, Twig, Jinja2),
-  CORS wildcard, mass assignment, GraphQL introspection, buffer overflow,
-  open redirect, Spring Actuator, weak TLS, and more.
+SECURITY: TLS certificate pinning in Electron desktop app.
+SECURITY: WAF double-decode bypass protection + 12 new WAF patterns.
+SECURITY: IP auto-ban on 5 failed auth attempts (15-minute lockout).
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-VERSION 3.0 — 2024
+VERSION 2.0.0 — April 2026
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   - Ghost Chain Exploit Arsenal: 200+ categorized exploits with PoC code
   - Exploit Importer: upload Nessus/Burp/ZAP/Nikto/OpenVAS reports
   - Canary Tokens: HTTP URL, DNS, document, email, AWS key, SQL canary
-  - OSINT Recon: 15+ passive intelligence sources (Shodan, Censys, etc.)
+  - OSINT Recon: 15+ passive intelligence sources
   - SIEM: unified security event log with CSV/JSON export
   - CVE Lookup: NVD database search by CVE ID or keyword
   - Payload Generator: pre-built SQLi, XSS, SSTI, SSRF, XXE, RCE payloads
   - Request Comparer: side-by-side HTTP diff (Words/Lines/Bytes)
   - Encoder/Decoder: Base64, URL, hex, MD5/SHA, JWT decode, bcrypt
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-VERSION 2.0 — 2023
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   - Alpha Toolkit: Universal Scanner + Vulnerability Verifier + Web Scraper
   - SilkWeb Honeypot: SSH/HTTP/FTP/RDP decoy services
   - Firewall Manager: iptables/nftables rules across all VPN nodes
   - Threat Monitor: real-time beacon intrusion alert stream
   - Remote Terminal: web-based shell access to VPN servers
-  - HTTP Probe: full HTTP client (Burp Repeater equivalent)
-  - Directory Fuzzer: ffuf/gobuster equivalent
-  - Subdomain Scout: CT log + DNS brute-force enumeration
-  - Intruder: Sniper/Battering Ram/Pitchfork/Cluster Bomb fuzzing
+  - HTTP Probe, Directory Fuzzer, Subdomain Scout, Intruder
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-VERSION 1.0 — 2022
+VERSION 1.0.0 — 2022
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   - Initial release
   - WireGuard VPN with AES-256-GCM / ChaCha20-Poly1305
@@ -2198,16 +2223,14 @@ VERSION 1.0 — 2022
   - Router Config generator (OpenWRT/DD-WRT/pfSense/GL.iNet)
   - DNS Sinkhole (Pi-hole equivalent)
   - Network Traffic Monitor with PCAP export
-  - Device Manager
-  - IP Exposure Scanner
-  - Obfuscation / Stealth Mode
+  - Device Manager, IP Exposure Scanner, Obfuscation / Stealth Mode
 `;
 
 const VERSION_TXT = `ProxhqVPN — Version Information
 =================================
 Product:   ProxhqVPN
-Version:   4.0
-Release:   2026
+Version:   2.2.0
+Release:   June 7, 2026
 Company:   ALPHA UNLIMITED TECHNOLOGIES LLC
 Website:   https://proxhqvpn.com
 Support:   support@proxhqvpn.com
@@ -2220,6 +2243,16 @@ Plans:
   Command Center Pro  $39.99/mo or $349.99/yr
 
 WireGuard Protocol:  AES-256-GCM + ChaCha20-Poly1305
+
+What's New in v2.2.0:
+  - Full data-integrity audit: all routes now serve real DB/system data
+  - Standalone bcrypt auth with IP-based brute-force lockout
+  - QuantumAudit blockchain security auditing platform
+  - JWT Analyzer: 5 new attack classes (JWKS injection, kid SQL injection, etc.)
+  - Subdomain Scanner: 9 passive OSINT sources (was 2)
+  - Directory Fuzzer: recursive mode + response-size filtering
+  - Canary Tokens: 12 token types (was 6)
+  - Kill Switch: full IPv6 leak protection via ip6tables
 `;
 
 // ── Platform-specific program/script files added to each ZIP ──────────────────
@@ -2229,11 +2262,11 @@ const PLATFORM_SCRIPTS: Record<string, Record<string, string>> = {
 
   windows: {
     "install.bat": `@echo off
-title ProxhqVPN -- Windows Installer v4.0
+title ProxhqVPN -- Windows Installer v2.2.0
 color 0A
 echo.
 echo  ================================================
-echo   ProxhqVPN -- Windows Setup  v4.0
+echo   ProxhqVPN -- Windows Setup  v2.2.0
 echo   ALPHA UNLIMITED TECHNOLOGIES LLC
 echo   https://proxhqvpn.com
 echo  ================================================
@@ -2275,7 +2308,7 @@ pause
 title ProxhqVPN -- Connect / Disconnect
 color 0A
 echo.
-echo  ProxhqVPN -- WireGuard Control v4.0
+echo  ProxhqVPN -- WireGuard Control v2.2.0
 echo  ================================================
 echo  [1] Connect VPN
 echo  [2] Disconnect VPN
@@ -2322,7 +2355,7 @@ pause
 title ProxhqVPN -- Connection Verification
 color 0A
 echo.
-echo  ProxhqVPN -- Connection Verification v4.0
+echo  ProxhqVPN -- Connection Verification v2.2.0
 echo  ================================================
 echo.
 echo  Your current public IP address:
@@ -2343,7 +2376,7 @@ pause
 title ProxhqVPN -- Kill Switch Setup
 color 0C
 echo.
-echo  ProxhqVPN -- Kill Switch v4.0
+echo  ProxhqVPN -- Kill Switch v2.2.0
 echo  Blocks ALL internet traffic if VPN drops unexpectedly
 echo  ================================================
 echo.
@@ -2380,7 +2413,7 @@ echo.
 pause
 `,
     "wg-template.conf": `# ProxhqVPN -- WireGuard Config Template
-# Version 4.0 | https://proxhqvpn.com
+# Version 2.2.0 | https://proxhqvpn.com
 #
 # Get your real config at: https://proxhqvpn.com/wireguard
 # Sign in -> Generate -> Download .conf
@@ -2403,12 +2436,12 @@ PersistentKeepalive = 25
 
   mac: {
     "install.sh": `#!/bin/bash
-# ProxhqVPN -- macOS Installer v4.0
+# ProxhqVPN -- macOS Installer v2.2.0
 # ALPHA UNLIMITED TECHNOLOGIES LLC | https://proxhqvpn.com
 
 echo ""
 echo " ================================================"
-echo "  ProxhqVPN -- macOS Setup  v4.0"
+echo "  ProxhqVPN -- macOS Setup  v2.2.0"
 echo "  ALPHA UNLIMITED TECHNOLOGIES LLC"
 echo "  https://proxhqvpn.com"
 echo " ================================================"
@@ -2472,7 +2505,7 @@ echo " ================================================"
 echo ""
 `,
     "vpn-connect.sh": `#!/bin/bash
-# ProxhqVPN -- macOS VPN Control v4.0
+# ProxhqVPN -- macOS VPN Control v2.2.0
 VPN_NAME="proxhq"
 CONF_PATH="/etc/wireguard/\${VPN_NAME}.conf"
 ACTION="\${1:-status}"
@@ -2510,9 +2543,9 @@ case "$ACTION" in
 esac
 `,
     "vpn-verify.sh": `#!/bin/bash
-# ProxhqVPN -- macOS Connection Verification v4.0
+# ProxhqVPN -- macOS Connection Verification v2.2.0
 echo ""
-echo " ProxhqVPN -- Connection Verification v4.0"
+echo " ProxhqVPN -- Connection Verification v2.2.0"
 echo " ================================================"
 echo ""
 echo " Current public IP:"
@@ -2526,7 +2559,7 @@ echo " Full leak test: https://proxhqvpn.com/leaks"
 echo ""
 `,
     "kill-switch-pf.conf": `# ProxhqVPN Kill Switch -- macOS pf Rules
-# Version 4.0 | https://proxhqvpn.com
+# Version 2.2.0 | https://proxhqvpn.com
 #
 # INSTALLATION:
 #   sudo cp kill-switch-pf.conf /etc/pf.anchors/proxhqvpn
@@ -2560,7 +2593,7 @@ pass quick on utun2 all
 block all
 `,
     "wg-template.conf": `# ProxhqVPN -- WireGuard Config Template
-# Version 4.0 | https://proxhqvpn.com
+# Version 2.2.0 | https://proxhqvpn.com
 # Get your real config: https://proxhqvpn.com/wireguard -> Generate -> Download .conf
 
 [Interface]
@@ -2578,13 +2611,13 @@ PersistentKeepalive = 25
 
   linux: {
     "install.sh": `#!/bin/bash
-# ProxhqVPN -- Linux Installer v4.0
+# ProxhqVPN -- Linux Installer v2.2.0
 # ALPHA UNLIMITED TECHNOLOGIES LLC | https://proxhqvpn.com
 # Supports: Ubuntu, Debian, Kali, Fedora, Arch, Alpine, Raspberry Pi
 
 echo ""
 echo " ================================================"
-echo "  ProxhqVPN -- Linux Setup  v4.0"
+echo "  ProxhqVPN -- Linux Setup  v2.2.0"
 echo "  ALPHA UNLIMITED TECHNOLOGIES LLC"
 echo "  https://proxhqvpn.com"
 echo " ================================================"
@@ -2673,14 +2706,14 @@ echo " ================================================"
 echo ""
 `,
     "vpn-setup.sh": `#!/bin/bash
-# ProxhqVPN -- WireGuard Config Setup v4.0
+# ProxhqVPN -- WireGuard Config Setup v2.2.0
 # Run this after getting your config from https://proxhqvpn.com/wireguard
 
 CONF_DIR="/etc/wireguard"
 CONF_FILE="$CONF_DIR/proxhq.conf"
 
 echo ""
-echo " ProxhqVPN -- WireGuard Config Setup v4.0"
+echo " ProxhqVPN -- WireGuard Config Setup v2.2.0"
 echo " ================================================"
 echo ""
 
@@ -2719,7 +2752,7 @@ echo "  Autostart:  sudo bash vpn-connect.sh autostart-on"
 echo ""
 `,
     "vpn-connect.sh": `#!/bin/bash
-# ProxhqVPN -- Linux VPN Control v4.0
+# ProxhqVPN -- Linux VPN Control v2.2.0
 VPN_NAME="proxhq"
 ACTION="\${1:-status}"
 
@@ -2765,9 +2798,9 @@ case "$ACTION" in
 esac
 `,
     "vpn-verify.sh": `#!/bin/bash
-# ProxhqVPN -- Linux Connection Verification v4.0
+# ProxhqVPN -- Linux Connection Verification v2.2.0
 echo ""
-echo " ProxhqVPN -- Connection Verification v4.0"
+echo " ProxhqVPN -- Connection Verification v2.2.0"
 echo " ================================================"
 echo ""
 echo " Current public IP:"
@@ -2787,7 +2820,7 @@ echo " Full leak test: https://proxhqvpn.com/leaks"
 echo ""
 `,
     "kill-switch-iptables.sh": `#!/bin/bash
-# ProxhqVPN -- Kill Switch (iptables) v4.0
+# ProxhqVPN -- Kill Switch (iptables) v2.2.0
 # Blocks all internet traffic if VPN drops
 # Run: sudo bash kill-switch-iptables.sh [on|off]
 
@@ -2831,7 +2864,7 @@ echo ""
 echo "Full kill switch guide: https://proxhqvpn.com/kill-switch"
 `,
     "kill-switch-nftables.conf": `#!/usr/sbin/nft -f
-# ProxhqVPN Kill Switch -- nftables Rules v4.0
+# ProxhqVPN Kill Switch -- nftables Rules v2.2.0
 # https://proxhqvpn.com/kill-switch
 #
 # Apply: sudo nft -f kill-switch-nftables.conf
@@ -2856,7 +2889,7 @@ table inet proxhqvpn_killswitch {
 }
 `,
     "wg-template.conf": `# ProxhqVPN -- WireGuard Config Template
-# Version 4.0 | https://proxhqvpn.com
+# Version 2.2.0 | https://proxhqvpn.com
 # Get your real config: https://proxhqvpn.com/wireguard -> Generate -> Copy Config
 # Then run: sudo bash vpn-setup.sh  (and paste the config)
 
@@ -2879,7 +2912,7 @@ PersistentKeepalive = 25
   fire: {
     "SETUP-GUIDE.txt": `ProxhqVPN -- Fire Stick / Fire TV Setup Package
 ================================================
-Version 4.0 | ALPHA UNLIMITED TECHNOLOGIES LLC
+Version 2.2.0 | ALPHA UNLIMITED TECHNOLOGIES LLC
 https://proxhqvpn.com
 
 This package contains:
@@ -2911,11 +2944,11 @@ ADB METHOD (Advanced):
 Support: support@proxhqvpn.com | Guide: https://proxhqvpn.com/guide
 `,
     "adb-install-windows.bat": `@echo off
-title ProxhqVPN -- Fire Stick ADB Installer v4.0
+title ProxhqVPN -- Fire Stick ADB Installer v2.2.0
 color 0A
 echo.
 echo  ================================================
-echo   ProxhqVPN -- Fire Stick ADB Installer  v4.0
+echo   ProxhqVPN -- Fire Stick ADB Installer  v2.2.0
 echo   ALPHA UNLIMITED TECHNOLOGIES LLC
 echo   https://proxhqvpn.com
 echo  ================================================
@@ -2957,11 +2990,11 @@ echo.
 pause
 `,
     "adb-install-linux.sh": `#!/bin/bash
-# ProxhqVPN -- Fire Stick ADB Installer v4.0
+# ProxhqVPN -- Fire Stick ADB Installer v2.2.0
 # For Linux and macOS
 echo ""
 echo " ================================================"
-echo "  ProxhqVPN -- Fire Stick ADB Installer  v4.0"
+echo "  ProxhqVPN -- Fire Stick ADB Installer  v2.2.0"
 echo "  ALPHA UNLIMITED TECHNOLOGIES LLC"
 echo "  https://proxhqvpn.com"
 echo " ================================================"
@@ -3005,13 +3038,13 @@ echo ""
 
   router: {
     "openwrt-setup.sh": `#!/bin/bash
-# ProxhqVPN -- OpenWRT Router Setup v4.0
+# ProxhqVPN -- OpenWRT Router Setup v2.2.0
 # ALPHA UNLIMITED TECHNOLOGIES LLC | https://proxhqvpn.com
 # Installs WireGuard on your OpenWRT router via SSH
 
 echo ""
 echo " ================================================"
-echo "  ProxhqVPN -- OpenWRT Router Setup  v4.0"
+echo "  ProxhqVPN -- OpenWRT Router Setup  v2.2.0"
 echo "  ALPHA UNLIMITED TECHNOLOGIES LLC"
 echo " ================================================"
 echo ""
@@ -3060,7 +3093,7 @@ echo ""
 `,
     "gliNet-setup.txt": `ProxhqVPN -- GL.iNet Router Setup
 ===================================
-Version 4.0 | ALPHA UNLIMITED TECHNOLOGIES LLC
+Version 2.2.0 | ALPHA UNLIMITED TECHNOLOGIES LLC
 https://proxhqvpn.com
 
 GL.iNet routers (GL-MT3000, GL-AXT1800, GL-AX1800, GL-MT1300,
@@ -3099,7 +3132,7 @@ Support: support@proxhqvpn.com | Guide: https://proxhqvpn.com/guide
 `,
     "pfsense-opnsense-setup.txt": `ProxhqVPN -- pfSense / OPNsense Setup
 =======================================
-Version 4.0 | ALPHA UNLIMITED TECHNOLOGIES LLC
+Version 2.2.0 | ALPHA UNLIMITED TECHNOLOGIES LLC
 https://proxhqvpn.com
 
 PFSENSE SETUP:
@@ -3147,7 +3180,7 @@ Get your keys from: https://proxhqvpn.com/wireguard
 Support: support@proxhqvpn.com | Guide: https://proxhqvpn.com/guide
 `,
     "wg-router-template.conf": `# ProxhqVPN -- Router WireGuard Config Template
-# Version 4.0 | https://proxhqvpn.com
+# Version 2.2.0 | https://proxhqvpn.com
 #
 # Get your REAL config from: https://proxhqvpn.com/router-config
 # Select your firmware -> Generate -> Copy the output below
@@ -3169,11 +3202,11 @@ Endpoint = YOUR_PROXHQVPN_SERVER_IP:51820
 PersistentKeepalive = 25
 `,
     "router-kill-switch.sh": `#!/bin/bash
-# ProxhqVPN -- Router Kill Switch (OpenWRT) v4.0
+# ProxhqVPN -- Router Kill Switch (OpenWRT) v2.2.0
 # Run on your OpenWRT router via SSH
 # Blocks all WAN traffic if WireGuard tunnel goes down
 
-echo "ProxhqVPN Router Kill Switch v4.0"
+echo "ProxhqVPN Router Kill Switch v2.2.0"
 echo "==================================="
 echo ""
 
@@ -3194,7 +3227,7 @@ echo "Full guide: https://proxhqvpn.com/kill-switch"
   android: {
     "SETUP-GUIDE.txt": `ProxhqVPN -- Android Setup Package
 ====================================
-Version 4.0 | ALPHA UNLIMITED TECHNOLOGIES LLC
+Version 2.2.0 | ALPHA UNLIMITED TECHNOLOGIES LLC
 https://proxhqvpn.com
 
 This package contains:
@@ -3240,7 +3273,7 @@ Support: support@proxhqvpn.com | Guide: https://proxhqvpn.com/guide
   ios: {
     "SETUP-GUIDE.txt": `ProxhqVPN -- iOS / iPadOS Setup Package
 =========================================
-Version 4.0 | ALPHA UNLIMITED TECHNOLOGIES LLC
+Version 2.2.0 | ALPHA UNLIMITED TECHNOLOGIES LLC
 https://proxhqvpn.com
 
 This package contains:
@@ -3287,7 +3320,7 @@ Support: support@proxhqvpn.com | Guide: https://proxhqvpn.com/guide
   appletv: {
     "SETUP-GUIDE.txt": `ProxhqVPN -- Apple TV Setup Package
 =====================================
-Version 4.0 | ALPHA UNLIMITED TECHNOLOGIES LLC
+Version 2.2.0 | ALPHA UNLIMITED TECHNOLOGIES LLC
 https://proxhqvpn.com
 
 This package contains:
@@ -3359,7 +3392,7 @@ async function downloadPlatformZip(platformId: string, platformName: string) {
   const readmeContent = README_CONTENT[resolvedId] ?? README_CONTENT["linux"] ?? "";
 
   const zip = new JSZip();
-  const folderName = `ProxhqVPN-${platformName.replace(/[^a-zA-Z0-9]/g, "-")}-v4.0`;
+  const folderName = `ProxhqVPN-${platformName.replace(/[^a-zA-Z0-9]/g, "-")}-v2.2.0`;
   const folder = zip.folder(folderName)!;
 
   // ── Core documentation (every platform) ──────────────────────────────────

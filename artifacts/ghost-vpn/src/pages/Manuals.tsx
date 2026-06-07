@@ -149,13 +149,13 @@ All rights reserved. Unauthorized distribution prohibited.`,
     id: "wireguard-advanced",
     title: "WireGuard Advanced Configuration",
     subtitle: "Multi-hop, split tunneling, obfuscation, and router setup",
-    version: "2.1",
+    version: "2.2",
     pages: 32,
     icon: Settings,
     iconColor: "text-blue-400",
     tier: "both",
     content: `WireGuard Advanced Configuration Manual
-Version 2.1 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+Version 2.2 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -246,7 +246,7 @@ Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
     iconColor: "text-red-400",
     tier: "pro",
     content: `OmniStrike Penetration Testing Suite — User Manual
-Version 4.0 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+Version 2.2 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
 Command Center Pro Feature
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -811,13 +811,13 @@ Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
     id: "osint-recon-manual",
     title: "OSINT Recon Engine",
     subtitle: "15+ passive intelligence sources and recon methodology",
-    version: "2.3",
+    version: "2.2",
     pages: 20,
     icon: Search,
     iconColor: "text-cyan-400",
     tier: "pro",
     content: `OSINT Recon Engine — User Manual
-Version 2.3 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+Version 2.2 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
 Command Center Pro Feature
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -898,13 +898,13 @@ Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
     id: "ghost-trap-manual",
     title: "Ghost Trap — Counter-Intelligence Platform",
     subtitle: "7-stage attacker deception, fingerprinting, tarpit, and Manual IP Investigator",
-    version: "2.1",
+    version: "2.2",
     pages: 22,
     icon: Eye,
     iconColor: "text-cyan-400",
     tier: "pro",
     content: `Ghost Trap Counter-Intelligence Platform — User Manual
-Version 2.1 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+Version 2.2 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
 Command Center Pro Feature
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1359,13 +1359,13 @@ Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
     id: "siem-manual",
     title: "SIEM — Security Event Log",
     subtitle: "Unified event aggregation, correlation, and incident response",
-    version: "2.0",
+    version: "2.2",
     pages: 14,
     icon: Database,
     iconColor: "text-emerald-400",
     tier: "pro",
     content: `SIEM Security Event Log — User Manual
-Version 2.0 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+Version 2.2 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
 Command Center Pro Feature
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -2064,60 +2064,97 @@ INTERNAL DOCUMENT — DO NOT DISTRIBUTE
 Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
   },
 
-  // ── SECURITY HARDENING V2.1.0 ─────────────────────────────────────────────
+  // ── SECURITY HARDENING V2.2.0 ─────────────────────────────────────────────
   {
-    id: "security-hardening-v21",
-    title: "Security Hardening Manual — v2.1.0",
+    id: "security-hardening-v22",
+    title: "Security Hardening Manual — v2.2.0",
     subtitle: "Comprehensive Platform Security Audit & Patch Documentation",
-    version: "2.1",
-    pages: 18,
+    version: "2.2",
+    pages: 22,
     icon: Shield,
     iconColor: "text-green-400",
     tier: "both",
-    content: `ProxhqVPN: Security Hardening Manual v2.1.0
+    content: `ProxhqVPN: Security Hardening Manual v2.2.0
 Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
 legal@alphauntechnologies.com | proxhqvpn.com
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 This document details all security vulnerabilities identified during
-the v2.1.0 audit, the remediation applied to each, and ongoing
-security architecture decisions relevant to administrators and
-security-conscious subscribers.
+the v2.1.0 and v2.2.0 audits, the remediation applied to each, and
+ongoing security architecture decisions relevant to administrators
+and security-conscious subscribers.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 TABLE OF CONTENTS
 
-1. Executive Summary
-2. CVE-Equivalent Findings & Remediations (6 issues)
-3. Desktop App Certificate Pinning
-4. IP Auto-Ban System
-5. WAF Hardening — Double-Decode & New Patterns
-6. Security Architecture Overview
-7. Ongoing Security Commitments
+1. Executive Summary (v2.2.0)
+2. v2.2.0 New Security Improvements
+3. v2.1.0 CVE-Equivalent Findings & Remediations (6 issues)
+4. Desktop App Certificate Pinning
+5. IP Auto-Ban System
+6. WAF Hardening — Double-Decode & New Patterns
+7. Security Architecture Overview
+8. Ongoing Security Commitments
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-1. EXECUTIVE SUMMARY
+1. EXECUTIVE SUMMARY (v2.2.0)
 
-ProxhqVPN v2.1.0 (released June 2026) is the result of a comprehensive
-internal security audit of all API routes, middleware, and client
-applications. Six vulnerabilities were identified — two CRITICAL,
-two HIGH, and two MEDIUM — and have been fully remediated.
+ProxhqVPN v2.2.0 (released June 7, 2026) follows the v2.1.0 security
+audit with a comprehensive data-integrity review and standalone server
+hardening pass. All 47 API routes and 40+ frontend pages were audited.
+Two routes were found returning hardcoded zeros; both are now live DB
+queries. The standalone server received bcrypt admin auth with IP-level
+brute-force lockout. Kill Switch now fully covers IPv6 via ip6tables.
 
-Severity Distribution:
+v2.2.0 New Issues:
+  HIGH:   2 data-integrity violations in API routes (fixed)
+  HIGH:   Standalone server had no password hashing (fixed — bcrypt/12)
+  HIGH:   Standalone CORS open to all origins (fixed — localhost only)
+  MEDIUM: No brute-force lockout on standalone login (fixed — 5 fail/15 min)
+  MEDIUM: Kill Switch missing ip6tables rules (fixed)
+
+v2.1.0 Summary (retained for reference):
   CRITICAL: 2 findings (timing attack, SSL MitM)
-  HIGH:     2 findings (shell chain injection, SSRF redirect bypass)
-  HIGH:     1 finding  (missing brute-force protection → now IP auto-ban)
+  HIGH:     3 findings (shell injection, SSRF bypass, missing brute-force)
   MEDIUM:   1 finding  (WAF URL-encoding bypass)
 
-All fixes are live in the web application. Desktop application
-users received the certificate pinning fix in v2.1.0 via auto-updater.
+All fixes are live. Users running the standalone build should update to
+v2.2.0 and run the setup endpoint to initialize the new auth system.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-2. FINDINGS & REMEDIATIONS
+2. V2.2.0 NEW SECURITY IMPROVEMENTS
+
+DATA INTEGRITY — Network Monitor & DNS Sinkhole:
+  Full audit of all 47 API routes confirmed two routes serving zeros:
+  (a) /api/network-monitor — now reads real /proc/net/dev I/O + live DB.
+  (b) /api/dns-sinkhole stats — now queries dns_sinkhole_config in real time.
+  Domain lookups now increment hitCount and totalBlocked in the DB.
+
+STANDALONE BCRYPT AUTHENTICATION:
+  Admin passwords now hashed with bcrypt (cost 12). Session tokens use
+  crypto.randomBytes(32). Setup endpoint (POST /api/auth/setup) initializes
+  the admin account on first run. Old plaintext passwords invalidated.
+
+STANDALONE BRUTE-FORCE LOCKOUT:
+  5 failed login attempts from same IP → 15-minute lockout.
+  HTTP 429 returned during lockout. Counter resets on success.
+
+STANDALONE CORS HARDENED:
+  CORS now restricted to localhost origins only (http://localhost:7474,
+  http://127.0.0.1:7474). All other origins blocked with credentials denied.
+
+KILL SWITCH IPv6 PROTECTION:
+  ip6tables rules now mirror all iptables rules:
+  loopback allowed, VPN interface passthrough allowed, all other IPv6 DROPPED.
+  Eliminates IPv6 bypass attacks on dual-stack Linux systems.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3. V2.1.0 FINDINGS & REMEDIATIONS
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -2275,7 +2312,7 @@ The WAF now decodes the URL string twice before pattern matching:
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-3. DESKTOP APP — TLS CERTIFICATE PINNING (v2.1.0)
+4. DESKTOP APP — TLS CERTIFICATE PINNING (v2.1.0)
 
 The Windows, macOS, and Linux Electron desktop app (v2.1.0) adds
 TLS certificate pinning for all API connections in production mode.
@@ -2295,13 +2332,13 @@ certificate chain is trusted.
 Dev mode retains normal browser certificate behavior to allow local HTTPS
 testing with self-signed certs.
 
-Desktop auto-updater: v2.1.0 is distributed via the built-in Electron
+Desktop auto-updater: v2.2.0 is distributed via the built-in Electron
 auto-updater. Users see an update banner on launch. The update is
 signed and verified before installation.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-4. IP AUTO-BAN SYSTEM — OPERATIONAL DETAILS
+5. IP AUTO-BAN SYSTEM — OPERATIONAL DETAILS
 
 The IP auto-ban system protects all API endpoints.
 
@@ -2325,7 +2362,7 @@ Admin Note:
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-5. WAF — FULL PATTERN LIST (POST v2.1.0)
+6. WAF — FULL PATTERN LIST (POST v2.1.0)
 
 The WAF runs on every incoming request before routing.
 
@@ -2335,7 +2372,7 @@ Existing Patterns (pre-v2.1.0):
   Path traversal:    ../, ..\
   Command injection: /bin/sh, /bin/bash, cmd.exe, eval(, exec(
 
-New Patterns (v2.1.0):
+New Patterns (added in v2.1.0):
   LFI/RFI:          /etc/passwd, /proc/self, /windows/system32
   Dropper UA:        curl|wget|python-requests|go-http-client in User-Agent
   Param pollution:   > 50 query parameters in one request
@@ -2348,7 +2385,7 @@ are checked against all patterns.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-6. SECURITY ARCHITECTURE OVERVIEW
+7. SECURITY ARCHITECTURE OVERVIEW
 
 Existing security layers (unchanged in v2.1.0):
   • Helmet.js: CSP, HSTS, noSniff, XSS filter, frameguard
@@ -2362,7 +2399,7 @@ Existing security layers (unchanged in v2.1.0):
   • Zod input validation on all POST endpoints
   • Warrant canary: /api/warrant-canary (public, signed, 30-day refresh)
 
-New in v2.1.0:
+Added in v2.1.0:
   • crypto.timingSafeEqual() for all secret comparisons
   • rejectUnauthorized: true as default for external DB SSL
   • SHELL_CHAIN_BLOCKED (14 metacharacter patterns)
@@ -2371,9 +2408,16 @@ New in v2.1.0:
   • WAF double-decode + 5 new patterns
   • Electron certificate pinning (production builds)
 
+Added in v2.2.0:
+  • All 47 API routes verified serving real data (no simulated values)
+  • Standalone bcrypt auth (cost 12) + setup endpoint
+  • Standalone IP lockout: 5 failures / 15 min
+  • Standalone CORS: localhost-only
+  • Kill Switch ip6tables mirroring (IPv6 leak protection)
+
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-7. ONGOING SECURITY COMMITMENTS
+8. ONGOING SECURITY COMMITMENTS
 
 ProxhqVPN's security program includes:
   • No-log policy: No user activity, DNS queries, connection timestamps,
@@ -2849,13 +2893,13 @@ Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
     id: "ghost-chain-manual",
     title: "Ghost Chain — Exploit Reference & Kill Chain Builder",
     subtitle: "200+ exploit techniques, PoC code, and attack path correlation engine",
-    version: "2.0",
+    version: "2.2",
     pages: 24,
     icon: Network,
     iconColor: "text-red-500",
     tier: "pro",
     content: `Ghost Chain — Exploit Reference & Kill Chain Builder — User Manual
-Version 2.0 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+Version 2.2 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
 Command Center Pro Feature
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -7354,13 +7398,13 @@ Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
     id: "alpha-toolkit-manual",
     title: "Alpha Toolkit — Universal Scanner, Verifier & Web Scraper",
     subtitle: "Complete reference for the 3-tool suite with Tor Cloak and Scanner→Verifier pipeline",
-    version: "2.0",
+    version: "2.2",
     pages: 18,
     icon: Zap,
     iconColor: "text-emerald-400",
     tier: "pro",
     content: `Alpha Toolkit — User Manual
-Version 2.0 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+Version 2.2 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
 Command Center Pro Feature
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -7375,7 +7419,7 @@ TABLE OF CONTENTS
 
 1. Overview — 3-Tool Suite
 2. Tor Cloak (Global)
-3. Tool 1 — Universal Scanner (v4.0)
+3. Tool 1 — Universal Scanner (v2.2.0)
 4. Scanner Modes (Network / Security / Exploit / Full)
 5. Scanner Command Flags Reference
 6. Tool 2 — Vulnerability Verifier
@@ -7393,7 +7437,7 @@ TABLE OF CONTENTS
   Alpha Toolkit (/alpha-tools) is an integrated 3-tool security
   research suite:
 
-  Tool 1 — Universal Scanner v4.0:
+  Tool 1 — Universal Scanner v2.2.0:
     Scans targets for security vulnerabilities, misconfigurations,
     exposed credentials, and network services. Supports 35+
     programming languages, 200+ vulnerability patterns, multi-step
@@ -7783,7 +7827,7 @@ const CATEGORIES = [
     color: "text-green-400",
     border: "border-green-900",
     bg: "bg-green-950/20",
-    ids: ["security-hardening-v21"],
+    ids: ["security-hardening-v22"],
   },
   {
     label: "Admin Tools",
