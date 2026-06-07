@@ -987,3 +987,97 @@ export const quarantineSettingsTable = pgTable("quarantine_settings", {
   scanMacros:          boolean("scan_macros").notNull().default(true),
   updatedAt:           timestamp("updated_at").defaultNow().notNull(),
 });
+
+// ── ProxhqAV Antivirus Engine ──────────────────────────────────────────────
+export const avSigTypeEnum    = pgEnum("av_sig_type",    ["sha256","sha1","md5","ssdeep","imphash","tlsh"]);
+export const avThreatEnum     = pgEnum("av_threat_type", ["ransomware","trojan","worm","virus","spyware","adware","rootkit","dropper","loader","exploit","keylogger","banker","stealer","rat","backdoor","botnet","miner","pup","webshell","fileless","lolbin","cobalt_strike","metasploit","unknown"]);
+export const avSeverityEnum   = pgEnum("av_severity",    ["critical","high","medium","low","informational"]);
+export const avIocTypeEnum    = pgEnum("av_ioc_type",    ["ip","cidr","domain","url","sha256","md5","sha1","filename","mutex","registry","email","useragent"]);
+export const avScanStatusEnum = pgEnum("av_scan_status", ["running","complete","failed","cancelled"]);
+
+export const avSignaturesTable = pgTable("av_signatures", {
+  id:           serial("id").primaryKey(),
+  hashType:     avSigTypeEnum("hash_type").notNull().default("sha256"),
+  hashValue:    text("hash_value").notNull(),
+  threatType:   avThreatEnum("threat_type").notNull(),
+  malwareFamily:text("malware_family").notNull(),
+  malwareName:  text("malware_name").notNull(),
+  severity:     avSeverityEnum("severity").notNull(),
+  source:       text("source").notNull().default("ProxhqAV"),
+  description:  text("description"),
+  firstSeen:    text("first_seen"),
+  cveIds:       text("cve_ids"),
+  tags:         text("tags"),
+  enabled:      boolean("enabled").notNull().default(true),
+  hitCount:     integer("hit_count").notNull().default(0),
+  addedAt:      timestamp("added_at").defaultNow().notNull(),
+});
+
+export const avIocTable = pgTable("av_ioc_entries", {
+  id:           serial("id").primaryKey(),
+  iocType:      avIocTypeEnum("ioc_type").notNull(),
+  value:        text("value").notNull(),
+  threatType:   avThreatEnum("threat_type").notNull(),
+  malwareFamily:text("malware_family"),
+  severity:     avSeverityEnum("severity").notNull(),
+  confidence:   integer("confidence").notNull().default(80),   // 0-100
+  source:       text("source").notNull(),
+  description:  text("description"),
+  firstSeen:    text("first_seen"),
+  lastSeen:     text("last_seen"),
+  tags:         text("tags"),
+  enabled:      boolean("enabled").notNull().default(true),
+  hitCount:     integer("hit_count").notNull().default(0),
+  addedAt:      timestamp("added_at").defaultNow().notNull(),
+});
+
+export const avYaraRulesTable = pgTable("av_yara_rules", {
+  id:           serial("id").primaryKey(),
+  name:         text("name").notNull(),
+  ruleText:     text("rule_text").notNull(),
+  description:  text("description"),
+  malwareFamily:text("malware_family"),
+  author:       text("author").notNull().default("ProxhqAV"),
+  tags:         text("tags"),
+  severity:     avSeverityEnum("severity").notNull().default("high"),
+  enabled:      boolean("enabled").notNull().default(true),
+  matchCount:   integer("match_count").notNull().default(0),
+  addedAt:      timestamp("added_at").defaultNow().notNull(),
+});
+
+export const avScanHistoryTable = pgTable("av_scan_history", {
+  id:              serial("id").primaryKey(),
+  scanTarget:      text("scan_target").notNull(),
+  scanType:        text("scan_type").notNull().default("file"),   // file/memory/network/full
+  status:          avScanStatusEnum("status").notNull().default("complete"),
+  enginesUsed:     text("engines_used"),
+  totalChecks:     integer("total_checks").notNull().default(0),
+  findings:        integer("findings").notNull().default(0),
+  criticalFindings:integer("critical_findings").notNull().default(0),
+  detectedThreats: text("detected_threats"),
+  scanDurationMs:  integer("scan_duration_ms"),
+  startedAt:       timestamp("started_at").defaultNow().notNull(),
+});
+
+export const avLolbinTable = pgTable("av_lolbin_catalog", {
+  id:          serial("id").primaryKey(),
+  binaryName:  text("binary_name").notNull(),
+  fullPath:    text("full_path"),
+  os:          text("os").notNull().default("windows"),
+  category:    text("category").notNull(),
+  description: text("description"),
+  attkTechnique: text("attk_technique"),
+  maliciousCmd:text("malicious_cmd"),
+  detectionRule:text("detection_rule"),
+  riskLevel:   text("risk_level").notNull().default("high"),
+});
+
+export const avRansomExtTable = pgTable("av_ransomware_extensions", {
+  id:           serial("id").primaryKey(),
+  extension:    text("extension").notNull(),
+  family:       text("family").notNull(),
+  firstSeen:    text("first_seen"),
+  ransomNote:   text("ransom_note"),
+  decryptable:  boolean("decryptable").notNull().default(false),
+  active:       boolean("active").notNull().default(true),
+});
