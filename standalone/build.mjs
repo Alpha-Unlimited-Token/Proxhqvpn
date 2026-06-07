@@ -72,19 +72,69 @@ QUICK START
 
 WHAT IS PROXHQVPN?
 ──────────────────
-ProxhqVPN is an advanced VPN orchestration and security platform featuring:
-  • 60-node architecture (50 outer + 10 inner nodes)
-  • Beacon / Spider / Worm agents on every node
-  • Silk Web trap network for attacker detection & fingerprinting
-  • Built-in stateful firewall with ISP & localhost masking
-  • WireGuard configuration generator for all nodes
-  • Continuous IP rotation (instant or scheduled every 3s)
-  • SOCKS5 / Tor / Multi-OS proxy compatibility
-  • ProxhqVPN Onion Browser with double-layer protection
-  • SQL interface (SELECT queries against all VPN tables)
-  • Live system monitor (CPU, memory, network, connections)
-  • Sandboxed terminal (read-only safe command set)
-  • Port knocking, mTLS, and multi-hop routing
+ProxhqVPN is an advanced VPN orchestration, security, and developer platform:
+
+  VPN ENGINE
+  • 60-node mesh (50 outer + 10 inner) with 3s IP rotation + WireGuard
+  • Kill switch (arm/disarm) + full IPv6 leak protection (ip6tables)
+  • DNS/IPv6/WebRTC leak detection suite + browser console test
+  • Split tunneling per-IP/CIDR/port/app + Linux/Windows script gen
+  • DPI obfuscation: obfs4, Shadowsocks, V2Ray-WS, Meek, Snowflake, XOR, Stunnel, gRPC
+  • VPN Gate integration (6,000+ public servers, real-time feed)
+  • VPN coexistence with NordVPN/ExpressVPN/ProtonVPN/Mullvad/Surfshark
+  • Smart DNS for TVs/consoles + DNS Shield (Pi-hole-style ad blocking)
+  • WireGuard device registry with per-device QR config
+  • Router config generator: OpenWRT/DD-WRT/Merlin/pfSense/GL.iNet/Ubiquiti
+  • Onion Browser: Direct/Tor/Double-hop/Custom SOCKS4/5/HTTP proxy
+
+  HONEYPOT + TRAP SYSTEM
+  • Ghost Trap™ L1 — attacker fingerprinting: IP geo, ISP, ASN, hop chain,
+    payload classification, tarpit delay, fake JWT session, auto-block
+  • Labyrinth Engine™ L2 — 10-node fake endpoint maze (fake users, .env,
+    DB creds, SSH keys — full session path recording)
+  • Tar Pit Drain™ L3 — 5-stage delay escalation: 1.5s → 5s → 15s → 45s → 120s
+  • Endless Loop Engine™ — 8-stage infinite cycle resets forever
+  • Silk Web chord topology map of all trapped attackers
+  • Ghost Trace — behavioral analysis on every WireGuard peer device
+  • Ghost Chain — 5-stage kill chain discovery (Surface → Fingerprint →
+    Vuln Test → Chain Correlation → Impact Assessment)
+
+  MILITARY FIREWALL
+  • GhostOS™ custom rule language with AI SymScript transcription
+  • IPS engine (SQLi/XSS/RCE/C2/brute-force/protocol anomaly signatures)
+  • DPI engine (HTTP/TLS/DNS/SMTP/SSH/WireGuard/Tor protocol inspection)
+  • Geo-block by country/ASN + threat zone management (WAN/DMZ/LAN)
+  • SELinux, AppArmor, SBOM scanner, auditd, nftables integration
+  • ProxhqAV — antivirus with YARA engine, IOC database, rootkit scanner,
+    PUP database, ransomware extension tracking, secure shredder (DoD 35-pass)
+
+  SECURITY RESEARCHER TOOLKIT
+  • JWT Analyzer — 5 attack categories (alg:none, JWKS/X5U/JWK injection,
+    kid SQL/path injection, claim escalation)
+  • Subdomain Scanner — 9 passive OSINT sources (crt.sh, OTX, HackerTarget...)
+  • Directory Fuzzer — recursive, response-size filtering, 30+ built-in paths
+  • HTTP Probe — all methods, custom headers, timing, redirect control
+  • Intruder — template-based payload fuzzer with §INJECT§ markers
+  • OSINT Recon — DNS/TLS/HTTP headers/email security live scanner
+  • SAST — static code analysis: 10+ vulnerability patterns, CWE codes
+  • WAF — rule engine with 30+ signatures + payload test tool
+  • CVE Search — real-time CIRCL CVE database with CVSS filtering
+  • Canary Tokens — 12 types (URL, Web Bug, DNS, SQL, PowerShell, PDF, AWS...)
+  • SIEM — unified event timeline (Beacon + Ghost + Firewall + Chain sources)
+  • Network Monitor — traffic flow, bandwidth timeline, protocol breakdown
+  • Threat Intelligence — IP reputation, Tor exit feed, 6 threat feeds
+  • SQL Interface — SELECT local DB + full CRUD on external PostgreSQL + REST→table
+  • Terminal — SHELL/HTTP CLIENT/PORT SCAN/AUDIT LOG (4 tabs)
+
+  QUANTUM AUDIT
+  • QuantumAudit — blockchain smart contract scanner (classical + post-quantum)
+  • 5 Signature Mining Engines: Block Scanner, Web Spider, OSINT Spider,
+    Peel Chain Tracer, Hybrid Worm Engine
+  • Cross-engine intelligence pool (12 data-flow wires between all engines)
+
+  WARRANT CANARY + AMBASSADOR PROGRAM
+  • Signed transparency statement (NSL/FISC/gag order confirmations)
+  • Ambassador referral program with 10% auto-commission via Stripe
 
 DATA STORAGE
 ────────────

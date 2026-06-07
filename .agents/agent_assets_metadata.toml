@@ -443,3 +443,9 @@ id = "coMbNk7A_tM0QogyhmVF5"
 uri = "file://ProxhqVPN-Audit-Package.zip"
 type = "unspecified"
 title = "ProxhqVPN — Audit Package (Source Code + ChatGPT Prompt)"
+
+[[outputs]]
+id = "JTiGqp2Kvz1cbdbY6jI2d"
+uri = "file://standalone/CHATGPT-ANALYSIS-PROMPT.txt"
+type = "text"
+title = "ChatGPT Analysis Prompt — ProxhqVPN Full Platform"
