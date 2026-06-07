@@ -79,6 +79,7 @@ import portForwardRouter from "./portforward";
 import dedicatedIpRouter from "./dedicatedip";
 import meshnetRouter from "./meshnet";
 import dataBrokerRouter from "./databroker";
+import firewallNextRouter from "./firewall-next";
 import oastTesterRouter from "./oasttester";
 import oastServerRouter from "./oastserver";
 import depScannerRouter from "./depscanner";
@@ -452,6 +453,7 @@ router.use("/port-forward",    requireAccess, portForwardRouter);
 router.use("/dedicated-ip",    requireAccess, dedicatedIpRouter);
 router.use("/meshnet",         requireAccess, meshnetRouter);
 router.use("/data-broker",     requireAccess, dataBrokerRouter);
+router.use("/fwn",             requireAccess, firewallNextRouter);
 
 // ── Admin-only routes ─────────────────────────────────────────────────────
 router.use("/admin/users",    requireAdmin, adminUsersRouter);

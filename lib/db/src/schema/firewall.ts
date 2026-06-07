@@ -1,5 +1,5 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
-import { pgTable, serial, text, integer, boolean, timestamp, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, integer, boolean, timestamp, pgEnum, jsonb, real } from "drizzle-orm/pg-core";
 
 export const firewallDirectionEnum = pgEnum("firewall_direction", ["inbound", "outbound", "both"]);
 export const firewallActionEnum = pgEnum("firewall_action", ["allow", "deny", "drop", "reject", "masquerade", "log"]);
@@ -369,6 +369,239 @@ export const firewallProxyRulesTable = pgTable("firewall_proxy_rules", {
   enabled:     boolean("enabled").notNull().default(true),
   hitCount:    integer("hit_count").notNull().default(0),
   priority:    integer("priority").notNull().default(100),
+  createdAt:   timestamp("created_at").defaultNow().notNull(),
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// ── 2024-2025 NEXT-GEN FIREWALL TECHNOLOGIES ─────────────────────────────
+// ════════════════════════════════════════════════════════════════════════════
+
+// ── 1. eBPF / XDP Rule Engine ─────────────────────────────────────────────
+export const ebpfProgramTypeEnum = pgEnum("ebpf_program_type", ["xdp","tc","cgroup_skb","socket_filter"]);
+export const ebpfActionEnum      = pgEnum("ebpf_action",       ["drop","pass","redirect","tx","log","rate_limit"]);
+export const ebpfHookEnum        = pgEnum("ebpf_hook",         ["ingress","egress","both"]);
+export const ebpfRulesTable = pgTable("ebpf_rules", {
+  id:           serial("id").primaryKey(),
+  name:         text("name").notNull(),
+  description:  text("description"),
+  programType:  ebpfProgramTypeEnum("program_type").notNull().default("xdp"),
+  hook:         ebpfHookEnum("hook").notNull().default("ingress"),
+  iface:        text("iface").notNull().default("eth0"),
+  priority:     integer("priority").notNull().default(100),
+  enabled:      boolean("enabled").notNull().default(true),
+  matchSrcIp:   text("match_src_ip"),
+  matchDstIp:   text("match_dst_ip"),
+  matchSrcPort: integer("match_src_port"),
+  matchDstPort: integer("match_dst_port"),
+  matchProto:   text("match_proto"),          // tcp|udp|icmp|any
+  matchFlags:   jsonb("match_flags"),         // { syn, ack, fin, rst, ... }
+  action:       ebpfActionEnum("action").notNull().default("drop"),
+  redirectIface:text("redirect_iface"),
+  rateLimit:    integer("rate_limit_pps"),    // packets per second for rate_limit action
+  statsPackets: integer("stats_packets").notNull().default(0),
+  statsBytes:   integer("stats_bytes").notNull().default(0),
+  lastHit:      timestamp("last_hit"),
+  createdAt:    timestamp("created_at").defaultNow().notNull(),
+});
+
+// ── 2. QUIC / HTTP3 Inspector ─────────────────────────────────────────────
+export const quicActionEnum = pgEnum("quic_action", ["allow","block","log","throttle"]);
+export const quicEventsTable = pgTable("quic_events", {
+  id:           serial("id").primaryKey(),
+  srcIp:        text("src_ip").notNull(),
+  dstIp:        text("dst_ip").notNull(),
+  srcPort:      integer("src_port"),
+  dstPort:      integer("dst_port").notNull().default(443),
+  sni:          text("sni"),
+  connectionId: text("connection_id"),
+  quicVersion:  text("quic_version"),
+  echDetected:  boolean("ech_detected").notNull().default(false),
+  action:       quicActionEnum("action").notNull().default("log"),
+  bytesIn:      integer("bytes_in").notNull().default(0),
+  bytesOut:     integer("bytes_out").notNull().default(0),
+  detectedAt:   timestamp("detected_at").defaultNow().notNull(),
+});
+
+// ── 3. Encrypted Traffic Analyzer (ETA) ──────────────────────────────────
+export const etaClassEnum = pgEnum("eta_class", ["streaming","vpn","c2_beacon","malware","browsing","voip","gaming","p2p","encrypted_dns","unknown"]);
+export const etaFlowsTable = pgTable("eta_flows", {
+  id:             serial("id").primaryKey(),
+  srcIp:          text("src_ip").notNull(),
+  dstIp:          text("dst_ip").notNull(),
+  dstPort:        integer("dst_port"),
+  protocol:       text("protocol").notNull().default("tcp"),
+  packetCount:    integer("packet_count").notNull().default(0),
+  byteCount:      integer("byte_count").notNull().default(0),
+  avgPacketSize:  real("avg_packet_size"),
+  maxPacketSize:  integer("max_packet_size"),
+  minPacketSize:  integer("min_packet_size"),
+  byteEntropy:    real("byte_entropy"),         // Shannon entropy 0-8
+  iatMeanMs:      real("iat_mean_ms"),          // Inter-arrival time mean
+  iatStdMs:       real("iat_std_ms"),           // Inter-arrival time std dev
+  burstCount:     integer("burst_count"),       // Number of burst events
+  classification: etaClassEnum("classification").notNull().default("unknown"),
+  confidencePct:  real("confidence_pct"),
+  action:         text("action").notNull().default("log"),
+  flowStart:      timestamp("flow_start").defaultNow().notNull(),
+  flowEnd:        timestamp("flow_end"),
+});
+
+// ── 4. ECH Policy Engine ─────────────────────────────────────────────────
+export const echActionEnum = pgEnum("ech_action", ["allow","block","log","alert"]);
+export const echEventsTable = pgTable("ech_events", {
+  id:                 serial("id").primaryKey(),
+  srcIp:              text("src_ip").notNull(),
+  dstIp:              text("dst_ip").notNull(),
+  dstPort:            integer("dst_port").notNull().default(443),
+  outerSni:           text("outer_sni"),          // ECH public_name (not the real SNI)
+  echConfigId:        integer("ech_config_id"),
+  clientHelloType:    text("client_hello_type"),  // "outer" | "inner"
+  tlsVersion:         text("tls_version"),
+  action:             echActionEnum("action").notNull().default("log"),
+  detectedAt:         timestamp("detected_at").defaultNow().notNull(),
+});
+
+// ── 5. DoH / DoT Enforcer ─────────────────────────────────────────────────
+export const dohResolverTypeEnum = pgEnum("doh_resolver_type", ["doh","dot","doq","doh3"]);
+export const dohActionEnum       = pgEnum("doh_action",        ["allow","block","redirect","log"]);
+export const dohEventsTable = pgTable("doh_events", {
+  id:           serial("id").primaryKey(),
+  srcIp:        text("src_ip").notNull(),
+  resolverIp:   text("resolver_ip").notNull(),
+  resolverName: text("resolver_name"),
+  resolverType: dohResolverTypeEnum("resolver_type").notNull().default("doh"),
+  queryDomain:  text("query_domain"),
+  responseCode: integer("response_code"),
+  action:       dohActionEnum("action").notNull().default("log"),
+  detectedAt:   timestamp("detected_at").defaultNow().notNull(),
+});
+
+// ── 6. Lateral Movement Detector ─────────────────────────────────────────
+export const lateralTechniqueEnum = pgEnum("lateral_technique", [
+  "smb_scan","rdp_scan","ssh_scan","winrm","ldap_enum",
+  "kerberoasting","wmi","psexec","dcom","pass_the_hash",
+  "credential_spray","port_sweep","mimikatz_pattern",
+]);
+export const lateralSeverityEnum = pgEnum("lateral_severity", ["low","medium","high","critical"]);
+export const lateralEventsTable = pgTable("lateral_events", {
+  id:            serial("id").primaryKey(),
+  srcIp:         text("src_ip").notNull(),
+  dstIp:         text("dst_ip").notNull(),
+  dstPort:       integer("dst_port"),
+  protocol:      text("protocol").notNull().default("tcp"),
+  technique:     lateralTechniqueEnum("technique").notNull(),
+  severity:      lateralSeverityEnum("severity").notNull().default("medium"),
+  action:        text("action").notNull().default("alert"),    // alert|block
+  confidencePct: real("confidence_pct"),
+  indicators:    jsonb("indicators"),     // { portsScanned, packetsPerSec, ... }
+  autoBlocked:   boolean("auto_blocked").notNull().default(false),
+  detectedAt:    timestamp("detected_at").defaultNow().notNull(),
+});
+
+// ── 7. NetFlow / IPFIX Collector ─────────────────────────────────────────
+export const netflowAnomalyEnum = pgEnum("netflow_anomaly", ["none","top_talker","port_sweep","data_exfil","beaconing","ddos","protocol_abuse"]);
+export const netflowRecordsTable = pgTable("netflow_records", {
+  id:           serial("id").primaryKey(),
+  srcIp:        text("src_ip").notNull(),
+  dstIp:        text("dst_ip").notNull(),
+  srcPort:      integer("src_port"),
+  dstPort:      integer("dst_port"),
+  protocol:     text("protocol").notNull().default("tcp"),
+  packets:      integer("packets").notNull().default(0),
+  bytes:        integer("bytes").notNull().default(0),
+  durationMs:   integer("duration_ms"),
+  tcpFlags:     text("tcp_flags"),      // hex string: "0x002" = SYN
+  tos:          integer("tos"),
+  srcAs:        integer("src_as"),      // BGP AS number
+  dstAs:        integer("dst_as"),
+  anomalyScore: real("anomaly_score").notNull().default(0),
+  anomalyType:  netflowAnomalyEnum("anomaly_type").notNull().default("none"),
+  flowStart:    timestamp("flow_start").defaultNow().notNull(),
+  flowEnd:      timestamp("flow_end"),
+});
+
+// ── 8. Supply Chain Guard ─────────────────────────────────────────────────
+export const supplyChainAlertTypeEnum = pgEnum("supply_chain_alert_type", ["new_destination","cert_change","unexpected_protocol","data_exfil","unexpected_port","dns_change"]);
+export const supplyChainSeverityEnum  = pgEnum("supply_chain_severity",   ["low","medium","high","critical"]);
+export const supplyChainAlertsTable = pgTable("supply_chain_alerts", {
+  id:               serial("id").primaryKey(),
+  monitoredProcess: text("monitored_process").notNull(),
+  srcIp:            text("src_ip"),
+  dstIp:            text("dst_ip"),
+  dstDomain:        text("dst_domain"),
+  dstPort:          integer("dst_port"),
+  alertType:        supplyChainAlertTypeEnum("alert_type").notNull(),
+  severity:         supplyChainSeverityEnum("severity").notNull().default("medium"),
+  baselineId:       text("baseline_id"),
+  details:          text("details"),
+  action:           text("action").notNull().default("alert"),
+  detectedAt:       timestamp("detected_at").defaultNow().notNull(),
+});
+
+// ── 9. AI Rule Builder ────────────────────────────────────────────────────
+export const aiGeneratedRulesTable = pgTable("ai_generated_rules", {
+  id:           serial("id").primaryKey(),
+  inputText:    text("input_text").notNull(),
+  generatedRule:jsonb("generated_rule"),   // structured rule object
+  ruleType:     text("rule_type"),         // block|allow|rate_limit|redirect|alert
+  confidence:   real("confidence_pct"),
+  approved:     boolean("approved").notNull().default(false),
+  applied:      boolean("applied").notNull().default(false),
+  createdAt:    timestamp("created_at").defaultNow().notNull(),
+});
+
+// ── 10. RPKI / BGP Route Guard ────────────────────────────────────────────
+export const rpkiStatusEnum = pgEnum("rpki_status", ["valid","invalid","not_found","error"]);
+export const rpkiChecksTable = pgTable("rpki_checks", {
+  id:                serial("id").primaryKey(),
+  prefix:            text("prefix").notNull(),
+  asn:               integer("asn"),
+  validatedOriginAsn:integer("validated_origin_asn"),
+  maxLength:         integer("max_length"),
+  status:            rpkiStatusEnum("status").notNull().default("not_found"),
+  roaCount:          integer("roa_count").notNull().default(0),
+  invalidReasons:    text("invalid_reasons"),
+  checkedAt:         timestamp("checked_at").defaultNow().notNull(),
+});
+
+// ── 11. Deception Layer ───────────────────────────────────────────────────
+export const deceptionProtocolEnum = pgEnum("deception_protocol", ["tcp","udp"]);
+export const deceptionPortsTable = pgTable("deception_ports", {
+  id:               serial("id").primaryKey(),
+  port:             integer("port").notNull(),
+  protocol:         deceptionProtocolEnum("protocol").notNull().default("tcp"),
+  serviceEmulation: text("service_emulation").notNull().default("generic"),  // ssh|http|ftp|smb|rdp|generic
+  banner:           text("banner"),
+  enabled:          boolean("enabled").notNull().default(true),
+  autoBlacklist:    boolean("auto_blacklist").notNull().default(true),
+  triggerCount:     integer("trigger_count").notNull().default(0),
+  lastTriggered:    timestamp("last_triggered"),
+  createdAt:        timestamp("created_at").defaultNow().notNull(),
+});
+export const deceptionTriggersTable = pgTable("deception_triggers", {
+  id:           serial("id").primaryKey(),
+  portId:       integer("port_id").notNull().references(() => deceptionPortsTable.id, { onDelete:"cascade" }),
+  srcIp:        text("src_ip").notNull(),
+  srcPort:      integer("src_port"),
+  userAgent:    text("user_agent"),
+  payloadHex:   text("payload_hex"),
+  bytesReceived:integer("bytes_received").notNull().default(0),
+  autoBlocked:  boolean("auto_blocked").notNull().default(false),
+  detectedAt:   timestamp("detected_at").defaultNow().notNull(),
+});
+
+// ── 12. Geo-IP Firewall ───────────────────────────────────────────────────
+export const geoipActionEnum = pgEnum("geoip_action", ["block","allow","monitor","redirect","tarpit"]);
+export const geoipRulesTable = pgTable("geoip_rules", {
+  id:          serial("id").primaryKey(),
+  countryCode: text("country_code").notNull(),     // ISO 3166-1 alpha-2
+  countryName: text("country_name").notNull(),
+  continent:   text("continent"),
+  action:      geoipActionEnum("action").notNull().default("block"),
+  enabled:     boolean("enabled").notNull().default(true),
+  hitCount:    integer("hit_count").notNull().default(0),
+  lastHit:     timestamp("last_hit"),
+  description: text("description"),
   createdAt:   timestamp("created_at").defaultNow().notNull(),
 });
 

@@ -7,6 +7,8 @@ import {
   Play, Plus, Search, Copy, Check, FlaskConical, ChevronDown, ChevronRight,
   Tag, Clock, ArrowLeftRight, Gauge, Network, ScanLine, Fingerprint,
   Server, BellOff, FileJson, Filter,
+  // Next-gen 2024-2025 icons
+  Cpu, Lock, Wifi, GitBranch, Package, Bot, Map, Activity,
 } from "lucide-react";
 import {
   useListGhostOsRules, useCreateGhostOsRule, useDeleteGhostOsRule, useUpdateGhostOsRule,
@@ -42,13 +44,26 @@ const TAB_ICONS: Record<string, React.ReactNode> = {
   suppressions:<BellOff size={13} />,
   eveExport:   <FileJson size={13} />,
   proxy:       <Filter size={13} />,
+  // ── 2024-2025 Next-Gen Research ──
+  ebpf:        <Cpu size={13} />,
+  quic:        <Zap size={13} />,
+  eta:         <Activity size={13} />,
+  ech:         <Lock size={13} />,
+  doh:         <Wifi size={13} />,
+  lateral:     <GitBranch size={13} />,
+  netflow:     <BarChart3 size={13} />,
+  supplychain: <Package size={13} />,
+  airules:     <Bot size={13} />,
+  rpki:        <Globe2 size={13} />,
+  deception:   <Eye size={13} />,
+  geoip:       <Map size={13} />,
 };
 const TABS = [
   { id:"overview", label:"Overview" }, { id:"ghostos", label:"GhostOS™" }, { id:"ips", label:"IPS Engine" },
   { id:"dpi", label:"DPI Engine" }, { id:"threat", label:"Threat Intel" }, { id:"zones", label:"Zones" },
   { id:"rules", label:"Rules" }, { id:"blacklist", label:"Blacklist" }, { id:"analytics", label:"Analytics" }, { id:"export", label:"Export" },
   { id:"analyzer", label:"Payload Analyzer" },
-  // ── Gap features ──────────────────────────────────────────────────────────
+  // ── Gap features (pfSense/OPNsense/IPFire/Snort/Suricata) ─────────────────
   { id:"aliases",     label:"Aliases" },
   { id:"schedules",   label:"Schedules" },
   { id:"nat",         label:"NAT/Forward" },
@@ -61,6 +76,19 @@ const TABS = [
   { id:"suppressions",label:"Suppressions" },
   { id:"eveExport",   label:"EVE Export" },
   { id:"proxy",       label:"Web Proxy" },
+  // ── 2024-2025 Next-Gen Research ─────────────────────────────────────────
+  { id:"ebpf",        label:"eBPF/XDP" },
+  { id:"quic",        label:"QUIC/HTTP3" },
+  { id:"eta",         label:"Traffic ETA" },
+  { id:"ech",         label:"ECH Policy" },
+  { id:"doh",         label:"DoH/DoT" },
+  { id:"lateral",     label:"Lateral Mvmt" },
+  { id:"netflow",     label:"NetFlow" },
+  { id:"supplychain", label:"Supply Chain" },
+  { id:"airules",     label:"AI Rules" },
+  { id:"rpki",        label:"RPKI/BGP" },
+  { id:"deception",   label:"Deception" },
+  { id:"geoip",       label:"Geo-IP" },
 ];
 const SEV_COLOR: Record<string,string> = { critical:"#ff2244", high:"#ff6600", medium:"#ffaa00", low:"#aaccff", info:"#888" };
 const TRUST_COLOR: Record<string,string> = { trusted:"#00ff88", untrusted:"#ff4444", dmz:"#ff9900", management:"#4488ff" };
@@ -1202,8 +1230,8 @@ function EmptyRow({ cols, msg }: { cols: number; msg: string }) {
 function TH({ children }: { children: React.ReactNode }) {
   return <th style={{ padding:"7px 10px", fontFamily:"monospace", fontSize:10, color:"#555", fontWeight:600, textAlign:"left", borderBottom:"1px solid #1a1a1a", whiteSpace:"nowrap" }}>{children}</th>;
 }
-function TD({ children, mono, c }: { children?: React.ReactNode; mono?: boolean; c?: string }) {
-  return <td style={{ padding:"6px 10px", fontSize:11, color:c??"#ccc", fontFamily: mono?"monospace":"inherit", borderBottom:"1px solid #111" }}>{children}</td>;
+function TD({ children, mono, c, style }: { children?: React.ReactNode; mono?: boolean; c?: string; style?: React.CSSProperties }) {
+  return <td style={{ padding:"6px 10px", fontSize:11, color:c??"#ccc", fontFamily: mono?"monospace":"inherit", borderBottom:"1px solid #111", ...style }}>{children}</td>;
 }
 function CardBox({ title, children, action }: { title: string; children: React.ReactNode; action?: React.ReactNode }) {
   return (
@@ -1222,7 +1250,7 @@ function FwInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
 function FwSelect(props: React.SelectHTMLAttributes<HTMLSelectElement> & { children: React.ReactNode }) {
   return <select {...props} style={{ background:"#111", border:"1px solid #222", borderRadius:4, padding:"5px 10px", color:"#ccc", fontFamily:"monospace", fontSize:11, outline:"none", ...(props.style??{}) }}>{props.children}</select>;
 }
-function Btn({ onClick, children, color, sm }: { onClick: () => void; children: React.ReactNode; color?: string; sm?: boolean }) {
+function Btn({ onClick, children, color, sm, disabled }: { onClick: () => void; children: React.ReactNode; color?: string; sm?: boolean; disabled?: boolean }) {
   const bg = (color ?? "#00ff88") + "22";
   const bd = (color ?? "#00ff88") + "44";
   return (
@@ -2267,6 +2295,1106 @@ function ProxyRulesTab() {
   );
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// ── 2024-2025 NEXT-GEN FEATURES ─────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+
+const APIFWN = "/api/fwn";
+async function fwnPost(path: string, body: unknown) {
+  const r = await fetch(`${APIFWN}${path}`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body) });
+  return r.json();
+}
+async function fwnPut(path: string, body: unknown) {
+  const r = await fetch(`${APIFWN}${path}`, { method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body) });
+  return r.json();
+}
+async function fwnDelete(path: string) {
+  const r = await fetch(`${APIFWN}${path}`, { method:"DELETE" });
+  return r.json();
+}
+function useFwn<T>(path: string) {
+  const [data, setData] = useState<T|null>(null);
+  const [loading, setLoading] = useState(true);
+  const load = useCallback(async () => {
+    setLoading(true);
+    try { const r = await fetch(`${APIFWN}${path}`); setData(await r.json()); } catch {}
+    setLoading(false);
+  }, [path]);
+  useEffect(() => { load(); }, [load]);
+  return { data, loading, reload: load };
+}
+
+// ── N1. eBPF / XDP RULE ENGINE ────────────────────────────────────────────
+function EbpfTab() {
+  const { data, loading, reload } = useFwn<{ rules: Array<{id:number;name:string;programType:string;hook:string;iface:string;priority:number;action:string;matchSrcIp:string|null;matchDstIp:string|null;matchDstPort:number|null;matchProto:string|null;rateLimit:number|null;enabled:boolean;statsPackets:number;statsBytes:number;description:string|null}> }>("/ebpf/rules");
+  const [form, setForm] = useState({ name:"", programType:"xdp", hook:"ingress", iface:"eth0", priority:"100", matchSrcIp:"", matchDstIp:"", matchDstPort:"", matchProto:"any", action:"drop", rateLimit:"" });
+  const [selected, setSelected] = useState<number|null>(null);
+  const [code, setCode] = useState<{cCode?:string;rustCode?:string;loadScript?:string}|null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const PT_COLOR: Record<string,string> = { xdp:"#00ff88", tc:"#4488ff", cgroup_skb:"#ff9900", socket_filter:"#cc44ff" };
+  const ACT_COLOR: Record<string,string> = { drop:"#ff4444", pass:"#00ff88", redirect:"#4488ff", tx:"#ff9900", log:"#888", rate_limit:"#ffaa00" };
+
+  const save = async () => {
+    if (!form.name) return; setSaving(true);
+    await fwnPost("/ebpf/rules", { ...form, priority:parseInt(form.priority), matchDstPort:form.matchDstPort?parseInt(form.matchDstPort):undefined, rateLimit:form.rateLimit?parseInt(form.rateLimit):undefined });
+    setForm({ name:"", programType:"xdp", hook:"ingress", iface:"eth0", priority:"100", matchSrcIp:"", matchDstIp:"", matchDstPort:"", matchProto:"any", action:"drop", rateLimit:"" });
+    await reload(); setSaving(false);
+  };
+
+  const genCode = async (id: number, lang:"c"|"rust") => {
+    const r = await fwnPost(`/ebpf/codegen/${id}`, { lang });
+    setSelected(id); setCode(r);
+  };
+
+  return (
+    <div>
+      <CardBox title="⚡ eBPF / XDP Kernel-Bypass Rule Engine (2024-2025)" action={
+        <div style={{display:"flex",gap:8}}>
+          <Btn onClick={async()=>{await fwnPost("/ebpf/seed",{}); await reload();}} color="#4488ff" sm>Seed Defaults</Btn>
+          <Btn onClick={reload} color="#555" sm><RefreshCw size={10}/></Btn>
+        </div>
+      }>
+        <p style={{margin:"0 0 12px",fontSize:11,color:"#555"}}>
+          XDP programs attach at the NIC driver level — before the kernel network stack. Packets are processed at line-rate (100M+ pps on commodity hardware). Used in production by Cloudflare, Meta (Katran), Google, and Cilium. Supports XDP_DROP, XDP_PASS, XDP_TX, XDP_REDIRECT verdicts. Generate deployable eBPF C or Rust/Aya code for any rule.
+        </p>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
+          {[["Name",<input key="n" placeholder="Block RFC1918" value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} style={{background:"#111",border:"1px solid #222",color:"#fff",padding:"4px 8px",borderRadius:4,fontSize:11,width:"100%"}}/>],
+            ["Interface",<input key="if" placeholder="eth0" value={form.iface} onChange={e=>setForm(f=>({...f,iface:e.target.value}))} style={{background:"#111",border:"1px solid #222",color:"#fff",padding:"4px 8px",borderRadius:4,fontSize:11,width:"100%"}}/>],
+            ["Src IP/CIDR",<input key="si" placeholder="10.0.0.0/8" value={form.matchSrcIp} onChange={e=>setForm(f=>({...f,matchSrcIp:e.target.value}))} style={{background:"#111",border:"1px solid #222",color:"#fff",padding:"4px 8px",borderRadius:4,fontSize:11,width:"100%"}}/>],
+            ["Dst IP/CIDR",<input key="di" placeholder="any" value={form.matchDstIp} onChange={e=>setForm(f=>({...f,matchDstIp:e.target.value}))} style={{background:"#111",border:"1px solid #222",color:"#fff",padding:"4px 8px",borderRadius:4,fontSize:11,width:"100%"}}/>],
+            ["Dst Port",<input key="dp" placeholder="443" value={form.matchDstPort} onChange={e=>setForm(f=>({...f,matchDstPort:e.target.value}))} style={{background:"#111",border:"1px solid #222",color:"#fff",padding:"4px 8px",borderRadius:4,fontSize:11,width:"100%"}}/>],
+            ["Rate Limit (pps)",<input key="rl" placeholder="10000" value={form.rateLimit} onChange={e=>setForm(f=>({...f,rateLimit:e.target.value}))} style={{background:"#111",border:"1px solid #222",color:"#fff",padding:"4px 8px",borderRadius:4,fontSize:11,width:"100%"}}/>],
+          ].map(([label,el])=>(
+            <div key={String(label)}><div style={{fontSize:10,color:"#555",marginBottom:2}}>{label}</div>{el}</div>
+          ))}
+          {[["Program Type",["xdp","tc","cgroup_skb","socket_filter"],form.programType,(v:string)=>setForm(f=>({...f,programType:v}))],
+            ["Hook",["ingress","egress","both"],form.hook,(v:string)=>setForm(f=>({...f,hook:v}))],
+            ["Protocol",["any","tcp","udp","icmp"],form.matchProto,(v:string)=>setForm(f=>({...f,matchProto:v}))],
+            ["Action",["drop","pass","redirect","tx","log","rate_limit"],form.action,(v:string)=>setForm(f=>({...f,action:v}))],
+          ].map(([label,opts,val,onChange])=>(
+            <div key={String(label)}><div style={{fontSize:10,color:"#555",marginBottom:2}}>{String(label)}</div>
+              <select value={String(val)} onChange={e=>(onChange as (v:string)=>void)(e.target.value)} style={{background:"#111",border:"1px solid #222",color:"#fff",padding:"4px 8px",borderRadius:4,fontSize:11,width:"100%"}}>
+                {(opts as string[]).map(o=><option key={o}>{o}</option>)}
+              </select>
+            </div>
+          ))}
+        </div>
+        <Btn onClick={save} color="#00ff88" disabled={saving||!form.name} sm>{saving?"Saving...":"Add eBPF Rule"}</Btn>
+      </CardBox>
+
+      {loading && <div style={{color:"#555",fontSize:11,marginTop:8}}>Loading...</div>}
+      {data?.rules && data.rules.length > 0 && (
+        <CardBox title={`eBPF Rules (${data.rules.length})`}>
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:11,fontFamily:"monospace"}}>
+            <thead><tr>{["Priority","Name","Type","Interface","Match","Action","Packets",""].map(h=><TH key={h}>{h}</TH>)}</tr></thead>
+            <tbody>
+              {data.rules.map(r=>(
+                <tr key={r.id} style={{borderBottom:"1px solid #111"}}>
+                  <TD>{r.priority}</TD>
+                  <TD><span style={{color:"#fff"}}>{r.name}</span></TD>
+                  <TD><Bdg label={r.programType.toUpperCase()} color={PT_COLOR[r.programType]??"#888"} sm/></TD>
+                  <TD style={{fontFamily:"monospace",color:"#aaa"}}>{r.iface}</TD>
+                  <TD style={{color:"#555"}}>
+                    {r.matchSrcIp && <span>src:{r.matchSrcIp} </span>}
+                    {r.matchDstIp && <span>dst:{r.matchDstIp} </span>}
+                    {r.matchDstPort && <span>:{r.matchDstPort} </span>}
+                    {r.matchProto && r.matchProto !== "any" && <span>{r.matchProto.toUpperCase()}</span>}
+                    {!r.matchSrcIp && !r.matchDstIp && !r.matchDstPort && <span style={{color:"#333"}}>any</span>}
+                  </TD>
+                  <TD><Bdg label={r.action.toUpperCase()} color={ACT_COLOR[r.action]??"#888"} sm/></TD>
+                  <TD style={{color:"#666"}}>{r.statsPackets.toLocaleString()}</TD>
+                  <TD>
+                    <div style={{display:"flex",gap:4}}>
+                      <Btn onClick={()=>genCode(r.id,"c")} color="#4488ff" sm>C</Btn>
+                      <Btn onClick={()=>genCode(r.id,"rust")} color="#cc44ff" sm>Rust</Btn>
+                      <Btn onClick={async()=>{await fwnPut(`/ebpf/rules/${r.id}`,{enabled:!r.enabled}); await reload();}} color={r.enabled?"#555":"#00ff88"} sm>{r.enabled?"Disable":"Enable"}</Btn>
+                      <Btn onClick={async()=>{await fwnDelete(`/ebpf/rules/${r.id}`); await reload();}} color="#ff4444" sm><Trash2 size={9}/></Btn>
+                    </div>
+                  </TD>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </CardBox>
+      )}
+
+      {code && selected && (
+        <CardBox title={`Generated eBPF Code — Rule #${selected}`}>
+          <div style={{display:"flex",gap:8,marginBottom:10}}>
+            <Btn onClick={()=>setCode(null)} color="#555" sm>Close</Btn>
+          </div>
+          {code.cCode && (
+            <div>
+              <div style={{fontSize:10,color:"#4488ff",marginBottom:4}}>C / libbpf / bpf2go (attach with ip-link xdpgeneric): <CopyBtn text={code.cCode??""}/></div>
+              <pre style={{background:"#080808",border:"1px solid #1a1a1a",borderRadius:6,padding:12,fontSize:10,overflowX:"auto",color:"#aaa",maxHeight:300}}>{code.cCode}</pre>
+            </div>
+          )}
+          {code.loadScript && (
+            <div style={{marginTop:10}}>
+              <div style={{fontSize:10,color:"#00ff88",marginBottom:4}}>Load Script: <CopyBtn text={code.loadScript??""}/></div>
+              <pre style={{background:"#080808",border:"1px solid #1a1a1a",borderRadius:6,padding:12,fontSize:10,color:"#aaa",maxHeight:200}}>{code.loadScript}</pre>
+            </div>
+          )}
+        </CardBox>
+      )}
+    </div>
+  );
+}
+
+// ── N2. QUIC / HTTP3 INSPECTOR ────────────────────────────────────────────
+function QuicTab() {
+  const { data, loading, reload } = useFwn<{ events: Array<{id:number;srcIp:string;dstIp:string;dstPort:number;sni:string|null;quicVersion:string|null;echDetected:boolean;action:string;bytesIn:number;bytesOut:number;detectedAt:string}>; total:number; echCount:number }>("/quic/events");
+  const { data: pol } = useFwn<{ defaultAction:string;blockUnknownSni:boolean;blockEch:boolean;quicVersions:string[];note:string }>("/quic/policy");
+  const [inspectForm, setInspectForm] = useState({ srcIp:"10.0.0.1", dstIp:"1.1.1.1", dstPort:"443", sni:"" });
+  const [inspectResult, setInspectResult] = useState<{extractedSni:string|null;quicVersion:string;echDetected:boolean;action:string;analysis:{sniExposed:boolean;threat:string|null;note:string}}|null>(null);
+  const [loading2, setLoading2] = useState(false);
+
+  const ACT_COLOR: Record<string,string> = { allow:"#00ff88", block:"#ff4444", log:"#888", throttle:"#ff9900" };
+
+  const inspect = async () => {
+    setLoading2(true);
+    const r = await fwnPost("/quic/inspect", { ...inspectForm, dstPort:parseInt(inspectForm.dstPort) });
+    setInspectResult(r);
+    setLoading2(false);
+    await reload();
+  };
+
+  return (
+    <div>
+      <CardBox title="⚡ QUIC / HTTP3 Inspector (2024-2025)" action={
+        <div style={{display:"flex",gap:8}}>
+          <Btn onClick={async()=>{await fwnPost("/quic/seed",{}); await reload();}} color="#4488ff" sm>Seed Events</Btn>
+          <Btn onClick={reload} color="#555" sm><RefreshCw size={10}/></Btn>
+        </div>
+      }>
+        <p style={{margin:"0 0 12px",fontSize:11,color:"#555"}}>
+          QUIC runs over UDP/443 and is used by 30%+ of web traffic (2024). QUIC Initial packets carry an unencrypted TLS ClientHello — the SNI field is extractable before the QUIC handshake completes. Firewall can allow/block by SNI without SSL termination. ECH (Encrypted Client Hello) hides the real SNI using a public outer_name only.
+        </p>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:8,marginBottom:10}}>
+          {[["Src IP","srcIp","10.0.0.1"],["Dst IP","dstIp","1.1.1.1"],["Dst Port","dstPort","443"],["SNI (known)","sni",""]].map(([label,k,ph])=>(
+            <div key={k}><div style={{fontSize:10,color:"#555",marginBottom:2}}>{label}</div>
+              <input placeholder={ph} value={(inspectForm as Record<string,string>)[k]} onChange={e=>setInspectForm(f=>({...f,[k]:e.target.value}))} style={{background:"#111",border:"1px solid #222",color:"#fff",padding:"4px 8px",borderRadius:4,fontSize:11,width:"100%"}}/>
+            </div>
+          ))}
+        </div>
+        <Btn onClick={inspect} color="#00ff88" disabled={loading2} sm>{loading2?"Inspecting...":"Inspect QUIC Packet"}</Btn>
+        {inspectResult && (
+          <div style={{marginTop:12,padding:10,background:"#080808",border:"1px solid #1a1a1a",borderRadius:6}}>
+            <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
+              <Bdg label={inspectResult.action.toUpperCase()} color={ACT_COLOR[inspectResult.action]??"#888"} sm/>
+              {inspectResult.echDetected && <Bdg label="ECH ACTIVE" color="#cc44ff" sm/>}
+              {inspectResult.extractedSni && <span style={{color:"#fff",fontFamily:"monospace",fontSize:11}}>SNI: {inspectResult.extractedSni}</span>}
+              <span style={{fontSize:10,color:"#555"}}>QUIC v{inspectResult.quicVersion}</span>
+            </div>
+            <p style={{margin:"8px 0 0",fontSize:10,color:inspectResult.analysis.threat?"#ff4444":"#555"}}>{inspectResult.analysis.threat ?? inspectResult.analysis.note}</p>
+          </div>
+        )}
+        {pol && (
+          <div style={{marginTop:12,padding:8,background:"#070708",border:"1px solid #1a1a1a",borderRadius:6,fontSize:10,color:"#555"}}>
+            <span style={{color:"#aaa"}}>Policy:</span> Default {pol.defaultAction} · ECH block: {pol.blockEch?"YES":"no"} · Versions: {pol.quicVersions?.join(", ")}
+          </div>
+        )}
+      </CardBox>
+      {loading && <div style={{color:"#555",fontSize:11,marginTop:8}}>Loading...</div>}
+      {data && (
+        <CardBox title={`QUIC Events (${data.total}) · ECH detected: ${data.echCount}`}>
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:11,fontFamily:"monospace"}}>
+            <thead><tr>{["Src IP","Dst IP","Port","SNI","QUIC v","ECH","Action","↑ Bytes","Time"].map(h=><TH key={h}>{h}</TH>)}</tr></thead>
+            <tbody>
+              {data.events.map(e=>(
+                <tr key={e.id} style={{borderBottom:"1px solid #111"}}>
+                  <TD style={{color:"#aaa"}}>{e.srcIp}</TD>
+                  <TD style={{color:"#aaa"}}>{e.dstIp}</TD>
+                  <TD>{e.dstPort}</TD>
+                  <TD style={{color:"#fff"}}>{e.sni ?? <span style={{color:"#333"}}>—</span>}</TD>
+                  <TD style={{color:"#666"}}>v{e.quicVersion}</TD>
+                  <TD>{e.echDetected ? <Bdg label="ECH" color="#cc44ff" sm/> : <span style={{color:"#333"}}>—</span>}</TD>
+                  <TD><Bdg label={e.action.toUpperCase()} color={ACT_COLOR[e.action]??"#888"} sm/></TD>
+                  <TD style={{color:"#666"}}>{(e.bytesOut/1024).toFixed(1)}KB</TD>
+                  <TD style={{color:"#555",fontSize:10}}>{new Date(e.detectedAt).toLocaleTimeString()}</TD>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </CardBox>
+      )}
+    </div>
+  );
+}
+
+// ── N3. ENCRYPTED TRAFFIC ANALYZER (ETA) ──────────────────────────────────
+function EtaTab() {
+  const { data, loading, reload } = useFwn<{ flows: Array<{id:number;srcIp:string;dstIp:string;dstPort:number|null;protocol:string;packetCount:number;byteCount:number;byteEntropy:number|null;iatMeanMs:number|null;classification:string;confidencePct:number|null;action:string;flowStart:string}>;total:number;malicious:number }>("/eta/flows");
+  const [form, setForm] = useState({ srcIp:"10.0.0.1", dstIp:"45.33.32.156", dstPort:"8080", protocol:"tcp", packetCount:"12", byteCount:"2400", avgPacketSize:"200", byteEntropy:"6.8", iatMeanMs:"30000", iatStdMs:"15" });
+  const [classResult, setClassResult] = useState<{classification:string;confidence:number;reason:string;threat:string|null;features:Record<string,number>}|null>(null);
+  const [classifying, setClassifying] = useState(false);
+
+  const CLASS_COLOR: Record<string,string> = { streaming:"#4488ff",vpn:"#cc44ff",c2_beacon:"#ff2244",malware:"#ff2244",browsing:"#00ff88",voip:"#00ccff",gaming:"#ff9900",p2p:"#ffaa00",encrypted_dns:"#888",unknown:"#555" };
+
+  const classify = async () => {
+    setClassifying(true);
+    const r = await fwnPost("/eta/classify", Object.fromEntries(Object.entries(form).map(([k,v])=>[k,parseFloat(v)||0])));
+    setClassResult(r); await reload(); setClassifying(false);
+  };
+
+  return (
+    <div>
+      <CardBox title="🔬 Encrypted Traffic Analyzer — ML Fingerprinting Without Decryption (2024-2025)" action={
+        <div style={{display:"flex",gap:8}}>
+          <Btn onClick={async()=>{await fwnPost("/eta/seed",{}); await reload();}} color="#4488ff" sm>Seed Flows</Btn>
+          <Btn onClick={reload} color="#555" sm><RefreshCw size={10}/></Btn>
+        </div>
+      }>
+        <p style={{margin:"0 0 12px",fontSize:11,color:"#555"}}>
+          Classifies encrypted traffic without decryption using flow-level features: packet size distribution, inter-arrival times (IAT), byte entropy, burst patterns. Based on CICFlowMeter / NetML-2020 / ISCX-2012 research. Detects C2 beaconing, malware exfil, VPN, streaming, VoIP, gaming, P2P from TLS+QUIC metadata alone.
+        </p>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:6,marginBottom:10}}>
+          {[["Src IP","srcIp"],["Dst IP","dstIp"],["Port","dstPort"],["Protocol","protocol"],["Packets","packetCount"],["Bytes","byteCount"],["Avg Pkt","avgPacketSize"],["Entropy 0-8","byteEntropy"],["IAT mean (ms)","iatMeanMs"],["IAT std (ms)","iatStdMs"]].map(([label,k])=>(
+            <div key={k}><div style={{fontSize:10,color:"#555",marginBottom:2}}>{label}</div>
+              <input value={(form as Record<string,string>)[k]} onChange={e=>setForm(f=>({...f,[k]:e.target.value}))} style={{background:"#111",border:"1px solid #222",color:"#fff",padding:"4px 6px",borderRadius:4,fontSize:11,width:"100%"}}/>
+            </div>
+          ))}
+        </div>
+        <Btn onClick={classify} color="#00ff88" disabled={classifying} sm>{classifying?"Classifying...":"Classify Flow"}</Btn>
+        {classResult && (
+          <div style={{marginTop:12,padding:10,background:"#080808",border:"1px solid #1a1a1a",borderRadius:6}}>
+            <div style={{display:"flex",gap:10,alignItems:"center"}}>
+              <Bdg label={classResult.classification.replace("_"," ").toUpperCase()} color={CLASS_COLOR[classResult.classification]??"#888"} sm/>
+              <span style={{fontSize:11,color:"#aaa"}}>Confidence: <b style={{color:"#fff"}}>{classResult.confidence}%</b></span>
+              {classResult.threat && <Bdg label="THREAT" color="#ff4444" sm/>}
+            </div>
+            <p style={{margin:"6px 0 0",fontSize:10,color:"#555"}}>{classResult.reason}</p>
+            {classResult.threat && <p style={{margin:"4px 0 0",fontSize:10,color:"#ff4444"}}>{classResult.threat}</p>}
+            <div style={{display:"flex",gap:12,marginTop:8,flexWrap:"wrap"}}>
+              {Object.entries(classResult.features).map(([k,v])=>(
+                <span key={k} style={{fontSize:10,color:"#555"}}><span style={{color:"#666"}}>{k}:</span> {typeof v === "number" ? v.toFixed(1) : v}</span>
+              ))}
+            </div>
+          </div>
+        )}
+      </CardBox>
+      {loading && <div style={{color:"#555",fontSize:11,marginTop:8}}>Loading...</div>}
+      {data && (
+        <CardBox title={`Traffic Flows (${data.total}) · Malicious: ${data.malicious}`}>
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:11,fontFamily:"monospace"}}>
+            <thead><tr>{["Src","Dst","Port","Proto","Packets","Bytes","Entropy","IAT (ms)","Classification","Confidence"].map(h=><TH key={h}>{h}</TH>)}</tr></thead>
+            <tbody>
+              {data.flows.map(f=>(
+                <tr key={f.id} style={{borderBottom:"1px solid #111"}}>
+                  <TD style={{color:"#aaa"}}>{f.srcIp}</TD>
+                  <TD style={{color:"#aaa"}}>{f.dstIp}</TD>
+                  <TD>{f.dstPort ?? "—"}</TD>
+                  <TD><Bdg label={f.protocol.toUpperCase()} color="#333" sm/></TD>
+                  <TD>{f.packetCount}</TD>
+                  <TD>{(f.byteCount/1024).toFixed(1)}KB</TD>
+                  <TD style={{color: (f.byteEntropy??0)>7.5?"#ff4444":"#aaa"}}>{f.byteEntropy?.toFixed(2)??"-"}</TD>
+                  <TD style={{color:"#666"}}>{f.iatMeanMs?.toFixed(0)??"-"}</TD>
+                  <TD><Bdg label={f.classification.replace("_"," ").toUpperCase()} color={CLASS_COLOR[f.classification]??"#888"} sm/></TD>
+                  <TD style={{color:"#aaa"}}>{f.confidencePct?.toFixed(0)??"-"}%</TD>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </CardBox>
+      )}
+    </div>
+  );
+}
+
+// ── N4. ECH POLICY ENGINE ─────────────────────────────────────────────────
+function EchTab() {
+  const { data, loading, reload } = useFwn<{ events:Array<{id:number;srcIp:string;dstIp:string;dstPort:number;outerSni:string|null;echConfigId:number|null;tlsVersion:string|null;action:string;detectedAt:string}>;total:number;blocked:number;echBackground:Record<string,string> }>("/ech/events");
+  const { data: pol } = useFwn<{ defaultAction:string;blockEchCompletely:boolean;alertOnEch:boolean;note:string }>("/ech/policy");
+  const [policyAction, setPolicyAction] = useState("log");
+  const [blockEch, setBlockEch] = useState(false);
+
+  const ACT_COLOR: Record<string,string> = { allow:"#00ff88", block:"#ff4444", log:"#888", alert:"#ff9900" };
+
+  const updatePolicy = async () => {
+    await fwnPut("/ech/policy", { defaultAction: policyAction, blockEchCompletely: blockEch, alertOnEch: true });
+    await reload();
+  };
+
+  return (
+    <div>
+      <CardBox title="🔒 Encrypted Client Hello (ECH) Policy Engine (2024-2025)" action={
+        <div style={{display:"flex",gap:8}}>
+          <Btn onClick={async()=>{await fwnPost("/ech/seed",{}); await reload();}} color="#4488ff" sm>Seed Events</Btn>
+          <Btn onClick={reload} color="#555" sm><RefreshCw size={10}/></Btn>
+        </div>
+      }>
+        <p style={{margin:"0 0 12px",fontSize:11,color:"#555"}}>
+          ECH (draft-ietf-tls-esni-22) encrypts the TLS Server Name Indication field. Deployed by Cloudflare, Firefox 118+, Chrome 117+, Brave 1.55+. Outer ClientHello type 0xfe0d = ECH active. Firewall sees only the outer <em>public_name</em>, not the real domain. Russia, China, and Iran block ECH at national firewall level.
+        </p>
+        {data?.echBackground && (
+          <div style={{marginBottom:14,padding:10,background:"#070708",border:"1px solid #1a1a1a",borderRadius:6,fontSize:10}}>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
+              {Object.entries(data.echBackground).map(([k,v])=>(
+                <div key={k}><span style={{color:"#555"}}>{k.replace(/([A-Z])/g," $1").trim()}: </span><span style={{color:"#aaa"}}>{v}</span></div>
+              ))}
+            </div>
+          </div>
+        )}
+        <div style={{display:"flex",gap:12,alignItems:"flex-end",flexWrap:"wrap",marginBottom:10}}>
+          <div><div style={{fontSize:10,color:"#555",marginBottom:2}}>Default Action</div>
+            <select value={policyAction} onChange={e=>setPolicyAction(e.target.value)} style={{background:"#111",border:"1px solid #222",color:"#fff",padding:"4px 8px",borderRadius:4,fontSize:11}}>
+              {["log","allow","block","alert"].map(a=><option key={a}>{a}</option>)}
+            </select>
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <input type="checkbox" checked={blockEch} onChange={e=>setBlockEch(e.target.checked)} id="blockEch"/>
+            <label htmlFor="blockEch" style={{fontSize:11,color:"#aaa"}}>Block ECH completely (affects all ECH users)</label>
+          </div>
+          <Btn onClick={updatePolicy} color="#ff9900" sm>Update Policy</Btn>
+        </div>
+        {pol && <div style={{fontSize:10,color:"#555",padding:"6px 10px",background:"#070708",borderRadius:6,marginBottom:10}}>{pol.note}</div>}
+      </CardBox>
+      {loading && <div style={{color:"#555",fontSize:11,marginTop:8}}>Loading...</div>}
+      {data && (
+        <CardBox title={`ECH Events (${data.total}) · Blocked: ${data.blocked}`}>
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:11,fontFamily:"monospace"}}>
+            <thead><tr>{["Src IP","Dst IP","Port","Outer SNI (public_name)","ECH Config ID","TLS Ver","Action","Time"].map(h=><TH key={h}>{h}</TH>)}</tr></thead>
+            <tbody>
+              {data.events.map(e=>(
+                <tr key={e.id} style={{borderBottom:"1px solid #111"}}>
+                  <TD style={{color:"#aaa"}}>{e.srcIp}</TD>
+                  <TD style={{color:"#aaa"}}>{e.dstIp}</TD>
+                  <TD>{e.dstPort}</TD>
+                  <TD style={{color:"#fff"}}>{e.outerSni ?? <span style={{color:"#333"}}>—</span>}</TD>
+                  <TD style={{color:"#666"}}>{e.echConfigId ?? "—"}</TD>
+                  <TD style={{color:"#555"}}>{e.tlsVersion ?? "—"}</TD>
+                  <TD><Bdg label={e.action.toUpperCase()} color={ACT_COLOR[e.action]??"#888"} sm/></TD>
+                  <TD style={{color:"#555",fontSize:10}}>{new Date(e.detectedAt).toLocaleTimeString()}</TD>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </CardBox>
+      )}
+    </div>
+  );
+}
+
+// ── N5. DoH / DoT ENFORCER ────────────────────────────────────────────────
+function DohTab() {
+  const { data, loading, reload } = useFwn<{ events:Array<{id:number;srcIp:string;resolverIp:string;resolverName:string|null;resolverType:string;queryDomain:string|null;action:string;detectedAt:string}>;total:number;blocked:number }>("/doh/events");
+  const { data: resolvers } = useFwn<{ resolvers:Record<string,{name:string;ips:string[];type:string}>;knownPorts:Record<string,number>;detection:Record<string,string> }>("/doh/resolvers");
+  const { data: pol } = useFwn<{ generateIptablesBlock:string }>("/doh/policy");
+  const [detectForm, setDetectForm] = useState({ srcIp:"10.0.0.1", dstIp:"1.1.1.1", dstPort:"443" });
+  const [detectResult, setDetectResult] = useState<{detected:boolean;resolverName:string|null;resolverType:string;message:string}|null>(null);
+
+  const TYPE_COLOR: Record<string,string> = { doh:"#00ff88", dot:"#4488ff", doq:"#cc44ff", doh3:"#ff9900" };
+  const ACT_COLOR: Record<string,string>  = { allow:"#00ff88", block:"#ff4444", redirect:"#ff9900", log:"#888" };
+
+  const detect = async () => {
+    const r = await fwnPost("/doh/detect", { ...detectForm, dstPort:parseInt(detectForm.dstPort) });
+    setDetectResult(r); await reload();
+  };
+
+  return (
+    <div>
+      <CardBox title="📡 DoH / DoT / DoQ Enforcer (2024-2025)" action={
+        <div style={{display:"flex",gap:8}}>
+          <Btn onClick={async()=>{await fwnPost("/doh/seed",{}); await reload();}} color="#4488ff" sm>Seed Events</Btn>
+          <Btn onClick={reload} color="#555" sm><RefreshCw size={10}/></Btn>
+        </div>
+      }>
+        <p style={{margin:"0 0 12px",fontSize:11,color:"#555"}}>
+          DoH (DNS over HTTPS) bypasses traditional port-53 DNS monitoring by sending DNS queries over encrypted HTTPS. DoT uses port 853 TLS. DoQ uses QUIC. Detection method: IP-based matching against known resolver IPs (Cloudflare, Google, Quad9, NextDNS, AdGuard, Mullvad). Redirect to local resolver forces all DNS through your sinkhole.
+        </p>
+        <div style={{display:"flex",gap:8,marginBottom:10,alignItems:"flex-end",flexWrap:"wrap"}}>
+          {[["Src IP","srcIp"],["Dst IP","dstIp"],["Port","dstPort"]].map(([l,k])=>(
+            <div key={k}><div style={{fontSize:10,color:"#555",marginBottom:2}}>{l}</div>
+              <input value={(detectForm as Record<string,string>)[k]} onChange={e=>setDetectForm(f=>({...f,[k]:e.target.value}))} style={{background:"#111",border:"1px solid #222",color:"#fff",padding:"4px 8px",borderRadius:4,fontSize:11,width:"100%"}}/>
+            </div>
+          ))}
+          <Btn onClick={detect} color="#00ff88" sm>Detect DoH/DoT</Btn>
+        </div>
+        {detectResult && (
+          <div style={{marginBottom:12,padding:10,background:"#080808",border:`1px solid ${detectResult.detected?"#ff990044":"#1a1a1a"}`,borderRadius:6}}>
+            <Bdg label={detectResult.detected?"DETECTED":"CLEAN"} color={detectResult.detected?"#ff9900":"#00ff88"} sm/>
+            {detectResult.resolverName && <span style={{marginLeft:8,fontSize:11,color:"#fff"}}>{detectResult.resolverName}</span>}
+            {detectResult.resolverType && <span style={{marginLeft:8}}><Bdg label={detectResult.resolverType.toUpperCase()} color={TYPE_COLOR[detectResult.resolverType]??"#888"} sm/></span>}
+            <p style={{margin:"6px 0 0",fontSize:10,color:"#555"}}>{detectResult.message}</p>
+          </div>
+        )}
+        {resolvers && (
+          <div style={{marginBottom:14,background:"#070708",border:"1px solid #1a1a1a",borderRadius:6,padding:10}}>
+            <div style={{fontSize:10,color:"#555",marginBottom:6}}>Known Resolvers ({Object.keys(resolvers.resolvers).length})</div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+              {Object.entries(resolvers.resolvers).map(([k,r])=>(
+                <div key={k} style={{padding:"4px 8px",background:"#101010",borderRadius:4,fontSize:10}}>
+                  <Bdg label={r.type.toUpperCase()} color={TYPE_COLOR[r.type]??"#888"} sm/> <span style={{color:"#aaa",marginLeft:4}}>{r.name}</span>
+                  <div style={{color:"#555",fontSize:9,marginTop:2}}>{r.ips.slice(0,2).join(", ")}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {pol?.generateIptablesBlock && (
+          <div>
+            <div style={{fontSize:10,color:"#00ff88",marginBottom:4}}>iptables block script: <CopyBtn text={pol.generateIptablesBlock}/></div>
+            <pre style={{background:"#080808",border:"1px solid #1a1a1a",borderRadius:6,padding:10,fontSize:10,color:"#aaa",maxHeight:150,overflowY:"auto"}}>{pol.generateIptablesBlock}</pre>
+          </div>
+        )}
+      </CardBox>
+      {loading && <div style={{color:"#555",fontSize:11,marginTop:8}}>Loading...</div>}
+      {data && (
+        <CardBox title={`DoH/DoT Events (${data.total}) · Blocked: ${data.blocked}`}>
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:11,fontFamily:"monospace"}}>
+            <thead><tr>{["Src IP","Resolver IP","Resolver","Type","Query","Action","Time"].map(h=><TH key={h}>{h}</TH>)}</tr></thead>
+            <tbody>
+              {data.events.map(e=>(
+                <tr key={e.id} style={{borderBottom:"1px solid #111"}}>
+                  <TD style={{color:"#aaa"}}>{e.srcIp}</TD>
+                  <TD style={{color:"#aaa"}}>{e.resolverIp}</TD>
+                  <TD style={{color:"#fff"}}>{e.resolverName ?? "Unknown"}</TD>
+                  <TD><Bdg label={e.resolverType.toUpperCase()} color={TYPE_COLOR[e.resolverType]??"#888"} sm/></TD>
+                  <TD style={{color:"#666"}}>{e.queryDomain ?? "—"}</TD>
+                  <TD><Bdg label={e.action.toUpperCase()} color={ACT_COLOR[e.action]??"#888"} sm/></TD>
+                  <TD style={{color:"#555",fontSize:10}}>{new Date(e.detectedAt).toLocaleTimeString()}</TD>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </CardBox>
+      )}
+    </div>
+  );
+}
+
+// ── N6. LATERAL MOVEMENT DETECTOR ─────────────────────────────────────────
+function LateralTab() {
+  const { data, loading, reload } = useFwn<{ events:Array<{id:number;srcIp:string;dstIp:string;dstPort:number|null;protocol:string;technique:string;severity:string;action:string;confidencePct:number|null;autoBlocked:boolean;detectedAt:string}>;total:number;critical:number;high:number }>("/lateral/events");
+  const [analyzeForm, setAnalyzeForm] = useState({ srcIp:"10.0.0.100", dstIp:"10.0.0.5", ports:"445,88,139,135,3389", packetsPerSec:"500" });
+  const [analyzeResult, setAnalyzeResult] = useState<{detected:Array<{technique:string;severity:string;port:number;confidence:number}>;blocked:boolean;message:string}|null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
+
+  const SEV: Record<string,string> = { critical:"#ff2244", high:"#ff6600", medium:"#ffaa00", low:"#aaccff" };
+  const TECH_DESC: Record<string,string> = {
+    smb_scan:"Scanning for SMB shares (port 445) — ransomware lateral spread",
+    rdp_scan:"RDP brute-force or scan (port 3389) — remote desktop exploitation",
+    ssh_scan:"SSH scan — credential stuffing or key theft",
+    winrm:"WinRM remote execution (port 5985) — PowerShell remoting",
+    ldap_enum:"LDAP enumeration (port 389) — AD reconnaissance",
+    kerberoasting:"Kerberos TGS requests (port 88) — service account password cracking",
+    wmi:"WMI remote execution (port 135) — living off the land",
+    psexec:"PsExec execution (port 445) — lateral movement via admin shares",
+    dcom:"DCOM exploitation (port 135) — lateral movement without PSExec",
+    pass_the_hash:"Pass-the-Hash via NTLM (port 445) — credential reuse without cracking",
+    credential_spray:"Credential spraying across multiple services",
+    port_sweep:"Port sweep — internal network reconnaissance",
+    mimikatz_pattern:"Mimikatz credential dump pattern detected",
+  };
+
+  const analyze = async () => {
+    setAnalyzing(true);
+    const ports = analyzeForm.ports.split(",").map(p=>parseInt(p.trim())).filter(Boolean);
+    const r = await fwnPost("/lateral/analyze", { ...analyzeForm, ports, packetsPerSec:parseFloat(analyzeForm.packetsPerSec) });
+    setAnalyzeResult(r); await reload(); setAnalyzing(false);
+  };
+
+  return (
+    <div>
+      <CardBox title="🔀 Lateral Movement Detector — East-West Traffic Analysis (2024-2025)" action={
+        <div style={{display:"flex",gap:8}}>
+          <Btn onClick={async()=>{await fwnPost("/lateral/seed",{}); await reload();}} color="#4488ff" sm>Seed Events</Btn>
+          <Btn onClick={reload} color="#555" sm><RefreshCw size={10}/></Btn>
+        </div>
+      }>
+        <p style={{margin:"0 0 12px",fontSize:11,color:"#555"}}>
+          Traditional firewalls inspect north-south (perimeter) traffic. Lateral movement happens east-west between internal hosts. Techniques: SMB scanning, Kerberoasting, WMI/DCOM execution, Pass-the-Hash, PsExec, credential spraying. Critical/high severity events are auto-blocked. Per CISA Zero Trust 2025 guidance.
+        </p>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:8,marginBottom:10}}>
+          {[["Src IP","srcIp"],["Dst IP","dstIp"],["Ports (comma-sep)","ports"],["Pkts/sec","packetsPerSec"]].map(([l,k])=>(
+            <div key={k}><div style={{fontSize:10,color:"#555",marginBottom:2}}>{l}</div>
+              <input value={(analyzeForm as Record<string,string>)[k]} onChange={e=>setAnalyzeForm(f=>({...f,[k]:e.target.value}))} style={{background:"#111",border:"1px solid #222",color:"#fff",padding:"4px 8px",borderRadius:4,fontSize:11,width:"100%"}}/>
+            </div>
+          ))}
+        </div>
+        <Btn onClick={analyze} color="#ff9900" disabled={analyzing} sm>{analyzing?"Analyzing...":"Analyze Traffic"}</Btn>
+        {analyzeResult && (
+          <div style={{marginTop:12,padding:10,background:"#080808",border:`1px solid ${analyzeResult.blocked?"#ff222444":"#1a1a1a"}`,borderRadius:6}}>
+            {analyzeResult.blocked && <Bdg label="AUTO-BLOCKED" color="#ff2244" sm/>}
+            <p style={{margin:"6px 0 8px",fontSize:11,color:analyzeResult.detected.length>0?"#fff":"#555"}}>{analyzeResult.message}</p>
+            {analyzeResult.detected.map((d,i)=>(
+              <div key={i} style={{marginBottom:6,padding:"6px 8px",background:"#070708",borderRadius:4,display:"flex",gap:10,alignItems:"flex-start"}}>
+                <Bdg label={d.severity.toUpperCase()} color={SEV[d.severity]??"#888"} sm/>
+                <div>
+                  <div style={{fontSize:11,color:"#fff",fontFamily:"monospace"}}>{d.technique.replace(/_/g," ")}</div>
+                  <div style={{fontSize:10,color:"#555",marginTop:2}}>{TECH_DESC[d.technique] ?? ""}</div>
+                </div>
+                <span style={{marginLeft:"auto",fontSize:10,color:"#666"}}>port {d.port} · {d.confidence}%</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardBox>
+      {loading && <div style={{color:"#555",fontSize:11,marginTop:8}}>Loading...</div>}
+      {data && (
+        <CardBox title={`Lateral Events (${data.total}) · Critical: ${data.critical} · High: ${data.high}`}>
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:11,fontFamily:"monospace"}}>
+            <thead><tr>{["Src","Dst","Port","Technique","Severity","Action","Auto-Blocked","Time"].map(h=><TH key={h}>{h}</TH>)}</tr></thead>
+            <tbody>
+              {data.events.map(e=>(
+                <tr key={e.id} style={{borderBottom:"1px solid #111"}}>
+                  <TD style={{color:"#aaa"}}>{e.srcIp}</TD>
+                  <TD style={{color:"#aaa"}}>{e.dstIp}</TD>
+                  <TD>{e.dstPort ?? "—"}</TD>
+                  <TD style={{color:"#fff"}}>{e.technique.replace(/_/g," ")}</TD>
+                  <TD><Bdg label={e.severity.toUpperCase()} color={SEV[e.severity]??"#888"} sm/></TD>
+                  <TD><Bdg label={e.action.toUpperCase()} color={e.action==="block"?"#ff4444":"#ff9900"} sm/></TD>
+                  <TD>{e.autoBlocked ? <Bdg label="YES" color="#ff2244" sm/> : <span style={{color:"#333"}}>—</span>}</TD>
+                  <TD style={{color:"#555",fontSize:10}}>{new Date(e.detectedAt).toLocaleTimeString()}</TD>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </CardBox>
+      )}
+    </div>
+  );
+}
+
+// ── N7. NETFLOW / IPFIX COLLECTOR ─────────────────────────────────────────
+function NetflowTab() {
+  const { data, loading, reload } = useFwn<{ flows:Array<{id:number;srcIp:string;dstIp:string;srcPort:number|null;dstPort:number|null;protocol:string;packets:number;bytes:number;durationMs:number|null;anomalyScore:number;anomalyType:string;flowStart:string}>;total:number }>("/netflow/flows");
+  const { data: talkers } = useFwn<{ topTalkers:Array<{ip:string;bytes:number;packets:number;flows:number}>;byProto:Record<string,number> }>("/netflow/top-talkers");
+  const { data: anomalies } = useFwn<{ anomalies:Array<{id:number;srcIp:string;dstIp:string;protocol:string;bytes:number;anomalyScore:number;anomalyType:string}>;total:number }>("/netflow/anomalies");
+
+  const ANOM_COLOR: Record<string,string> = { none:"#333", top_talker:"#ff9900", port_sweep:"#ff6600", data_exfil:"#ff2244", beaconing:"#cc44ff", ddos:"#ff2244", protocol_abuse:"#ffaa00" };
+
+  return (
+    <div>
+      <CardBox title="📊 NetFlow / IPFIX Flow Collector & Anomaly Analyzer (2024-2025)" action={
+        <div style={{display:"flex",gap:8}}>
+          <Btn onClick={async()=>{await fwnPost("/netflow/seed",{}); await reload();}} color="#4488ff" sm>Seed Flows</Btn>
+          <Btn onClick={reload} color="#555" sm><RefreshCw size={10}/></Btn>
+        </div>
+      }>
+        <p style={{margin:"0 0 12px",fontSize:11,color:"#555"}}>
+          NetFlow v9 / IPFIX (RFC 7011) flow-based traffic analysis. Each flow = unique (src/dst IP, src/dst port, protocol, AS). Better than per-packet analysis for high-speed networks — summarizes thousands of packets into flow records. Anomaly scoring detects: top talkers, port sweeps, data exfiltration, beaconing, DDoS, protocol abuse.
+        </p>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+          {talkers && (
+            <div style={{background:"#070708",border:"1px solid #1a1a1a",borderRadius:6,padding:10}}>
+              <div style={{fontSize:11,color:"#aaa",marginBottom:6,fontWeight:700}}>Top Talkers by Bytes</div>
+              {talkers.topTalkers.slice(0,5).map((t,i)=>(
+                <div key={t.ip} style={{display:"flex",justifyContent:"space-between",marginBottom:4,fontSize:10}}>
+                  <span style={{color:i===0?"#ff9900":"#666"}}>{i+1}. {t.ip}</span>
+                  <span style={{color:"#aaa"}}>{(t.bytes/1024/1024).toFixed(1)}MB · {t.flows} flows</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {talkers?.byProto && (
+            <div style={{background:"#070708",border:"1px solid #1a1a1a",borderRadius:6,padding:10}}>
+              <div style={{fontSize:11,color:"#aaa",marginBottom:6,fontWeight:700}}>By Protocol</div>
+              {Object.entries(talkers.byProto).sort(([,a],[,b])=>b-a).map(([p,b])=>(
+                <div key={p} style={{display:"flex",justifyContent:"space-between",marginBottom:4,fontSize:10}}>
+                  <span style={{color:"#666"}}>{p.toUpperCase()}</span>
+                  <span style={{color:"#aaa"}}>{(b/1024/1024).toFixed(1)}MB</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        {anomalies && anomalies.anomalies.length > 0 && (
+          <div style={{marginBottom:12,padding:10,background:"#080808",border:"1px solid #ff220022",borderRadius:6}}>
+            <div style={{fontSize:11,color:"#ff4444",marginBottom:6,fontWeight:700}}>⚠️ Anomalies Detected ({anomalies.total})</div>
+            {anomalies.anomalies.map(a=>(
+              <div key={a.id} style={{display:"flex",gap:10,alignItems:"center",marginBottom:4,fontSize:10}}>
+                <Bdg label={a.anomalyType.replace("_"," ").toUpperCase()} color={ANOM_COLOR[a.anomalyType]??"#888"} sm/>
+                <span style={{color:"#aaa"}}>{a.srcIp} → {a.dstIp}</span>
+                <span style={{color:"#666"}}>{(a.bytes/1024/1024).toFixed(1)}MB</span>
+                <span style={{color:a.anomalyScore>75?"#ff4444":"#ff9900"}}>Score: {a.anomalyScore}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardBox>
+      {loading && <div style={{color:"#555",fontSize:11,marginTop:8}}>Loading...</div>}
+      {data && (
+        <CardBox title={`Flow Records (${data.total})`}>
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:11,fontFamily:"monospace"}}>
+            <thead><tr>{["Src","Dst","Ports","Proto","Packets","Bytes","Duration","Anomaly Score","Anomaly Type"].map(h=><TH key={h}>{h}</TH>)}</tr></thead>
+            <tbody>
+              {data.flows.map(f=>(
+                <tr key={f.id} style={{borderBottom:"1px solid #111"}}>
+                  <TD style={{color:"#aaa"}}>{f.srcIp}</TD>
+                  <TD style={{color:"#aaa"}}>{f.dstIp}</TD>
+                  <TD style={{color:"#555",fontSize:10}}>{f.srcPort}:{f.dstPort}</TD>
+                  <TD><Bdg label={f.protocol.toUpperCase()} color="#333" sm/></TD>
+                  <TD>{f.packets.toLocaleString()}</TD>
+                  <TD>{(f.bytes/1024/1024).toFixed(2)}MB</TD>
+                  <TD style={{color:"#666"}}>{f.durationMs ? `${(f.durationMs/1000).toFixed(1)}s` : "—"}</TD>
+                  <TD style={{color:f.anomalyScore>75?"#ff4444":f.anomalyScore>40?"#ff9900":"#555"}}>{f.anomalyScore}</TD>
+                  <TD><Bdg label={f.anomalyType.replace("_"," ").toUpperCase()} color={ANOM_COLOR[f.anomalyType]??"#333"} sm/></TD>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </CardBox>
+      )}
+    </div>
+  );
+}
+
+// ── N8. SUPPLY CHAIN GUARD ────────────────────────────────────────────────
+function SupplyChainTab() {
+  const { data, loading, reload } = useFwn<{ alerts:Array<{id:number;monitoredProcess:string;srcIp:string|null;dstIp:string|null;dstDomain:string|null;dstPort:number|null;alertType:string;severity:string;details:string|null;action:string;detectedAt:string}>;total:number;critical:number;monitoredProcesses:string[] }>("/supply-chain/alerts");
+  const { data: stats } = useFwn<{ total:number;bySeverity:Record<string,number>;byProcess:Record<string,number>;knownAttacks:Array<{name:string;year:number;vector:string;impact:string}> }>("/supply-chain/stats");
+  const [checkForm, setCheckForm] = useState({ process:"npm", dstDomain:"malicious-registry.io" });
+  const [checkResult, setCheckResult] = useState<{isNewDestination:boolean;severity:string;recommendation:string;baseline:string[]}|null>(null);
+
+  const SEV: Record<string,string>  = { critical:"#ff2244", high:"#ff6600", medium:"#ffaa00", low:"#aaccff" };
+  const TYPE_COLOR: Record<string,string> = { new_destination:"#ff4444", cert_change:"#ff2244", unexpected_protocol:"#ffaa00", data_exfil:"#ff2244", unexpected_port:"#ff6600", dns_change:"#ff9900" };
+
+  const check = async () => {
+    const r = await fwnPost("/supply-chain/check", checkForm);
+    setCheckResult(r); await reload();
+  };
+
+  return (
+    <div>
+      <CardBox title="📦 Supply Chain Guard (2024-2025)" action={
+        <div style={{display:"flex",gap:8}}>
+          <Btn onClick={async()=>{await fwnPost("/supply-chain/seed",{}); await reload();}} color="#4488ff" sm>Seed Alerts</Btn>
+          <Btn onClick={reload} color="#555" sm><RefreshCw size={10}/></Btn>
+        </div>
+      }>
+        <p style={{margin:"0 0 12px",fontSize:11,color:"#555"}}>
+          75% of organizations hit by supply chain attacks in 2024 (BlackBerry). Monitors outbound connections from software updaters (apt, npm, pip, cargo, brew, etc.) and alerts on new destinations, cert fingerprint changes, unexpected protocols. Catches SolarWinds-style attacks, XZ Utils backdoor, 3CX trojan, Polyfill.io CDN injection.
+        </p>
+        {stats?.knownAttacks && (
+          <div style={{marginBottom:14,background:"#070708",border:"1px solid #1a1a1a",borderRadius:6,padding:10}}>
+            <div style={{fontSize:11,color:"#ff4444",marginBottom:6,fontWeight:700}}>Notable Supply Chain Attacks</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:4}}>
+              {stats.knownAttacks.map(a=>(
+                <div key={a.name} style={{padding:"5px 8px",background:"#0a0a0a",borderRadius:4,fontSize:10}}>
+                  <span style={{color:"#ff4444"}}>{a.name}</span> <span style={{color:"#555"}}>({a.year})</span>
+                  <div style={{color:"#444",marginTop:1}}>{a.vector}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        <div style={{display:"flex",gap:8,alignItems:"flex-end",marginBottom:10,flexWrap:"wrap"}}>
+          <div><div style={{fontSize:10,color:"#555",marginBottom:2}}>Process</div>
+            <select value={checkForm.process} onChange={e=>setCheckForm(f=>({...f,process:e.target.value}))} style={{background:"#111",border:"1px solid #222",color:"#fff",padding:"4px 8px",borderRadius:4,fontSize:11}}>
+              {["apt","npm","pip","brew","cargo","yarn","pnpm","wget","curl"].map(p=><option key={p}>{p}</option>)}
+            </select>
+          </div>
+          <div style={{flex:1}}><div style={{fontSize:10,color:"#555",marginBottom:2}}>Destination Domain</div>
+            <input value={checkForm.dstDomain} onChange={e=>setCheckForm(f=>({...f,dstDomain:e.target.value}))} style={{background:"#111",border:"1px solid #222",color:"#fff",padding:"4px 8px",borderRadius:4,fontSize:11,width:"100%"}}/>
+          </div>
+          <Btn onClick={check} color="#ff9900" sm>Check Baseline</Btn>
+        </div>
+        {checkResult && (
+          <div style={{padding:10,background:"#080808",border:`1px solid ${checkResult.isNewDestination?"#ff220044":"#1a1a1a"}`,borderRadius:6,marginBottom:12}}>
+            <Bdg label={checkResult.isNewDestination?"NEW DESTINATION":"BASELINE OK"} color={checkResult.isNewDestination?"#ff4444":"#00ff88"} sm/>
+            <p style={{margin:"6px 0 0",fontSize:10,color:"#555"}}>{checkResult.recommendation}</p>
+            {checkResult.baseline.length > 0 && <div style={{marginTop:6,fontSize:10,color:"#333"}}>Baseline: {checkResult.baseline.join(", ")}</div>}
+          </div>
+        )}
+      </CardBox>
+      {loading && <div style={{color:"#555",fontSize:11,marginTop:8}}>Loading...</div>}
+      {data && (
+        <CardBox title={`Supply Chain Alerts (${data.total}) · Critical: ${data.critical}`}>
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:11,fontFamily:"monospace"}}>
+            <thead><tr>{["Process","Destination","Port","Alert Type","Severity","Action","Details","Time"].map(h=><TH key={h}>{h}</TH>)}</tr></thead>
+            <tbody>
+              {data.alerts.map(a=>(
+                <tr key={a.id} style={{borderBottom:"1px solid #111"}}>
+                  <TD style={{color:"#fff",fontFamily:"monospace"}}>{a.monitoredProcess}</TD>
+                  <TD style={{color:"#aaa"}}>{a.dstDomain ?? a.dstIp ?? "—"}</TD>
+                  <TD style={{color:"#666"}}>{a.dstPort ?? "—"}</TD>
+                  <TD><Bdg label={a.alertType.replace(/_/g," ").toUpperCase()} color={TYPE_COLOR[a.alertType]??"#888"} sm/></TD>
+                  <TD><Bdg label={a.severity.toUpperCase()} color={SEV[a.severity]??"#888"} sm/></TD>
+                  <TD><Bdg label={a.action.toUpperCase()} color={a.action==="block"?"#ff4444":"#ff9900"} sm/></TD>
+                  <TD style={{color:"#555",fontSize:10,maxWidth:200}}>{a.details?.slice(0,60) ?? "—"}{(a.details?.length??0)>60?"…":""}</TD>
+                  <TD style={{color:"#555",fontSize:10}}>{new Date(a.detectedAt).toLocaleTimeString()}</TD>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </CardBox>
+      )}
+    </div>
+  );
+}
+
+// ── N9. AI RULE BUILDER ───────────────────────────────────────────────────
+function AiRulesTab() {
+  const { data, loading, reload } = useFwn<{ suggestions:Array<{id:number;inputText:string;ruleType:string;confidence:number|null;approved:boolean;applied:boolean;createdAt:string}>;examples:string[] }>("/ai-rules/suggestions");
+  const [input, setInput] = useState("");
+  const [result, setResult] = useState<{generatedRule:Record<string,unknown>;ruleType:string;confidence:number;explanation:string;alternatives:Array<{ruleType:string;note:string}>}|null>(null);
+  const [generating, setGenerating] = useState(false);
+
+  const RT_COLOR: Record<string,string> = { block:"#ff4444", allow:"#00ff88", rate_limit:"#ffaa00", redirect:"#4488ff", alert:"#ff9900" };
+
+  const generate = async () => {
+    if (!input.trim()) return; setGenerating(true);
+    const r = await fwnPost("/ai-rules/generate", { inputText: input });
+    setResult(r); await reload(); setGenerating(false);
+  };
+
+  const approve = async (id: number) => {
+    await fwnPost(`/ai-rules/approve/${id}`, {});
+    await reload();
+  };
+
+  return (
+    <div>
+      <CardBox title="🤖 AI Rule Builder — Natural Language → Firewall Rule (2024-2025)">
+        <p style={{margin:"0 0 12px",fontSize:11,color:"#555"}}>
+          Converts natural language descriptions into structured firewall rules using deterministic NLP pattern matching. Enterprise vendors (Palo Alto, Fortinet, Check Point) all shipped AI rule generation in 2024. Rules are generated locally — no external API calls. Approve generated rules to apply them to the active ruleset.
+        </p>
+        <div style={{marginBottom:8}}>
+          <textarea value={input} onChange={e=>setInput(e.target.value)} placeholder="Describe the rule in plain English... e.g. 'Block all inbound TCP from Russia on port 22' or 'Rate limit HTTP requests to 100 per second'" style={{width:"100%",background:"#111",border:"1px solid #222",color:"#fff",padding:"8px 10px",borderRadius:6,fontSize:11,resize:"vertical",minHeight:60,fontFamily:"monospace",boxSizing:"border-box"}}/>
+        </div>
+        <Btn onClick={generate} color="#00ff88" disabled={generating||!input.trim()} sm>{generating?"Generating...":"Generate Rule"}</Btn>
+        {data?.examples && (
+          <div style={{marginTop:10}}>
+            <div style={{fontSize:10,color:"#555",marginBottom:5}}>Try an example:</div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+              {data.examples.map(ex=>(
+                <button key={ex} onClick={()=>setInput(ex)} style={{background:"#0a0a0a",border:"1px solid #1a1a1a",color:"#555",padding:"3px 8px",borderRadius:4,cursor:"pointer",fontSize:9,fontFamily:"monospace"}}>{ex.slice(0,50)}…</button>
+              ))}
+            </div>
+          </div>
+        )}
+        {result && (
+          <div style={{marginTop:14,padding:12,background:"#080808",border:"1px solid #00ff8822",borderRadius:6}}>
+            <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:8}}>
+              <Bdg label={result.ruleType.replace("_"," ").toUpperCase()} color={RT_COLOR[result.ruleType]??"#888"} sm/>
+              <span style={{fontSize:11,color:"#aaa"}}>Confidence: <b style={{color:result.confidence>75?"#00ff88":"#ff9900"}}>{result.confidence}%</b></span>
+            </div>
+            <p style={{margin:"0 0 8px",fontSize:10,color:"#555"}}>{result.explanation}</p>
+            <pre style={{background:"#060606",border:"1px solid #1a1a1a",borderRadius:4,padding:8,fontSize:10,color:"#aaa",overflow:"auto",maxHeight:120}}>{JSON.stringify(result.generatedRule,null,2)}</pre>
+            <div style={{marginTop:8,display:"flex",gap:6}}>
+              <CopyBtn text={JSON.stringify(result.generatedRule,null,2)}/>
+              <span style={{fontSize:10,color:"#555"}}>Alternatives:</span>
+              {result.alternatives.map((a,i)=>(
+                <span key={i} style={{fontSize:10,color:"#555"}}>{a.ruleType} ({a.note})</span>
+              ))}
+            </div>
+          </div>
+        )}
+      </CardBox>
+      {loading && <div style={{color:"#555",fontSize:11,marginTop:8}}>Loading...</div>}
+      {data?.suggestions && data.suggestions.length > 0 && (
+        <CardBox title={`Generated Rules (${data.suggestions.length})`}>
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:11,fontFamily:"monospace"}}>
+            <thead><tr>{["Input","Type","Confidence","Approved","Time",""].map(h=><TH key={h}>{h}</TH>)}</tr></thead>
+            <tbody>
+              {data.suggestions.map(r=>(
+                <tr key={r.id} style={{borderBottom:"1px solid #111"}}>
+                  <TD style={{color:"#aaa",maxWidth:300,overflow:"hidden"}}>{r.inputText.slice(0,60)}{r.inputText.length>60?"…":""}</TD>
+                  <TD><Bdg label={r.ruleType.toUpperCase()} color={RT_COLOR[r.ruleType]??"#888"} sm/></TD>
+                  <TD style={{color:((r.confidence??0)>75)?"#00ff88":"#ff9900"}}>{r.confidence?.toFixed(0) ?? "—"}%</TD>
+                  <TD>{r.approved ? <Bdg label="APPROVED" color="#00ff88" sm/> : <span style={{color:"#333"}}>—</span>}</TD>
+                  <TD style={{color:"#555",fontSize:10}}>{new Date(r.createdAt).toLocaleString()}</TD>
+                  <TD>{!r.approved && <Btn onClick={()=>approve(r.id)} color="#00ff88" sm>Approve</Btn>}</TD>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </CardBox>
+      )}
+    </div>
+  );
+}
+
+// ── N10. RPKI / BGP ROUTE GUARD ───────────────────────────────────────────
+function RpkiTab() {
+  const { data, loading, reload } = useFwn<{ checks:Array<{id:number;prefix:string;asn:number|null;validatedOriginAsn:number|null;maxLength:number|null;status:string;roaCount:number;invalidReasons:string|null;checkedAt:string}>;stats:{total:number;valid:number;invalid:number;notFound:number};coverage:number }>("/rpki/cache");
+  const { data: stats } = useFwn<{ total:number;valid:number;invalid:number;notFound:number;globalCoverage:string;note:string }>("/rpki/stats");
+  const [validateForm, setValidateForm] = useState({ prefix:"1.1.1.0/24", asn:"13335" });
+  const [validateResult, setValidateResult] = useState<{prefix:string;status:string;interpretation:string;bgpHijackRisk:string;roaCount:number;validatedOriginAsn:number|null;maxLength:number|null;invalidReasons:string|null}|null>(null);
+  const [validating, setValidating] = useState(false);
+
+  const STATUS_COLOR: Record<string,string> = { valid:"#00ff88", invalid:"#ff2244", not_found:"#ff9900", error:"#555" };
+
+  const validate = async () => {
+    setValidating(true);
+    const r = await fwnPost("/rpki/validate", { prefix:validateForm.prefix, asn:parseInt(validateForm.asn) });
+    setValidateResult(r); await reload(); setValidating(false);
+  };
+
+  return (
+    <div>
+      <CardBox title="🌐 RPKI / BGP Route Guard (2024-2025)" action={<Btn onClick={reload} color="#555" sm><RefreshCw size={10}/></Btn>}>
+        <p style={{margin:"0 0 12px",fontSize:11,color:"#555"}}>
+          RPKI (Resource Public Key Infrastructure) cryptographically validates BGP route origins. A ROA (Route Origin Authorization) proves a prefix owner authorized a specific ASN to announce it. Invalid = possible BGP hijack. ~45% of global prefixes have ROA coverage (2025). Powered by Cloudflare RPKI API + RIPE Stat fallback.
+        </p>
+        {stats && (
+          <div style={{display:"flex",gap:12,marginBottom:14,flexWrap:"wrap"}}>
+            {[["Valid",stats.valid,"#00ff88"],["Invalid",stats.invalid,"#ff2244"],["Not Found",stats.notFound,"#ff9900"],["Total",stats.total,"#aaa"]].map(([l,v,c])=>(
+              <div key={String(l)} style={{padding:"8px 14px",background:"#070708",border:`1px solid ${c}33`,borderRadius:6,textAlign:"center"}}>
+                <div style={{fontSize:18,color:String(c),fontWeight:800,fontFamily:"monospace"}}>{v}</div>
+                <div style={{fontSize:10,color:"#555"}}>{l}</div>
+              </div>
+            ))}
+          </div>
+        )}
+        <div style={{display:"flex",gap:8,alignItems:"flex-end",marginBottom:10,flexWrap:"wrap"}}>
+          <div><div style={{fontSize:10,color:"#555",marginBottom:2}}>IP Prefix (CIDR)</div>
+            <input value={validateForm.prefix} onChange={e=>setValidateForm(f=>({...f,prefix:e.target.value}))} style={{background:"#111",border:"1px solid #222",color:"#fff",padding:"4px 8px",borderRadius:4,fontSize:11,width:160}}/>
+          </div>
+          <div><div style={{fontSize:10,color:"#555",marginBottom:2}}>Origin ASN</div>
+            <input value={validateForm.asn} onChange={e=>setValidateForm(f=>({...f,asn:e.target.value}))} style={{background:"#111",border:"1px solid #222",color:"#fff",padding:"4px 8px",borderRadius:4,fontSize:11,width:100}}/>
+          </div>
+          <Btn onClick={validate} color="#00ff88" disabled={validating} sm>{validating?"Validating...":"Validate RPKI"}</Btn>
+        </div>
+        {validateResult && (
+          <div style={{padding:12,background:"#080808",border:`1px solid ${STATUS_COLOR[validateResult.status]??"#888"}44`,borderRadius:6,marginBottom:12}}>
+            <div style={{display:"flex",gap:10,alignItems:"center"}}>
+              <Bdg label={validateResult.status.replace("_"," ").toUpperCase()} color={STATUS_COLOR[validateResult.status]??"#888"} sm/>
+              <span style={{fontSize:11,color:"#aaa"}}>{validateResult.prefix}</span>
+              {validateResult.validatedOriginAsn && <span style={{fontSize:10,color:"#555"}}>ROA ASN: AS{validateResult.validatedOriginAsn} · MaxLen: /{validateResult.maxLength}</span>}
+            </div>
+            <p style={{margin:"8px 0 4px",fontSize:11,color:"#aaa"}}>{validateResult.interpretation}</p>
+            <div style={{fontSize:10,color:validateResult.bgpHijackRisk.startsWith("HIGH")?"#ff4444":validateResult.bgpHijackRisk.startsWith("MEDIUM")?"#ff9900":"#00ff88"}}>BGP Hijack Risk: {validateResult.bgpHijackRisk}</div>
+            {validateResult.invalidReasons && <div style={{marginTop:4,fontSize:10,color:"#ff4444"}}>Reason: {validateResult.invalidReasons}</div>}
+            <div style={{marginTop:4,fontSize:10,color:"#555"}}>ROA count: {validateResult.roaCount}</div>
+          </div>
+        )}
+        {stats && <div style={{fontSize:10,color:"#555",marginBottom:12}}>{stats.globalCoverage} · {stats.note}</div>}
+      </CardBox>
+      {loading && <div style={{color:"#555",fontSize:11,marginTop:8}}>Loading...</div>}
+      {data?.checks && data.checks.length > 0 && (
+        <CardBox title={`RPKI Cache (${data.checks.length}) · Coverage: ${data.coverage}%`}>
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:11,fontFamily:"monospace"}}>
+            <thead><tr>{["Prefix","ASN","Validated ASN","Max Len","Status","ROAs","Checked"].map(h=><TH key={h}>{h}</TH>)}</tr></thead>
+            <tbody>
+              {data.checks.map(c=>(
+                <tr key={c.id} style={{borderBottom:"1px solid #111"}}>
+                  <TD style={{color:"#fff",fontFamily:"monospace"}}>{c.prefix}</TD>
+                  <TD style={{color:"#aaa"}}>{c.asn ? `AS${c.asn}` : "—"}</TD>
+                  <TD style={{color:"#666"}}>{c.validatedOriginAsn ? `AS${c.validatedOriginAsn}` : "—"}</TD>
+                  <TD style={{color:"#555"}}>/{c.maxLength ?? "—"}</TD>
+                  <TD><Bdg label={c.status.replace("_"," ").toUpperCase()} color={STATUS_COLOR[c.status]??"#888"} sm/></TD>
+                  <TD style={{color:"#666"}}>{c.roaCount}</TD>
+                  <TD style={{color:"#555",fontSize:10}}>{new Date(c.checkedAt).toLocaleString()}</TD>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </CardBox>
+      )}
+    </div>
+  );
+}
+
+// ── N11. DECEPTION LAYER ──────────────────────────────────────────────────
+function DeceptionTab() {
+  const { data: ports, loading, reload } = useFwn<{ ports:Array<{id:number;port:number;protocol:string;serviceEmulation:string;banner:string|null;enabled:boolean;autoBlacklist:boolean;triggerCount:number;lastTriggered:string|null}>;total:number }>("/deception/ports");
+  const { data: triggers } = useFwn<{ triggers:Array<{id:number;portId:number;srcIp:string;srcPort:number|null;payloadHex:string|null;bytesReceived:number;autoBlocked:boolean;detectedAt:string}>;total:number }>("/deception/triggers");
+  const [form, setForm] = useState({ port:"2222", protocol:"tcp", serviceEmulation:"ssh", autoBlacklist:"true" });
+  const [triggerForm, setTriggerForm] = useState({ portId:"1", srcIp:"45.33.32.156", srcPort:"54321" });
+  const [triggerResult, setTriggerResult] = useState<{message:string;autoBlocked:boolean}|null>(null);
+
+  const SVC_COLOR: Record<string,string> = { ssh:"#00ff88", http:"#4488ff", ftp:"#ff9900", smb:"#cc44ff", rdp:"#ff6600", generic:"#555" };
+
+  const addPort = async () => {
+    await fwnPost("/deception/ports", { ...form, port:parseInt(form.port), autoBlacklist:form.autoBlacklist==="true" });
+    await reload();
+  };
+
+  const simulateTrigger = async () => {
+    const r = await fwnPost("/deception/trigger", { portId:parseInt(triggerForm.portId), srcIp:triggerForm.srcIp, srcPort:parseInt(triggerForm.srcPort) });
+    setTriggerResult(r); await reload();
+  };
+
+  return (
+    <div>
+      <CardBox title="👁️ Deception Layer — Virtual Honeypot Network (2024-2025)" action={
+        <div style={{display:"flex",gap:8}}>
+          <Btn onClick={async()=>{await fwnPost("/deception/seed",{}); await reload();}} color="#4488ff" sm>Seed Ports</Btn>
+          <Btn onClick={reload} color="#555" sm><RefreshCw size={10}/></Btn>
+        </div>
+      }>
+        <p style={{margin:"0 0 12px",fontSize:11,color:"#555"}}>
+          Virtual honeypot listeners on unused ports. Any attacker touching a deception port is immediately identified and auto-blacklisted. Emulates: SSH (2.0 banner), HTTP (Apache/nginx), FTP (ProFTPD), SMB, RDP, custom services. Modern deception platforms (Attivo, Illusive Networks, CounterCraft) extend this with AD breadcrumb credentials and deceptive DNS entries.
+        </p>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:8,marginBottom:10}}>
+          {[["Port","port"],["Protocol","protocol"],["Service","serviceEmulation"],["Auto-Blacklist","autoBlacklist"]].map(([l,k])=>(
+            <div key={k}><div style={{fontSize:10,color:"#555",marginBottom:2}}>{l}</div>
+              {k==="serviceEmulation" ? (
+                <select value={form.serviceEmulation} onChange={e=>setForm(f=>({...f,serviceEmulation:e.target.value}))} style={{background:"#111",border:"1px solid #222",color:"#fff",padding:"4px 8px",borderRadius:4,fontSize:11,width:"100%"}}>
+                  {["ssh","http","ftp","smb","rdp","generic"].map(s=><option key={s}>{s}</option>)}
+                </select>
+              ) : k==="autoBlacklist" ? (
+                <select value={form.autoBlacklist} onChange={e=>setForm(f=>({...f,autoBlacklist:e.target.value}))} style={{background:"#111",border:"1px solid #222",color:"#fff",padding:"4px 8px",borderRadius:4,fontSize:11,width:"100%"}}>
+                  <option value="true">Yes</option><option value="false">No</option>
+                </select>
+              ) : k==="protocol" ? (
+                <select value={form.protocol} onChange={e=>setForm(f=>({...f,protocol:e.target.value}))} style={{background:"#111",border:"1px solid #222",color:"#fff",padding:"4px 8px",borderRadius:4,fontSize:11,width:"100%"}}>
+                  <option>tcp</option><option>udp</option>
+                </select>
+              ) : (
+                <input value={(form as Record<string,string>)[k]} onChange={e=>setForm(f=>({...f,[k]:e.target.value}))} style={{background:"#111",border:"1px solid #222",color:"#fff",padding:"4px 8px",borderRadius:4,fontSize:11,width:"100%"}}/>
+              )}
+            </div>
+          ))}
+        </div>
+        <Btn onClick={addPort} color="#00ff88" sm>Deploy Honeypot Port</Btn>
+        <div style={{marginTop:14,padding:10,background:"#070708",border:"1px solid #1a1a1a",borderRadius:6}}>
+          <div style={{fontSize:11,color:"#aaa",marginBottom:8,fontWeight:700}}>Simulate Trigger</div>
+          <div style={{display:"flex",gap:8,alignItems:"flex-end",flexWrap:"wrap"}}>
+            {[["Port ID","portId"],["Attacker IP","srcIp"],["Attacker Port","srcPort"]].map(([l,k])=>(
+              <div key={k}><div style={{fontSize:10,color:"#555",marginBottom:2}}>{l}</div>
+                <input value={(triggerForm as Record<string,string>)[k]} onChange={e=>setTriggerForm(f=>({...f,[k]:e.target.value}))} style={{background:"#111",border:"1px solid #222",color:"#fff",padding:"4px 8px",borderRadius:4,fontSize:11,width:"100%"}}/>
+              </div>
+            ))}
+            <Btn onClick={simulateTrigger} color="#ff9900" sm>Simulate Trigger</Btn>
+          </div>
+          {triggerResult && (
+            <div style={{marginTop:8,padding:8,background:"#0a0a0a",borderRadius:4}}>
+              {triggerResult.autoBlocked && <Bdg label="ATTACKER BLACKLISTED" color="#ff4444" sm/>}
+              <p style={{margin:"4px 0 0",fontSize:10,color:"#555"}}>{triggerResult.message}</p>
+            </div>
+          )}
+        </div>
+      </CardBox>
+      {loading && <div style={{color:"#555",fontSize:11,marginTop:8}}>Loading...</div>}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+        {ports && (
+          <CardBox title={`Honeypot Ports (${ports.total})`}>
+            {ports.ports.map(p=>(
+              <div key={p.id} style={{display:"flex",gap:10,alignItems:"center",padding:"6px 0",borderBottom:"1px solid #111",fontSize:11}}>
+                <Bdg label={p.serviceEmulation.toUpperCase()} color={SVC_COLOR[p.serviceEmulation]??"#555"} sm/>
+                <span style={{color:"#fff",fontFamily:"monospace"}}>:{p.port}/{p.protocol}</span>
+                {p.triggerCount > 0 && <Bdg label={`${p.triggerCount} hits`} color="#ff9900" sm/>}
+                <span style={{marginLeft:"auto",color:"#555",fontSize:10}}>{p.enabled?"active":"disabled"}</span>
+                <Btn onClick={async()=>{await fwnDelete(`/deception/ports/${p.id}`); await reload();}} color="#ff4444" sm><Trash2 size={9}/></Btn>
+              </div>
+            ))}
+          </CardBox>
+        )}
+        {triggers && (
+          <CardBox title={`Triggers (${triggers.total})`}>
+            {triggers.triggers.length === 0 ? <div style={{color:"#333",fontSize:11}}>No triggers yet — honeypots are clean</div> : (
+              triggers.triggers.map(t=>(
+                <div key={t.id} style={{padding:"6px 0",borderBottom:"1px solid #111",fontSize:11}}>
+                  <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                    <span style={{color:"#ff4444",fontFamily:"monospace"}}>{t.srcIp}</span>
+                    {t.autoBlocked && <Bdg label="BLOCKED" color="#ff2244" sm/>}
+                    <span style={{marginLeft:"auto",color:"#555",fontSize:10}}>{new Date(t.detectedAt).toLocaleTimeString()}</span>
+                  </div>
+                  <div style={{fontSize:10,color:"#555",marginTop:2}}>Port {t.portId} · {t.bytesReceived}B received</div>
+                </div>
+              ))
+            )}
+          </CardBox>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── N12. GEO-IP FIREWALL ──────────────────────────────────────────────────
+function GeoipTab() {
+  const { data, loading, reload } = useFwn<{ rules:Array<{id:number;countryCode:string;countryName:string;continent:string|null;action:string;enabled:boolean;hitCount:number;lastHit:string|null;description:string|null}>;total:number }>("/geoip/rules");
+  const { data: geoStats } = useFwn<{ total:number;blocked:number;totalHits:number;topBlocked:Array<{countryCode:string;countryName:string;hitCount:number}> }>("/geoip/stats");
+  const [lookupIp, setLookupIp] = useState("");
+  const [lookupResult, setLookupResult] = useState<{ip:string;geo:Record<string,unknown>;activeRule:Record<string,unknown>|null;action:string;threat:string|null}|null>(null);
+  const [scriptUrl, setScriptUrl] = useState<string|null>(null);
+
+  const ACT_COLOR: Record<string,string> = { block:"#ff4444", allow:"#00ff88", monitor:"#ff9900", redirect:"#4488ff", tarpit:"#cc44ff" };
+
+  const lookup = async () => {
+    if (!lookupIp) return;
+    const r = await fwnPost("/geoip/lookup", { ip: lookupIp });
+    setLookupResult(r);
+    await reload();
+  };
+
+  const toggleRule = async (id: number, enabled: boolean) => {
+    await fwnPut(`/geoip/rules/${id}`, { enabled: !enabled });
+    await reload();
+  };
+
+  const downloadScript = async () => {
+    const resp = await fetch(`${APIFWN}/geoip/script`);
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    setScriptUrl(url);
+    const a = document.createElement("a"); a.href=url; a.download="geoip-block.sh"; a.click();
+  };
+
+  return (
+    <div>
+      <CardBox title="🗺️ Geo-IP Firewall — Country-Level Traffic Control (2024-2025)" action={
+        <div style={{display:"flex",gap:8}}>
+          <Btn onClick={async()=>{await fwnPost("/geoip/seed",{}); await reload();}} color="#4488ff" sm>Seed Countries</Btn>
+          <Btn onClick={downloadScript} color="#00ff88" sm><Download size={10}/> iptables Script</Btn>
+          <Btn onClick={reload} color="#555" sm><RefreshCw size={10}/></Btn>
+        </div>
+      }>
+        <p style={{margin:"0 0 12px",fontSize:11,color:"#555"}}>
+          Country-level block/allow/monitor/redirect/tarpit policies. Real GeoIP lookup via ip-api.com (detects proxy/VPN/hosting IPs). Generates downloadable ipset + iptables CIDR block scripts for any combination of countries. Pre-seeded with top threat countries (RU, CN, KP, IR) and known-good user-base countries.
+        </p>
+        {geoStats && (
+          <div style={{display:"flex",gap:12,marginBottom:12,flexWrap:"wrap"}}>
+            {[["Countries Blocked",geoStats.blocked,"#ff4444"],["Total Rules",geoStats.total,"#aaa"],["Total Hits",geoStats.totalHits,"#ff9900"]].map(([l,v,c])=>(
+              <div key={String(l)} style={{padding:"8px 14px",background:"#070708",border:`1px solid ${c}33`,borderRadius:6,textAlign:"center"}}>
+                <div style={{fontSize:18,color:String(c),fontWeight:800,fontFamily:"monospace"}}>{v}</div>
+                <div style={{fontSize:10,color:"#555"}}>{l}</div>
+              </div>
+            ))}
+          </div>
+        )}
+        <div style={{display:"flex",gap:8,alignItems:"flex-end",marginBottom:12}}>
+          <div style={{flex:1}}><div style={{fontSize:10,color:"#555",marginBottom:2}}>IP Address Lookup</div>
+            <input value={lookupIp} onChange={e=>setLookupIp(e.target.value)} placeholder="e.g. 8.8.8.8" style={{background:"#111",border:"1px solid #222",color:"#fff",padding:"4px 8px",borderRadius:4,fontSize:11,width:"100%"}}/>
+          </div>
+          <Btn onClick={lookup} color="#00ff88" sm>Lookup GeoIP</Btn>
+        </div>
+        {lookupResult && (
+          <div style={{marginBottom:14,padding:10,background:"#080808",border:`1px solid ${lookupResult.activeRule ? "#ff440044" : "#1a1a1a"}`,borderRadius:6}}>
+            <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
+              <Bdg label={lookupResult.action.toUpperCase()} color={ACT_COLOR[lookupResult.action]??"#888"} sm/>
+              {!!lookupResult.geo.country && <span style={{color:"#fff"}}>{String(lookupResult.geo.country)} ({String(lookupResult.geo.countryCode)})</span>}
+              {!!lookupResult.geo.isp && <span style={{color:"#555",fontSize:10}}>{String(lookupResult.geo.isp)}</span>}
+              {lookupResult.threat && <Bdg label={lookupResult.threat.replace(/[⚠️ℹ️]/g,"").trim()} color="#ff9900" sm/>}
+            </div>
+            {!!lookupResult.geo.city && <div style={{marginTop:4,fontSize:10,color:"#555"}}>{String(lookupResult.geo.city)}, {String(lookupResult.geo.regionName)} · AS{String(lookupResult.geo.as)?.split(" ")[0].replace("AS","")}</div>}
+          </div>
+        )}
+      </CardBox>
+      {loading && <div style={{color:"#555",fontSize:11,marginTop:8}}>Loading...</div>}
+      {data && (
+        <CardBox title={`Geo-IP Rules (${data.total})`}>
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:11,fontFamily:"monospace"}}>
+            <thead><tr>{["Code","Country","Continent","Action","Hits","Enabled",""].map(h=><TH key={h}>{h}</TH>)}</tr></thead>
+            <tbody>
+              {data.rules.map(r=>(
+                <tr key={r.id} style={{borderBottom:"1px solid #111"}}>
+                  <TD style={{fontWeight:700,color:"#aaa"}}>{r.countryCode}</TD>
+                  <TD style={{color:"#fff"}}>{r.countryName}</TD>
+                  <TD style={{color:"#555"}}>{r.continent ?? "—"}</TD>
+                  <TD><Bdg label={r.action.toUpperCase()} color={ACT_COLOR[r.action]??"#888"} sm/></TD>
+                  <TD style={{color:"#666"}}>{r.hitCount.toLocaleString()}</TD>
+                  <TD><Bdg label={r.enabled?"ON":"OFF"} color={r.enabled?"#00ff88":"#555"} sm/></TD>
+                  <TD>
+                    <div style={{display:"flex",gap:4}}>
+                      <Btn onClick={()=>toggleRule(r.id,r.enabled)} color={r.enabled?"#555":"#00ff88"} sm>{r.enabled?"Disable":"Enable"}</Btn>
+                      <Btn onClick={async()=>{await fwnDelete(`/geoip/rules/${r.id}`); await reload();}} color="#ff4444" sm><Trash2 size={9}/></Btn>
+                    </div>
+                  </TD>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </CardBox>
+      )}
+    </div>
+  );
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────
 export default function Firewall() {
   const [tab, setTab] = useState("overview");
@@ -2313,6 +3441,19 @@ export default function Firewall() {
       {tab==="suppressions"&&<SuppressionsTab/>}
       {tab==="eveExport"   &&<EveExportTab/>}
       {tab==="proxy"       &&<ProxyRulesTab/>}
+      {/* ── 2024-2025 Next-Gen Research Features ── */}
+      {tab==="ebpf"        &&<EbpfTab/>}
+      {tab==="quic"        &&<QuicTab/>}
+      {tab==="eta"         &&<EtaTab/>}
+      {tab==="ech"         &&<EchTab/>}
+      {tab==="doh"         &&<DohTab/>}
+      {tab==="lateral"     &&<LateralTab/>}
+      {tab==="netflow"     &&<NetflowTab/>}
+      {tab==="supplychain" &&<SupplyChainTab/>}
+      {tab==="airules"     &&<AiRulesTab/>}
+      {tab==="rpki"        &&<RpkiTab/>}
+      {tab==="deception"   &&<DeceptionTab/>}
+      {tab==="geoip"       &&<GeoipTab/>}
     </div>
   );
 }
