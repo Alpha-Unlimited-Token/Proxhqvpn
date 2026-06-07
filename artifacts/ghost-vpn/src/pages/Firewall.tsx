@@ -9,16 +9,16 @@ import {
 import {
   useListGhostOsRules, useCreateGhostOsRule, useDeleteGhostOsRule, useUpdateGhostOsRule,
   useTranscribeToSymscript, useParseGhostOsRule,
-  useListIpsSignatures, useToggleIpsSignature, useBulkToggleIpsCategory,
+  useListIpsSignatures, useToggleIpsSignature, useBulkToggleIpsCategory, useDeleteIpsSignature,
   useListDpiRules, useCreateDpiRule, useDeleteDpiRule, useUpdateDpiRule, useTestDpiPattern,
   useListGeoBlocks, useAddGeoBlock, useRemoveGeoBlock, useUpdateGeoBlock,
   useListThreatFeeds, useSyncThreatFeed, useUpdateThreatFeed,
   useListFirewallZones, useCreateFirewallZone, useDeleteFirewallZone, useUpdateFirewallZone,
-  useListFqdnRules, useCreateFqdnRule, useDeleteFqdnRule,
+  useListFqdnRules, useCreateFqdnRule, useDeleteFqdnRule, useUpdateFqdnRule,
   useGetFirewallAnalytics, useListThreatProfiles, useApplyThreatProfile,
   useCheckRuleConflicts,
   useGetFirewallStatus, useToggleFirewall,
-  useListFirewallRules, useCreateFirewallRule, useDeleteFirewallRule,
+  useListFirewallRules, useCreateFirewallRule, useDeleteFirewallRule, useUpdateFirewallRule,
   useListBlockedIps, useBlockIp, useUnblockIp, useGenerateIptablesRules,
 } from "@workspace/api-client-react";
 
@@ -318,6 +318,7 @@ function GhostOsTab() {
 function IpsTab() {
   const { data, refetch } = useListIpsSignatures();
   const tog = useToggleIpsSignature();
+  const del = useDeleteIpsSignature();
   const bulk = useBulkToggleIpsCategory();
   const [search, setSearch] = useState("");
   const [selCat, setSelCat] = useState("all");
@@ -344,7 +345,7 @@ function IpsTab() {
       </div>
       <div style={{ background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:8, overflow:"auto", maxHeight:460 }}>
         <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
-          <thead><tr style={{ borderBottom:"1px solid #1a1a1a" }}>{["SID","Signature Name","Category","Severity","CVE","Action","Status"].map(h=><th key={h} style={{ padding:"9px 12px", textAlign:"left", color:"#444", fontSize:10, textTransform:"uppercase", letterSpacing:1 }}>{h}</th>)}</tr></thead>
+          <thead><tr style={{ borderBottom:"1px solid #1a1a1a" }}>{["SID","Signature Name","Category","Severity","CVE","Action","Status",""].map(h=><th key={h} style={{ padding:"9px 12px", textAlign:"left", color:"#444", fontSize:10, textTransform:"uppercase", letterSpacing:1 }}>{h}</th>)}</tr></thead>
           <tbody>
             {filtered.map(sig=>(
               <tr key={sig.id} style={{ borderBottom:"1px solid #0d0d0d", opacity:sig.enabled?1:0.45 }}>
@@ -359,6 +360,9 @@ function IpsTab() {
                 <td style={{ padding:"7px 12px" }}><Bdg label={sig.action} color={sig.action==="drop"?"#ff4444":"#ffaa00"} sm/></td>
                 <td style={{ padding:"7px 12px" }}>
                   <button onClick={()=>tog.mutate({id:sig.id,data:{enabled:!sig.enabled}},{onSuccess:()=>refetch()})} style={{ background:sig.enabled?"#00ff8822":"#22222222", border:`1px solid ${sig.enabled?"#00ff8844":"#333"}`, color:sig.enabled?"#00ff88":"#444", borderRadius:4, padding:"3px 10px", cursor:"pointer", fontSize:10, fontFamily:"monospace" }}>{sig.enabled?"ON":"OFF"}</button>
+                </td>
+                <td style={{ padding:"7px 12px" }}>
+                  <button onClick={()=>del.mutate({id:sig.id},{onSuccess:()=>refetch()})} style={{ background:"none", border:"1px solid #ff444433", borderRadius:3, padding:"2px 5px", cursor:"pointer", color:"#ff4444" }}><Trash2 size={8}/></button>
                 </td>
               </tr>
             ))}
@@ -577,8 +581,8 @@ function RulesTab() {
   const { data: rData, refetch: rR } = useListFirewallRules();
   const { data: fData, refetch: rF } = useListFqdnRules();
   const { data: conflicts, mutate: chk } = useCheckRuleConflicts();
-  const cR = useCreateFirewallRule(); const dR = useDeleteFirewallRule();
-  const cF = useCreateFqdnRule(); const dF = useDeleteFqdnRule();
+  const cR = useCreateFirewallRule(); const dR = useDeleteFirewallRule(); const uR = useUpdateFirewallRule();
+  const cF = useCreateFqdnRule(); const dF = useDeleteFqdnRule(); const uF = useUpdateFqdnRule();
   const [sec, setSec] = useState<"rules"|"fqdn">("rules");
   const [rf, setRf] = useState({ name:"", direction:"inbound", action:"deny", protocol:"tcp", destPort:"" });
   const [ff, setFf] = useState({ domain:"", action:"block", direction:"both" });
@@ -612,7 +616,7 @@ function RulesTab() {
             <table style={{ width:"100%", borderCollapse:"collapse", fontSize:11 }}>
               <thead><tr style={{ borderBottom:"1px solid #1a1a1a" }}>{["#","Name","Dir","Action","Protocol","Port","Hits",""].map(h=><th key={h} style={{ padding:"8px 12px", textAlign:"left", color:"#444", fontSize:10, textTransform:"uppercase" }}>{h}</th>)}</tr></thead>
               <tbody>{(rData?.rules??[]).map(r=>(
-                <tr key={r.id} style={{ borderBottom:"1px solid #0d0d0d" }}>
+                <tr key={r.id} style={{ borderBottom:"1px solid #0d0d0d", opacity:r.enabled?1:0.45 }}>
                   <td style={{ padding:"7px 12px", color:"#444", fontFamily:"monospace", fontSize:10 }}>{r.priority}</td>
                   <td style={{ padding:"7px 12px", color:"#bbb" }}>{r.name}</td>
                   <td style={{ padding:"7px 12px" }}><Bdg label={r.direction} color="#44aaff" sm/></td>
@@ -620,7 +624,10 @@ function RulesTab() {
                   <td style={{ padding:"7px 12px", color:"#666", fontFamily:"monospace" }}>{r.protocol}</td>
                   <td style={{ padding:"7px 12px", color:"#666", fontFamily:"monospace" }}>{r.destPort??"any"}</td>
                   <td style={{ padding:"7px 12px", color:"#ff9900", fontFamily:"monospace" }}>{r.hitCount}</td>
-                  <td style={{ padding:"7px 12px" }}><button onClick={()=>dR.mutate({id:r.id},{onSuccess:()=>rR()})} style={{ background:"none", border:"1px solid #ff444433", borderRadius:3, padding:"2px 5px", cursor:"pointer", color:"#ff4444" }}><Trash2 size={8}/></button></td>
+                  <td style={{ padding:"7px 12px", display:"flex", gap:5 }}>
+                    <button onClick={()=>uR.mutate({id:r.id,data:{enabled:!r.enabled}},{onSuccess:()=>rR()})} style={{ background:r.enabled?"#00ff8811":"#22222222", border:`1px solid ${r.enabled?"#00ff8833":"#333"}`, color:r.enabled?"#00ff88":"#444", borderRadius:3, padding:"2px 8px", cursor:"pointer", fontSize:9, fontFamily:"monospace" }}>{r.enabled?"ON":"OFF"}</button>
+                    <button onClick={()=>dR.mutate({id:r.id},{onSuccess:()=>rR()})} style={{ background:"none", border:"1px solid #ff444433", borderRadius:3, padding:"2px 5px", cursor:"pointer", color:"#ff4444" }}><Trash2 size={8}/></button>
+                  </td>
                 </tr>
               ))}</tbody>
             </table>
@@ -645,13 +652,16 @@ function RulesTab() {
             <table style={{ width:"100%", borderCollapse:"collapse", fontSize:11 }}>
               <thead><tr style={{ borderBottom:"1px solid #1a1a1a" }}>{["Domain","Action","Direction","Priority","Hits",""].map(h=><th key={h} style={{ padding:"8px 12px", textAlign:"left", color:"#444", fontSize:10, textTransform:"uppercase" }}>{h}</th>)}</tr></thead>
               <tbody>{(fData?.rules??[]).map(r=>(
-                <tr key={r.id} style={{ borderBottom:"1px solid #0d0d0d" }}>
+                <tr key={r.id} style={{ borderBottom:"1px solid #0d0d0d", opacity:r.enabled?1:0.45 }}>
                   <td style={{ padding:"7px 12px", fontFamily:"monospace", color:"#bbb" }}>{r.domain}</td>
                   <td style={{ padding:"7px 12px" }}><Bdg label={r.action} color={r.action==="allow"?"#00ff88":"#ff4444"} sm/></td>
                   <td style={{ padding:"7px 12px" }}><Bdg label={r.direction} color="#44aaff" sm/></td>
                   <td style={{ padding:"7px 12px", fontFamily:"monospace", color:"#555" }}>{r.priority}</td>
                   <td style={{ padding:"7px 12px", color:"#ff9900", fontFamily:"monospace" }}>{r.hitCount}</td>
-                  <td style={{ padding:"7px 12px" }}><button onClick={()=>dF.mutate({id:r.id},{onSuccess:()=>rF()})} style={{ background:"none", border:"1px solid #ff444433", borderRadius:3, padding:"2px 5px", cursor:"pointer", color:"#ff4444" }}><Trash2 size={8}/></button></td>
+                  <td style={{ padding:"7px 12px", display:"flex", gap:5 }}>
+                    <button onClick={()=>uF.mutate({id:r.id,data:{enabled:!r.enabled}},{onSuccess:()=>rF()})} style={{ background:r.enabled?"#00ff8811":"#22222222", border:`1px solid ${r.enabled?"#00ff8833":"#333"}`, color:r.enabled?"#00ff88":"#444", borderRadius:3, padding:"2px 8px", cursor:"pointer", fontSize:9, fontFamily:"monospace" }}>{r.enabled?"ON":"OFF"}</button>
+                    <button onClick={()=>dF.mutate({id:r.id},{onSuccess:()=>rF()})} style={{ background:"none", border:"1px solid #ff444433", borderRadius:3, padding:"2px 5px", cursor:"pointer", color:"#ff4444" }}><Trash2 size={8}/></button>
+                  </td>
                 </tr>
               ))}</tbody>
             </table>
