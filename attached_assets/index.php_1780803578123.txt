@@ -1,0 +1,39 @@
+<?php
+
+// Your email address
+$to = "you@example.com";
+
+// Get visitor information
+$ip = $_SERVER['REMOTE_ADDR'];
+$userAgent = $_SERVER['HTTP_USER_AGENT'] ?? 'Unknown';
+$referrer = $_SERVER['HTTP_REFERER'] ?? 'Direct Visit';
+$time = date("Y-m-d H:i:s");
+
+// Build email
+$subject = "New Website Visitor";
+$message = "
+A visitor accessed your website.
+
+IP Address: $ip
+Time: $time
+Referrer: $referrer
+User Agent: $userAgent
+";
+
+$headers = "From: website@yourdomain.com";
+
+// Send email
+mail($to, $subject, $message, $headers);
+
+?>
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>My Website</title>
+</head>
+<body>
+    <h1>Welcome to My Website</h1>
+    <p>Thanks for visiting.</p>
+</body>
+</html>
