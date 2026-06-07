@@ -23,24 +23,42 @@ const DATA_DIR = process.env.PROXHQVPN_DATA
 const PORT = parseInt(process.env.PORT || "7474");
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+/** Deterministic VPN-internal IP from layer + hop index — no random, always consistent */
 function ri(layer: string, hopIndex: number): string {
-  if (layer === "outer") return `10.${Math.floor(hopIndex/10)}.${hopIndex%10}.${Math.floor(Math.random()*254)+1}`;
-  return `172.16.${hopIndex}.${Math.floor(Math.random()*254)+1}`;
+  if (layer === "outer") return `10.${Math.floor(hopIndex / 10)}.${hopIndex % 10}.1`;
+  return `172.16.${hopIndex}.1`;
 }
 function genPri() { return crypto.randomBytes(32).toString("base64"); }
 function genPub(p: string) { return crypto.createHash("sha256").update(p).digest("base64"); }
-function rb(min: number, max: number) { return Math.round((Math.random()*(max-min)+min)*10)/10; }
-function randIp() { return `${rb(10,200)}.${rb(0,254)}.${rb(0,254)}.${rb(1,254)}`; }
-function randFingerprint() {
-  const os_s = ["Linux/5.15","Windows/11","macOS/14","FreeBSD/13"][Math.floor(Math.random()*4)];
-  return `OS:${os_s}|TTL:${[64,128,255][Math.floor(Math.random()*3)]}|UA:${Math.random().toString(36).substring(7)}`;
-}
 function n() { return new Date().toISOString(); }
+function getReqIp(req: Request): string {
+  const fwd = req.headers["x-forwarded-for"];
+  return (Array.isArray(fwd) ? fwd[0] : fwd)?.split(",")[0]?.trim() ?? req.socket?.remoteAddress ?? "unknown";
+}
+
+// ─── Password hashing (built-in crypto.scrypt — no extra deps) ────────────
+async function hashPassword(password: string): Promise<string> {
+  const salt = crypto.randomBytes(16).toString("hex");
+  return new Promise((resolve, reject) => {
+    crypto.scrypt(password, salt, 64, (err, key) => {
+      if (err) reject(err); else resolve(`${salt}:${key.toString("hex")}`);
+    });
+  });
+}
+async function verifyPassword(password: string, hash: string): Promise<boolean> {
+  const [salt, stored] = hash.split(":");
+  if (!salt || !stored) return false;
+  return new Promise((resolve, reject) => {
+    crypto.scrypt(password, salt, 64, (err, key) => {
+      if (err) reject(err);
+      else { try { resolve(crypto.timingSafeEqual(Buffer.from(stored, "hex"), key)); } catch { resolve(false); } }
+    });
+  });
+}
 
 const PROBES = ["ping","port_scan","traceroute","packet_sniff","tunnel_probe"] as const;
 const SEVS = ["low","medium","high","critical"] as const;
 const ROUTE_TYPES = ["highway","dead_end","decoy","collapse_zone"] as const;
-const SIMULATED_EXT_IP = `${rb(100,200)}.${rb(0,254)}.${rb(0,254)}.${rb(1,254)}`;
 
 type ProxyMode = "direct" | "proxhqvpn-onion" | "tor-gateway" | "double-layer";
 let proxyConfig = { mode: "proxhqvpn-onion" as ProxyMode, socks5Host: "127.0.0.1", socks5Port: 9050 };
@@ -75,7 +93,9 @@ async function createApp() {
     crossOriginEmbedderPolicy: false,
   }));
 
-  app.use(cors({ origin: true, credentials: true }));
+  // Restrict CORS to localhost only — standalone is a local management interface
+  const ALLOWED_ORIGINS = [`http://localhost:${PORT}`, `http://127.0.0.1:${PORT}`, "http://localhost:7474", "http://127.0.0.1:7474"];
+  app.use(cors({ origin: (origin, cb) => { if (!origin || ALLOWED_ORIGINS.includes(origin)) cb(null, true); else cb(new Error("CORS: origin not allowed")); }, credentials: true }));
   app.use(express.json({ limit: "1mb" }));
   app.use(express.urlencoded({ extended: false }));
 
@@ -84,6 +104,98 @@ async function createApp() {
   const terminalLimiter = rateLimit({ windowMs: 60_000, max: 30 });
   const sqlLimiter = rateLimit({ windowMs: 60_000, max: 60 });
   app.use(globalLimiter);
+
+  // ─── Standalone Auth Tables ───────────────────────────────────────────────
+  run(`CREATE TABLE IF NOT EXISTS admin_account (
+    id INTEGER PRIMARY KEY DEFAULT 1,
+    username TEXT NOT NULL DEFAULT 'admin',
+    password_hash TEXT,
+    setup_complete INTEGER DEFAULT 0,
+    created_at TEXT
+  )`);
+  run(`CREATE TABLE IF NOT EXISTS admin_sessions (
+    token TEXT PRIMARY KEY,
+    created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    last_activity TEXT NOT NULL
+  )`);
+  run(`CREATE TABLE IF NOT EXISTS auth_attempts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ip TEXT NOT NULL,
+    success INTEGER DEFAULT 0,
+    attempted_at TEXT NOT NULL
+  )`);
+
+  // ─── Auth Routes (public — before auth middleware) ────────────────────────
+  app.get("/api/auth/status", (_req, res) => {
+    const account = queryOne("SELECT id, username, setup_complete FROM admin_account WHERE id=1") as any;
+    res.json({ setupComplete: !!account?.setup_complete, hasAccount: !!account });
+  });
+
+  app.post("/api/auth/setup", mutateLimiter, async (req, res) => {
+    const body = z.object({ username: z.string().min(3).max(32).default("admin"), password: z.string().min(10).max(128) }).parse(req.body);
+    const existing = queryOne("SELECT * FROM admin_account WHERE id=1") as any;
+    if (existing?.setup_complete) { res.status(403).json({ error: "Setup already complete." }); return; }
+    const hash = await hashPassword(body.password);
+    if (existing) {
+      run("UPDATE admin_account SET username=?, password_hash=?, setup_complete=1, created_at=? WHERE id=1", [body.username, hash, n()]);
+    } else {
+      run("INSERT INTO admin_account (id, username, password_hash, setup_complete, created_at) VALUES (1,?,?,1,?)", [body.username, hash, n()]);
+    }
+    res.json({ ok: true, message: "Admin account created. Please log in." });
+  });
+
+  app.post("/api/auth/login", mutateLimiter, async (req, res) => {
+    const ip = getReqIp(req);
+    const recentFails = ((queryOne("SELECT COUNT(*) c FROM auth_attempts WHERE ip=? AND success=0 AND attempted_at > datetime('now','-15 minutes')", [ip]) as any)?.c ?? 0) as number;
+    if (recentFails >= 5) { res.status(429).json({ error: "Too many failed attempts. Wait 15 minutes." }); return; }
+    const body = z.object({ username: z.string(), password: z.string() }).parse(req.body);
+    const account = queryOne("SELECT * FROM admin_account WHERE id=1") as any;
+    if (!account?.setup_complete) { res.status(403).json({ error: "Account not set up. POST /api/auth/setup first." }); return; }
+    if (account.username !== body.username) {
+      run("INSERT INTO auth_attempts (ip, success, attempted_at) VALUES (?,0,?)", [ip, n()]);
+      res.status(401).json({ error: "Invalid credentials" }); return;
+    }
+    const valid = await verifyPassword(body.password, account.password_hash);
+    run("INSERT INTO auth_attempts (ip, success, attempted_at) VALUES (?,?,?)", [ip, valid ? 1 : 0, n()]);
+    if (!valid) { res.status(401).json({ error: "Invalid credentials" }); return; }
+    const token = crypto.randomBytes(32).toString("hex");
+    const expiresAt = new Date(Date.now() + 24 * 3600 * 1000).toISOString();
+    run("INSERT INTO admin_sessions (token, created_at, expires_at, last_activity) VALUES (?,?,?,?)", [token, n(), expiresAt, n()]);
+    res.json({ token, expiresAt, username: account.username });
+  });
+
+  app.post("/api/auth/change-password", mutateLimiter, async (req, res) => {
+    const token = req.headers.authorization?.replace("Bearer ", "");
+    const session = token ? (queryOne("SELECT * FROM admin_sessions WHERE token=? AND expires_at > datetime('now')", [token]) as any) : null;
+    if (!session) { res.status(401).json({ error: "Not authenticated" }); return; }
+    const body = z.object({ currentPassword: z.string(), newPassword: z.string().min(10).max(128) }).parse(req.body);
+    const account = queryOne("SELECT * FROM admin_account WHERE id=1") as any;
+    const valid = await verifyPassword(body.currentPassword, account.password_hash);
+    if (!valid) { res.status(401).json({ error: "Current password incorrect" }); return; }
+    const hash = await hashPassword(body.newPassword);
+    run("UPDATE admin_account SET password_hash=? WHERE id=1", [hash]);
+    run("DELETE FROM admin_sessions WHERE token != ?", [token]);
+    res.json({ ok: true, message: "Password changed. All other sessions invalidated." });
+  });
+
+  app.post("/api/auth/logout", (req, res) => {
+    const token = req.headers.authorization?.replace("Bearer ", "");
+    if (token) run("DELETE FROM admin_sessions WHERE token=?", [token]);
+    res.json({ ok: true });
+  });
+
+  // ─── Auth Middleware — protect all /api/* except public paths ─────────────
+  const PUBLIC_API_PATHS = ["/api/healthz", "/api/auth/", "/api/t/", "/api/warrant-canary", "/api/update/check"];
+  app.use("/api", (req: Request, res: Response, next: NextFunction) => {
+    if (PUBLIC_API_PATHS.some(p => req.path === p.replace(/\/$/, "") || req.path.startsWith(p))) return next();
+    const token = req.headers.authorization?.replace("Bearer ", "");
+    if (!token) { res.status(401).json({ error: "Not authenticated", hint: "POST /api/auth/login" }); return; }
+    const session = queryOne("SELECT * FROM admin_sessions WHERE token=? AND expires_at > datetime('now')", [token]) as any;
+    if (!session) { res.status(401).json({ error: "Session expired. Please log in again." }); return; }
+    run("UPDATE admin_sessions SET last_activity=? WHERE token=?", [n(), token]);
+    next();
+  });
 
   // ─── Health ──────────────────────────────────────────────────────────────
   const APP_VERSION = "2.1.0";
@@ -151,7 +263,7 @@ async function createApp() {
     const hopIndex = existing.length + 1;
     const priv = genPri();
     run(`INSERT INTO nodes (name, layer, hop_index, region, ip_address, public_key, private_key, listen_port, status, has_beacon, has_spider, has_worm, latency_ms, last_seen, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [body.name, body.layer, hopIndex, body.region, ri(body.layer, hopIndex), genPub(priv), priv, 51820+hopIndex, "active", body.hasBeacon?1:0, body.hasSpider?1:0, body.hasWorm?1:0, rb(5,80), n(), n()]);
+      [body.name, body.layer, hopIndex, body.region, ri(body.layer, hopIndex), genPub(priv), priv, 51820+hopIndex, "active", body.hasBeacon?1:0, body.hasSpider?1:0, body.hasWorm?1:0, 0, n(), n()]);
     res.status(201).json({ id: lastInsertId(), ...body, hopIndex, status: "active" });
   });
 
@@ -193,8 +305,8 @@ async function createApp() {
     const nd: any = queryOne("SELECT * FROM nodes WHERE id=?", [id]);
     if (!nd) return res.status(404).json({ error: "Node not found" });
     const priv = genPri();
-    run("UPDATE nodes SET ip_address=?, private_key=?, public_key=?, listen_port=?, latency_ms=?, status='active', last_seen=? WHERE id=?",
-      [ri(nd.layer, nd.hop_index), priv, genPub(priv), 51820+nd.hop_index+Math.floor(Math.random()*50), rb(3,80), n(), id]);
+    run("UPDATE nodes SET ip_address=?, private_key=?, public_key=?, listen_port=?, latency_ms=0, status='active', last_seen=? WHERE id=?",
+      [ri(nd.layer, nd.hop_index), priv, genPub(priv), 51820 + nd.hop_index, n(), id]);
     res.json(queryOne("SELECT * FROM nodes WHERE id=?", [id]));
   });
 
@@ -214,32 +326,26 @@ async function createApp() {
     res.json({ alerts: mapped, total: mapped.length, activeCount: mapped.filter((a: any) => a.status==="active").length });
   });
 
-  function insertAlert(nodeId: number, nodeName: string, nodeLayer: string, attackerIp: string, probeType: string, severity: string, trapped: boolean) {
+  function insertAlert(nodeId: number, nodeName: string, nodeLayer: string, attackerIp: string, probeType: string, severity: string, trapped: boolean, fingerprint?: string) {
     const ts = n();
     run(`INSERT INTO beacon_alerts (node_id, node_name, node_layer, attacker_ip, attacker_fingerprint, probe_type, severity, status, silk_web_trapped, raw_data, detected_at)
          VALUES (?,?,?,?,?,?,?,'active',?,?,?)`,
-      [nodeId, nodeName, nodeLayer, attackerIp, randFingerprint(), probeType, severity, trapped?1:0, JSON.stringify({ timestamp: ts, ip: attackerIp }), ts]);
+      [nodeId, nodeName, nodeLayer, attackerIp, fingerprint ?? `probe:${probeType}`, probeType, severity, trapped?1:0, JSON.stringify({ timestamp: ts, ip: attackerIp }), ts]);
     return lastInsertId();
   }
 
   app.post("/api/beacons/trigger", mutateLimiter, (req, res) => {
-    const body = z.object({ nodeId: z.number(), simulatedIp: z.string().optional(), probeType: z.enum(PROBES) }).parse(req.body);
+    const body = z.object({
+      nodeId: z.number(),
+      sourceIp: z.string().optional(),
+      probeType: z.enum(PROBES),
+      severity: z.enum(SEVS).default("medium"),
+    }).parse(req.body);
     const nd: any = queryOne("SELECT * FROM nodes WHERE id=?", [body.nodeId]);
     if (!nd) return res.status(404).json({ error: "Node not found" });
-    const id = insertAlert(body.nodeId, nd.name, nd.layer, body.simulatedIp||randIp(), body.probeType, SEVS[Math.floor(Math.random()*4)], Math.random()>0.5);
+    const callerIp = body.sourceIp ?? getReqIp(req);
+    const id = insertAlert(body.nodeId, nd.name, nd.layer, callerIp, body.probeType, body.severity, false, `manual-${body.probeType}`);
     res.status(201).json(queryOne("SELECT * FROM beacon_alerts WHERE id=?", [id]));
-  });
-
-  app.post("/api/beacons/simulate", mutateLimiter, (req, res) => {
-    const nodes: any[] = query("SELECT * FROM nodes");
-    if (!nodes.length) return res.status(400).json({ error: "No nodes" });
-    const count = Math.floor(Math.random()*5)+1;
-    const ids = [];
-    for (let i = 0; i < count; i++) {
-      const nd = nodes[Math.floor(Math.random()*nodes.length)];
-      ids.push(insertAlert(nd.id, nd.name, nd.layer, randIp(), PROBES[Math.floor(Math.random()*5)], SEVS[Math.floor(Math.random()*4)], Math.random()>0.5));
-    }
-    res.json({ simulated: count, alerts: ids.map(id => queryOne("SELECT * FROM beacon_alerts WHERE id=?", [id])) });
   });
 
   app.patch("/api/beacons/:id/dismiss", mutateLimiter, (req, res) => {
@@ -275,12 +381,14 @@ async function createApp() {
     const webId = lastInsertId();
     if (nodes.length >= 2) {
       let cnt = 0;
+      // Build deterministic routes — round-robin pairs, no Math.random
       for (let i = 0; i < Math.min(totalRoutes, 50); i++) {
-        const from = nodes[Math.floor(Math.random()*nodes.length)];
-        const to = nodes[Math.floor(Math.random()*nodes.length)];
+        const from = nodes[i % nodes.length];
+        const to = nodes[(i + 1) % nodes.length];
         if (from.id !== to.id) {
+          const routeType = i < deadEnds ? "dead_end" : ROUTE_TYPES[i % ROUTE_TYPES.length];
           run("INSERT INTO silk_routes (web_id, from_node_id, to_node_id, route_type, is_active) VALUES (?,?,?,?,1)",
-            [webId, from.id, to.id, i < deadEnds ? "dead_end" : ROUTE_TYPES[Math.floor(Math.random()*4)]]);
+            [webId, from.id, to.id, routeType]);
           cnt++;
         }
       }
@@ -305,7 +413,7 @@ async function createApp() {
   app.post("/api/silkweb/trap", mutateLimiter, (req, res) => {
     const body = z.object({ ip: z.string(), fingerprint: z.string().optional(), entryNodeId: z.number() }).parse(req.body);
     run("INSERT INTO trapped_attackers (ip, fingerprint, entry_node_id, loop_count, trapped_at, data_collected) VALUES (?,?,?,1,?,?)",
-      [body.ip, body.fingerprint||randFingerprint(), body.entryNodeId, n(), JSON.stringify({ capturedAt: n(), ip: body.ip })]);
+      [body.ip, body.fingerprint ?? `trapped-at:${n()}`, body.entryNodeId, n(), JSON.stringify({ capturedAt: n(), ip: body.ip })]);
     res.status(201).json(queryOne("SELECT * FROM trapped_attackers WHERE id=?", [lastInsertId()]));
   });
 
@@ -380,45 +488,82 @@ async function createApp() {
     res.json({ deleted: true });
   });
 
-  app.post("/api/firewall/simulate-attack", mutateLimiter, (req, res) => {
-    const body = z.object({ attackerIp: z.string().optional(), attackType: z.string().optional() }).parse(req.body);
-    const ip = body.attackerIp || randIp();
-    const blocked = Math.random() > 0.3;
-    const s: any = getOrCreateStatus();
-    if (blocked) run("UPDATE firewall_status SET packets_blocked=packets_blocked+1 WHERE id=?", [s.id]);
-    else run("UPDATE firewall_status SET packets_allowed=packets_allowed+1 WHERE id=?", [s.id]);
-    res.json({ attackerIp: ip, blocked, attackType: body.attackType || "port_scan", timestamp: n() });
-  });
+  // simulate-attack removed — no fake/mock attack data
 
   // ─── Monitor ──────────────────────────────────────────────────────────────
   const PROCS = ["wireguard","proxhqvpn","node","nginx","sshd","systemd","tor","wg-quick"];
   const STATES = ["ESTABLISHED","LISTEN","TIME_WAIT","CLOSE_WAIT"];
   const PROTOS = ["TCP","UDP","WireGuard"];
 
-  app.get("/api/monitor/connections", (_req, res) => {
-    const count = Math.floor(Math.random()*12)+8;
-    const connections = Array.from({ length: count }, (_, i) => ({
-      id: String(i+1), localAddress: `0.0.0.0:${[51820,51821,8080,443,80,22,9050][Math.floor(Math.random()*7)]}`,
-      remoteAddress: `${randIp()}:${Math.floor(Math.random()*60000)+1024}`,
-      protocol: PROTOS[Math.floor(Math.random()*3)], state: STATES[Math.floor(Math.random()*4)],
-      process: PROCS[Math.floor(Math.random()*8)], pid: Math.floor(Math.random()*9000)+1000,
-    }));
-    res.json({ connections, total: connections.length });
+  app.get("/api/monitor/connections", async (_req, res) => {
+    try {
+      let stdout = "";
+      if (process.platform === "linux") {
+        const r = await execAsync("ss -tnp 2>/dev/null | tail -n +2 | head -40").catch(() => execAsync("netstat -tnp 2>/dev/null | grep -E 'ESTABLISHED|LISTEN' | head -40"));
+        stdout = r.stdout;
+      } else {
+        const r = await execAsync("netstat -an 2>/dev/null | grep -E 'ESTABLISHED|LISTEN' | head -40").catch(() => ({ stdout: "" }));
+        stdout = r.stdout;
+      }
+      const lines = stdout.split("\n").filter(l => l.trim().length > 0);
+      const connections = lines.slice(0, 30).map((line, i) => {
+        const parts = line.trim().split(/\s+/);
+        return { id: String(i + 1), protocol: parts[0] ?? "tcp", localAddress: parts[3] ?? parts[1] ?? "—", remoteAddress: parts[4] ?? parts[2] ?? "—", state: parts[5] ?? "ESTABLISHED", process: parts[6]?.replace(/[(),"]/g, "") ?? "—" };
+      }).filter(c => c.localAddress !== "—");
+      res.json({ connections, total: connections.length });
+    } catch {
+      res.json({ connections: [], total: 0, note: "Connection data requires ss or netstat on the host system" });
+    }
   });
 
   app.get("/api/monitor/stats", async (_req, res) => {
     const totalMem = os.totalmem(), freeMem = os.freemem(), uptimeSecs = os.uptime();
-    let cpuPercent = rb(15, 55);
-    try { const { stdout } = await execAsync("top -bn1 | grep 'Cpu(s)' | awk '{print $2}' | cut -d'%' -f1"); const p = parseFloat(stdout.trim()); if (!isNaN(p)) cpuPercent = p; } catch {}
+    // Real CPU from system load average (cross-platform, no random)
+    const [load1] = os.loadavg();
+    const cpuCount = os.cpus().length;
+    const cpuPercent = Math.min(Math.round((load1 / Math.max(cpuCount, 1)) * 100 * 10) / 10, 100);
+
+    // Real network I/O from /proc/net/dev (Linux only; zero on other platforms)
+    let netInMbps = 0, netOutMbps = 0;
+    try {
+      if (process.platform === "linux") {
+        const content = fs.readFileSync("/proc/net/dev", "utf8");
+        const lines = content.split("\n").slice(2).filter(l => l.includes(":") && !l.includes("lo:"));
+        let rxBytes = 0, txBytes = 0;
+        for (const l of lines) { const p = l.trim().split(/\s+/); rxBytes += parseInt(p[1]??"0")||0; txBytes += parseInt(p[9]??"0")||0; }
+        netInMbps  = Math.round(rxBytes / 1024 / 1024 * 10) / 10;
+        netOutMbps = Math.round(txBytes / 1024 / 1024 * 10) / 10;
+      }
+    } catch {}
+
+    // Real WireGuard tunnel count
+    let wgTunnels = 0;
+    try { const { stdout: wgOut } = await execAsync("wg show interfaces 2>/dev/null"); wgTunnels = wgOut.trim() ? wgOut.trim().split(/\s+/).length : 0; } catch {}
+
+    // Real external IP (3s timeout, cached for life of request)
+    let externalIp = "—";
+    try {
+      const http = await import("http");
+      await new Promise<void>((resolve) => {
+        const req2 = http.get("http://api.ipify.org?format=json", { timeout: 3000 }, (r) => {
+          let d = ""; r.on("data", c => d += c); r.on("end", () => { try { externalIp = JSON.parse(d).ip ?? "—"; } catch {} resolve(); });
+        });
+        req2.on("error", () => resolve()); req2.on("timeout", () => { req2.destroy(); resolve(); });
+      });
+    } catch {}
+
     res.json({
       cpuPercent, platform: `${os.platform()} ${os.arch()}`,
-      memoryPercent: Math.round(((totalMem-freeMem)/totalMem)*100*10)/10,
-      memoryUsedMb: Math.round((totalMem-freeMem)/1024/1024),
-      memoryTotalMb: Math.round(totalMem/1024/1024),
-      networkInMbps: rb(2,80), networkOutMbps: rb(1,40),
-      uptime: `${Math.floor(uptimeSecs/3600)}h ${Math.floor((uptimeSecs%3600)/60)}m`,
-      activeUsers: Math.floor(Math.random()*4)+1, wireguardTunnels: Math.floor(Math.random()*50)+10,
-      externalIp: SIMULATED_EXT_IP,
+      memoryPercent: Math.round(((totalMem - freeMem) / totalMem) * 100 * 10) / 10,
+      memoryUsedMb: Math.round((totalMem - freeMem) / 1024 / 1024),
+      memoryTotalMb: Math.round(totalMem / 1024 / 1024),
+      networkInMbps: netInMbps, networkOutMbps: netOutMbps,
+      uptime: `${Math.floor(uptimeSecs / 3600)}h ${Math.floor((uptimeSecs % 3600) / 60)}m`,
+      activeUsers: 1, // standalone is always single-admin
+      wireguardTunnels: wgTunnels,
+      externalIp,
+      loadAvg: os.loadavg().map(l => Math.round(l * 100) / 100),
+      cpuCount,
     });
   });
 
@@ -979,29 +1124,82 @@ async function createApp() {
   });
   app.post("/api/attack-chain/scan", mutateLimiter, async (req, res) => {
     const { target } = z.object({ target: z.string() }).parse(req.body);
-    const scanId = `chain-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const scanId = `chain-${Date.now()}`;
     run("INSERT INTO attack_chain_scans (scan_id,target,status,created_at) VALUES (?,?,'running',?)", [scanId, target, n()]);
-    res.json({ scanId, status: "running", message: "Ghost Chain scan initiated — 5-stage pipeline active" });
-    // Async simulation of 5-stage pipeline
-    setTimeout(async () => {
-      const stages = ["surface_discovery","technology_fingerprint","vulnerability_test","chain_correlation","impact_assessment"];
-      const severity = ["critical","high","medium","low"];
+    res.json({ scanId, status: "running", message: "Ghost Chain scan initiated — performing real checks" });
+
+    // Real async 5-stage pipeline — actual network probes
+    setImmediate(async () => {
       const findings: object[] = [];
-      for (const stage of stages) {
-        const numFindings = Math.floor(Math.random() * 3);
-        for (let i = 0; i < numFindings; i++) {
-          const sev = severity[Math.floor(Math.random() * severity.length)];
-          const title = stage === "surface_discovery" ? "Open Port Detected" : stage === "technology_fingerprint" ? "Outdated Software Version" : stage === "vulnerability_test" ? "CVE Vulnerability Confirmed" : stage === "chain_correlation" ? "Attack Path Correlation" : "High-Impact Exposure";
-          const cvss = sev === "critical" ? 9.0 + Math.random() : sev === "high" ? 7.0 + Math.random() * 2 : sev === "medium" ? 4.0 + Math.random() * 3 : Math.random() * 4;
+      const dnsP = await import("dns/promises");
+
+      // Stage 1: Surface discovery — real DNS
+      try {
+        const ips = await dnsP.resolve4(target).catch(() => [] as string[]);
+        if (ips.length > 0) {
           run("INSERT INTO attack_chain_findings (scan_id,stage,finding_type,severity,title,description,cvss,found_at) VALUES (?,?,?,?,?,?,?,?)",
-            [scanId, stage, stage, sev, title, `${title} on target ${target} at stage ${stage}`, Math.round(cvss * 10) / 10, n()]);
-          findings.push({ stage, severity: sev, title, cvss: Math.round(cvss * 10) / 10 });
+            [scanId, "surface_discovery", "dns_a_record", "info", "DNS A Record Resolved", `${target} resolves to ${ips.join(", ")}`, 0.0, n()]);
+          findings.push({ stage: "surface_discovery", severity: "info", cvss: 0 });
         }
+        const mx = await dnsP.resolveMx(target).catch(() => [] as any[]);
+        if (mx.length > 0) {
+          run("INSERT INTO attack_chain_findings (scan_id,stage,finding_type,severity,title,description,cvss,found_at) VALUES (?,?,?,?,?,?,?,?)",
+            [scanId, "surface_discovery", "mx_record", "info", "MX Records Found", `Mail servers: ${mx.slice(0,3).map((r: any) => r.exchange).join(", ")}`, 0.0, n()]);
+          findings.push({ stage: "surface_discovery", severity: "info", cvss: 0 });
+        }
+      } catch {}
+
+      // Stage 2: Technology fingerprint — real HTTP check
+      try {
+        const http = await import("http");
+        await new Promise<void>((resolve) => {
+          const req2 = http.get(`http://${target}`, { timeout: 4000 }, (r) => {
+            const server = r.headers["server"] ?? "";
+            const powered = r.headers["x-powered-by"] ?? "";
+            const noHsts  = !r.headers["strict-transport-security"];
+            const noCsp   = !r.headers["content-security-policy"];
+            if (server) {
+              run("INSERT INTO attack_chain_findings (scan_id,stage,finding_type,severity,title,description,cvss,found_at) VALUES (?,?,?,?,?,?,?,?)",
+                [scanId, "technology_fingerprint", "server_banner", "low", "Server Banner Disclosed", `Server header: ${server}${powered ? ` | Powered-By: ${powered}` : ""}`, 3.1, n()]);
+              findings.push({ stage: "technology_fingerprint", severity: "low", cvss: 3.1 });
+            }
+            if (noHsts) {
+              run("INSERT INTO attack_chain_findings (scan_id,stage,finding_type,severity,title,description,cvss,found_at) VALUES (?,?,?,?,?,?,?,?)",
+                [scanId, "technology_fingerprint", "missing_hsts", "medium", "HSTS Header Missing", "HTTP Strict-Transport-Security not set — susceptible to downgrade attacks", 5.3, n()]);
+              findings.push({ stage: "technology_fingerprint", severity: "medium", cvss: 5.3 });
+            }
+            if (noCsp) {
+              run("INSERT INTO attack_chain_findings (scan_id,stage,finding_type,severity,title,description,cvss,found_at) VALUES (?,?,?,?,?,?,?,?)",
+                [scanId, "technology_fingerprint", "missing_csp", "medium", "CSP Header Missing", "Content-Security-Policy not set — XSS risk increased", 4.3, n()]);
+              findings.push({ stage: "technology_fingerprint", severity: "medium", cvss: 4.3 });
+            }
+            r.resume(); resolve();
+          });
+          req2.on("error", () => resolve()); req2.on("timeout", () => { req2.destroy(); resolve(); });
+        });
+      } catch {}
+
+      // Stage 3: Vulnerability test — sensitive path probing
+      const sensitivePaths = ["/.env", "/.git/HEAD", "/admin", "/phpinfo.php", "/wp-login.php", "/server-status"];
+      for (const p of sensitivePaths) {
+        try {
+          const http = await import("http");
+          const status = await new Promise<number>((resolve) => {
+            const req2 = http.get(`http://${target}${p}`, { timeout: 3000 }, (r) => { resolve(r.statusCode ?? 0); r.resume(); });
+            req2.on("error", () => resolve(0)); req2.on("timeout", () => { req2.destroy(); resolve(0); });
+          });
+          if (status > 0 && status !== 404) {
+            run("INSERT INTO attack_chain_findings (scan_id,stage,finding_type,severity,title,description,cvss,found_at) VALUES (?,?,?,?,?,?,?,?)",
+              [scanId, "vulnerability_test", "sensitive_path", "high", `Sensitive Path Accessible: ${p}`, `HTTP ${status} returned for ${p}`, 7.5, n()]);
+            findings.push({ stage: "vulnerability_test", severity: "high", cvss: 7.5 });
+          }
+        } catch {}
       }
-      const riskScore = findings.reduce((a: number, f: any) => a + (f.cvss ?? 0), 0) / Math.max(findings.length, 1);
+
+      const riskScore = findings.length ? findings.reduce((a: number, f: any) => a + (f.cvss ?? 0), 0) / findings.length : 0;
       run("UPDATE attack_chain_scans SET status='complete',findings_count=?,risk_score=?,completed_at=? WHERE scan_id=?",
         [findings.length, Math.round(riskScore * 10) / 10, n(), scanId]);
-    }, 3000);
+    });
   });
   app.get("/api/attack-chain/scans/:scanId", (req, res) => {
     const scan = queryOne("SELECT * FROM attack_chain_scans WHERE scan_id=?", [(req.params as any).scanId]) as any;
@@ -1191,44 +1389,68 @@ async function createApp() {
 
   // ─── Network Monitor ──────────────────────────────────────────────────────
   app.get("/api/network-monitor/stats", (_req, res) => {
-    const beacons = query("SELECT * FROM beacon_alerts ORDER BY alert_at DESC LIMIT 100") as any[];
-    const blocked = query("SELECT * FROM blocked_ips LIMIT 100") as any[];
+    const beacons = query("SELECT * FROM beacon_alerts ORDER BY detected_at DESC LIMIT 100") as any[];
+    const blocked = query("SELECT COUNT(*) c FROM blocked_ips") as any[];
     const nodes   = query("SELECT * FROM nodes LIMIT 60") as any[];
-    const totalBw = nodes.reduce((a: number, nd: any) => a + (nd.bandwidth_mbps ?? 0), 0);
+    const activeNodes = nodes.filter((nd: any) => nd.status === "active").length;
+
+    // Real network I/O from /proc/net/dev — no fake random numbers
+    let totalBwMbps = 0;
+    try {
+      if (process.platform === "linux") {
+        const content = fs.readFileSync("/proc/net/dev", "utf8");
+        const lines = content.split("\n").slice(2).filter(l => l.includes(":") && !l.includes("lo:"));
+        let rxB = 0, txB = 0;
+        for (const l of lines) { const p = l.trim().split(/\s+/); rxB += parseInt(p[1]??"0")||0; txB += parseInt(p[9]??"0")||0; }
+        totalBwMbps = Math.round((rxB + txB) / 1024 / 1024 * 10) / 10;
+      }
+    } catch {}
+
     res.json({
-      activeConnections: nodes.filter((nd: any) => nd.status === "active").length * 3 + Math.floor(Math.random() * 10),
-      totalBandwidthMbps: totalBw || 1240 + Math.random() * 200,
-      packetsPerSec: 18000 + Math.floor(Math.random() * 5000),
+      activeConnections: activeNodes,
+      totalBandwidthMbps: totalBwMbps,
+      packetsPerSec: 0, // requires OS-level packet capture — not available without agent
       anomaliesDetected: beacons.filter((b: any) => b.severity === "critical" || b.severity === "high").length,
-      blockedIps: blocked.length,
-      protocolBreakdown: { TCP: 65, UDP: 22, ICMP: 8, OTHER: 5 },
-      topCountries: [{ country: "US", pct: 40 }, { country: "DE", pct: 18 }, { country: "NL", pct: 12 }, { country: "SG", pct: 10 }, { country: "JP", pct: 8 }, { country: "OTHER", pct: 12 }],
+      blockedIps: blocked[0]?.c ?? 0,
+      protocolBreakdown: { TCP: 0, UDP: 0, ICMP: 0, OTHER: 0, note: "Requires OS-level packet capture" },
+      topCountries: [], // requires WireGuard peer geo data
     });
   });
   app.get("/api/network-monitor/flows", (_req, res) => {
     const flows = query("SELECT * FROM network_flows ORDER BY event_at DESC LIMIT 500") as any[];
     if (flows.length > 0) { res.json({ flows }); return; }
-    // Generate live data from beacons + blocked IPs
-    const beacons = query("SELECT * FROM beacon_alerts ORDER BY alert_at DESC LIMIT 50") as any[];
-    const synth = beacons.map((b: any, i: number) => ({
-      id: i + 1, srcIp: b.source_ip ?? "10.0.0." + (i + 1), dstIp: "45.33.32." + ((i * 7 + 1) % 256),
-      dstPort: [80, 443, 22, 3389, 8080][i % 5], protocol: ["TCP", "UDP"][i % 2],
-      bytes: 1024 + Math.floor(Math.random() * 100000), country: ["US", "DE", "CN", "RU", "NL"][i % 5],
-      eventAt: b.alert_at,
+    // Real flow data from actual beacon alerts — no synthetic random bytes
+    const beacons = query("SELECT * FROM beacon_alerts ORDER BY detected_at DESC LIMIT 50") as any[];
+    const real = beacons.map((b: any, i: number) => ({
+      id: i + 1,
+      srcIp: b.attacker_ip ?? "—",
+      dstIp: b.node_name ?? "—",
+      dstPort: 51820,
+      protocol: "WireGuard",
+      probeType: b.probe_type,
+      severity: b.severity,
+      eventAt: b.detected_at,
     }));
-    res.json({ flows: synth });
+    res.json({ flows: real });
   });
   app.get("/api/network-monitor/timeline", (_req, res) => {
-    const hours = Array.from({ length: 24 }, (_, i) => ({
-      hour: `${String(i).padStart(2, "0")}:00`, inbound: Math.random() * 500, outbound: Math.random() * 800,
-    }));
-    res.json({ timeline: hours });
+    // Real timeline from beacon_alerts grouped by hour over last 24h
+    const rows = query("SELECT strftime('%H', detected_at) hr, COUNT(*) cnt FROM beacon_alerts WHERE detected_at > datetime('now','-24 hours') GROUP BY hr") as any[];
+    const byHour: Record<string, number> = {};
+    for (const r of rows) byHour[String(r.hr).padStart(2, "0")] = r.cnt;
+    const timeline = Array.from({ length: 24 }, (_, i) => {
+      const h = String(i).padStart(2, "0");
+      return { hour: `${h}:00`, inbound: byHour[h] ?? 0, outbound: 0 };
+    });
+    res.json({ timeline });
   });
   app.get("/api/network-monitor/protocols", (_req, res) => {
-    res.json({ protocols: [{ protocol:"TCP", count:65000 }, { protocol:"UDP", count:22000 }, { protocol:"ICMP", count:8000 }, { protocol:"OTHER", count:5000 }] });
+    // Real protocol breakdown requires OS-level packet capture
+    res.json({ protocols: [], note: "Protocol breakdown requires OS-level packet capture agent" });
   });
   app.get("/api/network-monitor/countries", (_req, res) => {
-    res.json({ countries: [{ country:"United States", code:"US", count:40000 }, { country:"Germany", code:"DE", count:18000 }, { country:"Netherlands", code:"NL", count:12000 }, { country:"Singapore", code:"SG", count:10000 }, { country:"Japan", code:"JP", count:8000 }] });
+    // Real geo requires WireGuard peer IP → ASN/geo lookup — empty until peers connect
+    res.json({ countries: [], note: "Country breakdown requires WireGuard peer connections" });
   });
 
   // ─── DNS Sinkhole ─────────────────────────────────────────────────────────
@@ -1734,20 +1956,38 @@ PersistentKeepalive = 25`;
   app.get("/api/quantum-audit/scans", (_req, res) => res.json(query("SELECT * FROM quantum_scan_jobs ORDER BY created_at DESC LIMIT 100") as any[]));
   app.post("/api/quantum-audit/scan", (req, res) => {
     const { targetAddress, chain, scanType } = z.object({ targetAddress: z.string(), chain: z.string().default("ethereum"), scanType: z.enum(["full","quick","quantum"]).default("full") }).parse(req.body);
-    const scanId = `qa-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const scanId = `qa-${Date.now()}`;
     run("INSERT INTO quantum_scan_jobs (scan_id,chain,target_address,scan_type,status,created_at) VALUES (?,?,?,?,'running',?)", [scanId, chain, targetAddress, scanType, n()]);
     res.json({ scanId, status: "running", chain, targetAddress });
-    setTimeout(() => {
+    // Real analysis — validate address format and check known patterns
+    setImmediate(() => {
       const vulns: object[] = [];
-      const types = ["reentrancy","integer_overflow","access_control","timestamp_dependence","front_running","quantum_ecdsa_weakness","nonce_reuse"];
-      const severities = ["critical","high","medium","low"];
-      for (let i = 0; i < Math.floor(Math.random() * 4) + 1; i++) {
-        vulns.push({ type: types[i % types.length], severity: severities[i % severities.length], description: `${types[i % types.length].replace(/_/g," ")} vulnerability detected`, line: Math.floor(Math.random() * 500) + 1 });
+      const isValidEthAddr = /^0x[0-9a-fA-F]{40}$/.test(targetAddress);
+      const isValidBtcAddr = /^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$|^bc1[a-z0-9]{39,59}$/.test(targetAddress);
+
+      if (!isValidEthAddr && !isValidBtcAddr) {
+        vulns.push({ type: "invalid_address", severity: "medium", description: `Address "${targetAddress}" does not match Ethereum (0x…40hex) or Bitcoin format for chain: ${chain}`, line: null });
       }
-      const risk = vulns.some((v: any) => v.severity === "critical") ? 9.5 : vulns.some((v: any) => v.severity === "high") ? 7.5 : 4.0;
+      if (isValidEthAddr && /^0x0{10,}/.test(targetAddress)) {
+        vulns.push({ type: "zero_address", severity: "critical", description: "Zero-address or near-zero address — common mistake in contract deployments (ERC-20 burn trap)", line: null });
+      }
+      if (isValidEthAddr && targetAddress.toLowerCase() !== targetAddress && targetAddress !== targetAddress.toUpperCase()) {
+        // EIP-55 checksum validation
+        const lower = targetAddress.toLowerCase().replace("0x", "");
+        const h = crypto.createHash("sha3-256" as any).update(lower).digest("hex");
+        let checksum = "0x";
+        for (let i = 0; i < 40; i++) checksum += parseInt(h[i], 16) >= 8 ? lower[i].toUpperCase() : lower[i];
+        if (checksum !== targetAddress) vulns.push({ type: "checksum_mismatch", severity: "low", description: "Address fails EIP-55 checksum — typo or manual address entry risk", line: null });
+      }
+      // Note: deep contract analysis requires an Ethereum RPC endpoint
+      if (isValidEthAddr && !process.env.ETHEREUM_RPC_URL) {
+        vulns.push({ type: "rpc_required", severity: "info", description: "Set ETHEREUM_RPC_URL env var to enable bytecode decompilation, storage layout, and reentrancy analysis", line: null });
+      }
+
+      const risk = vulns.some((v: any) => v.severity === "critical") ? 9.5 : vulns.some((v: any) => v.severity === "high") ? 7.5 : vulns.some((v: any) => v.severity === "medium") ? 5.0 : vulns.length > 0 ? 2.0 : 0;
       run("UPDATE quantum_scan_jobs SET status='complete',result_json=?,risk_score=?,vuln_count=?,completed_at=? WHERE scan_id=?",
-        [JSON.stringify({ vulnerabilities: vulns }), risk, vulns.length, n(), scanId]);
-    }, 2000);
+        [JSON.stringify({ vulnerabilities: vulns, note: "Full bytecode analysis requires ETHEREUM_RPC_URL" }), risk, vulns.length, n(), scanId]);
+    });
   });
   app.get("/api/quantum-audit/scans/:scanId", (req, res) => {
     const scan = queryOne("SELECT * FROM quantum_scan_jobs WHERE scan_id=?", [(req.params as any).scanId]) as any;
@@ -1776,18 +2016,32 @@ PersistentKeepalive = 25`;
   });
 
   // ─── Signature Mining Engine (Quantum Audit) ──────────────────────────────
-  app.post("/api/quantum-audit/sig-engine/block-scanner", (req, res) => {
+  app.post("/api/quantum-audit/sig-engine/block-scanner", async (req, res) => {
     const { address, chain } = z.object({ address: z.string().optional(), chain: z.string().default("ethereum") }).parse(req.body);
     const jobId = `se1-${Date.now()}`;
-    const sigs: object[] = Array.from({ length: Math.floor(Math.random() * 8) + 2 }, (_, i) => ({
-      txHash: `0x${Buffer.from(Math.random().toString()).toString("hex").substring(0, 64)}`,
-      r: `0x${Buffer.from(Math.random().toString()).toString("hex").substring(0, 64)}`,
-      s: `0x${Buffer.from(Math.random().toString()).toString("hex").substring(0, 64)}`,
-      z: `0x${Buffer.from(Math.random().toString()).toString("hex").substring(0, 64)}`,
-      nonceReuse: Math.random() < 0.1, rCollision: Math.random() < 0.05, weakK: Math.random() < 0.05,
-      signerAddress: address ?? `0x${Buffer.from(Math.random().toString()).toString("hex").substring(0, 40)}`,
-    }));
-    res.json({ jobId, chain, address, signaturesFound: sigs.length, nonceReuseDetected: sigs.filter((s: any) => s.nonceReuse).length, signatures: sigs, status: "complete" });
+    if (!address) { res.json({ jobId, chain, signaturesFound: 0, signatures: [], status: "complete", note: "Provide an address to scan" }); return; }
+    const ETHERSCAN_KEY = process.env.ETHERSCAN_API_KEY;
+    if (!ETHERSCAN_KEY) {
+      res.json({ jobId, chain, address, signaturesFound: 0, signatures: [], status: "complete", note: "Set ETHERSCAN_API_KEY env var to enable real on-chain signature scanning" });
+      return;
+    }
+    try {
+      const http = await import("https");
+      const data = await new Promise<any>((resolve) => {
+        const req2 = http.get(`https://api.etherscan.io/api?module=account&action=txlist&address=${address}&startblock=0&endblock=99999999&sort=asc&apikey=${ETHERSCAN_KEY}`, { timeout: 10000 }, (r) => {
+          let d = ""; r.on("data", c => d += c); r.on("end", () => { try { resolve(JSON.parse(d)); } catch { resolve({ result: [] }); } });
+        });
+        req2.on("error", () => resolve({ result: [] })); req2.on("timeout", () => { req2.destroy(); resolve({ result: [] }); });
+      });
+      const txs = (data.result ?? []).slice(0, 50);
+      const nonceMap = new Map<string, string[]>();
+      for (const tx of txs) { if (!nonceMap.has(tx.nonce)) nonceMap.set(tx.nonce, []); nonceMap.get(tx.nonce)!.push(tx.hash); }
+      const nonceReuse = [...nonceMap.entries()].filter(([, h]) => h.length > 1).length;
+      const sigs = txs.slice(0, 20).map((tx: any) => ({ txHash: tx.hash, from: tx.from, nonce: tx.nonce, nonceReuse: (nonceMap.get(tx.nonce)?.length ?? 0) > 1, blockNumber: tx.blockNumber, value: tx.value }));
+      res.json({ jobId, chain, address, signaturesFound: sigs.length, nonceReuseDetected: nonceReuse, signatures: sigs, status: "complete" });
+    } catch (e: any) {
+      res.json({ jobId, chain, address, signaturesFound: 0, signatures: [], status: "error", error: e.message });
+    }
   });
   app.post("/api/quantum-audit/sig-engine/web-spider", async (req, res) => {
     const { url } = z.object({ url: z.string().url() }).parse(req.body);
@@ -1801,11 +2055,7 @@ PersistentKeepalive = 25`;
   });
   app.post("/api/quantum-audit/sig-engine/peel-chain", (req, res) => {
     const { address } = z.object({ address: z.string() }).parse(req.body);
-    const hops: object[] = Array.from({ length: Math.floor(Math.random() * 5) + 1 }, (_, i) => ({
-      hop: i + 1, address: `0x${Buffer.from((i * 997).toString()).toString("hex").substring(0, 40)}`,
-      txHash: `0x${Buffer.from((i * 1337).toString()).toString("hex").substring(0, 64)}`,
-      amount: (Math.random() * 10).toFixed(4) + " ETH", nonceReuse: false,
-    }));
+    const hops: object[] = []; // Real peel chain requires ETHEREUM_RPC_URL + a full node — empty without it
     res.json({ address, hops, totalHops: hops.length, nonceReuseFound: false, keyRecoveryAttempted: true, status: "complete" });
   });
   app.post("/api/quantum-audit/sig-engine/hybrid", (req, res) => {
@@ -1886,10 +2136,15 @@ PersistentKeepalive = 25`;
     const blocked = query("SELECT COUNT(*) c FROM blocked_ips") as any[];
     const probes  = query("SELECT COUNT(*) c FROM ghost_trap_probes") as any[];
     const sessions = query("SELECT COUNT(*) c FROM loop_sessions") as any[];
-    res.json({ blockedIps:blocked[0]?.c??0, ghostTrapProbes:probes[0]?.c??0, loopSessions:sessions[0]?.c??0, attacksBlocked24h: Math.floor(Math.random()*50), bandwidthSavedMbps: Math.floor(Math.random()*1000) });
+    const beacons24h = query("SELECT COUNT(*) c FROM beacon_alerts WHERE detected_at > datetime('now','-24 hours')") as any[];
+    res.json({ blockedIps:blocked[0]?.c??0, ghostTrapProbes:probes[0]?.c??0, loopSessions:sessions[0]?.c??0, attacksBlocked24h: beacons24h[0]?.c??0, bandwidthSavedMbps: 0 });
   });
   app.get("/api/fwm/analytics/timeline", (_req, res) => {
-    res.json({ timeline: Array.from({length:24},(_,i)=>({ hour:`${String(i).padStart(2,"0")}:00`, blocked:Math.floor(Math.random()*20), allowed:Math.floor(Math.random()*1000) })) });
+    const blockedRows = query("SELECT strftime('%H', blocked_at) hr, COUNT(*) cnt FROM blocked_ips WHERE blocked_at > datetime('now','-24 hours') GROUP BY hr") as any[];
+    const alertRows   = query("SELECT strftime('%H', detected_at) hr, COUNT(*) cnt FROM beacon_alerts WHERE detected_at > datetime('now','-24 hours') GROUP BY hr") as any[];
+    const bMap: Record<string, number> = {}; for (const r of blockedRows) bMap[String(r.hr).padStart(2,"0")] = r.cnt;
+    const aMap: Record<string, number> = {}; for (const r of alertRows)   aMap[String(r.hr).padStart(2,"0")] = r.cnt;
+    res.json({ timeline: Array.from({length:24},(_,i)=>{ const h=String(i).padStart(2,"0"); return { hour:`${h}:00`, blocked:bMap[h]??0, allowed:aMap[h]??0 }; }) });
   });
   // AV engine stubs (full engine in PostgreSQL mode)
   app.get("/api/fwm/av/scan-jobs",      (_req, res) => res.json({ jobs:[], total:0 }));

@@ -144,17 +144,8 @@ router.post("/send", (req, res) => {
   };
   msgs.push(msg);
 
-  // Simulate an echo/response
-  if (Math.random() > 0.4) {
-    const echo: WsMessage = {
-      id: makeId(), type: "received",
-      data: `{"echo":${JSON.stringify(message)},"server":"ws-echo","ts":${Date.now()}}`,
-      timestamp: new Date().toISOString(),
-      sizeByes: 0,
-    };
-    echo.sizeByes = Buffer.byteLength(echo.data);
-    msgs.push(echo);
-  }
+  // Record the sent message; real response arrives only if the server echoes back
+  // (No synthetic random echo — the caller is responsible for reading real WS frames)
 
   sessionStore.set(userId, msgs);
   res.json({ ok: true, messages: msgs.slice(-20) });

@@ -32,15 +32,18 @@ function uid(req: any): string {
   return (getAuth(req) as any)?.userId || "anon";
 }
 
-function randomVpnIp(): string {
-  const b = Math.floor(Math.random() * 254) + 1;
-  const c = Math.floor(Math.random() * 254) + 1;
-  return `${VPN_SUBNET}${b}.${c}`;
+import crypto from "crypto";
+
+/** Deterministic VPN IP from device count — no Math.random */
+function allocateVpnIp(userId: string): string {
+  const devices = devicesStore.get(userId) ?? [];
+  const idx = devices.length + 1;
+  return `${VPN_SUBNET}${Math.floor(idx / 254) + 1}.${(idx % 254) + 1}`;
 }
 
-function randomPubKey(): string {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-  return Array.from({ length: 44 }, () => chars[Math.floor(Math.random() * chars.length)]).join("") + "=";
+/** Real 32-byte crypto random key encoded as base64 (WireGuard-style length) */
+function genPubKey(): string {
+  return crypto.randomBytes(32).toString("base64");
 }
 
 function ensureOwnDevice(userId: string): MeshDevice[] {
@@ -49,8 +52,8 @@ function ensureOwnDevice(userId: string): MeshDevice[] {
     devices.push({
       id: `dev_own_${userId.slice(0, 8)}`,
       name: "This Device",
-      vpnIp: randomVpnIp(),
-      publicKey: randomPubKey(),
+      vpnIp: allocateVpnIp(userId),
+      publicKey: genPubKey(),
       os: "Web",
       status: "online",
       isOwn: true,
@@ -78,13 +81,13 @@ router.post("/device", (req, res) => {
   const device: MeshDevice = {
     id: `dev_${Date.now().toString(36)}`,
     name: String(name).slice(0, 50),
-    vpnIp: randomVpnIp(),
-    publicKey: randomPubKey(),
+    vpnIp: allocateVpnIp(userId),
+    publicKey: genPubKey(),
     os: String(os).slice(0, 30),
-    status: Math.random() > 0.3 ? "online" : "offline",
+    status: "offline" as const, // newly added device is offline until it connects
     isOwn: false,
     allowTrafficRouting: false,
-    lastSeen: new Date(Date.now() - Math.random() * 3600000).toISOString(),
+    lastSeen: new Date().toISOString(), // just added — no prior seen time
     addedAt: new Date().toISOString(),
   };
   devices.push(device);

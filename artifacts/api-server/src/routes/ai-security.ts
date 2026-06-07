@@ -301,7 +301,7 @@ Return a comprehensive JSON report:
       "agent": "${m}",
       "agent_id": "AGENT-${String(i+1).padStart(3,"0")}",
       "status": "completed",
-      "duration_ms": ${Math.floor(Math.random()*3000)+500},
+      "duration_ms": null,
       "findings_count": 0,
       "findings": [],
       "raw_output": "<agent terminal output>",

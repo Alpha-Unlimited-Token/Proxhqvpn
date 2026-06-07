@@ -29,16 +29,16 @@ async function ensureWeb() {
   let actualRouteCount = 0;
   if (nodes.length >= 2) {
     const routeValues = [];
+    const routeTypes = ["highway", "decoy", "collapse_zone"];
     for (let i = 0; i < Math.min(totalRoutes, 50); i++) {
-      const from = nodes[Math.floor(Math.random() * nodes.length)];
-      const to = nodes[Math.floor(Math.random() * nodes.length)];
+      const from = nodes[i % nodes.length];
+      const to   = nodes[(i + 1 + Math.floor(i / nodes.length)) % nodes.length];
       if (from.id !== to.id) {
-        const routeTypes = ["highway", "dead_end", "decoy", "collapse_zone"];
         routeValues.push({
           webId: web.id,
           fromNodeId: from.id,
           toNodeId: to.id,
-          routeType: i < deadEnds ? "dead_end" : routeTypes[Math.floor(Math.random() * routeTypes.length)],
+          routeType: i < deadEnds ? "dead_end" : routeTypes[i % routeTypes.length],
           isActive: true,
         });
       }
@@ -85,15 +85,16 @@ router.post("/collapse", async (req, res) => {
   let collapseRouteCount = 0;
   if (nodes.length >= 2) {
     const routeValues = [];
+    const collapseTypes = ["highway", "decoy", "collapse_zone"];
     for (let i = 0; i < Math.min(totalRoutes, 50); i++) {
-      const from = nodes[Math.floor(Math.random() * nodes.length)];
-      const to = nodes[Math.floor(Math.random() * nodes.length)];
+      const from = nodes[i % nodes.length];
+      const to   = nodes[(i + 1 + Math.floor(i / nodes.length)) % nodes.length];
       if (from.id !== to.id) {
         routeValues.push({
           webId: web.id,
           fromNodeId: from.id,
           toNodeId: to.id,
-          routeType: i < deadEnds ? "dead_end" : ["highway", "decoy", "collapse_zone"][Math.floor(Math.random() * 3)],
+          routeType: i < deadEnds ? "dead_end" : collapseTypes[i % collapseTypes.length],
           isActive: true,
         });
       }
