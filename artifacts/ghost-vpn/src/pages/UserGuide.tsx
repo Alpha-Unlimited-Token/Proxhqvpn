@@ -2398,6 +2398,29 @@ Table: metadata      → Crawl session info, start time, depth`}</CB>
         </div>
         <h4 className="font-bold text-primary text-[11px] mt-3">Hop Chain Visualization</h4>
         <p className="text-[10px] font-mono text-primary/83">The Hop Chain panel shows each attacker's connection path across your infrastructure — which lure they hit first, which node they pivoted to, how many requests they made, and what was returned at each step. Click any hop to see the full request/response log.</p>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Manual IP Investigator — Investigate Any IP You Spot</h4>
+        <p className="text-[10px] font-mono text-primary/83 mb-2">You don't have to wait for an IP to hit your trap first. The <strong>Counter-Intel tab</strong> includes a Manual IP Investigator that lets you paste in any IP address you spotted in your terminal and run the full investigation suite against it immediately.</p>
+        <h4 className="font-bold text-primary text-[10px] mt-2">How to Use It</h4>
+        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <li><span className="text-primary/30">1.</span> Open your terminal and run <code>netstat -an</code> or <code>ss -tnp</code> to see active connections. Look for unexpected foreign IPs under <code>ESTABLISHED</code> or <code>TIME_WAIT</code>.</li>
+          <li><span className="text-primary/30">2.</span> Copy the suspicious IP address and port number (e.g. <code>185.220.101.47:4444</code>).</li>
+          <li><span className="text-primary/30">3.</span> Navigate to <strong>Ghost Trap → Counter-Intel tab</strong>.</li>
+          <li><span className="text-primary/30">4.</span> Paste the IP into the <strong>Manual IP Investigator</strong> field and the port into the <strong>Port</strong> field.</li>
+          <li><span className="text-primary/30">5.</span> Click <strong>Investigate</strong>. The system immediately runs: port scan (checks your specified port first), OSINT (geo, ISP, ASN, reverse DNS, abuse contact), and prepares counter-beacon payloads.</li>
+        </ol>
+        <h4 className="font-bold text-primary text-[10px] mt-2">What the Port Scan Reports</h4>
+        <div className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <div>• <span className="text-green-400">OPEN</span>: <em>"Port 4444 confirmed OPEN — the connection you saw in netstat is live."</em> The host is actively running that service.</div>
+          <div>• <span className="text-amber-400">FILTERED</span>: Port is reachable but firewalled — the connection may be behind a cloud security group or NAT.</div>
+          <div>• <span className="text-red-400">CLOSED</span>: Port is now closed — connection was ephemeral, already terminated, or from a rotating IP pool.</div>
+        </div>
+        <h4 className="font-bold text-primary text-[10px] mt-2">Useful Terminal Commands to Find Suspicious IPs</h4>
+        <div className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <div>• <code className="text-primary/60">netstat -an | grep ESTABLISHED</code> — show all active connections</div>
+          <div>• <code className="text-primary/60">ss -tnp</code> — same, with the process name that owns each connection</div>
+          <div>• <code className="text-primary/60">ss -tnp | grep -v '127\.\|10\.\|192\.168'</code> — filter out local/private IPs, show only external connections</div>
+          <div>• <code className="text-primary/60">lsof -i -n -P | grep ESTABLISHED</code> — show all network connections with the program name</div>
+        </div>
         <Note type="warn">Ghost Trap's tarpit and deception techniques are passive defensive tools. The auto-block and abuse reporting features are active responses — review the generated reports before sending to verify accuracy.</Note>
       </div>
     ),

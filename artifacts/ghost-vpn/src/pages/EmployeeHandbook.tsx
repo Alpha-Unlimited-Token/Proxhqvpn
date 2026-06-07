@@ -630,6 +630,18 @@ ProxhqVPN Support | support@proxhqvpn.com`}</CB>
         </ol>
         <h4 className="font-bold text-primary text-[11px] mt-3">Tarpit Settings</h4>
         <p className="text-[10px] font-mono text-primary/83">Adjust tarpit aggressiveness in Ghost Trap Settings: <strong>Low</strong> (hold 30s), <strong>Medium</strong> (hold 5 min), <strong>High</strong> (hold up to 2 hours). High tarpit mode can significantly degrade attacker scanning throughput but uses more server-side connection resources. Recommended: Medium for production.</p>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Manual IP Investigator — Proactive Threat Investigation</h4>
+        <p className="text-[10px] font-mono text-primary/83 mb-1">Ghost Trap's Counter-Intel tab includes a <strong>Manual IP Investigator</strong>. Employees performing network monitoring via terminal can paste any suspicious IP address and port directly into Ghost Trap for immediate investigation — no need to wait for the IP to hit a lure first.</p>
+        <h4 className="font-bold text-primary text-[10px] mt-2">Proactive Monitoring Workflow</h4>
+        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <li><span className="text-primary/30">1.</span> While monitoring the server, run <code>ss -tnp</code> or <code>netstat -an | grep ESTABLISHED</code> in terminal to see live connections.</li>
+          <li><span className="text-primary/30">2.</span> Identify any unexpected external IP connections — especially on non-standard ports (4444, 1337, 31337, 9050).</li>
+          <li><span className="text-primary/30">3.</span> Copy the IP and port. Navigate to <strong>Ghost Trap → Counter-Intel → Manual IP Investigator</strong>.</li>
+          <li><span className="text-primary/30">4.</span> Paste the IP in the IP field and the port number in the Port field. Click <strong>Investigate</strong>.</li>
+          <li><span className="text-primary/30">5.</span> Review: port scan result (OPEN/CLOSED/FILTERED for the exact port you saw), OSINT geo/ISP/ASN, reverse DNS, and abuse contact.</li>
+          <li><span className="text-primary/30">6.</span> If scan confirms port is OPEN and ISP is a known hosting provider (Hetzner, DigitalOcean, Vultr, etc.), escalate and add IP to Firewall block list immediately.</li>
+          <li><span className="text-primary/30">7.</span> Use the Counter-Beacon Injector to plant tracking tokens for future attribution if the attacker reconnects.</li>
+        </ol>
         <Note type="warn">The Poisoned Response data returned to attackers (fake credentials, fake config files) is always synthetic — it passes format validation but is never real. Double-check the Fake Data Templates in settings to ensure no real credentials have been accidentally included in templates.</Note>
       </div>
     ),

@@ -895,6 +895,347 @@ TABLE OF CONTENTS
 Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
   },
   {
+    id: "ghost-trap-manual",
+    title: "Ghost Trap — Counter-Intelligence Platform",
+    subtitle: "7-stage attacker deception, fingerprinting, tarpit, and Manual IP Investigator",
+    version: "2.1",
+    pages: 22,
+    icon: Eye,
+    iconColor: "text-cyan-400",
+    tier: "pro",
+    content: `Ghost Trap Counter-Intelligence Platform — User Manual
+Version 2.1 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+Command Center Pro Feature
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+IMPORTANT: Ghost Trap is a passive defensive and deception platform.
+All tarpit and canary features operate on incoming attacker connections.
+The Manual IP Investigator performs port scanning and OSINT on external
+IPs — only investigate IPs you have lawful reason to query.
+ALPHA UNLIMITED TECHNOLOGIES LLC assumes no liability for misuse.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TABLE OF CONTENTS
+
+1. Overview & Architecture
+2. 7-Stage Counter-Intel Pipeline
+3. Lure Endpoints & Trap Configuration
+4. Tarpit Settings
+5. Fingerprinting Engine
+6. Poisoned Response Templates
+7. Embedded Beacons & Canary Integration
+8. Hop Chain Visualization
+9. Manual IP Investigator (NEW v2.1)
+10. Auto-Block & Abuse Reporting
+11. Counter-Intel Tab Reference
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW & ARCHITECTURE
+
+  Ghost Trap is an active counter-intelligence system that turns
+  attacker reconnaissance into wasted time and attribution data.
+  When a scanner, bot, or human attacker probes your infrastructure,
+  Ghost Trap identifies them, slows them down, poisons their tools,
+  and automatically reports them — all without exposing any real data.
+
+  Backend: Express API at /api/ghost-trap
+  Frontend: /ghost-trap (Command Center Pro)
+  Rate limit: 60 requests/min per IP
+
+  Tabs:
+  • Active Traps — live attacker sessions
+  • Fingerprinting — OS/tool/JA3 analysis
+  • Counter-Intel — manual investigation tools
+  • Settings — tarpit level, lure config, beacon templates
+
+2. 7-STAGE COUNTER-INTEL PIPELINE
+
+  [1] Attacker Probes a Lure Endpoint
+      Ghost Trap deploys decoy services on attacker-targeted paths:
+      /admin, /wp-login, /.env, /phpinfo, SSH port 22, /config.php
+      These are realistic-looking but entirely fake.
+
+  [2] Tarpit — Wasting the Attacker's Time
+      The connection is held open artificially, sending 1 byte/sec.
+      A single attacker connection can be tied up for hours.
+      Configure level in Settings: Low (30s), Medium (5m), High (2h).
+
+  [3] Deep Fingerprinting
+      TCP/IP stack fingerprinting, TLS ClientHello analysis, HTTP
+      header ordering, and JA3 hash identify:
+      • Attacker OS (Linux, Windows, macOS)
+      • Tool in use (Nmap, Shodan crawler, Metasploit, Burp Suite)
+      • Browser or scanner version
+
+  [4] Poisoned Response
+      Fake credentials, fake API keys, fake DB dumps, and fake server
+      configs are returned — chosen to look authentic but be entirely
+      non-functional. Format-valid but never real.
+
+  [5] Embedded Beacon
+      All poisoned data includes invisible canary tokens. When the
+      attacker uses the fake credentials or opens the fake file, a
+      beacon fires revealing their real IP, browser, and location.
+
+  [6] Silk Web Trap
+      Attackers who probe further are fed into the SilkWeb maze —
+      an endless labyrinth of fake services, each logging every
+      command and request.
+
+  [7] Auto-Block + Authority Report
+      Attacker IP is instantly blocklisted across all VPN nodes.
+      Generates an AbuseIPDB submission and ISP abuse complaint
+      template for repeat or aggressive attackers.
+
+3. LURE ENDPOINTS & TRAP CONFIGURATION
+
+  Default lure paths (always active):
+    GET /admin             → Fake admin login (HTML form)
+    GET /wp-login.php      → Fake WordPress login
+    GET /.env              → Fake environment file with API keys
+    GET /phpinfo.php       → Fake PHP info page
+    GET /config.php        → Fake DB credentials config
+    SSH port 22            → Tarpit daemon (holds SSH connections)
+
+  Custom Lure Configuration (Settings → Lure Editor):
+  • Add any path: /api/internal, /backup.zip, /database.sql
+  • Set response type: JSON creds / HTML login / plaintext / binary
+  • Set tarpit duration override per lure
+  • Enable/disable per-lure beacon embedding
+
+4. TARPIT SETTINGS
+
+  Configure tarpit aggressiveness in Ghost Trap → Settings:
+
+  Low  (30 seconds): Light touch — minimal resource use. Good for
+    testing or when server resources are limited.
+
+  Medium (5 minutes): Recommended for production. Wastes meaningful
+    attacker time without consuming excessive connections.
+
+  High (up to 2 hours): Maximum disruption. Each attacker connection
+    held for up to 2 hours. Use only with adequate server resources
+    and when under active attack. Monitor connection count in the
+    System Monitor to avoid resource exhaustion.
+
+5. FINGERPRINTING ENGINE
+
+  The Fingerprinting tab shows real-time analysis of each attacker:
+
+  OS Detection:
+    Analyzes TCP window size, TTL values, and IP ID patterns.
+    Accuracy: ~85% OS family, ~60% OS version.
+
+  Tool Detection:
+    • Nmap: Characteristic probe timing, OS detection probes
+    • Shodan: Known Shodan crawler User-Agent strings and IP ranges
+    • Metasploit: Specific payload patterns in requests
+    • Burp Suite: Sequential request numbering, specific headers
+    • curl/wget: Identifiable User-Agent strings (often unmodified)
+
+  JA3 Hash:
+    TLS ClientHello fingerprint. Cross-reference against known
+    malicious tool JA3 databases for attribution.
+
+  HTTP Header Ordering:
+    Each browser and tool sends headers in a characteristic order.
+    Ghost Trap records the exact order for fingerprint correlation.
+
+6. POISONED RESPONSE TEMPLATES
+
+  Templates (Settings → Fake Data Templates):
+
+  Database Credentials:
+    { "host": "db.internal", "user": "root",
+      "password": "<32-char random>", "database": "users" }
+    Note: These are never real. Always synthetic random values.
+
+  AWS Credentials:
+    [aws_access_key_id] = AKIA + 16 random uppercase chars
+    [aws_secret_access_key] = 40 random base64 chars
+    Includes fake CloudTrail-style alert instruction comments.
+
+  SSH Private Key:
+    Properly formatted 2048-bit RSA PEM key (procedurally generated,
+    mathematically valid but for a non-existent server).
+
+  API Key:
+    Bearer token: sk_live_ + 24 random chars
+    Mimics Stripe, Twilio, or SendGrid format depending on the lure.
+
+  IMPORTANT: Audit templates in Settings periodically to confirm
+  no real credential has been accidentally substituted.
+
+7. EMBEDDED BEACONS & CANARY INTEGRATION
+
+  All poisoned responses automatically embed a Ghost Trap canary URL.
+  When the attacker uses the fake data, the canary fires and logs:
+  • Real source IP (even through proxies, if JS executes)
+  • Browser fingerprint
+  • Timestamp of canary trigger
+  • Referer (where the attacker opened the file from)
+
+  The trigger appears in:
+  • Ghost Trap → Active Traps → session detail → Canary Fired (orange badge)
+  • Canary Tokens (/canary) → trigger log
+
+8. HOP CHAIN VISUALIZATION
+
+  The Hop Chain panel maps each attacker session across your
+  infrastructure:
+
+  How to read a hop chain:
+  • Each node = one request/response exchange
+  • Arrows show the attacker's navigation path
+  • Node color:
+      Green  = tarpit holding (ongoing)
+      Orange = canary fired at this hop
+      Red    = blocked (firewall auto-block triggered)
+      Gray   = session ended (attacker gave up or timed out)
+
+  Click any node to see:
+  • Full request headers and body
+  • Full poisoned response sent
+  • Tarpit duration at this hop
+  • Fingerprint data collected
+
+9. MANUAL IP INVESTIGATOR (NEW v2.1)
+
+  The Manual IP Investigator lets you investigate any suspicious IP
+  you discover — without waiting for it to hit a lure first. This
+  is designed for use alongside real-time terminal network monitoring.
+
+  Access: Ghost Trap → Counter-Intel tab → Manual IP Investigator
+
+  ── HOW TO FIND SUSPICIOUS IPs IN YOUR TERMINAL ─────────────────
+
+  Run any of these commands to see active connections:
+
+    netstat -an | grep ESTABLISHED
+      Shows all established TCP connections (remote IP + port).
+
+    ss -tnp
+      Same as netstat but also shows the process that owns
+      each connection. More reliable on modern Linux.
+
+    ss -tnp | grep -v '127\.\|10\.\|192\.168'
+      Filters out loopback and private IPs — shows only
+      external connections your server is talking to.
+
+    lsof -i -n -P | grep ESTABLISHED
+      Shows established connections with the owning process name.
+      Useful for identifying which application made a connection.
+
+    iftop -n
+      Real-time bandwidth per connection pair. Spot IPs sending
+      or receiving unexpectedly large amounts of data.
+
+  Look for:
+  • IPs on non-standard ports: 4444, 1337, 31337, 6666, 9050
+  • IPs connecting to ports you don't run services on
+  • IPs in ISP ranges known for server hosting (Hetzner, OVH,
+    DigitalOcean, Vultr, Linode) initiating connections to you
+  • Connections your known application processes should not be making
+
+  ── USING THE MANUAL IP INVESTIGATOR ──────────────────────────────
+
+  Step 1: Copy the suspicious IP and port from your terminal output.
+          Example: from "185.220.101.47:4444" — IP is 185.220.101.47,
+          port is 4444.
+
+  Step 2: Navigate to Ghost Trap → Counter-Intel tab.
+
+  Step 3: Paste the IP into the IP Address field.
+
+  Step 4: Enter the port number in the Port field (e.g. 4444).
+
+  Step 5: Click Investigate.
+
+  The system immediately runs in parallel:
+
+  PORT SCAN:
+    Checks your specified port FIRST, then scans 24 common
+    attack/service ports. The result for your specified port is
+    reported with a tailored message:
+
+    OPEN:     "Port 4444 confirmed OPEN — the connection you saw
+               in netstat is live. The host is actively running
+               a service on this port."
+    FILTERED: "Port 4444 is filtered (firewalled). The connection
+               may be behind a cloud security group or NAT."
+    CLOSED:   "Port 4444 is now CLOSED. The connection was
+               ephemeral, already terminated, or from a rotating
+               IP pool."
+
+  OSINT:
+    • Geolocation: country, city, latitude/longitude
+    • ISP and AS Number (ASN)
+    • Reverse DNS (PTR record)
+    • Abuse contact email (from ARIN/RIPE/APNIC whois)
+    • Known Tor exit node check
+    • AbuseIPDB reputation score (if API key configured)
+
+  Step 6: Review results. The target banner turns cyan to indicate
+          a manual investigation (vs red for trap-log IPs).
+
+  Step 7: If the IP is suspicious, use the action buttons:
+    • Add to Firewall Block — immediately blocks across all nodes
+    • Inject Counter-Beacon — plants a canary for attribution
+    • Generate Abuse Report — creates ISP complaint template
+
+  ── PORT SCAN DETAILS ─────────────────────────────────────────────
+
+  Standard ports always checked (in addition to your specified port):
+  22 (SSH), 23 (Telnet), 25 (SMTP), 53 (DNS), 80 (HTTP),
+  443 (HTTPS), 445 (SMB), 1080 (SOCKS), 1337 (RAT common),
+  3128 (Squid proxy), 3306 (MySQL), 3389 (RDP), 4444 (Metasploit),
+  5432 (PostgreSQL), 5900 (VNC), 6379 (Redis), 6666 (IRC/botnet),
+  8080 (HTTP alt), 8443 (HTTPS alt), 8888 (Jupyter), 9050 (Tor),
+  9200 (Elasticsearch), 27017 (MongoDB), 31337 (elite/backdoor)
+
+  Timeout per port: 2.5 seconds. Total scan time: ~5-15 seconds
+  depending on network latency and number of open ports.
+
+10. AUTO-BLOCK & ABUSE REPORTING
+
+  Auto-Block:
+    When Ghost Trap detects 3+ lure hits from the same IP within
+    60 minutes, it automatically adds the IP to the Firewall block
+    list across all VPN nodes. Manual override in Firewall → Rules.
+
+  Abuse Report Template:
+    Generated report includes:
+    • WHOIS data for the attacker's IP
+    • ISP abuse contact email
+    • Timeline of all probe attempts with timestamps
+    • Lure endpoints targeted
+    • Fingerprint data (OS, tool, JA3)
+    • Canary trigger data (if applicable)
+    Submit to AbuseIPDB and the attacker's ISP ABUSE address.
+
+11. COUNTER-INTEL TAB REFERENCE
+
+  The Counter-Intel tab contains three tools:
+
+  Manual IP Investigator (new v2.1):
+    Paste any IP + port → full port scan + OSINT. Works on any
+    public IP without it needing to be in the probe log first.
+
+  Counter-Beacon Injector:
+    Select any trapped IP and inject a targeted canary payload.
+    Useful for IPs that hit lures but didn't receive an auto-beacon.
+
+  Abuse Report Generator:
+    Select any trapped or manually-investigated IP. Generates a
+    complete abuse report ready to send to the ISP and AbuseIPDB.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+  {
     id: "canary-tokens-manual",
     title: "Canary Token Generator",
     subtitle: "Invisible tripwires: HTTP, DNS, document, and AWS fake key tokens",
