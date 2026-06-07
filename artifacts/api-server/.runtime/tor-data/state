@@ -1,4 +1,4 @@
-# Tor state file last generated on 2026-06-07 18:51:41 local time
+# Tor state file last generated on 2026-06-07 19:14:50 local time
 # Other times below are in UTC
 # You *do not* need to edit this file.
 
@@ -11,7 +11,7 @@ CircuitBuildTimeBin 545 1
 CircuitBuildTimeBin 565 1
 CircuitBuildTimeBin 575 3
 CircuitBuildTimeBin 595 6
-CircuitBuildTimeBin 605 3
+CircuitBuildTimeBin 605 4
 CircuitBuildTimeBin 635 1
 CircuitBuildTimeBin 645 1
 CircuitBuildTimeBin 675 1
@@ -20,13 +20,15 @@ CircuitBuildTimeBin 705 2
 CircuitBuildTimeBin 715 1
 CircuitBuildTimeBin 725 1
 CircuitBuildTimeBin 735 4
-CircuitBuildTimeBin 745 1
+CircuitBuildTimeBin 745 2
 CircuitBuildTimeBin 785 1
+CircuitBuildTimeBin 805 1
 CircuitBuildTimeBin 845 1
 CircuitBuildTimeBin 855 2
+CircuitBuildTimeBin 865 1
 CircuitBuildTimeBin 875 2
-CircuitBuildTimeBin 895 1
-CircuitBuildTimeBin 905 1
+CircuitBuildTimeBin 895 2
+CircuitBuildTimeBin 905 2
 CircuitBuildTimeBin 915 3
 CircuitBuildTimeBin 925 4
 CircuitBuildTimeBin 935 2
@@ -34,10 +36,11 @@ CircuitBuildTimeBin 945 2
 CircuitBuildTimeBin 955 4
 CircuitBuildTimeBin 965 4
 CircuitBuildTimeBin 975 1
-CircuitBuildTimeBin 985 2
+CircuitBuildTimeBin 985 3
 CircuitBuildTimeBin 995 3
-CircuitBuildTimeBin 1005 1
+CircuitBuildTimeBin 1005 2
 CircuitBuildTimeBin 1025 1
+CircuitBuildTimeBin 1055 1
 CircuitBuildTimeBin 1065 2
 CircuitBuildTimeBin 1135 1
 CircuitBuildTimeBin 1255 1
@@ -63,7 +66,7 @@ CircuitBuildTimeBin 2715 1
 CircuitBuildTimeBin 2755 1
 CircuitBuildTimeBin 2775 1
 Dormant 0
-Guard in=default rsa_id=7C1A1517C27A0C68329D84D94372E0ACA9390B00 nickname=ForPrivacyNET sampled_on=2026-05-27T03:09:12 sampled_idx=0 sampled_by=0.4.8.16 listed=1 confirmed_on=2026-06-01T07:37:39 confirmed_idx=1 pb_circ_attempts=213.500000 pb_circ_successes=207.500000 pb_successful_circuits_closed=205.500000 pb_collapsed_circuits=2.000000 pb_timeouts=4.000000
+Guard in=default rsa_id=7C1A1517C27A0C68329D84D94372E0ACA9390B00 nickname=ForPrivacyNET sampled_on=2026-05-27T03:09:12 sampled_idx=0 sampled_by=0.4.8.16 listed=1 confirmed_on=2026-06-01T07:37:39 confirmed_idx=1 pb_circ_attempts=216.500000 pb_circ_successes=210.500000 pb_successful_circuits_closed=208.500000 pb_collapsed_circuits=2.000000 pb_timeouts=4.000000
 Guard in=default rsa_id=596903054D109C162F5820425DF23940CE39A5D4 nickname=commonsense sampled_on=2026-05-29T23:25:40 sampled_idx=1 sampled_by=0.4.8.16 listed=1 confirmed_on=2026-05-31T15:00:44 confirmed_idx=0 pb_circ_attempts=205.000000 pb_circ_successes=201.000000 pb_successful_circuits_closed=199.500000 pb_collapsed_circuits=1.500000 pb_timeouts=7.000000
 Guard in=default rsa_id=BBA4AC0A7CC698E97926AF69CE9A58AC26523CF9 nickname=ididnteditheconfig sampled_on=2026-05-28T21:53:43 sampled_idx=2 sampled_by=0.4.8.16 listed=1 confirmed_on=2026-06-06T04:24:41 confirmed_idx=2 pb_circ_attempts=3.000000 pb_circ_successes=3.000000 pb_successful_circuits_closed=3.000000
 Guard in=default rsa_id=10304F09F0F5139EAE102695F542359F6CD3AAB2 nickname=ReloskyHelper sampled_on=2026-05-28T07:01:57 sampled_idx=3 sampled_by=0.4.8.16 listed=1
@@ -83,7 +86,7 @@ Guard in=default rsa_id=27AD21AE45CC2DA5CE701925F23E30B5F2CE88C7 nickname=Silico
 Guard in=default rsa_id=E1C428EA28B7E8CADBD4B514FC55388FE80231C4 nickname=eclipse19 sampled_on=2026-06-01T22:12:04 sampled_idx=17 sampled_by=0.4.8.16 listed=1
 Guard in=default rsa_id=CE3015614E7A23600B86FFF7F865B0D173B57B54 nickname=percebimientos1 sampled_on=2026-05-30T13:03:36 sampled_idx=18 sampled_by=0.4.8.16 listed=1
 Guard in=default rsa_id=32B4F9551C670641735E3286EE53BB3700D59576 nickname=prsv sampled_on=2026-06-01T21:58:35 sampled_idx=19 sampled_by=0.4.8.16 listed=1
-LastWritten 2026-06-07 18:51:41
-MinutesSinceUserActivity 455
+LastWritten 2026-06-07 19:14:50
+MinutesSinceUserActivity 458
 TorVersion Tor 0.4.8.16
-TotalBuildTimes 102
+TotalBuildTimes 111

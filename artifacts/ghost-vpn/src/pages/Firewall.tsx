@@ -9,6 +9,8 @@ import {
   Server, BellOff, FileJson, Filter,
   // Next-gen 2024-2025 icons
   Cpu, Lock, Wifi, GitBranch, Package, Bot, Map, Activity,
+  // Military + Spybot icons
+  ShieldCheck, Key, HardDrive, Radio, Monitor, Bug, FileX, Microscope, BookOpen, Database,
 } from "lucide-react";
 import {
   useListGhostOsRules, useCreateGhostOsRule, useDeleteGhostOsRule, useUpdateGhostOsRule,
@@ -57,6 +59,24 @@ const TAB_ICONS: Record<string, React.ReactNode> = {
   rpki:        <Globe2 size={13} />,
   deception:   <Eye size={13} />,
   geoip:       <Map size={13} />,
+  // ── Military-Grade (NSA/DARPA/SELinux) ──
+  selinux:     <ShieldCheck size={13} />,
+  apparmor:    <Lock size={13} />,
+  sbom:        <Database size={13} />,
+  auditd:      <Microscope size={13} />,
+  nftables:    <HardDrive size={13} />,
+  kernelharden:<ShieldCheck size={13} />,
+  mls:         <BookOpen size={13} />,
+  zerotrust:   <Key size={13} />,
+  // ── Spybot-Inspired ──
+  hostsimm:    <Server size={13} />,
+  tracking:    <Radio size={13} />,
+  telemetry:   <Radio size={13} />,
+  startup:     <Monitor size={13} />,
+  rootkit:     <Bug size={13} />,
+  shredder:    <FileX size={13} />,
+  pup:         <Package size={13} />,
+  registry:    <Key size={13} />,
 };
 const TABS = [
   { id:"overview", label:"Overview" }, { id:"ghostos", label:"GhostOS™" }, { id:"ips", label:"IPS Engine" },
@@ -89,6 +109,24 @@ const TABS = [
   { id:"rpki",        label:"RPKI/BGP" },
   { id:"deception",   label:"Deception" },
   { id:"geoip",       label:"Geo-IP" },
+  // ── Military-Grade (NSA/DARPA research) ──────────────────────────────────
+  { id:"selinux",     label:"SELinux MAC" },
+  { id:"apparmor",    label:"AppArmor" },
+  { id:"sbom",        label:"SBOM/CVE" },
+  { id:"auditd",      label:"auditd" },
+  { id:"nftables",    label:"nftables" },
+  { id:"kernelharden",label:"Kernel Harden" },
+  { id:"mls",         label:"MLS/Bell-LaPadula" },
+  { id:"zerotrust",   label:"Zero Trust Seg" },
+  // ── Spybot Search & Destroy inspired ─────────────────────────────────────
+  { id:"hostsimm",    label:"Hosts Immunizer" },
+  { id:"tracking",    label:"Tracking Blocker" },
+  { id:"telemetry",   label:"Anti-Telemetry" },
+  { id:"startup",     label:"Startup Auditor" },
+  { id:"rootkit",     label:"Rootkit Scanner" },
+  { id:"shredder",    label:"Secure Shredder" },
+  { id:"pup",         label:"PUP Database" },
+  { id:"registry",    label:"Registry Monitor" },
 ];
 const SEV_COLOR: Record<string,string> = { critical:"#ff2244", high:"#ff6600", medium:"#ffaa00", low:"#aaccff", info:"#888" };
 const TRUST_COLOR: Record<string,string> = { trusted:"#00ff88", untrusted:"#ff4444", dmz:"#ff9900", management:"#4488ff" };
@@ -3395,6 +3433,986 @@ function GeoipTab() {
   );
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+// ── MILITARY-GRADE + SPYBOT API HELPERS ─────────────────────────────────────
+// ════════════════════════════════════════════════════════════════════════════
+const APIFWM = "/api/fwm";
+async function fwmPost(path: string, body: unknown) {
+  const r = await fetch(`${APIFWM}${path}`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body) });
+  return r.json();
+}
+async function fwmDelete(path: string) {
+  const r = await fetch(`${APIFWM}${path}`, { method:"DELETE" });
+  return r.json();
+}
+function useFwm<T>(path: string) {
+  const [data, setData] = useState<T | null>(null);
+  const [loading, setLoading] = useState(true);
+  const reload = useCallback(async () => {
+    setLoading(true);
+    try { const r = await fetch(`${APIFWM}${path}`); setData(await r.json()); } catch {}
+    setLoading(false);
+  }, [path]);
+  useEffect(() => { void reload(); }, [reload]);
+  return { data, loading, reload };
+}
+
+// ── Shared Layout Helpers ────────────────────────────────────────────────────
+function FwmCard({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
+  return <div style={{ background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:8, padding:16, ...style }}>{children}</div>;
+}
+function SectionTitle({ icon, title, sub, badge, badgeColor, extra }: { icon?: React.ReactNode; title: string; sub?: string; badge?: string; badgeColor?: string; extra?: React.ReactNode }) {
+  return (
+    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
+      <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+        {icon}<span style={{ fontFamily:"monospace", fontWeight:800, fontSize:13, color:"#fff" }}>{title}</span>
+        {badge && <Bdg label={badge} color={badgeColor ?? "#4488ff"} sm />}
+      </div>
+      <div style={{ display:"flex", gap:6, alignItems:"center", fontSize:10, color:"#444" }}>{sub}{extra}</div>
+    </div>
+  );
+}
+function InfoBar({ text, color }: { text: string; color?: string }) {
+  return <div style={{ background:"#111", border:`1px solid ${color ?? "#1a1a1a"}33`, borderRadius:6, padding:"8px 12px", fontSize:10, color: color ?? "#555", fontFamily:"monospace", marginBottom:12 }}>{text}</div>;
+}
+type BtnProps = { onClick?: () => void; color?: string; sm?: boolean; disabled?: boolean; style?: React.CSSProperties; children: React.ReactNode };
+function Btn2({ onClick, color="#00ff88", sm, disabled, children }: BtnProps) {
+  return <button onClick={onClick} disabled={disabled} style={{ background:`${color}22`, border:`1px solid ${color}44`, color, borderRadius:6, padding: sm?"3px 10px":"5px 14px", cursor:disabled?"not-allowed":"pointer", fontSize: sm?10:11, fontFamily:"monospace", opacity:disabled?0.4:1 }}>{children}</button>;
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ── 1. SELinux MAC ENGINE (NSA) ──────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════════════════
+function SelinuxTab() {
+  const { data: status, loading, reload } = useFwm<{ liveStatus: Record<string,string>; totalContexts:number; totalDenials:number; reference: Record<string,unknown> }>("/selinux/status");
+  const { data: ctxData } = useFwm<{ contexts: Array<{id:number;domain:string;type:string;role:string;level:string;mode:string;enabled:boolean;policy:string|null}> }>("/selinux/contexts");
+  const { data: denData } = useFwm<{ denials: Array<{id:number;avcMessage:string;sourceType:string;targetType:string;targetClass:string;permission:string;pid:number|null;comm:string|null;path:string|null;denied:boolean;detectedAt:string}>; total:number }>("/selinux/denials");
+  const [avcInput, setAvcInput] = useState("");
+  const [parsed, setParsed] = useState<Record<string,unknown> | null>(null);
+  const MODE_C: Record<string,string> = { enforcing:"#00ff88", permissive:"#ffaa00", disabled:"#ff4444" };
+  return (
+    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
+      <FwmCard style={{ gridColumn:"1/-1" }}>
+        <SectionTitle icon={<ShieldCheck size={14} color="#00ff88"/>} title="SELinux MAC Engine — NSA" badge="NSA / Open Source 2000" badgeColor="#ff6600" extra={<Btn2 onClick={async()=>{await fwmPost("/selinux/seed",{}); await reload();}} color="#4488ff" sm>Seed Defaults</Btn2>}/>
+        <InfoBar text="Origin: NSA (National Security Agency) — open-sourced 2000 · Mandatory Access Control (MAC) via Type Enforcement (TE) + RBAC + MLS · 3× reduction in privilege escalation (CNCF 2024) · 60% reduction in incidents (Red Hat 2024) · SELinux ioctl restrictions address 59% of kernel vulns" color="#4488ff"/>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginBottom:12 }}>
+          {[{l:"Contexts",v:status?.totalContexts??0,c:"#00ff88"},{l:"AVC Denials",v:status?.totalDenials??0,c:"#ff4444"},{l:"Live Status",v:Object.keys(status?.liveStatus??{}).length,c:"#4488ff"}].map(s=>(
+            <div key={s.l} style={{ textAlign:"center", background:"#111", borderRadius:6, padding:"10px 6px" }}>
+              <div style={{ fontSize:22, fontWeight:700, color:s.c, fontFamily:"monospace" }}>{s.v}</div>
+              <div style={{ fontSize:10, color:"#555" }}>{s.l}</div>
+            </div>
+          ))}
+        </div>
+        {Object.keys(status?.liveStatus??{}).length > 0 && (
+          <div style={{ background:"#050f05", border:"1px solid #00ff8822", borderRadius:6, padding:10, marginBottom:10, fontFamily:"monospace", fontSize:10 }}>
+            {Object.entries(status?.liveStatus??{}).map(([k,v])=>(
+              <div key={k} style={{ display:"flex", gap:8, marginBottom:2 }}>
+                <span style={{ color:"#555", minWidth:200 }}>{k}:</span><span style={{ color:"#00ff88" }}>{v as string}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </FwmCard>
+      <FwmCard>
+        <SectionTitle icon={<ShieldCheck size={12} color="#4488ff"/>} title="Type Enforcement Contexts" sub={`${ctxData?.contexts?.length??0} contexts`}/>
+        {loading ? <div style={{color:"#444",fontFamily:"monospace",fontSize:11}}>Loading...</div> : (
+          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:10 }}>
+            <thead><tr>{["Domain","Type","Mode","Policy","Enabled"].map(h=><th key={h} style={{textAlign:"left",color:"#444",borderBottom:"1px solid #1a1a1a",padding:"4px 6px",fontFamily:"monospace"}}>{h}</th>)}</tr></thead>
+            <tbody>{(ctxData?.contexts??[]).map(c=>(
+              <tr key={c.id}>
+                <td style={{padding:"4px 6px",fontFamily:"monospace",color:"#4488ff"}}>{c.domain}</td>
+                <td style={{padding:"4px 6px",fontFamily:"monospace",color:"#aaa",fontSize:9}}>{c.type}</td>
+                <td style={{padding:"4px 6px"}}><Bdg label={c.mode.toUpperCase()} color={MODE_C[c.mode]??"#888"} sm/></td>
+                <td style={{padding:"4px 6px",color:"#555"}}>{c.policy}</td>
+                <td style={{padding:"4px 6px"}}><Bdg label={c.enabled?"ON":"OFF"} color={c.enabled?"#00ff88":"#555"} sm/></td>
+              </tr>
+            ))}</tbody>
+          </table>
+        )}
+      </FwmCard>
+      <FwmCard>
+        <SectionTitle icon={<AlertTriangle size={12} color="#ff4444"/>} title="AVC Denial Parser" sub="audit2allow integration"/>
+        <textarea value={avcInput} onChange={e=>setAvcInput(e.target.value)} placeholder="Paste AVC denial message: type=AVC msg=audit(...)..." style={{ width:"100%", background:"#050f05", border:"1px solid #1a1a1a", borderRadius:6, padding:8, fontFamily:"monospace", fontSize:9, color:"#ccc", minHeight:80, boxSizing:"border-box", marginBottom:8, resize:"vertical" }}/>
+        <Btn2 onClick={async()=>{ const r = await fwmPost("/selinux/parse-avc",{avcMessage:avcInput}); setParsed(r); }} color="#ff9900" sm>Parse &amp; Suggest Allow Rule</Btn2>
+        {parsed && (
+          <div style={{ marginTop:10, background:"#0a0a00", border:"1px solid #ffaa0033", borderRadius:6, padding:10, fontFamily:"monospace", fontSize:9 }}>
+            <div style={{ color:"#ffaa00", marginBottom:6 }}>Suggested SELinux Allow Rule:</div>
+            <div style={{ color:"#00ff88" }}>{parsed.suggestedAllowRule as string}</div>
+            <div style={{ marginTop:8, color:"#555", whiteSpace:"pre-wrap" }}>{parsed.auditAllowCmd as string}</div>
+          </div>
+        )}
+        <div style={{ marginTop:14 }}>
+          <div style={{ fontSize:10, color:"#444", marginBottom:6 }}>Recent AVC Denials</div>
+          {(denData?.denials??[]).slice(0,5).map(d=>(
+            <div key={d.id} style={{ background:"#0f0505", border:"1px solid #ff444422", borderRadius:6, padding:8, marginBottom:6 }}>
+              <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
+                <span style={{ fontFamily:"monospace", fontSize:10, color:"#ff4444" }}>{d.sourceType} → {d.targetType}:{d.targetClass}</span>
+                <Bdg label={d.permission} color="#ff6600" sm/>
+              </div>
+              {d.comm && <div style={{ fontSize:9, color:"#555" }}>comm={d.comm} {d.path && `path=${d.path}`}</div>}
+            </div>
+          ))}
+        </div>
+      </FwmCard>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ── 2. AppArmor PROFILE MANAGER ────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════════════════
+function ApparmorTab() {
+  const { data: status, reload } = useFwm<{ totalProfiles:number; enforced:number; complaining:number; liveStatus:string[]; reference: Record<string,unknown> }>("/apparmor/status");
+  const { data: profs } = useFwm<{ profiles: Array<{id:number;name:string;executable:string;mode:string;denialCount:number;enabled:boolean}> }>("/apparmor/profiles");
+  const { data: evts } = useFwm<{ events: Array<{id:number;profileName:string;operation:string;requested:string|null;denied:string|null;name:string|null;action:string;detectedAt:string}> }>("/apparmor/events");
+  const [genExe, setGenExe] = useState("");
+  const [generated, setGenerated] = useState<{profileText:string;installCmd:string}|null>(null);
+  const MODE_C: Record<string,string> = { enforce:"#00ff88", complain:"#ffaa00", disabled:"#555", audit:"#4488ff" };
+  return (
+    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
+      <FwmCard style={{ gridColumn:"1/-1" }}>
+        <SectionTitle icon={<Lock size={14} color="#ffaa00"/>} title="AppArmor Profile Manager — Canonical/Ubuntu" badge="Linux Security Module" badgeColor="#ff9900" extra={<Btn2 onClick={async()=>{await fwmPost("/apparmor/seed",{}); await reload();}} color="#4488ff" sm>Seed Defaults</Btn2>}/>
+        <InfoBar text="Path-based MAC profiles · Ubuntu default · 70%+ reduction in exploitation risk (Canonical 2024) · CrackArmor (May 2024): 9 confused-deputy CVEs (Qualys) — patch immediately · Kubernetes v1.30: AppArmor native securityContext field" color="#ff9900"/>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10 }}>
+          {[{l:"Total Profiles",v:status?.totalProfiles??0,c:"#fff"},{l:"Enforcing",v:status?.enforced??0,c:"#00ff88"},{l:"Complaining",v:status?.complaining??0,c:"#ffaa00"},{l:"Live Status Lines",v:status?.liveStatus?.length??0,c:"#4488ff"}].map(s=>(
+            <div key={s.l} style={{ textAlign:"center", background:"#111", borderRadius:6, padding:"10px 6px" }}>
+              <div style={{ fontSize:20, fontWeight:700, color:s.c, fontFamily:"monospace" }}>{s.v}</div>
+              <div style={{ fontSize:10, color:"#555" }}>{s.l}</div>
+            </div>
+          ))}
+        </div>
+      </FwmCard>
+      <FwmCard>
+        <SectionTitle icon={<ShieldCheck size={12} color="#00ff88"/>} title="Profiles" sub={`${profs?.profiles?.length??0} loaded`}/>
+        <table style={{ width:"100%", borderCollapse:"collapse", fontSize:10 }}>
+          <thead><tr>{["Name","Executable","Mode","Denials"].map(h=><th key={h} style={{textAlign:"left",color:"#444",borderBottom:"1px solid #1a1a1a",padding:"4px 6px",fontFamily:"monospace"}}>{h}</th>)}</tr></thead>
+          <tbody>{(profs?.profiles??[]).map(p=>(
+            <tr key={p.id}>
+              <td style={{padding:"4px 6px",fontFamily:"monospace",color:"#fff",fontSize:11}}>{p.name}</td>
+              <td style={{padding:"4px 6px",color:"#555",fontSize:9}}>{p.executable}</td>
+              <td style={{padding:"4px 6px"}}><Bdg label={p.mode.toUpperCase()} color={MODE_C[p.mode]??"#888"} sm/></td>
+              <td style={{padding:"4px 6px",color:p.denialCount>0?"#ff4444":"#444",fontFamily:"monospace"}}>{p.denialCount}</td>
+            </tr>
+          ))}</tbody>
+        </table>
+      </FwmCard>
+      <FwmCard>
+        <SectionTitle icon={<Plus size={12} color="#00ff88"/>} title="Profile Generator"/>
+        <div style={{ display:"flex", gap:8, marginBottom:8 }}>
+          <input value={genExe} onChange={e=>setGenExe(e.target.value)} placeholder="/usr/bin/my-app" style={{ flex:1, background:"#111", border:"1px solid #2a2a2a", borderRadius:6, padding:"6px 10px", fontFamily:"monospace", fontSize:10, color:"#ccc" }}/>
+          <Btn2 onClick={async()=>{ const r = await fwmPost("/apparmor/generate",{executable:genExe}); setGenerated(r); }} color="#00ff88" sm>Generate</Btn2>
+        </div>
+        {generated && (
+          <textarea value={generated.profileText} readOnly style={{ width:"100%", background:"#050f05", border:"1px solid #00ff8822", borderRadius:6, padding:8, fontFamily:"monospace", fontSize:8, color:"#aaa", minHeight:180, boxSizing:"border-box", marginBottom:8, resize:"vertical" }}/>
+        )}
+        {generated && <div style={{ fontFamily:"monospace", fontSize:9, color:"#555", whiteSpace:"pre-wrap" }}>{generated.installCmd}</div>}
+        <div style={{ marginTop:12 }}>
+          <div style={{ fontSize:10, color:"#444", marginBottom:6 }}>Audit Events</div>
+          {(evts?.events??[]).slice(0,5).map(e=>(
+            <div key={e.id} style={{ background: e.action==="denied"?"#0f0505":"#050f05", border:`1px solid ${e.action==="denied"?"#ff444422":"#00ff8822"}`, borderRadius:5, padding:7, marginBottom:5 }}>
+              <div style={{ display:"flex", justifyContent:"space-between" }}>
+                <span style={{ fontFamily:"monospace", fontSize:10, color:"#aaa" }}>{e.profileName} — {e.operation}</span>
+                <Bdg label={e.action.toUpperCase()} color={e.action==="denied"?"#ff4444":"#00ff88"} sm/>
+              </div>
+              {e.name && <div style={{ fontSize:9, color:"#555" }}>{e.name}</div>}
+            </div>
+          ))}
+        </div>
+      </FwmCard>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ── 3. SBOM / NVD CVE SCANNER ────────────────────────────────────════════════
+// ════════════════════════════════════════════════════════════════════════════
+function SbomTab() {
+  const { data: stats, reload } = useFwm<{ totalComponents:number; totalVulns:number; criticalComponents:number; byEcosystem:Record<string,number>; nsaRequirements:string[] }>("/sbom/stats");
+  const { data: comps } = useFwm<{ components: Array<{id:number;name:string;version:string;ecosystem:string;purl:string|null;cveCount:number;criticalCves:number;highCves:number;riskScore:number;scannedAt:string}> }>("/sbom/components");
+  const { data: vulns } = useFwm<{ vulns: Array<{id:number;componentId:number;cveId:string;severity:string;cvssScore:number|null;description:string|null;fixedIn:string|null}> }>("/sbom/vulns");
+  const [scanForm, setScanForm] = useState({ name:"", version:"", ecosystem:"npm" });
+  const [scanning, setScanning] = useState(false);
+  const [scanResult, setScanResult] = useState<{component:{name:string};vulns:{cveId:string;severity:string;cvssScore:number}[];riskScore:number}|null>(null);
+  const scan = async () => { setScanning(true); const r = await fwmPost("/sbom/scan", scanForm); setScanResult(r); setScanning(false); await reload(); };
+  const RISK_C = (r:number) => r>=75?"#ff2244":r>=50?"#ff6600":r>=25?"#ffaa00":"#00ff88";
+  return (
+    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
+      <FwmCard style={{ gridColumn:"1/-1" }}>
+        <SectionTitle icon={<Database size={14} color="#4488ff"/>} title="SBOM / NVD CVE Scanner — NSA 2024" badge="NIST NVD Live API" badgeColor="#4488ff" extra={<Btn2 onClick={async()=>{await fwmPost("/sbom/seed",{}); await reload();}} color="#4488ff" sm>Seed Examples</Btn2>}/>
+        <InfoBar text="NSA 2024 guidance: Evaluate ALL open-source components against NIST NVD before deployment. NTIA SBOM minimum elements required. Real CVE lookups via nvd.nist.gov API. Covers XZ-Utils (CVE-2024-3094), Log4Shell (CVE-2021-44228), PwnKit (CVE-2021-4034)." color="#4488ff"/>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10 }}>
+          {[{l:"Components",v:stats?.totalComponents??0,c:"#fff"},{l:"CVEs Found",v:stats?.totalVulns??0,c:"#ff6600"},{l:"Critical",v:stats?.criticalComponents??0,c:"#ff2244"}].map(s=>(
+            <div key={s.l} style={{ textAlign:"center", background:"#111", borderRadius:6, padding:"10px 6px" }}>
+              <div style={{ fontSize:22, fontWeight:700, color:s.c, fontFamily:"monospace" }}>{s.v}</div>
+              <div style={{ fontSize:10, color:"#555" }}>{s.l}</div>
+            </div>
+          ))}
+        </div>
+      </FwmCard>
+      <FwmCard>
+        <SectionTitle icon={<Search size={12} color="#00ff88"/>} title="Scan Package (NVD Live)"/>
+        <div style={{ display:"grid", gridTemplateColumns:"2fr 1fr 1fr", gap:8, marginBottom:10 }}>
+          <input value={scanForm.name} onChange={e=>setScanForm(p=>({...p,name:e.target.value}))} placeholder="package name (e.g. lodash)" style={{ background:"#111", border:"1px solid #2a2a2a", borderRadius:6, padding:"6px 10px", fontFamily:"monospace", fontSize:10, color:"#ccc" }}/>
+          <input value={scanForm.version} onChange={e=>setScanForm(p=>({...p,version:e.target.value}))} placeholder="version" style={{ background:"#111", border:"1px solid #2a2a2a", borderRadius:6, padding:"6px 10px", fontFamily:"monospace", fontSize:10, color:"#ccc" }}/>
+          <select value={scanForm.ecosystem} onChange={e=>setScanForm(p=>({...p,ecosystem:e.target.value}))} style={{ background:"#111", border:"1px solid #2a2a2a", borderRadius:6, padding:"6px 10px", fontFamily:"monospace", fontSize:10, color:"#ccc" }}>
+            {["npm","pip","maven","deb","cargo","gem","go"].map(e=><option key={e}>{e}</option>)}
+          </select>
+        </div>
+        <Btn2 onClick={scan} disabled={scanning || !scanForm.name || !scanForm.version} color="#00ff88" sm>{scanning?"Scanning NVD...":"Scan Package"}</Btn2>
+        {scanResult && (
+          <div style={{ marginTop:10, background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:6, padding:10 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", marginBottom:8 }}>
+              <span style={{ fontFamily:"monospace", fontSize:11 }}>{scanResult.component?.name}</span>
+              <span style={{ fontFamily:"monospace", fontSize:14, fontWeight:700, color:RISK_C(scanResult.riskScore??0) }}>Risk: {scanResult.riskScore}</span>
+            </div>
+            {(scanResult.vulns??[]).length===0 ? <div style={{color:"#00ff88",fontSize:11,fontFamily:"monospace"}}>✅ No CVEs found</div> : (scanResult.vulns??[]).map((v:{cveId:string;severity:string;cvssScore:number})=>(
+              <div key={v.cveId} style={{ display:"flex", gap:8, alignItems:"center", marginBottom:4 }}>
+                <Bdg label={v.cveId} color="#4488ff" sm/><Bdg label={v.severity.toUpperCase()} color={SEV_COLOR[v.severity]??"#888"} sm/><span style={{color:"#888",fontSize:10}}>CVSS {v.cvssScore}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        <div style={{ marginTop:12 }}>
+          <div style={{ fontSize:10, color:"#444", marginBottom:6 }}>NSA SBOM Requirements</div>
+          {(stats?.nsaRequirements??[]).map(r=><div key={r} style={{ fontSize:9, color:"#555", marginBottom:2, fontFamily:"monospace" }}>• {r}</div>)}
+        </div>
+      </FwmCard>
+      <FwmCard>
+        <SectionTitle icon={<AlertTriangle size={12} color="#ff4444"/>} title="Component Risk Table"/>
+        <table style={{ width:"100%", borderCollapse:"collapse", fontSize:10 }}>
+          <thead><tr>{["Package","Ecosystem","CVEs","Risk"].map(h=><th key={h} style={{textAlign:"left",color:"#444",borderBottom:"1px solid #1a1a1a",padding:"3px 6px",fontFamily:"monospace"}}>{h}</th>)}</tr></thead>
+          <tbody>{(comps?.components??[]).slice(0,12).map(c=>(
+            <tr key={c.id}>
+              <td style={{padding:"3px 6px",fontFamily:"monospace",color:"#fff"}}>{c.name}<span style={{color:"#555"}}> @{c.version}</span></td>
+              <td style={{padding:"3px 6px",color:"#4488ff"}}>{c.ecosystem}</td>
+              <td style={{padding:"3px 6px",color:c.cveCount>0?"#ff6600":"#00ff88",fontFamily:"monospace"}}>{c.cveCount}</td>
+              <td style={{padding:"3px 6px"}}><span style={{color:RISK_C(c.riskScore),fontFamily:"monospace",fontWeight:700}}>{c.riskScore}</span></td>
+            </tr>
+          ))}</tbody>
+        </table>
+      </FwmCard>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ── 4. auditd SYSCALL AUDITING ────────────────────════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
+function AuditdTab() {
+  const { data: rulesData, reload } = useFwm<{ rules:Array<{id:number;ruleText:string;ruleType:string;syscall:string|null;action:string;key:string|null;arch:string;priority:number;enabled:boolean}>;liveRules:string[] }>("/auditd/rules");
+  const { data: evtsData } = useFwm<{ events:Array<{id:number;type:string;syscall:string|null;pid:number|null;uid:number|null;comm:string|null;exe:string|null;key:string|null;success:boolean|null;severity:string;detectedAt:string}>;total:number }>("/auditd/events");
+  const [rawMsg, setRawMsg] = useState("");
+  const [parseResult, setParseResult] = useState<{event:{type:string;severity:string};parsed:Record<string,unknown>}|null>(null);
+  return (
+    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
+      <FwmCard style={{ gridColumn:"1/-1" }}>
+        <SectionTitle icon={<Microscope size={14} color="#ff9900"/>} title="auditd — Kernel Syscall Auditing" badge="DARPA Concern" badgeColor="#ff6600" extra={<Btn2 onClick={async()=>{await fwmPost("/auditd/seed",{}); await reload();}} color="#4488ff" sm>Seed Rules</Btn2>}/>
+        <InfoBar text="Linux auditd: defense-grade syscall-level auditing. DARPA concern: Linux kernel is the core building block of virtually all cloud computing. Tracks execve, setuid, ptrace, module loads, file writes, auth events. Key STIG categories: exec_tracking, privilege_escalation, identity, modules." color="#ff9900"/>
+        <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+          {(rulesData?.liveRules??[]).slice(0,4).map((r,i)=><div key={i} style={{ background:"#111", borderRadius:5, padding:"4px 10px", fontFamily:"monospace", fontSize:9, color:"#ffaa00" }}>{r}</div>)}
+        </div>
+      </FwmCard>
+      <FwmCard>
+        <SectionTitle icon={<ShieldCheck size={12} color="#ff9900"/>} title="Audit Rules" sub={`${rulesData?.rules?.length??0} configured`}/>
+        <table style={{ width:"100%", borderCollapse:"collapse", fontSize:9 }}>
+          <thead><tr>{["Syscall","Action","Key","Arch","Pri"].map(h=><th key={h} style={{textAlign:"left",color:"#444",borderBottom:"1px solid #1a1a1a",padding:"3px 6px",fontFamily:"monospace"}}>{h}</th>)}</tr></thead>
+          <tbody>{(rulesData?.rules??[]).map(r=>(
+            <tr key={r.id}>
+              <td style={{padding:"3px 6px",fontFamily:"monospace",color:"#ffaa00"}}>{r.syscall ?? r.ruleType}</td>
+              <td style={{padding:"3px 6px",color:"#555"}}>{r.action}</td>
+              <td style={{padding:"3px 6px",color:"#4488ff"}}>{r.key}</td>
+              <td style={{padding:"3px 6px",color:"#555"}}>{r.arch}</td>
+              <td style={{padding:"3px 6px",color:"#555"}}>{r.priority}</td>
+            </tr>
+          ))}</tbody>
+        </table>
+      </FwmCard>
+      <FwmCard>
+        <SectionTitle icon={<AlertTriangle size={12} color="#ff4444"/>} title="Audit Event Log"/>
+        <div style={{ display:"flex", gap:8, marginBottom:10 }}>
+          <textarea value={rawMsg} onChange={e=>setRawMsg(e.target.value)} placeholder="Paste raw audit log line to parse..." style={{ flex:1, background:"#111", border:"1px solid #2a2a2a", borderRadius:6, padding:8, fontFamily:"monospace", fontSize:9, color:"#ccc", minHeight:60, resize:"vertical" }}/>
+        </div>
+        <Btn2 onClick={async()=>{ const r = await fwmPost("/auditd/parse",{rawMessage:rawMsg}); setParseResult(r); }} color="#ff9900" sm disabled={!rawMsg}>Parse Log Line</Btn2>
+        {parseResult && (
+          <div style={{ marginTop:8, background:"#0a0500", border:"1px solid #ff990022", borderRadius:6, padding:8, fontFamily:"monospace", fontSize:9 }}>
+            <div style={{ display:"flex", gap:8, marginBottom:6 }}>
+              <Bdg label={parseResult.event.type} color="#ffaa00" sm/><Bdg label={parseResult.event.severity.toUpperCase()} color={SEV_COLOR[parseResult.event.severity]??"#888"} sm/>
+            </div>
+            {Object.entries(parseResult.parsed).filter(([,v])=>v!==null).map(([k,v])=>(
+              <div key={k} style={{ display:"flex", gap:8, marginBottom:1 }}><span style={{color:"#444",minWidth:60}}>{k}:</span><span style={{color:"#ccc"}}>{String(v)}</span></div>
+            ))}
+          </div>
+        )}
+        <div style={{ marginTop:10 }}>
+          {(evtsData?.events??[]).slice(0,6).map(e=>(
+            <div key={e.id} style={{ background: e.severity==="critical"?"#0f0505":e.severity==="high"?"#0a0500":"#0a0a0a", border:`1px solid ${SEV_COLOR[e.severity]??"#888"}22`, borderRadius:5, padding:7, marginBottom:5, fontFamily:"monospace", fontSize:9 }}>
+              <div style={{ display:"flex", justifyContent:"space-between" }}>
+                <span style={{ color:SEV_COLOR[e.severity]??"#888" }}>{e.type} · {e.syscall ?? "WATCH"}</span>
+                <Bdg label={e.severity.toUpperCase()} color={SEV_COLOR[e.severity]??"#888"} sm/>
+              </div>
+              <div style={{ color:"#555" }}>pid={e.pid} uid={e.uid} comm={e.comm} key={e.key}</div>
+            </div>
+          ))}
+        </div>
+      </FwmCard>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ── 5. nftables RULE ENGINE ────────────────────════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
+function NftablesTab() {
+  const { data, loading, reload } = useFwm<{ rules:Array<{id:number;table:string;chain:string;priority:number;matchSrcIp:string|null;matchDstIp:string|null;matchSrcPort:number|null;matchDstPort:number|null;matchProto:string|null;setName:string|null;action:string;comment:string|null;enabled:boolean;pktCount:number;byteCount:number}>;sets:Array<{id:number;name:string;type:string;flags:string|null;elements:string[]|null;comment:string|null}>;liveOutput:string }>("/nftables/rules");
+  const [form, setForm] = useState({ chain:"input", action:"drop", matchDstPort:"", matchProto:"tcp", comment:"" });
+  const add = async () => { await fwmPost("/nftables/rules",{...form, matchDstPort:form.matchDstPort?parseInt(form.matchDstPort):undefined}); await reload(); };
+  const exportRules = async () => { const r = await fetch(`${APIFWM}/nftables/export`); const t = await r.text(); const b=new Blob([t],{type:"text/plain"}); const a=document.createElement("a"); a.href=URL.createObjectURL(b); a.download="proxhq-nftables.nft"; a.click(); };
+  const CHAIN_C: Record<string,string> = { input:"#4488ff", output:"#00ff88", forward:"#ff9900", prerouting:"#cc44ff", postrouting:"#44ddff" };
+  const ACT_C:   Record<string,string> = { accept:"#00ff88", drop:"#ff4444", reject:"#ff6600", log:"#ffaa00", masquerade:"#44aaff", counter:"#888" };
+  return (
+    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
+      <FwmCard style={{ gridColumn:"1/-1" }}>
+        <SectionTitle icon={<HardDrive size={14} color="#44aaff"/>} title="nftables Rule Engine — Linux NGFW" badge="iptables replacement" badgeColor="#44aaff" extra={<div style={{display:"flex",gap:6}}><Btn2 onClick={async()=>{await fwmPost("/nftables/seed",{}); await reload();}} color="#4488ff" sm>Seed Rules</Btn2><Btn2 onClick={exportRules} color="#00ff88" sm>Export .nft</Btn2></div>}/>
+        <InfoBar text="nftables — modern iptables replacement (Linux 3.13+). Atomic rule updates, named sets, maps, dictionaries. Better performance, single tool replaces iptables/ip6tables/arptables/ebtables. Syntax: nft add rule inet filter input tcp dport 22 accept" color="#44aaff"/>
+        {data?.liveOutput && <div style={{ background:"#050a0f", border:"1px solid #44aaff22", borderRadius:6, padding:8, fontFamily:"monospace", fontSize:8, color:"#557", maxHeight:80, overflow:"auto", marginBottom:10 }}>{data.liveOutput}</div>}
+      </FwmCard>
+      <FwmCard>
+        <SectionTitle icon={<Plus size={12} color="#00ff88"/>} title="Add nftables Rule"/>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:8 }}>
+          <select value={form.chain} onChange={e=>setForm(p=>({...p,chain:e.target.value}))} style={{ background:"#111", border:"1px solid #2a2a2a", borderRadius:6, padding:"6px 10px", fontFamily:"monospace", fontSize:10, color:"#ccc" }}>
+            {["input","output","forward","prerouting","postrouting"].map(c=><option key={c}>{c}</option>)}
+          </select>
+          <select value={form.action} onChange={e=>setForm(p=>({...p,action:e.target.value}))} style={{ background:"#111", border:"1px solid #2a2a2a", borderRadius:6, padding:"6px 10px", fontFamily:"monospace", fontSize:10, color:"#ccc" }}>
+            {["accept","drop","reject","log","masquerade","counter"].map(a=><option key={a}>{a}</option>)}
+          </select>
+          <input value={form.matchDstPort} onChange={e=>setForm(p=>({...p,matchDstPort:e.target.value}))} placeholder="dst port (e.g. 22)" style={{ background:"#111", border:"1px solid #2a2a2a", borderRadius:6, padding:"6px 10px", fontFamily:"monospace", fontSize:10, color:"#ccc" }}/>
+          <select value={form.matchProto} onChange={e=>setForm(p=>({...p,matchProto:e.target.value}))} style={{ background:"#111", border:"1px solid #2a2a2a", borderRadius:6, padding:"6px 10px", fontFamily:"monospace", fontSize:10, color:"#ccc" }}>
+            {["tcp","udp","icmp","any"].map(p=><option key={p}>{p}</option>)}
+          </select>
+        </div>
+        <input value={form.comment} onChange={e=>setForm(p=>({...p,comment:e.target.value}))} placeholder="Comment (optional)" style={{ width:"100%", background:"#111", border:"1px solid #2a2a2a", borderRadius:6, padding:"6px 10px", fontFamily:"monospace", fontSize:10, color:"#ccc", boxSizing:"border-box", marginBottom:8 }}/>
+        <Btn2 onClick={add} color="#00ff88" sm>Add Rule</Btn2>
+        <div style={{ marginTop:12 }}>
+          <div style={{ fontSize:10, color:"#444", marginBottom:6 }}>Named Sets ({data?.sets?.length??0})</div>
+          {(data?.sets??[]).map(s=><div key={s.id} style={{ background:"#111", borderRadius:5, padding:"5px 10px", marginBottom:4, display:"flex", justifyContent:"space-between" }}><span style={{ fontFamily:"monospace", color:"#44aaff", fontSize:10 }}>{s.name}</span><span style={{ color:"#555", fontSize:9 }}>{s.type}</span></div>)}
+        </div>
+      </FwmCard>
+      <FwmCard>
+        <SectionTitle icon={<HardDrive size={12} color="#44aaff"/>} title="Rules" sub={`${data?.rules?.length??0} configured`}/>
+        {loading ? <div style={{color:"#444",fontSize:11}}>Loading...</div> : (
+          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:9 }}>
+            <thead><tr>{["Chain","Port/Proto","Action","Pkts","Comment"].map(h=><th key={h} style={{textAlign:"left",color:"#444",borderBottom:"1px solid #1a1a1a",padding:"3px 6px"}}>{h}</th>)}</tr></thead>
+            <tbody>{(data?.rules??[]).map(r=>(
+              <tr key={r.id}>
+                <td style={{padding:"3px 6px"}}><Bdg label={r.chain.toUpperCase()} color={CHAIN_C[r.chain]??"#888"} sm/></td>
+                <td style={{padding:"3px 6px",fontFamily:"monospace",color:"#aaa"}}>{r.matchDstPort ?? r.setName ?? "*"}{r.matchProto?`/${r.matchProto}`:""}</td>
+                <td style={{padding:"3px 6px"}}><Bdg label={r.action.toUpperCase()} color={ACT_C[r.action]??"#888"} sm/></td>
+                <td style={{padding:"3px 6px",color:"#555",fontFamily:"monospace"}}>{r.pktCount}</td>
+                <td style={{padding:"3px 6px",color:"#444",fontSize:9}}>{r.comment}</td>
+              </tr>
+            ))}</tbody>
+          </table>
+        )}
+      </FwmCard>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ── 6. KERNEL HARDENING MONITOR ───────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════════════════
+function KernelHardenTab() {
+  const { data, loading, reload } = useFwm<{ checks:Array<{id:number;paramPath:string;paramName:string;currentValue:string|null;recommendedValue:string;status:string;category:string;description:string;mitigation:string;cve:string|null}>;score:number;secure:number;warning:number;critical:number }>("/kernel/hardening");
+  const downloadScript = async () => { const r = await fetch(`${APIFWM}/kernel/hardening/script`); const t = await r.text(); const b=new Blob([t],{type:"text/plain"}); const a=document.createElement("a"); a.href=URL.createObjectURL(b); a.download="kernel-harden.sh"; a.click(); };
+  const S_C: Record<string,string> = { secure:"#00ff88", warning:"#ffaa00", critical:"#ff4444", unknown:"#555" };
+  const CAT_C: Record<string,string> = { kernel:"#cc44ff", net:"#4488ff", fs:"#ff9900", vm:"#44aaff", user:"#ff6600" };
+  return (
+    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
+      <FwmCard style={{ gridColumn:"1/-1" }}>
+        <SectionTitle icon={<ShieldCheck size={14} color="#cc44ff"/>} title="Kernel Hardening Monitor — NSA/DARPA" badge="Live /proc/sys" badgeColor="#cc44ff" extra={<div style={{display:"flex",gap:6}}><Btn2 onClick={()=>reload()} color="#ff9900" sm>Re-Scan Live</Btn2><Btn2 onClick={downloadScript} color="#00ff88" sm>Download .sh Script</Btn2></div>}/>
+        <InfoBar text="DARPA 2024: Linux kernel is the core building block of virtually all cloud computing. Checks 15 critical sysctl parameters: ASLR, dmesg_restrict, kptr_restrict, ptrace_scope, user namespaces, SYN cookies, SUID dumps, symlink/hardlink protection, mmap_min_addr. All values read from live /proc/sys." color="#cc44ff"/>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10 }}>
+          {[{l:"Hardening Score",v:`${data?.score??0}%`,c: (data?.score??0)>=80?"#00ff88":(data?.score??0)>=50?"#ffaa00":"#ff4444"},{l:"Secure",v:data?.secure??0,c:"#00ff88"},{l:"Warnings",v:data?.warning??0,c:"#ffaa00"},{l:"Critical",v:data?.critical??0,c:"#ff4444"}].map(s=>(
+            <div key={s.l} style={{ textAlign:"center", background:"#111", borderRadius:6, padding:"10px 6px" }}>
+              <div style={{ fontSize:22, fontWeight:700, color:s.c, fontFamily:"monospace" }}>{s.v}</div>
+              <div style={{ fontSize:10, color:"#555" }}>{s.l}</div>
+            </div>
+          ))}
+        </div>
+      </FwmCard>
+      <FwmCard style={{ gridColumn:"1/-1" }}>
+        {loading ? <div style={{color:"#444",fontFamily:"monospace"}}>Scanning live kernel parameters...</div> : (
+          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:10 }}>
+            <thead><tr>{["Parameter","Category","Current","Recommended","Status","CVE"].map(h=><th key={h} style={{textAlign:"left",color:"#444",borderBottom:"1px solid #1a1a1a",padding:"4px 8px",fontFamily:"monospace"}}>{h}</th>)}</tr></thead>
+            <tbody>{(data?.checks??[]).map(c=>(
+              <tr key={c.id} style={{ borderBottom:"1px solid #111" }}>
+                <td style={{padding:"5px 8px"}}>
+                  <div style={{ fontFamily:"monospace", color:"#ccc", fontSize:10 }}>{c.paramName}</div>
+                  <div style={{ fontSize:8, color:"#444" }}>{c.description.slice(0,60)}</div>
+                </td>
+                <td style={{padding:"5px 8px"}}><Bdg label={c.category} color={CAT_C[c.category]??"#888"} sm/></td>
+                <td style={{padding:"5px 8px",fontFamily:"monospace",color:c.status==="secure"?"#00ff88":c.status==="critical"?"#ff4444":"#ffaa00",fontSize:11,fontWeight:700}}>{c.currentValue ?? "N/A"}</td>
+                <td style={{padding:"5px 8px",fontFamily:"monospace",color:"#555"}}>{c.recommendedValue}</td>
+                <td style={{padding:"5px 8px"}}><Bdg label={c.status.toUpperCase()} color={S_C[c.status]??"#888"} sm/></td>
+                <td style={{padding:"5px 8px",fontFamily:"monospace",fontSize:9,color:"#ff6600"}}>{c.cve}</td>
+              </tr>
+            ))}</tbody>
+          </table>
+        )}
+      </FwmCard>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ── 7. MLS / BELL-LaPADULA ─────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════════════════
+function MlsTab() {
+  const { data, reload } = useFwm<{ policies:Array<{id:number;subjectLabel:string;objectLabel:string;subjectLevel:string;objectLevel:string;canRead:boolean;canWrite:boolean;canExecute:boolean;bellLapadura:boolean;description:string|null}>;model:Record<string,unknown> }>("/mls/policies");
+  const [checkForm, setCheckForm] = useState({ subjectLabel:"", objectLabel:"", subjectLevel:"unclassified", objectLevel:"confidential", operation:"read" });
+  const [checkResult, setCheckResult] = useState<{allowed:boolean;reason:string;operation:string}|null>(null);
+  const LEVELS = ["unclassified","confidential","secret","top_secret","sci"];
+  const LVL_C: Record<string,string> = { unclassified:"#555", confidential:"#4488ff", secret:"#ff9900", top_secret:"#ff4444", sci:"#cc44ff" };
+  return (
+    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
+      <FwmCard style={{ gridColumn:"1/-1" }}>
+        <SectionTitle icon={<BookOpen size={14} color="#cc44ff"/>} title="MLS / Bell-LaPadula Classification Engine" badge="DoD / NSA SELinux MLS" badgeColor="#cc44ff" extra={<Btn2 onClick={async()=>{await fwmPost("/mls/seed",{}); await reload();}} color="#4488ff" sm>Seed Policies</Btn2>}/>
+        <InfoBar text="Bell-LaPadula (1973) — the mathematical foundation of US military information security. No-Read-Up (Simple Security): S can read O iff level(S) ≥ level(O). No-Write-Down (★-Property): S can write O iff level(S) ≤ level(O). Prevents downgrading classified data. Used in: NSA SELinux MLS policy, DoD DIACAP, NSA Type 1 encryption." color="#cc44ff"/>
+        <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+          {LEVELS.map(l=><div key={l} style={{ background:`${LVL_C[l]}22`, border:`1px solid ${LVL_C[l]}44`, borderRadius:6, padding:"4px 12px", fontFamily:"monospace", fontSize:10, color:LVL_C[l], textTransform:"uppercase", letterSpacing:2 }}>{l.replace(/_/g," ")}</div>)}
+        </div>
+      </FwmCard>
+      <FwmCard>
+        <SectionTitle icon={<ShieldCheck size={12} color="#cc44ff"/>} title="BLP Access Check"/>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:8 }}>
+          <input value={checkForm.subjectLabel} onChange={e=>setCheckForm(p=>({...p,subjectLabel:e.target.value}))} placeholder="Subject (e.g. analyst_alice)" style={{ background:"#111", border:"1px solid #2a2a2a", borderRadius:6, padding:"6px 10px", fontFamily:"monospace", fontSize:10, color:"#ccc" }}/>
+          <input value={checkForm.objectLabel} onChange={e=>setCheckForm(p=>({...p,objectLabel:e.target.value}))} placeholder="Object (e.g. classified_docs)" style={{ background:"#111", border:"1px solid #2a2a2a", borderRadius:6, padding:"6px 10px", fontFamily:"monospace", fontSize:10, color:"#ccc" }}/>
+          <select value={checkForm.subjectLevel} onChange={e=>setCheckForm(p=>({...p,subjectLevel:e.target.value}))} style={{ background:"#111", border:"1px solid #2a2a2a", borderRadius:6, padding:"6px 10px", fontFamily:"monospace", fontSize:10, color:"#ccc" }}>
+            {LEVELS.map(l=><option key={l} value={l}>{l.replace(/_/g," ").toUpperCase()}</option>)}
+          </select>
+          <select value={checkForm.objectLevel} onChange={e=>setCheckForm(p=>({...p,objectLevel:e.target.value}))} style={{ background:"#111", border:"1px solid #2a2a2a", borderRadius:6, padding:"6px 10px", fontFamily:"monospace", fontSize:10, color:"#ccc" }}>
+            {LEVELS.map(l=><option key={l} value={l}>{l.replace(/_/g," ").toUpperCase()}</option>)}
+          </select>
+        </div>
+        <div style={{ display:"flex", gap:8, marginBottom:10 }}>
+          {["read","write","execute"].map(op=>(
+            <button key={op} onClick={()=>setCheckForm(p=>({...p,operation:op}))} style={{ flex:1, background:checkForm.operation===op?"#cc44ff22":"#111", border:`1px solid ${checkForm.operation===op?"#cc44ff44":"#2a2a2a"}`, borderRadius:6, padding:"5px", fontFamily:"monospace", fontSize:10, color:checkForm.operation===op?"#cc44ff":"#555", cursor:"pointer" }}>{op.toUpperCase()}</button>
+          ))}
+        </div>
+        <Btn2 onClick={async()=>{ const r = await fwmPost("/mls/check",checkForm); setCheckResult(r); await reload(); }} color="#cc44ff" sm disabled={!checkForm.subjectLabel||!checkForm.objectLabel}>Run BLP Check</Btn2>
+        {checkResult && (
+          <div style={{ marginTop:10, background: checkResult.allowed?"#050f05":"#0f0505", border:`1px solid ${checkResult.allowed?"#00ff8833":"#ff444433"}`, borderRadius:6, padding:10, fontFamily:"monospace", fontSize:11 }}>
+            <div style={{ fontSize:18, fontWeight:700, color:checkResult.allowed?"#00ff88":"#ff4444", marginBottom:6 }}>{checkResult.allowed?"✅ ALLOWED":"🚫 DENIED"}</div>
+            <div style={{ fontSize:10, color:"#aaa" }}>{checkResult.reason}</div>
+          </div>
+        )}
+      </FwmCard>
+      <FwmCard>
+        <SectionTitle icon={<BookOpen size={12} color="#cc44ff"/>} title="Policies ({data?.policies?.length??0})"/>
+        <table style={{ width:"100%", borderCollapse:"collapse", fontSize:9 }}>
+          <thead><tr>{["Subject","Object","S.Level","O.Level","R/W/X","BLP"].map(h=><th key={h} style={{textAlign:"left",color:"#444",borderBottom:"1px solid #1a1a1a",padding:"3px 6px"}}>{h}</th>)}</tr></thead>
+          <tbody>{(data?.policies??[]).map(p=>(
+            <tr key={p.id} style={{ borderBottom:"1px solid #0f0f0f" }}>
+              <td style={{padding:"3px 6px",color:"#aaa",fontFamily:"monospace"}}>{p.subjectLabel}</td>
+              <td style={{padding:"3px 6px",color:"#555",fontFamily:"monospace"}}>{p.objectLabel}</td>
+              <td style={{padding:"3px 6px"}}><span style={{color:LVL_C[p.subjectLevel]??"#888",fontFamily:"monospace",fontSize:9}}>{p.subjectLevel.replace(/_/g," ")}</span></td>
+              <td style={{padding:"3px 6px"}}><span style={{color:LVL_C[p.objectLevel]??"#888",fontFamily:"monospace",fontSize:9}}>{p.objectLevel.replace(/_/g," ")}</span></td>
+              <td style={{padding:"3px 6px",fontFamily:"monospace",color:"#555"}}>{p.canRead?"R":"·"}{p.canWrite?"W":"·"}{p.canExecute?"X":"·"}</td>
+              <td style={{padding:"3px 6px"}}><Bdg label={p.bellLapadura?"BLP":"OFF"} color={p.bellLapadura?"#cc44ff":"#333"} sm/></td>
+            </tr>
+          ))}</tbody>
+        </table>
+      </FwmCard>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ── 8. ZERO TRUST MICROSEGMENTATION ──────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════════════════
+function ZeroTrustTab() {
+  const { data, reload } = useFwm<{ segments:Array<{id:number;name:string;srcLabel:string;dstLabel:string;ports:number[]|null;protocols:string[]|null;action:string;mTls:boolean;jwtRequired:boolean;enabled:boolean;violationCount:number;description:string|null}>;total:number;allowed:number;denied:number }>("/zt/segments");
+  const [form, setForm] = useState({ name:"", srcLabel:"", dstLabel:"", action:"deny", mTls:true, jwtRequired:true, description:"" });
+  const [verifyForm, setVerifyForm] = useState({ srcLabel:"", dstLabel:"", port:"" });
+  const [verifyResult, setVerifyResult] = useState<{allowed:boolean;reason:string}|null>(null);
+  const ACT_C: Record<string,string> = { allow:"#00ff88", deny:"#ff4444", inspect:"#ffaa00", alert:"#ff9900" };
+  return (
+    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
+      <FwmCard style={{ gridColumn:"1/-1" }}>
+        <SectionTitle icon={<Key size={14} color="#44aaff"/>} title="Zero Trust Microsegmentation — CISA 2025" badge="NIST SP 800-207" badgeColor="#44aaff" extra={<Btn2 onClick={async()=>{await fwmPost("/zt/seed",{}); await reload();}} color="#4488ff" sm>Seed Segments</Btn2>}/>
+        <InfoBar text="CISA Zero Trust Maturity Model 2025 / NIST SP 800-207. Never Trust, Always Verify. Default-deny all inter-workload traffic. mTLS between all segments (cryptographic identity). JWT/SPIFFE/SVID workload auth. Generates Cilium NetworkPolicy (Kubernetes) equivalent configs." color="#44aaff"/>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10 }}>
+          {[{l:"Segments",v:data?.total??0,c:"#fff"},{l:"Allow",v:data?.allowed??0,c:"#00ff88"},{l:"Deny",v:data?.denied??0,c:"#ff4444"},{l:"mTLS Required",v:(data?.segments??[]).filter(s=>s.mTls).length,c:"#44aaff"}].map(s=>(
+            <div key={s.l} style={{ textAlign:"center", background:"#111", borderRadius:6, padding:"10px 6px" }}>
+              <div style={{ fontSize:20, fontWeight:700, color:s.c, fontFamily:"monospace" }}>{s.v}</div>
+              <div style={{ fontSize:10, color:"#555" }}>{s.l}</div>
+            </div>
+          ))}
+        </div>
+      </FwmCard>
+      <FwmCard>
+        <SectionTitle icon={<ShieldCheck size={12} color="#44aaff"/>} title="Policy Segments"/>
+        <table style={{ width:"100%", borderCollapse:"collapse", fontSize:9 }}>
+          <thead><tr>{["Src","Dst","Ports","Action","mTLS","JWT","Violations"].map(h=><th key={h} style={{textAlign:"left",color:"#444",borderBottom:"1px solid #1a1a1a",padding:"3px 6px"}}>{h}</th>)}</tr></thead>
+          <tbody>{(data?.segments??[]).map(s=>(
+            <tr key={s.id} style={{ borderBottom:"1px solid #0f0f0f" }}>
+              <td style={{padding:"3px 6px",fontFamily:"monospace",color:"#4488ff",fontSize:9}}>{s.srcLabel}</td>
+              <td style={{padding:"3px 6px",fontFamily:"monospace",color:"#aaa",fontSize:9}}>{s.dstLabel}</td>
+              <td style={{padding:"3px 6px",color:"#555",fontSize:9}}>{(s.ports??[]).join(",") || "any"}</td>
+              <td style={{padding:"3px 6px"}}><Bdg label={s.action.toUpperCase()} color={ACT_C[s.action]??"#888"} sm/></td>
+              <td style={{padding:"3px 6px"}}><Bdg label={s.mTls?"YES":"NO"} color={s.mTls?"#00ff88":"#555"} sm/></td>
+              <td style={{padding:"3px 6px"}}><Bdg label={s.jwtRequired?"YES":"NO"} color={s.jwtRequired?"#00ff88":"#555"} sm/></td>
+              <td style={{padding:"3px 6px",color:s.violationCount>0?"#ff4444":"#555",fontFamily:"monospace"}}>{s.violationCount}</td>
+            </tr>
+          ))}</tbody>
+        </table>
+      </FwmCard>
+      <FwmCard>
+        <SectionTitle icon={<Search size={12} color="#44aaff"/>} title="Policy Verify"/>
+        <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:8 }}>
+          <input value={verifyForm.srcLabel} onChange={e=>setVerifyForm(p=>({...p,srcLabel:e.target.value}))} placeholder="Source label (e.g. web-frontend)" style={{ background:"#111", border:"1px solid #2a2a2a", borderRadius:6, padding:"6px 10px", fontFamily:"monospace", fontSize:10, color:"#ccc" }}/>
+          <input value={verifyForm.dstLabel} onChange={e=>setVerifyForm(p=>({...p,dstLabel:e.target.value}))} placeholder="Dest label (e.g. postgres)" style={{ background:"#111", border:"1px solid #2a2a2a", borderRadius:6, padding:"6px 10px", fontFamily:"monospace", fontSize:10, color:"#ccc" }}/>
+          <input value={verifyForm.port} onChange={e=>setVerifyForm(p=>({...p,port:e.target.value}))} placeholder="Port (optional)" style={{ background:"#111", border:"1px solid #2a2a2a", borderRadius:6, padding:"6px 10px", fontFamily:"monospace", fontSize:10, color:"#ccc" }}/>
+        </div>
+        <Btn2 onClick={async()=>{ const r = await fwmPost("/zt/verify",{srcLabel:verifyForm.srcLabel,dstLabel:verifyForm.dstLabel,port:verifyForm.port?parseInt(verifyForm.port):undefined}); setVerifyResult(r); }} color="#44aaff" sm>Verify Policy</Btn2>
+        {verifyResult && (
+          <div style={{ marginTop:10, background: verifyResult.allowed?"#050f05":"#0f0505", border:`1px solid ${verifyResult.allowed?"#00ff8833":"#ff444433"}`, borderRadius:6, padding:10 }}>
+            <div style={{ fontSize:16, fontWeight:700, fontFamily:"monospace", color:verifyResult.allowed?"#00ff88":"#ff4444", marginBottom:6 }}>{verifyResult.allowed?"✅ ALLOWED":"🚫 DENIED (Default-Deny)"}</div>
+            <div style={{ fontSize:10, color:"#aaa" }}>{verifyResult.reason}</div>
+          </div>
+        )}
+        <div style={{ marginTop:14 }}>
+          <div style={{ fontSize:10, color:"#444", marginBottom:8 }}>Add Segment</div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginBottom:6 }}>
+            <input value={form.name} onChange={e=>setForm(p=>({...p,name:e.target.value}))} placeholder="Policy name" style={{ background:"#111", border:"1px solid #2a2a2a", borderRadius:6, padding:"5px 8px", fontFamily:"monospace", fontSize:9, color:"#ccc" }}/>
+            <select value={form.action} onChange={e=>setForm(p=>({...p,action:e.target.value}))} style={{ background:"#111", border:"1px solid #2a2a2a", borderRadius:6, padding:"5px 8px", fontFamily:"monospace", fontSize:9, color:"#ccc" }}>
+              {["allow","deny","inspect","alert"].map(a=><option key={a}>{a}</option>)}
+            </select>
+            <input value={form.srcLabel} onChange={e=>setForm(p=>({...p,srcLabel:e.target.value}))} placeholder="Source label" style={{ background:"#111", border:"1px solid #2a2a2a", borderRadius:6, padding:"5px 8px", fontFamily:"monospace", fontSize:9, color:"#ccc" }}/>
+            <input value={form.dstLabel} onChange={e=>setForm(p=>({...p,dstLabel:e.target.value}))} placeholder="Dest label" style={{ background:"#111", border:"1px solid #2a2a2a", borderRadius:6, padding:"5px 8px", fontFamily:"monospace", fontSize:9, color:"#ccc" }}/>
+          </div>
+          <Btn2 onClick={async()=>{ await fwmPost("/zt/segments",form); await reload(); }} color="#00ff88" sm disabled={!form.name||!form.srcLabel||!form.dstLabel}>Add Segment</Btn2>
+        </div>
+      </FwmCard>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ── 9. HOSTS FILE IMMUNIZER (Spybot) ─────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════════════════
+function HostsImmTab() {
+  const { data, reload } = useFwm<{ entries:Array<{id:number;domain:string;category:string;source:string|null;redirectTo:string;enabled:boolean;hitCount:number;addedAt:string}>;total:number;byCategory:Record<string,number> }>("/hosts/entries");
+  const [form, setForm] = useState({ domain:"", category:"malware", source:"custom", redirectTo:"0.0.0.0" });
+  const [search, setSearch] = useState("");
+  const exportHosts = async () => { const r = await fetch(`${APIFWM}/hosts/export`); const t = await r.text(); const b=new Blob([t],{type:"text/plain"}); const a=document.createElement("a"); a.href=URL.createObjectURL(b); a.download="proxhq-hosts"; a.click(); };
+  const CAT_C: Record<string,string> = { malware:"#ff4444", tracking:"#ff9900", ads:"#ffaa00", phishing:"#ff6600", telemetry:"#4488ff", c2:"#cc44ff" };
+  const filtered = (data?.entries??[]).filter(e => !search || e.domain.includes(search));
+  return (
+    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
+      <FwmCard style={{ gridColumn:"1/-1" }}>
+        <SectionTitle icon={<Server size={14} color="#ff9900"/>} title="Hosts File Immunizer — Spybot S&amp;D" badge="Spybot Technique" badgeColor="#ff9900" extra={<div style={{display:"flex",gap:6}}><Btn2 onClick={async()=>{await fwmPost("/hosts/seed",{}); await reload();}} color="#4488ff" sm>Seed Defaults</Btn2><Btn2 onClick={exportHosts} color="#00ff88" sm>Export /etc/hosts</Btn2></div>}/>
+        <InfoBar text="Spybot-S&D immunization technique (2000): Map malicious domains to 0.0.0.0 in /etc/hosts to block them system-wide before DNS resolution. No DNS server needed — works at OS level for all applications. Covers: malware C2, tracking pixels, ad networks, phishing, telemetry, cryptomining." color="#ff9900"/>
+        <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+          {Object.entries(data?.byCategory??{}).map(([cat,n])=>(
+            <div key={cat} style={{ background:`${CAT_C[cat]??'#888'}22`, border:`1px solid ${CAT_C[cat]??'#888'}44`, borderRadius:6, padding:"3px 10px", fontFamily:"monospace", fontSize:10, color:CAT_C[cat]??"#888" }}>{cat}: {n as number}</div>
+          ))}
+          <div style={{ marginLeft:"auto", fontFamily:"monospace", fontSize:11, color:"#555" }}>Total: {data?.total??0} entries</div>
+        </div>
+      </FwmCard>
+      <FwmCard>
+        <SectionTitle icon={<Plus size={12} color="#00ff88"/>} title="Immunize Domain"/>
+        <div style={{ display:"flex", flexDirection:"column", gap:6, marginBottom:8 }}>
+          <input value={form.domain} onChange={e=>setForm(p=>({...p,domain:e.target.value}))} placeholder="malicious-domain.com" style={{ background:"#111", border:"1px solid #2a2a2a", borderRadius:6, padding:"6px 10px", fontFamily:"monospace", fontSize:10, color:"#ccc" }}/>
+          <div style={{ display:"flex", gap:6 }}>
+            <select value={form.category} onChange={e=>setForm(p=>({...p,category:e.target.value}))} style={{ flex:1, background:"#111", border:"1px solid #2a2a2a", borderRadius:6, padding:"6px 10px", fontFamily:"monospace", fontSize:10, color:"#ccc" }}>
+              {["malware","tracking","ads","phishing","telemetry","c2","cryptomining"].map(c=><option key={c}>{c}</option>)}
+            </select>
+            <input value={form.redirectTo} onChange={e=>setForm(p=>({...p,redirectTo:e.target.value}))} placeholder="0.0.0.0" style={{ width:100, background:"#111", border:"1px solid #2a2a2a", borderRadius:6, padding:"6px 8px", fontFamily:"monospace", fontSize:10, color:"#ccc" }}/>
+          </div>
+          <Btn2 onClick={async()=>{ await fwmPost("/hosts/add",form); await reload(); setForm(p=>({...p,domain:""})); }} color="#00ff88" sm disabled={!form.domain}>Block Domain</Btn2>
+        </div>
+        <div style={{ background:"#050f05", border:"1px solid #00ff8822", borderRadius:6, padding:8, fontFamily:"monospace", fontSize:9, color:"#555" }}>
+          Preview: <span style={{ color:"#ffaa00" }}>{form.redirectTo} {form.domain || "<domain>"}</span>  # {form.category}
+        </div>
+      </FwmCard>
+      <FwmCard>
+        <SectionTitle icon={<Search size={12} color="#ff9900"/>} title={`Blocked Domains (${data?.total??0})`}/>
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search domains..." style={{ width:"100%", background:"#111", border:"1px solid #2a2a2a", borderRadius:6, padding:"5px 10px", fontFamily:"monospace", fontSize:10, color:"#ccc", boxSizing:"border-box", marginBottom:8 }}/>
+        <div style={{ maxHeight:280, overflow:"auto" }}>
+          {filtered.slice(0,50).map(e=>(
+            <div key={e.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"3px 0", borderBottom:"1px solid #0f0f0f" }}>
+              <div>
+                <span style={{ fontFamily:"monospace", fontSize:10, color:"#ccc" }}>{e.domain}</span>
+                <Bdg label={e.category} color={CAT_C[e.category]??"#888"} sm/>
+              </div>
+              <Btn2 onClick={async()=>{ await fwmDelete(`/hosts/${e.id}`); await reload(); }} color="#ff4444" sm><Trash2 size={8}/></Btn2>
+            </div>
+          ))}
+        </div>
+      </FwmCard>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ── 10. TRACKING DOMAIN BLOCKER ──────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════════════════
+function TrackingTab() {
+  const { data, reload } = useFwm<{ domains:Array<{id:number;domain:string;vendor:string|null;category:string;cookieName:string|null;blocked:boolean;hitCount:number}>;total:number;blocked:number;byVendor:Record<string,number> }>("/tracking/domains");
+  const VENDOR_C: Record<string,string> = { Google:"#4488ff", Meta:"#1877F2", Twitter:"#1DA1F2", LinkedIn:"#0077B5", Hotjar:"#ff9900", FullStory:"#ff6600", Smartlook:"#cc44ff", Microsoft:"#00a4ef", Amazon:"#ff9900", Criteo:"#ff4444", FingerprintJS:"#ff2244" };
+  return (
+    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
+      <FwmCard style={{ gridColumn:"1/-1" }}>
+        <SectionTitle icon={<Radio size={14} color="#ff9900"/>} title="Tracking Domain Blocker — Spybot S&amp;D" badge="Privacy Protection" badgeColor="#ff9900" extra={<Btn2 onClick={async()=>{await fwmPost("/tracking/seed",{}); await reload();}} color="#4488ff" sm>Seed Trackers</Btn2>}/>
+        <InfoBar text="Spybot-S&D tracking cookie protection: block known analytics, pixel tracking, session replay, ad network, and browser fingerprinting domains. Covers: Google Analytics, Meta Pixel, Hotjar session replay, FullStory, FingerprintJS, Criteo retargeting, Amazon DSP, Twitter/LinkedIn pixels." color="#ff9900"/>
+        <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+          {Object.entries(data?.byVendor??{}).slice(0,8).map(([v,n])=>(
+            <div key={v} style={{ background:`${VENDOR_C[v]??'#888'}22`, border:`1px solid ${VENDOR_C[v]??'#888'}44`, borderRadius:6, padding:"3px 10px", fontFamily:"monospace", fontSize:10, color:VENDOR_C[v]??"#888" }}>{v}: {n as number}</div>
+          ))}
+          <div style={{ marginLeft:"auto", fontSize:11, fontFamily:"monospace", color:"#555" }}>{data?.blocked??0}/{data?.total??0} blocked</div>
+        </div>
+      </FwmCard>
+      <FwmCard style={{ gridColumn:"1/-1" }}>
+        <table style={{ width:"100%", borderCollapse:"collapse", fontSize:10 }}>
+          <thead><tr>{["Domain","Vendor","Category","Cookie","Blocked","Hits"].map(h=><th key={h} style={{textAlign:"left",color:"#444",borderBottom:"1px solid #1a1a1a",padding:"4px 8px",fontFamily:"monospace"}}>{h}</th>)}</tr></thead>
+          <tbody>{(data?.domains??[]).map(d=>(
+            <tr key={d.id} style={{ borderBottom:"1px solid #0f0f0f" }}>
+              <td style={{padding:"4px 8px",fontFamily:"monospace",color:"#ccc"}}>{d.domain}</td>
+              <td style={{padding:"4px 8px"}}><span style={{color:VENDOR_C[d.vendor??'']??"#888",fontFamily:"monospace",fontSize:10}}>{d.vendor}</span></td>
+              <td style={{padding:"4px 8px",color:"#555"}}>{d.category.replace(/_/g," ")}</td>
+              <td style={{padding:"4px 8px",fontFamily:"monospace",color:"#666",fontSize:9}}>{d.cookieName}</td>
+              <td style={{padding:"4px 8px"}}><Bdg label={d.blocked?"BLOCKED":"ALLOW"} color={d.blocked?"#ff4444":"#00ff88"} sm/></td>
+              <td style={{padding:"4px 8px",color:"#555",fontFamily:"monospace"}}>{d.hitCount}</td>
+            </tr>
+          ))}</tbody>
+        </table>
+      </FwmCard>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ── 11. ANTI-TELEMETRY FIREWALL ───────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════════════════
+function TelemetryTab() {
+  const { data, reload } = useFwm<{ rules:Array<{id:number;domain:string|null;ipRange:string|null;vendor:string;service:string|null;blocked:boolean;hitCount:number}>;total:number;blocked:number }>("/anti-telemetry/rules");
+  const downloadScript = async () => { const r = await fetch(`${APIFWM}/anti-telemetry/script`); const t = await r.text(); const b=new Blob([t],{type:"text/plain"}); const a=document.createElement("a"); a.href=URL.createObjectURL(b); a.download="anti-telemetry.sh"; a.click(); };
+  const VENDOR_C: Record<string,string> = { microsoft:"#00a4ef", google:"#4488ff", apple:"#aaa", amazon:"#ff9900", meta:"#1877F2", samsung:"#ff6600", adobe:"#ff4444", mozilla:"#ff6611", valve:"#171a21", sony:"#003087" };
+  const byVendor: Record<string,number> = {};
+  for (const r of data?.rules??[]) byVendor[r.vendor] = (byVendor[r.vendor]??0) + 1;
+  return (
+    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
+      <FwmCard style={{ gridColumn:"1/-1" }}>
+        <SectionTitle icon={<Radio size={14} color="#00a4ef"/>} title="Anti-Telemetry Firewall — Spybot Anti-Beacon" badge="Anti-Beacon" badgeColor="#00a4ef" extra={<div style={{display:"flex",gap:6}}><Btn2 onClick={async()=>{await fwmPost("/anti-telemetry/seed",{}); await reload();}} color="#4488ff" sm>Seed Rules</Btn2><Btn2 onClick={downloadScript} color="#00ff88" sm>Download .sh Script</Btn2></div>}/>
+        <InfoBar text="Spybot Anti-Beacon: block OS and app telemetry without your knowledge. Microsoft Windows telemetry, Cortana, Windows Error Reporting, Bing. Google Chrome crash reports, analytics. Apple metrics. Amazon Alexa, Fire TV. Samsung SmartTV analytics. Generates iptables rules + /etc/hosts entries." color="#00a4ef"/>
+        <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+          {Object.entries(byVendor).map(([v,n])=>(
+            <div key={v} style={{ background:`${VENDOR_C[v]??'#888'}22`, border:`1px solid ${VENDOR_C[v]??'#888'}44`, borderRadius:6, padding:"3px 10px", fontFamily:"monospace", fontSize:10, color:VENDOR_C[v]??"#888", textTransform:"capitalize" }}>{v}: {n as number}</div>
+          ))}
+          <div style={{ marginLeft:"auto", fontSize:11, fontFamily:"monospace", color:"#555" }}>{data?.blocked??0}/{data?.total??0} blocked</div>
+        </div>
+      </FwmCard>
+      <FwmCard style={{ gridColumn:"1/-1" }}>
+        <table style={{ width:"100%", borderCollapse:"collapse", fontSize:10 }}>
+          <thead><tr>{["Vendor","Service","Domain","IP Range","Status","Hits"].map(h=><th key={h} style={{textAlign:"left",color:"#444",borderBottom:"1px solid #1a1a1a",padding:"4px 8px",fontFamily:"monospace"}}>{h}</th>)}</tr></thead>
+          <tbody>{(data?.rules??[]).map(r=>(
+            <tr key={r.id} style={{ borderBottom:"1px solid #0f0f0f" }}>
+              <td style={{padding:"4px 8px"}}><span style={{color:VENDOR_C[r.vendor]??"#888",fontFamily:"monospace",textTransform:"capitalize"}}>{r.vendor}</span></td>
+              <td style={{padding:"4px 8px",color:"#aaa",fontSize:9}}>{r.service}</td>
+              <td style={{padding:"4px 8px",fontFamily:"monospace",color:"#ccc",fontSize:9}}>{r.domain}</td>
+              <td style={{padding:"4px 8px",fontFamily:"monospace",color:"#555",fontSize:9}}>{r.ipRange}</td>
+              <td style={{padding:"4px 8px"}}><Bdg label={r.blocked?"BLOCKED":"ALLOW"} color={r.blocked?"#ff4444":"#00ff88"} sm/></td>
+              <td style={{padding:"4px 8px",color:"#555",fontFamily:"monospace"}}>{r.hitCount}</td>
+            </tr>
+          ))}</tbody>
+        </table>
+      </FwmCard>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ── 12. STARTUP PROCESS AUDITOR ──────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════════════════
+function StartupTab() {
+  const { data, reload } = useFwm<{ entries:Array<{id:number;name:string;command:string;location:string;enabled:boolean;risk:string;riskReason:string|null;hash:string|null;signature:string|null;scannedAt:string}>;liveEntries:string[];total:number;suspicious:number }>("/startup/entries");
+  const RISK_C: Record<string,string> = { clean:"#00ff88", suspicious:"#ffaa00", malicious:"#ff4444", unknown:"#555" };
+  return (
+    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
+      <FwmCard style={{ gridColumn:"1/-1" }}>
+        <SectionTitle icon={<Monitor size={14} color="#ff9900"/>} title="Startup Process Auditor — Spybot S&amp;D" badge="Spybot Startup Tools" badgeColor="#ff9900" extra={<div style={{display:"flex",gap:6}}><Btn2 onClick={async()=>{await fwmPost("/startup/scan",{}); await reload();}} color="#ff9900" sm>Scan Live</Btn2><Btn2 onClick={async()=>{await fwmPost("/startup/seed",{}); await reload();}} color="#4488ff" sm>Seed Examples</Btn2></div>}/>
+        <InfoBar text="Spybot Startup Tools: audit all autorun points — systemd units, crontab, /etc/init.d/, rc.local, Windows HKLM\...\Run. Detect cryptominers, droppers, keyloggers, and base64-obfuscated payloads hiding in auto-start locations. Suspicious indicators: /tmp execution, curl|bash pipes, base64 payloads, unsigned binaries." color="#ff9900"/>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10 }}>
+          {[{l:"Total Entries",v:data?.total??0,c:"#fff"},{l:"Suspicious",v:data?.suspicious??0,c:"#ffaa00"},{l:"Malicious",v:(data?.entries??[]).filter(e=>e.risk==="malicious").length,c:"#ff4444"},{l:"Clean",v:(data?.entries??[]).filter(e=>e.risk==="clean").length,c:"#00ff88"}].map(s=>(
+            <div key={s.l} style={{ textAlign:"center", background:"#111", borderRadius:6, padding:"10px 6px" }}>
+              <div style={{ fontSize:20, fontWeight:700, color:s.c, fontFamily:"monospace" }}>{s.v}</div>
+              <div style={{ fontSize:10, color:"#555" }}>{s.l}</div>
+            </div>
+          ))}
+        </div>
+      </FwmCard>
+      <FwmCard style={{ gridColumn:"1/-1" }}>
+        <table style={{ width:"100%", borderCollapse:"collapse", fontSize:10 }}>
+          <thead><tr>{["Name","Location","Command","Signature","Risk","Reason"].map(h=><th key={h} style={{textAlign:"left",color:"#444",borderBottom:"1px solid #1a1a1a",padding:"4px 8px",fontFamily:"monospace"}}>{h}</th>)}</tr></thead>
+          <tbody>{(data?.entries??[]).map(e=>(
+            <tr key={e.id} style={{ borderBottom:"1px solid #0f0f0f", background:e.risk==="malicious"?"#0f050500":e.risk==="suspicious"?"#0a050000":"transparent" }}>
+              <td style={{padding:"4px 8px",fontFamily:"monospace",color:"#fff"}}>{e.name}</td>
+              <td style={{padding:"4px 8px",color:"#4488ff",fontSize:9}}>{e.location}</td>
+              <td style={{padding:"4px 8px",fontFamily:"monospace",color:"#555",fontSize:8,maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.command}</td>
+              <td style={{padding:"4px 8px"}}><Bdg label={e.signature??"unknown"} color={e.signature==="verified"?"#00ff88":"#ff4444"} sm/></td>
+              <td style={{padding:"4px 8px"}}><Bdg label={e.risk.toUpperCase()} color={RISK_C[e.risk]??"#888"} sm/></td>
+              <td style={{padding:"4px 8px",color:"#555",fontSize:9}}>{(e.riskReason??"").slice(0,50)}</td>
+            </tr>
+          ))}</tbody>
+        </table>
+      </FwmCard>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ── 13. ROOTKIT SCANNER (Spybot RootAlyzer) ──────────────────────────────────
+// ════════════════════════════════════════════════════════════════════════════
+function RootkitTab() {
+  const { data: scansData, reload } = useFwm<{ scans:Array<{id:number;scanType:string;totalChecks:number;findings:number;criticalCount:number;status:string;startedAt:string;completedAt:string|null}> }>("/rootkit/scans");
+  const [scanning, setScanning] = useState(false);
+  const [latestFindings, setLatestFindings] = useState<Array<{id:number;type:string;description:string;location:string|null;severity:string}>|null>(null);
+  const [scanType, setScanType] = useState<"full"|"quick"|"memory"|"network">("full");
+  const runScan = async () => {
+    setScanning(true);
+    const r = await fwmPost("/rootkit/scan", { scanType });
+    setLatestFindings(r.findings);
+    setScanning(false);
+    await reload();
+  };
+  const SEV_C2: Record<string,string> = { critical:"#ff2244", high:"#ff6600", medium:"#ffaa00", low:"#aaccff", clean:"#00ff88" };
+  const TYPE_C: Record<string,string> = { hidden_process:"#ff4444", hidden_port:"#ff6600", hidden_file:"#ffaa00", kernel_module:"#cc44ff", ld_preload:"#ff2244", hooks:"#ff9900" };
+  return (
+    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
+      <FwmCard style={{ gridColumn:"1/-1" }}>
+        <SectionTitle icon={<Bug size={14} color="#ff4444"/>} title="Rootkit Scanner — Spybot RootAlyzer" badge="Real /proc Inspection" badgeColor="#ff4444" extra={<Btn2 onClick={async()=>{await fwmPost("/rootkit/seed",{}); await reload();}} color="#4488ff" sm>Seed Example</Btn2>}/>
+        <InfoBar text="RootAlyzer-inspired deep scan: compare /proc PIDs vs ps output (hidden process detection), /proc/net/tcp vs ss ports (hidden port detection), LD_PRELOAD hooks (/etc/ld.so.preload), suspicious kernel modules, executable files in /tmp. All checks use real /proc filesystem data." color="#ff4444"/>
+        <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+          {(["full","quick","memory","network"] as const).map(t=>(
+            <button key={t} onClick={()=>setScanType(t)} style={{ background:scanType===t?"#ff444422":"#111", border:`1px solid ${scanType===t?"#ff444444":"#2a2a2a"}`, borderRadius:6, padding:"5px 12px", fontFamily:"monospace", fontSize:10, color:scanType===t?"#ff4444":"#555", cursor:"pointer" }}>{t.toUpperCase()}</button>
+          ))}
+          <Btn2 onClick={runScan} disabled={scanning} color="#ff4444">{scanning?"Scanning /proc...":"Run Rootkit Scan"}</Btn2>
+        </div>
+      </FwmCard>
+      {latestFindings !== null && (
+        <FwmCard style={{ gridColumn:"1/-1" }}>
+          <SectionTitle icon={<AlertTriangle size={12} color={latestFindings.length===0?"#00ff88":"#ff4444"}/>} title={latestFindings.length===0?"✅ No Rootkit Artifacts Detected":`⚠️ ${latestFindings.length} Finding(s) Detected`}/>
+          {latestFindings.map(f=>(
+            <div key={f.id} style={{ background:"#0f0505", border:"1px solid #ff444422", borderRadius:6, padding:10, marginBottom:8 }}>
+              <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
+                <span style={{ fontFamily:"monospace", fontSize:11, color:TYPE_C[f.type]??"#ff9900" }}>{f.type.replace(/_/g," ").toUpperCase()}</span>
+                <Bdg label={f.severity.toUpperCase()} color={SEV_C2[f.severity]??"#888"} sm/>
+              </div>
+              <div style={{ fontSize:10, color:"#aaa" }}>{f.description}</div>
+              {f.location && <div style={{ fontSize:9, color:"#555", fontFamily:"monospace", marginTop:4 }}>Location: {f.location}</div>}
+            </div>
+          ))}
+        </FwmCard>
+      )}
+      <FwmCard style={{ gridColumn:"1/-1" }}>
+        <SectionTitle icon={<Activity size={12} color="#ff4444"/>} title="Scan History"/>
+        <table style={{ width:"100%", borderCollapse:"collapse", fontSize:10 }}>
+          <thead><tr>{["Type","Status","Checks","Findings","Critical","Started"].map(h=><th key={h} style={{textAlign:"left",color:"#444",borderBottom:"1px solid #1a1a1a",padding:"4px 8px",fontFamily:"monospace"}}>{h}</th>)}</tr></thead>
+          <tbody>{(scansData?.scans??[]).map(s=>(
+            <tr key={s.id} style={{ borderBottom:"1px solid #0f0f0f" }}>
+              <td style={{padding:"4px 8px",color:"#aaa",fontFamily:"monospace"}}>{s.scanType}</td>
+              <td style={{padding:"4px 8px"}}><Bdg label={s.status.toUpperCase()} color={s.status==="complete"?"#00ff88":"#ffaa00"} sm/></td>
+              <td style={{padding:"4px 8px",color:"#555"}}>{s.totalChecks}</td>
+              <td style={{padding:"4px 8px",color:s.findings>0?"#ff6600":"#00ff88",fontFamily:"monospace"}}>{s.findings}</td>
+              <td style={{padding:"4px 8px",color:s.criticalCount>0?"#ff2244":"#555",fontFamily:"monospace"}}>{s.criticalCount}</td>
+              <td style={{padding:"4px 8px",color:"#555",fontSize:9}}>{new Date(s.startedAt).toLocaleString()}</td>
+            </tr>
+          ))}</tbody>
+        </table>
+      </FwmCard>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ── 14. SECURE FILE SHREDDER ──────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════════════════
+function ShredderTab() {
+  const { data: jobs, reload } = useFwm<{ jobs:Array<{id:number;path:string;method:string;passes:number;fileSizeBytes:number|null;status:string;script:string|null;startedAt:string}> }>("/shredder/jobs");
+  const { data: methods } = useFwm<{ methods:Array<{id:string;passes:number;description:string;standard:string}> }>("/shredder/methods");
+  const [form, setForm] = useState({ path:"", method:"dod_5220", recursive:false });
+  const [script, setScript] = useState<string|null>(null);
+  const generate = async () => { const r = await fwmPost("/shredder/generate",form); setScript(r.script); await reload(); };
+  const METHOD_C: Record<string,string> = { dod_5220:"#ff9900", gutmann:"#ff4444", nist_800_88:"#4488ff", random_1pass:"#555", zeros_1pass:"#555", prng_3pass:"#ffaa00" };
+  return (
+    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
+      <FwmCard style={{ gridColumn:"1/-1" }}>
+        <SectionTitle icon={<FileX size={14} color="#ff6600"/>} title="Secure File Shredder — DoD 5220.22-M / Gutmann" badge="Spybot Shredder" badgeColor="#ff6600"/>
+        <InfoBar text="Spybot Secure Shredder: multi-pass file deletion that defeats forensic recovery tools. DoD 5220.22-M (3-pass: 0x00, 0xFF, random) — US Department of Defense standard. Gutmann (35-pass) — Peter Gutmann 1996. NIST SP 800-88 (single pass, sufficient for SSDs). Generates runnable shell scripts." color="#ff6600"/>
+        <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+          {(methods?.methods??[]).map(m=>(
+            <div key={m.id} style={{ background:`${METHOD_C[m.id]??'#888'}22`, border:`1px solid ${METHOD_C[m.id]??'#888'}44`, borderRadius:6, padding:"5px 12px" }}>
+              <div style={{ fontFamily:"monospace", fontSize:10, color:METHOD_C[m.id]??"#888" }}>{m.id.replace(/_/g," ").toUpperCase()}</div>
+              <div style={{ fontSize:9, color:"#555" }}>{m.passes} pass(es) · {m.standard}</div>
+            </div>
+          ))}
+        </div>
+      </FwmCard>
+      <FwmCard>
+        <SectionTitle icon={<FileX size={12} color="#ff6600"/>} title="Generate Shred Script"/>
+        <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:10 }}>
+          <input value={form.path} onChange={e=>setForm(p=>({...p,path:e.target.value}))} placeholder="/path/to/sensitive-file.txt" style={{ background:"#111", border:"1px solid #2a2a2a", borderRadius:6, padding:"6px 10px", fontFamily:"monospace", fontSize:10, color:"#ccc" }}/>
+          <select value={form.method} onChange={e=>setForm(p=>({...p,method:e.target.value}))} style={{ background:"#111", border:"1px solid #2a2a2a", borderRadius:6, padding:"6px 10px", fontFamily:"monospace", fontSize:10, color:"#ccc" }}>
+            {(methods?.methods??[]).map(m=><option key={m.id} value={m.id}>{m.id.replace(/_/g," ").toUpperCase()} — {m.description}</option>)}
+          </select>
+          <label style={{ display:"flex", gap:8, alignItems:"center", fontSize:10, color:"#aaa", cursor:"pointer" }}>
+            <input type="checkbox" checked={form.recursive} onChange={e=>setForm(p=>({...p,recursive:e.target.checked}))}/>
+            Recursive (shred entire directory)
+          </label>
+          <Btn2 onClick={generate} color="#ff6600" disabled={!form.path}>Generate Script</Btn2>
+        </div>
+        {script && (
+          <div>
+            <textarea value={script} readOnly style={{ width:"100%", background:"#050505", border:"1px solid #ff660022", borderRadius:6, padding:8, fontFamily:"monospace", fontSize:8, color:"#aaa", minHeight:200, boxSizing:"border-box", resize:"vertical" }}/>
+            <Btn2 onClick={()=>{ const b=new Blob([script],{type:"text/plain"}); const a=document.createElement("a"); a.href=URL.createObjectURL(b); a.download="shred.sh"; a.click(); }} color="#00ff88" sm>Download shred.sh</Btn2>
+          </div>
+        )}
+      </FwmCard>
+      <FwmCard>
+        <SectionTitle icon={<Activity size={12} color="#ff6600"/>} title="Shredder Job History"/>
+        {(jobs?.jobs??[]).length===0 ? <div style={{color:"#444",fontFamily:"monospace",fontSize:11}}>No jobs yet — generate a script above</div> : (
+          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:10 }}>
+            <thead><tr>{["Path","Method","Passes","Status","Date"].map(h=><th key={h} style={{textAlign:"left",color:"#444",borderBottom:"1px solid #1a1a1a",padding:"3px 6px",fontFamily:"monospace"}}>{h}</th>)}</tr></thead>
+            <tbody>{(jobs?.jobs??[]).map(j=>(
+              <tr key={j.id} style={{ borderBottom:"1px solid #0f0f0f" }}>
+                <td style={{padding:"3px 6px",fontFamily:"monospace",color:"#ccc",fontSize:9,maxWidth:160,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{j.path}</td>
+                <td style={{padding:"3px 6px"}}><Bdg label={j.method.replace(/_/g," ")} color={METHOD_C[j.method]??"#888"} sm/></td>
+                <td style={{padding:"3px 6px",color:"#555",fontFamily:"monospace"}}>{j.passes}</td>
+                <td style={{padding:"3px 6px"}}><Bdg label={j.status.toUpperCase()} color={j.status==="complete"?"#00ff88":"#ffaa00"} sm/></td>
+                <td style={{padding:"3px 6px",color:"#555",fontSize:9}}>{new Date(j.startedAt).toLocaleDateString()}</td>
+              </tr>
+            ))}</tbody>
+          </table>
+        )}
+      </FwmCard>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ── 15. PUP / ADWARE DATABASE ─────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════════════════
+function PupTab() {
+  const { data, reload } = useFwm<{ sigs:Array<{id:number;name:string;category:string;description:string|null;risk:string;detections:number;lastSeen:string|null}>;total:number }>("/pup/signatures");
+  const [scanForm, setScanForm] = useState({ processName:"", domain:"", filePath:"" });
+  const [scanResult, setScanResult] = useState<{matches:Array<{sig:{name:string;category:string;risk:string};matchedOn:string;value:string|undefined}>;detected:boolean;recommendation:string}|null>(null);
+  const RISK_C: Record<string,string> = { critical:"#ff2244", high:"#ff6600", medium:"#ffaa00", low:"#4488ff" };
+  const CAT_C: Record<string,string> = { adware:"#ffaa00", pup:"#ff9900", spyware:"#ff4444", browser_hijacker:"#ff6600", rogue_av:"#ff2244", toolbar:"#888", crypto_miner:"#cc44ff" };
+  return (
+    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
+      <FwmCard style={{ gridColumn:"1/-1" }}>
+        <SectionTitle icon={<Package size={14} color="#ffaa00"/>} title="PUP / Adware Signature Database — Spybot S&amp;D" badge="Spybot Signatures" badgeColor="#ffaa00" extra={<Btn2 onClick={async()=>{await fwmPost("/pup/seed",{}); await reload();}} color="#4488ff" sm>Seed Database</Btn2>}/>
+        <InfoBar text="Spybot PUP detection: Potentially Unwanted Programs that evade traditional AV. Includes: browser toolbars (Conduit, Ask), browser hijackers, cryptominers (XMRig disguised), spyware (BonziBuddy), fake AV (Rogue AV), adware. Detection by process name, domain, file path, registry key." color="#ffaa00"/>
+      </FwmCard>
+      <FwmCard>
+        <SectionTitle icon={<Search size={12} color="#ffaa00"/>} title="PUP Scanner"/>
+        <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:8 }}>
+          <input value={scanForm.processName} onChange={e=>setScanForm(p=>({...p,processName:e.target.value}))} placeholder="Process name (e.g. SearchProtect.exe)" style={{ background:"#111", border:"1px solid #2a2a2a", borderRadius:6, padding:"6px 10px", fontFamily:"monospace", fontSize:10, color:"#ccc" }}/>
+          <input value={scanForm.domain} onChange={e=>setScanForm(p=>({...p,domain:e.target.value}))} placeholder="Domain (e.g. conduit.com)" style={{ background:"#111", border:"1px solid #2a2a2a", borderRadius:6, padding:"6px 10px", fontFamily:"monospace", fontSize:10, color:"#ccc" }}/>
+          <input value={scanForm.filePath} onChange={e=>setScanForm(p=>({...p,filePath:e.target.value}))} placeholder="File path (e.g. C:\ConduitEngine\)" style={{ background:"#111", border:"1px solid #2a2a2a", borderRadius:6, padding:"6px 10px", fontFamily:"monospace", fontSize:10, color:"#ccc" }}/>
+          <Btn2 onClick={async()=>{ const r = await fwmPost("/pup/scan",scanForm); setScanResult(r); }} color="#ffaa00">Scan for PUPs</Btn2>
+        </div>
+        {scanResult && (
+          <div style={{ background: scanResult.detected?"#0f0500":"#050f05", border:`1px solid ${scanResult.detected?"#ff660033":"#00ff8833"}`, borderRadius:6, padding:10 }}>
+            <div style={{ fontSize:13, fontWeight:700, fontFamily:"monospace", color:scanResult.detected?"#ff6600":"#00ff88", marginBottom:6 }}>{scanResult.detected?"⚠️ PUP DETECTED":"✅ Clean"}</div>
+            {scanResult.matches.map((m,i)=>(
+              <div key={i} style={{ display:"flex", gap:8, marginBottom:4 }}>
+                <Bdg label={m.sig.name} color={RISK_C[m.sig.risk]??"#888"} sm/><span style={{color:"#555",fontSize:10}}>via {m.matchedOn}</span>
+              </div>
+            ))}
+            <div style={{ fontSize:10, color:"#aaa", marginTop:6 }}>{scanResult.recommendation}</div>
+          </div>
+        )}
+      </FwmCard>
+      <FwmCard>
+        <SectionTitle icon={<Package size={12} color="#ffaa00"/>} title={`Signature Database (${data?.total??0})`}/>
+        <table style={{ width:"100%", borderCollapse:"collapse", fontSize:10 }}>
+          <thead><tr>{["Name","Category","Risk","Detections"].map(h=><th key={h} style={{textAlign:"left",color:"#444",borderBottom:"1px solid #1a1a1a",padding:"3px 6px"}}>{h}</th>)}</tr></thead>
+          <tbody>{(data?.sigs??[]).map(s=>(
+            <tr key={s.id} style={{ borderBottom:"1px solid #0f0f0f" }}>
+              <td style={{padding:"3px 6px",fontFamily:"monospace",color:"#ccc"}}>{s.name}</td>
+              <td style={{padding:"3px 6px"}}><Bdg label={s.category.replace(/_/g," ")} color={CAT_C[s.category]??"#888"} sm/></td>
+              <td style={{padding:"3px 6px"}}><Bdg label={s.risk.toUpperCase()} color={RISK_C[s.risk]??"#888"} sm/></td>
+              <td style={{padding:"3px 6px",color:"#555",fontFamily:"monospace"}}>{s.detections.toLocaleString()}</td>
+            </tr>
+          ))}</tbody>
+        </table>
+      </FwmCard>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ── 16. REGISTRY KEY MONITOR ──────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════════════════
+function RegistryTab() {
+  const { data, reload } = useFwm<{ monitors:Array<{id:number;keyPath:string;valueName:string|null;expectedValue:string|null;currentValue:string|null;changed:boolean;deleted:boolean;category:string;risk:string;checkedAt:string}>;total:number;changed:number }>("/registry/monitors");
+  const [checkForm, setCheckForm] = useState({ keyPath:"", valueName:"", expectedValue:"" });
+  const [checkResult, setCheckResult] = useState<{changed:boolean;alert:string;linuxEquiv:string|null;currentValue:string|null}|null>(null);
+  const RISK_C: Record<string,string> = { critical:"#ff2244", high:"#ff6600", medium:"#ffaa00", low:"#555" };
+  const CAT_C: Record<string,string> = { autorun:"#ff4444", services:"#ff6600", browser:"#ffaa00", policy:"#4488ff" };
+  return (
+    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
+      <FwmCard style={{ gridColumn:"1/-1" }}>
+        <SectionTitle icon={<Key size={14} color="#4488ff"/>} title="Registry / Config Key Monitor — Spybot S&amp;D" badge="Spybot Registry Protection" badgeColor="#4488ff" extra={<Btn2 onClick={async()=>{await fwmPost("/registry/seed",{}); await reload();}} color="#4488ff" sm>Seed Examples</Btn2>}/>
+        <InfoBar text="Spybot registry protection: monitor critical Windows registry keys (autorun, services, winlogon, browser settings) for unauthorized modifications. Linux equivalent: monitors /etc/ld.so.preload, /etc/cron.d/, systemd units. Detects: cryptominer autorun, service hijacking, Userinit tampering, browser hijacking." color="#4488ff"/>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10 }}>
+          {[{l:"Monitored Keys",v:data?.total??0,c:"#fff"},{l:"Changed",v:data?.changed??0,c:"#ff4444"},{l:"Clean",v:(data?.total??0)-(data?.changed??0),c:"#00ff88"}].map(s=>(
+            <div key={s.l} style={{ textAlign:"center", background:"#111", borderRadius:6, padding:"10px 6px" }}>
+              <div style={{ fontSize:20, fontWeight:700, color:s.c, fontFamily:"monospace" }}>{s.v}</div>
+              <div style={{ fontSize:10, color:"#555" }}>{s.l}</div>
+            </div>
+          ))}
+        </div>
+      </FwmCard>
+      <FwmCard>
+        <SectionTitle icon={<Search size={12} color="#4488ff"/>} title="Check Registry Key"/>
+        <div style={{ display:"flex", flexDirection:"column", gap:6, marginBottom:8 }}>
+          <input value={checkForm.keyPath} onChange={e=>setCheckForm(p=>({...p,keyPath:e.target.value}))} placeholder="HKLM\...\Run or /etc/cron.d/entry" style={{ background:"#111", border:"1px solid #2a2a2a", borderRadius:6, padding:"6px 10px", fontFamily:"monospace", fontSize:9, color:"#ccc" }}/>
+          <input value={checkForm.valueName} onChange={e=>setCheckForm(p=>({...p,valueName:e.target.value}))} placeholder="Value name (optional)" style={{ background:"#111", border:"1px solid #2a2a2a", borderRadius:6, padding:"6px 10px", fontFamily:"monospace", fontSize:9, color:"#ccc" }}/>
+          <input value={checkForm.expectedValue} onChange={e=>setCheckForm(p=>({...p,expectedValue:e.target.value}))} placeholder="Expected value (leave blank = should not exist)" style={{ background:"#111", border:"1px solid #2a2a2a", borderRadius:6, padding:"6px 10px", fontFamily:"monospace", fontSize:9, color:"#ccc" }}/>
+          <Btn2 onClick={async()=>{ const r = await fwmPost("/registry/check",checkForm); setCheckResult(r); await reload(); }} color="#4488ff" sm disabled={!checkForm.keyPath}>Check Key</Btn2>
+        </div>
+        {checkResult && (
+          <div style={{ background: checkResult.changed?"#0f0505":"#050f05", border:`1px solid ${checkResult.changed?"#ff444433":"#00ff8833"}`, borderRadius:6, padding:10, fontFamily:"monospace", fontSize:10 }}>
+            <div style={{ fontSize:12, fontWeight:700, color:checkResult.changed?"#ff4444":"#00ff88", marginBottom:6 }}>{checkResult.alert}</div>
+            {checkResult.linuxEquiv && <div style={{ fontSize:9, color:"#555" }}>Linux equiv: {checkResult.linuxEquiv}</div>}
+            {checkResult.currentValue && <div style={{ fontSize:9, color:"#aaa", marginTop:4 }}>Current: {checkResult.currentValue}</div>}
+          </div>
+        )}
+      </FwmCard>
+      <FwmCard>
+        <SectionTitle icon={<Key size={12} color="#4488ff"/>} title={`Monitored Keys (${data?.total??0})`}/>
+        <div style={{ maxHeight:350, overflow:"auto" }}>
+          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:9 }}>
+            <thead><tr>{["Key","Value","Category","Risk","Status"].map(h=><th key={h} style={{textAlign:"left",color:"#444",borderBottom:"1px solid #1a1a1a",padding:"3px 6px",position:"sticky",top:0,background:"#0a0a0a"}}>{h}</th>)}</tr></thead>
+            <tbody>{(data?.monitors??[]).map(m=>(
+              <tr key={m.id} style={{ borderBottom:"1px solid #0f0f0f", background:m.changed?"#0f050500":"transparent" }}>
+                <td style={{padding:"3px 6px",fontFamily:"monospace",color:m.changed?"#ff4444":"#aaa",fontSize:8,maxWidth:160,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.keyPath.split("\\").pop() ?? m.keyPath}</td>
+                <td style={{padding:"3px 6px",color:"#555",fontSize:8}}>{m.valueName}</td>
+                <td style={{padding:"3px 6px"}}><Bdg label={m.category} color={CAT_C[m.category]??"#888"} sm/></td>
+                <td style={{padding:"3px 6px"}}><Bdg label={m.risk.toUpperCase()} color={RISK_C[m.risk]??"#888"} sm/></td>
+                <td style={{padding:"3px 6px"}}><Bdg label={m.changed?"CHANGED":"OK"} color={m.changed?"#ff4444":"#00ff88"} sm/></td>
+              </tr>
+            ))}</tbody>
+          </table>
+        </div>
+      </FwmCard>
+    </div>
+  );
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────
 export default function Firewall() {
   const [tab, setTab] = useState("overview");
@@ -3454,6 +4472,24 @@ export default function Firewall() {
       {tab==="rpki"        &&<RpkiTab/>}
       {tab==="deception"   &&<DeceptionTab/>}
       {tab==="geoip"       &&<GeoipTab/>}
+      {/* ── Military-Grade (NSA/DARPA research) ── */}
+      {tab==="selinux"     &&<SelinuxTab/>}
+      {tab==="apparmor"    &&<ApparmorTab/>}
+      {tab==="sbom"        &&<SbomTab/>}
+      {tab==="auditd"      &&<AuditdTab/>}
+      {tab==="nftables"    &&<NftablesTab/>}
+      {tab==="kernelharden"&&<KernelHardenTab/>}
+      {tab==="mls"         &&<MlsTab/>}
+      {tab==="zerotrust"   &&<ZeroTrustTab/>}
+      {/* ── Spybot Search & Destroy inspired ── */}
+      {tab==="hostsimm"    &&<HostsImmTab/>}
+      {tab==="tracking"    &&<TrackingTab/>}
+      {tab==="telemetry"   &&<TelemetryTab/>}
+      {tab==="startup"     &&<StartupTab/>}
+      {tab==="rootkit"     &&<RootkitTab/>}
+      {tab==="shredder"    &&<ShredderTab/>}
+      {tab==="pup"         &&<PupTab/>}
+      {tab==="registry"    &&<RegistryTab/>}
     </div>
   );
 }

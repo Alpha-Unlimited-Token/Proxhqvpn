@@ -628,3 +628,323 @@ export type TlsFingerprint        = typeof tlsFingerprintsTable.$inferSelect;
 export type DnsSecurityEvent      = typeof dnsSecurityEventsTable.$inferSelect;
 export type WafSuppressionRule    = typeof wafSuppressionRulesTable.$inferSelect;
 export type ProxyRule             = typeof firewallProxyRulesTable.$inferSelect;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ── MILITARY-GRADE + SPYBOT-INSPIRED FEATURES ────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ── 1. SELinux MAC Engine ──────────────────────────────────────────────────
+export const selinuxModeEnum    = pgEnum("selinux_mode",   ["enforcing","permissive","disabled"]);
+export const selinuxTypeEnum    = pgEnum("selinux_type",   ["targeted","minimum","mls"]);
+export const selinuxContextsTable = pgTable("selinux_contexts", {
+  id:        serial("id").primaryKey(),
+  domain:    text("domain").notNull(),
+  type:      text("type").notNull(),
+  role:      text("role").notNull().default("system_r"),
+  level:     text("level").default("s0"),
+  mode:      selinuxModeEnum("mode").notNull().default("enforcing"),
+  enabled:   boolean("enabled").notNull().default(true),
+  policy:    text("policy"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export const selinuxDenialsTable = pgTable("selinux_denials", {
+  id:          serial("id").primaryKey(),
+  avcMessage:  text("avc_message").notNull(),
+  sourceType:  text("source_type").notNull(),
+  targetType:  text("target_type").notNull(),
+  targetClass: text("target_class").notNull(),
+  permission:  text("permission").notNull(),
+  pid:         integer("pid"),
+  comm:        text("comm"),
+  path:        text("path"),
+  denied:      boolean("denied").notNull().default(true),
+  detectedAt:  timestamp("detected_at").defaultNow().notNull(),
+});
+
+// ── 2. AppArmor Profile Manager ────────────────────────────────────────────
+export const apparmorModeEnum = pgEnum("apparmor_mode", ["enforce","complain","disabled","audit"]);
+export const apparmorProfilesTable = pgTable("apparmor_profiles", {
+  id:          serial("id").primaryKey(),
+  name:        text("name").notNull(),
+  executable:  text("executable").notNull(),
+  mode:        apparmorModeEnum("mode").notNull().default("enforce"),
+  profileText: text("profile_text"),
+  denialCount: integer("denial_count").notNull().default(0),
+  enabled:     boolean("enabled").notNull().default(true),
+  createdAt:   timestamp("created_at").defaultNow().notNull(),
+  lastEvent:   timestamp("last_event"),
+});
+export const apparmorEventsTable = pgTable("apparmor_events", {
+  id:          serial("id").primaryKey(),
+  profileName: text("profile_name").notNull(),
+  operation:   text("operation").notNull(),
+  requested:   text("requested_mask"),
+  denied:      text("denied_mask"),
+  fsuid:       integer("fsuid"),
+  ouid:        integer("ouid"),
+  name:        text("name"),
+  action:      text("action").notNull().default("denied"),
+  detectedAt:  timestamp("detected_at").defaultNow().notNull(),
+});
+
+// ── 3. SBOM / NVD CVE Scanner ──────────────────────────────────────────────
+export const sbomComponentsTable = pgTable("sbom_components", {
+  id:           serial("id").primaryKey(),
+  name:         text("name").notNull(),
+  version:      text("version").notNull(),
+  ecosystem:    text("ecosystem").notNull(), // npm, pip, apt, cargo, gem
+  purl:         text("purl"),
+  license:      text("license"),
+  cveCount:     integer("cve_count").notNull().default(0),
+  criticalCves: integer("critical_cves").notNull().default(0),
+  highCves:     integer("high_cves").notNull().default(0),
+  riskScore:    integer("risk_score").notNull().default(0),
+  scannedAt:    timestamp("scanned_at").defaultNow().notNull(),
+});
+export const sbomVulnsTable = pgTable("sbom_vulns", {
+  id:          serial("id").primaryKey(),
+  componentId: integer("component_id").notNull(),
+  cveId:       text("cve_id").notNull(),
+  severity:    text("severity").notNull(), // critical/high/medium/low
+  cvssScore:   real("cvss_score"),
+  description: text("description"),
+  fixedIn:     text("fixed_in"),
+  publishedAt: timestamp("published_at"),
+  createdAt:   timestamp("created_at").defaultNow().notNull(),
+});
+
+// ── 4. auditd Syscall Auditing ─────────────────────────────────────────────
+export const auditdRulesTable = pgTable("auditd_rules", {
+  id:         serial("id").primaryKey(),
+  ruleText:   text("rule_text").notNull(),
+  ruleType:   text("rule_type").notNull().default("syscall"), // syscall/file/exit/always
+  syscall:    text("syscall"),
+  arch:       text("arch").default("b64"),
+  action:     text("action").notNull().default("always,exit"), // always,exit | always,entry | never
+  fields:     text("fields"),  // -F uid=0 etc
+  key:        text("key"),
+  enabled:    boolean("enabled").notNull().default(true),
+  priority:   integer("priority").notNull().default(100),
+  createdAt:  timestamp("created_at").defaultNow().notNull(),
+});
+export const auditdEventsTable = pgTable("auditd_events", {
+  id:          serial("id").primaryKey(),
+  type:        text("type").notNull(), // SYSCALL, EXECVE, PROCTITLE, PATH
+  syscall:     text("syscall"),
+  pid:         integer("pid"),
+  uid:         integer("uid"),
+  gid:         integer("gid"),
+  auid:        integer("auid"),
+  comm:        text("comm"),
+  exe:         text("exe"),
+  key:         text("key"),
+  success:     boolean("success"),
+  rawMessage:  text("raw_message"),
+  severity:    text("severity").notNull().default("info"),
+  detectedAt:  timestamp("detected_at").defaultNow().notNull(),
+});
+
+// ── 5. nftables Rule Engine ────────────────────────────────────────────────
+export const nftablesChainEnum = pgEnum("nftables_chain", ["input","output","forward","prerouting","postrouting"]);
+export const nftablesActionEnum = pgEnum("nftables_action", ["accept","drop","reject","log","jump","goto","masquerade","dnat","snat","counter"]);
+export const nftablesRulesTable = pgTable("nftables_rules", {
+  id:         serial("id").primaryKey(),
+  table:      text("table").notNull().default("filter"),
+  chain:      nftablesChainEnum("chain").notNull().default("input"),
+  priority:   integer("priority").notNull().default(0),
+  matchSrcIp: text("match_src_ip"),
+  matchDstIp: text("match_dst_ip"),
+  matchSrcPort: integer("match_src_port"),
+  matchDstPort: integer("match_dst_port"),
+  matchProto: text("match_proto"),
+  matchIface: text("match_iface"),
+  setName:    text("set_name"),   // reference to an nftables set
+  action:     nftablesActionEnum("action").notNull().default("drop"),
+  counter:    boolean("counter").notNull().default(true),
+  comment:    text("comment"),
+  enabled:    boolean("enabled").notNull().default(true),
+  pktCount:   integer("pkt_count").notNull().default(0),
+  byteCount:  integer("byte_count").notNull().default(0),
+  createdAt:  timestamp("created_at").defaultNow().notNull(),
+});
+export const nftablesSetsTable = pgTable("nftables_sets", {
+  id:        serial("id").primaryKey(),
+  name:      text("name").notNull().unique(),
+  type:      text("type").notNull().default("ipv4_addr"), // ipv4_addr/ipv6_addr/inet_proto/inet_service
+  flags:     text("flags"),   // interval, timeout, etc
+  elements:  text("elements").array(), // array of entries
+  timeout:   integer("timeout"),       // seconds, for dynamic sets
+  comment:   text("comment"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// ── 6. Kernel Hardening Monitor ───────────────────────────────────────────
+export const kernelParamStatusEnum = pgEnum("kernel_param_status", ["secure","warning","critical","unknown"]);
+export const kernelHardeningTable = pgTable("kernel_hardening", {
+  id:           serial("id").primaryKey(),
+  paramPath:    text("param_path").notNull().unique(), // /proc/sys/kernel/dmesg_restrict
+  paramName:    text("param_name").notNull(),
+  currentValue: text("current_value"),
+  recommendedValue: text("recommended_value").notNull(),
+  status:       kernelParamStatusEnum("status").notNull().default("unknown"),
+  category:     text("category").notNull().default("kernel"), // kernel/net/fs/vm/user
+  description:  text("description"),
+  mitigation:   text("mitigation"),
+  cve:          text("cve"),
+  checkedAt:    timestamp("checked_at").defaultNow().notNull(),
+});
+
+// ── 7. MLS / Bell-LaPadula Classification Engine ──────────────────────────
+export const mlsLevelEnum = pgEnum("mls_level", ["unclassified","confidential","secret","top_secret","sci"]);
+export const mlsPoliciesTable = pgTable("mls_policies", {
+  id:          serial("id").primaryKey(),
+  subjectLabel: text("subject_label").notNull(),  // user/process
+  objectLabel:  text("object_label").notNull(),   // file/resource
+  subjectLevel: mlsLevelEnum("subject_level").notNull().default("unclassified"),
+  objectLevel:  mlsLevelEnum("object_level").notNull().default("unclassified"),
+  canRead:     boolean("can_read").notNull().default(false),
+  canWrite:    boolean("can_write").notNull().default(false),
+  canExecute:  boolean("can_execute").notNull().default(false),
+  bellLapadura: boolean("bell_lapadula").notNull().default(true), // enforce no-read-up/no-write-down
+  bibaModel:   boolean("biba_model").notNull().default(false),    // integrity model
+  description: text("description"),
+  createdAt:   timestamp("created_at").defaultNow().notNull(),
+});
+
+// ── 8. Zero Trust Microsegmentation ───────────────────────────────────────
+export const ztActionEnum = pgEnum("zt_action", ["allow","deny","inspect","alert"]);
+export const ztSegmentsTable = pgTable("zt_segments", {
+  id:          serial("id").primaryKey(),
+  name:        text("name").notNull(),
+  description: text("description"),
+  srcLabel:    text("src_label").notNull(),   // workload identity / namespace
+  dstLabel:    text("dst_label").notNull(),
+  srcIpRange:  text("src_ip_range"),
+  dstIpRange:  text("dst_ip_range"),
+  ports:       integer("ports").array(),
+  protocols:   text("protocols").array(),
+  action:      ztActionEnum("action").notNull().default("deny"),
+  mTls:        boolean("mtls").notNull().default(true),
+  jwtRequired: boolean("jwt_required").notNull().default(true),
+  enabled:     boolean("enabled").notNull().default(true),
+  violationCount: integer("violation_count").notNull().default(0),
+  createdAt:   timestamp("created_at").defaultNow().notNull(),
+});
+
+// ── 9. Hosts File Immunizer (Spybot) ──────────────────────────────────────
+export const hostsImmunizationTable = pgTable("hosts_immunization", {
+  id:        serial("id").primaryKey(),
+  domain:    text("domain").notNull().unique(),
+  category:  text("category").notNull().default("malware"), // malware/tracking/ads/phishing/telemetry/c2
+  source:    text("source"),   // StevenBlack, Spybot, custom, etc
+  redirectTo: text("redirect_to").notNull().default("0.0.0.0"),
+  enabled:   boolean("enabled").notNull().default(true),
+  hitCount:  integer("hit_count").notNull().default(0),
+  addedAt:   timestamp("added_at").defaultNow().notNull(),
+});
+
+// ── 10. Tracking Domain Blocker (Spybot) ──────────────────────────────────
+export const trackingDomainsTable = pgTable("tracking_domains", {
+  id:        serial("id").primaryKey(),
+  domain:    text("domain").notNull().unique(),
+  vendor:    text("vendor"),    // Google, Meta, Amazon, etc
+  category:  text("category").notNull(), // analytics/pixel/fingerprint/session_replay/ad_network
+  cookieName: text("cookie_name"),
+  blocked:   boolean("blocked").notNull().default(true),
+  hitCount:  integer("hit_count").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// ── 11. Anti-Telemetry Firewall (Spybot Anti-Beacon) ──────────────────────
+export const telemetryVendorEnum = pgEnum("telemetry_vendor", ["microsoft","google","apple","amazon","meta","adobe","mozilla","samsung","sony","valve"]);
+export const antiTelemetryTable = pgTable("anti_telemetry", {
+  id:        serial("id").primaryKey(),
+  domain:    text("domain"),
+  ipRange:   text("ip_range"),
+  vendor:    telemetryVendorEnum("vendor").notNull().default("microsoft"),
+  service:   text("service"),   // "Windows Update Telemetry", "Google Analytics" etc
+  blocked:   boolean("blocked").notNull().default(true),
+  iptablesRule: text("iptables_rule"),
+  hitCount:  integer("hit_count").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// ── 12. Startup Process Auditor (Spybot) ──────────────────────────────────
+export const startupRiskEnum = pgEnum("startup_risk", ["clean","suspicious","malicious","unknown"]);
+export const startupEntriesTable = pgTable("startup_entries", {
+  id:         serial("id").primaryKey(),
+  name:       text("name").notNull(),
+  command:    text("command").notNull(),
+  location:   text("location").notNull(), // systemd/crontab/init.d/rc.local/autorun etc
+  enabled:    boolean("enabled").notNull().default(true),
+  risk:       startupRiskEnum("risk").notNull().default("unknown"),
+  riskReason: text("risk_reason"),
+  hash:       text("hash"),   // SHA256 of executable
+  signature:  text("signature"), // code signing status
+  scannedAt:  timestamp("scanned_at").defaultNow().notNull(),
+});
+
+// ── 13. Rootkit Scanner (Spybot RootAlyzer) ───────────────────────────────
+export const rootkitSeverityEnum = pgEnum("rootkit_severity", ["critical","high","medium","low","clean"]);
+export const rootkitScansTable = pgTable("rootkit_scans", {
+  id:           serial("id").primaryKey(),
+  scanType:     text("scan_type").notNull().default("full"), // full/quick/memory/network
+  totalChecks:  integer("total_checks").notNull().default(0),
+  findings:     integer("findings").notNull().default(0),
+  criticalCount: integer("critical_count").notNull().default(0),
+  status:       text("status").notNull().default("running"), // running/complete/failed
+  startedAt:    timestamp("started_at").defaultNow().notNull(),
+  completedAt:  timestamp("completed_at"),
+});
+export const rootkitFindingsTable = pgTable("rootkit_findings", {
+  id:          serial("id").primaryKey(),
+  scanId:      integer("scan_id").notNull(),
+  type:        text("type").notNull(), // hidden_process/hidden_port/hidden_file/kernel_module/ld_preload/hooks
+  description: text("description").notNull(),
+  location:    text("location"),
+  severity:    rootkitSeverityEnum("severity").notNull().default("medium"),
+  details:     jsonb("details"),
+  detectedAt:  timestamp("detected_at").defaultNow().notNull(),
+});
+
+// ── 14. Secure File Shredder (Spybot) ─────────────────────────────────────
+export const shredderMethodEnum = pgEnum("shredder_method", ["dod_5220","gutmann","nist_800_88","random_1pass","zeros_1pass","prng_3pass"]);
+export const shredderJobsTable = pgTable("shredder_jobs", {
+  id:        serial("id").primaryKey(),
+  path:      text("path").notNull(),
+  method:    shredderMethodEnum("method").notNull().default("dod_5220"),
+  passes:    integer("passes").notNull().default(3),
+  fileSizeBytes: integer("file_size_bytes"),
+  status:    text("status").notNull().default("pending"), // pending/running/complete/failed
+  script:    text("script"),
+  startedAt: timestamp("started_at").defaultNow().notNull(),
+  completedAt: timestamp("completed_at"),
+});
+
+// ── 15. PUP / Adware Signature Database (Spybot) ──────────────────────────
+export const pupRiskEnum = pgEnum("pup_risk", ["critical","high","medium","low"]);
+export const pupSignaturesTable = pgTable("pup_signatures", {
+  id:          serial("id").primaryKey(),
+  name:        text("name").notNull(),
+  category:    text("category").notNull(), // adware/pup/spyware/browser_hijacker/rogue_av/toolbar/crypto_miner
+  description: text("description"),
+  indicators:  jsonb("indicators"),  // file paths, registry keys, process names, domains
+  risk:        pupRiskEnum("risk").notNull().default("medium"),
+  detections:  integer("detections").notNull().default(0),
+  lastSeen:    timestamp("last_seen"),
+  createdAt:   timestamp("created_at").defaultNow().notNull(),
+});
+
+// ── 16. Registry Key Monitor (Spybot) ─────────────────────────────────────
+export const registryMonitorTable = pgTable("registry_monitor", {
+  id:           serial("id").primaryKey(),
+  keyPath:      text("key_path").notNull(),        // e.g. HKLM\Software\Microsoft\Windows\CurrentVersion\Run
+  valueName:    text("value_name"),
+  expectedValue: text("expected_value"),           // null = should not exist
+  currentValue:  text("current_value"),
+  changed:      boolean("changed").notNull().default(false),
+  deleted:      boolean("deleted").notNull().default(false),
+  category:     text("category").notNull().default("autorun"), // autorun/browser/services/policy
+  risk:         text("risk").notNull().default("medium"),
+  checkedAt:    timestamp("checked_at").defaultNow().notNull(),
+});
