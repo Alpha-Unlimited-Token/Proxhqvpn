@@ -448,4 +448,10 @@ title = "ProxhqVPN — Audit Package (Source Code + ChatGPT Prompt)"
 id = "JTiGqp2Kvz1cbdbY6jI2d"
 uri = "file://standalone/CHATGPT-ANALYSIS-PROMPT.txt"
 type = "text"
-title = "ChatGPT Analysis Prompt — ProxhqVPN Full Platform"
+title = "ChatGPT Analysis Prompt — Questions + Platform Overview"
+
+[[outputs]]
+id = "AemkuWqh1c-6XAQsDvfx0"
+uri = "file://standalone/CHATGPT-FULL-CODE.txt"
+type = "text"
+title = "FULL SOURCE CODE DUMP — All 523 Files (9.29 MB)"
