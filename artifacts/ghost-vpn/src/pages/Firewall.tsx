@@ -11,6 +11,9 @@ import {
   Cpu, Lock, Wifi, GitBranch, Package, Bot, Map, Activity,
   // Military + Spybot icons
   ShieldCheck, Key, HardDrive, Radio, Monitor, Bug, FileX, Microscope, BookOpen, Database,
+  // Three-layer honeypot loop icons
+  Infinity, Hourglass, Layers as LayersIcon, CircleDot, RotateCcw, ArrowRight, Crosshair,
+  Timer, Waves, MousePointerClick, ExternalLink,
 } from "lucide-react";
 import {
   useListGhostOsRules, useCreateGhostOsRule, useDeleteGhostOsRule, useUpdateGhostOsRule,
@@ -83,6 +86,10 @@ const TAB_ICONS: Record<string, React.ReactNode> = {
   avengine:    <ShieldCheck size={13} />,
   iocdb:       <Database size={13} />,
   yaraengine:  <Search size={13} />,
+  // ── Three-Layer Honeypot Loop ──
+  looptrap:    <Infinity size={13} />,
+  labyrinth:   <GitBranch size={13} />,
+  tarpit:      <Hourglass size={13} />,
 };
 const TABS = [
   { id:"overview", label:"Overview" }, { id:"ghostos", label:"GhostOS™" }, { id:"ips", label:"IPS Engine" },
@@ -139,6 +146,10 @@ const TABS = [
   { id:"avengine",    label:"ProxhqAV Engine" },
   { id:"iocdb",       label:"IOC Database" },
   { id:"yaraengine",  label:"YARA Engine" },
+  // ── Three-Layer Honeypot Loop ────────────────────────────────────────────
+  { id:"looptrap",    label:"Endless Loop Engine™" },
+  { id:"labyrinth",   label:"Labyrinth Engine™" },
+  { id:"tarpit",      label:"Tar Pit Drain™" },
 ];
 const SEV_COLOR: Record<string,string> = { critical:"#ff2244", high:"#ff6600", medium:"#ffaa00", low:"#aaccff", info:"#888" };
 const TRUST_COLOR: Record<string,string> = { trusted:"#00ff88", untrusted:"#ff4444", dmz:"#ff9900", management:"#4488ff" };
@@ -5246,6 +5257,524 @@ function YaraEngineTab() {
   );
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+// ── THREE-LAYER ENDLESS HONEYPOT LOOP ────────────────────────────────────────
+// L1: Ghost Trap™ → L2: Labyrinth Engine™ → L3: Tar Pit Drain™ → L1 (forever)
+// ════════════════════════════════════════════════════════════════════════════
+type LoopStatus = {
+  engine:{version:string;status:string;layers:number};
+  stats:{activeSessions:number;totalSessions:number;uniqueAttackers:number;totalLoopCycles:number;totalTarpitMs:number;totalDrainMs:number;totalWastedMs:number;silkTrapped:number;autoBlocked:number;totalProbes:number;labyrinthVisits:number};
+  layers:{layer1:{name:string;description:string;activeSessions:number;totalProbes:number};layer2:{name:string;description:string;activeSessions:number;totalNodeVisits:number};layer3:{name:string;description:string;activeSessions:number;activeConnections:number;totalDrainMs:number}};
+  loopStages:Array<{stage:number;label:string;layer:number;tarpitMin:number;tarpitMax:number}>;
+  recentSessions:LoopSession[];
+};
+type LoopSession = {id:number;sessionId:string;attackerIp:string;attackerPort:number|null;attackerUa:string|null;stage:number;stageLabel:string;loopCount:number;interactionCount:number;totalTarpitMs:number;triggerType:string;fakeSessionToken:string|null;fakeUsername:string|null;geoCountry:string|null;geoIsp:string|null;autoBlockScheduled:boolean;silkTrapped:boolean;isActive:boolean;lastSeenAt:string;createdAt:string;intelligenceJson:Record<string,unknown>|null;currentLayer:number;timeWastedFormatted:string};
+type LabyrinthData = {nodes:Array<{id:string;label:string;type:string;fake:string;visitCount:number;uniqueAttackers:number;avgDelay:number}>;recentPaths:Array<{id:number;sessionId:string;attackerIp:string;pathNode:string;nodeType:string;fakeDataServed:unknown;delayMs:number;loopIteration:number;breadcrumb:string|null;visitedAt:string}>;totalVisits:number;uniqueAttackers:number};
+type TarpitStatus = {config:{tarpitMinMs:number;tarpitMaxMs:number;autoBlockAfter:number};stages:Array<{name:string;delayMs:number;label:string;color:string}>;stats:{activeConnections:number;totalConnections:number;totalWastedMs:number;totalWastedFormatted:string;avgDelayMs:number;deadLoopCount:number;autoBlocked:number};connections:Array<{id:number;connectionId:string;attackerIp:string;drainStage:string;currentDelayMs:number;maxDelayMs:number;totalWastedMs:number;hitCount:number;isActive:boolean;autoBlocked:boolean;drainPercent:number;lastSeenAt:string;ghostIntelJson:Record<string,unknown>|null}>};
+type LureUrls = {lureEndpoints:Array<{label:string;url:string;layer:number;layer_name:string}>;loopEndpoint:string;description:string};
+
+const STAGE_LAYER_COLOR: Record<number,string> = { 1:"#00ff88", 2:"#cc44ff", 3:"#ff4444" };
+const STAGE_COLORS: Record<string,string> = { initial_contact:"#00ff88", login_success:"#00cc66", admin_dashboard:"#cc44ff", database_access:"#aa22ff", server_creds:"#9900ff", deeper_access:"#ff6600", exfil_complete:"#ff2244", loop_reset:"#4488ff" };
+const DRAIN_COLORS: Record<string,string> = { initial:"#ffaa00", slow:"#ff9900", crawl:"#ff6600", freeze:"#ff4444", dead_loop:"#ff2244" };
+
+function LoopTrapTab() {
+  const { data: status, loading, reload } = useFwm<LoopStatus>("/honeypot/loop-status");
+  const { data: sessions } = useFwm<LoopSession[]>("/honeypot/loop-sessions");
+  const [selected, setSelected] = useState<LoopSession | null>(null);
+  const [triggerIp, setTriggerIp] = useState("");
+  const [triggerType, setTriggerType] = useState("manual");
+  const [triggering, setTriggering] = useState(false);
+  const [trigResult, setTrigResult] = useState<{sessionId:string;fakeUser:string;fakeToken:string}|null>(null);
+  const [showActiveOnly, setShowActiveOnly] = useState(false);
+
+  const trigger = async () => {
+    if (!triggerIp.trim()) return;
+    setTriggering(true);
+    const r = await fwmPost("/honeypot/loop-trigger", { ip:triggerIp, triggerType });
+    setTrigResult(r as any); setTriggering(false); await reload();
+  };
+
+  const advance = async (sessionId: string) => {
+    await fwmPost("/honeypot/loop-advance", { sessionId });
+    await reload();
+  };
+
+  const terminate = async (sessionId: string) => {
+    await fwmPost(`/honeypot/loop-session/${sessionId}`, {});
+    await reload();
+  };
+
+  const displaySessions = (sessions ?? status?.recentSessions ?? []).filter(s => !showActiveOnly || s.isActive);
+
+  const msToHuman = (ms: number) => {
+    if (ms < 1000) return `${ms}ms`;
+    if (ms < 60000) return `${(ms/1000).toFixed(1)}s`;
+    if (ms < 3600000) return `${Math.floor(ms/60000)}m ${Math.floor((ms%60000)/1000)}s`;
+    return `${Math.floor(ms/3600000)}h ${Math.floor((ms%3600000)/60000)}m`;
+  };
+
+  return (
+    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
+      {/* Engine Status Overview */}
+      <FwmCard style={{ gridColumn:"1/-1" }}>
+        <SectionTitle icon={<Infinity size={14} color="#00ff88"/>} title="Endless Loop Honeypot Engine™ — Three-Layer Active Deception" badge="ACTIVE" badgeColor="#00ff88"
+          extra={<div style={{display:"flex",gap:6}}>
+            <Bdg label={`${status?.stats.activeSessions??0} ACTIVE`} color="#00ff88"/>
+            <Btn2 onClick={reload} color="#333" sm><RefreshCw size={10}/></Btn2>
+          </div>}
+        />
+        <InfoBar text="Layer 1 (Ghost Trap™) fingerprints attacker → Layer 2 (Labyrinth Engine™) routes through infinite fake endpoints → Layer 3 (Tar Pit Drain™) exponentially slows responses → loops back to Layer 1 forever. Collects: IP · Geo · ISP · ASN · DNS · User-Agent · Hop Chain · Payloads · Session behavior." color="#00ff88"/>
+        {/* Three-layer flow diagram */}
+        <div style={{ display:"flex", alignItems:"center", gap:8, padding:"12px 0", marginBottom:10, overflowX:"auto" }}>
+          {[
+            { layer:1, name:"Ghost Trap™",      desc:"Fingerprint + Fake Login",     color:"#00ff88", icon:<ShieldCheck size={16}/>, stats:status?.layers.layer1 },
+            null, // arrow
+            { layer:2, name:"Labyrinth Engine™", desc:"Fake Dashboard Maze",          color:"#cc44ff", icon:<GitBranch size={16}/>, stats:status?.layers.layer2 },
+            null,
+            { layer:3, name:"Tar Pit Drain™",    desc:"Escalating Slow-Drain",       color:"#ff4444", icon:<Hourglass size={16}/>, stats:status?.layers.layer3 },
+            null,
+            { layer:0, name:"↩ Loop Reset",      desc:"Back to Ghost Trap (∞)",      color:"#4488ff", icon:<RotateCcw size={16}/>, stats:null },
+          ].map((item, i) => {
+            if (!item) return <ArrowRight key={i} size={18} color="#333"/>;
+            return (
+              <div key={i} style={{ flex:1, background:"#111", borderRadius:8, padding:"10px 12px", border:`1px solid ${item.color}33`, minWidth:120 }}>
+                <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:4, color:item.color }}>{item.icon}<span style={{ fontWeight:700, fontSize:10, fontFamily:"monospace" }}>L{item.layer||"∞"}</span></div>
+                <div style={{ fontSize:10, fontWeight:700, color:"#fff", marginBottom:2 }}>{item.name}</div>
+                <div style={{ fontSize:8, color:"#555", marginBottom:4 }}>{item.desc}</div>
+                {item.stats && "activeSessions" in item.stats && <div style={{ fontSize:8, color:item.color }}>{item.stats.activeSessions} active sessions</div>}
+                {item.stats && "activeConnections" in item.stats && <div style={{ fontSize:8, color:item.color }}>{(item.stats as any).activeConnections} connections draining</div>}
+              </div>
+            );
+          })}
+        </div>
+        {/* Stats bar */}
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(6,1fr)", gap:8 }}>
+          {[
+            {l:"Active Sessions", v:status?.stats.activeSessions??0, c:"#00ff88"},
+            {l:"Total Trapped",   v:status?.stats.totalSessions??0,  c:"#fff"},
+            {l:"Unique IPs",      v:status?.stats.uniqueAttackers??0, c:"#cc44ff"},
+            {l:"Loop Cycles",     v:status?.stats.totalLoopCycles??0, c:"#ff9900"},
+            {l:"Time Wasted",     v:msToHuman(status?.stats.totalWastedMs??0), c:"#ff4444"},
+            {l:"Silk Trapped",    v:status?.stats.silkTrapped??0,     c:"#ff2244"},
+          ].map(s=>(
+            <div key={s.l} style={{ textAlign:"center", background:"#0a0a0a", borderRadius:6, padding:"8px 4px" }}>
+              <div style={{ fontSize:16, fontWeight:800, color:s.c, fontFamily:"monospace" }}>{s.v}</div>
+              <div style={{ fontSize:8, color:"#444" }}>{s.l}</div>
+            </div>
+          ))}
+        </div>
+      </FwmCard>
+
+      {/* Manual Loop Trigger */}
+      <FwmCard>
+        <SectionTitle icon={<Crosshair size={12} color="#ff6600"/>} title="Manual Loop Trigger — Initiate on Any IP"/>
+        <InfoBar text="Manually lock any attacker IP into the endless loop. All three layers activate immediately — Ghost Trap issues a fake session, Labyrinth opens the maze, Tar Pit begins draining." color="#ff6600"/>
+        <div style={{ display:"flex", flexDirection:"column", gap:6, marginBottom:10 }}>
+          <input value={triggerIp} onChange={e=>setTriggerIp(e.target.value)} placeholder="Attacker IP address (e.g. 1.2.3.4)" style={{ background:"#111", border:"1px solid #2a2a2a", borderRadius:6, padding:"7px 10px", fontFamily:"monospace", fontSize:10, color:"#ccc" }}/>
+          <select value={triggerType} onChange={e=>setTriggerType(e.target.value)} style={{ background:"#111", border:"1px solid #2a2a2a", borderRadius:6, padding:"6px 10px", color:"#ccc", fontSize:10 }}>
+            {["manual","waf","injection","xss","cmd","recon"].map(t=><option key={t}>{t}</option>)}
+          </select>
+          <Btn2 onClick={trigger} color="#ff6600" disabled={triggering||!triggerIp.trim()}>
+            {triggering ? "⟳ Initiating..." : "⚡ Trigger Endless Loop"}
+          </Btn2>
+        </div>
+        {trigResult && (
+          <div style={{ background:"#0a050a", border:"1px solid #cc44ff33", borderRadius:8, padding:10, fontFamily:"monospace", fontSize:9 }}>
+            <div style={{ color:"#00ff88", fontWeight:700, marginBottom:6 }}>✓ Loop Activated · Session: {trigResult.sessionId.slice(-12)}</div>
+            <div style={{ color:"#555", marginBottom:2 }}>Fake user: <span style={{color:"#cc44ff"}}>{trigResult.fakeUser}</span></div>
+            <div style={{ color:"#555", wordBreak:"break-all" }}>Fake token: <span style={{color:"#4488ff"}}>{trigResult.fakeToken?.slice(0,40)}...</span></div>
+          </div>
+        )}
+
+        {/* Loop stage visualization */}
+        <div style={{ marginTop:12 }}>
+          <div style={{ fontSize:9, color:"#444", marginBottom:6, fontFamily:"monospace" }}>8-STAGE LOOP CYCLE (repeats ∞)</div>
+          {(status?.loopStages ?? []).map(s => (
+            <div key={s.stage} style={{ display:"flex", alignItems:"center", gap:8, padding:"4px 8px", marginBottom:3, background:"#111", borderRadius:5, borderLeft:`3px solid ${STAGE_LAYER_COLOR[s.layer]??"#333"}` }}>
+              <span style={{ fontSize:8, color:STAGE_LAYER_COLOR[s.layer]??"#888", fontFamily:"monospace", width:14, textAlign:"center", fontWeight:700 }}>L{s.layer}</span>
+              <span style={{ fontSize:8, color:"#aaa", fontFamily:"monospace", flex:1 }}>{s.label}</span>
+              <span style={{ fontSize:7, color:"#444" }}>{s.tarpitMin}–{s.tarpitMax}ms delay</span>
+            </div>
+          ))}
+        </div>
+      </FwmCard>
+
+      {/* Session Table */}
+      <FwmCard>
+        <SectionTitle icon={<CircleDot size={12} color="#00ff88"/>} title={`Active Sessions (${displaySessions.filter(s=>s.isActive).length} / ${displaySessions.length})`}
+          extra={<div style={{display:"flex",gap:4}}>
+            <Btn2 onClick={()=>setShowActiveOnly(!showActiveOnly)} color={showActiveOnly?"#00ff88":"#333"} sm>Active Only</Btn2>
+            <Btn2 onClick={reload} color="#333" sm><RefreshCw size={10}/></Btn2>
+          </div>}
+        />
+        <div style={{ maxHeight:450, overflow:"auto" }}>
+          {displaySessions.slice(0,40).map(s=>(
+            <div key={s.id} style={{ background:s.isActive?"#111":"#0a0a0a", borderRadius:6, padding:"8px 10px", marginBottom:4, borderLeft:`3px solid ${s.isActive?STAGE_LAYER_COLOR[s.currentLayer]??"#333":"#222"}`, cursor:"pointer" }} onClick={()=>setSelected(selected?.id===s.id?null:s)}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:3 }}>
+                <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                  <Bdg label={`L${s.currentLayer}`} color={STAGE_LAYER_COLOR[s.currentLayer]??"#888"} sm/>
+                  <span style={{ fontFamily:"monospace", fontSize:10, color:"#fff", fontWeight:700 }}>{s.attackerIp}</span>
+                  {s.geoCountry&&<Bdg label={s.geoCountry} color="#333" sm/>}
+                  {s.silkTrapped&&<Bdg label="SILK" color="#cc44ff" sm/>}
+                </div>
+                <div style={{ display:"flex", gap:4 }}>
+                  <Bdg label={`×${s.loopCount} loops`} color="#ff9900" sm/>
+                  {s.isActive&&<Btn2 onClick={()=>advance(s.sessionId)} color="#4488ff" sm>Next Stage</Btn2>}
+                  {s.isActive&&<Btn2 onClick={()=>terminate(s.sessionId)} color="#ff4444" sm>Kill</Btn2>}
+                </div>
+              </div>
+              <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+                <Bdg label={s.stageLabel} color={STAGE_COLORS[s.stageLabel]??"#888"} sm/>
+                <span style={{ fontSize:8, color:"#555" }}>Wasted: <span style={{color:"#ff6600"}}>{s.timeWastedFormatted}</span></span>
+                <span style={{ fontSize:8, color:"#444" }}>{s.triggerType}</span>
+              </div>
+              {selected?.id===s.id && (
+                <div style={{ marginTop:8, padding:"8px 10px", background:"#050505", borderRadius:6, fontSize:9, fontFamily:"monospace" }}>
+                  <div style={{ color:"#555", marginBottom:3 }}>Session: <span style={{color:"#888"}}>{s.sessionId}</span></div>
+                  {s.fakeUsername&&<div style={{ color:"#555", marginBottom:3 }}>Fake identity: <span style={{color:"#cc44ff"}}>{s.fakeUsername} (admin)</span></div>}
+                  {s.geoIsp&&<div style={{ color:"#555", marginBottom:3 }}>ISP: <span style={{color:"#4488ff"}}>{s.geoIsp}</span></div>}
+                  {s.attackerUa&&<div style={{ color:"#555", marginBottom:3 }}>UA: <span style={{color:"#aaa"}}>{s.attackerUa.substring(0,80)}</span></div>}
+                  <div style={{ color:"#555" }}>Interactions: <span style={{color:"#ffaa00"}}>{s.interactionCount}</span> · Stage: {s.stage}/7</div>
+                </div>
+              )}
+            </div>
+          ))}
+          {!loading && displaySessions.length === 0 && (
+            <div style={{color:"#333",fontFamily:"monospace",fontSize:11,padding:10}}>No sessions yet — trigger a loop manually or wait for real attacker activity</div>
+          )}
+        </div>
+      </FwmCard>
+
+      {/* Lure URL Panel */}
+      <LureUrlPanel/>
+    </div>
+  );
+}
+
+function LureUrlPanel() {
+  const { data: lures } = useFwm<LureUrls>("/honeypot/lure-urls");
+  const [copied, setCopied] = useState<string|null>(null);
+  const copyUrl = (url: string) => { navigator.clipboard.writeText(url); setCopied(url); setTimeout(()=>setCopied(null),2000); };
+  const L_COLOR: Record<number,string> = { 1:"#00ff88", 2:"#cc44ff", 3:"#ff4444" };
+
+  return (
+    <FwmCard style={{ gridColumn:"1/-1" }}>
+      <SectionTitle icon={<ExternalLink size={12} color="#4488ff"/>} title="Honeypot Lure Bait URLs — Deploy These on Your Website or VPN Server"/>
+      <InfoBar text="Place these URLs in robots.txt, HTML source comments, hidden form fields, or anywhere attackers scan. When they hit a lure URL, all three layers activate automatically — Ghost Trap fingerprints them, Labyrinth opens the maze, Tar Pit begins draining." color="#4488ff"/>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:6 }}>
+        {(lures?.lureEndpoints??[]).map(ep=>(
+          <div key={ep.url} style={{ background:"#111", borderRadius:6, padding:"8px 10px", borderLeft:`3px solid ${L_COLOR[ep.layer]??"#333"}` }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:4 }}>
+              <div style={{ display:"flex", gap:5, alignItems:"center" }}>
+                <Bdg label={`L${ep.layer} ${ep.layer_name}`} color={L_COLOR[ep.layer]??"#888"} sm/>
+                <span style={{ fontFamily:"monospace", fontSize:9, color:"#fff", fontWeight:700 }}>{ep.label}</span>
+              </div>
+              <button onClick={()=>copyUrl(ep.url)} style={{ background:"none", border:"none", cursor:"pointer", color:copied===ep.url?"#00ff88":"#444", padding:"0 2px" }}>
+                {copied===ep.url?<Check size={10}/>:<Copy size={10}/>}
+              </button>
+            </div>
+            <div style={{ fontSize:8, fontFamily:"monospace", color:"#555", wordBreak:"break-all" }}>{ep.url.replace("https://","")}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ marginTop:8, padding:"8px 12px", background:"#0a0a0a", borderRadius:6, fontSize:9, color:"#444" }}>
+        <strong style={{color:"#4488ff"}}>robots.txt deployment:</strong> Add{" "}
+        <code style={{color:"#00ff88"}}>Disallow: /admin{"\n"}Disallow: /phpmyadmin{"\n"}Disallow: /.env</code>{" "}
+        — attackers scan disallowed paths first. They hit the lure, all layers activate.
+      </div>
+    </FwmCard>
+  );
+}
+
+// ── Labyrinth Engine™ Tab ──────────────────────────────────────────────────────
+function LabyrinthTab() {
+  const { data: labyrinth, loading, reload } = useFwm<LabyrinthData>("/honeypot/labyrinth-map");
+  const { data: labSessions } = useFwm<Array<{sessionId:string;attackerIp:string;nodeCount:number;nodesVisited:string[];totalDelay:number;firstVisit:string;lastVisit:string}>>("/honeypot/labyrinth-sessions");
+  const [selectedNode, setSelectedNode] = useState<string|null>(null);
+
+  const TYPE_COLOR: Record<string,string> = { login:"#00ff88", dashboard:"#cc44ff", api:"#4488ff", db:"#ffaa00", config:"#ff6600", files:"#ff9900", creds:"#ff4444", ssh:"#ff2244", exfil:"#9900ff", reset:"#4488ff", trap:"#ff2244" };
+  const NODE_ICONS: Record<string,string> = { login:"🔑", dashboard:"📊", api:"🔌", db:"🗄️", config:"⚙️", files:"📁", creds:"🔐", ssh:"🖥️", exfil:"💾", reset:"🔄", trap:"🪤" };
+
+  const msToHuman = (ms: number) => ms < 1000 ? `${ms}ms` : ms < 60000 ? `${(ms/1000).toFixed(1)}s` : `${Math.floor(ms/60000)}m ${Math.floor((ms%60000)/1000)}s`;
+
+  return (
+    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
+      {/* Labyrinth overview */}
+      <FwmCard style={{ gridColumn:"1/-1" }}>
+        <SectionTitle icon={<GitBranch size={14} color="#cc44ff"/>} title="Labyrinth Maze Engine™ — Infinite Fake Endpoint Network" badge="Layer 2" badgeColor="#cc44ff"
+          extra={<Btn2 onClick={reload} color="#333" sm><RefreshCw size={10}/></Btn2>}
+        />
+        <InfoBar text="Attackers entering Layer 2 are routed through an infinite network of fake endpoints. Every endpoint looks real, returns convincing data, and records everything the attacker does. When they reach the 'data export', they loop back to the login screen — forever." color="#cc44ff"/>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8, marginBottom:12 }}>
+          {[
+            {l:"Total Node Visits", v:labyrinth?.totalVisits??0,       c:"#cc44ff"},
+            {l:"Unique Attackers",  v:labyrinth?.uniqueAttackers??0,   c:"#fff"},
+            {l:"Active Sessions",   v:labSessions?.length??0,          c:"#00ff88"},
+          ].map(s=>(
+            <div key={s.l} style={{ textAlign:"center", background:"#111", borderRadius:6, padding:"10px 4px" }}>
+              <div style={{ fontSize:20, fontWeight:700, color:s.c, fontFamily:"monospace" }}>{s.v.toLocaleString()}</div>
+              <div style={{ fontSize:8, color:"#555" }}>{s.l}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Labyrinth node map */}
+        <div style={{ fontSize:9, color:"#444", marginBottom:6, fontFamily:"monospace" }}>FAKE ENDPOINT MAZE — attackers navigate between these nodes in sequence</div>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:6 }}>
+          {(labyrinth?.nodes??[]).map((node, i) => (
+            <div key={node.id} style={{ background:selectedNode===node.id?"#1a0a2a":"#111", borderRadius:8, padding:"10px 8px", border:`1px solid ${selectedNode===node.id?"#cc44ff44":TYPE_COLOR[node.type]+"22"}`, cursor:"pointer", position:"relative" }}
+              onClick={()=>setSelectedNode(selectedNode===node.id?null:node.id)}>
+              {i < (labyrinth?.nodes.length??0) - 1 && (
+                <div style={{ position:"absolute", right:-14, top:"50%", transform:"translateY(-50%)", color:"#333", fontSize:10 }}>→</div>
+              )}
+              <div style={{ fontSize:16, marginBottom:4 }}>{NODE_ICONS[node.type]??"🔗"}</div>
+              <div style={{ fontSize:8, fontWeight:700, color:TYPE_COLOR[node.type]??"#888", marginBottom:2 }}>{node.label.replace("Fake ","")}</div>
+              <div style={{ fontSize:7, color:"#444", marginBottom:4 }}>{node.fake.substring(0,45)}</div>
+              <div style={{ display:"flex", gap:4 }}>
+                <Bdg label={`${node.visitCount} visits`} color={node.visitCount>0?"#cc44ff":"#333"} sm/>
+                {node.uniqueAttackers>0&&<Bdg label={`${node.uniqueAttackers} IPs`} color="#4488ff" sm/>}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {selectedNode && (
+          <div style={{ marginTop:10, padding:"10px 14px", background:"#0a050a", border:"1px solid #cc44ff33", borderRadius:8 }}>
+            {(labyrinth?.nodes??[]).filter(n=>n.id===selectedNode).map(node=>(
+              <div key={node.id}>
+                <div style={{ fontWeight:700, color:"#cc44ff", fontFamily:"monospace", marginBottom:4 }}>{node.label}</div>
+                <div style={{ fontSize:9, color:"#777", marginBottom:4 }}>{node.fake}</div>
+                <div style={{ display:"flex", gap:8 }}>
+                  <span style={{ fontSize:9, color:"#555" }}>Visits: <span style={{color:"#cc44ff"}}>{node.visitCount}</span></span>
+                  <span style={{ fontSize:9, color:"#555" }}>IPs: <span style={{color:"#4488ff"}}>{node.uniqueAttackers}</span></span>
+                  <span style={{ fontSize:9, color:"#555" }}>Avg delay: <span style={{color:"#ff9900"}}>{msToHuman(node.avgDelay)}</span></span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </FwmCard>
+
+      {/* Recent traversals */}
+      <FwmCard>
+        <SectionTitle icon={<MousePointerClick size={12} color="#cc44ff"/>} title="Recent Attacker Maze Traversals"/>
+        <div style={{ maxHeight:400, overflow:"auto" }}>
+          {(labyrinth?.recentPaths??[]).slice(0,40).map(path=>(
+            <div key={path.id} style={{ padding:"6px 10px", borderRadius:5, marginBottom:3, background:"#111", borderLeft:`3px solid ${TYPE_COLOR[path.nodeType]??"#333"}` }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                <div style={{ display:"flex", gap:5, alignItems:"center" }}>
+                  <span style={{ fontSize:9 }}>{NODE_ICONS[path.nodeType]??"🔗"}</span>
+                  <Bdg label={path.pathNode} color={TYPE_COLOR[path.nodeType]??"#888"} sm/>
+                  <span style={{ fontFamily:"monospace", fontSize:9, color:"#ccc" }}>{path.attackerIp}</span>
+                </div>
+                <span style={{ fontSize:8, color:"#444" }}>{msToHuman(path.delayMs)} delay</span>
+              </div>
+              {path.breadcrumb&&<div style={{ fontSize:8, color:"#444", fontFamily:"monospace", marginTop:2 }}>Payload: {path.breadcrumb.substring(0,60)}</div>}
+            </div>
+          ))}
+          {!loading&&(labyrinth?.recentPaths??[]).length===0&&<div style={{color:"#333",fontFamily:"monospace",fontSize:11,padding:10}}>No maze traversals yet — trigger a loop from the Endless Loop Engine™ tab</div>}
+        </div>
+      </FwmCard>
+
+      {/* Attacker session paths */}
+      <FwmCard>
+        <SectionTitle icon={<Waves size={12} color="#cc44ff"/>} title={`Attacker Session Paths (${labSessions?.length??0} sessions)`}/>
+        <div style={{ maxHeight:400, overflow:"auto" }}>
+          {(labSessions??[]).slice(0,20).map(sess=>(
+            <div key={sess.sessionId} style={{ background:"#111", borderRadius:6, padding:"8px 10px", marginBottom:6 }}>
+              <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
+                <span style={{ fontFamily:"monospace", fontSize:10, color:"#fff", fontWeight:700 }}>{sess.attackerIp}</span>
+                <div style={{ display:"flex", gap:4 }}>
+                  <Bdg label={`${sess.nodeCount} nodes`} color="#cc44ff" sm/>
+                  <Bdg label={`${msToHuman(sess.totalDelay)} wasted`} color="#ff6600" sm/>
+                </div>
+              </div>
+              <div style={{ display:"flex", flexWrap:"wrap", gap:2 }}>
+                {sess.nodesVisited.slice(0,10).map((node,i)=>(
+                  <span key={i} style={{ display:"flex", alignItems:"center", gap:2 }}>
+                    <Bdg label={node.substring(0,12)} color={TYPE_COLOR[node]??"#333"} sm/>
+                    {i < Math.min(9, sess.nodesVisited.length-1) && <span style={{color:"#333",fontSize:8}}>→</span>}
+                  </span>
+                ))}
+                {sess.nodesVisited.length > 10 && <span style={{fontSize:8,color:"#444"}}>+{sess.nodesVisited.length-10} more</span>}
+              </div>
+            </div>
+          ))}
+          {!loading&&(labSessions??[]).length===0&&<div style={{color:"#333",fontFamily:"monospace",fontSize:11,padding:10}}>No sessions tracked yet</div>}
+        </div>
+      </FwmCard>
+    </div>
+  );
+}
+
+// ── Tar Pit Drain Engine™ Tab ──────────────────────────────────────────────────
+function TarPitTab() {
+  const { data: tarpit, loading, reload } = useFwm<TarpitStatus>("/honeypot/tarpit-status");
+  const [drainIp, setDrainIp] = useState("");
+  const [draining, setDraining] = useState(false);
+
+  const addToDrain = async () => {
+    if (!drainIp.trim()) return;
+    setDraining(true);
+    await fwmPost("/honeypot/tarpit-drain", { ip:drainIp });
+    setDrainIp(""); setDraining(false); await reload();
+  };
+
+  const escalate = async (connectionId: string) => {
+    await fwmPost(`/honeypot/tarpit-escalate/${connectionId}`, {});
+    await reload();
+  };
+
+  const msToHuman = (ms: number) => {
+    if (ms < 1000) return `${ms}ms`;
+    if (ms < 60000) return `${(ms/1000).toFixed(1)}s`;
+    if (ms < 3600000) return `${Math.floor(ms/60000)}m`;
+    return `${Math.floor(ms/3600000)}h ${Math.floor((ms%3600000)/60000)}m`;
+  };
+
+  const totalHours = Math.floor((tarpit?.stats.totalWastedMs??0) / 3600000);
+  const totalMins  = Math.floor(((tarpit?.stats.totalWastedMs??0) % 3600000) / 60000);
+
+  return (
+    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
+      {/* Tar Pit Overview */}
+      <FwmCard style={{ gridColumn:"1/-1" }}>
+        <SectionTitle icon={<Hourglass size={14} color="#ff4444"/>} title="Tar Pit Drain Engine™ — Exponential Delay Escalation" badge="Layer 3" badgeColor="#ff4444"
+          extra={<Btn2 onClick={reload} color="#333" sm><RefreshCw size={10}/></Btn2>}
+        />
+        <InfoBar text="Every attacker connection entering Layer 3 faces escalating delays: 1.5s → 5s → 15s → 45s → 120s per request. At maximum drain, attackers waste 2 minutes per HTTP request — keeping them occupied while Ghost intel collects ISP, geo, hop chain, DNS, and fingerprint data." color="#ff4444"/>
+        {/* Delay escalation visualization */}
+        <div style={{ display:"flex", gap:8, marginBottom:12, alignItems:"flex-end" }}>
+          {(tarpit?.stages??[]).map((stage, i) => {
+            const height = 20 + (i * 15);
+            const count = (tarpit?.connections??[]).filter(c=>c.drainStage===stage.name).length;
+            return (
+              <div key={stage.name} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}>
+                <div style={{ fontSize:8, color:stage.color, fontWeight:700 }}>{count > 0 ? count : "0"}</div>
+                <div style={{ width:"100%", height:`${height}px`, background:`${stage.color}33`, border:`1px solid ${stage.color}66`, borderRadius:4, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                  <span style={{ fontSize:7, color:stage.color, fontWeight:700 }}>{msToHuman(stage.delayMs)}</span>
+                </div>
+                <div style={{ fontSize:7, color:"#555", textAlign:"center" }}>{stage.label}</div>
+              </div>
+            );
+          })}
+          <div style={{ borderLeft:"1px solid #1a1a1a", marginLeft:4, paddingLeft:8, display:"flex", flexDirection:"column", gap:4, justifyContent:"center" }}>
+            <div style={{ fontSize:8, color:"#ff4444", fontWeight:700, fontFamily:"monospace" }}>→ ∞</div>
+            <div style={{ fontSize:7, color:"#444" }}>Auto-loops</div>
+            <div style={{ fontSize:7, color:"#444" }}>back to L1</div>
+          </div>
+        </div>
+        {/* Stats */}
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:8 }}>
+          {[
+            {l:"Active Drains",    v:tarpit?.stats.activeConnections??0,    c:"#ff4444"},
+            {l:"Total Connections",v:tarpit?.stats.totalConnections??0,     c:"#fff"},
+            {l:"Wasted Total",     v:`${totalHours}h ${totalMins}m`,        c:"#ff9900"},
+            {l:"Dead Loop (2min)", v:tarpit?.stats.deadLoopCount??0,        c:"#ff2244"},
+            {l:"Auto-Blocked",     v:tarpit?.stats.autoBlocked??0,          c:"#ff6600"},
+          ].map(s=>(
+            <div key={s.l} style={{ textAlign:"center", background:"#111", borderRadius:6, padding:"8px 4px" }}>
+              <div style={{ fontSize:16, fontWeight:700, color:s.c, fontFamily:"monospace" }}>{s.v}</div>
+              <div style={{ fontSize:8, color:"#555" }}>{s.l}</div>
+            </div>
+          ))}
+        </div>
+      </FwmCard>
+
+      {/* Manual drain */}
+      <FwmCard>
+        <SectionTitle icon={<Timer size={12} color="#ff4444"/>} title="Manual Tar Pit — Drain Any IP"/>
+        <InfoBar text="Add any attacker IP to the drain queue. They'll experience escalating delays on every request — 1.5s → 5s → 15s → 45s → 2 minutes. Ghost system collects full intel automatically." color="#ff4444"/>
+        <div style={{ display:"flex", gap:6, marginBottom:10 }}>
+          <input value={drainIp} onChange={e=>setDrainIp(e.target.value)} placeholder="Attacker IP to drain..." style={{ flex:1, background:"#111", border:"1px solid #2a2a2a", borderRadius:6, padding:"7px 10px", fontFamily:"monospace", fontSize:10, color:"#ccc" }}/>
+          <Btn2 onClick={addToDrain} color="#ff4444" disabled={draining||!drainIp.trim()}>{draining?"⟳":"⏳ Drain"}</Btn2>
+        </div>
+        {/* How it works */}
+        <div style={{ background:"#0a0505", border:"1px solid #ff444433", borderRadius:8, padding:12 }}>
+          <div style={{ fontSize:9, color:"#ff4444", fontWeight:700, marginBottom:8, fontFamily:"monospace" }}>HOW THE DRAIN LOOP WORKS</div>
+          {[
+            { step:1, label:"Ghost Trap (L1) captures attacker",    detail:"IP, UA, headers, hop chain, geo, ISP, ASN, DNS extracted" },
+            { step:2, label:"Labyrinth (L2) opens fake maze",        detail:"10 fake endpoints served in sequence — each logs attacker queries" },
+            { step:3, label:"Tar Pit (L3) begins exponential drain", detail:"1.5s → 5s → 15s → 45s → 120s delay per request" },
+            { step:4, label:"Session expires (fake)",                detail:"'Your session timed out' → attacker tries again from step 1" },
+            { step:5, label:"Loop resets, delay escalates",          detail:"Each new loop cycle adds +500ms base delay — endless" },
+          ].map(s=>(
+            <div key={s.step} style={{ display:"flex", gap:8, alignItems:"flex-start", marginBottom:6 }}>
+              <div style={{ width:18, height:18, borderRadius:"50%", background:"#ff444422", border:"1px solid #ff444444", display:"flex", alignItems:"center", justifyContent:"center", fontSize:8, color:"#ff4444", flexShrink:0, fontWeight:700 }}>{s.step}</div>
+              <div>
+                <div style={{ fontSize:9, color:"#ccc", fontWeight:700 }}>{s.label}</div>
+                <div style={{ fontSize:8, color:"#555" }}>{s.detail}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </FwmCard>
+
+      {/* Drain Queue */}
+      <FwmCard>
+        <SectionTitle icon={<Hourglass size={12} color="#ff4444"/>} title={`Drain Queue (${tarpit?.connections?.filter(c=>c.isActive).length??0} active)`}/>
+        <div style={{ maxHeight:430, overflow:"auto" }}>
+          {(tarpit?.connections??[]).slice(0,40).map(conn=>(
+            <div key={conn.id} style={{ background:"#111", borderRadius:6, padding:"8px 10px", marginBottom:5, borderLeft:`3px solid ${DRAIN_COLORS[conn.drainStage]??"#333"}`, opacity:conn.isActive?1:0.5 }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:3 }}>
+                <div style={{ display:"flex", gap:5, alignItems:"center" }}>
+                  <Bdg label={conn.drainStage.replace("_"," ").toUpperCase()} color={DRAIN_COLORS[conn.drainStage]??"#888"} sm/>
+                  <span style={{ fontFamily:"monospace", fontSize:10, color:"#fff", fontWeight:700 }}>{conn.attackerIp}</span>
+                </div>
+                <div style={{ display:"flex", gap:4 }}>
+                  {conn.isActive && <Btn2 onClick={()=>escalate(conn.connectionId)} color="#ff6600" sm>Escalate</Btn2>}
+                  {conn.autoBlocked && <Bdg label="BLOCKED" color="#ff2244" sm/>}
+                </div>
+              </div>
+              {/* Delay progress bar */}
+              <div style={{ marginBottom:4 }}>
+                <div style={{ display:"flex", justifyContent:"space-between", fontSize:8, color:"#555", marginBottom:2 }}>
+                  <span>Current delay: <span style={{color:DRAIN_COLORS[conn.drainStage]}}>{msToHuman(conn.currentDelayMs)}</span></span>
+                  <span>Wasted: <span style={{color:"#ff6600"}}>{msToHuman(conn.totalWastedMs)}</span></span>
+                </div>
+                <div style={{ background:"#0a0a0a", borderRadius:3, height:5, overflow:"hidden" }}>
+                  <div style={{ width:`${conn.drainPercent}%`, height:"100%", background:DRAIN_COLORS[conn.drainStage], borderRadius:3, transition:"width 0.5s" }}/>
+                </div>
+              </div>
+              <div style={{ fontSize:8, color:"#444" }}>
+                Hits: {conn.hitCount} · Max: {msToHuman(conn.maxDelayMs)}
+                {conn.ghostIntelJson && <span style={{color:"#4488ff"}}> · {(conn.ghostIntelJson as any).country ?? ""} {(conn.ghostIntelJson as any).isp ?? ""}</span>}
+              </div>
+            </div>
+          ))}
+          {!loading && (tarpit?.connections??[]).length === 0 && (
+            <div style={{color:"#333",fontFamily:"monospace",fontSize:11,padding:10}}>No connections in drain queue — attackers will appear here automatically when they hit lure endpoints</div>
+          )}
+        </div>
+      </FwmCard>
+
+      {/* Ghost Intel per connection */}
+      <FwmCard style={{ gridColumn:"1/-1" }}>
+        <SectionTitle icon={<ShieldCheck size={12} color="#00ff88"/>} title="Ghost System Integration — All Collected Attacker Intel"/>
+        <InfoBar text="Every attacker hitting the three-layer system is enriched with Ghost system data: IP geolocation, ISP/ASN, DNS reverse lookup, VPN/Tor detection, hop chain tracing, browser fingerprint, screen size, timezone. All data flows into the SilkWeb and SIEM automatically." color="#00ff88"/>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8 }}>
+          {[
+            {label:"IP Geolocation",    detail:"Country, city, lat/lon via ip-api.com",                    icon:"🌍"},
+            {label:"ISP/ASN Intel",     detail:"Carrier, hosting provider, autonomous system number",       icon:"🏢"},
+            {label:"DNS Reverse Lookup",detail:"PTR record → reveals VPS/cloud/residential",               icon:"🔍"},
+            {label:"VPN/Tor Detection", detail:"ASN org pattern matching — 30+ VPN providers detected",    icon:"🕵️"},
+            {label:"Hop Chain Tracing", detail:"X-Forwarded-For headers decoded — up to 12 proxy hops",    icon:"🔗"},
+            {label:"Browser Fingerprint",detail:"User-Agent, Accept-Language, screen size, timezone",      icon:"🖥️"},
+            {label:"Payload Analysis",  detail:"SQLi, XSS, LFI, RCE, path traversal auto-classified",      icon:"💉"},
+            {label:"SilkWeb + SIEM",    detail:"Auto-fed into SilkWeb topology map and SIEM event log",    icon:"🕸️"},
+          ].map(item=>(
+            <div key={item.label} style={{ background:"#111", borderRadius:6, padding:"10px 12px", borderLeft:"3px solid #00ff8833" }}>
+              <div style={{ fontSize:14, marginBottom:4 }}>{item.icon}</div>
+              <div style={{ fontSize:10, fontWeight:700, color:"#00ff88", marginBottom:2 }}>{item.label}</div>
+              <div style={{ fontSize:8, color:"#555" }}>{item.detail}</div>
+            </div>
+          ))}
+        </div>
+      </FwmCard>
+    </div>
+  );
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────
 export default function Firewall() {
   const [tab, setTab] = useState("overview");
@@ -5328,6 +5857,10 @@ export default function Firewall() {
       {tab==="avengine"    &&<ProxhqAvTab/>}
       {tab==="iocdb"       &&<IocDbTab/>}
       {tab==="yaraengine"  &&<YaraEngineTab/>}
+      {/* ── Three-Layer Honeypot Loop ── */}
+      {tab==="looptrap"    &&<LoopTrapTab/>}
+      {tab==="labyrinth"   &&<LabyrinthTab/>}
+      {tab==="tarpit"      &&<TarPitTab/>}
     </div>
   );
 }

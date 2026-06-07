@@ -99,7 +99,46 @@ export const ghostTrapLoopSessionsTable = pgTable("ghost_trap_loop_sessions", {
   createdAt:            timestamp("created_at").defaultNow().notNull(),
 });
 
+// ── Labyrinth Engine — tracks attacker traversal through fake maze endpoints ───
+export const labyrinthPathsTable = pgTable("labyrinth_paths", {
+  id:              serial("id").primaryKey(),
+  sessionId:       text("session_id").notNull(),
+  attackerIp:      text("attacker_ip").notNull(),
+  pathNode:        text("path_node").notNull(),        // fake endpoint label
+  nodeType:        text("node_type").notNull().default("dashboard"), // login/dashboard/api/db/config/files/creds/exfil/trap/reset
+  fakeDataServed:  text("fake_data_served"),           // JSON of what we showed them
+  delayMs:         integer("delay_ms").notNull().default(0),
+  loopIteration:   integer("loop_iteration").notNull().default(0),
+  breadcrumb:      text("breadcrumb"),                 // payload/query they submitted
+  exitedTo:        text("exited_to"),                  // next node they navigated to
+  geoCountry:      text("geo_country"),
+  geoIsp:          text("geo_isp"),
+  visitedAt:       timestamp("visited_at").defaultNow().notNull(),
+});
+
+// ── Tar Pit Drain Engine — escalating delays per attacker connection ───────────
+export const tarpitDrainTable = pgTable("tarpit_drain", {
+  id:              serial("id").primaryKey(),
+  connectionId:    text("connection_id").notNull().unique(),
+  attackerIp:      text("attacker_ip").notNull(),
+  sessionId:       text("session_id"),
+  drainStage:      text("drain_stage").notNull().default("initial"), // initial/slow/crawl/freeze/dead_loop
+  currentDelayMs:  integer("current_delay_ms").notNull().default(1500),
+  maxDelayMs:      integer("max_delay_ms").notNull().default(120000),  // 2 min max delay
+  totalWastedMs:   integer("total_wasted_ms").notNull().default(0),
+  hitCount:        integer("hit_count").notNull().default(1),
+  lastPayload:     text("last_payload"),
+  ghostIntelJson:  text("ghost_intel_json"),   // IP, geo, ISP, DNS, VPN flags as JSON
+  loopFeedback:    text("loop_feedback"),       // which fake response last sent
+  autoBlocked:     boolean("auto_blocked").notNull().default(false),
+  isActive:        boolean("is_active").notNull().default(true),
+  firstSeenAt:     timestamp("first_seen_at").defaultNow().notNull(),
+  lastSeenAt:      timestamp("last_seen_at").defaultNow().notNull(),
+});
+
 export type GhostTrapProbe        = typeof ghostTrapProbesTable.$inferSelect;
 export type GhostTrapBeacon       = typeof ghostTrapBeaconsTable.$inferSelect;
 export type GhostTrapConfig       = typeof ghostTrapConfigTable.$inferSelect;
 export type GhostTrapLoopSession  = typeof ghostTrapLoopSessionsTable.$inferSelect;
+export type LabyrinthPath         = typeof labyrinthPathsTable.$inferSelect;
+export type TarpitDrain           = typeof tarpitDrainTable.$inferSelect;

@@ -7,6 +7,8 @@ import { Router } from "express";
 import { z } from "zod";
 import { db } from "@workspace/db";
 import {
+  ghostTrapLoopSessionsTable, ghostTrapProbesTable, ghostTrapConfigTable,
+  labyrinthPathsTable, tarpitDrainTable,
   selinuxContextsTable, selinuxDenialsTable,
   apparmorProfilesTable, apparmorEventsTable,
   sbomComponentsTable, sbomVulnsTable,
@@ -2252,6 +2254,339 @@ router.get("/av/ransomware-extensions", async (req, res) => {
   let q = db.select().from(avRansomExtTable).$dynamic();
   if (active === "true") q = q.where(eq(avRansomExtTable.active, true)) as any;
   res.json(await q.orderBy(avRansomExtTable.family));
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// ── HONEYPOT LOOP ENGINE — Three-Layer Endless Deception System ───────────────
+// Layer 1: Ghost Trap™  → Layer 2: Labyrinth Engine™ → Layer 3: Tar Pit Drain™
+// Attackers cycle endlessly: L1 fingerprints → L2 mazes → L3 slows → L1 again
+// ════════════════════════════════════════════════════════════════════════════
+
+const LOOP_STAGES = [
+  { stage:0, label:"initial_contact",   layer:1, tarpitMin:800,   tarpitMax:2000  },
+  { stage:1, label:"login_success",     layer:1, tarpitMin:1500,  tarpitMax:4000  },
+  { stage:2, label:"admin_dashboard",   layer:2, tarpitMin:2000,  tarpitMax:5000  },
+  { stage:3, label:"database_access",   layer:2, tarpitMin:2500,  tarpitMax:7000  },
+  { stage:4, label:"server_creds",      layer:2, tarpitMin:3000,  tarpitMax:8000  },
+  { stage:5, label:"deeper_access",     layer:3, tarpitMin:5000,  tarpitMax:15000 },
+  { stage:6, label:"exfil_complete",    layer:3, tarpitMin:8000,  tarpitMax:25000 },
+  { stage:7, label:"loop_reset",        layer:1, tarpitMin:1000,  tarpitMax:3000  },
+];
+
+const LABYRINTH_NODES = [
+  { id:"login",       label:"Fake Login Portal",          type:"login",     fake:"Returns success + fake JWT token" },
+  { id:"dashboard",   label:"Fake Admin Dashboard",       type:"dashboard", fake:"Shows fake user list, stats, revenue" },
+  { id:"users_api",   label:"Fake /api/users",            type:"api",       fake:"Dumps fake user records with passwords" },
+  { id:"db_console",  label:"Fake phpMyAdmin",            type:"db",        fake:"MySQL query interface returning fake tables" },
+  { id:"config",      label:"Fake config.php / .env",     type:"config",    fake:"Fake DB creds, API keys, secrets" },
+  { id:"files",       label:"Fake File Manager",          type:"files",     fake:"Directory listing with tempting filenames" },
+  { id:"creds",       label:"Fake Credential Dump",       type:"creds",     fake:"Bcrypt hashes, plaintext pass list" },
+  { id:"ssh_panel",   label:"Fake SSH Key Manager",       type:"ssh",       fake:"Fake private keys, server IPs" },
+  { id:"exfil",       label:"Fake Data Export",           type:"exfil",     fake:"Fake backup.sql / user_data.csv" },
+  { id:"loop_reset",  label:"Session Expiry → Restart",   type:"reset",     fake:"Tells attacker their session expired → back to L1" },
+];
+
+const TARPIT_STAGES = [
+  { name:"initial",   delayMs:1500,   label:"Initial Delay",      color:"#ffaa00" },
+  { name:"slow",      delayMs:5000,   label:"Slowing Down",       color:"#ff9900" },
+  { name:"crawl",     delayMs:15000,  label:"Crawl Speed",        color:"#ff6600" },
+  { name:"freeze",    delayMs:45000,  label:"Near Frozen",        color:"#ff4444" },
+  { name:"dead_loop", delayMs:120000, label:"Dead Loop (2 min)",  color:"#ff2244" },
+];
+
+// GET /honeypot/loop-status — overall three-layer engine status
+router.get("/honeypot/loop-status", async (_req, res) => {
+  const [sessions, probes, drains, labPaths] = await Promise.all([
+    db.select().from(ghostTrapLoopSessionsTable).orderBy(desc(ghostTrapLoopSessionsTable.createdAt)).limit(200),
+    db.select().from(ghostTrapProbesTable).orderBy(desc(ghostTrapProbesTable.probedAt)).limit(500),
+    db.select().from(tarpitDrainTable).orderBy(desc(tarpitDrainTable.lastSeenAt)).limit(200),
+    db.select().from(labyrinthPathsTable).orderBy(desc(labyrinthPathsTable.visitedAt)).limit(500),
+  ]);
+  const active = sessions.filter(s => s.isActive);
+  const totalLoops = sessions.reduce((a, s) => a + s.loopCount, 0);
+  const totalTarpitMs = sessions.reduce((a, s) => a + s.totalTarpitMs, 0);
+  const totalDrainMs = drains.reduce((a, d) => a + d.totalWastedMs, 0);
+  const uniqueIps = new Set(sessions.map(s => s.attackerIp)).size;
+  const silkTrapped = sessions.filter(s => s.silkTrapped).length;
+  const autoBlocked = sessions.filter(s => s.autoBlockScheduled).length;
+
+  res.json({
+    engine: { version: "3.0", status: "active", layers: 3 },
+    stats: {
+      activeSessions: active.length,
+      totalSessions: sessions.length,
+      uniqueAttackers: uniqueIps,
+      totalLoopCycles: totalLoops,
+      totalTarpitMs,
+      totalDrainMs,
+      totalWastedMs: totalTarpitMs + totalDrainMs,
+      silkTrapped,
+      autoBlocked,
+      totalProbes: probes.length,
+      labyrinthVisits: labPaths.length,
+    },
+    layers: {
+      layer1: {
+        name: "Ghost Trap™",
+        description: "Deceptive entry — fingerprints attacker, issues fake session token",
+        activeSessions: active.filter(s => s.stage <= 1).length,
+        totalProbes: probes.length,
+      },
+      layer2: {
+        name: "Labyrinth Engine™",
+        description: "Infinite maze — feeds fake data, logs every attacker path choice",
+        activeSessions: active.filter(s => s.stage >= 2 && s.stage <= 4).length,
+        totalNodeVisits: labPaths.length,
+      },
+      layer3: {
+        name: "Tar Pit Drain™",
+        description: "Escalating delays — exponentially slows all attacker connections",
+        activeSessions: active.filter(s => s.stage >= 5).length,
+        activeConnections: drains.filter(d => d.isActive).length,
+        totalDrainMs,
+      },
+    },
+    loopStages: LOOP_STAGES,
+    recentSessions: sessions.slice(0, 20).map(s => ({
+      ...s,
+      intelligenceJson: s.intelligenceJson ? JSON.parse(s.intelligenceJson) : null,
+    })),
+  });
+});
+
+// GET /honeypot/loop-sessions — all loop sessions with full intel
+router.get("/honeypot/loop-sessions", async (req, res) => {
+  const activeOnly = req.query.active === "1";
+  let rows = await db.select().from(ghostTrapLoopSessionsTable)
+    .orderBy(desc(ghostTrapLoopSessionsTable.lastSeenAt)).limit(200);
+  if (activeOnly) rows = rows.filter(r => r.isActive);
+  res.json(rows.map(s => ({
+    ...s,
+    intelligenceJson: s.intelligenceJson ? (() => { try { return JSON.parse(s.intelligenceJson!); } catch { return null; } })() : null,
+    currentLayer: LOOP_STAGES[Math.min(s.stage, LOOP_STAGES.length - 1)]?.layer ?? 1,
+    currentStageInfo: LOOP_STAGES[Math.min(s.stage, LOOP_STAGES.length - 1)] ?? LOOP_STAGES[0],
+    timeWastedFormatted: `${Math.floor(s.totalTarpitMs / 60000)}m ${Math.floor((s.totalTarpitMs % 60000) / 1000)}s`,
+  })));
+});
+
+// POST /honeypot/loop-trigger — manually start a loop for an IP
+router.post("/honeypot/loop-trigger", async (req, res) => {
+  const { ip, triggerType, payload } = z.object({
+    ip: z.string().ip(),
+    triggerType: z.enum(["manual","waf","injection","xss","cmd","recon"]).default("manual"),
+    payload: z.string().optional(),
+  }).parse(req.body);
+
+  const sessionId = `manual-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const fakeUser = ["admin", "sysadmin", "root", "administrator", "devops"][Math.floor(Math.random() * 5)];
+  const fakeToken = `eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.${Buffer.from(JSON.stringify({ user: fakeUser, role: "admin", exp: Math.floor(Date.now() / 1000) + 3600 })).toString("base64url")}.PROXHQ_FAKE_SIGNATURE`;
+
+  await db.insert(ghostTrapLoopSessionsTable).values({
+    sessionId,
+    attackerIp: ip,
+    stage: 0,
+    stageLabel: "initial_contact",
+    loopCount: 0,
+    interactionCount: 0,
+    totalTarpitMs: 0,
+    triggerType,
+    initialPayload: payload ?? null,
+    fakeSessionToken: fakeToken,
+    fakeUsername: fakeUser,
+    isActive: true,
+  }).onConflictDoNothing();
+
+  // Log as labyrinth entry
+  await db.insert(labyrinthPathsTable).values({
+    sessionId,
+    attackerIp: ip,
+    pathNode: "entry",
+    nodeType: "login",
+    fakeDataServed: JSON.stringify({ token: fakeToken, user: fakeUser }),
+    delayMs: 0,
+    loopIteration: 0,
+    breadcrumb: payload ?? null,
+  }).catch(() => {});
+
+  res.json({ sessionId, fakeToken, fakeUser, message: `Loop triggered for ${ip} — all 3 layers active` });
+});
+
+// POST /honeypot/loop-advance — manually advance session to next stage
+router.post("/honeypot/loop-advance", async (req, res) => {
+  const { sessionId } = z.object({ sessionId: z.string() }).parse(req.body);
+  const [session] = await db.select().from(ghostTrapLoopSessionsTable)
+    .where(eq(ghostTrapLoopSessionsTable.sessionId, sessionId)).limit(1);
+  if (!session) { res.status(404).json({ error: "Session not found" }); return; }
+
+  const nextStage = (session.stage + 1) % LOOP_STAGES.length;
+  const nextInfo = LOOP_STAGES[nextStage];
+  const isReset = nextStage === 0;
+
+  await db.update(ghostTrapLoopSessionsTable).set({
+    stage: nextStage,
+    stageLabel: nextInfo.label,
+    loopCount: isReset ? session.loopCount + 1 : session.loopCount,
+    lastSeenAt: new Date(),
+  }).where(eq(ghostTrapLoopSessionsTable.sessionId, sessionId));
+
+  await db.insert(labyrinthPathsTable).values({
+    sessionId,
+    attackerIp: session.attackerIp,
+    pathNode: nextInfo.label,
+    nodeType: nextInfo.layer === 1 ? "login" : nextInfo.layer === 2 ? "dashboard" : "exfil",
+    loopIteration: session.loopCount,
+    delayMs: nextInfo.tarpitMin,
+  }).catch(() => {});
+
+  res.json({ sessionId, stage: nextStage, stageLabel: nextInfo.label, layer: nextInfo.layer, loopCount: isReset ? session.loopCount + 1 : session.loopCount });
+});
+
+// DELETE /honeypot/loop-session/:sessionId — terminate a session
+router.delete("/honeypot/loop-session/:sessionId", async (req, res) => {
+  const { sessionId } = req.params;
+  await db.update(ghostTrapLoopSessionsTable).set({ isActive: false })
+    .where(eq(ghostTrapLoopSessionsTable.sessionId, sessionId));
+  res.json({ ok: true, sessionId });
+});
+
+// GET /honeypot/labyrinth-map — labyrinth node definitions + visit stats
+router.get("/honeypot/labyrinth-map", async (_req, res) => {
+  const paths = await db.select().from(labyrinthPathsTable)
+    .orderBy(desc(labyrinthPathsTable.visitedAt)).limit(1000);
+  const nodeStats = LABYRINTH_NODES.map(node => ({
+    ...node,
+    visitCount: paths.filter(p => p.pathNode === node.id || p.nodeType === node.type).length,
+    uniqueAttackers: new Set(paths.filter(p => p.pathNode === node.id || p.nodeType === node.type).map(p => p.attackerIp)).size,
+    avgDelay: (() => {
+      const r = paths.filter(p => p.pathNode === node.id);
+      return r.length ? Math.round(r.reduce((a, p) => a + p.delayMs, 0) / r.length) : 0;
+    })(),
+  }));
+  const recentPaths = paths.slice(0, 100).map(p => ({
+    ...p,
+    fakeDataServed: p.fakeDataServed ? (() => { try { return JSON.parse(p.fakeDataServed!); } catch { return p.fakeDataServed; } })() : null,
+  }));
+  res.json({ nodes: nodeStats, recentPaths, totalVisits: paths.length, uniqueAttackers: new Set(paths.map(p => p.attackerIp)).size });
+});
+
+// GET /honeypot/labyrinth-sessions — attacker traversal per-session
+router.get("/honeypot/labyrinth-sessions", async (_req, res) => {
+  const paths = await db.select().from(labyrinthPathsTable)
+    .orderBy(desc(labyrinthPathsTable.visitedAt)).limit(2000);
+  const bySession: Record<string, typeof paths> = {};
+  for (const p of paths) {
+    if (!bySession[p.sessionId]) bySession[p.sessionId] = [];
+    bySession[p.sessionId].push(p);
+  }
+  const sessions = Object.entries(bySession).map(([sid, sp]) => ({
+    sessionId: sid,
+    attackerIp: sp[0].attackerIp,
+    nodeCount: sp.length,
+    nodesVisited: sp.map(p => p.pathNode),
+    totalDelay: sp.reduce((a, p) => a + p.delayMs, 0),
+    firstVisit: sp[sp.length - 1].visitedAt,
+    lastVisit: sp[0].visitedAt,
+  }));
+  res.json(sessions);
+});
+
+// GET /honeypot/tarpit-status — drain queue status + config
+router.get("/honeypot/tarpit-status", async (_req, res) => {
+  const [drains, cfg] = await Promise.all([
+    db.select().from(tarpitDrainTable).orderBy(desc(tarpitDrainTable.lastSeenAt)).limit(200),
+    db.select().from(ghostTrapConfigTable).where(eq(ghostTrapConfigTable.userId, "platform")).limit(1),
+  ]);
+  const active = drains.filter(d => d.isActive);
+  const totalWasted = drains.reduce((a, d) => a + d.totalWastedMs, 0);
+  res.json({
+    config: cfg[0] ?? { tarpitMinMs: 1500, tarpitMaxMs: 8000, autoBlockAfter: 5 },
+    stages: TARPIT_STAGES,
+    stats: {
+      activeConnections: active.length,
+      totalConnections: drains.length,
+      totalWastedMs: totalWasted,
+      totalWastedFormatted: `${Math.floor(totalWasted / 3600000)}h ${Math.floor((totalWasted % 3600000) / 60000)}m`,
+      avgDelayMs: active.length ? Math.round(active.reduce((a, d) => a + d.currentDelayMs, 0) / active.length) : 0,
+      deadLoopCount: drains.filter(d => d.drainStage === "dead_loop").length,
+      autoBlocked: drains.filter(d => d.autoBlocked).length,
+    },
+    connections: drains.slice(0, 100).map(d => ({
+      ...d,
+      ghostIntelJson: d.ghostIntelJson ? (() => { try { return JSON.parse(d.ghostIntelJson!); } catch { return null; } })() : null,
+      drainPercent: Math.min(100, Math.round((d.currentDelayMs / d.maxDelayMs) * 100)),
+    })),
+  });
+});
+
+// POST /honeypot/tarpit-drain — manually add a connection to the drain queue
+router.post("/honeypot/tarpit-drain", async (req, res) => {
+  const { ip, sessionId, payload } = z.object({
+    ip: z.string(),
+    sessionId: z.string().optional(),
+    payload: z.string().optional(),
+  }).parse(req.body);
+
+  const connectionId = `drain-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  await db.insert(tarpitDrainTable).values({
+    connectionId,
+    attackerIp: ip,
+    sessionId: sessionId ?? null,
+    drainStage: "initial",
+    currentDelayMs: 1500,
+    maxDelayMs: 120000,
+    totalWastedMs: 0,
+    hitCount: 1,
+    lastPayload: payload ?? null,
+    isActive: true,
+  });
+  res.json({ connectionId, drainStage: "initial", currentDelayMs: 1500 });
+});
+
+// POST /honeypot/tarpit-escalate/:connectionId — escalate delay for a connection
+router.post("/honeypot/tarpit-escalate/:connectionId", async (req, res) => {
+  const { connectionId } = req.params;
+  const [conn] = await db.select().from(tarpitDrainTable)
+    .where(eq(tarpitDrainTable.connectionId, connectionId)).limit(1);
+  if (!conn) { res.status(404).json({ error: "Connection not found" }); return; }
+
+  const stageIdx = TARPIT_STAGES.findIndex(s => s.name === conn.drainStage);
+  const nextStage = TARPIT_STAGES[Math.min(stageIdx + 1, TARPIT_STAGES.length - 1)];
+  const newDelay = nextStage.delayMs;
+  const newWasted = conn.totalWastedMs + conn.currentDelayMs;
+
+  await db.update(tarpitDrainTable).set({
+    drainStage: nextStage.name,
+    currentDelayMs: newDelay,
+    totalWastedMs: newWasted,
+    hitCount: conn.hitCount + 1,
+    lastSeenAt: new Date(),
+    autoBlocked: stageIdx >= 3,
+  }).where(eq(tarpitDrainTable.connectionId, connectionId));
+
+  res.json({ connectionId, drainStage: nextStage.name, currentDelayMs: newDelay, totalWastedMs: newWasted });
+});
+
+// ── Public honeypot lure bait — three-layer entry interceptors ─────────────────
+// These endpoints are also registered as PUBLIC in index.ts via ghost-trap router.
+// These FWM versions handle admin-authenticated loop management.
+router.get("/honeypot/lure-urls", async (req, res) => {
+  const host = req.headers.host ?? "yourserver.com";
+  const baseUrl = `https://${host}`;
+  const lureEndpoints = [
+    { label:"Login Portal",     url:`${baseUrl}/api/ghost-trap/lure/login`,          layer:1, layer_name:"Ghost Trap" },
+    { label:"Admin Panel",      url:`${baseUrl}/api/ghost-trap/lure/admin`,           layer:1, layer_name:"Ghost Trap" },
+    { label:"WP Admin",         url:`${baseUrl}/api/ghost-trap/lure/wp-admin`,        layer:1, layer_name:"Ghost Trap" },
+    { label:"phpMyAdmin",       url:`${baseUrl}/api/ghost-trap/lure/phpmyadmin`,      layer:2, layer_name:"Labyrinth" },
+    { label:"Config File",      url:`${baseUrl}/api/ghost-trap/lure/config.php`,      layer:2, layer_name:"Labyrinth" },
+    { label:"Env File",         url:`${baseUrl}/api/ghost-trap/lure/.env`,            layer:2, layer_name:"Labyrinth" },
+    { label:"DB Backup",        url:`${baseUrl}/api/ghost-trap/lure/backup.sql`,      layer:2, layer_name:"Labyrinth" },
+    { label:"User API",         url:`${baseUrl}/api/ghost-trap/lure/api/users`,       layer:2, layer_name:"Labyrinth" },
+    { label:"SSH Keys",         url:`${baseUrl}/api/ghost-trap/lure/ssh`,             layer:3, layer_name:"Tar Pit" },
+    { label:"Git Repo",         url:`${baseUrl}/api/ghost-trap/lure/.git`,            layer:3, layer_name:"Tar Pit" },
+    { label:"Data Export",      url:`${baseUrl}/api/ghost-trap/lure/api/data`,        layer:3, layer_name:"Tar Pit" },
+  ];
+  const loopEndpoint = `${baseUrl}/api/ghost-trap/loop/:sessionId`;
+  res.json({ lureEndpoints, loopEndpoint, description: "Deploy these URLs as honeypot bait. Layer 1 = Ghost Trap entry; Layer 2 = Labyrinth maze; Layer 3 = Tar Pit drain + loop back to Layer 1." });
 });
 
 // Seed all AV threat intelligence

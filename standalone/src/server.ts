@@ -655,6 +655,267 @@ async function createApp() {
     res.send(report);
   });
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ── THREE-LAYER HONEYPOT LOOP ENGINE (Standalone) ─────────────────────────
+  // L1: Ghost Trap™ → L2: Labyrinth Engine™ → L3: Tar Pit Drain™ → L1 (∞)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // Ensure standalone DB has honeypot loop tables
+  run(`CREATE TABLE IF NOT EXISTS loop_sessions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT UNIQUE NOT NULL,
+    attacker_ip TEXT NOT NULL,
+    stage INTEGER DEFAULT 0,
+    stage_label TEXT DEFAULT 'initial_contact',
+    loop_count INTEGER DEFAULT 0,
+    total_tarpit_ms INTEGER DEFAULT 0,
+    trigger_type TEXT DEFAULT 'manual',
+    fake_token TEXT,
+    fake_username TEXT,
+    geo_country TEXT,
+    geo_isp TEXT,
+    is_active INTEGER DEFAULT 1,
+    created_at TEXT NOT NULL,
+    last_seen_at TEXT NOT NULL
+  )`);
+  run(`CREATE TABLE IF NOT EXISTS labyrinth_visits (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT NOT NULL,
+    attacker_ip TEXT NOT NULL,
+    path_node TEXT NOT NULL,
+    node_type TEXT NOT NULL,
+    delay_ms INTEGER DEFAULT 0,
+    loop_iter INTEGER DEFAULT 0,
+    visited_at TEXT NOT NULL
+  )`);
+  run(`CREATE TABLE IF NOT EXISTS tarpit_queue (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    connection_id TEXT UNIQUE NOT NULL,
+    attacker_ip TEXT NOT NULL,
+    drain_stage TEXT DEFAULT 'initial',
+    current_delay_ms INTEGER DEFAULT 1500,
+    total_wasted_ms INTEGER DEFAULT 0,
+    hit_count INTEGER DEFAULT 1,
+    is_active INTEGER DEFAULT 1,
+    auto_blocked INTEGER DEFAULT 0,
+    created_at TEXT NOT NULL,
+    last_seen_at TEXT NOT NULL
+  )`);
+
+  const LOOP_STAGES_SA = [
+    { stage:0, label:"initial_contact", layer:1, min:800,   max:2000  },
+    { stage:1, label:"login_success",   layer:1, min:1500,  max:4000  },
+    { stage:2, label:"admin_dashboard", layer:2, min:2000,  max:5000  },
+    { stage:3, label:"database_access", layer:2, min:2500,  max:7000  },
+    { stage:4, label:"server_creds",    layer:2, min:3000,  max:8000  },
+    { stage:5, label:"deeper_access",   layer:3, min:5000,  max:15000 },
+    { stage:6, label:"exfil_complete",  layer:3, min:8000,  max:25000 },
+    { stage:7, label:"loop_reset",      layer:1, min:1000,  max:3000  },
+  ];
+  const TARPIT_STAGES_SA = [
+    { name:"initial",   delayMs:1500   },
+    { name:"slow",      delayMs:5000   },
+    { name:"crawl",     delayMs:15000  },
+    { name:"freeze",    delayMs:45000  },
+    { name:"dead_loop", delayMs:120000 },
+  ];
+  const FAKE_USERS_SA = ["admin","sysadmin","root","administrator","devops"];
+
+  // Loop status
+  app.get("/api/fwm/honeypot/loop-status", (_req, res) => {
+    const sessions  = query("SELECT * FROM loop_sessions ORDER BY last_seen_at DESC LIMIT 200") as any[];
+    const labVisits = query("SELECT * FROM labyrinth_visits ORDER BY visited_at DESC LIMIT 500") as any[];
+    const drains    = query("SELECT * FROM tarpit_queue ORDER BY last_seen_at DESC LIMIT 200") as any[];
+    const active    = sessions.filter(s => s.is_active);
+    const totalLoops = sessions.reduce((a: number, s: any) => a + (s.loop_count ?? 0), 0);
+    const totalTarpitMs = sessions.reduce((a: number, s: any) => a + (s.total_tarpit_ms ?? 0), 0);
+    const totalDrainMs  = drains.reduce((a: number, d: any) => a + (d.total_wasted_ms ?? 0), 0);
+    res.json({
+      engine: { version:"3.0", status:"active", layers:3 },
+      stats: {
+        activeSessions: active.length,
+        totalSessions: sessions.length,
+        uniqueAttackers: new Set(sessions.map((s: any) => s.attacker_ip)).size,
+        totalLoopCycles: totalLoops, totalTarpitMs, totalDrainMs, totalWastedMs: totalTarpitMs + totalDrainMs,
+        silkTrapped: 0, autoBlocked: drains.filter((d: any) => d.auto_blocked).length,
+        totalProbes: (query("SELECT COUNT(*) c FROM ghost_trap_probes") as any[])[0]?.c ?? 0,
+        labyrinthVisits: labVisits.length,
+      },
+      layers: {
+        layer1: { name:"Ghost Trap™",      description:"Deceptive entry",        activeSessions: active.filter((s: any) => (s.stage??0)<=1).length, totalProbes: (query("SELECT COUNT(*) c FROM ghost_trap_probes") as any[])[0]?.c ?? 0 },
+        layer2: { name:"Labyrinth Engine™",description:"Infinite maze",          activeSessions: active.filter((s: any) => (s.stage??0)>=2 && (s.stage??0)<=4).length, totalNodeVisits: labVisits.length },
+        layer3: { name:"Tar Pit Drain™",   description:"Escalating delays",      activeSessions: active.filter((s: any) => (s.stage??0)>=5).length, activeConnections: drains.filter((d: any) => d.is_active).length, totalDrainMs },
+      },
+      loopStages: LOOP_STAGES_SA.map(s => ({ stage:s.stage, label:s.label, layer:s.layer, tarpitMin:s.min, tarpitMax:s.max })),
+      recentSessions: sessions.slice(0,20).map((s: any) => ({
+        id: s.id, sessionId: s.session_id, attackerIp: s.attacker_ip, stage: s.stage??0,
+        stageLabel: s.stage_label, loopCount: s.loop_count??0, totalTarpitMs: s.total_tarpit_ms??0,
+        triggerType: s.trigger_type, fakeSessionToken: s.fake_token, fakeUsername: s.fake_username,
+        geoCountry: s.geo_country, geoIsp: s.geo_isp, isActive: !!s.is_active,
+        currentLayer: LOOP_STAGES_SA[Math.min(s.stage??0, 7)]?.layer ?? 1,
+        timeWastedFormatted: `${Math.floor((s.total_tarpit_ms??0)/60000)}m ${Math.floor(((s.total_tarpit_ms??0)%60000)/1000)}s`,
+        lastSeenAt: s.last_seen_at, createdAt: s.created_at,
+      })),
+    });
+  });
+
+  // Loop sessions list
+  app.get("/api/fwm/honeypot/loop-sessions", (req, res) => {
+    let rows = query("SELECT * FROM loop_sessions ORDER BY last_seen_at DESC LIMIT 200") as any[];
+    if (req.query.active === "1") rows = rows.filter((r: any) => r.is_active);
+    res.json(rows.map((s: any) => ({
+      id: s.id, sessionId: s.session_id, attackerIp: s.attacker_ip, stage: s.stage??0,
+      stageLabel: s.stage_label, loopCount: s.loop_count??0, totalTarpitMs: s.total_tarpit_ms??0,
+      triggerType: s.trigger_type, fakeSessionToken: s.fake_token, fakeUsername: s.fake_username,
+      isActive: !!s.is_active, currentLayer: LOOP_STAGES_SA[Math.min(s.stage??0, 7)]?.layer ?? 1,
+      timeWastedFormatted: `${Math.floor((s.total_tarpit_ms??0)/60000)}m ${Math.floor(((s.total_tarpit_ms??0)%60000)/1000)}s`,
+      lastSeenAt: s.last_seen_at, createdAt: s.created_at,
+    })));
+  });
+
+  // Trigger loop manually
+  app.post("/api/fwm/honeypot/loop-trigger", mutateLimiter, (req, res) => {
+    const { ip, triggerType, payload } = z.object({ ip:z.string(), triggerType:z.string().default("manual"), payload:z.string().optional() }).parse(req.body);
+    const sessionId = `sa-${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
+    const fakeUser = FAKE_USERS_SA[Math.floor(Math.random() * FAKE_USERS_SA.length)];
+    const fakeToken = `eyJhbGciOiJIUzI1NiJ9.${Buffer.from(JSON.stringify({user:fakeUser,role:"admin"})).toString("base64url")}.PROXHQ_FAKE`;
+    run("INSERT OR IGNORE INTO loop_sessions (session_id,attacker_ip,stage,stage_label,loop_count,total_tarpit_ms,trigger_type,fake_token,fake_username,is_active,created_at,last_seen_at) VALUES (?,?,0,'initial_contact',0,0,?,?,?,1,?,?)",
+      [sessionId, ip, triggerType, fakeToken, fakeUser, n(), n()]);
+    run("INSERT INTO labyrinth_visits (session_id,attacker_ip,path_node,node_type,delay_ms,loop_iter,visited_at) VALUES (?,?,'entry','login',0,0,?)",
+      [sessionId, ip, n()]);
+    res.json({ sessionId, fakeToken, fakeUser: fakeUser, message:`Loop triggered for ${ip} — all 3 layers active` });
+  });
+
+  // Advance session stage
+  app.post("/api/fwm/honeypot/loop-advance", mutateLimiter, (req, res) => {
+    const { sessionId } = z.object({ sessionId:z.string() }).parse(req.body);
+    const s = queryOne("SELECT * FROM loop_sessions WHERE session_id=?", [sessionId]) as any;
+    if (!s) { res.status(404).json({ error:"Not found" }); return; }
+    const nextStage = ((s.stage??0) + 1) % 8;
+    const info = LOOP_STAGES_SA[nextStage];
+    const isReset = nextStage === 0;
+    run("UPDATE loop_sessions SET stage=?,stage_label=?,loop_count=?,last_seen_at=? WHERE session_id=?",
+      [nextStage, info.label, isReset ? (s.loop_count??0)+1 : (s.loop_count??0), n(), sessionId]);
+    run("INSERT INTO labyrinth_visits (session_id,attacker_ip,path_node,node_type,delay_ms,loop_iter,visited_at) VALUES (?,?,?,?,?,?,?)",
+      [sessionId, s.attacker_ip, info.label, info.layer===1?"login":info.layer===2?"dashboard":"exfil", info.min, s.loop_count??0, n()]);
+    res.json({ sessionId, stage:nextStage, stageLabel:info.label, layer:info.layer, loopCount: isReset?(s.loop_count??0)+1:(s.loop_count??0) });
+  });
+
+  // Terminate session
+  app.delete("/api/fwm/honeypot/loop-session/:sessionId", mutateLimiter, (req, res) => {
+    run("UPDATE loop_sessions SET is_active=0 WHERE session_id=?", [(req.params as any).sessionId]);
+    res.json({ ok:true });
+  });
+
+  // Labyrinth map
+  app.get("/api/fwm/honeypot/labyrinth-map", (_req, res) => {
+    const visits = query("SELECT * FROM labyrinth_visits ORDER BY visited_at DESC LIMIT 1000") as any[];
+    const NODE_DEFS = [
+      { id:"login",      label:"Fake Login Portal",      type:"login",    fake:"Returns success + fake JWT" },
+      { id:"dashboard",  label:"Fake Admin Dashboard",   type:"dashboard",fake:"Shows fake users, revenue" },
+      { id:"users_api",  label:"Fake /api/users",        type:"api",      fake:"Fake user records + hashes" },
+      { id:"db_console", label:"Fake phpMyAdmin",        type:"db",       fake:"MySQL query interface" },
+      { id:"config",     label:"Fake config.php / .env", type:"config",   fake:"Fake DB creds, API keys" },
+      { id:"files",      label:"Fake File Manager",      type:"files",    fake:"Directory with lure files" },
+      { id:"creds",      label:"Fake Credential Dump",   type:"creds",    fake:"Bcrypt hashes, plain pass" },
+      { id:"ssh_panel",  label:"Fake SSH Key Manager",   type:"ssh",      fake:"Fake private keys" },
+      { id:"exfil",      label:"Fake Data Export",       type:"exfil",    fake:"Fake backup.sql download" },
+      { id:"loop_reset", label:"Session Expiry → Restart",type:"reset",   fake:"→ loops back to login" },
+    ];
+    const nodes = NODE_DEFS.map(nd => ({
+      ...nd,
+      visitCount: visits.filter((v: any) => v.path_node===nd.id || v.node_type===nd.type).length,
+      uniqueAttackers: new Set(visits.filter((v: any) => v.path_node===nd.id).map((v: any) => v.attacker_ip)).size,
+      avgDelay: (() => { const r = visits.filter((v: any) => v.path_node===nd.id); return r.length ? Math.round(r.reduce((a: number, v: any) => a+(v.delay_ms??0), 0)/r.length) : 0; })(),
+    }));
+    const recentPaths = visits.slice(0,100).map((v: any) => ({ id:v.id, sessionId:v.session_id, attackerIp:v.attacker_ip, pathNode:v.path_node, nodeType:v.node_type, fakeDataServed:null, delayMs:v.delay_ms??0, loopIteration:v.loop_iter??0, breadcrumb:null, visitedAt:v.visited_at }));
+    res.json({ nodes, recentPaths, totalVisits:visits.length, uniqueAttackers:new Set(visits.map((v: any) => v.attacker_ip)).size });
+  });
+
+  // Labyrinth sessions
+  app.get("/api/fwm/honeypot/labyrinth-sessions", (_req, res) => {
+    const visits = query("SELECT * FROM labyrinth_visits ORDER BY visited_at DESC LIMIT 2000") as any[];
+    const bySession: Record<string, any[]> = {};
+    for (const v of visits) { if (!bySession[v.session_id]) bySession[v.session_id]=[]; bySession[v.session_id].push(v); }
+    const sessions = Object.entries(bySession).map(([sid,sv]) => ({
+      sessionId:sid, attackerIp:(sv[0] as any).attacker_ip, nodeCount:sv.length,
+      nodesVisited:sv.map((v: any) => v.path_node),
+      totalDelay:sv.reduce((a: number, v: any) => a+(v.delay_ms??0),0),
+      firstVisit:(sv[sv.length-1] as any).visited_at, lastVisit:(sv[0] as any).visited_at,
+    }));
+    res.json(sessions);
+  });
+
+  // Tarpit status
+  app.get("/api/fwm/honeypot/tarpit-status", (_req, res) => {
+    const drains = query("SELECT * FROM tarpit_queue ORDER BY last_seen_at DESC LIMIT 200") as any[];
+    const active = drains.filter((d: any) => d.is_active);
+    const totalWasted = drains.reduce((a: number, d: any) => a+(d.total_wasted_ms??0), 0);
+    res.json({
+      config: { tarpitMinMs:1500, tarpitMaxMs:120000, autoBlockAfter:5 },
+      stages: TARPIT_STAGES_SA.map(s => ({ ...s, label:s.name.replace("_"," "), color: s.name==="dead_loop"?"#ff2244":s.name==="freeze"?"#ff4444":s.name==="crawl"?"#ff6600":s.name==="slow"?"#ff9900":"#ffaa00" })),
+      stats: {
+        activeConnections:active.length, totalConnections:drains.length,
+        totalWastedMs:totalWasted, totalWastedFormatted:`${Math.floor(totalWasted/3600000)}h ${Math.floor((totalWasted%3600000)/60000)}m`,
+        avgDelayMs: active.length ? Math.round(active.reduce((a: number, d: any) => a+(d.current_delay_ms??0),0)/active.length) : 0,
+        deadLoopCount: drains.filter((d: any) => d.drain_stage==="dead_loop").length,
+        autoBlocked: drains.filter((d: any) => d.auto_blocked).length,
+      },
+      connections: drains.slice(0,100).map((d: any) => ({
+        id:d.id, connectionId:d.connection_id, attackerIp:d.attacker_ip, drainStage:d.drain_stage,
+        currentDelayMs:d.current_delay_ms??1500, maxDelayMs:120000, totalWastedMs:d.total_wasted_ms??0,
+        hitCount:d.hit_count??1, isActive:!!d.is_active, autoBlocked:!!d.auto_blocked,
+        drainPercent:Math.min(100,Math.round(((d.current_delay_ms??1500)/120000)*100)),
+        lastSeenAt:d.last_seen_at, ghostIntelJson:null,
+      })),
+    });
+  });
+
+  // Add to drain
+  app.post("/api/fwm/honeypot/tarpit-drain", mutateLimiter, (req, res) => {
+    const { ip } = z.object({ ip:z.string() }).parse(req.body);
+    const connId = `sa-drain-${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
+    run("INSERT OR IGNORE INTO tarpit_queue (connection_id,attacker_ip,drain_stage,current_delay_ms,total_wasted_ms,hit_count,is_active,auto_blocked,created_at,last_seen_at) VALUES (?,?,'initial',1500,0,1,1,0,?,?)",
+      [connId, ip, n(), n()]);
+    res.json({ connectionId:connId, drainStage:"initial", currentDelayMs:1500 });
+  });
+
+  // Escalate drain
+  app.post("/api/fwm/honeypot/tarpit-escalate/:connectionId", mutateLimiter, (req, res) => {
+    const connId = (req.params as any).connectionId;
+    const d = queryOne("SELECT * FROM tarpit_queue WHERE connection_id=?", [connId]) as any;
+    if (!d) { res.status(404).json({ error:"Not found" }); return; }
+    const idx = TARPIT_STAGES_SA.findIndex(s => s.name===d.drain_stage);
+    const next = TARPIT_STAGES_SA[Math.min(idx+1, TARPIT_STAGES_SA.length-1)];
+    const newWasted = (d.total_wasted_ms??0) + (d.current_delay_ms??1500);
+    run("UPDATE tarpit_queue SET drain_stage=?,current_delay_ms=?,total_wasted_ms=?,hit_count=?,auto_blocked=?,last_seen_at=? WHERE connection_id=?",
+      [next.name, next.delayMs, newWasted, (d.hit_count??1)+1, idx>=3?1:0, n(), connId]);
+    res.json({ connectionId:connId, drainStage:next.name, currentDelayMs:next.delayMs, totalWastedMs:newWasted });
+  });
+
+  // Lure URLs
+  app.get("/api/fwm/honeypot/lure-urls", (req, res) => {
+    const host = req.headers.host ?? "localhost";
+    const base = `http://${host}`;
+    res.json({
+      lureEndpoints: [
+        { label:"Login Portal",  url:`${base}/api/ghost-trap/lure/login`,     layer:1, layer_name:"Ghost Trap" },
+        { label:"Admin Panel",   url:`${base}/api/ghost-trap/lure/admin`,      layer:1, layer_name:"Ghost Trap" },
+        { label:"WP Admin",      url:`${base}/api/ghost-trap/lure/wp-admin`,   layer:1, layer_name:"Ghost Trap" },
+        { label:"phpMyAdmin",    url:`${base}/api/ghost-trap/lure/phpmyadmin`, layer:2, layer_name:"Labyrinth" },
+        { label:"Config File",   url:`${base}/api/ghost-trap/lure/config.php`, layer:2, layer_name:"Labyrinth" },
+        { label:"Env File",      url:`${base}/api/ghost-trap/lure/.env`,       layer:2, layer_name:"Labyrinth" },
+        { label:"DB Backup",     url:`${base}/api/ghost-trap/lure/backup.sql`, layer:2, layer_name:"Labyrinth" },
+        { label:"User API",      url:`${base}/api/ghost-trap/lure/api/users`,  layer:2, layer_name:"Labyrinth" },
+        { label:"SSH Keys",      url:`${base}/api/ghost-trap/lure/ssh`,        layer:3, layer_name:"Tar Pit" },
+        { label:"Git Repo",      url:`${base}/api/ghost-trap/lure/.git`,       layer:3, layer_name:"Tar Pit" },
+        { label:"Data Export",   url:`${base}/api/ghost-trap/lure/api/data`,   layer:3, layer_name:"Tar Pit" },
+      ],
+      loopEndpoint: `${base}/api/ghost-trap/loop/:sessionId`,
+      description: "Deploy these URLs as honeypot bait. L1 = Ghost Trap; L2 = Labyrinth maze; L3 = Tar Pit drain.",
+    });
+  });
+
   // ─── SQL Interface ────────────────────────────────────────────────────────
   const ALLOWED_TABLES = ["nodes","beacon_alerts","silk_web","silk_routes","trapped_attackers","firewall_rules","firewall_status","blocked_ips","ghost_trap_config","ghost_trap_probes","ghost_trap_beacons"];
 
