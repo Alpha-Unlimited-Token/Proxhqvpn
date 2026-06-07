@@ -95,6 +95,7 @@ import imAutomationRouter from "./imautomation";
 import redteamScanRouter from "./redteamscan";
 import omegaAgentRouter from "./omega/agent";
 import ghostTrapRouter from "./ghosttrap";
+import firewallAdvancedRouter from "./firewall-advanced";
 
 const router: IRouter = Router();
 
@@ -411,6 +412,7 @@ router.use("/dir-fuzzer",      requireCommandCenter, dirFuzzerRouter);
 router.use("/subdomain-scan",  requireCommandCenter, subdomainScanRouter);
 router.use("/intruder",        requireCommandCenter, intruderRouter);
 router.use("/ghost-trap",       requireAccess,        ghostTrapRouter);
+router.use("/fw",              requireAccess,        firewallAdvancedRouter);
 router.use("/ghost-trace",      requireCommandCenter, ghostTraceRouter);
 router.use("/attack-chain",    requireCommandCenter, attackChainRouter);
 router.use("/network-monitor", requireAccess,        networkMonitorRouter);

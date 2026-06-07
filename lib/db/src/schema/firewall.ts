@@ -180,6 +180,198 @@ export const firewallConnectionQueueTable = pgTable("firewall_connection_queue",
   createdAt:     timestamp("created_at").defaultNow().notNull(),
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// ── pfSense / OPNsense / IPFire Gap Features ─────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ── Alias Manager (pfSense/OPNsense) ─────────────────────────────────────────
+// Named reusable groups of hosts, networks, or ports for use in firewall rules.
+export const firewallAliasTypeEnum = pgEnum("firewall_alias_type", ["host", "network", "port", "url_table", "geo"]);
+export const firewallAliasesTable = pgTable("firewall_aliases", {
+  id:          serial("id").primaryKey(),
+  name:        text("name").notNull().unique(),
+  type:        firewallAliasTypeEnum("type").notNull(),
+  description: text("description"),
+  entries:     text("entries").notNull(),          // newline-separated IPs, CIDRs, ports, or URLs
+  resolvedIps: text("resolved_ips"),               // cached DNS-resolved IPs (JSON array string)
+  lastResolved: timestamp("last_resolved"),
+  hitCount:    integer("hit_count").notNull().default(0),
+  enabled:     boolean("enabled").notNull().default(true),
+  createdAt:   timestamp("created_at").defaultNow().notNull(),
+});
+
+// ── Schedule-Based Rules (pfSense/OPNsense/IPFire) ───────────────────────────
+// Time-gated firewall rule activation — block social media 09:00-17:00, etc.
+export const firewallSchedulesTable = pgTable("firewall_schedules", {
+  id:          serial("id").primaryKey(),
+  name:        text("name").notNull().unique(),
+  description: text("description"),
+  daysOfWeek:  text("days_of_week").notNull().default("1,2,3,4,5"), // comma-sep: 0=Sun..6=Sat
+  timeStart:   text("time_start").notNull().default("09:00"),        // HH:MM
+  timeEnd:     text("time_end").notNull().default("17:00"),          // HH:MM
+  timezone:    text("timezone").notNull().default("UTC"),
+  ruleIds:     text("rule_ids"),                   // JSON array of firewall rule IDs this schedule applies to
+  enabled:     boolean("enabled").notNull().default(true),
+  createdAt:   timestamp("created_at").defaultNow().notNull(),
+});
+
+// ── NAT / Port Forwarding Rules (pfSense/OPNsense) ───────────────────────────
+export const natTypeEnum = pgEnum("nat_type", ["port_forward", "nat_1to1", "outbound", "npt"]);
+export const firewallNatRulesTable = pgTable("firewall_nat_rules", {
+  id:          serial("id").primaryKey(),
+  name:        text("name").notNull(),
+  natType:     natTypeEnum("nat_type").notNull().default("port_forward"),
+  enabled:     boolean("enabled").notNull().default(true),
+  protocol:    text("protocol").notNull().default("tcp"),
+  interface:   text("interface").notNull().default("WAN"),
+  srcIp:       text("src_ip"),                    // source IP/alias (blank = any)
+  srcPort:     text("src_port"),
+  destIp:      text("dest_ip"),                   // external/destination IP
+  destPort:    text("dest_port"),                 // external port
+  natIp:       text("nat_ip").notNull(),           // internal target IP
+  natPort:     text("nat_port"),                  // internal port (blank = same as dest)
+  description: text("description"),
+  hitCount:    integer("hit_count").notNull().default(0),
+  priority:    integer("priority").notNull().default(100),
+  createdAt:   timestamp("created_at").defaultNow().notNull(),
+});
+
+// ── Traffic Shaping / QoS (pfSense/OPNsense/IPFire) ─────────────────────────
+export const qosActionEnum = pgEnum("qos_action", ["limit", "priority", "guarantee", "drop"]);
+export const firewallQosRulesTable = pgTable("firewall_qos_rules", {
+  id:             serial("id").primaryKey(),
+  name:           text("name").notNull(),
+  description:    text("description"),
+  direction:      text("direction").notNull().default("both"),     // inbound|outbound|both
+  protocol:       text("protocol").notNull().default("any"),
+  srcIp:          text("src_ip"),
+  destIp:         text("dest_ip"),
+  destPort:       text("dest_port"),
+  action:         qosActionEnum("action").notNull().default("limit"),
+  bandwidthKbps:  integer("bandwidth_kbps"),                       // max Kbps (null = unlimited)
+  burstKbps:      integer("burst_kbps"),                          // burst ceiling
+  priority:       integer("priority").notNull().default(5),        // 1=highest..8=lowest
+  queue:          text("queue").notNull().default("default"),
+  enabled:        boolean("enabled").notNull().default(true),
+  hitCount:       integer("hit_count").notNull().default(0),
+  createdAt:      timestamp("created_at").defaultNow().notNull(),
+});
+
+// ── WAN Load Balancing / Failover Groups (pfSense/OPNsense) ──────────────────
+export const wanGroupModeEnum = pgEnum("wan_group_mode", ["failover", "load_balance", "round_robin"]);
+export const firewallWanGroupsTable = pgTable("firewall_wan_groups", {
+  id:          serial("id").primaryKey(),
+  name:        text("name").notNull(),
+  description: text("description"),
+  mode:        wanGroupModeEnum("mode").notNull().default("failover"),
+  interfaces:  text("interfaces").notNull(),   // JSON: [{iface, gateway, weight, priority}]
+  triggerLevel: text("trigger_level").notNull().default("packetloss"), // packetloss|latency|down
+  enabled:     boolean("enabled").notNull().default(true),
+  createdAt:   timestamp("created_at").defaultNow().notNull(),
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ── Snort / Suricata Gap Features ────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ── Portscan Detection Events (Snort sfPortscan / Suricata) ──────────────────
+export const portScanTypeEnum = pgEnum("port_scan_type", ["syn", "fin", "xmas", "null", "ack", "udp", "window", "maimon", "connect", "slow"]);
+export const portScanEventsTable = pgTable("port_scan_events", {
+  id:           serial("id").primaryKey(),
+  sourceIp:     text("source_ip").notNull(),
+  destIp:       text("dest_ip"),
+  scanType:     portScanTypeEnum("scan_type").notNull(),
+  portsProbed:  text("ports_probed"),          // JSON array of ports
+  portCount:    integer("port_count").notNull().default(0),
+  tcpFlags:     text("tcp_flags"),             // e.g. "SYN", "FIN|URG|PSH"
+  packetCount:  integer("packet_count").notNull().default(0),
+  durationMs:   integer("duration_ms"),
+  blocked:      boolean("blocked").notNull().default(false),
+  geoCountry:   text("geo_country"),
+  geoIsp:       text("geo_isp"),
+  addedToBlock: boolean("added_to_block").notNull().default(false),
+  detectedAt:   timestamp("detected_at").defaultNow().notNull(),
+});
+
+// ── JA3/JA3S TLS Fingerprints (Suricata / Zeek) ──────────────────────────────
+// JA3 fingerprints TLS Client Hello; JA3S fingerprints the Server Hello.
+// Malware families have distinctive JA3 hashes regardless of domain.
+export const ja3VerdictEnum = pgEnum("ja3_verdict", ["malicious", "suspicious", "clean", "unknown"]);
+export const tlsFingerprintsTable = pgTable("tls_fingerprints", {
+  id:           serial("id").primaryKey(),
+  ja3Hash:      text("ja3_hash").notNull().unique(),
+  ja3String:    text("ja3_string"),            // full TLS params string
+  ja3sHash:     text("ja3s_hash"),             // server-side fingerprint
+  verdict:      ja3VerdictEnum("verdict").notNull().default("unknown"),
+  malwareFamily: text("malware_family"),       // e.g. "Cobalt Strike", "Emotet", "Trickbot"
+  description:  text("description"),
+  sniSeen:      text("sni_seen"),              // JSON array of SNI hostnames seen
+  action:       text("action").notNull().default("alert"),  // alert|block|allow
+  source:       text("source").notNull().default("manual"), // manual|feed|auto
+  hitCount:     integer("hit_count").notNull().default(0),
+  firstSeen:    timestamp("first_seen").defaultNow().notNull(),
+  lastSeen:     timestamp("last_seen").defaultNow().notNull(),
+});
+
+// ── DNS Security Monitor (Snort/Suricata/IPFire) ─────────────────────────────
+// Detects DGA domains, DNS tunneling, suspicious query patterns.
+export const dnsVerdictEnum = pgEnum("dns_verdict", ["clean", "dga", "tunneling", "malware", "phishing", "suspicious"]);
+export const dnsSecurityEventsTable = pgTable("dns_security_events", {
+  id:            serial("id").primaryKey(),
+  queryName:     text("query_name").notNull(),
+  queryType:     text("query_type").notNull().default("A"),  // A|AAAA|MX|TXT|NS|PTR|CNAME
+  sourceIp:      text("source_ip"),
+  responseCode:  text("response_code").notNull().default("NOERROR"), // NOERROR|NXDOMAIN|SERVFAIL
+  resolvedIp:    text("resolved_ip"),
+  verdict:       dnsVerdictEnum("verdict").notNull().default("clean"),
+  dgaScore:      integer("dga_score").notNull().default(0),      // 0-100: DGA likelihood
+  tunnelingScore: integer("tunneling_score").notNull().default(0), // 0-100: tunneling likelihood
+  entropy:       integer("entropy_x100").notNull().default(0),   // Shannon entropy * 100
+  labelCount:    integer("label_count").notNull().default(1),    // subdomain depth
+  queryLength:   integer("query_length").notNull().default(0),
+  blocked:       boolean("blocked").notNull().default(false),
+  detectedAt:    timestamp("detected_at").defaultNow().notNull(),
+});
+
+// ── WAF Alert Suppression / Threshold Rules (Snort/Suricata) ────────────────
+// Suppress noisy rules or threshold them to only alert after N hits in T seconds.
+export const suppressTypeEnum = pgEnum("suppress_type", ["suppress", "threshold", "rate_filter"]);
+export const suppressTrackEnum = pgEnum("suppress_track", ["by_src", "by_dst", "by_rule", "global"]);
+export const wafSuppressionRulesTable = pgTable("waf_suppression_rules", {
+  id:          serial("id").primaryKey(),
+  name:        text("name").notNull(),
+  type:        suppressTypeEnum("type").notNull().default("suppress"),
+  track:       suppressTrackEnum("track").notNull().default("by_src"),
+  trackValue:  text("track_value"),            // IP, CIDR, or blank for global
+  wafRuleId:   integer("waf_rule_id"),         // suppress a specific WAF rule ID
+  ruleName:    text("rule_name"),              // or by rule name pattern
+  attackType:  text("attack_type"),            // or suppress entire attack category
+  count:       integer("count").notNull().default(5),      // threshold: fire after N events
+  seconds:     integer("seconds").notNull().default(60),   // within T seconds
+  description: text("description"),
+  enabled:     boolean("enabled").notNull().default(true),
+  suppressUntil: timestamp("suppress_until"), // temporary suppress expiry
+  createdAt:   timestamp("created_at").defaultNow().notNull(),
+});
+
+// ── IPFire / Suricata: Web Proxy / Content Filter Rules ──────────────────────
+export const proxyActionEnum = pgEnum("proxy_action", ["allow", "block", "redirect", "strip_ssl"]);
+export const firewallProxyRulesTable = pgTable("firewall_proxy_rules", {
+  id:          serial("id").primaryKey(),
+  name:        text("name").notNull(),
+  description: text("description"),
+  matchType:   text("match_type").notNull().default("domain"),   // domain|url|regex|category|mime
+  matchValue:  text("match_value").notNull(),
+  action:      proxyActionEnum("action").notNull().default("block"),
+  redirectUrl: text("redirect_url"),           // for redirect action
+  categories:  text("categories"),             // JSON: ["ads","malware","adult","social"]
+  applyToIps:  text("apply_to_ips"),          // JSON: restrict rule to specific source IPs
+  enabled:     boolean("enabled").notNull().default(true),
+  hitCount:    integer("hit_count").notNull().default(0),
+  priority:    integer("priority").notNull().default(100),
+  createdAt:   timestamp("created_at").defaultNow().notNull(),
+});
+
 export type InsertFirewallRule    = typeof firewallRulesTable.$inferInsert;
 export type FirewallRule          = typeof firewallRulesTable.$inferSelect;
 export type FirewallStatus        = typeof firewallStatusTable.$inferSelect;
@@ -193,3 +385,13 @@ export type FqdnRule              = typeof firewallFqdnRulesTable.$inferSelect;
 export type GhostOsRule           = typeof firewallGhostOsRulesTable.$inferSelect;
 export type TranscriberLog        = typeof firewallTranscriberLogTable.$inferSelect;
 export type ConnectionQueueEntry  = typeof firewallConnectionQueueTable.$inferSelect;
+export type FirewallAlias         = typeof firewallAliasesTable.$inferSelect;
+export type FirewallSchedule      = typeof firewallSchedulesTable.$inferSelect;
+export type NatRule               = typeof firewallNatRulesTable.$inferSelect;
+export type QosRule               = typeof firewallQosRulesTable.$inferSelect;
+export type WanGroup              = typeof firewallWanGroupsTable.$inferSelect;
+export type PortScanEvent         = typeof portScanEventsTable.$inferSelect;
+export type TlsFingerprint        = typeof tlsFingerprintsTable.$inferSelect;
+export type DnsSecurityEvent      = typeof dnsSecurityEventsTable.$inferSelect;
+export type WafSuppressionRule    = typeof wafSuppressionRulesTable.$inferSelect;
+export type ProxyRule             = typeof firewallProxyRulesTable.$inferSelect;
