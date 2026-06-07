@@ -11,6 +11,7 @@ import {
   Lock, Key, Settings, BarChart2, Bell, Map, TrendingUp,
   MapPin, Crosshair, Eye, Send, FolderSearch, Radar,
   Swords, Code2, GitCompare, ShieldAlert, Upload, GitMerge,
+  RefreshCw, User, Download,
 } from "lucide-react";
 
 function CopyBtn({ text }: { text: string }) {
@@ -964,6 +965,8 @@ Table: metadata      → Crawl session info, start time, depth`}</CB>
             { cat: "Server-Side", items: ["SSRF (localhost, cloud metadata endpoints)", "XXE (XML External Entity)", "Path Traversal / LFI", "Deserialization (Java, PHP, Python)", "RCE via Log4j"] },
             { cat: "Evasion", items: ["WAF bypass variants (encoding, case mangling)", "Filter bypass payloads", "Null byte injection", "Unicode normalization attacks"] },
             { cat: "Recon", items: ["Wordlists (admin, backup, API, upload dirs)", "Common credential pairs", "Default password lists", "JWT secret brute-force lists"] },
+            { cat: "Windows Reserved Names", items: ["CON, NUL, AUX, PRN with arbitrary extensions (.txt/.php/.exe)", "COM1–COM9 and LPT1–LPT9 device names", "Encoded variants: URL-encoded, double URL-encoded", "JSON and multipart/form-data payload wrapping", "ZIP archive filename injection (24 payloads total)"] },
+            { cat: "Parser Confusion", items: ["Nested HTML/script tag splitting", "MathML expression injection", "SVG foreignObject XSS carrier", "Legacy Yahoo-booter script patterns", "Script-within-script polyglots (24 payloads total)"] },
           ].map(({ cat, items }) => (
             <div key={cat} className="border border-primary/10 rounded px-2.5 py-2">
               <div className="text-[10px] font-mono font-bold text-primary mb-1">{cat}</div>
@@ -972,7 +975,7 @@ Table: metadata      → Crawl session info, start time, depth`}</CB>
           ))}
         </div>
         <h4 className="font-bold text-primary text-[11px] mt-3">Sending Payloads to Other Tools</h4>
-        <p className="text-[10px] font-mono text-primary/83">Click <strong>Send to HTTP Probe</strong> to test a payload directly, or <strong>Send to Intruder</strong> to use the payload list as input for an automated attack run.</p>
+        <p className="text-[10px] font-mono text-primary/83">Click <strong>Send to HTTP Probe</strong> to test a payload directly, or <strong>Send to Intruder</strong> to use the payload list as input for an automated attack run. The <strong>Copy All</strong> button copies every payload in the selected category as newline-separated text for use in external tools like ffuf, sqlmap, or Burp Suite.</p>
       </div>
     ),
   },
@@ -1172,9 +1175,33 @@ Table: metadata      → Crawl session info, start time, depth`}</CB>
             </div>
           ))}
         </div>
-        <h4 className="font-bold text-primary text-[11px] mt-3">Alert Details</h4>
-        <p className="text-[10px] font-mono text-primary/83">Each token hit includes: timestamp (UTC), source IP, reverse DNS, GeoIP (country/city/ISP), user agent (browser, OS, device), and referrer URL. Alerts can be sent via email, or appear in your SIEM event log.</p>
-        <Note type="info">Canary tokens are one-way — the person accessing them gets no indication that a tracking token fired. They are completely silent.</Note>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Additional Token Types</h4>
+        <div className="space-y-2">
+          {[
+            { t: "Redirect URL Token", d: "Fires an alert AND immediately 302-redirects the visitor to any URL you choose — useful for luring attackers to secondary traps while logging the hit." },
+            { t: "PowerShell Cradle Token", d: "An encoded PowerShell download cradle. If an attacker executes it, the canary fires on their machine before any payload downloads." },
+            { t: "PDF Document Token", d: "PDF with an embedded Acrobat URL action — fires on open in Adobe Reader, Edge PDF viewer, or any full PDF renderer." },
+            { t: "Slack Webhook Token", d: "A fake incoming webhook URL. If an attacker POSTs to it (believing it to be a real Slack token), you receive an alert." },
+          ].map(({ t, d }) => (
+            <div key={t} className="border border-primary/10 rounded px-3 py-2">
+              <div className="text-[10px] font-mono font-bold text-primary">{t}</div>
+              <div className="text-[9px] font-mono text-primary/83 mt-0.5">{d}</div>
+            </div>
+          ))}
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Enriched Alert Details</h4>
+        <p className="text-[10px] font-mono text-primary/83">Every token trigger captures a full intelligence package:</p>
+        <div className="space-y-1 text-[10px] font-mono text-primary/83 ml-2">
+          <div>• <strong>Source IP</strong> — raw IP and Cloudflare CF-Ray header (identifies CDN edge node)</div>
+          <div>• <strong>Reverse DNS (PTR)</strong> — hostname of the triggering IP (e.g. crawler.googlebot.com)</div>
+          <div>• <strong>GeoIP</strong> — country, city, ISP/org name via ip-api.com enrichment</div>
+          <div>• <strong>ASN</strong> — autonomous system number and owner (e.g. AS7922 Comcast)</div>
+          <div>• <strong>User Agent</strong> — browser, OS, device type, rendering engine</div>
+          <div>• <strong>Accept-Language</strong> — victim's browser locale/language setting</div>
+          <div>• <strong>Full Headers</strong> — expandable panel showing every HTTP header sent by the triggering client</div>
+          <div>• <strong>Referrer URL</strong> — where the victim came from (if present)</div>
+        </div>
+        <Note type="info">Canary tokens are one-way — the person accessing them gets no indication that a tracking token fired. They are completely silent. Token triggers also appear in the SIEM event log under "Canary" source.</Note>
       </div>
     ),
   },
@@ -2189,111 +2216,6 @@ Table: metadata      → Crawl session info, start time, depth`}</CB>
     ),
   },
   {
-    id: "dep-scanner",
-    title: "Dependency Scanner",
-    icon: ScanSearch,
-    content: (
-      <div className="space-y-3">
-        <p><strong>Dependency Scanner</strong> (<code>/dep-scanner</code>) analyzes your project's dependency files for known vulnerabilities (CVE matches), outdated packages, and software supply chain risks.</p>
-        <h4 className="font-bold text-primary text-[11px]">Supported File Types</h4>
-        <div className="grid grid-cols-2 gap-1.5">
-          {[
-            "package.json / package-lock.json (Node.js/npm)",
-            "yarn.lock (Yarn)",
-            "requirements.txt / Pipfile.lock (Python)",
-            "Gemfile.lock (Ruby)",
-            "pom.xml (Java Maven)",
-            "build.gradle (Java Gradle)",
-            "go.sum (Go modules)",
-            "composer.lock (PHP Composer)",
-            "Cargo.lock (Rust)",
-            "*.csproj / packages.config (.NET NuGet)",
-          ].map(f => <div key={f} className="text-[9px] font-mono text-primary/75 border border-primary/10 rounded px-2 py-1">{f}</div>)}
-        </div>
-        <h4 className="font-bold text-primary text-[11px] mt-3">What It Reports</h4>
-        <div className="space-y-1.5 text-[10px] font-mono text-primary/83">
-          <div>• <strong>CVE matches</strong>: Each vulnerable package is cross-referenced against the NVD database. CVE IDs, CVSS scores, and affected version ranges shown.</div>
-          <div>• <strong>Severity breakdown</strong>: Critical / High / Medium / Low counts with per-package drill-down.</div>
-          <div>• <strong>Outdated packages</strong>: Flags packages more than 2 major versions behind latest stable.</div>
-          <div>• <strong>License risks</strong>: Flags GPL/AGPL packages in commercial projects (copyleft contamination risk).</div>
-          <div>• <strong>Supply chain indicators</strong>: Packages published in last 7 days, packages with 0 downloads, typosquat candidates.</div>
-        </div>
-        <h4 className="font-bold text-primary text-[11px] mt-3">How to Use</h4>
-        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
-          <li><span className="text-primary/30">1.</span> Navigate to <strong>Dependency Scanner</strong> (<code>/dep-scanner</code>).</li>
-          <li><span className="text-primary/30">2.</span> Upload your dependency lock file or paste its contents.</li>
-          <li><span className="text-primary/30">3.</span> Click <strong>Scan Dependencies</strong>.</li>
-          <li><span className="text-primary/30">4.</span> Review findings sorted by severity. Each finding includes: CVE ID, CVSS score, affected versions, patched version, and upgrade command.</li>
-          <li><span className="text-primary/30">5.</span> Click <strong>Export Report</strong> to get a formatted vulnerability report for your client or team.</li>
-        </ol>
-        <Note type="info">Strike-tier tool. Integrate dependency scanning into your CI/CD pipeline — run before every production deployment to catch vulnerable packages before they ship.</Note>
-      </div>
-    ),
-  },
-  {
-    id: "token-seq",
-    title: "Token Sequencer",
-    icon: GitCompare,
-    content: (
-      <div className="space-y-3">
-        <p><strong>Token Sequencer</strong> (<code>/token-seq</code>) performs statistical analysis on session tokens, CSRF tokens, password reset tokens, and other cryptographic values to determine whether they are generated with sufficient randomness to resist prediction attacks.</p>
-        <h4 className="font-bold text-primary text-[11px]">Statistical Tests</h4>
-        <div className="space-y-2">
-          {[
-            { t: "Frequency Analysis", d: "Measures the distribution of individual characters/bits. Truly random tokens have uniform distribution. Non-uniform distributions indicate weak RNG." },
-            { t: "Runs Test", d: "Tests for long sequences of the same character (e.g., 'aaaa' appearing too often) — indicates sequential or low-entropy generation." },
-            { t: "Serial Test", d: "Tests correlations between adjacent characters. Predictable patterns in adjacent chars indicate PRNG with short period." },
-            { t: "Autocorrelation", d: "Measures self-correlation at various lags. High autocorrelation means the token generator has a detectable period — attackers can predict future tokens." },
-            { t: "Entropy Estimation", d: "Shannon entropy and min-entropy calculations. Compares to theoretical maximum for the token's character set." },
-            { t: "Pattern Detection", d: "Looks for timestamps, incremental IDs, and predictable structural patterns embedded in tokens (e.g., base64-encoded user IDs in the middle of a token)." },
-          ].map(({ t, d }) => (
-            <div key={t} className="border border-primary/10 rounded px-3 py-2">
-              <div className="text-[10px] font-mono font-bold text-primary">{t}</div>
-              <div className="text-[9px] font-mono text-primary/83 mt-0.5">{d}</div>
-            </div>
-          ))}
-        </div>
-        <h4 className="font-bold text-primary text-[11px] mt-3">How to Use</h4>
-        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
-          <li><span className="text-primary/30">1.</span> Navigate to <strong>Token Sequencer</strong> (<code>/token-seq</code>).</li>
-          <li><span className="text-primary/30">2.</span> Collect 100–1000 tokens from the target application (session cookies, CSRF tokens, reset tokens).</li>
-          <li><span className="text-primary/30">3.</span> Paste the token list (one per line) into the Sequencer.</li>
-          <li><span className="text-primary/30">4.</span> Click <strong>Analyze</strong>. Statistical tests run and show scores and visualizations.</li>
-          <li><span className="text-primary/30">5.</span> Tokens scoring below 7.5 bits of entropy per character are flagged as potentially predictable.</li>
-        </ol>
-        <Note type="info">Arsenal-tier tool. Session token predictability is the basis for session hijacking attacks — Sequencer lets you prove or disprove token security with statistical rigor.</Note>
-      </div>
-    ),
-  },
-  {
-    id: "ws-tester",
-    title: "WebSocket Tester",
-    icon: Radio,
-    content: (
-      <div className="space-y-3">
-        <p><strong>WebSocket Tester</strong> (<code>/ws-tester</code>) provides full read/write access to WebSocket connections (ws:// and wss://), enabling interception, injection, fuzzing, and security testing of real-time communication channels.</p>
-        <h4 className="font-bold text-primary text-[11px]">Capabilities</h4>
-        <div className="space-y-1.5 text-[10px] font-mono text-primary/83">
-          <div>• <strong>Connect &amp; Inspect</strong>: Establish WebSocket connections with custom headers (Authorization, Cookie, Origin). View all incoming and outgoing messages in real-time.</div>
-          <div>• <strong>Message Injection</strong>: Send arbitrary messages (JSON, raw text, binary) at any time during an active session.</div>
-          <div>• <strong>Frame Fuzzer</strong>: Automatically fuzz WebSocket messages with XSS payloads, SQLi, command injection, format strings, and oversized payloads.</div>
-          <div>• <strong>Auth Bypass Tests</strong>: Test whether the server re-validates auth after the initial handshake — attackers who steal a token mid-session may maintain unauthorized access.</div>
-          <div>• <strong>Cross-Site WebSocket Hijacking (CSWSH)</strong>: Tests if the server validates the Origin header — missing validation allows any website to establish a ws:// connection to the target using the victim's cookies.</div>
-          <div>• <strong>Message Replay</strong>: Capture and replay specific frames from session history — useful for testing idempotency and CSRF-like attacks on WS actions.</div>
-        </div>
-        <h4 className="font-bold text-primary text-[11px] mt-3">How to Use</h4>
-        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
-          <li><span className="text-primary/30">1.</span> Navigate to <strong>WebSocket Tester</strong> (<code>/ws-tester</code>).</li>
-          <li><span className="text-primary/30">2.</span> Enter the WebSocket URL (e.g., <code>wss://target.com/ws/chat</code>).</li>
-          <li><span className="text-primary/30">3.</span> Add headers (Cookie for authenticated sessions, custom Origin for CSWSH testing).</li>
-          <li><span className="text-primary/30">4.</span> Click <strong>Connect</strong>. The connection log shows handshake status.</li>
-          <li><span className="text-primary/30">5.</span> Use the message input to send frames, or enable <strong>Auto-Fuzz</strong> to run the payload library automatically.</li>
-        </ol>
-        <Note type="info">Arsenal-tier tool. WebSocket testing is frequently missed in security assessments — most scanners don't handle ws:// traffic. CSWSH is especially common in chat/gaming applications.</Note>
-      </div>
-    ),
-  },
-  {
     id: "sast-tool",
     title: "SAST — Static Application Security Testing",
     icon: ScanSearch,
@@ -2325,62 +2247,6 @@ Table: metadata      → Crawl session info, start time, depth`}</CB>
           <li><span className="text-primary/30">4.</span> Filter findings by severity or rule category. Export full report as Markdown.</li>
         </ol>
         <Note type="info">Strike-tier tool. SAST is most effective on code you own — pair it with Dependency Scanner for complete application security coverage.</Note>
-      </div>
-    ),
-  },
-  {
-    id: "social-breach",
-    title: "Social & Game Account Breach Tester",
-    icon: Globe2,
-    content: (
-      <div className="space-y-3">
-        <p><strong>Social &amp; Game Breach Tester</strong> (<code>/social-breach</code>) is an authorized security testing tool for verifying the resilience of social media and gaming platform accounts against credential attacks, session hijacking, and API abuse — for use only on accounts you own or have explicit written authorization to test.</p>
-        <h4 className="font-bold text-primary text-[11px]">Platform Coverage (19 programs)</h4>
-        <div className="grid grid-cols-2 gap-1.5">
-          {["PlayStation Network", "Xbox Live / Microsoft", "Steam / Valve", "Epic Games (Fortnite)", "Meta (Instagram/Facebook)", "Twitter / X", "Discord", "Reddit", "GitHub", "Google / YouTube", "Roblox", "Riot Games (LoL)", "Activision (CoD/Bliz)", "EA Sports / Origin", "Twitch", "TikTok", "Snapchat", "LinkedIn", "Apple ID"].map(p => (
-            <div key={p} className="text-[9px] font-mono text-primary/75 border border-primary/10 rounded px-2 py-1">{p}</div>
-          ))}
-        </div>
-        <h4 className="font-bold text-primary text-[11px] mt-3">Test Categories</h4>
-        <div className="space-y-1.5 text-[10px] font-mono text-primary/83">
-          <div>• <strong>Password policy test</strong>: Submit weak passwords and test enforcement (min length, complexity, breached password check)</div>
-          <div>• <strong>Rate limiting</strong>: Test login endpoint lockout behavior (attempts before lockout, lockout duration, IP vs account-based)</div>
-          <div>• <strong>MFA bypass</strong>: Test backup code enumeration, SMS SIM-swap scenarios, TOTP window tolerance</div>
-          <div>• <strong>Session management</strong>: Test session invalidation on password change, concurrent session limits, session fixation</div>
-          <div>• <strong>OAuth flows</strong>: Test redirect_uri validation, state parameter CSRF protection, PKCE enforcement</div>
-        </div>
-        <Note type="warn">Strike-tier tool. ONLY test accounts you own or have explicit written authorization to test. Unauthorized testing violates the CFAA, Computer Misuse Act, and platform terms of service. Include your test platform, scope, and authorization in all test configurations.</Note>
-      </div>
-    ),
-  },
-  {
-    id: "bug-bounty-hub",
-    title: "Bug Bounty Hub",
-    icon: Bug,
-    content: (
-      <div className="space-y-3">
-        <p><strong>Bug Bounty Hub</strong> (<code>/bug-bounty</code>) is a centralized reference center and tooling integration for 19 major bug bounty programs. It combines program scope data, one-click tool launch, and a HackerOne-format report generator.</p>
-        <h4 className="font-bold text-primary text-[11px]">Program Cards</h4>
-        <p className="text-[10px] font-mono text-primary/83">Each program card shows: scope (in-scope domains and assets), out-of-scope list, payout table by severity (Critical/High/Medium/Low/Info), program platform (HackerOne, Bugcrowd, MSRC, Google VRP, Intigriti), and a direct link to the official program page.</p>
-        <h4 className="font-bold text-primary text-[11px] mt-3">Tool Integration</h4>
-        <div className="space-y-1.5 text-[10px] font-mono text-primary/83">
-          <div>• <strong>Launch in OmniStrike</strong>: Opens OmniStrike pre-configured with the program's primary target domain.</div>
-          <div>• <strong>Launch in OSINT Recon</strong>: Pre-fills the target domain in OSINT Recon for passive recon.</div>
-          <div>• <strong>Launch in Subdomain Scout</strong>: Starts subdomain enumeration across all 9 passive sources for the target.</div>
-          <div>• <strong>Launch in Ghost Chain</strong>: Runs the 5-stage kill chain pipeline against the target.</div>
-        </div>
-        <h4 className="font-bold text-primary text-[11px] mt-3">Report Generator</h4>
-        <p className="text-[10px] font-mono text-primary/83">Fills in a standard HackerOne/Bugcrowd vulnerability disclosure report format. Select the severity, enter your finding details, and copy the formatted report ready for submission. Covers: Summary, Steps to Reproduce, Impact, Remediation, CVSS score.</p>
-        <h4 className="font-bold text-primary text-[11px] mt-3">How to Use</h4>
-        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
-          <li><span className="text-primary/30">1.</span> Navigate to <strong>Bug Bounty Hub</strong> (<code>/bug-bounty</code>).</li>
-          <li><span className="text-primary/30">2.</span> Filter by platform or payout range to find programs matching your expertise.</li>
-          <li><span className="text-primary/30">3.</span> Click a program card to expand scope, payout table, and tool launch buttons.</li>
-          <li><span className="text-primary/30">4.</span> Register with the program on their official platform before any testing.</li>
-          <li><span className="text-primary/30">5.</span> Click <strong>Launch in OmniStrike</strong> to start automated testing within the defined scope.</li>
-          <li><span className="text-primary/30">6.</span> When you find a vulnerability, use the <strong>Report Generator</strong> to format your disclosure.</li>
-        </ol>
-        <Note type="warn">Strike-tier tool. Always register with the bug bounty program before testing. Never test assets outside the defined scope. Unauthorized testing voids bounty eligibility and may result in legal action.</Note>
       </div>
     ),
   },
@@ -2468,6 +2334,509 @@ Table: metadata      → Crawl session info, start time, depth`}</CB>
           ))}
         </div>
         <Note type="info">Manuals are proprietary documentation of ALPHA UNLIMITED TECHNOLOGIES LLC. Downloaded files are for your personal reference only — do not share with non-subscribers.</Note>
+      </div>
+    ),
+  },
+  {
+    id: "omnistrike",
+    title: "OmniStrike Pentest Suite",
+    icon: Swords,
+    content: (
+      <div className="space-y-3">
+        <p><strong>OmniStrike</strong> (<code>/omnistrike</code>) is ProxhqVPN's all-in-one automated penetration testing suite. It chains reconnaissance, scanning, vulnerability testing, and post-exploitation into a single orchestrated workflow. Command Center Pro only.</p>
+        <h4 className="font-bold text-primary text-[11px]">Attack Modules</h4>
+        <div className="space-y-2">
+          {[
+            { t: "Phase 1 — Recon", d: "DNS record enumeration (A/AAAA/MX/TXT/NS/CNAME), WHOIS/RDAP lookup, crt.sh certificate transparency scan, Shodan API query, AlienVault OTX passive recon." },
+            { t: "Phase 2 — Port Scan", d: "TCP/UDP scan of top-1000 ports. Service fingerprinting using banner grabbing and SYN probes. Routes through VPN tunnel for full anonymity." },
+            { t: "Phase 3 — Vulnerability Testing", d: "Per-service exploit checks: web server CVEs, outdated TLS, default credentials, SQL injection on login forms, XSS on input fields, SSRF on URL parameters." },
+            { t: "Phase 4 — Attack Chain Correlation", d: "Correlates findings into attack paths: e.g. exposed .env → DB credentials → admin panel → RCE. SVG chain graph visualization." },
+            { t: "Phase 5 — Impact Assessment", d: "Scores each finding: CVSS base score, exploitability, business impact. Generates executive summary + full technical findings report." },
+          ].map(({ t, d }) => (
+            <div key={t} className="border border-primary/10 rounded px-3 py-2">
+              <div className="text-[10px] font-mono font-bold text-primary">{t}</div>
+              <div className="text-[9px] font-mono text-primary/83 mt-0.5">{d}</div>
+            </div>
+          ))}
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Post-Exploitation Modules</h4>
+        <div className="space-y-1 text-[10px] font-mono text-primary/83 ml-2">
+          <div>• <strong>Credential Harvest</strong> — extract credentials from discovered config files, env files, and DB dumps</div>
+          <div>• <strong>Lateral Movement Planner</strong> — maps internal network from initial foothold using ARP, DNS, and SMB</div>
+          <div>• <strong>Persistence Simulation</strong> — generates PoC cron job / registry run key / systemd timer persistence commands</div>
+          <div>• <strong>Data Exfil PoC</strong> — demonstrates DNS-over-HTTPS exfil, ICMP tunnel, and HTTPS C2 patterns</div>
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Report Export</h4>
+        <p className="text-[10px] font-mono text-primary/83">Download the full engagement report as <strong>Markdown</strong>, <strong>HTML</strong>, or <strong>JSON</strong>. The HTML report is styled for client delivery. The JSON format is compatible with Jira, Trello, and vulnerability management platforms.</p>
+        <Note type="danger">OmniStrike is for authorized penetration testing only. Always obtain explicit written permission from the target organization before running any scan. Unauthorized use is a criminal offense under the CFAA, Computer Misuse Act, and equivalent laws worldwide.</Note>
+      </div>
+    ),
+  },
+  {
+    id: "ghost-trap",
+    title: "Ghost Trap — Counter-Intel",
+    icon: Eye,
+    content: (
+      <div className="space-y-3">
+        <p><strong>Ghost Trap</strong> (<code>/ghost-trap</code>) is ProxhqVPN's active counter-intelligence platform. When attackers probe your infrastructure, Ghost Trap identifies them, wastes their time, poisons their tools with false intelligence, and automatically reports them. Command Center Pro only.</p>
+        <h4 className="font-bold text-primary text-[11px]">7-Stage Counter-Intel Pipeline</h4>
+        <div className="space-y-2">
+          {[
+            { num: "1", t: "Attacker Probes a Lure Endpoint", d: "Ghost Trap deploys realistic-looking decoy services on common attacker targets: /admin, /wp-login, /.env, /phpinfo, SSH port 22." },
+            { num: "2", t: "Tarpit — Wasting the Attacker's Time", d: "Connections to lure endpoints are held open artificially — sending data 1 byte per second. A single attacker connection can be tied up for hours." },
+            { num: "3", t: "Deep Fingerprinting", d: "TCP/IP stack fingerprinting, TLS client hello analysis, HTTP header ordering, and browser JA3 hash — identify the attacker's OS, browser, and tool (Nmap, Shodan, Metasploit, Burp)." },
+            { num: "4", t: "Poisoned Response", d: "Fake credentials, fake API keys, fake DB dumps, and fake server configs are returned — poisoning the attacker's tooling and intelligence gathering." },
+            { num: "5", t: "Embedded Beacon", d: "All poisoned data includes invisible canary tokens. When the attacker uses the fake credentials or opens the fake file, a beacon fires revealing their real IP." },
+            { num: "6", t: "Silk Web Trap", d: "Attackers who dig deeper are fed into the SilkWeb infinite decoy maze — an endless labyrinth of fake services, each logging every command." },
+            { num: "7", t: "Auto-Block + Authority Report", d: "Attacker IP is instantly blocklisted across all VPN nodes. Optionally: auto-submit to AbuseIPDB, Spamhaus, and generate a CERT/ISP abuse complaint template." },
+          ].map(({ num, t, d }) => (
+            <div key={num} className="border border-primary/10 rounded px-3 py-2">
+              <div className="text-[10px] font-mono font-bold text-primary">[{num}] {t}</div>
+              <div className="text-[9px] font-mono text-primary/83 mt-0.5">{d}</div>
+            </div>
+          ))}
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Hop Chain Visualization</h4>
+        <p className="text-[10px] font-mono text-primary/83">The Hop Chain panel shows each attacker's connection path across your infrastructure — which lure they hit first, which node they pivoted to, how many requests they made, and what was returned at each step. Click any hop to see the full request/response log.</p>
+        <Note type="warn">Ghost Trap's tarpit and deception techniques are passive defensive tools. The auto-block and abuse reporting features are active responses — review the generated reports before sending to verify accuracy.</Note>
+      </div>
+    ),
+  },
+  {
+    id: "ip-rotator",
+    title: "IP Rotator",
+    icon: RefreshCw,
+    content: (
+      <div className="space-y-3">
+        <p><strong>IP Rotator</strong> (<code>/ip-rotator</code>) automatically cycles your VPN exit IP address on a configurable schedule. Use it to defeat rate-limiting, bypass IP-based geo-blocks, and prevent traffic correlation across sessions. Command Center Pro only.</p>
+        <h4 className="font-bold text-primary text-[11px]">Configuration Options</h4>
+        <div className="space-y-2">
+          {[
+            { t: "Rotation Interval", d: "Set automatic rotation every: 5 min / 15 min / 30 min / 1 hr / 3 hr / 6 hr / 24 hr. Or trigger manual rotation at any time via the Rotate Now button." },
+            { t: "Exit Node Pool", d: "Choose which node pool to rotate within: All Nodes, Specific Region (US / EU / APAC / LATAM / MENA), or a custom list of node IDs you specify." },
+            { t: "Rotation Strategy", d: "Random (default) — picks any node not recently used. Round-Robin — cycles nodes in order. Least-Used — always picks the node with the fewest active peers." },
+            { t: "Kill Switch Integration", d: "When rotation is in progress, the kill switch automatically blocks all traffic for the 2–3 seconds of the handshake — preventing any IP leaks during the switch." },
+          ].map(({ t, d }) => (
+            <div key={t} className="border border-primary/10 rounded px-3 py-2">
+              <div className="text-[10px] font-mono font-bold text-primary">{t}</div>
+              <div className="text-[9px] font-mono text-primary/83 mt-0.5">{d}</div>
+            </div>
+          ))}
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Rotation Log</h4>
+        <p className="text-[10px] font-mono text-primary/83">The Rotation Log table shows every past rotation event: timestamp, previous node IP, new node IP, exit country, and rotation trigger (auto/manual). The current countdown to the next scheduled rotation is displayed in real time.</p>
+        <Note type="info">Rotation causes a 2–4 second VPN reconnection during which the kill switch is active. If you have active long-running connections (SSH sessions, downloads), they will be interrupted. Use manual rotation timing to avoid disruption.</Note>
+      </div>
+    ),
+  },
+  {
+    id: "alt-identity",
+    title: "Alt Identity Generator",
+    icon: User,
+    content: (
+      <div className="space-y-3">
+        <p><strong>Alt Identity</strong> (<code>/alt-identity</code>) generates complete, realistic alternative personas for privacy-critical research, penetration testing, and account compartmentalization. Pairs with IP Rotator and VPN Gate for full operational security. Command Center Pro only.</p>
+        <h4 className="font-bold text-primary text-[11px]">Generated Identity Fields</h4>
+        <div className="grid grid-cols-2 gap-2">
+          {[
+            { cat: "Personal", items: ["Full name (gender/country/locale matched)", "Date of birth (configurable age range)", "SSN-format (non-real, passes format checks)", "Phone number (country prefix matched)"] },
+            { cat: "Address", items: ["Street address (real street, fake number)", "City, state/province, postal code", "Country (matches exit node geo by default)", "Time zone (matched to address)"] },
+            { cat: "Online", items: ["Username (pronounceable, unique style)", "Email address (configurable domain)", "Password (entropy-configurable)", "Security Q&A pairs (5 random sets)"] },
+            { cat: "Payment (Fake)", items: ["Credit card number (Luhn-valid, non-real)", "Expiry date and CVV format", "Bank name (realistic issuer string)", "IBAN / routing number format"] },
+          ].map(({ cat, items }) => (
+            <div key={cat} className="border border-primary/10 rounded px-2.5 py-2">
+              <div className="text-[10px] font-mono font-bold text-primary mb-1">{cat}</div>
+              {items.map(i => <div key={i} className="text-[9px] font-mono text-primary/83">• {i}</div>)}
+            </div>
+          ))}
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Saving & Managing Identities</h4>
+        <p className="text-[10px] font-mono text-primary/83">Save up to 10 identities per account. Each saved identity can be given a custom label (e.g. "Research Account 1", "Bug Bounty Persona"). Copy any field individually with one click, or copy the full identity as JSON.</p>
+        <Note type="warn">Alt Identity data is synthetic — it passes format validation checks but is not real. Do not use fake payment details to actually purchase anything — that constitutes fraud. This tool is intended for privacy research and authorized social engineering simulations only.</Note>
+      </div>
+    ),
+  },
+  {
+    id: "dark-web-monitor",
+    title: "Dark Web Monitor",
+    icon: Search,
+    content: (
+      <div className="space-y-3">
+        <p><strong>Dark Web Monitor</strong> (<code>/dark-web</code>) continuously monitors breach databases, dark web marketplaces, and paste sites for your email addresses, cryptocurrency wallets, and personal data. Get alerted the moment your data appears anywhere on the dark web. VPN Basic tier.</p>
+        <h4 className="font-bold text-primary text-[11px]">Email Breach Monitoring</h4>
+        <div className="space-y-2">
+          {[
+            { t: "Password Check", d: "Check any password against the HaveIBeenPwned (HIBP) SHA-1 k-anonymity API. Your password is never sent — only the first 5 characters of its hash. Instantly know if a password appears in any known breach." },
+            { t: "Email Monitoring", d: "Add up to 10 email addresses for continuous monitoring. Checks against 700+ breach databases. Each breach shows: site name, breach date, data types exposed (passwords, phone, address, credit card)." },
+            { t: "Breach Database", d: "Browse all known breaches for monitored emails. Filter by data type, severity, or date. Each entry links to the HIBP database page for full context." },
+          ].map(({ t, d }) => (
+            <div key={t} className="border border-primary/10 rounded px-3 py-2">
+              <div className="text-[10px] font-mono font-bold text-primary">{t}</div>
+              <div className="text-[9px] font-mono text-primary/83 mt-0.5">{d}</div>
+            </div>
+          ))}
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Blockchain Wallet Monitoring</h4>
+        <p className="text-[10px] font-mono text-primary/83">Add Bitcoin and Ethereum wallet addresses to monitor for exposure. The panel checks whether each address appears in known blockchain heist databases, sanctioned address lists (OFAC, Chainalysis), and dark web market transaction records.</p>
+        <h4 className="font-bold text-primary text-[11px] mt-3">How to Set Up Monitoring</h4>
+        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <li><span className="text-primary/30">1.</span> Navigate to <strong>Dark Web Monitor</strong> (<code>/dark-web</code>).</li>
+          <li><span className="text-primary/30">2.</span> In the Email Monitoring panel, click <strong>Add Email</strong> and enter your address.</li>
+          <li><span className="text-primary/30">3.</span> Click <strong>Check Now</strong> to run an immediate scan, or wait for the daily automatic scan (runs at 00:00 UTC).</li>
+          <li><span className="text-primary/30">4.</span> Enable email alerts to receive notifications when new breaches are detected.</li>
+        </ol>
+        <Note type="info">ProxhqVPN stores only the SHA-1 hash prefix of your email — never the full address — when querying the breach API. Your monitored addresses are encrypted at rest using AES-256.</Note>
+      </div>
+    ),
+  },
+  {
+    id: "post-quantum",
+    title: "Post-Quantum Cryptography",
+    icon: ShieldPlus,
+    content: (
+      <div className="space-y-3">
+        <p><strong>Post-Quantum</strong> (<code>/post-quantum</code>) upgrades your VPN tunnel cryptography to use NIST-standardized post-quantum algorithms that are resistant to attacks from quantum computers running Shor's algorithm. Command Center Pro only.</p>
+        <h4 className="font-bold text-primary text-[11px]">The Quantum Threat</h4>
+        <p className="text-[10px] font-mono text-primary/83">Current VPN encryption (ECDH key exchange, RSA/ECDSA signatures) will be broken by a sufficiently powerful quantum computer in ≤15 years. The "harvest now, decrypt later" attack is active today — nation-state actors are already recording encrypted VPN traffic to decrypt once quantum computers arrive. Post-quantum algorithms solve this now.</p>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Supported Algorithms (NIST PQC Finalists)</h4>
+        <div className="space-y-2">
+          {[
+            { t: "ML-KEM (CRYSTALS-Kyber)", d: "Module Learning With Errors — replaces ECDH for key encapsulation. Security levels: 512 (AES-128 equiv), 768 (AES-192 equiv), 1024 (AES-256 equiv). Default: ML-KEM-768." },
+            { t: "ML-DSA (CRYSTALS-Dilithium)", d: "Module Lattice Digital Signature — replaces RSA/ECDSA for WireGuard peer authentication. Signature size: 2,420 bytes. Default: ML-DSA-65." },
+            { t: "SLH-DSA (SPHINCS+)", d: "Hash-based signature scheme with no number-theoretic assumptions. Maximum conservatism — falls back to purely hash-based security if lattice math is somehow broken." },
+            { t: "Classic McEliece (optional)", d: "Code-based cryptography with 50+ years of cryptanalysis history. Largest key sizes (~1 MB public keys) but most conservative security assumptions." },
+          ].map(({ t, d }) => (
+            <div key={t} className="border border-primary/10 rounded px-3 py-2">
+              <div className="text-[10px] font-mono font-bold text-primary">{t}</div>
+              <div className="text-[9px] font-mono text-primary/83 mt-0.5">{d}</div>
+            </div>
+          ))}
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Enabling Post-Quantum Mode</h4>
+        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <li><span className="text-primary/30">1.</span> Go to <strong>Post-Quantum</strong> → select algorithm pair (KEM + signature).</li>
+          <li><span className="text-primary/30">2.</span> Click <strong>Generate PQ Key Pair</strong> — new ML-KEM public/private keys are generated server-side and injected into your WireGuard config.</li>
+          <li><span className="text-primary/30">3.</span> Download the updated WireGuard config and apply it to your devices.</li>
+          <li><span className="text-primary/30">4.</span> The Threat Panel shows which quantum attack vectors are now mitigated.</li>
+        </ol>
+        <Note type="warn">Post-quantum mode increases WireGuard handshake size by ~2–4 KB. This is imperceptible on modern connections but may add 10–20ms on satellite/high-latency links.</Note>
+      </div>
+    ),
+  },
+  {
+    id: "daita",
+    title: "DAITA — Anti-Traffic Analysis",
+    icon: EyeOff,
+    content: (
+      <div className="space-y-3">
+        <p><strong>DAITA</strong> (Defense Against AI Traffic Analysis) (<code>/daita</code>) defeats machine-learning-based traffic fingerprinting attacks. Even inside an encrypted VPN tunnel, packet size and timing patterns can identify specific websites and applications. DAITA prevents this. Command Center Pro only.</p>
+        <h4 className="font-bold text-primary text-[11px]">How Traffic Analysis Works (and How DAITA Defeats It)</h4>
+        <p className="text-[10px] font-mono text-primary/83">Traffic analysis models (WF attacks — Website Fingerprinting) analyze the sequence, size, and timing of encrypted packets. Even with encryption, loading Netflix has a different packet signature than loading Wikipedia. DAITA injects synthetic traffic and reshapes real packets to make all traffic look statistically identical.</p>
+        <h4 className="font-bold text-primary text-[11px] mt-3">DAITA Techniques</h4>
+        <div className="space-y-2">
+          {[
+            { t: "Packet Padding", d: "All outbound packets are padded to fixed sizes (256, 512, 1024, or 1448 bytes). The real payload is encrypted inside — the outside pattern is indistinguishable across websites." },
+            { t: "Timing Jitter", d: "Random 1–50ms delay is injected per packet, randomizing the inter-packet timing signature that fingerprinting models rely on." },
+            { t: "Dummy Traffic Injection", d: "Synthetic cover traffic (PRNG data, dummy HTTPS requests) is added to your tunnel stream. Your real traffic is hidden in the noise." },
+            { t: "Constant Bandwidth Mode", d: "Transmits at a fixed bandwidth rate regardless of actual usage — making idle vs active periods indistinguishable." },
+          ].map(({ t, d }) => (
+            <div key={t} className="border border-primary/10 rounded px-3 py-2">
+              <div className="text-[10px] font-mono font-bold text-primary">{t}</div>
+              <div className="text-[9px] font-mono text-primary/83 mt-0.5">{d}</div>
+            </div>
+          ))}
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Threat Panel</h4>
+        <p className="text-[10px] font-mono text-primary/83">The Threat Panel lists known traffic analysis attack vectors and shows whether each is mitigated (green) or exposed (orange) with your current DAITA settings. Enable all four techniques for maximum protection.</p>
+        <Note type="warn">DAITA increases bandwidth usage by 20–80% depending on Constant Bandwidth mode settings. Set your target bandwidth budget in the configuration to control overhead. Disable for latency-sensitive applications like gaming or VoIP.</Note>
+      </div>
+    ),
+  },
+  {
+    id: "username-intel",
+    title: "Username Intelligence",
+    icon: Search,
+    content: (
+      <div className="space-y-3">
+        <p><strong>Username Intelligence</strong> (<code>/username-intel</code>) performs OSINT-grade username searches across 100+ platforms simultaneously. Enter a username and get a comprehensive intelligence report including profile data, linked emails, real names, locations, and associated accounts. Command Center Pro only.</p>
+        <h4 className="font-bold text-primary text-[11px]">Platform Coverage</h4>
+        <div className="grid grid-cols-2 gap-2">
+          {[
+            { cat: "Social Media", items: ["Twitter/X, Instagram, Facebook, TikTok", "Reddit, Pinterest, Tumblr, Mastodon", "LinkedIn (public profile data)", "Snapchat, BeReal, Threads"] },
+            { cat: "Dev & Technical", items: ["GitHub (repos, gists, orgs, commit email)", "GitLab, Bitbucket, npm, PyPI, Crates.io", "HackerNews, Stack Overflow, Dev.to", "Replit, CodePen, JSFiddle"] },
+            { cat: "Gaming", items: ["Steam, Xbox Gamertag, PSN, Epic Games", "Roblox, Fortnite, Valorant, Minecraft", "Discord (username search via Sherlock)", "Twitch, Kick, YouTube"] },
+            { cat: "Forums & Communities", items: ["4chan, 8kun (archived), Telegram public", "Pastebin mentions, Ghostbin", "Dark web forum search (via Tor proxy)", "Breach databases — leaked username index"] },
+          ].map(({ cat, items }) => (
+            <div key={cat} className="border border-primary/10 rounded px-2.5 py-2">
+              <div className="text-[10px] font-mono font-bold text-primary mb-1">{cat}</div>
+              {items.map(i => <div key={i} className="text-[9px] font-mono text-primary/83">• {i}</div>)}
+            </div>
+          ))}
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Result Fields Per Platform</h4>
+        <p className="text-[10px] font-mono text-primary/83">Each platform result includes: <strong>Profile URL</strong>, <strong>Account exists</strong> (confirmed/not found/private), <strong>Display name</strong>, <strong>Bio</strong>, <strong>Location</strong> (if public), <strong>Linked emails</strong> (where discoverable via API leakage), <strong>Confidence score</strong> (how certain the match is), and <strong>Risk meter</strong> (how much PII is exposed).</p>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Export Options</h4>
+        <p className="text-[10px] font-mono text-primary/83">Export the full report as <strong>JSON</strong> (structured, machine-readable), <strong>CSV</strong> (platform, URL, status, name, location), or <strong>Markdown</strong> (formatted for OSINT reports and bug bounty submissions).</p>
+        <Note type="warn">Username Intelligence performs passive, read-only queries — it never creates accounts, sends messages, or interacts with platforms. All queries route through the VPN tunnel. Only search usernames of accounts you own or have permission to investigate.</Note>
+      </div>
+    ),
+  },
+  {
+    id: "vpn-tracker",
+    title: "VPN Session Tracker",
+    icon: Activity,
+    content: (
+      <div className="space-y-3">
+        <p><strong>VPN Tracker</strong> (<code>/vpn-tracker</code>) provides a real-time view of all active VPN sessions, WireGuard peer statuses, node command history, and session analytics. Available to admin accounts only.</p>
+        <h4 className="font-bold text-primary text-[11px]">Panels</h4>
+        <div className="space-y-2">
+          {[
+            { t: "Node Status", d: "Live status grid of all registered nodes — online/offline indicator, peer count, last handshake, uptime, CPU load, and bandwidth throughput." },
+            { t: "Active Peers", d: "Per-node peer table showing each connected device: WireGuard public key, assigned IP (10.8.0.x), last handshake time, bytes sent/received, and whether the peer has been revoked." },
+            { t: "Command History", d: "Every command issued via the Terminal page, with timestamp, command text, ProxhqVPN Mode status, and whether it was blocked. Filterable by node, user, time range." },
+            { t: "Session Log", d: "All authenticated API sessions: Clerk user ID, session start/end, pages accessed, IP address, and active subscription tier at the time." },
+          ].map(({ t, d }) => (
+            <div key={t} className="border border-primary/10 rounded px-3 py-2">
+              <div className="text-[10px] font-mono font-bold text-primary">{t}</div>
+              <div className="text-[9px] font-mono text-primary/83 mt-0.5">{d}</div>
+            </div>
+          ))}
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Session Status Badges</h4>
+        <div className="space-y-1 text-[10px] font-mono text-primary/83 ml-2">
+          <div>• <span className="text-green-400 font-bold">ACTIVE</span> — session is live, peer has handshaked within the last 3 minutes</div>
+          <div>• <span className="text-yellow-400 font-bold">IDLE</span> — session open but no packets in the last 3–15 minutes</div>
+          <div>• <span className="text-red-400 font-bold">STALE</span> — no handshake for 15+ minutes, WireGuard will drop the peer</div>
+          <div>• <span className="text-primary/40 font-bold">REVOKED</span> — peer key has been removed from the server config</div>
+        </div>
+        <Note type="info">VPN Tracker data refreshes every 10 seconds. Click <strong>Force Refresh</strong> to poll all nodes immediately. Use the Export button to download the peer table as CSV for compliance auditing.</Note>
+      </div>
+    ),
+  },
+  {
+    id: "parrot-tools",
+    title: "Parrot OS Tool Library",
+    icon: Layers,
+    content: (
+      <div className="space-y-3">
+        <p><strong>Parrot Tools</strong> (<code>/parrot-tools</code>) is a curated, searchable index of every security tool included in Parrot OS Security Edition — organized by category, with descriptions, command examples, and direct links to the relevant ProxhqVPN tool where applicable. Available on all plans.</p>
+        <h4 className="font-bold text-primary text-[11px]">Tool Categories</h4>
+        <div className="grid grid-cols-2 gap-2">
+          {[
+            { cat: "Information Gathering", items: ["Nmap — port scanner and service fingerprinter", "Maltego — visual OSINT and link analysis", "theHarvester — email/domain OSINT", "Shodan CLI — internet-wide device search", "Subfinder — passive subdomain enumeration"] },
+            { cat: "Vulnerability Analysis", items: ["Nikto — web server vulnerability scanner", "OpenVAS — network vulnerability scanner", "SQLmap — automated SQL injection", "WPScan — WordPress security scanner", "Lynis — system security auditing"] },
+            { cat: "Exploitation", items: ["Metasploit Framework — modular exploit framework", "BeEF — browser exploitation framework", "Exploit-DB searchsploit — offline CVE search", "RouterSploit — embedded device exploits", "Impacket — Windows/SMB exploitation"] },
+            { cat: "Password & Crypto", items: ["Hashcat — GPU-accelerated hash cracking", "John the Ripper — CPU hash cracking", "Hydra — network authentication brute-force", "CrackMapExec — Active Directory auditing", "Aircrack-ng — WiFi WEP/WPA cracking"] },
+            { cat: "Forensics & Reverse Engineering", items: ["Volatility 3 — memory forensics", "Ghidra — NSA disassembler/decompiler", "Autopsy — digital forensics platform", "Wireshark — packet capture and analysis", "Binwalk — firmware extraction"] },
+            { cat: "Social Engineering", items: ["SET (Social Engineering Toolkit) — phishing, credential harvest", "Gophish — phishing campaign management", "Evilginx2 — MITM phishing with 2FA bypass", "King Phisher — email phishing simulation", "Zphisher — ready-made phishing templates"] },
+          ].map(({ cat, items }) => (
+            <div key={cat} className="border border-primary/10 rounded px-2.5 py-2">
+              <div className="text-[10px] font-mono font-bold text-primary mb-1">{cat}</div>
+              {items.map(i => <div key={i} className="text-[9px] font-mono text-primary/83">• {i}</div>)}
+            </div>
+          ))}
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">How to Use the Library</h4>
+        <ol className="space-y-1 text-[10px] font-mono text-primary/83">
+          <li><span className="text-primary/30">1.</span> Navigate to <code>/parrot-tools</code> and use the search bar to find a tool by name or description.</li>
+          <li><span className="text-primary/30">2.</span> Filter by category using the sidebar filter.</li>
+          <li><span className="text-primary/30">3.</span> Click any tool card to expand the full description, usage examples, and install command.</li>
+          <li><span className="text-primary/30">4.</span> If a ProxhqVPN equivalent exists, the <strong>Use in ProxhqVPN</strong> button links directly to that page.</li>
+        </ol>
+        <Note type="info">The Parrot Tools library is a reference index — it does not install or execute tools on your machine. Use the ProxhqVPN Terminal page or your local Parrot OS installation to run the tools directly.</Note>
+      </div>
+    ),
+  },
+  {
+    id: "auto-setup",
+    title: "Auto Setup",
+    icon: Settings,
+    content: (
+      <div className="space-y-3">
+        <p><strong>Auto Setup</strong> (<code>/setup</code>) automatically installs all server-side dependencies required for the ProxhqVPN API server — WireGuard, Tor, OpenVPN, proxychains4, and iptables. Admin-only. Used during initial server provisioning.</p>
+        <h4 className="font-bold text-primary text-[11px]">What Gets Installed</h4>
+        <div className="space-y-2">
+          {[
+            { t: "WireGuard Tools", d: "wireguard-tools package — includes wg and wg-quick. Required for generating server keypairs, managing peers, and running the wg0 interface." },
+            { t: "OpenVPN", d: "openvpn package — used for legacy client compatibility and the double-hop VPN Gate routing. Optional but recommended." },
+            { t: "Tor", d: "tor daemon — provides the Tor SOCKS5 proxy at 127.0.0.1:9050 used by the Onion Browser and OSINT tools." },
+            { t: "proxychains4", d: "Routes any command-line tool through Tor or SOCKS5 proxy. Used by the Terminal in ProxhqVPN Mode." },
+            { t: "iptables", d: "Netfilter firewall rules engine. Required for the Kill Switch (DROP rules), split tunneling (mark-based routing), and the IPv6 leak protection rules." },
+          ].map(({ t, d }) => (
+            <div key={t} className="border border-primary/10 rounded px-3 py-2">
+              <div className="text-[10px] font-mono font-bold text-primary">{t}</div>
+              <div className="text-[9px] font-mono text-primary/83 mt-0.5">{d}</div>
+            </div>
+          ))}
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Install Process</h4>
+        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <li><span className="text-primary/30">1.</span> Navigate to <code>/setup</code> (admin login required).</li>
+          <li><span className="text-primary/30">2.</span> The Dependency Status grid shows which packages are already installed (green) and which are missing (red).</li>
+          <li><span className="text-primary/30">3.</span> Click <strong>Install All Missing</strong> to run the automated install script.</li>
+          <li><span className="text-primary/30">4.</span> A streaming install log shows real-time output from each package manager command.</li>
+          <li><span className="text-primary/30">5.</span> When all packages show green, the server is ready for VPN node operation.</li>
+        </ol>
+        <Note type="warn">Auto Setup runs apt-get / dnf / yum commands as root on the server. Only run this on a clean VPS that has been dedicated to ProxhqVPN. Do not run on shared hosting or production machines that serve other applications.</Note>
+      </div>
+    ),
+  },
+  {
+    id: "ai-security-suite",
+    title: "AI Security Suite",
+    icon: ShieldAlert,
+    content: (
+      <div className="space-y-3">
+        <p>The <strong>AI Security Suite</strong> (<code>/ai-security</code>) is ProxhqVPN's integrated toolkit for auditing, attacking, and defending AI/LLM-powered systems. As AI becomes infrastructure, adversarial attacks on AI systems are now a critical attack surface. Command Center Pro only.</p>
+        <h4 className="font-bold text-primary text-[11px]">Integrated Sub-Tools</h4>
+        <div className="space-y-2">
+          {[
+            { t: "LLM Probe", d: "Automated prompt injection and jailbreak scanner. Tests 200+ adversarial prompts against any LLM endpoint (OpenAI, Anthropic, local Ollama). Detects: goal hijacking, persona override, system prompt extraction, content filter bypass, indirect injection via tool outputs." },
+            { t: "Agent Strike", d: "Adversarial testing framework for AI agents (AutoGPT, LangChain, CrewAI, Claude Computer Use). Simulates tool-call injection, memory poisoning, agent loop exploitation, and privilege escalation via compromised tool responses." },
+            { t: "AI Shield", d: "Defensive hardening for LLM-backed applications. Analyzes your system prompt for injection surfaces, suggests output sanitization rules, tests input validation logic, and generates a hardened system prompt template." },
+            { t: "SOC Copilot", d: "AI-assisted security operations: ingests SIEM events, Ghost Trace anomalies, and firewall logs and generates natural-language incident summaries, triage recommendations, and remediation playbooks." },
+            { t: "MCP Auditor", d: "Security audit for Model Context Protocol (MCP) server configurations. Checks for tool injection vulnerabilities, permission escalation paths, and unsafe resource exposures in Claude Desktop / VS Code Copilot MCP setups." },
+            { t: "WAF Hardening Audit", d: "Tests your application's WAF or input validation against AI-specific attack patterns: prompt smuggling in API payloads, adversarial image inputs, polyglot inputs that bypass both LLM safety and WAF regex rules simultaneously." },
+          ].map(({ t, d }) => (
+            <div key={t} className="border border-primary/10 rounded px-3 py-2">
+              <div className="text-[10px] font-mono font-bold text-primary">{t}</div>
+              <div className="text-[9px] font-mono text-primary/83 mt-0.5">{d}</div>
+            </div>
+          ))}
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">LLM Probe — How to Run a Scan</h4>
+        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <li><span className="text-primary/30">1.</span> Go to <strong>AI Security Suite → LLM Probe</strong>.</li>
+          <li><span className="text-primary/30">2.</span> Enter the target API endpoint URL and authentication header (Bearer token or API key).</li>
+          <li><span className="text-primary/30">3.</span> Choose attack categories: Goal Hijacking, System Prompt Extraction, Jailbreak, Indirect Injection, or All.</li>
+          <li><span className="text-primary/30">4.</span> Click <strong>Run Probe</strong>. The tool sends each adversarial prompt and analyzes the model response for indicators of bypass.</li>
+          <li><span className="text-primary/30">5.</span> Review the findings report: each successful injection is marked Critical, partial bypasses as High, and resistant prompts as Passed.</li>
+        </ol>
+        <Note type="danger">Only test AI systems you own or have explicit written permission to audit. Unauthorized testing of third-party AI APIs violates their terms of service and may violate the CFAA. Results of LLM security testing should be handled as confidential vulnerability data.</Note>
+      </div>
+    ),
+  },
+  {
+    id: "warrant-canary",
+    title: "Warrant Canary",
+    icon: FileText,
+    content: (
+      <div className="space-y-3">
+        <p>The <strong>Warrant Canary</strong> is a publicly accessible transparency statement published by ALPHA UNLIMITED TECHNOLOGIES LLC at <code>/api/warrant-canary</code>. It is renewed every 30 days and confirms the absence of secret government orders that cannot be publicly disclosed.</p>
+        <h4 className="font-bold text-primary text-[11px]">What the Canary States</h4>
+        <div className="space-y-1 text-[10px] font-mono text-primary/83 ml-2">
+          <div>• No National Security Letters (NSLs) have been received</div>
+          <div>• No FISC / FISA Court orders have been received</div>
+          <div>• No gag orders preventing disclosure of government surveillance requests</div>
+          <div>• No user encryption keys have been handed to any government entity</div>
+          <div>• No backdoors have been installed in any ProxhqVPN software or infrastructure</div>
+          <div>• No mass surveillance of user traffic is occurring</div>
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">How to Verify</h4>
+        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <li><span className="text-primary/30">1.</span> Fetch the canary endpoint: <code>curl https://proxhq.app/api/warrant-canary</code></li>
+          <li><span className="text-primary/30">2.</span> Verify the <code>issued_at</code> timestamp is within the last 30 days.</li>
+          <li><span className="text-primary/30">3.</span> Verify all six negative statements are present.</li>
+          <li><span className="text-primary/30">4.</span> If the canary is missing, expired, or any statement has been removed — treat it as a canary failure indicating a potential secret order has been received.</li>
+        </ol>
+        <Note type="info">The warrant canary is a legal mechanism pioneered by privacy advocates. If ALPHA UNLIMITED TECHNOLOGIES LLC ever receives an NSL or similar order, we will allow the canary to expire rather than lie. We recommend bookmarking the endpoint and checking it monthly.</Note>
+      </div>
+    ),
+  },
+  {
+    id: "installation-guide",
+    title: "Installation Guide — All Platforms",
+    icon: Download,
+    content: (
+      <div className="space-y-3">
+        <p>ProxhqVPN works on every platform via WireGuard. Choose your platform below for complete step-by-step setup instructions. The <strong>Downloads page</strong> (<code>/downloads</code>) also provides downloadable README files for each platform.</p>
+        <h4 className="font-bold text-primary text-[11px]">Windows</h4>
+        <ol className="space-y-1 text-[10px] font-mono text-primary/83">
+          <li><span className="text-primary/30">1.</span> Download WireGuard for Windows from wireguard.com/install/ — run the installer.</li>
+          <li><span className="text-primary/30">2.</span> In ProxhqVPN → <strong>WireGuard Config</strong>, select a server node and click <strong>Download Config</strong>.</li>
+          <li><span className="text-primary/30">3.</span> In the WireGuard app, click <strong>Add Tunnel → Import from file</strong> and select the downloaded .conf file.</li>
+          <li><span className="text-primary/30">4.</span> Click <strong>Activate</strong>. You are now connected.</li>
+        </ol>
+        <h4 className="font-bold text-primary text-[11px] mt-3">macOS</h4>
+        <ol className="space-y-1 text-[10px] font-mono text-primary/83">
+          <li><span className="text-primary/30">1.</span> Install via Homebrew: <code>brew install wireguard-tools</code>, or install the WireGuard App from the Mac App Store.</li>
+          <li><span className="text-primary/30">2.</span> Download config from ProxhqVPN → <strong>WireGuard Config</strong>.</li>
+          <li><span className="text-primary/30">3.</span> If using the App Store app: Open WireGuard → Add Tunnel → Import. If using CLI: <code>sudo wg-quick up ~/proxhq.conf</code></li>
+        </ol>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Linux (Ubuntu/Debian)</h4>
+        <div className="bg-black border border-primary/20 rounded px-3 py-2 text-[9px] font-mono text-primary/88 space-y-0.5">
+          <div>sudo apt update && sudo apt install wireguard</div>
+          <div>sudo cp proxhq.conf /etc/wireguard/wg0.conf</div>
+          <div>sudo wg-quick up wg0</div>
+          <div>sudo systemctl enable wg-quick@wg0  # auto-start on boot</div>
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Android</h4>
+        <ol className="space-y-1 text-[10px] font-mono text-primary/83">
+          <li><span className="text-primary/30">1.</span> Install <strong>WireGuard</strong> from Google Play Store.</li>
+          <li><span className="text-primary/30">2.</span> In ProxhqVPN → <strong>WireGuard Config</strong>, click <strong>Show QR Code</strong>.</li>
+          <li><span className="text-primary/30">3.</span> In the WireGuard app, tap + → <strong>Scan QR code</strong>. Point at the QR code on screen.</li>
+          <li><span className="text-primary/30">4.</span> Enable the tunnel. Grant VPN permission when prompted.</li>
+        </ol>
+        <h4 className="font-bold text-primary text-[11px] mt-3">iPhone / iPad (iOS)</h4>
+        <ol className="space-y-1 text-[10px] font-mono text-primary/83">
+          <li><span className="text-primary/30">1.</span> Install <strong>WireGuard</strong> from the App Store.</li>
+          <li><span className="text-primary/30">2.</span> In ProxhqVPN → <strong>WireGuard Config</strong>, click <strong>Show QR Code</strong>.</li>
+          <li><span className="text-primary/30">3.</span> In WireGuard app, tap + → <strong>Create from QR code</strong>. Scan the code.</li>
+          <li><span className="text-primary/30">4.</span> Toggle the tunnel on. Approve the VPN configuration prompt.</li>
+        </ol>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Router (OpenWRT)</h4>
+        <ol className="space-y-1 text-[10px] font-mono text-primary/83">
+          <li><span className="text-primary/30">1.</span> SSH into your router: <code>ssh root@192.168.1.1</code></li>
+          <li><span className="text-primary/30">2.</span> Install WireGuard: <code>opkg update && opkg install luci-app-wireguard</code></li>
+          <li><span className="text-primary/30">3.</span> In ProxhqVPN → <strong>Router Config</strong>, select OpenWRT and download the setup script.</li>
+          <li><span className="text-primary/30">4.</span> Run the script on the router. All devices on your LAN will route through ProxhqVPN automatically.</li>
+        </ol>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Amazon Fire Stick / Fire TV</h4>
+        <ol className="space-y-1 text-[10px] font-mono text-primary/83">
+          <li><span className="text-primary/30">1.</span> Enable Developer Options on Fire Stick: Settings → My Fire TV → Developer Options → Apps from Unknown Sources: ON.</li>
+          <li><span className="text-primary/30">2.</span> Install Downloader app from the Amazon Appstore.</li>
+          <li><span className="text-primary/30">3.</span> Use Downloader to install the WireGuard APK: search "WireGuard APK" in the Downloader browser.</li>
+          <li><span className="text-primary/30">4.</span> Import the ProxhqVPN config file downloaded from the WireGuard Config page.</li>
+        </ol>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Apple TV (tvOS)</h4>
+        <ol className="space-y-1 text-[10px] font-mono text-primary/83">
+          <li><span className="text-primary/30">1.</span> Install WireGuard from the Apple TV App Store.</li>
+          <li><span className="text-primary/30">2.</span> On your iPhone, export the ProxhqVPN WireGuard config to the WireGuard iOS app.</li>
+          <li><span className="text-primary/30">3.</span> Use iPhone to push the config to Apple TV via iCloud/AirDrop (WireGuard supports peer sync between Apple devices).</li>
+          <li><span className="text-primary/30">4.</span> Enable the tunnel on Apple TV in Settings → VPN &amp; Device Management.</li>
+        </ol>
+        <Note type="info">For Smart TVs (Samsung Tizen, LG webOS), gaming consoles (PS5, Xbox), and Chromebooks, use the <strong>Smart DNS</strong> feature instead of WireGuard — it provides geo-unblocking without requiring WireGuard app installation on the device.</Note>
+      </div>
+    ),
+  },
+  {
+    id: "platform-faq",
+    title: "Frequently Asked Questions",
+    icon: BookOpen,
+    content: (
+      <div className="space-y-3">
+        <p>Answers to the most common ProxhqVPN questions. If you don't find your answer here, contact <a href="mailto:support@proxhqvpn.com" className="text-primary hover:underline">support@proxhqvpn.com</a>.</p>
+        <div className="space-y-3">
+          {[
+            { q: "Why is my VPN connection slow?", a: "Try switching to a closer node in WireGuard Config. Check if Obfuscation (Stealth Mode) is enabled — obfuscation adds overhead. Disable DAITA's Constant Bandwidth Mode. Also ensure your ISP isn't throttling UDP (try the TCP-fallback obfuscation method)." },
+            { q: "Why does the kill switch block all traffic even when connected?", a: "This usually means the WireGuard tunnel failed to establish but the kill switch pre-emptively activated. Go to Kill Switch → Disarm, reconnect WireGuard, then re-arm. If it persists, check that your WireGuard endpoint IP is correct in the downloaded config." },
+            { q: "My IP isn't changing after connecting. What's wrong?", a: "Verify the WireGuard tunnel shows 'Active' (green) in your OS WireGuard app. Check /leaks — if your real IP still shows, the VPN routing isn't applying to your browser. Try toggling the kill switch on/off to force re-routing. On Windows, ensure the AllowedIPs = 0.0.0.0/0 line is in your config." },
+            { q: "How do I add ProxhqVPN to a new device?", a: "Go to Device Manager (/devices) → Add Device → enter a name → a new WireGuard keypair and config are generated for that device. Download the config or scan the QR code. Each device gets a unique IP (10.8.0.x/24) and keypair for individual revocation." },
+            { q: "Can I use ProxhqVPN with NordVPN/ExpressVPN at the same time?", a: "Yes — use the VPN Coexistence page (/vpn-coexist). It supports fwmark-based routing (parallel tunnels), double-hop mode (ProxhqVPN → Commercial VPN), and network namespace isolation. The auto-detect feature finds which commercial VPN is running and generates the correct coexistence config." },
+            { q: "What is the difference between VPN Basic and Command Center Pro?", a: "VPN Basic ($6.99/mo) includes: WireGuard VPN, Kill Switch, Leak Test, DNS Shield, Smart DNS, Network Monitor, DNS Sinkhole, Onion Browser, VPN Gate, Dark Web Monitor, Device Manager, GPS Spoofing, DAITA, Post-Quantum, IP Rotator, Alt Identity, Parrot Tools, Downloads. Command Center Pro ($39.99/mo) adds: all offensive security tools (Alpha Toolkit, HTTP Probe, Intruder, Payload Gen, SQLmap, Directory Fuzzer, Subdomain Scout, CVE Lookup, WAF Analyzer, JWT Analyzer, SQLi Scanner, SSL/TLS Analyzer, SAST, Dependency Scanner, OAST Tester, Token Sequencer, WebSocket Tester, IAC Scanner, HTTP Interceptor, API Tester), defensive tools (SIEM, OSINT Recon, Ghost Trace, Canary Tokens, Ghost Chain, Exploit Importer, Ghost Trap, VPN Tracker, Username Intelligence, Social Breach Tester, Bug Bounty Hub, HackAnon), and QuantumAudit / Sig Miner." },
+            { q: "How do I cancel my subscription?", a: "Go to Account & Settings → Billing → Cancel Subscription. Your plan remains active until the end of the current billing period. For refund requests, email support@proxhqvpn.com." },
+            { q: "Is ProxhqVPN truly no-log?", a: "The VPN tunnel itself is zero-log — we do not record which websites you visit or which IPs you connect to through the tunnel. We retain: account/billing data (required for subscriptions), the Terminal audit log (admin-only, command history for security), and session metadata (Clerk auth sessions). Our Warrant Canary (/api/warrant-canary) confirms no government surveillance orders have been received." },
+            { q: "How do I become an Ambassador?", a: "Navigate to /ambassador/apply and fill out the application form. Choose a promo code, provide your social media handles or YouTube channel, and submit. Approval typically takes 1–3 business days. Once approved, your promo code gives referrals 10% off, and you earn 10% commission on every subscription from your referrals." },
+            { q: "How do I use the Alpha Toolkit?", a: "Go to /alpha-tools. Enter the target URL in the Scanner tab. Select the detection profiles (XSS, SQLi, RCE, SSRF, etc.). Enable Tor routing if needed. Click Scan. When a finding shows the htmlReady flag, click Send to Verifier to auto-load the scanner report into the Verifier tab for deep validation. Download the full report as HTML." },
+            { q: "How do I read the QuantumAudit Signature Miner results?", a: "Go to /quantum-audit/sig-miner. The Hybrid Engine runs all 4 engines in parallel: Block Scanner (on-chain ECDSA), Web Spider (paste sites/GitHub), OSINT Spider (code search), and Peel Chain (fund-flow). Results are aggregated through the Cross-Engine Pool and deduplicated. Nonce reuse findings include the recovered private key. R-collision findings include the shared nonce value. All results are for authorized blockchain forensic research only." },
+            { q: "My Terminal command is blocked. Why?", a: "All Terminal commands run through a strict allowlist. If your command isn't on the allowlist, it will be blocked unless you enable ProxhqVPN Mode (the toggle next to the command input). ProxhqVPN Mode bypasses the allowlist but still enforces the HARD_BLOCKED destructive pattern list (rm -rf /, iptables -F, etc.) and logs every command to the audit trail." },
+          ].map(({ q, a }) => (
+            <div key={q} className="border border-primary/10 rounded px-3 py-3">
+              <div className="text-[10px] font-mono font-bold text-primary mb-1">Q: {q}</div>
+              <div className="text-[9px] font-mono text-primary/83">A: {a}</div>
+            </div>
+          ))}
+        </div>
       </div>
     ),
   },

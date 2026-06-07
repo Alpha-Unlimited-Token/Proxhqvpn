@@ -557,6 +557,141 @@ ProxhqVPN Support | support@proxhqvpn.com`}</CB>
     ),
   },
   {
+    id: "omega-dashboard", title: "Omega Admin Dashboard", icon: Activity,
+    content: (
+      <div className="space-y-3">
+        <p>The <strong>Omega Dashboard</strong> is the administrative analytics and subscriber management interface, accessible at <code>/omega-dashboard/</code>. This is a separate artifact from the main ProxhqVPN app — admin-only access.</p>
+        <h4 className="font-bold text-primary text-[11px]">Key Admin Capabilities</h4>
+        <div className="space-y-2">
+          {[
+            { t: "Subscriber Management", d: "View all active subscribers, their plan tier (VPN Basic vs Command Center Pro), billing cycle, join date, Clerk user ID, and subscription status. Filter and search by email, plan, or date." },
+            { t: "Revenue Analytics", d: "Monthly Recurring Revenue (MRR), Annual Recurring Revenue (ARR), churn rate, new subscriber trend, plan distribution breakdown. Data sourced live from Stripe API." },
+            { t: "Ambassador Program", d: "All ambassador accounts: promo codes, referral counts, commission earned, approval status. Approve pending applications, edit commission rates, and view referral attribution per subscriber." },
+            { t: "Employee Management", d: "All employee accounts with their access tier and last login. Add or remove employees. Set access permissions per employee." },
+            { t: "User Plan Override", d: "Manually upgrade or downgrade any subscriber's plan tier — used for support cases, extended trials, or correcting Stripe sync issues." },
+          ].map(({ t, d }) => (
+            <div key={t} className="border border-primary/10 rounded px-3 py-2">
+              <div className="text-[10px] font-mono font-bold text-primary">{t}</div>
+              <div className="text-[9px] font-mono text-primary/83 mt-0.5">{d}</div>
+            </div>
+          ))}
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Access</h4>
+        <p className="text-[10px] font-mono text-primary/83">Omega Dashboard is only accessible to accounts with <code>isAdmin: true</code> in the employees table. If you cannot access it, contact <a href="mailto:alphaunlimitedtechnologies@gmail.com" className="text-primary hover:underline">alphaunlimitedtechnologies@gmail.com</a> for access provisioning. Do not share the dashboard URL publicly.</p>
+        <Note type="warn">All actions in the Omega Dashboard (plan overrides, ambassador approvals, employee additions) are logged. Unauthorized modifications to subscriber data are a security policy violation.</Note>
+      </div>
+    ),
+  },
+  {
+    id: "quantum-audit-ops", title: "QuantumAudit Operations", icon: Shield,
+    content: (
+      <div className="space-y-3">
+        <p>The <strong>QuantumAudit</strong> platform (<code>/quantum-audit/</code>) is ProxhqVPN's standalone blockchain security auditing system. Employees may use it for authorized blockchain security research and client audit engagements.</p>
+        <h4 className="font-bold text-primary text-[11px]">Running a Blockchain Audit</h4>
+        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <li><span className="text-primary/30">1.</span> Navigate to <code>/quantum-audit/</code> → click <strong>New Scan</strong>.</li>
+          <li><span className="text-primary/30">2.</span> Enter the smart contract address or protocol URL. Select blockchain (Ethereum, Solana, BNB Chain, Polygon, Arbitrum, etc.).</li>
+          <li><span className="text-primary/30">3.</span> Choose scan type: <strong>Quick</strong> (classical vulns only), <strong>Deep</strong> (+ post-quantum cryptographic analysis), or <strong>Full</strong> (all checks + Signature Mining).</li>
+          <li><span className="text-primary/30">4.</span> Click <strong>Start Scan</strong>. Scan status is polled every 5 seconds. Most scans complete in 30–120 seconds.</li>
+          <li><span className="text-primary/30">5.</span> View findings on the Scan Detail page. Download the full audit report from <strong>View Report</strong>.</li>
+        </ol>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Vulnerability Categories</h4>
+        <div className="grid grid-cols-2 gap-2">
+          {[
+            { cat: "Classical Blockchain", items: ["Reentrancy attacks", "Flash loan manipulation", "Oracle price manipulation", "Integer overflow/underflow", "Access control failures"] },
+            { cat: "Post-Quantum", items: ["ECDSA nonce reuse (private key recovery)", "Weak-k (k < 2^24 brute force)", "R-value collision across txs", "Shor's algorithm exposure (ECDSA)", "MSB/LSB nonce bias detection"] },
+          ].map(({ cat, items }) => (
+            <div key={cat} className="border border-primary/10 rounded px-2.5 py-2">
+              <div className="text-[10px] font-mono font-bold text-primary mb-1">{cat}</div>
+              {items.map(i => <div key={i} className="text-[9px] font-mono text-primary/83">• {i}</div>)}
+            </div>
+          ))}
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Signature Mining Suite</h4>
+        <p className="text-[10px] font-mono text-primary/83">The 5-engine Signature Miner (<code>/quantum-audit/sig-miner</code>) is for authorized blockchain forensic research. The <strong>Hybrid Worm Engine</strong> runs all four engines in parallel with a shared Cross-Engine intelligence pool. Only use against blockchains or addresses you are authorized to investigate. All mining sessions are logged.</p>
+        <Note type="danger">QuantumAudit findings that reveal recoverable private keys constitute active security vulnerabilities. Handle all key material found during research as strictly confidential and disclose only through proper responsible disclosure channels. Do not use recovered keys for any financial transactions.</Note>
+      </div>
+    ),
+  },
+  {
+    id: "ghost-trap-ops", title: "Ghost Trap — Operations Guide", icon: Eye,
+    content: (
+      <div className="space-y-3">
+        <p><strong>Ghost Trap</strong> (<code>/ghost-trap</code>) is an active counter-intelligence system. Employees responsible for infrastructure security should review Ghost Trap activity daily and manage the automated response pipeline.</p>
+        <h4 className="font-bold text-primary text-[11px]">Daily Review Checklist</h4>
+        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <li><span className="text-primary/30">1.</span> Open Ghost Trap → review <strong>Active Traps</strong> panel for any new attacker sessions active in the last 24 hours.</li>
+          <li><span className="text-primary/30">2.</span> For each attacker session: review the Hop Chain visualization to understand which lure they hit and what they requested.</li>
+          <li><span className="text-primary/30">3.</span> Check the <strong>Fingerprinting</strong> tab: OS, tool (Nmap/Shodan/Metasploit/Burp), and JA3 hash. Log this for the threat intelligence record.</li>
+          <li><span className="text-primary/30">4.</span> Review which <strong>Poisoned Responses</strong> were served. Confirm the embedded canary tokens are active (green status).</li>
+          <li><span className="text-primary/30">5.</span> If a canary fired (orange badge on session): the attacker used the poisoned data. Record their real IP from the canary trigger log.</li>
+          <li><span className="text-primary/30">6.</span> Confirm the attacker IP is in the <strong>Auto-Block</strong> list. If not, manually add it to the Firewall.</li>
+          <li><span className="text-primary/30">7.</span> For repeat attackers (3+ sessions): generate the <strong>Abuse Report Template</strong> and submit to AbuseIPDB and the attacker's ISP.</li>
+        </ol>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Tarpit Settings</h4>
+        <p className="text-[10px] font-mono text-primary/83">Adjust tarpit aggressiveness in Ghost Trap Settings: <strong>Low</strong> (hold 30s), <strong>Medium</strong> (hold 5 min), <strong>High</strong> (hold up to 2 hours). High tarpit mode can significantly degrade attacker scanning throughput but uses more server-side connection resources. Recommended: Medium for production.</p>
+        <Note type="warn">The Poisoned Response data returned to attackers (fake credentials, fake config files) is always synthetic — it passes format validation but is never real. Double-check the Fake Data Templates in settings to ensure no real credentials have been accidentally included in templates.</Note>
+      </div>
+    ),
+  },
+  {
+    id: "ai-tools-guide", title: "AI Security Tools — Employee Guide", icon: Zap,
+    content: (
+      <div className="space-y-3">
+        <p>The <strong>AI Security Suite</strong> (<code>/ai-security</code>) contains tools for auditing AI/LLM systems. Employees should familiarize themselves with these tools for both internal AI hardening and client engagements.</p>
+        <h4 className="font-bold text-primary text-[11px]">Approved Internal Use Cases</h4>
+        <div className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <div>• <strong>SOC Copilot</strong> — use daily to generate natural-language summaries of SIEM events and Ghost Trace anomalies. Reduces alert fatigue and speeds triage.</div>
+          <div>• <strong>LLM Probe</strong> — test any internal AI tools (chatbots, code assistants) for prompt injection before deploying to production.</div>
+          <div>• <strong>AI Shield</strong> — run against any new system prompt before it goes live. The hardened system prompt output should be reviewed and approved by admin.</div>
+          <div>• <strong>MCP Auditor</strong> — audit Claude Desktop / VS Code Copilot MCP server configurations when employees report MCP-related tool access anomalies.</div>
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">SOC Copilot — Daily Workflow</h4>
+        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <li><span className="text-primary/30">1.</span> Navigate to <strong>AI Security Suite → SOC Copilot</strong>.</li>
+          <li><span className="text-primary/30">2.</span> Set the analysis window: Last 24 hours (daily review) or Last 7 days (weekly report).</li>
+          <li><span className="text-primary/30">3.</span> Click <strong>Generate Incident Summary</strong>. The AI ingests SIEM events, Ghost Trace anomalies, and firewall blocks.</li>
+          <li><span className="text-primary/30">4.</span> Review the output: Critical Incidents, Triage Queue, Recommendations, and Playbook suggestions.</li>
+          <li><span className="text-primary/30">5.</span> Escalate any Critical incidents to admin immediately. Archive the summary in the incident log.</li>
+        </ol>
+        <Note type="info">AI Security Suite outputs are AI-generated summaries and recommendations — they are not authoritative security verdicts. Always verify findings with raw log data before taking action. The SOC Copilot output should be treated as a starting point for investigation, not a final conclusion.</Note>
+      </div>
+    ),
+  },
+  {
+    id: "canary-token-ops", title: "Canary Token Operations", icon: Bell,
+    content: (
+      <div className="space-y-3">
+        <p>Employees should deploy Canary Tokens on all sensitive internal resources as a standard operating procedure. This section covers the recommended deployment strategy and alert response protocol.</p>
+        <h4 className="font-bold text-primary text-[11px]">Recommended Token Deployments</h4>
+        <div className="space-y-2">
+          {[
+            { t: "Admin Credential Documents", d: "Place a URL canary in any document containing admin credentials (even test credentials). If it fires, assume the document was exfiltrated." },
+            { t: "Internal Config Files", d: "Embed a DNS canary in any .env, config.yaml, or secrets.json file stored in any shared location. DNS canaries fire even from air-gapped environments." },
+            { t: "Customer Data Exports", d: "Any CSV export of customer data should have a SQL canary row embedded. If an attacker dumps your DB and checks the URL, you get their IP immediately." },
+            { t: "Employee Offboarding", d: "When an employee leaves, create a URL canary for a plausible resource (e.g. 'admin-panel-access.pdf') and share it with the departing employee's email. If accessed after departure, investigate immediately." },
+            { t: "SilkWeb Decoy Services", d: "All SilkWeb fake service responses should include embedded URL and DNS canaries. This links honeypot attacker sessions to real-world IP intelligence." },
+          ].map(({ t, d }) => (
+            <div key={t} className="border border-primary/10 rounded px-3 py-2">
+              <div className="text-[10px] font-mono font-bold text-primary">{t}</div>
+              <div className="text-[9px] font-mono text-primary/83 mt-0.5">{d}</div>
+            </div>
+          ))}
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Alert Response Protocol</h4>
+        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <li><span className="text-primary/30">1.</span> Canary alert received → note the token type and the resource it was protecting.</li>
+          <li><span className="text-primary/30">2.</span> Check the enriched data: source IP, reverse DNS, GeoIP, ASN. Is it a known scraper/bot (e.g. Googlebot) or an unexpected actor?</li>
+          <li><span className="text-primary/30">3.</span> If unexpected: escalate to admin immediately. Treat the protected resource as compromised.</li>
+          <li><span className="text-primary/30">4.</span> Add the attacker IP to the Firewall blocklist. Submit to AbuseIPDB if appropriate.</li>
+          <li><span className="text-primary/30">5.</span> Rotate credentials or revoke access for the resource the canary was protecting.</li>
+          <li><span className="text-primary/30">6.</span> Deploy a new canary on the replacement resource.</li>
+        </ol>
+        <Note type="info">All canary trigger logs are visible in the SIEM event log under source "Canary". Filter SIEM by Source = Canary to see all historical trigger events in one view.</Note>
+      </div>
+    ),
+  },
+  {
     id: "escalation", title: "Escalation & Emergency Procedures", icon: Bell,
     content: (
       <div className="space-y-3">
