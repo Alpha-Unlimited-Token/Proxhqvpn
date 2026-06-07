@@ -933,6 +933,94 @@ const COUNTER_PORTS = [
   { port: 2222,  service: "SSH-Alt",               note: "Non-standard SSH" },
 ];
 
+// POST /counter/manual-scan — port scan on any public IP (manual investigation, no probe-log gate)
+router.post("/counter/manual-scan", async (req, res) => {
+  const userId = ((req as any).auth)?.userId as string | undefined;
+  if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const { ip, port } = req.body as { ip?: string; port?: number };
+  if (!ip || typeof ip !== "string") { res.status(400).json({ error: "ip required" }); return; }
+  if (!/^(\d{1,3}\.){3}\d{1,3}$/.test(ip)) { res.status(400).json({ error: "Invalid IP" }); return; }
+  if (PRIVATE_IP_RE.test(ip)) { res.status(400).json({ error: "Private/loopback IPs blocked" }); return; }
+
+  // Build port list: user-specified port first (if provided and not already in list), then standard attack ports
+  const userPort = port && Number.isInteger(port) && port > 0 && port <= 65535 ? port : null;
+  const extraEntry = userPort && !COUNTER_PORTS.find(p => p.port === userPort)
+    ? [{ port: userPort, service: "User-specified port", note: "Port you observed in netstat/ss" }]
+    : [];
+  const portsToScan = [...extraEntry, ...COUNTER_PORTS];
+
+  const results = await Promise.all(
+    portsToScan.map(async ({ port: p, service, note }) => ({
+      port: p, service, note, status: await tcpProbe(ip, p),
+    }))
+  );
+
+  const open     = results.filter(r => r.status === "open");
+  const closed   = results.filter(r => r.status === "closed");
+  const filtered = results.filter(r => r.status === "filtered");
+
+  let intelligence = "No open ports detected — host is behind NAT, VPN, or firewall.";
+  if (userPort && results.find(r => r.port === userPort)?.status === "open") {
+    intelligence = `⚠ Port ${userPort} confirmed OPEN — the connection you saw in netstat is live. Service: ${results.find(r => r.port === userPort)?.service}.`;
+  } else if (userPort && results.find(r => r.port === userPort)?.status === "filtered") {
+    intelligence = `Port ${userPort} is filtered — host is reachable but port is firewalled (connection may be NAT'd or behind a cloud firewall).`;
+  } else if (userPort && results.find(r => r.port === userPort)?.status === "closed") {
+    intelligence = `Port ${userPort} is now CLOSED — connection may have been ephemeral, already terminated, or from a rotating IP pool.`;
+  } else if (open.some(r => [4444, 4545, 31337, 1337].includes(r.port))) {
+    intelligence = "⚠ Active attack tooling detected — Metasploit/reverse shell port open.";
+  } else if (open.some(r => [9001, 9050].includes(r.port))) {
+    intelligence = "Tor infrastructure detected — host is running a Tor relay or proxy.";
+  } else if (open.length > 0) {
+    intelligence = `${open.length} port(s) open — ${open.map(r => r.service).join(", ")}.`;
+  }
+
+  res.json({ ip, targetPort: userPort, results, openCount: open.length, closedCount: closed.length, filteredCount: filtered.length, intelligence, scannedAt: new Date().toISOString() });
+});
+
+// POST /counter/manual-osint — OSINT on any public IP (no probe-log gate)
+router.post("/counter/manual-osint", async (req, res) => {
+  const userId = ((req as any).auth)?.userId as string | undefined;
+  if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const { ip } = req.body as { ip?: string };
+  if (!ip || typeof ip !== "string") { res.status(400).json({ error: "ip required" }); return; }
+  if (!/^(\d{1,3}\.){3}\d{1,3}$/.test(ip)) { res.status(400).json({ error: "Invalid IP" }); return; }
+  if (PRIVATE_IP_RE.test(ip)) { res.status(400).json({ error: "Private IP blocked" }); return; }
+
+  const results: Record<string, unknown> = { ip };
+
+  try { results.rdns = await dns.reverse(ip); } catch { results.rdns = []; }
+  try {
+    const reversed = ip.split(".").reverse().join(".") + ".in-addr.arpa";
+    results.ptrRecord = reversed;
+  } catch { /* ignore */ }
+
+  try {
+    const r = await fetch(`https://ipapi.co/${ip}/json/`, { signal: AbortSignal.timeout(5000) });
+    if (r.ok) {
+      const d = await r.json() as Record<string, unknown>;
+      results.liveGeo = {
+        country: d["country_name"], city: d["city"], region: d["region"],
+        isp: d["org"], asn: d["asn"], timezone: d["timezone"],
+        latitude: d["latitude"], longitude: d["longitude"],
+      };
+      const ispStr = String(d["org"] ?? "").toLowerCase();
+      results.abuseHint = ispStr.includes("amazon") ? "Report to: abuse@amazonaws.com"
+        : ispStr.includes("digitalocean") ? "Report to: abuse@digitalocean.com"
+        : ispStr.includes("linode") || ispStr.includes("akamai") ? "Report to: abuse@linode.com"
+        : ispStr.includes("vultr") ? "Report to: abuse@vultr.com"
+        : ispStr.includes("hetzner") ? "Report to: abuse@hetzner.com"
+        : ispStr.includes("ovh") ? "Report to: abuse@ovh.net"
+        : ispStr.includes("cloudflare") ? "Report to: abuse@cloudflare.com"
+        : "Check ARIN/RIPE/APNIC whois for abuse contact";
+    }
+  } catch { /* network may be unavailable */ }
+
+  results.queriedAt = new Date().toISOString();
+  res.json(results);
+});
+
 // POST /counter/port-scan — TCP connect scan on a captured attacker IP
 router.post("/counter/port-scan", async (req, res) => {
   const userId = ((req as any).auth)?.userId as string | undefined;
@@ -1038,14 +1126,18 @@ router.post("/counter/canary-inject", async (req, res) => {
   const userId = ((req as any).auth)?.userId as string | undefined;
   if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  const { ip, type = "pixel" } = req.body as { ip?: string; type?: string };
+  const { ip, type = "pixel", manual = false } = req.body as { ip?: string; type?: string; manual?: boolean };
   if (!ip) { res.status(400).json({ error: "ip required" }); return; }
+  if (!/^(\d{1,3}\.){3}\d{1,3}$/.test(ip)) { res.status(400).json({ error: "Invalid IP" }); return; }
+  if (PRIVATE_IP_RE.test(ip)) { res.status(400).json({ error: "Private IP blocked" }); return; }
 
-  const probeCheck = await db.select({ id: ghostTrapProbesTable.id })
-    .from(ghostTrapProbesTable)
-    .where(and(eq(ghostTrapProbesTable.attackerIp, ip), eq(ghostTrapProbesTable.userId, userId)))
-    .limit(1);
-  if (!probeCheck.length) { res.status(403).json({ error: "IP not in probe log" }); return; }
+  if (!manual) {
+    const probeCheck = await db.select({ id: ghostTrapProbesTable.id })
+      .from(ghostTrapProbesTable)
+      .where(and(eq(ghostTrapProbesTable.attackerIp, ip), eq(ghostTrapProbesTable.userId, userId)))
+      .limit(1);
+    if (!probeCheck.length) { res.status(403).json({ error: "IP not in probe log" }); return; }
+  }
 
   const canaryId  = crypto.randomBytes(14).toString("hex");
   const host      = `${req.protocol}://${req.get("host")}`;

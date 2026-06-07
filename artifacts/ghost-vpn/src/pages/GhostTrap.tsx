@@ -181,6 +181,10 @@ export default function GhostTrap() {
   const [canaryLoading,   setCanaryLoading]    = useState(false);
   const [canaryType,      setCanaryType]       = useState("pixel");
   const [counterCopied,   setCounterCopied]    = useState<string | null>(null);
+  const [manualIpInput,   setManualIpInput]    = useState("");
+  const [manualPortInput, setManualPortInput]  = useState("");
+  const [counterPort,     setCounterPort]      = useState<number | null>(null);
+  const [isManualTarget,  setIsManualTarget]   = useState(false);
 
   const load = useCallback(async () => {
     const [pr, cr] = await Promise.all([
@@ -245,10 +249,15 @@ export default function GhostTrap() {
     if (!counterIp) return;
     setPortScanLoading(true); setPortScanResult(null);
     try {
-      const r = await fetch(`${BASE}/api/ghost-trap/counter/port-scan`, {
+      const endpoint = isManualTarget
+        ? `${BASE}/api/ghost-trap/counter/manual-scan`
+        : `${BASE}/api/ghost-trap/counter/port-scan`;
+      const body: Record<string, unknown> = { ip: counterIp };
+      if (isManualTarget && counterPort) body.port = counterPort;
+      const r = await fetch(endpoint, {
         method: "POST", credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ip: counterIp }),
+        body: JSON.stringify(body),
       });
       setPortScanResult(await r.json());
     } catch { setPortScanResult({ error: "Scan failed" }); }
@@ -259,7 +268,10 @@ export default function GhostTrap() {
     if (!counterIp) return;
     setOsintLoading(true); setOsintResult(null);
     try {
-      const r = await fetch(`${BASE}/api/ghost-trap/counter/osint`, {
+      const endpoint = isManualTarget
+        ? `${BASE}/api/ghost-trap/counter/manual-osint`
+        : `${BASE}/api/ghost-trap/counter/osint`;
+      const r = await fetch(endpoint, {
         method: "POST", credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ip: counterIp }),
@@ -276,7 +288,7 @@ export default function GhostTrap() {
       const r = await fetch(`${BASE}/api/ghost-trap/counter/canary-inject`, {
         method: "POST", credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ip: counterIp, type: canaryType }),
+        body: JSON.stringify({ ip: counterIp, type: canaryType, manual: isManualTarget }),
       });
       setCanaryResult(await r.json());
     } catch { setCanaryResult({ error: "Injection failed" }); }
@@ -1158,26 +1170,91 @@ export default function GhostTrap() {
             </div>
           </div>
 
-          {/* IP selector */}
+          {/* ── Manual IP Investigator ────────────────────────────────────────── */}
+          <div className="bg-[#0d1610] border border-cyan-500/20 rounded-xl p-4 space-y-3">
+            <div className="flex items-center gap-2 text-sm font-semibold text-white">
+              <Search className="w-4 h-4 text-cyan-400" /> Manual IP Investigator
+              <span className="text-[10px] font-normal text-cyan-400/50 ml-1">— paste any IP:port you spotted in netstat, ss, or iftop</span>
+            </div>
+            <div className="flex gap-2 flex-wrap sm:flex-nowrap">
+              <input
+                value={manualIpInput}
+                onChange={e => setManualIpInput(e.target.value.trim())}
+                onKeyDown={e => {
+                  if (e.key === "Enter") {
+                    const ip = manualIpInput.trim();
+                    const port = manualPortInput.trim() ? parseInt(manualPortInput.trim(), 10) : null;
+                    if (/^(\d{1,3}\.){3}\d{1,3}$/.test(ip)) {
+                      setCounterIp(ip);
+                      setCounterPort(port && port > 0 && port <= 65535 ? port : null);
+                      setIsManualTarget(true);
+                      setPortScanResult(null); setOsintResult(null); setCanaryResult(null);
+                    }
+                  }
+                }}
+                placeholder="IP address  e.g. 185.220.101.47"
+                className="flex-1 min-w-0 font-mono text-sm bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-cyan-300 placeholder-white/20 focus:outline-none focus:border-cyan-500/40"
+              />
+              <input
+                value={manualPortInput}
+                onChange={e => setManualPortInput(e.target.value.replace(/\D/g, "").slice(0, 5))}
+                onKeyDown={e => {
+                  if (e.key === "Enter") {
+                    const ip = manualIpInput.trim();
+                    const port = manualPortInput.trim() ? parseInt(manualPortInput.trim(), 10) : null;
+                    if (/^(\d{1,3}\.){3}\d{1,3}$/.test(ip)) {
+                      setCounterIp(ip);
+                      setCounterPort(port && port > 0 && port <= 65535 ? port : null);
+                      setIsManualTarget(true);
+                      setPortScanResult(null); setOsintResult(null); setCanaryResult(null);
+                    }
+                  }
+                }}
+                placeholder="Port  e.g. 4444"
+                className="w-32 font-mono text-sm bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-cyan-300 placeholder-white/20 focus:outline-none focus:border-cyan-500/40"
+              />
+              <button
+                onClick={() => {
+                  const ip = manualIpInput.trim();
+                  const port = manualPortInput.trim() ? parseInt(manualPortInput.trim(), 10) : null;
+                  if (/^(\d{1,3}\.){3}\d{1,3}$/.test(ip)) {
+                    setCounterIp(ip);
+                    setCounterPort(port && port > 0 && port <= 65535 ? port : null);
+                    setIsManualTarget(true);
+                    setPortScanResult(null); setOsintResult(null); setCanaryResult(null);
+                  }
+                }}
+                disabled={!/^(\d{1,3}\.){3}\d{1,3}$/.test(manualIpInput.trim())}
+                className="flex items-center gap-2 px-4 py-2 text-xs font-semibold bg-cyan-500/10 border border-cyan-500/25 text-cyan-400 rounded-lg hover:bg-cyan-500/20 transition-all disabled:opacity-30 disabled:cursor-not-allowed whitespace-nowrap"
+              >
+                <Crosshair className="w-3.5 h-3.5" /> Investigate
+              </button>
+            </div>
+            <div className="text-[10px] text-white/25">
+              Run <code className="text-cyan-400/50">netstat -an</code> or <code className="text-cyan-400/50">ss -tnp</code> in your terminal, copy the foreign IP and port from any active connection, and paste them above. The port scan will check your specific port first and report whether it is still open, closed, or firewalled.
+            </div>
+          </div>
+
+          {/* IP selector — from trap log */}
           {uniqueIps.length === 0 ? (
-            <div className="bg-[#0d1610] border border-white/[0.07] rounded-xl p-10 text-center space-y-2">
-              <Skull className="w-8 h-8 text-white/15 mx-auto" />
-              <div className="text-sm text-white/30">No attacker IPs captured yet</div>
-              <div className="text-xs text-white/20">When Ghost Trap logs a probe, counter-attack tools appear here pre-loaded with that attacker's IP.</div>
+            <div className="bg-[#0d1610] border border-white/[0.07] rounded-xl p-6 text-center space-y-1">
+              <Skull className="w-6 h-6 text-white/15 mx-auto" />
+              <div className="text-sm text-white/30">No trap-logged IPs yet</div>
+              <div className="text-xs text-white/20">IPs that probe your Ghost Trap will appear here as quick-select targets. Use the manual input above in the meantime.</div>
             </div>
           ) : (
             <>
               <div className="bg-[#0d1610] border border-white/[0.07] rounded-xl p-4 space-y-3">
                 <div className="flex items-center gap-2 text-sm font-semibold text-white">
-                  <Crosshair className="w-4 h-4 text-red-400" /> Select Target IP
-                  <span className="text-[10px] font-normal text-white/30 ml-1">— only IPs from your probe log</span>
+                  <Crosshair className="w-4 h-4 text-red-400" /> From Trap Log
+                  <span className="text-[10px] font-normal text-white/30 ml-1">— IPs that have already hit your Ghost Trap</span>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {uniqueIps.map(ip => {
                     const ipProbes = probes.filter(p => p.attackerIp === ip);
                     const types = [...new Set(ipProbes.map(p => p.probeType))];
                     return (
-                      <button key={ip} onClick={() => { setCounterIp(ip); setPortScanResult(null); setOsintResult(null); setCanaryResult(null); }}
+                      <button key={ip} onClick={() => { setCounterIp(ip); setCounterPort(null); setIsManualTarget(false); setPortScanResult(null); setOsintResult(null); setCanaryResult(null); }}
                         className={`font-mono text-xs px-3 py-2 rounded-lg border transition-all text-left ${counterIp === ip ? "bg-red-500/15 border-red-500/40 text-red-300" : "bg-black/40 border-white/10 text-white/50 hover:text-white/70 hover:border-white/20"}`}>
                         <div className="font-bold">{ip}</div>
                         <div className="text-[9px] mt-0.5 opacity-60">{ipProbes.length} probe{ipProbes.length !== 1 ? "s" : ""} · {types.join(", ")}</div>
@@ -1190,10 +1267,15 @@ export default function GhostTrap() {
               {counterIp && (
                 <div className="space-y-4">
                   {/* Target banner */}
-                  <div className="flex items-center gap-3 px-4 py-2.5 bg-red-950/30 border border-red-500/25 rounded-xl">
-                    <Target className="w-4 h-4 text-red-400 shrink-0" />
-                    <span className="text-sm font-mono font-bold text-red-300">Target: {counterIp}</span>
-                    <span className="text-xs text-red-300/50 ml-auto">{probes.filter(p => p.attackerIp === counterIp).length} probes logged</span>
+                  <div className={`flex items-center gap-3 px-4 py-2.5 rounded-xl border ${isManualTarget ? "bg-cyan-950/30 border-cyan-500/25" : "bg-red-950/30 border-red-500/25"}`}>
+                    <Target className={`w-4 h-4 shrink-0 ${isManualTarget ? "text-cyan-400" : "text-red-400"}`} />
+                    <span className={`text-sm font-mono font-bold ${isManualTarget ? "text-cyan-300" : "text-red-300"}`}>
+                      Target: {counterIp}{counterPort ? <span className="text-xs opacity-60">:{counterPort}</span> : null}
+                    </span>
+                    {isManualTarget
+                      ? <span className="text-xs text-cyan-400/40 ml-auto">Manual investigation</span>
+                      : <span className="text-xs text-red-300/50 ml-auto">{probes.filter(p => p.attackerIp === counterIp).length} probes logged</span>
+                    }
                   </div>
 
                   {/* Tools grid */}
