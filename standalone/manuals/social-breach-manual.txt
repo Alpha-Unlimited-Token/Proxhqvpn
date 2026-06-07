@@ -1,0 +1,126 @@
+Social & Game Account Breach Tester — User Manual
+Version 1.2 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+Command Center Pro Feature
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+LEGAL NOTICE: This tool is for authorized security testing only.
+Only test accounts you own or have explicit written permission to
+audit. Unauthorized credential testing is illegal under the CFAA,
+GDPR, and equivalent laws worldwide.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TABLE OF CONTENTS
+
+1. Overview
+2. Platform Categories (80+ platforms)
+3. Auto vs Manual Login Strategies
+4. Session Management
+5. Proxy Browser Usage
+6. Security Testing Use Cases
+7. Session Cleanup
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW
+
+  The Social & Game Account Breach Tester helps you:
+  • Verify your own account security on 80+ platforms
+  • Test whether compromised credentials actually work
+  • Audit login flows for security research and bug bounties
+  • Maintain authenticated sessions through a built-in proxy browser
+
+  All login attempts and proxy traffic are routed through your
+  ProxhqVPN tunnel.
+
+2. PLATFORM CATEGORIES
+
+  Social Media Tab (35+ platforms):
+  Facebook, Instagram, Twitter/X, TikTok, Snapchat, Threads,
+  LinkedIn, Pinterest, Reddit, Discord, Telegram, Signal, Slack,
+  WhatsApp, YouTube, Twitch, Kick, Rumble, GitHub, GitLab, and more.
+
+  Gaming Launchers Tab (10+ platforms):
+  Steam (RSA-encrypted login), Epic Games, GOG Galaxy, Blizzard
+  Battle.net, Ubisoft Connect, Origin/EA, Activision, Rockstar,
+  HoYoverse (Genshin/HSR), Warframe, Path of Exile, Nexon.
+
+  Game Titles Tab (15+ games):
+  Roblox, Minecraft, Fortnite (via Epic), Valorant (via Riot),
+  League of Legends (via Riot), Call of Duty, Apex Legends (via EA),
+  GTA Online (via Rockstar), Overwatch 2 (via Blizzard), and more.
+
+  Legacy Systems Tab (10+ platforms):
+  Xbox Live (manual flow), PlayStation Network, Nintendo,
+  2K Games, Konami ID, Sega/Atlus, NCSoft (Blade & Soul), and more.
+
+3. AUTO vs MANUAL LOGIN STRATEGIES
+
+  Auto (automated):
+  • Platform: Discord, Instagram, Steam, Epic, GOG, Reddit, GitHub,
+    Twitch, Roblox
+  • How: The backend sends the correct API calls and decrypts
+    challenge responses (e.g., Steam RSA encryption) automatically.
+  • Result: Full session cookies returned if credentials are valid.
+
+  Manual:
+  • Platform: Facebook, Twitter, TikTok, Xbox, PlayStation, etc.
+  • How: The proxy browser loads the platform's actual login page.
+    You enter credentials in the real login form, which is
+    intercepted and proxied through the backend session.
+  • Use for platforms with heavy bot detection or OAuth flows.
+
+4. SESSION MANAGEMENT
+
+  After login, sessions are maintained in the backend session store
+  (4-hour TTL). Sessions survive page navigation in the app.
+
+  To view active sessions: Scroll to "Active Sessions" in the tool.
+  To close a session: Click the × next to any session entry.
+
+  Sessions persist for 4 hours from last activity. After that,
+  re-authenticate if needed.
+
+5. PROXY BROWSER USAGE
+
+  The proxy browser embeds the platform page with:
+  • All cookies automatically injected
+  • All links rewritten through the proxy
+  • Navigation history (back/forward)
+  • The "BREACH ACTIVE" indicator showing the audit is in progress
+
+  Navigation bar:
+  • Type a URL manually to navigate to a specific page
+  • Back/Forward buttons follow full session history
+  • Refresh reloads the current page with updated session cookies
+
+6. SECURITY TESTING USE CASES
+
+  a) Credential Verification (for your own accounts):
+     Test whether leaked credentials from a data breach work on
+     any of your registered accounts.
+
+  b) Login Flow Audit (for developers):
+     Test your own application's login security by pointing the
+     tool at your staging environment.
+
+  c) Session Security Testing:
+     After login, test whether the platform properly invalidates
+     sessions on password change, logout, etc.
+
+  d) Bug Bounty Authentication Testing:
+     Use with your own test accounts on programs that allow
+     authentication testing in their scope.
+
+7. SESSION CLEANUP
+
+  Sessions automatically expire after 4 hours. To manually clean up:
+  1. Click the × next to each active session.
+  2. Or wait for the 4-hour automatic cleanup.
+
+  Note: The backend session store is in-memory only. Sessions are
+  cleared when the API server restarts.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC

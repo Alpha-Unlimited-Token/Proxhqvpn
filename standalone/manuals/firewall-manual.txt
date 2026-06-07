@@ -1,0 +1,258 @@
+Firewall Manager — User Manual
+Version 1.5 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+VPN Basic Feature (Admin)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TABLE OF CONTENTS
+
+1. Overview
+2. Rule Types
+3. Creating Rules
+4. Block IP / CIDR
+5. Allow Port
+6. Rate Limiting
+7. GeoIP Country Blocking
+8. Auto-Block (from Ghost Trap / Ghost Trace)
+9. Exporting iptables Rules
+10. Rule Ordering & Priority
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW
+
+  The Firewall Manager (/firewall) manages iptables/nftables rules
+  across all 60 ProxhqVPN nodes from a single interface. Rules
+  created here are applied to every node simultaneously.
+
+  Backend: Express API at /api/firewall
+  Frontend: /firewall (admin role required)
+  DB tables: firewall_rules, blocked_ips, firewall_status
+
+  The Firewall has three tabs:
+  • Rules — create and manage firewall rules
+  • Blocked IPs — list of currently blocked IPs
+  • Export — generate downloadable iptables scripts
+
+2. RULE TYPES
+
+  BLOCK IP / CIDR
+    Drop all packets from a specific IP or IP range.
+    Applied to all 60 nodes simultaneously.
+    Supports CIDR notation: 185.220.101.0/24
+
+  ALLOW PORT
+    Allow inbound traffic on a specific port/protocol.
+    Used to whitelist services: WireGuard (51820/UDP),
+    SSH (22/TCP), HTTPS (443/TCP).
+
+  RATE LIMIT
+    Limit connection rate per source IP.
+    Protects against DDoS, brute force, and port scanners.
+    Example: max 5 new SSH connections per minute per IP.
+
+  GEO BLOCK
+    Block all traffic from specific countries by ASN/CIDR.
+    Uses MaxMind GeoIP database (updated weekly).
+    Apply per-country or per-region (EU, APAC, etc.)
+
+  PORT KNOCK SEQUENCE
+    Hidden port sequence required before a port is opened.
+    See Proxy & Tor (/proxy) for full port knocking setup.
+
+3. CREATING RULES
+
+  Firewall → Rules → + Add Rule
+
+  Required fields:
+  • Rule Type: Block IP / Allow Port / Rate Limit / GeoIP Block
+  • Direction: Inbound / Outbound / Both
+  • Priority: 1–100 (lower = evaluated first)
+  • Description: human-readable label for the rule
+  • Active: YES / NO (inactive rules are stored but not applied)
+
+  For Block IP rules:
+  • IP/CIDR: e.g. 185.220.101.47 or 185.220.101.0/24
+  • Protocol: TCP / UDP / ICMP / ALL
+  • Expiry: permanent / 24h / 7 days / 30 days / custom
+
+  For Allow Port rules:
+  • Port: 1-65535 (or range: 8000-8999)
+  • Protocol: TCP / UDP
+  • Source IP restriction: optional CIDR to limit who can access
+
+  For Rate Limit rules:
+  • Port: the port to rate-limit
+  • Rate: e.g. 10/min (10 connections per minute)
+  • Burst: burst allowance (connections above rate before limit)
+  • Action: DROP (silent) / REJECT (sends reset to attacker)
+
+4. BLOCK IP / CIDR — DETAILED
+
+  Blocking a single IP:
+  → Blocks all traffic from that IP across all ports.
+  → Applied to both the VPN tunnel interface and the server's
+    public-facing interface.
+
+  Blocking a CIDR range:
+  → Use when an attacker is rotating IPs within a range.
+  → Common ranges to block: /24 (256 IPs), /16 (65536 IPs)
+  → Verify the range with a WHOIS lookup to avoid over-blocking
+    (some ranges contain many legitimate users/CDNs).
+
+  Temporary blocks:
+  → Set an expiry (24h, 7 days, etc.) for automated scanner IPs.
+  → Permanent blocks should be reserved for confirmed malicious
+    actors or known botnet infrastructure.
+
+  Auto-populated blocks:
+  → Ghost Trap auto-blocks IPs with 3+ trap hits in 60 minutes.
+  → Ghost Trace auto-suggests blocks for IPs scoring > 90.
+  → These appear in the Blocked IPs tab with source label
+    "Ghost Trap" or "Ghost Trace".
+
+5. ALLOW PORT — COMMON CONFIGURATIONS
+
+  Required ports (do not block):
+    51820/UDP    WireGuard VPN tunnel — must be open
+    443/TCP      HTTPS for admin dashboard access
+    80/TCP       HTTP (if Let's Encrypt cert renewal active)
+
+  Optional service ports:
+    22/TCP       SSH — restrict to admin IP CIDR only
+    25/TCP       SMTP — only if running mail server
+    53/UDP       DNS — only if running recursive resolver
+
+  ProxhqVPN-specific ports:
+    51820/UDP    WireGuard primary
+    51821-51870/UDP  WireGuard additional nodes (if multi-port)
+
+  SSH lockdown example (restrict SSH to your IP only):
+  1. Create Allow Port rule: 22/TCP, Source: YOUR_IP/32
+  2. Create Block IP rule: 0.0.0.0/0, Port: 22/TCP, after above
+  3. Verify with: ss -lntp | grep :22
+
+6. RATE LIMITING
+
+  Rate limiting protects against:
+  • SSH brute force (limit: 5 connections per minute per IP)
+  • Port scanning (limit new connections to any port)
+  • API abuse (limit requests per minute on port 443)
+  • DDoS (limit connection rate from any single source)
+
+  SSH brute force protection (recommended for all deployments):
+  Rule: Rate Limit, Port 22/TCP, 5/min, Burst 10, DROP
+
+  This blocks IPs that attempt more than 5 SSH connections per
+  minute — enough for a legitimate user to reconnect after a
+  dropped session, but stops automated brute forcers.
+
+  Verify rate limit is active:
+  Terminal → iptables -L INPUT -n | grep limit
+
+7. GEOIP COUNTRY BLOCKING
+
+  Firewall → Rules → Add Rule → GeoIP Block
+
+  Select countries from the dropdown. Multiple countries can be
+  selected for a single rule.
+
+  GeoIP blocking is approximate — accuracy is ~99% for country-
+  level blocking, but sophisticated attackers use VPNs or
+  Tor exit nodes in unblocked countries to evade GeoIP rules.
+
+  GeoIP block use cases:
+  • Block Russia, China, North Korea (common attack sources)
+  • Block all countries except yours (maximum restriction)
+  • Block by region: block all APAC if you only serve EU users
+
+  Verify GeoIP is working:
+  Use a VPN node in the blocked country → try to access your
+  server → should receive a DROP (no response / timeout).
+
+8. AUTO-BLOCK (FROM OTHER TOOLS)
+
+  The Firewall receives automatic block suggestions from:
+
+  Ghost Trap:
+    IPs that hit 3+ lure endpoints within 60 minutes are
+    auto-added to Blocked IPs with source "Ghost Trap".
+    Review in Firewall → Blocked IPs.
+
+  Ghost Trace:
+    Peers with anomaly score > 90 trigger a suggested block
+    of the malicious destination IP. Requires admin confirmation.
+
+  Manual IP Investigator:
+    From Ghost Trap Counter-Intel, "Add to Firewall Block"
+    immediately adds the investigated IP to the blocked list.
+
+  AbuseIPDB auto-block:
+    If enabled in Threat Intel settings, IPs with confidence
+    score > 90 on AbuseIPDB are automatically added.
+    Settings: Threat Intel → Auto-Block Threshold.
+
+9. EXPORTING IPTABLES RULES
+
+  Firewall → Export tab → "Generate iptables Script"
+
+  Downloads a .sh shell script that applies all active firewall
+  rules using standard iptables commands. Use this to:
+  • Apply the same rules manually on servers outside ProxhqVPN
+  • Back up your firewall configuration
+  • Audit exactly what rules are active in a readable format
+
+  Example generated output:
+  ---
+  #!/bin/bash
+  # ProxhqVPN Firewall — auto-generated $(date)
+
+  # Default policies
+  iptables -P INPUT DROP
+  iptables -P FORWARD DROP
+  iptables -P OUTPUT ACCEPT
+
+  # Allow loopback
+  iptables -A INPUT -i lo -j ACCEPT
+
+  # Allow established connections
+  iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+
+  # WireGuard
+  iptables -A INPUT -p udp --dport 51820 -j ACCEPT
+
+  # SSH (rate-limited, admin IP only)
+  iptables -A INPUT -s ADMIN_IP/32 -p tcp --dport 22 \
+    -m limit --limit 5/min --limit-burst 10 -j ACCEPT
+
+  # Block attacker IPs
+  iptables -A INPUT -s 185.220.101.47 -j DROP
+
+  # IPv6 — mirror all rules
+  ip6tables -P INPUT DROP
+  ip6tables -A INPUT -i lo -j ACCEPT
+  ip6tables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+  ---
+
+  nftables export is also available (Settings → Export Format).
+
+10. RULE ORDERING & PRIORITY
+
+  Rules are evaluated in priority order (lowest number = first).
+  ACCEPT rules must have LOWER priority number than DROP rules
+  for the same port/IP to take effect.
+
+  Example ordering:
+  Priority 1:  Allow loopback (127.0.0.1 always allowed)
+  Priority 5:  Allow admin SSH (YOUR_IP:22)
+  Priority 10: Allow WireGuard (51820/UDP)
+  Priority 20: Allow established connections
+  Priority 50: Rate limit SSH (all IPs)
+  Priority 90: Block known attacker IPs
+  Priority 100: Default deny all (DROP policy)
+
+  If an ALLOW rule and a BLOCK rule conflict on the same IP+port,
+  whichever has the LOWER priority number wins.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC

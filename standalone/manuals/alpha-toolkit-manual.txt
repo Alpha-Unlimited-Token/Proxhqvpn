@@ -1,0 +1,379 @@
+Alpha Toolkit — User Manual
+Version 2.0 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+Command Center Pro Feature
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+LEGAL NOTICE: Only scan targets you own or have written
+permission to test. Unauthorized scanning is illegal.
+ALPHA UNLIMITED TECHNOLOGIES LLC assumes no liability for misuse.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TABLE OF CONTENTS
+
+1. Overview — 3-Tool Suite
+2. Tor Cloak (Global)
+3. Tool 1 — Universal Scanner (v4.0)
+4. Scanner Modes (Network / Security / Exploit / Full)
+5. Scanner Command Flags Reference
+6. Tool 2 — Vulnerability Verifier
+7. Scanner → Verifier Pipeline
+8. Verifier Output: Confirmed vs. False Positive
+9. Tool 3 — Web Scraper
+10. Web Scraper Database Schema (14 tables)
+11. Exporting Scraped Data
+12. Common Workflows
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW — 3-TOOL SUITE
+
+  Alpha Toolkit (/alpha-tools) is an integrated 3-tool security
+  research suite:
+
+  Tool 1 — Universal Scanner v4.0:
+    Scans targets for security vulnerabilities, misconfigurations,
+    exposed credentials, and network services. Supports 35+
+    programming languages, 200+ vulnerability patterns, multi-step
+    exploit chain detection, port scanning, and service fingerprinting.
+
+  Tool 2 — Vulnerability Verifier:
+    Takes the Scanner's HTML report and ACTIVELY PROBES each finding
+    against the live target to confirm real exposure vs. false positive.
+    TLS handshakes, TCP banner grabs, SQL probes, SSRF checks.
+
+  Tool 3 — Web Scraper:
+    Browser-based recursive web scraper. Captures 14 data types
+    (pages, links, emails, forms, scripts, cookies, etc.) into a
+    local SQLite database. Exportable as .sqlite, CSV, or JSON.
+
+  All three tools support Tor Cloak (Section 2).
+  Tools are designed to work as a pipeline (Section 7).
+
+2. TOR CLOAK (GLOBAL)
+
+  The Tor Cloak toggle at the top of the Alpha Toolkit page routes
+  ALL tool traffic through the Tor SOCKS5 proxy at 127.0.0.1:9050.
+
+  When Tor Cloak is ON:
+  • The Tor badge shows your current Tor exit node IP address.
+  • ALWAYS verify the badge shows a Tor exit IP (not your real IP)
+    before starting any scan.
+  • All scanner requests, verifier probes, and scraper fetches
+    route through Tor circuits.
+  • Tor circuit rotation: circuits are rotated every 10 minutes
+    automatically. Click "New Circuit" to rotate immediately.
+
+  When Tor Cloak is OFF:
+  • Scanner/Verifier/Scraper use the ProxhqVPN server's IP.
+  • Still anonymous (ProxhqVPN server IP, not your real IP).
+  • Faster than Tor.
+
+  IMPORTANT: Tor Cloak routes traffic through Tor's EXISTING
+  circuits. It does not guarantee a specific exit country.
+  For country-specific exit: use the OnionBrowser (/onion-browser)
+  with a custom exit node instead.
+
+3. TOOL 1 — UNIVERSAL SCANNER V4.0
+
+  Alpha Toolkit → Scanner tab
+
+  Target input:
+  Network/All mode:   IP address or hostname (e.g. 192.168.1.1 or target.com)
+  Security mode:      File path or URL to source code repository
+  Exploit mode:       URL to the web application endpoint
+
+  Options:
+  Port Range:         e.g. 1-10000 (network scan only)
+  Threads:            1–50 (parallel scan threads)
+  Language override:  --lang php  (force detection, e.g. for mixed repos)
+  Extra flags:        any additional scanner flags (see Section 5)
+  Tor Cloak:          route through Tor (top-right toggle)
+
+  Supported languages (35+):
+  Python, JavaScript, TypeScript, PHP, Ruby, Java, C, C++, C#,
+  Go, Rust, Swift, Kotlin, Scala, Perl, Bash, PowerShell,
+  Lua, R, MATLAB, Groovy, Clojure, Elixir, F#, OCaml,
+  Terraform, CloudFormation, Kubernetes YAML, Dockerfile,
+  Ansible, Nginx/Apache config, SQL files, .env files,
+  HTML, CSS, XML, JSON
+
+4. SCANNER MODES
+
+  NETWORK SCAN:
+    What it does: TCP port scanning + service fingerprinting +
+                  banner grabbing via nmap integration.
+    Target: IP address or hostname.
+    Output:
+    • Open ports list with service name + version banner
+    • OS fingerprint (if detectable)
+    • SSL/TLS cert info for any HTTPS ports
+    • Common default credentials check for detected services
+    • Script scan results (nmap -sC equivalent)
+
+    Example: scan a server for all common services:
+    Target: 192.168.1.100  Ports: 1-10000  Threads: 50
+    → Finds: 22/SSH, 80/HTTP, 443/HTTPS, 3306/MySQL, 5432/PgSQL
+
+  SECURITY AUDIT:
+    What it does: Scans source code or config files for:
+    • Hardcoded secrets: API keys, passwords, tokens in code
+    • Weak cryptography: MD5 hashes, DES, 512-bit RSA
+    • Dangerous functions: eval(), exec(), system(), os.popen()
+    • SQL query construction: string concatenation = SQLi risk
+    • Deserialization: unserialize(), pickle.loads() without validation
+    • Path construction: user input in file paths
+    • Insecure temp files, world-readable files
+    Target: GitHub URL, local file upload, or pasted code.
+
+    Secret detection patterns:
+    • AWS keys: AKIA[0-9A-Z]{16}
+    • GCP keys: AIza[0-9A-Za-z-_]{35}
+    • GitHub tokens: ghp_[a-zA-Z0-9]{36}
+    • Private keys: -----BEGIN RSA PRIVATE KEY-----
+    • Passwords: password=, passwd=, pwd= followed by a value
+    • Connection strings: postgresql://, mongodb://, redis://
+
+  EXPLOIT SCAN:
+    What it does: Tests 200+ vulnerability patterns against a live URL.
+    Target: URL of the web application.
+    Tests include:
+    • XSS reflection: injects probe in every URL parameter
+    • SQL injection: error-based probe on all parameters
+    • Path traversal: ../../../../etc/passwd in file parameters
+    • Open redirect: ?next=https://evil.com probe
+    • CORS: Origin: https://evil.com → check Access-Control-Allow-Origin
+    • SSRF: ?url=http://169.254.169.254/ probe
+    • Default admin panels: /admin, /wp-admin, /phpmyadmin, /manager
+    • Exposed files: /.git/, /.env, /config.php, /backup.sql
+    • HTTP methods: OPTIONS, TRACE, PUT probe
+
+  FULL SCAN:
+    Runs all three modes sequentially on the same target.
+    Generates a comprehensive HTML report consolidating all findings.
+    Longest runtime: 5–30 minutes depending on target size.
+
+5. SCANNER COMMAND FLAGS REFERENCE
+
+  --lang [language]
+    Force scanner to treat all files as specified language.
+    Example: --lang python (useful for .py files with unusual extensions)
+
+  --deep
+    Enable deep scan mode: recursively follow all links and scan
+    discovered pages/endpoints. May significantly increase scan time.
+
+  --config-audit
+    Enable configuration file auditing: scans .env, .yaml, .json,
+    nginx.conf, apache.conf, etc. for security misconfigurations.
+
+  --no-banner
+    Skip banner grabbing on network scan (faster, less detectable).
+
+  --rate [N]
+    Limit scan rate to N requests per second (default: 20/s).
+    Use for sensitive targets: --rate 2
+
+  --timeout [ms]
+    Per-request timeout in milliseconds (default: 3000ms).
+
+  --report-path [path]
+    Save report to specified path on the server (admin only).
+
+  --exclude [pattern]
+    Exclude URLs matching pattern from exploit scan.
+    Example: --exclude "logout|delete" (avoid destructive endpoints)
+
+  --output json
+    Return results as JSON instead of HTML report (for API use).
+
+6. TOOL 2 — VULNERABILITY VERIFIER
+
+  Alpha Toolkit → Verifier tab
+
+  The Verifier takes an Alpha Scanner HTML report and ACTIVELY PROBES
+  each finding against the live target to determine:
+  • CONFIRMED: finding is real, actively exploitable
+  • FALSE POSITIVE: finding appears in report but not actually vulnerable
+  • UNKNOWN: could not determine (timeout, CAPTCHA, WAF)
+
+  How probing works:
+  • SQL error findings: sends the same payload again, looks for DB error
+  • Path traversal: tries to actually read /etc/passwd via the path
+  • XSS reflection: checks if probe string appears unescaped in response
+  • SSRF: checks if the server makes an outbound request to a canary URL
+  • Exposed file (.env, .git): checks if file is downloadable
+  • Open port: makes TCP connection to confirm port is open
+  • TLS findings: performs new TLS handshake, records cipher/protocol
+  • CDN detection: if target is behind Cloudflare/Akamai, flags findings
+    as "CDN — may not affect origin directly"
+
+7. SCANNER → VERIFIER PIPELINE
+
+  The Alpha Toolkit is designed as a sequential pipeline:
+  Scanner detects → Verifier confirms → Confirmed findings actioned.
+
+  Step 1: Run Universal Scanner (any mode).
+  Step 2: Wait for scan to complete. Status shows 100%.
+  Step 3: Click "Send to Verifier" (green button, top of results panel).
+           → App automatically switches to Verifier tab.
+           → HTML report is pre-loaded (~N KB shown in report info).
+  Step 4: (Optional) Set a Target URL Override.
+           If the scanner detected a base domain but the finding
+           is on a specific path, set the override to the path.
+  Step 5: (Optional) Toggle Tor Cloak if not already on.
+  Step 6: Click "Verify Findings".
+  Step 7: Verifier probes each finding. Progress bar shows status.
+  Step 8: Results appear with confirmation status per finding.
+
+  Confirmed findings (red):
+  Actively exploitable. Requires immediate remediation.
+
+  False positives (grey):
+  Scanner detected a pattern but active probing found no vulnerability.
+  Common causes: WAF blocks, framework protection, test environment data.
+
+  CDN warning (yellow):
+  The target is behind a CDN (Cloudflare, Fastly, Akamai).
+  Findings may not apply to the origin server behind the CDN.
+
+8. VERIFIER OUTPUT: CONFIRMED VS. FALSE POSITIVE
+
+  Final Exposure Report includes:
+  • Total findings from Scanner
+  • Confirmed exploitable: N
+  • False positives filtered: M
+  • CDN warnings: K
+  • Overall risk score (CRITICAL / HIGH / MEDIUM / LOW)
+  • Per-finding: technique, evidence, recommended fix
+
+  Download: "Download Exposure Report" → formatted .txt file
+  Color-coded: RED = confirmed, GREY = false positive
+
+9. TOOL 3 — WEB SCRAPER
+
+  Alpha Toolkit → Scraper tab
+
+  The Web Scraper runs in the browser and crawls any website,
+  storing all captured data in a local SQLite database.
+
+  Configuration:
+  Start URL:    https://target.com (starting point for crawl)
+  Depth:        1–10 (how many link-hops from start URL to follow)
+  Max pages:    1–10,000 (total pages to capture)
+  Same-domain:  YES/NO (follow only links on the same domain?)
+  Tor Mode:     route all fetch requests through Tor (top-right toggle)
+  Delay:        0–5000ms between requests (polite crawling)
+
+  Include/exclude patterns:
+  Include: only crawl URLs matching regex (e.g. /api/, /blog/)
+  Exclude: skip URLs matching regex (e.g. /logout, /delete, /admin)
+
+  Click "Start Scrape". Live progress bar shows:
+  Pages crawled, links found, emails discovered, forms captured.
+
+10. WEB SCRAPER DATABASE SCHEMA (14 TABLES)
+
+  Table: pages
+    url, title, meta_description, html_content (full page HTML),
+    http_status_code, content_type, crawled_at, depth_level
+
+  Table: links
+    source_url, target_url, anchor_text, is_internal, is_external,
+    is_broken (404/500), link_type (href/src/action)
+
+  Table: emails
+    email_address, found_on_url, context_snippet (surrounding text),
+    is_verified_format, first_seen
+
+  Table: phones
+    phone_number, found_on_url, raw_text (as it appeared on page),
+    country_code_detected
+
+  Table: images
+    image_url, alt_text, width, height, found_on_url
+
+  Table: forms
+    form_action, form_method, found_on_url, form_id, form_name,
+    has_csrf_token, input_fields (JSON array of {name, type, value})
+
+  Table: opengraph
+    url, og_title, og_description, og_image, og_type, og_site_name,
+    og_url, og_locale
+
+  Table: jsonld
+    url, json_ld_type, raw_json (full JSON-LD block), schema_type
+
+  Table: headers
+    url, header_name, header_value, captured_at
+    (All HTTP response headers per page)
+
+  Table: cookies
+    url, cookie_name, cookie_value, domain, path,
+    is_http_only, is_secure, same_site, expires_at
+
+  Table: scripts
+    script_url, is_inline, integrity_hash (SRI), crossorigin,
+    found_on_url, script_preview (first 200 chars if inline)
+
+  Table: stylesheets
+    stylesheet_url, media_type, is_inline, found_on_url
+
+  Table: assets
+    asset_url, asset_type (font/video/audio/pdf/other),
+    found_on_url, file_size_estimate
+
+  Table: metadata
+    crawl_id, start_url, start_time, end_time, total_pages,
+    total_links, max_depth, tor_mode_active, user_agent_used
+
+11. EXPORTING SCRAPED DATA
+
+  Three export formats:
+
+  SQLite (.sqlite):
+    Full database file — open in DB Browser for SQLite.
+    Query across all 14 tables with full SQL support.
+    Best for: deep analysis, correlation queries.
+
+  CSV (per table):
+    One .csv file per table.
+    Download as .zip (all tables) or individual table CSV.
+    Best for: spreadsheet analysis, Excel pivot tables.
+
+  JSON (full export):
+    All tables as a single nested JSON structure.
+    Best for: programmatic processing, API ingestion.
+
+  Export: Scraper tab → Results → "Export" → select format → Download.
+
+12. COMMON WORKFLOWS
+
+  WORKFLOW: Bug Bounty Recon on a Target Domain
+  1. Tor Cloak: ON.
+  2. Scanner → Exploit Scan → target.com.
+  3. Wait for scan. Note findings.
+  4. Send to Verifier → confirm critical/high findings.
+  5. Scraper → crawl target.com depth 3 → export emails + forms.
+  6. Send confirmed SQLi findings to SQLMap for full exploitation.
+  7. Compile Ghost Chain report with all confirmed findings.
+
+  WORKFLOW: Source Code Security Audit
+  1. Tor Cloak: OFF (local source code, no network needed).
+  2. Scanner → Security Audit → paste GitHub URL or upload zip.
+  3. Review hardcoded secrets and dangerous function calls.
+  4. Download HTML report.
+  5. Send to Verifier with Target URL = staging environment.
+  6. Verifier confirms which code vulnerabilities are actually reachable.
+
+  WORKFLOW: Competitive Intelligence / OSINT
+  1. Tor Cloak: ON.
+  2. Scraper → target domain depth 5, same-domain only.
+  3. Export emails table → list of all staff email addresses found.
+  4. Export forms table → all form endpoints (API recon).
+  5. Export scripts table → third-party tools/trackers used.
+  6. Cross-reference emails with Dark Web Monitor.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC

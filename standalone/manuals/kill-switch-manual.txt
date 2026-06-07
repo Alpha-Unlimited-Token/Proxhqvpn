@@ -1,0 +1,246 @@
+Kill Switch — User Manual
+Version 1.4 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+VPN Basic Feature
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TABLE OF CONTENTS
+
+1. What the Kill Switch Does
+2. Auto-IP Whitelisting
+3. IPv6 Leak Protection
+4. Platform Rules (Linux / macOS / Windows)
+5. Enabling the Kill Switch
+6. Disabling the Kill Switch
+7. Kill Switch Modes
+8. Testing the Kill Switch
+9. Troubleshooting
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. WHAT THE KILL SWITCH DOES
+
+  The Kill Switch blocks ALL internet traffic the instant your
+  VPN tunnel drops — preventing your real IP address from being
+  exposed even for a millisecond.
+
+  Without a kill switch:
+  • VPN drops (network hiccup, server restart, interface change)
+  • Your OS immediately falls back to direct internet connection
+  • All apps continue sending traffic with your real IP
+  • Your ISP, websites, and anyone monitoring see your real IP
+  • Duration: could be seconds to minutes before VPN reconnects
+
+  With ProxhqVPN Kill Switch active:
+  • VPN drops → OS firewall instantly blocks all non-VPN traffic
+  • Apps get no internet access (connection refused or timeout)
+  • Real IP never exposed — zero-gap protection
+  • VPN reconnects → firewall automatically re-allows VPN traffic
+
+  Implementation:
+  • Linux: iptables + ip6tables (kernel-level, near-instantaneous)
+  • macOS: pf (packet filter, built into all macOS versions)
+  • Windows: Windows Defender Firewall (netsh advfirewall)
+
+2. AUTO-IP WHITELISTING
+
+  ProxhqVPN Kill Switch includes Auto-IP Whitelisting — a feature
+  that prevents you from locking yourself out of your server when
+  the kill switch is applied on a remote machine.
+
+  How it works:
+  1. When you open the Kill Switch page, ProxhqVPN calls
+     /api/my-ip to detect your current public IP address.
+  2. A green "SAFE IP AUTO-DETECTED" banner shows your IP.
+  3. All generated rule scripts have this IP pre-baked in as
+     an exception — your IP can always reach the server.
+
+  If your IP changes (dynamic IP):
+  • Re-open the Kill Switch page — new IP is auto-detected.
+  • Regenerate rules using the new IP.
+  • Re-apply the updated rules to your server.
+
+3. IPV6 LEAK PROTECTION
+
+  Modern devices have BOTH an IPv4 address and an IPv6 address.
+  A VPN that only blocks IPv4 traffic leaves an IPv6 backdoor:
+  • Attacker (or tracker) pings your IPv6 address directly
+  • Your device responds with its real IPv6 address
+  • Real location exposed despite VPN being active
+
+  ProxhqVPN Kill Switch includes full IPv6 protection:
+  • ip6tables rules mirror all iptables rules
+  • IPv6 loopback allowed (::1)
+  • IPv6 VPN interface passthrough allowed
+  • ALL other IPv6 traffic: DROP policy
+
+  Linux IPv6 kill switch rules (included in generated script):
+    ip6tables -P INPUT DROP
+    ip6tables -P OUTPUT DROP
+    ip6tables -P FORWARD DROP
+    ip6tables -A INPUT -i lo -j ACCEPT
+    ip6tables -A OUTPUT -o lo -j ACCEPT
+    ip6tables -A INPUT -i wg0 -j ACCEPT
+    ip6tables -A OUTPUT -o wg0 -j ACCEPT
+
+4. PLATFORM RULES
+
+  LINUX (iptables):
+  Generated as a .sh bash script.
+
+  Key rules:
+  # Block all OUTPUT not on wg0 (except VPN server IP + your safe IP)
+  iptables -I OUTPUT ! -o wg0 -m mark \
+    ! --mark $(wg show wg0 fwmark) \
+    -m addrtype ! --dst-type LOCAL -j REJECT
+
+  # Allow your safe IP to bypass block (remote server admin)
+  iptables -I OUTPUT -s YOUR_SAFE_IP/32 -j ACCEPT
+
+  # Allow VPN server endpoint (so WireGuard handshake works)
+  iptables -I OUTPUT -d VPN_ENDPOINT_IP/32 -j ACCEPT
+
+  # Allow loopback + LAN
+  iptables -I OUTPUT -o lo -j ACCEPT
+  iptables -I OUTPUT -d 192.168.0.0/16 -j ACCEPT
+  iptables -I OUTPUT -d 10.0.0.0/8 -j ACCEPT
+
+  macOS (pf):
+  Generated as a pf.conf snippet.
+  Apply with: sudo pfctl -f /etc/pf.conf && sudo pfctl -e
+
+  Key rules:
+  # Block all traffic by default
+  block all
+  # Allow VPN interface
+  pass on utun0 all
+  # Allow loopback
+  pass on lo0 all
+  # Allow to VPN server (so reconnection works)
+  pass out proto udp from any to VPN_SERVER_IP port 51820
+  # Allow your admin IP
+  pass from YOUR_SAFE_IP to any
+
+  Windows (netsh):
+  Generated as a .bat script.
+  Run as Administrator.
+
+  Key rules:
+  netsh advfirewall firewall add rule name="BlockAll" ^
+    dir=out action=block
+  netsh advfirewall firewall add rule name="AllowWireGuard" ^
+    dir=out action=allow protocol=UDP remoteport=51820
+  netsh advfirewall firewall add rule name="AllowAdminIP" ^
+    dir=out action=allow remoteip=YOUR_SAFE_IP
+
+5. ENABLING THE KILL SWITCH
+
+  Method A — ProxhqVPN Dashboard (recommended):
+  1. Navigate to Kill Switch (/kill-switch).
+  2. Verify the green "SAFE IP AUTO-DETECTED" banner shows your
+     correct public IP. If wrong, refresh the page.
+  3. Select your platform: Linux / macOS / Windows.
+  4. Click "Download Rules" to save the generated script.
+  5. Run the script on your system (with appropriate privileges).
+  6. Click "Enable Kill Switch" in the dashboard.
+  7. Status changes to: ACTIVE (green).
+
+  Method B — Command line (Linux):
+  Download the script from the dashboard, then:
+  sudo bash proxhqvpn-killswitch-enable.sh
+
+  Verify kill switch is active:
+  sudo iptables -L OUTPUT -n --line-numbers | head -20
+  # You should see REJECT/DROP rules for non-wg0 traffic
+
+6. DISABLING THE KILL SWITCH
+
+  WARNING: Disable the kill switch only AFTER reconnecting your VPN.
+  Disabling while VPN is disconnected = real IP briefly exposed.
+
+  Method A — Dashboard:
+  Kill Switch → "Disable Kill Switch" → Confirm.
+  Rules are flushed. Status: INACTIVE.
+
+  Method B — Command line (Linux):
+  sudo bash proxhqvpn-killswitch-disable.sh
+  # Or manually: sudo iptables -F && sudo iptables -P OUTPUT ACCEPT
+
+  Method C — Emergency recovery (if locked out):
+  If you locked yourself out:
+  sudo iptables -F     # Flush all rules
+  sudo iptables -P INPUT ACCEPT
+  sudo iptables -P OUTPUT ACCEPT
+  sudo ip6tables -F
+  sudo ip6tables -P INPUT ACCEPT
+  sudo ip6tables -P OUTPUT ACCEPT
+
+7. KILL SWITCH MODES
+
+  STRICT Mode (default):
+    Blocks ALL traffic when VPN is down.
+    No internet access until VPN reconnects.
+    Zero IP exposure.
+
+  SOFT Mode:
+    Allows LAN traffic even when VPN is down.
+    DNS, file sharing, and local services still work.
+    Slight exposure risk: LAN devices can see your traffic.
+    Use when working from a trusted private network.
+
+  CUSTOM Mode:
+    Define specific bypass exceptions:
+    • Allow specific ports even without VPN (e.g. local 22/TCP)
+    • Allow specific IP ranges without VPN
+    • Set automatic disable after N minutes without VPN reconnect
+
+8. TESTING THE KILL SWITCH
+
+  Always test after enabling — never assume it works.
+
+  Test 1 — Disconnect VPN and check IP:
+  1. Enable kill switch.
+  2. Confirm VPN is connected (check dashboard).
+  3. Note your exit IP (visit https://api.ipify.org).
+  4. Disconnect VPN tunnel only (keep kill switch active).
+  5. Try to load any website. Should fail entirely.
+  6. Check your IP again — should show nothing / connection refused.
+  7. Reconnect VPN → internet returns.
+
+  Test 2 — IPv6 leak test:
+  1. Enable kill switch.
+  2. Navigate to /leaks → run IPv6 leak test.
+  3. Your IPv6 address should NOT appear in results.
+  4. If IPv6 leaks: confirm ip6tables rules were applied.
+     Run: sudo ip6tables -L OUTPUT -n | grep DROP
+
+  Test 3 — Network interface check:
+  Terminal → ip addr show
+  Confirm only lo, wg0, and LAN interface exist.
+  Any unexpected interface may bypass kill switch rules.
+
+9. TROUBLESHOOTING
+
+  "Internet works even with VPN disconnected":
+  → Kill switch rules may not have been applied.
+  → Re-download and re-run the script as root/Administrator.
+  → Verify: sudo iptables -L OUTPUT -n | grep REJECT
+
+  "Can't reach the VPN dashboard":
+  → Your safe IP may have changed (dynamic IP).
+  → Temporarily disable kill switch from local console.
+  → Regenerate rules with current IP.
+  → Re-apply and re-enable.
+
+  "IPv6 still leaking":
+  → ip6tables was not applied (not installed or not run).
+  → Install: sudo apt install iptables (includes ip6tables).
+  → Re-run the kill switch script as root.
+
+  "macOS pf not working after reboot":
+  → pf rules do not persist across reboots by default.
+  → Add to /etc/pf.conf or create a LaunchDaemon plist.
+  → Kill Switch → Settings → "Install Persistent pf Rules"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC

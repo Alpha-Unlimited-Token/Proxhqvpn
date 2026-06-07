@@ -1,0 +1,108 @@
+ProxhqVPN Getting Started Guide
+Version 3.2 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+legal@alphauntechnologies.com | proxhqvpn.com
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TABLE OF CONTENTS
+
+1. Account Setup & Subscription
+2. Platform Installation
+3. First VPN Connection
+4. WireGuard Configuration
+5. Kill Switch Setup
+6. DNS Protection
+7. Device Management
+8. Troubleshooting Common Issues
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. ACCOUNT SETUP & SUBSCRIPTION
+
+  Visit proxhqvpn.com and click "Sign Up."
+  Choose your subscription:
+    • VPN Basic — $6.99/month or $59.99/year
+      Full WireGuard VPN, Kill Switch, DNS Shield, Onion Browser,
+      Split Tunneling, SmartDNS, 15+ server locations.
+    • Command Center Pro — $39.99/month or $349.99/year
+      Everything in VPN Basic + full security toolkit:
+      OmniStrike, WAF Analyzer, Social Breach Tester, Bug Bounty Hub,
+      OSINT Recon, Ghost Chain, SIEM, Canary Tokens, and more.
+
+  Sign in with Google SSO or email/password via Clerk.
+
+2. PLATFORM INSTALLATION
+
+  Web Dashboard (no install required):
+    Navigate to proxhqvpn.com after signing in.
+
+  WireGuard Desktop Client:
+    1. Go to My VPN → Download App in the sidebar.
+    2. Download for Windows, macOS, or Linux.
+    3. Import the .conf file from WireGuard Config page.
+
+  Mobile (iOS/Android):
+    Install the official WireGuard app from App Store / Google Play.
+    Scan the QR code from your WireGuard Config page.
+
+3. FIRST VPN CONNECTION
+
+  1. Navigate to My VPN in the sidebar.
+  2. Select a server region from the dropdown.
+  3. Click "Connect."
+  4. Verify: the IP shown changes to the VPN server's IP.
+  5. Run a leak test (Leak Test in sidebar) to confirm no leaks.
+
+4. WIREGUARD CONFIGURATION
+
+  Your WireGuard config is generated automatically. To view it:
+  1. Go to WireGuard Config in the sidebar.
+  2. Copy the config text or scan the QR code.
+  3. Import into the WireGuard client on your device.
+
+  Protocol: WireGuard (UDP 51820)
+  Encryption: AES-256-GCM + ChaCha20-Poly1305
+  Key exchange: Curve25519
+
+5. KILL SWITCH SETUP
+
+  The Kill Switch blocks ALL traffic if the VPN drops.
+  1. Go to Kill Switch in the sidebar.
+  2. Enable "Kill Switch."
+  3. Your IP is auto-detected and whitelisted so you keep remote access.
+  4. Test: disconnect VPN — all traffic should stop.
+
+6. DNS PROTECTION
+
+  Two layers of DNS protection:
+  a) DNS Shield — Encrypts DNS queries and uses custom resolvers.
+     Enable at: DNS Protection → DNS Shield.
+  b) DNS Sinkhole — Blocks 100k+ ad/tracker/malware domains.
+     Enable at: DNS Sinkhole (Command Center Pro only).
+
+7. DEVICE MANAGEMENT
+
+  Add up to 5 devices per subscription.
+  1. Go to My Devices in the sidebar.
+  2. Click "Add Device."
+  3. Name the device and generate its WireGuard config.
+  4. Import the config on each device.
+
+8. TROUBLESHOOTING
+
+  Can't connect:
+  → Check that port UDP 51820 is not blocked by your firewall.
+  → Try a different server region.
+  → Re-generate WireGuard keys from WireGuard Config page.
+
+  DNS leaks detected:
+  → Enable DNS Shield.
+  → Set your DNS server to 10.8.0.1 (VPN gateway).
+
+  Slow speeds:
+  → Switch to a geographically closer server.
+  → Try ChaCha20-Poly1305 cipher if on mobile.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+All rights reserved. Unauthorized distribution prohibited.

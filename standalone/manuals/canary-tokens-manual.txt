@@ -1,0 +1,110 @@
+Canary Token Generator — User Manual
+Version 1.8 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+Command Center Pro Feature
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TABLE OF CONTENTS
+
+1. What are Canary Tokens?
+2. Token Types
+3. Creating a Token
+4. Deploying Tokens
+5. Alert Configuration
+6. Forensic Data Collected
+7. Use Cases
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. WHAT ARE CANARY TOKENS?
+
+  Canary Tokens are invisible tripwires that alert you the instant
+  someone accesses a resource — a URL, DNS name, document, or
+  fake AWS credential. They are used to detect:
+  • Unauthorized access to internal systems
+  • Data exfiltration (when hidden in documents)
+  • Network intruders probing fake services
+  • Insider threats accessing sensitive fake files
+
+2. TOKEN TYPES
+
+  HTTP Token:
+  • A unique URL that triggers an alert when visited
+  • Deploy in HTML pages, emails, wikis, or chat messages
+  • Captures: IP, user agent, referrer, timestamp, geolocation
+
+  DNS Token:
+  • A unique hostname that triggers on DNS lookup
+  • Works even through firewalls that block HTTP
+  • Captures: DNS resolver IP, timestamp
+
+  Document Token (Word/PDF):
+  • Embed in a Word or PDF document
+  • Triggers when the document is opened (pings home)
+  • Captures: opener IP, timezone, software version
+
+  AWS Fake Key Token:
+  • Fake AWS access key/secret that alerts on use
+  • Plant in code repositories, config files, or backups
+  • Captures: AWS region, caller IP, service called
+
+3. CREATING A TOKEN
+
+  1. Go to Canary Tokens in the sidebar.
+  2. Select token type.
+  3. Enter a memo (what this token monitors).
+  4. Enter your alert email.
+  5. Click "Generate Token."
+  6. Copy the token URL/hostname/credentials.
+
+4. DEPLOYING TOKENS
+
+  HTTP Token — deployment examples:
+  • <img src="https://proxhqvpn.com/t/[TOKEN_ID]" width="1" height="1">
+  • Hidden in HTML pages, email newsletters, wiki pages
+  • In Slack/Discord messages in sensitive channels
+
+  DNS Token:
+  • Add as a hostname in a config file: db.host=[TOKEN_DNS]
+  • Use as a "fake" internal hostname in documentation
+
+  Document Token:
+  • Name the file something enticing: "Q4_Payroll_2025.docx"
+  • Place in shared drives, backups, or sent to test recipients
+
+  AWS Fake Key:
+  • Commit to a test repository
+  • Add to a .env file in a shared codebase
+  • Leave in a "forgotten" backup folder
+
+5. ALERT CONFIGURATION
+
+  Alerts are sent via email and displayed in the Beacon Alerts
+  dashboard (Admin only).
+
+6. FORENSIC DATA COLLECTED
+
+  Each alert includes:
+  • Source IP address
+  • Geolocation (city, country, ISP)
+  • HTTP headers (User-Agent, Accept-Language, etc.)
+  • Timestamp (UTC)
+  • Token memo (what it was monitoring)
+
+7. USE CASES
+
+  Security Team Monitoring:
+  • Place tokens in sensitive folders — any access triggers alert.
+
+  Penetration Test Detection:
+  • Include tokens in scope — alerts confirm the test is active.
+
+  Data Exfiltration Detection:
+  • Embed in sensitive documents — if exfiltrated and opened, alerts.
+
+  Honeypot Integration:
+  • Deploy tokens alongside SilkWeb decoy services for
+    comprehensive attacker tracking.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC

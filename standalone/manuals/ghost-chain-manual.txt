@@ -1,0 +1,292 @@
+Ghost Chain — Exploit Reference & Kill Chain Builder — User Manual
+Version 2.0 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+Command Center Pro Feature
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+LEGAL NOTICE: Ghost Chain is a security research and penetration
+testing reference tool. All exploitation techniques described are
+for authorized testing only. Only test systems you own or have
+explicit written permission to test.
+ALPHA UNLIMITED TECHNOLOGIES LLC assumes no liability for misuse.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TABLE OF CONTENTS
+
+1. Overview
+2. Exploit Categories (4 categories, 200+ techniques)
+3. Exploit Entry Format
+4. PoC Code & Proof-of-Exploitation
+5. Attack Chain Builder
+6. 5-Stage Kill Chain Pipeline
+7. Chain Correlation Engine
+8. Integration with Other Tools
+9. Exporting Findings
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW
+
+  Ghost Chain is ProxhqVPN's integrated exploit reference library
+  and attack chain builder. It provides:
+
+  • 200+ exploit techniques across 4 major categories
+  • Ready-to-use PoC code (Python, Bash, JavaScript, SQL, XML)
+  • 5-stage automated kill chain discovery pipeline
+  • Attack path correlation (links multiple findings into chains)
+  • SVG chain graph visualization
+  • One-click export of complete chains as Markdown reports
+
+  All Ghost Chain traffic is routed through your VPN tunnel.
+  Pair with HTTP Probe or Intruder for live payload testing.
+
+2. EXPLOIT CATEGORIES
+
+  CATEGORY 1: INJECTION (60+ techniques)
+
+    SQL Injection:
+    • Boolean-blind: payload that changes response based on
+      true/false condition (AND 1=1 vs AND 1=2)
+    • UNION-based: UNION SELECT to extract columns directly
+    • Error-based: force DB error messages to leak data
+    • Time-based blind: SLEEP(5) / WAITFOR DELAY to confirm
+    • Out-of-band (OOB): DNS/HTTP callback for blind exfil
+    • Stacked queries: ; DROP TABLE via stacked query support
+    • Second-order: store payload, trigger in different context
+
+    Cross-Site Scripting (XSS):
+    • Reflected: payload returned in same response
+    • Stored: payload persisted in database, affects all users
+    • DOM-based: payload processed by client-side JS
+    • CSP bypass: nonce reuse, unsafe-eval, JSONP endpoints
+    • Mutation XSS: browser DOM mutation changes escaped chars
+
+    Server-Side Template Injection (SSTI):
+    • Jinja2: {{7*7}}, {{config}}, {{request.application...}}
+    • Twig: {{_self.env.registerUndefinedFilterCallback...}}
+    • FreeMarker: ${freemarker.template.utility.Execute?...}
+    • Pebble: {{runtime.exec('id')}}
+
+    Command Injection:
+    • Linux: ; id, | id, && id, `id`, $(id)
+    • Windows: & whoami, | whoami, ; whoami
+    • Blind OOB: curl/ping callback to OAST server
+
+    LDAP / NoSQL / XPATH Injection:
+    • LDAP: *)(&, *)(|(password=*)
+    • MongoDB: {"$gt": ""}, {"$where": "1==1"}
+    • XPATH: ' or '1'='1, '] | //*[contains(., '
+
+  CATEGORY 2: SERVER-SIDE VULNERABILITIES (50+ techniques)
+
+    SSRF (Server-Side Request Forgery):
+    • Internal service access: http://127.0.0.1:PORT/path
+    • Cloud metadata: http://169.254.169.254/latest/meta-data/
+    • AWS IMDSv1 token: iam/security-credentials/
+    • GCP metadata: http://metadata.google.internal/computeMetadata/
+    • SSRF to RCE chains (via Redis, Memcached, etc.)
+    • Bypass filters: http://[::1]/, http://0x7f000001/, decimal IP
+
+    XML External Entity (XXE):
+    • File read: <!ENTITY xxe SYSTEM "file:///etc/passwd">
+    • SSRF via XXE: SYSTEM "http://internal-service/"
+    • Out-of-band XXE: parameter entities + OOB callback
+    • XXE in XLSX/DOCX/SVG upload parsers
+    • Billion laughs (DoS): recursive entity expansion
+
+    Insecure Deserialization:
+    • Java gadget chains: commons-collections, spring, JDK
+    • PHP: O:4:"User":1:{s:4:"data";s:4:"exec";}
+    • Python pickle: REDUCE opcode for arbitrary execution
+    • .NET: BinaryFormatter ViewState attacks
+    • YAML: !!python/object/apply:os.system
+
+    Path Traversal / LFI:
+    • ../../../../etc/passwd (URL-encoded variants)
+    • Null byte bypass: file.php%00.jpg
+    • Log poisoning → RCE (access.log, /proc/self/environ)
+    • PHP wrappers: php://filter, php://input, zip://
+
+  CATEGORY 3: AUTHENTICATION & TOKENS (40+ techniques)
+
+    JWT Attacks: (full coverage in JWT Analyzer tool)
+    • alg:none — unsigned token acceptance
+    • RS256→HS256 algorithm confusion
+    • jku/x5u header injection
+    • kid SQL injection (6 payloads)
+    • Claim escalation (role, admin, scope, plan)
+    • JWKS spoofing endpoint
+
+    OAuth 2.0 Attacks:
+    • Open redirect via redirect_uri
+    • State parameter fixation/CSRF
+    • Authorization code interception
+    • Implicit flow token leakage
+    • PKCE downgrade
+
+    Session & Password:
+    • Password reset poisoning via Host header
+    • Username enumeration via timing/response
+    • 2FA bypass: response manipulation, backup codes
+    • Session fixation: pre-auth session adoption
+
+  CATEGORY 4: WEB & PROTOCOL ATTACKS (50+ techniques)
+
+    HTTP Request Smuggling:
+    • CL.TE: Content-Length vs Transfer-Encoding conflict
+    • TE.CL: Transfer-Encoding leads, Content-Length trails
+    • TE.TE: both present but obfuscated (TE:  chunked)
+    • Detection: timing oracle on POST to /
+    • Impact: cache poisoning, session hijacking, WAF bypass
+
+    CORS Misconfiguration:
+    • Null origin reflection
+    • Wildcard with credentials (impossible but misconfigured)
+    • Trusted subdomain compromise → full origin
+
+    Cache Poisoning:
+    • X-Forwarded-Host header cache key exclusion
+    • Fat GET: body parameter injected into cached response
+    • Cache key normalization attacks
+
+    Subdomain Takeover:
+    • Detect: CNAME pointing to decommissioned service
+    • Services: Heroku, GitHub Pages, Netlify, Fastly, S3
+    • Impact: full XSS on parent domain's subdomains
+
+3. EXPLOIT ENTRY FORMAT
+
+  Each of the 200+ exploit entries contains:
+
+  Details Tab:
+  • Vulnerability description and root cause
+  • How the vulnerability works (step by step)
+  • Real-world CVE examples
+  • Impact assessment (what an attacker can do)
+  • Detection methods
+
+  Exploit PoC Tab:
+  • Ready-to-use proof-of-concept code
+  • Language: Python, Bash, JavaScript, SQL, XML, or YAML
+  • One-click copy button
+  • Target variable placeholders clearly marked (TARGET_URL, etc.)
+
+  Remediation Tab:
+  • How to fix the vulnerability
+  • Secure code example (before/after)
+  • Framework-specific fixes
+
+4. POC CODE & PROOF-OF-EXPLOITATION
+
+  All PoC code is copy-ready. Replace placeholder values:
+    TARGET_URL    → the full URL of the target endpoint
+    PARAM         → the vulnerable parameter name
+    CALLBACK_URL  → your OAST server URL (from OAST Tester)
+    COOKIE        → session cookie value from HTTP Interceptor
+
+  Example — Time-Based SQLi detection:
+  ---
+  python3 -c "
+  import requests, time
+  url = 'TARGET_URL'
+  payload = \"' AND SLEEP(5)-- -\"
+  start = time.time()
+  r = requests.get(url, params={'id': payload})
+  elapsed = time.time() - start
+  print('VULNERABLE' if elapsed > 4 else 'NOT VULNERABLE')
+  print(f'Response time: {elapsed:.2f}s')
+  "
+  ---
+
+5. ATTACK CHAIN BUILDER
+
+  The Chain Builder (Ghost Chain → Chain Builder tab) lets you
+  assemble multiple findings into a complete attack narrative.
+
+  Adding findings to a chain:
+  1. Browse to any exploit in the library.
+  2. Click "Add to Chain" (+ icon in top right of exploit entry).
+  3. Repeat for each vulnerability in the chain.
+  4. Navigate to Chain Builder → review the assembled chain.
+  5. Drag findings to reorder the attack sequence.
+  6. Add notes between steps for context.
+  7. Click "Export Chain" to download as Markdown report.
+
+  Example attack chain:
+  Step 1: OSINT Recon → discover /admin panel exists (via crt.sh)
+  Step 2: Subdomain Takeover → found CNAME to dead Heroku app
+  Step 3: Stored XSS on subdomain → capture cookies of parent domain
+  Step 4: Account takeover via stolen admin session
+  Step 5: SSRF via admin panel → access internal metadata service
+
+6. 5-STAGE AUTOMATED KILL CHAIN PIPELINE
+
+  Ghost Chain → Automated Pipeline tab:
+
+  Stage 1: SURFACE DISCOVERY
+    Passive: OSINT Recon (DNS, crt.sh, AlienVault, certs)
+    Active: Port scan (top 1000 ports), service fingerprint
+
+  Stage 2: TECHNOLOGY FINGERPRINTING
+    HTTP headers → framework, server, language
+    JavaScript files → libraries and versions
+    Error messages → backend stack traces
+    Cookie names → framework signatures (PHPSESSID, JSESSIONID)
+
+  Stage 3: VULNERABILITY TESTING
+    Runs 40 lightweight probes:
+    • XSS reflection test on all parameters
+    • SQL injection error detection
+    • Path traversal (../../../etc/passwd)
+    • Open redirect (?next=https://evil.com)
+    • CORS any-origin test
+    • Default credentials on common admin panels
+    • Exposed Git/SVN directories
+
+  Stage 4: CHAIN CORRELATION
+    Correlates findings into attack paths:
+    • Groups findings by exploitation prerequisite
+    • Identifies which findings chain together
+    • Calculates combined impact score (higher than individual)
+
+  Stage 5: IMPACT ASSESSMENT
+    Assigns final CVSS score to the complete chain.
+    Produces executive summary + technical report.
+    SVG chain graph shows findings as nodes with attack path arrows.
+
+7. INTEGRATION WITH OTHER TOOLS
+
+  Send to HTTP Probe:
+    From any exploit entry: click "Send to HTTP Probe"
+    → pre-fills the URL, method, headers, and payload body.
+    → Use HTTP Probe to test the payload against a live target.
+
+  Send to Intruder:
+    From any payload list: click "Send to Intruder"
+    → loads the payload list for automated fuzzing.
+    → Intruder tests all payloads against the target parameter.
+
+  Import to Ghost Chain from OmniStrike:
+    After an OmniStrike scan, confirmed findings can be added to
+    a Ghost Chain chain via the "Add to Ghost Chain" button in
+    each finding detail panel.
+
+  Send to OAST Tester:
+    For OOB techniques, Ghost Chain generates the callback URL
+    from your OAST server automatically.
+
+8. EXPORTING FINDINGS
+
+  Chain Report (Markdown):
+  • Title, date, target
+  • Each step: technique name, evidence, impact, remediation
+  • CVSS scores per finding + aggregate chain score
+  • PoC code blocks included
+  • Download: Chain Builder → Export → Markdown
+
+  Single Finding Report:
+  • Exploit Details → Export → copies formatted text to clipboard
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC

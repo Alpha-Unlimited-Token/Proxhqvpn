@@ -1,0 +1,314 @@
+SQL Interface — 3-Mode Database Console — User Manual
+Version 1.2 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+Admin Feature
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TABLE OF CONTENTS
+
+1. Overview & Mode Summary
+2. Mode 1 — Local DB (Read-Only)
+3. Mode 2 — External PostgreSQL (Full CRUD)
+4. Mode 3 — HTTP API Table
+5. Schema Explorer
+6. Connection Manager
+7. Query History
+8. Security Constraints
+9. Common Queries Reference
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW & MODE SUMMARY
+
+  The SQL Interface (/sql) provides a web-based database console
+  with three independent modes of operation:
+
+  MODE 1 — LOCAL DB (Read-Only)
+    Direct read access to the ProxhqVPN PostgreSQL database.
+    SELECT statements only. No INSERT/UPDATE/DELETE/DDL.
+    All platform tables visible and queryable.
+
+  MODE 2 — EXTERNAL POSTGRESQL (Full CRUD)
+    Connect to any external PostgreSQL database (AWS RDS, Supabase,
+    Neon, Railway, self-hosted). Full SQL access: SELECT, INSERT,
+    UPDATE, DELETE, CREATE TABLE, DROP TABLE, etc.
+    Multiple simultaneous connections supported.
+
+  MODE 3 — HTTP API TABLE
+    Execute HTTP GET/POST requests against any REST API and display
+    the JSON response as a sortable, filterable data table.
+    No database required — turns any API endpoint into a table.
+
+  Backend: Express API at /api/sql
+  Frontend: /sql (admin role required)
+
+2. MODE 1 — LOCAL DB (READ-ONLY)
+
+  Switch to: SQL Interface → tab "LOCAL DB"
+
+  Available operations:
+  • SELECT with all standard clauses (WHERE, JOIN, GROUP BY, ORDER BY,
+    LIMIT, OFFSET, subqueries, CTEs, window functions, etc.)
+  • EXPLAIN and EXPLAIN ANALYZE (query plan inspection)
+  • Information schema queries
+
+  BLOCKED operations:
+  INSERT, UPDATE, DELETE, TRUNCATE, DROP, CREATE, ALTER, GRANT,
+  REVOKE, VACUUM, COPY, pg_terminate_backend, and any function
+  that modifies data.
+
+  All 60+ ProxhqVPN tables are accessible:
+
+  Core tables:
+    nodes               — VPN node registry
+    beacon_alerts       — spider/worm/beacon alerts
+    silk_web_entities   — SilkWeb trapped entities
+    firewall_rules      — active firewall rules
+    blocked_ips         — blocked IP entries
+    user_wg_configs     — per-user WireGuard configs
+    canary_tokens       — deployed canary tokens
+    canary_triggers     — token trigger log
+
+  Intelligence tables:
+    ghost_trace_observations  — behavioral analysis events
+    ghost_trace_baselines     — per-peer traffic baselines
+    attack_chain_scans        — Ghost Chain scan results
+    attack_chain_findings     — individual chain findings
+
+  QuantumAudit tables:
+    scan_jobs           — audit job queue
+    vulnerabilities     — per-scan vulnerability findings
+    quantum_analyses    — post-quantum threat analysis
+    quantum_threats     — detected quantum-vulnerable algorithms
+
+  Ambassador tables:
+    ambassadors         — ambassador profiles
+    ambassador_videos   — ambassador video entries
+    ambassador_referrals — referral tracking
+
+  Example queries:
+
+  Recent beacon alerts (last 24 hours):
+    SELECT alert_type, source_ip, destination_ip, probe_type,
+           created_at
+    FROM beacon_alerts
+    WHERE created_at > NOW() - INTERVAL '24 hours'
+    ORDER BY created_at DESC
+    LIMIT 100;
+
+  Top blocked IPs by hit count:
+    SELECT ip_address, reason, hit_count, last_seen
+    FROM blocked_ips
+    ORDER BY hit_count DESC
+    LIMIT 25;
+
+  Active WireGuard nodes with peer count:
+    SELECT n.id, n.ip_address, n.location, n.status,
+           COUNT(uwc.id) AS peer_count
+    FROM nodes n
+    LEFT JOIN user_wg_configs uwc ON uwc.node_id = n.id
+    GROUP BY n.id
+    ORDER BY peer_count DESC;
+
+3. MODE 2 — EXTERNAL POSTGRESQL (FULL CRUD)
+
+  Switch to: SQL Interface → tab "EXTERNAL DB"
+
+  Step 1 — Add a connection:
+    SQL Interface → Connections → + Add Connection
+    Connection string format:
+      postgresql://username:password@host:5432/dbname
+      postgresql://username:password@host:5432/dbname?sslmode=require
+
+    Or fill individual fields:
+    Host:     your-db.region.rds.amazonaws.com
+    Port:     5432
+    Database: myapp_production
+    Username: admin
+    Password: ******* (masked in UI)
+    SSL:      Required / Preferred / Disabled
+
+    Click "Test Connection" before saving.
+    Connection pool: max 10 connections per external DB.
+
+  Step 2 — Select connection from dropdown.
+  Step 3 — Run any SQL.
+
+  Full CRUD and DDL is allowed:
+    SELECT, INSERT, UPDATE, DELETE, TRUNCATE
+    CREATE TABLE, ALTER TABLE, DROP TABLE
+    CREATE INDEX, CREATE VIEW
+    BEGIN, COMMIT, ROLLBACK (transaction support)
+
+  Connection security:
+  • Connection strings are stored in memory only (not persisted).
+  • Credentials are masked in the UI and never logged.
+  • Connections auto-close after 5 minutes of inactivity.
+  • Maximum 10 connections per session.
+
+  Supported databases:
+  PostgreSQL 11+, AWS RDS PostgreSQL, Aurora PostgreSQL,
+  Supabase, Neon, Railway, ElephantSQL, CockroachDB (Postgres-compat),
+  Google Cloud SQL for PostgreSQL, Azure PostgreSQL
+
+4. MODE 3 — HTTP API TABLE
+
+  Switch to: SQL Interface → tab "HTTP API"
+
+  Turns any JSON REST API endpoint into a queryable data table.
+
+  Configuration:
+  URL:      https://api.example.com/v1/users
+  Method:   GET / POST
+  Headers:  Authorization: Bearer token
+  Body:     (for POST — JSON body)
+  Path:     JSON path to the array in response (e.g. "data.items")
+
+  How it works:
+  1. The ProxhqVPN server makes the HTTP request (through your VPN).
+  2. The JSON response is parsed.
+  3. If the response is an array (or nested array at JSON path):
+     → Each array element becomes a table row.
+     → Object keys become column headers.
+  4. The table is sortable, filterable, and searchable.
+  5. Export as CSV or JSON.
+
+  Example use cases:
+  • Query your GitHub repository list: GET /user/repos
+  • Check AWS EC2 instances via boto3-backed API
+  • Browse a Stripe payment list: GET /v1/charges
+  • Inspect a REST API response without writing code
+  • Build a quick admin view over any JSON endpoint
+
+  JSON path examples:
+  Response: { "data": { "items": [...] } }
+  → Path: "data.items"
+
+  Response: [ {...}, {...} ] (top-level array)
+  → Path: (leave blank)
+
+  Response: { "results": [...], "meta": {...} }
+  → Path: "results"
+
+5. SCHEMA EXPLORER
+
+  SQL Interface → Schema tab (available in LOCAL DB and EXTERNAL DB modes)
+
+  Left panel: list of all tables in the selected database.
+  Click any table to expand:
+  • Column name
+  • Data type (text, integer, uuid, timestamptz, jsonb, etc.)
+  • Nullable: YES / NO
+  • Default value
+  • Foreign key relationships (if any)
+  • Primary key indicator
+
+  Click "Query this table":
+  → Auto-generates a SELECT * FROM [table] LIMIT 50 and runs it.
+
+  Index explorer:
+  Schema → Indexes tab → shows all indexes per table with type (btree, hash, gin)
+
+  Row count estimates:
+  Schema → Stats tab → estimated row counts per table (from pg_stat_user_tables)
+
+6. CONNECTION MANAGER
+
+  SQL Interface → Connections tab (External DB mode only)
+
+  Saved connections (session-only — not persisted to disk):
+  • Name, host, database, username (password masked)
+  • Test button: verify connectivity before running queries
+  • Active indicator: green dot if currently connected
+
+  Pool status:
+  Each external connection shows current pool usage:
+  "3/10 connections in use"
+
+  Close a connection:
+  Click X on the connection → pool is drained and closed.
+
+  NOTE: Connections are in-memory only. They are lost if the
+  API server restarts or if you refresh the page.
+  Re-enter credentials after any server restart.
+
+7. QUERY HISTORY
+
+  SQL Interface → History tab
+
+  Stores the last 100 queries per session:
+  • Timestamp, mode, connection, query text, row count, duration
+  • Click any query to reload it into the editor
+  • Copy query to clipboard
+  • Star (favorite) queries for quick access
+
+  Query templates (pre-built common queries):
+  SQL Interface → Templates tab:
+  • Active connections (pg_stat_activity)
+  • Table sizes (pg_relation_size)
+  • Index usage stats
+  • Long-running queries
+  • Blocking queries
+  • Last N rows per table
+
+8. SECURITY CONSTRAINTS
+
+  Local DB mode:
+  • SELECT only — no data modification
+  • Query timeout: 30 seconds (prevents long-running analytics)
+  • Result limit: 10,000 rows maximum
+  • No direct pg_catalog access to sensitive system tables
+
+  External DB mode:
+  • Full SQL — admin responsibility to use appropriately
+  • Queries run with the credentials you provide — no privilege escalation
+  • 30-second query timeout (adjustable to 120s max)
+  • Connection strings are never logged
+
+  HTTP API mode:
+  • All requests route through the ProxhqVPN server IP
+  • 30-second request timeout
+  • Response size limit: 10 MB (prevents memory exhaustion)
+
+  Admin role required for all modes. Clerk auth enforced.
+  All queries visible in Terminal → Audit Log (if terminal is used).
+
+9. COMMON QUERIES REFERENCE
+
+  ProxhqVPN Local DB quick reference:
+
+  All active VPN nodes:
+    SELECT * FROM nodes WHERE status = 'active';
+
+  Firewall rules (active only, by priority):
+    SELECT rule_type, direction, ip_cidr, port, protocol, description
+    FROM firewall_rules
+    WHERE active = true
+    ORDER BY priority ASC;
+
+  Ghost Trace anomalies (score > 60):
+    SELECT peer_id, anomaly_score, alert_type, created_at
+    FROM ghost_trace_observations
+    WHERE anomaly_score > 60
+    ORDER BY anomaly_score DESC
+    LIMIT 50;
+
+  Canary token trigger log (last 7 days):
+    SELECT ct.name, ct.token_type, tr.source_ip,
+           tr.user_agent, tr.triggered_at
+    FROM canary_triggers tr
+    JOIN canary_tokens ct ON ct.id = tr.token_id
+    WHERE tr.triggered_at > NOW() - INTERVAL '7 days'
+    ORDER BY tr.triggered_at DESC;
+
+  Ambassador referral earnings:
+    SELECT a.name, a.promo_code,
+           COUNT(ar.id) AS referrals,
+           SUM(ar.commission_amount) AS total_commission
+    FROM ambassadors a
+    LEFT JOIN ambassador_referrals ar ON ar.ambassador_id = a.id
+    GROUP BY a.id
+    ORDER BY total_commission DESC;
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC

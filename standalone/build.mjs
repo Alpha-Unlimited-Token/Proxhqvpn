@@ -197,8 +197,14 @@ async function main() {
   console.log("  PROXHQVPN STANDALONE BUILD — ALL PLATFORMS");
   console.log("══════════════════════════════════════════════════════════\n");
 
+  // 0. Extract user manuals from Manuals.tsx → standalone/manuals/
+  console.log("▶ [0/5] Extracting user manuals...");
+  run("node generate-manuals.mjs", { cwd: __dirname });
+  const manualsDir = path.join(__dirname, "manuals");
+  console.log("  ✓ Manuals extracted");
+
   // 1. Build frontend
-  console.log("▶ [1/5] Building React frontend...");
+  console.log("\n▶ [1/5] Building React frontend...");
   run("pnpm --filter @workspace/ghost-vpn build", { cwd: ROOT, env: { ...process.env, PORT: "5173", BASE_PATH: "/" } });
 
   // Frontend builds to dist/public when BASE_PATH="/"
@@ -284,6 +290,8 @@ async function main() {
       const connectPs1 = path.join(__dirname, "proxhqvpn-connect.ps1");
       if (fs.existsSync(connectSh))  { fs.copyFileSync(connectSh,  path.join(stageDir, "proxhqvpn-connect.sh"));  try { fs.chmodSync(path.join(stageDir, "proxhqvpn-connect.sh"), 0o755); } catch {} }
       if (fs.existsSync(connectPs1)) { fs.copyFileSync(connectPs1, path.join(stageDir, "proxhqvpn-connect.ps1")); }
+      // Bundle user manuals
+      if (fs.existsSync(manualsDir)) copyDir(manualsDir, path.join(stageDir, "manuals"));
 
       const zipPath = path.join(DIST, `${name}.zip`);
       await zipDir(stageDir, zipPath, name);
@@ -342,6 +350,8 @@ async function main() {
   const connectPs1Univ = path.join(__dirname, "proxhqvpn-connect.ps1");
   if (fs.existsSync(connectShUniv))  { fs.copyFileSync(connectShUniv,  path.join(univDir, "proxhqvpn-connect.sh"));  try { fs.chmodSync(path.join(univDir, "proxhqvpn-connect.sh"), 0o755); } catch {} }
   if (fs.existsSync(connectPs1Univ)) { fs.copyFileSync(connectPs1Univ, path.join(univDir, "proxhqvpn-connect.ps1")); }
+  // Bundle user manuals
+  if (fs.existsSync(manualsDir)) copyDir(manualsDir, path.join(univDir, "manuals"));
 
   const univZip = path.join(DIST, "ProxhqVPN-Universal-NodeJS.zip");
   await zipDir(univDir, univZip, "ProxhqVPN-Universal-NodeJS");

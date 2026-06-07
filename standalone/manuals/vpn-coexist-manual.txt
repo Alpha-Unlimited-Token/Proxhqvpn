@@ -1,0 +1,292 @@
+VPN Coexistence — User Manual
+Version 1.1 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+Command Center Pro Feature
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TABLE OF CONTENTS
+
+1. Overview & Use Cases
+2. Auto-Detection of Running VPNs
+3. Mode 1 — fwmark (Recommended)
+4. Mode 2 — Double-Hop
+5. Mode 3 — Network Namespace
+6. Mode 4 — Routing Table
+7. Exception Rules
+8. MTU Optimizer
+9. Script Generator
+10. Per-VPN Configuration Notes
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW & USE CASES
+
+  VPN Coexistence (/vpn-coexist) solves one of the most common
+  enterprise and power-user problems: running ProxhqVPN alongside
+  another VPN simultaneously without routing conflicts.
+
+  Common coexistence scenarios:
+
+  Corporate VPN + ProxhqVPN:
+  You must connect to a corporate WireGuard or OpenVPN VPN for
+  work, while also keeping ProxhqVPN active for privacy.
+  → Use fwmark mode: separate fwmarks route corporate subnets to
+    corporate VPN and all other traffic to ProxhqVPN.
+
+  Tailscale + ProxhqVPN:
+  Both use WireGuard kernel module. Without coordination, they
+  compete for the same routing table entries.
+  → ProxhqVPN auto-detects Tailscale, assigns non-conflicting
+    fwmark values, and adjusts routing tables.
+
+  NordVPN / ExpressVPN + ProxhqVPN (double-hop):
+  Route ProxhqVPN traffic through a commercial VPN for an extra
+  hop. Your traffic: Device → Commercial VPN → ProxhqVPN exit.
+  From the perspective of any observer, your traffic comes from
+  the ProxhqVPN node IP (not your real IP, not the commercial VPN IP).
+
+  ZeroTier + ProxhqVPN:
+  ZeroTier creates L2 overlay networks. ProxhqVPN routes internet
+  traffic. Both can coexist using routing table mode.
+
+2. AUTO-DETECTION OF RUNNING VPNS
+
+  VPN Coexistence → Auto-Detect tab → "Scan for Running VPNs"
+
+  Detected VPN clients:
+  • NordVPN     (nordvpn process, nordlynx interface)
+  • ExpressVPN  (expressvpnd process, tun0 interface)
+  • ProtonVPN   (protonvpn-cli process)
+  • Mullvad     (mullvad CLI, wg-mullvad interface)
+  • Surfshark   (surfshark process, tun interface)
+  • Tailscale   (tailscaled, tailscale0 interface)
+  • ZeroTier    (zerotier-one, ztXXXXXX interface)
+  • Custom WG   (any wgX interface not belonging to ProxhqVPN)
+
+  For each detected VPN, the tool shows:
+  • Process name and PID
+  • WireGuard interface name
+  • Current fwmark value in use
+  • Routing table used
+  • Subnet routes claimed
+
+  ProxhqVPN then suggests non-conflicting configuration:
+  "Detected Tailscale using fwmark 51820, table 52. ProxhqVPN
+   will use fwmark 51821 and table 200."
+
+3. MODE 1 — FWMARK (RECOMMENDED)
+
+  fwmark (firewall mark) is a Linux mechanism that attaches a
+  numeric mark to packets. Different routing tables apply based
+  on the mark. This keeps VPN traffic completely isolated without
+  any packet leakage between tunnels.
+
+  How it works:
+  1. ProxhqVPN adds a WireGuard fwmark to all tunnel packets.
+  2. An ip rule routes marked packets to ProxhqVPN's routing table.
+  3. Unmarked packets (corporate VPN, LAN, etc.) use their own tables.
+  4. No packet can accidentally route through the wrong tunnel.
+
+  Default assignment:
+    ProxhqVPN: fwmark 51820 → routing table 200
+    (if conflict detected, reassigned to fwmark 51821 → table 201, etc.)
+
+  Generated configuration:
+    # Set ProxhqVPN fwmark
+    wg set wg0 fwmark 51820
+
+    # Create routing table for ProxhqVPN
+    ip route add default dev wg0 table 200
+    ip rule add fwmark 51820 lookup 200
+
+    # Verify
+    ip rule show
+    ip route show table 200
+
+  Compatibility: Linux only (fwmark is a Linux kernel feature).
+  macOS/Windows: use Routing Table mode instead.
+
+4. MODE 2 — DOUBLE-HOP
+
+  Double-Hop routes your traffic through a commercial VPN FIRST,
+  then through ProxhqVPN as the final exit. This creates a 2-hop
+  anonymization chain.
+
+  Traffic flow:
+  Your device → Commercial VPN server → ProxhqVPN node → Internet
+
+  Your visible IP at destination = ProxhqVPN node IP
+  Commercial VPN server sees: your real IP → ProxhqVPN traffic
+  ProxhqVPN server sees: commercial VPN IP → your traffic
+  Neither knows the full picture.
+
+  Setup:
+  1. Connect to the commercial VPN first (NordVPN, ExpressVPN, etc.)
+  2. Open VPN Coexistence → Double-Hop tab.
+  3. ProxhqVPN auto-detects the commercial VPN's DNS and gateway.
+  4. Add ProxhqVPN's server IP to the commercial VPN's split tunnel
+     exceptions (so the WireGuard handshake packet goes directly).
+  5. Click "Apply Double-Hop Configuration".
+  6. Your ProxhqVPN traffic now routes through the commercial VPN.
+
+  Commercial VPN exception (critical):
+  The ProxhqVPN server IP MUST be excluded from the commercial
+  VPN's tunnel. Otherwise: traffic goes VPN→ProxhqVPN, but the
+  WireGuard handshake to ProxhqVPN never completes (loop).
+
+  Auto-exception:
+  VPN Coexistence → Double-Hop → "Auto-Configure Exception"
+  → Automatically adds ProxhqVPN server IPs to the commercial
+    VPN client's split tunnel exclude list.
+
+5. MODE 3 — NETWORK NAMESPACE
+
+  Linux network namespaces provide complete kernel-level isolation.
+  ProxhqVPN runs in its own network namespace — it has its own
+  interfaces, routing tables, and firewall rules. Other VPNs in
+  the default namespace cannot see or interfere with it.
+
+  Isolation level: COMPLETE. No possibility of cross-tunnel routing.
+
+  Setup (requires root):
+  VPN Coexistence → Namespace Mode → "Create Namespace"
+  → Creates a network namespace named "proxhq"
+  → Moves ProxhqVPN WireGuard interface into the namespace
+  → Configured applications route through the namespace
+
+  Run applications in the ProxhqVPN namespace:
+    # Run Firefox through ProxhqVPN namespace only
+    sudo ip netns exec proxhq firefox
+
+    # Run terminal through ProxhqVPN namespace
+    sudo ip netns exec proxhq bash
+
+  Use case: isolate specific applications (browser, torrent client)
+  to always use ProxhqVPN, while other apps use the corporate VPN.
+
+  Limitation: requires root access on Linux. Not available on macOS
+  or Windows.
+
+6. MODE 4 — ROUTING TABLE
+
+  Separate routing tables are created for ProxhqVPN and other VPNs.
+  Traffic is directed to the correct table based on destination
+  subnet, not fwmark.
+
+  This is the most cross-platform compatible mode:
+  Works on: Linux, macOS (route add), Windows (route add)
+
+  Linux setup (auto-generated):
+    # ProxhqVPN routing table (table 200)
+    ip route add 0.0.0.0/0 dev wg0 table 200
+
+    # Route specific destination through ProxhqVPN
+    ip rule add to 192.168.100.0/24 lookup main   # Corporate subnet via corporate VPN
+    ip rule add to 0.0.0.0/0 lookup 200            # All else via ProxhqVPN
+
+  macOS setup (auto-generated):
+    route add -net 10.0.0.0/8 -interface utun0     # Corporate subnets via corp VPN
+    route add -net 0.0.0.0/1 -interface utun1      # Internet via ProxhqVPN
+    route add -net 128.0.0.0/1 -interface utun1
+
+  Windows setup (auto-generated via netsh):
+    route add 10.0.0.0 mask 255.0.0.0 [corp-gateway] metric 1
+    route add 0.0.0.0 mask 0.0.0.0 [proxhq-gateway] metric 2
+
+7. EXCEPTION RULES
+
+  Exception rules give per-destination routing control:
+
+  bypass-proxhq:
+    Specific destinations bypass ProxhqVPN and use default routing.
+    Use for: corporate subnets, LAN devices, local services.
+    Example: bypass-proxhq 10.0.0.0/8 (corporate intranet)
+
+  force-proxhq:
+    Specific destinations ALWAYS use ProxhqVPN even if another
+    VPN has claimed that subnet.
+    Use for: privacy-critical destinations you always want private.
+    Example: force-proxhq 0.0.0.0/0 (force all through ProxhqVPN)
+
+  block:
+    Specific destinations are blocked entirely — neither VPN routes
+    them. Traffic is dropped.
+    Use for: blocking ad/tracker IPs at the routing level.
+    Example: block 192.168.1.200/32 (block a specific LAN device)
+
+  Exception rules UI:
+  VPN Coexistence → Exception Rules → + Add Rule
+  Select type → enter IP/CIDR → Save → Apply.
+
+8. MTU OPTIMIZER
+
+  Running two VPN tunnels simultaneously adds overhead. Each
+  WireGuard tunnel subtracts ~60 bytes from the MTU:
+  • Physical MTU: typically 1500 bytes (Ethernet)
+  • WireGuard overhead: 60 bytes
+  • Single VPN MTU: 1440 bytes
+  • Double-Hop MTU: 1380 bytes (two WireGuard headers)
+
+  If MTU is not correctly configured:
+  • Large packets are fragmented (performance drop)
+  • Some connections stall or fail (especially HTTPS with TLS records)
+
+  MTU Optimizer:
+  VPN Coexistence → MTU Optimizer → "Run MTU Test"
+  Tests the optimal MTU value by sending probe packets of varying sizes.
+  Automatically sets the correct MTU on all VPN interfaces.
+
+  Manual MTU setting:
+    ip link set mtu 1380 dev wg0
+    wg set wg0 mtu 1380
+
+9. SCRIPT GENERATOR
+
+  VPN Coexistence → Script Generator
+
+  Select your mode, detected VPN, and exception rules.
+  Click "Generate Script" → downloads a .sh (Linux/macOS) or .bat (Windows) file.
+
+  The generated script:
+  • Sets correct fwmark values
+  • Creates routing tables
+  • Adds ip rule entries
+  • Configures exception routes
+  • Sets correct MTU on all interfaces
+  • Includes undo instructions (reset script)
+
+  Always review the generated script before running it.
+  Test in a non-production environment first.
+
+10. PER-VPN CONFIGURATION NOTES
+
+  NordVPN:
+    NordLynx uses WireGuard with fwmark 51820. ProxhqVPN will
+    auto-detect and switch to fwmark 51821.
+    Recommended mode: fwmark (Linux) or Double-Hop
+
+  ExpressVPN:
+    Uses OpenVPN or Lightway (UDP). Creates tun0 interface.
+    No WireGuard conflict. Use routing-table mode.
+    For Double-Hop: exclude ProxhqVPN server IPs from ExpressVPN tunnel.
+
+  ProtonVPN:
+    WireGuard with custom fwmark. Auto-detected.
+    Recommended mode: fwmark with auto-detection.
+
+  Mullvad:
+    WireGuard with interface name wg-mullvad-XXXX.
+    Auto-detected. Recommended mode: fwmark.
+
+  Tailscale:
+    Uses WireGuard, fwmark 51820, table 52 (default).
+    ProxhqVPN auto-adjusts to table 200, fwmark 51821.
+    Recommended mode: fwmark (auto-configured by detection).
+
+  ZeroTier:
+    Creates ztXXXX interfaces. Routes L2 overlay traffic.
+    No WireGuard conflict. Use routing-table mode.
+    Add ZeroTier subnets as bypass-proxhq exception rules.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC

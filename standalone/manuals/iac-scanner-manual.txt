@@ -1,0 +1,258 @@
+IaC Security Scanner — User Manual
+Version 1.1 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+Arsenal Tier Feature
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TABLE OF CONTENTS
+
+1. Overview & Supported Formats
+2. Terraform Checks
+3. CloudFormation Checks
+4. Kubernetes Manifest Checks
+5. Dockerfile Checks
+6. Ansible Playbook Checks
+7. How to Use
+8. Fix & Re-scan Workflow
+9. CI/CD Integration
+10. Severity Reference
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW & SUPPORTED FORMATS
+
+  The IaC Scanner (/iac-scan) detects security misconfigurations
+  in Infrastructure-as-Code files before they reach production.
+  Catch misconfigured S3 buckets, overly permissive IAM roles,
+  exposed Kubernetes pods, and insecure Docker images at code review
+  time — not after a breach.
+
+  Supported formats (auto-detected by content):
+  • Terraform (.tf, .tfvars)
+  • CloudFormation (.yaml, .json — AWS)
+  • Kubernetes manifests (.yaml)
+  • Dockerfile (any name, Docker syntax)
+  • Ansible playbooks (.yaml with play structure)
+
+  Input options:
+  • Paste file content directly into the editor
+  • Upload a file (drag-and-drop)
+  • Enter a public GitHub raw URL (fetched server-side via VPN)
+
+2. TERRAFORM CHECKS
+
+  S3 Buckets:
+  CRITICAL: bucket acl = "public-read" or "public-read-write"
+  HIGH:     versioning not enabled
+  HIGH:     server-side encryption not configured
+  HIGH:     no MFA delete (objects can be permanently deleted)
+  HIGH:     public access block not set to all true
+  MEDIUM:   access logging disabled
+  LOW:      no lifecycle policy
+
+  IAM Resources:
+  CRITICAL: policy with "Effect":"Allow", "Action":"*", "Resource":"*"
+  HIGH:     policy allows "iam:*" (full IAM control)
+  HIGH:     policy allows "s3:*" on all resources
+  HIGH:     assume_role_policy allows "*" (any principal)
+  MEDIUM:   no MFA condition on sensitive actions
+  MEDIUM:   inline policy instead of managed policy
+
+  EC2 / Compute:
+  CRITICAL: security_group with ingress 0.0.0.0/0 on port 22
+  CRITICAL: security_group with ingress 0.0.0.0/0 on port 3389
+  HIGH:     security_group with ingress 0.0.0.0/0 on any port
+  HIGH:     instance without IMDSv2 (metadata endpoint v1)
+  HIGH:     unencrypted EBS volume
+  MEDIUM:   no VPC assignment
+  LOW:      no key pair for SSH access
+
+  RDS / Databases:
+  CRITICAL: publicly_accessible = true
+  HIGH:     no encryption at rest (storage_encrypted = false)
+  HIGH:     deletion protection disabled in production
+  HIGH:     backup retention = 0
+  MEDIUM:   no multi-AZ (single point of failure)
+  LOW:      no enhanced monitoring
+
+  General:
+  HIGH:     hardcoded secrets in .tf or .tfvars files
+            (detected by regex: password, secret, key = "literal")
+  HIGH:     no remote state backend (state stored locally)
+  MEDIUM:   no state locking (concurrent modification risk)
+
+3. CLOUDFORMATION CHECKS
+
+  IAM:
+  CRITICAL: Lambda execution role with "Action":["*"]
+  CRITICAL: EC2 instance profile with admin policy attached
+  HIGH:     IAM role with * in Action field
+
+  Storage:
+  CRITICAL: S3 bucket with PublicReadPolicy or PublicReadWritePolicy
+  HIGH:     S3 without server-side encryption
+  HIGH:     RDS without StorageEncrypted: true
+
+  Compute:
+  HIGH:     EC2 SecurityGroup with CidrIp: "0.0.0.0/0" on SSH/RDP
+  MEDIUM:   EC2 without VPC (EC2-Classic)
+  MEDIUM:   No DeletionPolicy on stateful resources
+
+4. KUBERNETES MANIFEST CHECKS
+
+  Container Security Context:
+  CRITICAL: securityContext.privileged: true
+            (full host kernel access — equivalent to root on node)
+  CRITICAL: securityContext.runAsUser: 0
+            (container running as root user)
+  HIGH:     securityContext.allowPrivilegeEscalation: true
+  HIGH:     No securityContext defined (defaults may be unsafe)
+  HIGH:     readOnlyRootFilesystem: false (default)
+  MEDIUM:   No runAsNonRoot: true
+
+  Host Access:
+  CRITICAL: hostPID: true (access all host processes)
+  CRITICAL: hostNetwork: true (access host network stack)
+  CRITICAL: hostIPC: true (access host IPC namespace)
+  HIGH:     volumes with hostPath (mounts host filesystem)
+
+  Resource Limits:
+  HIGH:     No resources.limits defined (container can DoS node)
+  MEDIUM:   No resources.requests defined
+
+  Service Accounts:
+  HIGH:     automountServiceAccountToken: true (default)
+            + pod has broad RBAC permissions
+  HIGH:     serviceAccountName: default (uses default SA)
+
+  Images:
+  HIGH:     image tag ":latest" (non-reproducible builds)
+  MEDIUM:   No image digest pinning
+
+  Network Policy:
+  MEDIUM:   No NetworkPolicy restricting pod ingress/egress
+  LOW:      All pods allow all ingress (default if no policy)
+
+5. DOCKERFILE CHECKS
+
+  User:
+  CRITICAL: No USER directive (runs as root by default)
+  HIGH:     USER root explicitly set
+  MEDIUM:   USER numeric ID not specified
+
+  Instructions:
+  HIGH:     ADD instead of COPY (ADD can extract archives / fetch URLs)
+  HIGH:     RUN apt-get upgrade (unpredictable package versions)
+  MEDIUM:   No HEALTHCHECK directive
+  LOW:      Multiple RUN apt-get commands (should be combined)
+
+  Secrets:
+  CRITICAL: ENV PASSWORD=... or ENV SECRET=... or ENV KEY=...
+            (secrets baked into image layers — readable in history)
+  CRITICAL: ARG with default value containing secret
+  HIGH:     COPY id_rsa or COPY .ssh (SSH key in image)
+  HIGH:     RUN curl ... | sh (remote code execution at build time)
+
+  Base image:
+  HIGH:     FROM ubuntu:latest or FROM node:latest (use versioned tags)
+  MEDIUM:   FROM large base image when alpine is feasible
+  MEDIUM:   Base image without known vulnerability scanning
+
+  Build best practices:
+  MEDIUM:   No .dockerignore (builds may include .git, node_modules)
+  LOW:      EXPOSE ports not documented
+  LOW:      No LABEL metadata (MAINTAINER deprecated)
+
+6. ANSIBLE PLAYBOOK CHECKS
+
+  Privilege escalation:
+  MEDIUM:   become: yes without become_user specified (runs as root)
+  LOW:      no_log: false on tasks handling passwords/secrets
+
+  File permissions:
+  HIGH:     file module with mode: "0777"
+  MEDIUM:   file module without explicit mode (defaults to system umask)
+
+  Secret handling:
+  HIGH:     vars: password: "hardcoded" (plaintext secrets)
+  HIGH:     No ansible-vault usage for sensitive variables
+  MEDIUM:   Debug task printing secrets (debug: var=secret)
+
+7. HOW TO USE
+
+  Step 1: Navigate to IaC Scanner (/iac-scan).
+  Step 2: Choose input method:
+    a) Paste file content into the editor
+    b) Upload file (drag-and-drop)
+    c) Enter GitHub raw URL
+
+  Step 3: File type is auto-detected. Override if needed.
+
+  Step 4: Click "Scan".
+  Scan time: <2 seconds for files under 1000 lines.
+
+  Step 5: Review findings:
+  • Sorted by severity: CRITICAL first
+  • Each finding shows: resource name, line number, issue, fix
+  • Click any finding to jump to the relevant line in the editor
+
+  Step 6: Click "Fix & Re-scan" on any finding to apply the
+  suggested fix and immediately re-scan to confirm resolution.
+
+8. FIX & RE-SCAN WORKFLOW
+
+  The Fix & Re-scan feature:
+  1. Click "Fix & Re-scan" on a finding.
+  2. The editor shows the suggested fix in-line (diff view).
+  3. Accept the fix → applies to the code in the editor.
+  4. Scan automatically re-runs.
+  5. Confirmed-fixed findings turn green.
+  6. Remaining findings stay red.
+  7. Download the fixed version when all CRITICAL/HIGH resolved.
+
+  NOTE: Suggested fixes are heuristic — always review before
+  applying to production code. Complex cases may need manual fix.
+
+9. CI/CD INTEGRATION
+
+  For automated scanning in GitHub Actions, GitLab CI, or any CI:
+
+  The IaC Scanner API is available at:
+  POST /api/iac-scan
+  Body: { "content": "<file content>", "type": "terraform" }
+  Response: { "findings": [...], "summary": { "critical": N, ... } }
+
+  Add to GitHub Actions (example):
+  ---
+  - name: IaC Security Scan
+    run: |
+      RESULT=$(curl -s -X POST \
+        -H "Authorization: Bearer $PROXHQ_API_KEY" \
+        -H "Content-Type: application/json" \
+        -d "{\"content\": $(cat main.tf | jq -Rs .), \"type\": \"terraform\"}" \
+        https://proxhqvpn.com/api/iac-scan)
+      CRITICAL=$(echo $RESULT | jq '.summary.critical')
+      if [ "$CRITICAL" -gt "0" ]; then
+        echo "CRITICAL IaC findings - blocking deployment"
+        exit 1
+      fi
+  ---
+
+10. SEVERITY REFERENCE
+
+  CRITICAL: Immediate exploitation risk. Publicly exposed data,
+            admin access to anyone, credentials in code.
+            Block deployment. Fix before any commit merges.
+
+  HIGH:     Significant risk. Vulnerable to targeted attack.
+            Fix before next sprint release.
+
+  MEDIUM:   Compliance or best-practice violation. Not immediately
+            exploitable but reduces defense depth.
+            Fix within 30 days.
+
+  LOW:      Informational / hygiene issue.
+            Address in technical debt backlog.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC

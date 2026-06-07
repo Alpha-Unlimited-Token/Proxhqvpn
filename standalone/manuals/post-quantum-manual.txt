@@ -1,0 +1,215 @@
+Post-Quantum Cryptography — User Manual
+Version 1.0 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+Command Center Pro Feature
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TABLE OF CONTENTS
+
+1. The Quantum Threat
+2. Why Current VPN Crypto Is Vulnerable
+3. NIST PQC Finalists — Supported Algorithms
+4. Algorithm Selection Guide
+5. Enabling Post-Quantum Mode
+6. Hybrid Mode (Classical + PQ Together)
+7. Performance Impact
+8. Compatibility Notes
+9. Testing & Verification
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. THE QUANTUM THREAT
+
+  A sufficiently powerful quantum computer running Shor's algorithm
+  can break RSA, ECDH, and ECDSA — the mathematical foundations of
+  all current TLS, SSH, VPN, and web PKI security.
+
+  Timeline estimates (as of 2026):
+  • Optimistic: 10–15 years to a cryptographically-relevant quantum
+    computer (CRQC) capable of breaking 256-bit ECDSA
+  • Conservative: 20–30 years
+  • Nation-state programs (IARPA, China): classified, likely faster
+
+  The "harvest now, decrypt later" attack is active TODAY:
+  Nation-state intelligence agencies are recording encrypted VPN
+  traffic at scale RIGHT NOW. When they have a CRQC, they will
+  decrypt all of that stored traffic retrospectively.
+
+  If your VPN carries sensitive data that is still sensitive in
+  10+ years, you need post-quantum cryptography now.
+
+2. WHY CURRENT VPN CRYPTO IS VULNERABLE
+
+  WireGuard uses:
+  • ECDH with Curve25519 for key exchange
+    → Shor's algorithm breaks ECDLP in polynomial time
+    → A CRQC breaks this in hours, not millennia
+  • ChaCha20-Poly1305 for symmetric encryption
+    → Symmetric crypto is quantum-resistant (Grover's gives
+       only quadratic speedup — 256-bit key remains 128-bit
+       quantum security. AES-256 and ChaCha20 are fine.)
+  • Ed25519 for session authentication
+    → Same ECDSA family — vulnerable to Shor's
+
+  The vulnerability is in the KEY EXCHANGE and AUTHENTICATION,
+  not in the bulk encryption. The fix: replace ECDH/ECDSA with
+  post-quantum alternatives while keeping ChaCha20 for data.
+
+3. NIST PQC FINALISTS — SUPPORTED ALGORITHMS
+
+  ML-KEM (CRYSTALS-Kyber) — KEY ENCAPSULATION
+    Standard: FIPS 203 (2024)
+    Replaces: ECDH key exchange
+    Based on: Module Learning With Errors (MLWE) problem
+    Security levels:
+      ML-KEM-512  → ~128 bits classical / ~128 bits quantum
+      ML-KEM-768  → ~192 bits classical / ~192 bits quantum (DEFAULT)
+      ML-KEM-1024 → ~256 bits classical / ~256 bits quantum
+    Public key size: 800 / 1184 / 1568 bytes (vs 32 for X25519)
+    Ciphertext size: 768 / 1088 / 1568 bytes
+
+  ML-DSA (CRYSTALS-Dilithium) — DIGITAL SIGNATURE
+    Standard: FIPS 204 (2024)
+    Replaces: Ed25519 WireGuard authentication signatures
+    Based on: Module Lattice problem
+    Security levels:
+      ML-DSA-44  → ~128 bits quantum security
+      ML-DSA-65  → ~192 bits quantum security (DEFAULT)
+      ML-DSA-87  → ~256 bits quantum security
+    Signature size: 2,420 / 3,293 / 4,595 bytes (vs 64 for Ed25519)
+
+  SLH-DSA (SPHINCS+) — HASH-BASED SIGNATURE
+    Standard: FIPS 205 (2024)
+    Conservative alternative to ML-DSA
+    No number-theoretic assumptions — security relies only on
+    hash function security (SHA-256 or SHAKE)
+    If lattice math is broken, SLH-DSA remains secure.
+    Signature size: 7,856–49,856 bytes (much larger than ML-DSA)
+    Performance: significantly slower than ML-DSA
+    Use when: maximum conservatism required
+
+  CLASSIC McELIECE — KEY ENCAPSULATION (OPTIONAL)
+    Based on: error-correcting code theory (50+ years of analysis)
+    Most conservative key encapsulation option available
+    Public key: 261,120 bytes (large — bandwidth impact)
+    Ciphertext: 128 bytes (small)
+    Use when: maximum security margins required and bandwidth
+              is not a concern
+
+4. ALGORITHM SELECTION GUIDE
+
+  For most users (Command Center Pro):
+    Key Exchange: ML-KEM-768 (default)
+    Authentication: ML-DSA-65 (default)
+    Bulk encryption: ChaCha20-Poly1305 (unchanged from WireGuard)
+
+  For maximum security (government / defense contractors):
+    Key Exchange: ML-KEM-1024 OR Classic McEliece
+    Authentication: ML-DSA-87 OR SLH-DSA-192 (slower but hash-based)
+    Hybrid mode: ON (run classical + PQ simultaneously)
+
+  For performance-sensitive deployments (mobile / low-bandwidth):
+    Key Exchange: ML-KEM-512
+    Authentication: ML-DSA-44
+    Hybrid mode: OFF
+
+5. ENABLING POST-QUANTUM MODE
+
+  Post-Quantum (/post-quantum) → Configuration tab
+
+  Step 1: Select algorithm profile:
+    Standard PQ (recommended): ML-KEM-768 + ML-DSA-65
+    High Security:             ML-KEM-1024 + ML-DSA-87
+    Maximum Conservative:      McEliece + SLH-DSA
+    Custom: pick each algorithm individually
+
+  Step 2: Select hybrid mode preference (Section 6).
+
+  Step 3: Click "Apply PQ Configuration".
+  → New WireGuard config is generated with PQ key material.
+  → All connected peers must also be running PQ-enabled clients.
+  → Reconnect all WireGuard clients with the updated config.
+
+  Step 4: Verify connection in Dashboard.
+  The connection status shows a ⬡ PQ badge when post-quantum
+  handshake is confirmed.
+
+6. HYBRID MODE (CLASSICAL + PQ TOGETHER)
+
+  Hybrid mode runs BOTH classical (X25519 / Ed25519) AND the
+  post-quantum algorithm simultaneously. The session key is derived
+  by combining both keys via XOR or KDF.
+
+  Why hybrid:
+  • If PQ algorithm is ever broken (theoretical), classical layer
+    still protects the session.
+  • If classical ECDH is broken by a CRQC, PQ layer protects.
+  • You are secure against both quantum AND classical attacks.
+
+  Overhead of hybrid: roughly classical + PQ combined.
+  ML-KEM-768 hybrid adds ~2–4ms per handshake vs. classical only.
+
+  Recommendation: ENABLE hybrid mode for all deployments.
+  The performance cost is negligible and the security gain is
+  significant (belt-and-suspenders against unknown vulnerabilities).
+
+7. PERFORMANCE IMPACT
+
+  Handshake overhead (one-time per WireGuard session):
+  ML-KEM-768 only:          +0.8ms handshake time
+  ML-KEM-768 hybrid:        +2.1ms handshake time
+  Classic McEliece:         +85ms handshake (large key transfer)
+
+  Per-packet overhead: NONE. Post-quantum only affects the
+  handshake. Once the session key is established, all traffic
+  uses ChaCha20-Poly1305 which is not changed.
+
+  Bandwidth overhead (per WireGuard handshake):
+  ML-KEM-768:      +2.3 KB additional data per handshake
+  ML-KEM-1024:     +4.7 KB additional data per handshake
+  Classic McEliece: +256 KB additional data per handshake
+
+  WireGuard handshakes occur every 2 minutes (180-second rekey).
+  The bandwidth overhead is minimal for all options except McEliece.
+
+8. COMPATIBILITY NOTES
+
+  Post-quantum WireGuard is NOT compatible with standard WireGuard
+  clients (wireguard-go, wg-quick on Linux, WireGuard iOS/Android).
+
+  Both endpoints MUST run PQ-enabled software:
+  • Server: ProxhqVPN API server with PQ extension
+  • Client: ProxhqVPN desktop app, mobile app, or any
+    WireGuard fork with NIST PQC support (e.g. mlkem-wireguard)
+
+  If a peer does not support PQ:
+  → The handshake will fail (not fall back to classical)
+  → This is by design — no silent downgrade to vulnerable crypto
+
+  To check peer compatibility before enabling PQ:
+  Post-Quantum → Compatibility Checker → enter peer public key
+  → Shows whether the peer's ProxhqVPN client version supports PQ
+
+9. TESTING & VERIFICATION
+
+  After enabling post-quantum mode:
+
+  Test 1 — Dashboard PQ badge:
+  Dashboard → connection status should show ⬡ PQ ACTIVE badge.
+
+  Test 2 — Handshake log verification:
+  Terminal → journalctl -u wg-quick@wg0 | grep -i "pq\|kyber\|dilithium"
+  Should see: "PQ handshake complete: ML-KEM-768 + ML-DSA-65"
+
+  Test 3 — Key material inspection:
+  Post-Quantum → Status → shows:
+  • Current session key algorithm
+  • Last PQ handshake timestamp
+  • Peer PQ public key fingerprint
+
+  Test 4 — Quantum-resistant leak test:
+  Leak Detection (/leaks) → PQ Check tab
+  Verifies the handshake used PQ algorithms and not classical fallback.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
