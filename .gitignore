@@ -52,3 +52,20 @@ Thumbs.db
 standalone/dist/
 standalone/_stage/
 standalone/server.bundle.cjs
+standalone/manuals/
+standalone/_pkg_tmp_*/
+standalone/data/
+
+# Generated reports / forensic data / screenshots — not needed for the app
+proxhq-reports/
+forensic/
+screenshots/
+attached_assets/
+reports/
+
+# Root-level zip and report dump files
+*.zip
+wallet_report_*.md
+wallet_trace_*.md
+QuantumAudit_*.md
+QuantumAudit_*.zip
