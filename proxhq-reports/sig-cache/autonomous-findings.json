@@ -5202,5 +5202,15 @@
     "url": "https://eth.blockscout.com/api/v2/addresses/0x00e2b6d170740c15bf9fb01d0b6e77c0d4510e32",
     "confidence": 0.9,
     "discoveredAt": "2026-06-08T19:37:51.665Z"
+  },
+  {
+    "engine": "osint",
+    "kind": "private_key",
+    "address": "0x5D59E0Bf263061737c0B9BD06a0303e753cb57a6",
+    "value": "0xf247edae2e85b79fbd18d79d421d7c5c3b953064c6c5b9fb6bb4436d6b90c56d",
+    "detail": "[blockscout_label] Blockscout label for 0x028171bca77440897b824ca71d1c56cac55b68a3",
+    "url": "https://eth.blockscout.com/api/v2/addresses/0x028171bca77440897b824ca71d1c56cac55b68a3",
+    "confidence": 0.9,
+    "discoveredAt": "2026-06-08T20:04:54.830Z"
   }
 ]
