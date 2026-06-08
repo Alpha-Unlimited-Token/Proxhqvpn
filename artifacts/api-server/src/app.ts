@@ -11,6 +11,8 @@ import helmet from "helmet";
 import { rateLimit } from "express-rate-limit";
 import { clerkMiddleware } from "@clerk/express";
 import { CLERK_PROXY_PATH, clerkProxyMiddleware } from "./middlewares/clerkProxyMiddleware";
+import fs from "fs";
+import path from "path";
 import router from "./routes";
 import omegaRouter from "./routes/omega";
 const OMEGA_ENABLED = process.env.PROXHQ_ENABLE_OMEGA !== "0"; // default ON; set to "0" to disable at deploy time
@@ -335,6 +337,16 @@ app.use("/api/ambassadors/record-referral", ambassadorLimiter);
 app.use("/api/ambassadors/me/videos", (req: Request, res: Response, next: NextFunction) => {
   if (["POST", "DELETE"].includes(req.method)) return ambassadorLimiter(req, res, next);
   next();
+});
+
+// Temporary public download routes — mounted before requireAuth, remove after VPS deployment
+app.get("/api/dl/proxhqvpn-linux.zip", (_req: Request, res: Response) => {
+  const zipPath = path.resolve(process.cwd(), "../../standalone/dist/ProxhqVPN-Linux-Deploy.zip");
+  if (!fs.existsSync(zipPath)) return res.status(404).json({ error: "Build not found" });
+  res.setHeader("Content-Type", "application/zip");
+  res.setHeader("Content-Disposition", "attachment; filename=ProxhqVPN-Linux-Deploy.zip");
+  res.setHeader("Content-Length", fs.statSync(zipPath).size);
+  fs.createReadStream(zipPath).pipe(res);
 });
 
 // wallet-tx is mounted BEFORE the main /api router so it bypasses requireAuth
