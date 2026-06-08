@@ -1330,6 +1330,10 @@ importers:
       ethers:
         specifier: ^6.13.5
         version: 6.16.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 25.3.5
 
   scripts:
     devDependencies:
