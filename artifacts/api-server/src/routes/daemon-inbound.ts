@@ -4,6 +4,29 @@ import { db } from "@workspace/db";
 import { nodesTable, beaconAlertsTable, wgPeerCommandsTable, vpngateNodeSessionsTable, trappedAttackersTable, silkWebTable } from "@workspace/db";
 import { eq, and, sql } from "drizzle-orm";
 import { z } from "zod";
+import { sendMail, adminEmails } from "../lib/mailer";
+import { logger } from "../lib/logger";
+
+// Rate-limit attack emails: at most one email per unique attacker IP per hour
+const _alertedIps = new Map<string, number>();
+function shouldSendAlert(ip: string): boolean {
+  const now = Date.now();
+  const last = _alertedIps.get(ip) ?? 0;
+  if (now - last < 60 * 60 * 1000) return false;
+  _alertedIps.set(ip, now);
+  return true;
+}
+
+function severityBadge(severity: string): string {
+  const colors: Record<string, string> = {
+    critical: "#ff0000",
+    high: "#ff6600",
+    medium: "#ffaa00",
+    low: "#00aaff",
+  };
+  const c = colors[severity] ?? "#888";
+  return `<span style="background:${c};color:#fff;padding:2px 8px;border-radius:4px;font-weight:bold;text-transform:uppercase">${severity}</span>`;
+}
 
 const router = Router();
 
@@ -108,6 +131,33 @@ router.post("/beacon", async (req, res) => {
     detectedAt: new Date(),
   }).returning();
 
+  // Email alert for high/critical probes (rate-limited to 1 per IP per hour)
+  if ((severity === "high" || severity === "critical") && shouldSendAlert(body.attackerIp)) {
+    const to = adminEmails();
+    if (to.length > 0) {
+      void sendMail({
+        to,
+        subject: `🚨 ProxhqVPN Alert: ${severity.toUpperCase()} probe on ${node.name} from ${body.attackerIp}`,
+        html: `
+          <div style="font-family:monospace;background:#0a0a0a;color:#e0e0e0;padding:24px;border-radius:8px;max-width:600px">
+            <div style="color:#00ff88;font-size:20px;font-weight:bold;margin-bottom:16px">⚡ ProxhqVPN Ghost Trap Alert</div>
+            <table style="width:100%;border-collapse:collapse">
+              <tr><td style="padding:6px;color:#888">Severity</td><td style="padding:6px">${severityBadge(severity)}</td></tr>
+              <tr><td style="padding:6px;color:#888">Attacker IP</td><td style="padding:6px;color:#ff4444;font-weight:bold">${body.attackerIp}</td></tr>
+              <tr><td style="padding:6px;color:#888">Probe Type</td><td style="padding:6px">${body.probeType}</td></tr>
+              <tr><td style="padding:6px;color:#888">Node</td><td style="padding:6px">${node.name} (${node.region ?? "unknown region"})</td></tr>
+              <tr><td style="padding:6px;color:#888">SilkWeb Trapped</td><td style="padding:6px">${silkWebTrapped ? "✅ Yes" : "⚠️ Already trapped"}</td></tr>
+              <tr><td style="padding:6px;color:#888">Fingerprint</td><td style="padding:6px;font-size:11px;color:#aaa">${fp}</td></tr>
+              <tr><td style="padding:6px;color:#888">Detected At</td><td style="padding:6px">${new Date().toUTCString()}</td></tr>
+              ${body.raw ? `<tr><td style="padding:6px;color:#888">Raw Data</td><td style="padding:6px;font-size:11px">${body.raw.substring(0, 300)}</td></tr>` : ""}
+            </table>
+            <div style="margin-top:16px;font-size:12px;color:#555">ProxhqVPN — Alpha Unlimited Technologies LLC</div>
+          </div>`,
+        text: `PROXHQVPN ALERT [${severity.toUpperCase()}]\nAttacker: ${body.attackerIp}\nProbe: ${body.probeType}\nNode: ${node.name}\nTrapped: ${silkWebTrapped}\nTime: ${new Date().toUTCString()}`,
+      }).catch(err => logger.error({ err }, "Failed to send beacon alert email"));
+    }
+  }
+
   return res.status(201).json({ ok: true, alertId: alert.id, silkWebTrapped });
 });
 
@@ -196,6 +246,33 @@ router.post("/honeypot-hit", async (req, res) => {
     rawData: body.rawRequest ?? `Honeypot port ${body.port} hit`,
     detectedAt: new Date(),
   });
+
+  // Email alert on first honeypot contact from this IP (rate-limited 1/hr per IP)
+  if (shouldSendAlert(body.attackerIp)) {
+    const to = adminEmails();
+    if (to.length > 0) {
+      void sendMail({
+        to,
+        subject: `🕸️ ProxhqVPN: Attacker TRAPPED in Ghost Trap — ${body.attackerIp} on port ${body.port}`,
+        html: `
+          <div style="font-family:monospace;background:#0a0a0a;color:#e0e0e0;padding:24px;border-radius:8px;max-width:600px">
+            <div style="color:#00ff88;font-size:20px;font-weight:bold;margin-bottom:16px">🕸️ ProxhqVPN Ghost Trap — Attacker Caught</div>
+            <table style="width:100%;border-collapse:collapse">
+              <tr><td style="padding:6px;color:#888">Severity</td><td style="padding:6px">${severityBadge("critical")}</td></tr>
+              <tr><td style="padding:6px;color:#888">Attacker IP</td><td style="padding:6px;color:#ff4444;font-weight:bold">${body.attackerIp}</td></tr>
+              <tr><td style="padding:6px;color:#888">Honeypot Port</td><td style="padding:6px">${body.port}</td></tr>
+              <tr><td style="padding:6px;color:#888">Node</td><td style="padding:6px">${node.name} (${node.region ?? "unknown region"})</td></tr>
+              <tr><td style="padding:6px;color:#888">SilkWeb Trapped</td><td style="padding:6px">${existing.length === 0 ? "✅ New trap entry created" : "⚠️ Already in SilkWeb (loop_count incremented)"}</td></tr>
+              ${body.banner ? `<tr><td style="padding:6px;color:#888">Banner Sent</td><td style="padding:6px;font-size:11px">${body.banner.substring(0, 200)}</td></tr>` : ""}
+              ${body.rawRequest ? `<tr><td style="padding:6px;color:#888">Raw Request</td><td style="padding:6px;font-size:11px">${body.rawRequest.substring(0, 300)}</td></tr>` : ""}
+              <tr><td style="padding:6px;color:#888">Trapped At</td><td style="padding:6px">${new Date().toUTCString()}</td></tr>
+            </table>
+            <div style="margin-top:16px;font-size:12px;color:#555">ProxhqVPN — Alpha Unlimited Technologies LLC</div>
+          </div>`,
+        text: `PROXHQVPN GHOST TRAP [CRITICAL]\nAttacker: ${body.attackerIp}\nPort: ${body.port}\nNode: ${node.name}\nTime: ${new Date().toUTCString()}`,
+      }).catch(err => logger.error({ err }, "Failed to send honeypot alert email"));
+    }
+  }
 
   return res.status(201).json({ ok: true, trappedId, message: `${body.attackerIp} trapped via honeypot port ${body.port}` });
 });
