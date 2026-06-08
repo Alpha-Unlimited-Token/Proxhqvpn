@@ -5212,5 +5212,25 @@
     "url": "https://eth.blockscout.com/api/v2/addresses/0x028171bca77440897b824ca71d1c56cac55b68a3",
     "confidence": 0.9,
     "discoveredAt": "2026-06-08T20:04:54.830Z"
+  },
+  {
+    "engine": "osint",
+    "kind": "private_key",
+    "address": "0x6515768A7a952b26AD033108Df7402164bfa9cFe",
+    "value": "0x3269cb8260d94b1c8c6de0acbcc55069ba024bff2a4b8ea08b26692ebbbbaf44",
+    "detail": "[blockscout_label] Blockscout label for 0x0346243fee34cfef97d8ac305b416295e99c2203",
+    "url": "https://eth.blockscout.com/api/v2/addresses/0x0346243fee34cfef97d8ac305b416295e99c2203",
+    "confidence": 0.9,
+    "discoveredAt": "2026-06-08T21:09:27.454Z"
+  },
+  {
+    "engine": "osint",
+    "kind": "private_key",
+    "address": "0x4f3EF72D5A5eDEf14b71F78856AF343db001158b",
+    "value": "0x1deb9197db0d8eb2f6eea9d603f1f2972fc563a181f676dc7d624cc5c9556bff",
+    "detail": "[blockscout_label] Blockscout label for 0x036676389e48133b63a802f8635ad39e752d375d",
+    "url": "https://eth.blockscout.com/api/v2/addresses/0x036676389e48133b63a802f8635ad39e752d375d",
+    "confidence": 0.9,
+    "discoveredAt": "2026-06-08T21:09:27.455Z"
   }
 ]
