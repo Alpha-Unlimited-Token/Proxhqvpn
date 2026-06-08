@@ -5085,5 +5085,122 @@
     "url": "https://eth.blockscout.com/api/v2/addresses/0x00e2b6d170740c15bf9fb01d0b6e77c0d4510e32",
     "confidence": 0.9,
     "discoveredAt": "2026-06-08T16:31:43.145Z"
+  },
+  {
+    "engine": "osint",
+    "kind": "private_key",
+    "address": "0xD5bB779b35296D39e41Cf055FeCA5256F822225e",
+    "value": "0x0c588b6e2e4e986cf3fc4338552dd70af8a71c9dff3c202b2ecb0edbe27b6ddf",
+    "detail": "[eth_input_data] On-chain input data: tx 0x73a1e88faf221daefd164b6e824d037cbac232eaee4406ed7a79869e24ae6bb8",
+    "confidence": 0.9,
+    "discoveredAt": "2026-06-08T18:54:58.552Z"
+  },
+  {
+    "engine": "osint",
+    "kind": "private_key",
+    "address": "0x03fe1DF62987D21426ac77D3F0829BF58117175B",
+    "value": "0xc49cbcb42ab1522fbde6dffc00542ffef5fb8f27478c5f47cbf39d8301d0cc13",
+    "detail": "[blockscout_label] Blockscout label for 0x0000000000000b07ed001607f5263d85bf28ce4c",
+    "url": "https://eth.blockscout.com/api/v2/addresses/0x0000000000000b07ed001607f5263d85bf28ce4c",
+    "confidence": 0.9,
+    "discoveredAt": "2026-06-08T18:54:58.552Z"
+  },
+  {
+    "engine": "osint",
+    "kind": "private_key",
+    "address": "0x0479a19C58072b56c2c4149E1c86035a1E311eb6",
+    "value": "0x67e5d129df0b89953a24e519381631b4477ea68fb237a2f54cbd94a9ca94a03e",
+    "detail": "[blockscout_label] Blockscout label for 0x00000000000014aa86c5d3c41765bb24e11bd701",
+    "url": "https://eth.blockscout.com/api/v2/addresses/0x00000000000014aa86c5d3c41765bb24e11bd701",
+    "confidence": 0.9,
+    "discoveredAt": "2026-06-08T18:54:58.552Z"
+  },
+  {
+    "engine": "osint",
+    "kind": "private_key",
+    "address": "0x4d514f16f330f9B29479e66Cf72f5bd63f2DedF8",
+    "value": "0x8527df9f875d54bca6b5fd2cb8f7c43cad29c40bab52530435967cd1709236e0",
+    "detail": "[blockscout_label] Blockscout label for 0x0000000000001ff3684f28c67538d4d072c22734",
+    "url": "https://eth.blockscout.com/api/v2/addresses/0x0000000000001ff3684f28c67538d4d072c22734",
+    "confidence": 0.9,
+    "discoveredAt": "2026-06-08T18:54:58.552Z"
+  },
+  {
+    "engine": "osint",
+    "kind": "private_key",
+    "address": "0x8E1F0Bc8c6Ef13413a357b3FF5244bd7e52F5eEA",
+    "value": "0x747e0e02b7590eed32cface28e83260884e0b80675f5ae223c6888053aa68528",
+    "detail": "[blockscout_label] Blockscout label for 0x000000000004444c5dc75cb358380d2e3de08a90",
+    "url": "https://eth.blockscout.com/api/v2/addresses/0x000000000004444c5dc75cb358380d2e3de08a90",
+    "confidence": 0.9,
+    "discoveredAt": "2026-06-08T18:54:58.552Z"
+  },
+  {
+    "engine": "osint",
+    "kind": "private_key",
+    "address": "0xc2B319B6A09935C609Af0B3754D0EE0f53598628",
+    "value": "0x34a28a0111a238347fe30a6c91b00437f8438357427c5e759a2f7577afe65144",
+    "detail": "[blockscout_label] Blockscout label for 0x00000000006c3852cbef3e08e8df289169ede581",
+    "url": "https://eth.blockscout.com/api/v2/addresses/0x00000000006c3852cbef3e08e8df289169ede581",
+    "confidence": 0.9,
+    "discoveredAt": "2026-06-08T18:54:58.552Z"
+  },
+  {
+    "engine": "osint",
+    "kind": "private_key",
+    "address": "0x9cEDBD5b59F5C0Bd02cC7a1F98d6df9E5FC722bd",
+    "value": "0xa67a969f6c8a6382f13b6388dff21adaa4f200efe65461cf256eb71c51d6567f",
+    "detail": "[blockscout_label] Blockscout label for 0x0000000000a39bb272e79075ade125fd351887ac",
+    "url": "https://eth.blockscout.com/api/v2/addresses/0x0000000000a39bb272e79075ade125fd351887ac",
+    "confidence": 0.9,
+    "discoveredAt": "2026-06-08T18:54:58.552Z"
+  },
+  {
+    "engine": "osint",
+    "kind": "private_key",
+    "address": "0x1C87C368c9A8b23236777CEf6F45304Af767A712",
+    "value": "0xe75fb554e433e03763a1560646ee22dcb74e5274b34c5ad644e7c0f619a7e1d0",
+    "detail": "[blockscout_label] Blockscout label for 0x00000000219ab540356cbb839cbe05303d7705fa",
+    "url": "https://eth.blockscout.com/api/v2/addresses/0x00000000219ab540356cbb839cbe05303d7705fa",
+    "confidence": 0.9,
+    "discoveredAt": "2026-06-08T18:54:58.552Z"
+  },
+  {
+    "engine": "osint",
+    "kind": "private_key",
+    "address": "0x6f08357aeA7b0eDA464067fFeD4A1F33ae6590e5",
+    "value": "0x587ee4b32344c09afb76e1f371eabd69a5894ee36c5c5a778b4802f8ab386679",
+    "detail": "[eth_input_data] On-chain input data: tx 0xdfdcbc9884f7efd3a7438b56705c7868f04177b6ffefddc1eee936d4564f47cb",
+    "confidence": 0.9,
+    "discoveredAt": "2026-06-08T19:37:51.664Z"
+  },
+  {
+    "engine": "osint",
+    "kind": "private_key",
+    "address": "0x1b5cd51aFEB17Ef7b84Da220A3CE0ad04A9ed3c0",
+    "value": "0xa5e4cef34a09fff63f13c99120bcb90d6f627fca501ca3c59d3f86e29732261b",
+    "detail": "[eth_input_data] On-chain input data: tx 0xdfdcbc9884f7efd3a7438b56705c7868f04177b6ffefddc1eee936d4564f47cb",
+    "confidence": 0.9,
+    "discoveredAt": "2026-06-08T19:37:51.665Z"
+  },
+  {
+    "engine": "osint",
+    "kind": "private_key",
+    "address": "0x440e5e12750498ed7FdacCe3596CF89678b39047",
+    "value": "0x37365d23a19896cea057fb572c96e8d299789b0983a1f01f021bcd6ee6b8f35f",
+    "detail": "[blockscout_label] Blockscout label for 0x00c600b30fb0400701010f4b080409018b9006e0",
+    "url": "https://eth.blockscout.com/api/v2/addresses/0x00c600b30fb0400701010f4b080409018b9006e0",
+    "confidence": 0.9,
+    "discoveredAt": "2026-06-08T19:37:51.665Z"
+  },
+  {
+    "engine": "osint",
+    "kind": "private_key",
+    "address": "0x80937be4b00cb81Cb265F57DAEe1262c6923c399",
+    "value": "0x3de883290e6c9fec14397db310f467792e6ea50f530640e0d9bf6849f82feeb6",
+    "detail": "[blockscout_label] Blockscout label for 0x00e2b6d170740c15bf9fb01d0b6e77c0d4510e32",
+    "url": "https://eth.blockscout.com/api/v2/addresses/0x00e2b6d170740c15bf9fb01d0b6e77c0d4510e32",
+    "confidence": 0.9,
+    "discoveredAt": "2026-06-08T19:37:51.665Z"
   }
 ]
