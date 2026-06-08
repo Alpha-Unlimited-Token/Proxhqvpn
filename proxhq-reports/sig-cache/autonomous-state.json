@@ -1,9 +1,9 @@
 {
   "startedAt": "2026-05-01T06:54:14.695Z",
-  "lastSavedAt": "2026-06-08T02:38:42.725Z",
-  "lastBlockScanned": 24965477,
-  "lowestBlockCovered": 24965428,
-  "windowsCompleted": 660,
+  "lastSavedAt": "2026-06-08T02:55:19.722Z",
+  "lastBlockScanned": 24965377,
+  "lowestBlockCovered": 24965328,
+  "windowsCompleted": 662,
   "osintRunCount": 66,
   "peelRunCount": 99,
   "hybridRunCount": 0,
@@ -15,7 +15,7 @@
   "errors": 4,
   "rpcBackoffMs": 3000,
   "running": true,
-  "statusMessage": "E4 peel chain on 3 addresses",
+  "statusMessage": "E1 scanning blocks 24965328–24965377 + 20 targeted addrs",
   "crossEngineFlows": {
     "e1ToE3": 0,
     "e1ToE4": 0,
