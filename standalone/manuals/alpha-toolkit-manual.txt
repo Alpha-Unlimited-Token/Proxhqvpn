@@ -1,5 +1,5 @@
 Alpha Toolkit — User Manual
-Version 2.0 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+Version 2.2 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
 Command Center Pro Feature
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -14,7 +14,7 @@ TABLE OF CONTENTS
 
 1. Overview — 3-Tool Suite
 2. Tor Cloak (Global)
-3. Tool 1 — Universal Scanner (v4.0)
+3. Tool 1 — Universal Scanner (v2.2.0)
 4. Scanner Modes (Network / Security / Exploit / Full)
 5. Scanner Command Flags Reference
 6. Tool 2 — Vulnerability Verifier
@@ -32,7 +32,7 @@ TABLE OF CONTENTS
   Alpha Toolkit (/alpha-tools) is an integrated 3-tool security
   research suite:
 
-  Tool 1 — Universal Scanner v4.0:
+  Tool 1 — Universal Scanner v2.2.0:
     Scans targets for security vulnerabilities, misconfigurations,
     exposed credentials, and network services. Supports 35+
     programming languages, 200+ vulnerability patterns, multi-step

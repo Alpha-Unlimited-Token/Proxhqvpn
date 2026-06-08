@@ -15,7 +15,7 @@ ProxhqVPN — Complete User Manual Library
   11. Employee Procedures & Platform Administration      → employee-procedures.txt
   12. VPN Privacy Suite Tools                            → privacy-suite-tools.txt
   13. QuantumAudit Manual                                → quantum-audit-manual.txt
-  14. Security Hardening Manual — v2.1.0                 → security-hardening-v21.txt
+  14. Security Hardening Manual — v2.2.0                 → security-hardening-v22.txt
   15. Dev Security Tools v2                              → dev-security-tools-v2.txt
   16. Ghost Trace — Behavioral Analysis Engine           → ghost-trace-manual.txt
   17. Ghost Chain — Exploit Reference & Kill Chain Builder → ghost-chain-manual.txt

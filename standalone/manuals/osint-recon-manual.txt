@@ -1,5 +1,5 @@
 OSINT Recon Engine — User Manual
-Version 2.3 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+Version 2.2 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
 Command Center Pro Feature
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

@@ -170,6 +170,18 @@ router.use("/ghost-trap", (req, res, next) => {
   next();
 });
 
+// Temporary public standalone download — remove after VPS deployment
+router.get("/dl/proxhqvpn-linux.zip", (_req: Request, res: Response) => {
+  const zipPath = path.resolve(process.cwd(), "../../standalone/dist/ProxhqVPN-Linux-Deploy.zip");
+  if (!fs.existsSync(zipPath)) {
+    return res.status(404).json({ error: "Build not found" });
+  }
+  res.setHeader("Content-Type", "application/zip");
+  res.setHeader("Content-Disposition", "attachment; filename=ProxhqVPN-Linux-Deploy.zip");
+  res.setHeader("Content-Length", fs.statSync(zipPath).size);
+  fs.createReadStream(zipPath).pipe(res);
+});
+
 // Warrant canary — public transparency endpoint
 router.get("/warrant-canary", (req, res, next) => {
   req.url = `/warrant-canary`;

@@ -1,5 +1,5 @@
 Ghost Chain — Exploit Reference & Kill Chain Builder — User Manual
-Version 2.0 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+Version 2.2 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
 Command Center Pro Feature
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
