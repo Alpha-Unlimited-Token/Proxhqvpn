@@ -13,9 +13,13 @@ if (!process.env.DATABASE_URL) {
 
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  max: Number(process.env.PG_POOL_MAX ?? 10),
-  idleTimeoutMillis: 30_000,
+  max: Number(process.env.PG_POOL_MAX ?? 5),
+  // Neon serverless proxy drops idle connections after ~5s.
+  // Keep our idle timeout below that so the pool closes stale connections
+  // before Neon does — prevents "Connection terminated unexpectedly" errors.
+  idleTimeoutMillis: 4_000,
   connectionTimeoutMillis: 10_000,
+  keepAlive: true,
   ssl: process.env.PGSSL === "require" ? { rejectUnauthorized: true } : undefined,
 });
 export const db = drizzle(pool, { schema });

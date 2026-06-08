@@ -116,8 +116,8 @@ const globalLimiter = rateLimit({
   max: 300,
   standardHeaders: "draft-7",
   legacyHeaders: false,
+  skip: (req) => req.path === "/healthz" || req.path.startsWith("/api/daemon-inbound"),
   message: { error: "Too many requests." },
-  skip: (req) => req.path === "/healthz",
 });
 
 const terminalLimiter = rateLimit({
