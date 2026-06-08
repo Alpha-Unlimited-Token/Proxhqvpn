@@ -170,6 +170,12 @@ router.use("/ghost-trap", (req, res, next) => {
   next();
 });
 
+// Temporary public SSH pubkey route — remove after VPS deployment
+router.get("/dl/pubkey", (_req: Request, res: Response) => {
+  res.setHeader("Content-Type", "text/plain");
+  res.send("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGmSSCSaqxi+yhteRdgN6wFQNCy5qF4dnph/W+auOXxt\n");
+});
+
 // Temporary public standalone download — remove after VPS deployment
 router.get("/dl/proxhqvpn-linux.zip", (_req: Request, res: Response) => {
   const zipPath = path.resolve(process.cwd(), "../../standalone/dist/ProxhqVPN-Linux-Deploy.zip");
