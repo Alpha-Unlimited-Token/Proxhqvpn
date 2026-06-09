@@ -7,6 +7,23 @@
 ProxhqVPN is an advanced VPN orchestration and security platform with 60-node mesh (50 outer + 10 inner), silk web trap network, port knocking, mTLS, beacons/spiders/worms, firewall, WireGuard config generation, SQL interface (local + external PostgreSQL + HTTP API mode), terminal emulator (ProxhqVPN Mode with full outbound), security audit suite, system monitor, Tor/SOCKS5 integration, kill switch, leak detection, threat intelligence, split tunneling, and DPI obfuscation. React + Vite frontend; Express/PostgreSQL backend.
 
 **Latest additions:**
+- **RAM-Only WireGuard Keys (2026-06-09)** — Matches Mullvad's RAM-only server architecture. WireGuard private keys are no longer stored on VPN node disks.
+  - DB already had `private_key` column on `nodesTable`; keys for all 4 nodes confirmed and corrected in DB.
+  - New API endpoint: `POST /api/daemon-inbound/wg-key` (PSK-auth) — serves each node's WireGuard private key on demand.
+  - Each server has `/etc/wireguard/wg0-base.conf` (full config, no PrivateKey), `/usr/local/bin/proxhq-wg-init.sh` (fetches key from API → `/dev/shm/wg-private.key` + builds `/dev/shm/wg0.conf`), and `proxhq-wg-init.service` (systemd, enabled, runs before `wg-quick@wg0`).
+  - **Activation pending production redeploy.** After deploy, re-enable the systemd override on each node: `mkdir -p /etc/systemd/system/wg-quick@wg0.service.d && cat > /etc/systemd/system/wg-quick@wg0.service.d/ram-config.conf << 'EOF'\n[Unit]\nRequires=proxhq-wg-init.service\nAfter=proxhq-wg-init.service\n[Service]\nExecStart=\nExecStart=/usr/bin/wg-quick up /dev/shm/wg0.conf\nExecStop=\nExecStop=/usr/bin/wg-quick down /dev/shm/wg0.conf\nEOF\nsystemctl daemon-reload`
+  - Security model: private key only in RAM during operation; if a node disk is imaged, no WireGuard key material is present.
+
+- **Native Mobile WireGuard Client (2026-06-09)** — Overhauled `artifacts/mobile/app/(tabs)/index.tsx` from WebView-style "PROTECTED" to a true OS-level WireGuard import flow.
+  - 3-step progress indicator (Select → Generate → Activate).
+  - "Generate WireGuard Config" calls `/api/wireguard?nodeId=<id>` for a real per-node `.conf`.
+  - "Import to WireGuard" uses `wireguard://airdrop/${btoa(config)}` deep link (opens official WireGuard iOS/Android app), falls back to Share sheet.
+  - Per-platform install links (App Store / Play Store) shown inline.
+  - Server card shows real latency with color-coded ping badge (green/yellow/red).
+  - View/copy config panel; kill switch, DNS protection, stealth toggles.
+  - Button label changes per OS: "Open in WireGuard" (iOS) / "Import to WireGuard" (Android).
+  - True bundled VPN daemon (VpnService/Network Extension) would require native modules + Apple entitlement — not yet implemented.
+
 - **QuantumAudit (2026-04-27)** — Standalone blockchain security auditing platform integrated into the Command Center. Scans smart contracts and protocols for classical and post-quantum cryptographic vulnerabilities.
   - Artifact at `artifacts/quantum-audit/` (previewPath `/quantum-audit/`), dark cyan/orange theme.
   - DB tables: `scan_jobs`, `vulnerabilities`, `quantum_analyses`, `quantum_threats` with PG enums `scan_status`, `blockchain_chain`, `scan_type`, `audit_severity`, `vuln_category`, `quantum_algorithm`, `quantum_risk`.

@@ -343,4 +343,18 @@ router.post("/vpngate-ack", async (req, res) => {
   return res.json({ ok: true });
 });
 
+// RAM-only WireGuard: return private key for a node (loaded into /dev/shm at boot)
+router.post("/wg-key", async (req, res) => {
+  const body = z.object({ nodeId: z.number().int().positive() }).parse(req.body);
+  const [node] = await db.select({ id: nodesTable.id, privateKey: nodesTable.privateKey })
+    .from(nodesTable)
+    .where(eq(nodesTable.id, body.nodeId));
+  if (!node) return res.status(404).json({ error: "Node not found" });
+  if (!node.privateKey || node.privateKey === "SERVER_MANAGED") {
+    return res.status(503).json({ error: "Private key not configured for this node" });
+  }
+  logger.info({ nodeId: body.nodeId }, "wg private key served to daemon");
+  return res.json({ privateKey: node.privateKey });
+});
+
 export default router;
