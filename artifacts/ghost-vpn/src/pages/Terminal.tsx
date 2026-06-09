@@ -1,7 +1,7 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { useState, useRef, useEffect, useCallback } from "react";
 import { usePersistedState } from "@/hooks/usePersistedState";
-import { Terminal as TerminalIcon, Wifi, Scan, FileText, Zap, Globe, Server, FolderOpen, Folder, FileCode, Trash2, RefreshCw, ChevronRight, PlugZap, LogOut } from "lucide-react";
+import { Terminal as TerminalIcon, Wifi, Scan, FileText, Zap, Globe, Server, FolderOpen, Folder, FileCode, Trash2, RefreshCw, ChevronRight, PlugZap, LogOut, Monitor, MousePointer, Keyboard, ZoomIn, ZoomOut, Pause, Play } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -58,7 +58,7 @@ export default function Terminal() {
   const [sshCmdHistory, setSshCmdHistory]   = useState<string[]>([]);
   const [sshHistoryIdx, setSshHistoryIdx]   = useState(-1);
   const [sshRunning, setSshRunning]         = useState(false);
-  const [sshPanel, setSshPanel]             = useState<"shell" | "files">("shell");
+  const [sshPanel, setSshPanel]             = useState<"shell" | "files" | "screen">("shell");
   // Connection form
   const [connHost, setConnHost]       = useState("");
   const [connPort, setConnPort]       = useState("22");
@@ -74,6 +74,22 @@ export default function Terminal() {
   const [fbEntries, setFbEntries]     = useState<FsEntry[]>([]);
   const [fbLoading, setFbLoading]     = useState(false);
   const [fbFileContent, setFbFileContent] = useState<{ path: string; content: string; truncated: boolean } | null>(null);
+
+  // Remote desktop / screen control
+  const [screenImage, setScreenImage]       = useState<string | null>(null);
+  const [screenError, setScreenError]       = useState<string | null>(null);
+  const [screenLoading, setScreenLoading]   = useState(false);
+  const [screenStreaming, setScreenStreaming] = useState(false);
+  const [screenFps, setScreenFps]           = useState(2);
+  const [screenQuality, setScreenQuality]   = useState(55);
+  const [screenDisplay, setScreenDisplay]   = useState(":0");
+  const [screenRemoteW, setScreenRemoteW]   = useState(1920);
+  const [screenRemoteH, setScreenRemoteH]   = useState(1080);
+  const [mouseControl, setMouseControl]     = useState(true);
+  const [keyboardControl, setKeyboardControl] = useState(true);
+  const [screenZoom, setScreenZoom]         = useState(1.0);
+  const screenRef = useRef<HTMLDivElement>(null);
+  const streamIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const sshBottomRef = useRef<HTMLDivElement>(null);
 
@@ -286,6 +302,105 @@ export default function Terminal() {
   useEffect(() => {
     if (sshPanel === "files" && activeSession) fbLoad(fbPath);
   }, [sshPanel, activeSession]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Screen / Remote Desktop helpers ──
+  const captureScreen = useCallback(async () => {
+    if (!activeSession) return;
+    setScreenLoading(true);
+    setScreenError(null);
+    try {
+      const r = await fetch(`${BASE}/api/terminal/ssh/screen/capture`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId: activeSession.id, quality: screenQuality, display: screenDisplay }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error ?? "Capture failed");
+      setScreenImage(d.image);
+    } catch (e: any) {
+      setScreenError(e.message);
+    } finally { setScreenLoading(false); }
+  }, [activeSession, screenQuality, screenDisplay]);
+
+  const fetchScreenInfo = useCallback(async () => {
+    if (!activeSession) return;
+    try {
+      const r = await fetch(`${BASE}/api/terminal/ssh/screen/info`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId: activeSession.id, display: screenDisplay }),
+      });
+      const d = await r.json();
+      if (r.ok) { setScreenRemoteW(d.width); setScreenRemoteH(d.height); }
+    } catch { /* ignore */ }
+  }, [activeSession, screenDisplay]);
+
+  const startStreaming = useCallback(() => {
+    if (streamIntervalRef.current) clearInterval(streamIntervalRef.current);
+    setScreenStreaming(true);
+    captureScreen();
+    streamIntervalRef.current = setInterval(() => captureScreen(), Math.round(1000 / screenFps));
+  }, [captureScreen, screenFps]);
+
+  const stopStreaming = useCallback(() => {
+    if (streamIntervalRef.current) { clearInterval(streamIntervalRef.current); streamIntervalRef.current = null; }
+    setScreenStreaming(false);
+  }, []);
+
+  // Restart stream when fps changes
+  useEffect(() => {
+    if (screenStreaming) startStreaming();
+  }, [screenFps]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Stop stream when session changes or component unmounts
+  useEffect(() => { return () => { if (streamIntervalRef.current) clearInterval(streamIntervalRef.current); }; }, []);
+  useEffect(() => {
+    if (!activeSession) stopStreaming();
+    else if (sshPanel === "screen") fetchScreenInfo();
+  }, [activeSession, sshPanel]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const sendInput = useCallback(async (event: object) => {
+    if (!activeSession) return;
+    await fetch(`${BASE}/api/terminal/ssh/screen/input`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId: activeSession.id, event, display: screenDisplay }),
+    });
+  }, [activeSession, screenDisplay]);
+
+  // Translate click coords from displayed image to remote screen coords
+  const handleScreenClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (!mouseControl || !activeSession) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const rx = Math.round(((e.clientX - rect.left) / rect.width) * screenRemoteW);
+    const ry = Math.round(((e.clientY - rect.top) / rect.height) * screenRemoteH);
+    const type = e.detail === 2 ? "dblclick" : "click";
+    sendInput({ type, x: rx, y: ry, button: e.button === 2 ? 3 : 1 });
+  }, [mouseControl, activeSession, screenRemoteW, screenRemoteH, sendInput]);
+
+  const handleScreenMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (!mouseControl || !activeSession || !e.buttons) return; // only send while button held (drag)
+    const rect = e.currentTarget.getBoundingClientRect();
+    const rx = Math.round(((e.clientX - rect.left) / rect.width) * screenRemoteW);
+    const ry = Math.round(((e.clientY - rect.top) / rect.height) * screenRemoteH);
+    sendInput({ type: "mousemove", x: rx, y: ry });
+  }, [mouseControl, activeSession, screenRemoteW, screenRemoteH, sendInput]);
+
+  const handleScreenScroll = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
+    if (!mouseControl || !activeSession) return;
+    e.preventDefault();
+    sendInput({ type: "scroll", x: 0, y: 0, delta: e.deltaY });
+  }, [mouseControl, activeSession, sendInput]);
+
+  const handleScreenKey = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!keyboardControl || !activeSession) return;
+    e.preventDefault();
+    if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+      sendInput({ type: "type", text: e.key });
+    } else {
+      sendInput({ type: "keydown", key: e.key });
+    }
+  }, [keyboardControl, activeSession, sendInput]);
 
   const tabs: { id: TabType; label: string; icon: any }[] = [
     { id: "shell",    label: "SHELL",      icon: TerminalIcon },
@@ -572,6 +687,7 @@ export default function Terminal() {
                     <div className="flex border border-primary/20 text-[9px] font-mono mr-2">
                       <button onClick={() => setSshPanel("shell")} className={`px-2 py-1 flex items-center gap-1 ${sshPanel === "shell" ? "bg-primary text-black" : "text-primary/50 hover:text-primary"}`}><TerminalIcon className="w-2.5 h-2.5" />SHELL</button>
                       <button onClick={() => { setSshPanel("files"); fbLoad("/"); }} className={`px-2 py-1 flex items-center gap-1 ${sshPanel === "files" ? "bg-primary text-black" : "text-primary/50 hover:text-primary"}`}><FolderOpen className="w-2.5 h-2.5" />FILES</button>
+                      <button onClick={() => { setSshPanel("screen"); fetchScreenInfo(); }} className={`px-2 py-1 flex items-center gap-1 ${sshPanel === "screen" ? "bg-primary text-black" : "text-primary/50 hover:text-primary"}`}><Monitor className="w-2.5 h-2.5" />SCREEN</button>
                     </div>
                     <button onClick={() => sshDisconnect(activeSession.id)} className="text-red-400/50 hover:text-red-400 p-1" title="Disconnect">
                       <LogOut className="w-3.5 h-3.5" />
@@ -618,6 +734,139 @@ export default function Terminal() {
                       <button onClick={() => { setSshHistory([]); }} className="text-primary/20 hover:text-primary/60 shrink-0" title="Clear">
                         <Trash2 className="w-3 h-3" />
                       </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* ── SCREEN PANEL ── */}
+                {sshPanel === "screen" && (
+                  <div className="flex-1 flex flex-col gap-2 min-h-0 overflow-hidden">
+                    {/* Toolbar */}
+                    <div className="bg-black border border-primary/20 rounded px-3 py-1.5 flex items-center gap-3 flex-wrap shrink-0">
+                      {/* Stream controls */}
+                      <button
+                        onClick={screenStreaming ? stopStreaming : startStreaming}
+                        className={`flex items-center gap-1 text-[10px] font-mono px-2 py-1 border rounded transition-colors ${screenStreaming ? "border-red-500/50 text-red-400 hover:bg-red-900/20" : "border-green-500/50 text-green-400 hover:bg-green-900/20"}`}>
+                        {screenStreaming ? <><Pause className="w-3 h-3" />STOP</> : <><Play className="w-3 h-3" />STREAM</>}
+                      </button>
+                      <button onClick={captureScreen} disabled={screenLoading}
+                        className="flex items-center gap-1 text-[10px] font-mono px-2 py-1 border border-primary/30 text-primary/60 hover:text-primary rounded">
+                        <RefreshCw className={`w-3 h-3 ${screenLoading ? "animate-spin" : ""}`} />SNAP
+                      </button>
+
+                      <div className="h-4 w-px bg-primary/20 shrink-0" />
+
+                      {/* FPS */}
+                      <div className="flex items-center gap-1.5 text-[9px] font-mono text-primary/40">
+                        <span>FPS</span>
+                        {[1, 2, 3, 5].map(f => (
+                          <button key={f} onClick={() => setScreenFps(f)}
+                            className={`px-1.5 py-0.5 border rounded text-[9px] ${screenFps === f ? "border-primary/60 text-primary bg-primary/10" : "border-primary/20 text-primary/40 hover:text-primary"}`}>{f}</button>
+                        ))}
+                      </div>
+
+                      <div className="h-4 w-px bg-primary/20 shrink-0" />
+
+                      {/* Quality */}
+                      <div className="flex items-center gap-1.5 text-[9px] font-mono text-primary/40">
+                        <span>Q</span>
+                        {[30, 55, 75].map(q => (
+                          <button key={q} onClick={() => setScreenQuality(q)}
+                            className={`px-1.5 py-0.5 border rounded text-[9px] ${screenQuality === q ? "border-primary/60 text-primary bg-primary/10" : "border-primary/20 text-primary/40 hover:text-primary"}`}>{q === 30 ? "Lo" : q === 55 ? "Med" : "Hi"}</button>
+                        ))}
+                      </div>
+
+                      <div className="h-4 w-px bg-primary/20 shrink-0" />
+
+                      {/* Zoom */}
+                      <div className="flex items-center gap-1 text-[9px] font-mono text-primary/40">
+                        <button onClick={() => setScreenZoom(z => Math.max(0.3, z - 0.1))} className="hover:text-primary"><ZoomOut className="w-3 h-3" /></button>
+                        <span className="w-8 text-center text-primary/60">{Math.round(screenZoom * 100)}%</span>
+                        <button onClick={() => setScreenZoom(z => Math.min(2.0, z + 0.1))} className="hover:text-primary"><ZoomIn className="w-3 h-3" /></button>
+                        <button onClick={() => setScreenZoom(1.0)} className="text-primary/30 hover:text-primary text-[8px] border border-primary/20 px-1 rounded ml-1">FIT</button>
+                      </div>
+
+                      <div className="h-4 w-px bg-primary/20 shrink-0" />
+
+                      {/* Mouse/keyboard toggles */}
+                      <button onClick={() => setMouseControl(v => !v)}
+                        className={`flex items-center gap-1 text-[9px] font-mono px-1.5 py-0.5 border rounded ${mouseControl ? "border-primary/50 text-primary" : "border-primary/20 text-primary/30"}`}>
+                        <MousePointer className="w-3 h-3" />{mouseControl ? "MOUSE ON" : "MOUSE OFF"}
+                      </button>
+                      <button onClick={() => setKeyboardControl(v => !v)}
+                        className={`flex items-center gap-1 text-[9px] font-mono px-1.5 py-0.5 border rounded ${keyboardControl ? "border-primary/50 text-primary" : "border-primary/20 text-primary/30"}`}>
+                        <Keyboard className="w-3 h-3" />{keyboardControl ? "KEYS ON" : "KEYS OFF"}
+                      </button>
+
+                      {/* Display selector */}
+                      <div className="flex items-center gap-1 ml-auto">
+                        <span className="text-[9px] font-mono text-primary/30">DISPLAY</span>
+                        <Input value={screenDisplay} onChange={e => setScreenDisplay(e.target.value)}
+                          className="border-primary/20 bg-black/50 text-primary font-mono text-[9px] h-6 w-14 px-1" />
+                        <span className="text-[9px] font-mono text-primary/30">{screenRemoteW}×{screenRemoteH}</span>
+                      </div>
+                    </div>
+
+                    {/* Screen viewer */}
+                    <div className="flex-1 bg-black border border-primary/20 rounded overflow-auto min-h-0 flex items-center justify-center">
+                      {screenError && !screenImage && (
+                        <div className="text-center space-y-3 p-6">
+                          <Monitor className="w-10 h-10 text-primary/20 mx-auto" />
+                          <p className="text-red-400/80 font-mono text-xs max-w-sm">{screenError}</p>
+                          <div className="text-primary/30 font-mono text-[10px] text-left bg-black/50 border border-primary/10 rounded p-3 max-w-sm">
+                            <p className="text-primary/50 mb-1 uppercase text-[9px] tracking-widest">Install on target machine:</p>
+                            <code className="text-green-400">sudo apt install scrot xdotool</code><br />
+                            <code className="text-green-400">sudo yum install scrot xdotool</code>
+                          </div>
+                          <Button onClick={captureScreen} variant="outline" className="font-mono text-xs border-primary/30 text-primary hover:bg-primary/10">
+                            Try Again
+                          </Button>
+                        </div>
+                      )}
+                      {!screenImage && !screenError && (
+                        <div className="text-center space-y-2">
+                          <Monitor className="w-10 h-10 text-primary/20 mx-auto" />
+                          <p className="text-primary/30 font-mono text-xs">Click STREAM to start live view, or SNAP for a single screenshot</p>
+                          <p className="text-primary/20 font-mono text-[10px]">Requires: scrot + xdotool on target · X11 display</p>
+                        </div>
+                      )}
+                      {screenImage && (
+                        <div
+                          ref={screenRef}
+                          className="relative cursor-crosshair outline-none"
+                          style={{ transform: `scale(${screenZoom})`, transformOrigin: "top left" }}
+                          tabIndex={0}
+                          onClick={handleScreenClick}
+                          onMouseMove={handleScreenMouseMove}
+                          onWheel={handleScreenScroll}
+                          onKeyDown={handleScreenKey}
+                          onContextMenu={e => { e.preventDefault(); handleScreenClick(e as any); }}
+                        >
+                          <img
+                            src={screenImage}
+                            alt="Remote desktop"
+                            className="block max-w-full"
+                            draggable={false}
+                            style={{ imageRendering: "pixelated" }}
+                          />
+                          {screenLoading && (
+                            <div className="absolute top-1 right-1 w-2 h-2 rounded-full bg-green-400 animate-ping" />
+                          )}
+                          {screenError && (
+                            <div className="absolute top-1 left-1 text-[9px] font-mono text-red-400 bg-black/80 px-1 rounded">{screenError}</div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Status bar */}
+                    <div className="flex items-center gap-3 px-2 shrink-0">
+                      <div className={`w-1.5 h-1.5 rounded-full ${screenStreaming ? "bg-green-400 animate-pulse" : "bg-primary/20"}`} />
+                      <span className="text-[9px] font-mono text-primary/30">
+                        {screenStreaming ? `LIVE · ${screenFps}fps · Q${screenQuality}` : "PAUSED"}
+                        {screenImage ? ` · ${mouseControl ? "mouse" : ""} ${keyboardControl ? "keyboard" : ""}` : ""}
+                      </span>
+                      {mouseControl && <span className="text-[9px] font-mono text-yellow-400/50">Click on screen to control · Right-click = right mouse button · Scroll wheel supported</span>}
                     </div>
                   </div>
                 )}

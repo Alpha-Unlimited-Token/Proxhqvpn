@@ -571,4 +571,139 @@ router.post("/ssh/sftp/read", async (req, res) => {
   }
 });
 
+// ─── Remote Screen Capture & Input Control ────────────────────────────────────
+// Uses scrot/import for screenshots and xdotool for mouse/keyboard injection.
+// All commands run over the existing SSH session — no extra daemon needed.
+
+// Helper: run a raw SSH command and return stdout (no audit log, internal use)
+function sshRun(session: SshSession, cmd: string, timeoutMs = 8000): Promise<{ stdout: Buffer; stderr: string; exitCode: number }> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve({ stdout: Buffer.alloc(0), stderr: "timeout", exitCode: 124 }), timeoutMs);
+    session.client.exec(cmd, { env: { DISPLAY: ":0" } }, (err, stream) => {
+      if (err) { clearTimeout(timer); return resolve({ stdout: Buffer.alloc(0), stderr: err.message, exitCode: 1 }); }
+      const chunks: Buffer[] = [];
+      let stderr = "";
+      stream.on("data", (d: Buffer) => chunks.push(d));
+      stream.stderr.on("data", (d: Buffer) => { stderr += d.toString(); });
+      stream.on("close", (code: number) => {
+        clearTimeout(timer);
+        resolve({ stdout: Buffer.concat(chunks), stderr, exitCode: code ?? 0 });
+      });
+    });
+  });
+}
+
+// POST /api/terminal/ssh/screen/capture
+// Returns a base64-encoded JPEG of the remote desktop.
+// Tries: scrot → import (ImageMagick) → ffmpeg fallback
+router.post("/ssh/screen/capture", async (req, res) => {
+  const body = z.object({
+    sessionId: z.string().uuid(),
+    quality: z.number().min(10).max(95).optional().default(55),
+    display: z.string().max(8).optional().default(":0"),
+  }).parse(req.body);
+
+  const session = sshSessions.get(body.sessionId);
+  if (!session) return res.status(404).json({ error: "Session not found" });
+
+  const q = body.quality;
+  const disp = body.display;
+  const ts = Date.now();
+  const tmpPng = `/tmp/proxhq_screen_${ts}.jpg`;
+
+  // Try scrot first (lightweight), fall back to import (ImageMagick)
+  const captureCmd =
+    `DISPLAY=${disp} scrot --quality ${q} ${tmpPng} 2>/dev/null && base64 -w 0 ${tmpPng} && rm -f ${tmpPng}` +
+    ` || (DISPLAY=${disp} import -window root -quality ${q} ${tmpPng} 2>/dev/null && base64 -w 0 ${tmpPng} && rm -f ${tmpPng})` +
+    ` || (DISPLAY=${disp} ffmpeg -y -f x11grab -i ${disp} -vframes 1 -q:v 5 ${tmpPng} 2>/dev/null && base64 -w 0 ${tmpPng} && rm -f ${tmpPng})`;
+
+  const result = await sshRun(session, captureCmd, 10000);
+
+  if (result.exitCode !== 0 || result.stdout.length === 0) {
+    return res.status(400).json({
+      error: "Screen capture failed. Ensure scrot or ImageMagick is installed on the target machine: sudo apt install scrot",
+      stderr: result.stderr.slice(0, 500),
+    });
+  }
+
+  const b64 = result.stdout.toString("utf8").trim();
+  res.json({ image: `data:image/jpeg;base64,${b64}`, capturedAt: new Date().toISOString() });
+});
+
+// POST /api/terminal/ssh/screen/info
+// Returns screen resolution via xrandr or xdpyinfo
+router.post("/ssh/screen/info", async (req, res) => {
+  const body = z.object({ sessionId: z.string().uuid(), display: z.string().max(8).optional().default(":0") }).parse(req.body);
+  const session = sshSessions.get(body.sessionId);
+  if (!session) return res.status(404).json({ error: "Session not found" });
+
+  const r = await sshRun(session,
+    `DISPLAY=${body.display} xrandr 2>/dev/null | grep ' connected' | grep -oP '\\d+x\\d+' | head -1` +
+    ` || DISPLAY=${body.display} xdpyinfo 2>/dev/null | grep dimensions | awk '{print $2}'`,
+    5000
+  );
+  const raw = r.stdout.toString().trim();
+  const match = raw.match(/(\d+)x(\d+)/);
+  res.json({ resolution: raw || "unknown", width: match ? parseInt(match[1]) : 1920, height: match ? parseInt(match[2]) : 1080 });
+});
+
+// POST /api/terminal/ssh/screen/input
+// Accepts mouse move, click, scroll, and key events — executed via xdotool
+router.post("/ssh/screen/input", async (req, res) => {
+  const EventSchema = z.discriminatedUnion("type", [
+    z.object({ type: z.literal("mousemove"), x: z.number().int(), y: z.number().int() }),
+    z.object({ type: z.literal("click"),     x: z.number().int(), y: z.number().int(), button: z.number().int().min(1).max(9).optional().default(1) }),
+    z.object({ type: z.literal("dblclick"),  x: z.number().int(), y: z.number().int() }),
+    z.object({ type: z.literal("scroll"),    x: z.number().int(), y: z.number().int(), delta: z.number() }),
+    z.object({ type: z.literal("keydown"),   key: z.string().max(64) }),
+    z.object({ type: z.literal("type"),      text: z.string().max(1024) }),
+  ]);
+
+  const body = z.object({
+    sessionId: z.string().uuid(),
+    event: EventSchema,
+    display: z.string().max(8).optional().default(":0"),
+  }).parse(req.body);
+
+  const session = sshSessions.get(body.sessionId);
+  if (!session) return res.status(404).json({ error: "Session not found" });
+
+  const ev = body.event;
+  const disp = `DISPLAY=${body.display}`;
+  let cmd = "";
+
+  if (ev.type === "mousemove") {
+    cmd = `${disp} xdotool mousemove --sync ${ev.x} ${ev.y}`;
+  } else if (ev.type === "click") {
+    cmd = `${disp} xdotool mousemove --sync ${ev.x} ${ev.y} click ${ev.button}`;
+  } else if (ev.type === "dblclick") {
+    cmd = `${disp} xdotool mousemove --sync ${ev.x} ${ev.y} click --repeat 2 --delay 50 1`;
+  } else if (ev.type === "scroll") {
+    const btn = ev.delta > 0 ? 4 : 5; // 4=up 5=down
+    const repeats = Math.min(Math.abs(Math.round(ev.delta / 100)), 10);
+    cmd = `${disp} xdotool click --repeat ${repeats} --delay 20 ${btn}`;
+  } else if (ev.type === "keydown") {
+    // Map common browser key names to xdotool key names
+    const keyMap: Record<string, string> = {
+      Enter: "Return", Backspace: "BackSpace", Delete: "Delete",
+      ArrowLeft: "Left", ArrowRight: "Right", ArrowUp: "Up", ArrowDown: "Down",
+      Tab: "Tab", Escape: "Escape", " ": "space",
+      Control: "ctrl", Shift: "shift", Alt: "alt", Meta: "super",
+      F1:"F1",F2:"F2",F3:"F3",F4:"F4",F5:"F5",F6:"F6",F7:"F7",F8:"F8",F9:"F9",F10:"F10",F11:"F11",F12:"F12",
+      Home:"Home", End:"End", PageUp:"Page_Up", PageDown:"Page_Down",
+    };
+    const xkey = keyMap[ev.key] ?? ev.key;
+    cmd = `${disp} xdotool key --clearmodifiers "${xkey}"`;
+  } else if (ev.type === "type") {
+    // Escape for shell safety — no shell injection via type
+    const safe = ev.text.replace(/'/g, "'\\''");
+    cmd = `${disp} xdotool type --clearmodifiers --delay 10 '${safe}'`;
+  }
+
+  if (!cmd) return res.status(400).json({ error: "Unknown event type" });
+
+  const r = await sshRun(session, cmd, 5000);
+  res.json({ ok: r.exitCode === 0, stderr: r.stderr.slice(0, 200) });
+});
+
 export default router;
