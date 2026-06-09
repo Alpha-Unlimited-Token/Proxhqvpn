@@ -230,22 +230,141 @@ SECTION 10 — COMPETITIVE RANKING
   - Blockchain/crypto forensics
   Produce a summary ranking table.
 
-SECTION 11 — RECOMMENDATIONS
-  List your top 10 priority recommendations for improvement, ordered by impact. Be specific and actionable.
+SECTION 11 — RECOMMENDATIONS WITH WORKING CODE
+  List the top 15 priority improvements, ordered by impact. For EACH recommendation you MUST provide:
+  a) What to do and why (2–3 sentences)
+  b) Actual working TypeScript/JavaScript/Shell/Python code or config snippet that implements the fix
+     — not pseudocode, not placeholders, but real production-ready code
+  c) Integration instructions: exactly which file to edit, what to replace, where to insert
+  d) Estimated effort to implement (hours/days)
+  e) Expected security improvement after the fix
+  
+  Example structure per recommendation:
+    ── Recommendation #N: [Title]
+    Why: [explanation]
+    Code:
+      [typescript]
+      // actual runnable code here — full working implementation, no pseudocode
+      [/typescript]
+    File: artifacts/api-server/src/routes/[file].ts — replace [function] with the above
+    Effort: [X hours/days]
+    Impact: [what risk this eliminates]
 
-SECTION 12 — OFFICIAL AUDIT VERDICT
-  Close the report with an official verdict paragraph. State: your overall product rating (out of 10), which market segments ProxhqVPN is best suited for, and whether you would recommend it to enterprise security teams, privacy-conscious consumers, and security researchers.
+SECTION 12 — EMERGING TECHNOLOGY DEEP DIVE
+  Using your knowledge of the security industry as of your training cutoff, identify the most cutting-edge technologies and approaches available RIGHT NOW that ProxhqVPN does not yet use, but that would make it the undisputed #1 platform in its class. Cover ALL of the following domains:
+
+  A) CRYPTOGRAPHY & KEY EXCHANGE
+     - Post-quantum key encapsulation mechanisms (NIST PQC finalists: CRYSTALS-Kyber, NTRU, SABER)
+     - Hybrid classical+PQC handshakes
+     - CRYSTALS-Dilithium and FALCON for digital signatures
+     - OPAQUE protocol (zero-knowledge password auth, no server sees password)
+     - Double-Ratchet algorithm for forward secrecy beyond WireGuard
+     - Hardware Security Module (HSM) integration for key storage
+     - Reference: https://csrc.nist.gov/projects/post-quantum-cryptography
+
+  B) ZERO TRUST & ACCESS CONTROL
+     - Continuous Adaptive Trust (CAT) — real-time continuous re-evaluation, not one-shot posture
+     - BeyondCorp Enterprise patterns — device inventory + credential + context
+     - SPIFFE/SPIRE workload identity (https://spiffe.io) for service-to-service auth
+     - Confidential Computing / TEE (Trusted Execution Environment) — Intel TDX, AMD SEV-SNP
+     - Attribute-Based Encryption (ABE) for fine-grained data access control
+     - Policy-as-code: Open Policy Agent (OPA) for RBAC at wire speed (https://www.openpolicyagent.org)
+
+  C) NETWORK SECURITY & VPN
+     - WireGuard over QUIC (circumvents UDP blocking by tunneling in HTTP/3)
+     - MASQUE protocol (RFC 9298) — HTTP/3 proxying, harder to detect than CONNECT
+     - Encrypted Client Hello (ECH / RFC TLS 1.3 extension) — prevents SNI leakage
+     - DNS-over-QUIC (DoQ, RFC 9250) and DNS-over-HTTPS3
+     - Bandwidth padding / traffic shaping against timing correlation attacks (Tor research)
+     - Multi-path WireGuard: simultaneous tunnels across different ISPs (redundancy + obfuscation)
+     - eBPF-based packet processing (replacing iptables): XDP, BPF firewall, Cilium (https://cilium.io)
+     - Reference: https://www.wireguard.com/papers/wireguard.pdf
+
+  D) THREAT INTELLIGENCE & DETECTION
+     - MITRE ATT&CK framework integration — map all alerts to ATT&CK TTP codes (https://attack.mitre.org)
+     - Diamond Model of Intrusion Analysis for structured threat correlation
+     - STIX/TAXII threat feed consumption (structured threat intelligence sharing)
+     - Graph-based lateral movement detection (Neo4j + WireGuard peer graph)
+     - ML-based anomaly detection on WireGuard peer traffic (isolation forest, autoencoders)
+     - Sigma rules (https://github.com/SigmaHQ/sigma) for portable SIEM detection rules
+     - Reference: https://github.com/center-for-threat-informed-defense
+
+  E) HONEYPOT & DECEPTION
+     - T-Pot (https://github.com/telekom-security/tpotce) — 20+ honeypot types in one container
+     - Canarytokens 2.0 advances: WireGuard canary, Kubernetes secret canary, PDF exfil beacon
+     - OpenCanary (https://github.com/thinkst/opencanary) — lightweight, production-grade
+     - MITRE ENGAGE deception framework (https://engage.mitre.org)
+     - Active deception: dynamically generated fake credentials that alert on first use
+     - Breadcrumb trails: fake S3 keys / DB passwords / API tokens planted in fake config files
+
+  F) BLOCKCHAIN & CRYPTOGRAPHIC FORENSICS
+     - Flashbots MEV-inspect for on-chain signature extraction (https://github.com/flashbots/mev-inspect-py)
+     - Ethereum ECDSA batch analysis using the go-ethereum library
+     - Libsecp256k1 in Rust/WASM for browser-side signature math (https://github.com/bitcoin-core/secp256k1)
+     - Lattice-based nonce reuse attacks (beyond classic Howgrave-Graham)
+     - OpenTimestamps (https://opentimestamps.org) for audit chain timestamping on Bitcoin
+     - TheGraph protocol for decentralized on-chain data indexing (https://thegraph.com)
+     - Tornado Cash source analysis for privacy pattern research
+     - Reference: https://github.com/trezor/blockbook
+
+  G) OBSERVABILITY & INCIDENT RESPONSE
+     - OpenTelemetry (https://opentelemetry.io) — unified traces, metrics, logs — replace pino-only
+     - Vector.dev (https://vector.dev) for high-performance log pipeline
+     - Grafana + Loki + Tempo stack for full observability (open source, self-hostable)
+     - Falco (https://falco.org) — runtime security for container/syscall anomaly detection
+     - Velociraptor (https://github.com/Velocidex/velociraptor) — endpoint forensics & live response
+     - Atomic Red Team (https://github.com/redcanaryco/atomic-red-team) — automated TTP testing
+
+  H) AI/ML SECURITY CAPABILITIES
+     - LLM-assisted triage of SIEM events (local Ollama + Llama 3 or Mistral, no cloud dependency)
+     - Embedding-based semantic search over audit logs (find "unusual" commands by meaning)
+     - Adversarial ML attack detection: detect model poisoning, prompt injection in API inputs
+     - RAG (Retrieval-Augmented Generation) over CVE database for real-time vuln correlation
+     - AI-powered kill chain prediction: given current SIEM events, predict next attacker step
+     - Reference: https://github.com/ollama/ollama
+
+  For EACH technology listed above, provide:
+  1. A specific implementation plan for ProxhqVPN
+  2. Working starter code or configuration
+  3. The GitHub repo or RFC/paper URL
+  4. Priority (P0=critical, P1=high, P2=medium)
+  5. Which competitor currently has this that ProxhqVPN lacks
+
+SECTION 13 — FULL REFERENCE LIBRARY
+  For every technology, protocol, tool, library, paper, or standard mentioned anywhere in this audit, provide a properly formatted reference entry:
+  
+  Format each reference as:
+    [N] Title — URL or RFC number — Brief description (1 sentence)
+  
+  Minimum 50 references. Organize into categories:
+  - Cryptography & PQC
+  - Zero Trust & Access Control  
+  - VPN & Network Protocols
+  - Threat Intelligence & Detection
+  - Honeypot & Deception
+  - Blockchain & Forensics
+  - Observability & IR
+  - Compliance & Frameworks
+  - Competitor Documentation
+
+SECTION 14 — OFFICIAL AUDIT VERDICT
+  Close the report with an official verdict paragraph. State: your overall product rating (out of 10), which market segments ProxhqVPN is best suited for, whether you would recommend it to enterprise security teams, privacy-conscious consumers, and security researchers, and your single most important recommendation for reaching #1 in the industry.
 
 ════════════════════════════════════════════════════════════
-FORMAT INSTRUCTIONS
+FORMAT INSTRUCTIONS — READ CAREFULLY
 ════════════════════════════════════════════════════════════
-- Use clear section headers
+- Use clear section headers (all caps)
 - Use letter grades (A+/A/A−/B+/etc.) and numeric scores where requested
-- Use ranking tables in text format
+- Use ranking tables in text format using ASCII box-drawing characters
 - Be honest about gaps and weaknesses — this is an audit, not marketing
 - Include a timestamp and "Audited by ChatGPT" attribution line at the top of your report
-- Minimum length: 3,000 words. This is a comprehensive technical audit.
-- Do NOT disclaim that you "cannot browse the internet" — evaluate based on the architecture description provided above which is complete and accurate.`;
+- MINIMUM LENGTH: 6,000 words. This is a comprehensive technical audit with code delivery.
+- ALL code in Section 11 must be complete, working, and production-ready — no pseudocode, no TODOs, no placeholder comments
+- ALL technologies in Section 12 must include a real GitHub URL or RFC number
+- ALL references in Section 13 must be real, verifiable URLs
+- Use your built-in search capability (if available) to find the most current versions of libraries, RFCs, and papers
+- Do NOT disclaim that you "cannot browse the internet" — use your training knowledge to provide accurate references. If you have search capability, use it.
+- This report will be published publicly and shown to enterprise clients — make it authoritative, detailed, and actionable.`;
 
 const GROK_PROMPT = CHATGPT_PROMPT.replace(
   /Audited by ChatGPT/g,
