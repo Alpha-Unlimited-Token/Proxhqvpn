@@ -10,6 +10,7 @@ import {
   Network, Skull, ShieldAlert, Bug, Loader2, XCircle,
   Copy, Search, ChevronDown, Syringe, Globe, TerminalSquare, Download,
   FolderOpen, Terminal, MonitorSmartphone, RefreshCw, FileText,
+  CheckCircle2, AlertTriangle, Zap, Radio,
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -518,10 +519,17 @@ function AttackerCommandPanel({
   const [osHistory, setOsHistory] = useState<{ cmd: string; out: string }[]>([]);
 
   // ── Control panel state ───────────────────────────────────────────────────
-  interface WormCallback { ts: string; ua?: string; ref?: string; wormId?: string }
+  interface WormCallback { ts: string; ua?: string; ref?: string; wormId?: string; callbackIp?: string }
   interface ControlData {
     wormCallbacks: WormCallback[]; banner?: string; rawRequest?: string; nodeRegion?: string;
     sqlmapStatus?: string; sqlmapResults?: string; loopCount?: number;
+    autoExploitStatus?: string | null;
+    autoExploitIp?: string | null;
+    autoExploitJobId?: string | null;
+    autoExploitStartedAt?: string | null;
+    autoExploitFinishedAt?: string | null;
+    autoExploitNmap?: string | null;
+    autoExploitSqlmap?: string | null;
   }
   const [controlData, setControlData] = useState<ControlData | null>(null);
   const [controlLoading, setControlLoading] = useState(false);
@@ -704,6 +712,13 @@ function AttackerCommandPanel({
   useEffect(() => {
     if (tab === "control" && !controlData) loadControlData();
   }, [tab, controlData, loadControlData]);
+
+  // Auto-poll while worm exploit chain is running
+  useEffect(() => {
+    if (controlData?.autoExploitStatus !== "running") return;
+    const t = setInterval(() => loadControlData(), 5000);
+    return () => clearInterval(t);
+  }, [controlData?.autoExploitStatus, loadControlData]);
 
   const statusBadge = (s: string) => {
     const map: Record<string, string> = {
@@ -1177,17 +1192,68 @@ function AttackerCommandPanel({
 
             {controlData && (
               <div className="space-y-3">
+
+                {/* ── AUTO-EXPLOIT CHAIN STATUS ── */}
+                {controlData.autoExploitStatus && (
+                  <div className={`border rounded overflow-hidden ${
+                    controlData.autoExploitStatus === "running"
+                      ? "border-yellow-500/40 bg-yellow-500/5"
+                      : controlData.autoExploitStatus === "complete"
+                      ? "border-primary/30 bg-primary/5"
+                      : "border-red-500/30 bg-red-500/5"
+                  }`}>
+                    <div className="px-3 py-2 flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest">
+                      {controlData.autoExploitStatus === "running" ? (
+                        <><Loader2 className="w-3 h-3 animate-spin text-yellow-400" /><span className="text-yellow-400">Auto-Exploit Chain Running…</span></>
+                      ) : controlData.autoExploitStatus === "complete" ? (
+                        <><CheckCircle2 className="w-3 h-3 text-primary" /><span className="text-primary">Auto-Exploit Chain Complete</span></>
+                      ) : (
+                        <><AlertTriangle className="w-3 h-3 text-red-400" /><span className="text-red-400">Auto-Exploit Error</span></>
+                      )}
+                      {controlData.autoExploitIp && (
+                        <span className="ml-auto text-white/40">TARGET: {controlData.autoExploitIp}</span>
+                      )}
+                    </div>
+                    <div className="px-3 pb-2 text-[9px] font-mono text-white/40">
+                      {controlData.autoExploitStatus === "running"
+                        ? "Worm callhome received — nmap port scan + injection scan launched against real callback IP. Auto-refreshing…"
+                        : `Started: ${controlData.autoExploitStartedAt ? new Date(controlData.autoExploitStartedAt).toLocaleString() : "—"} · Finished: ${controlData.autoExploitFinishedAt ? new Date(controlData.autoExploitFinishedAt).toLocaleString() : "—"}`
+                      }
+                    </div>
+                  </div>
+                )}
+
+                {/* Auto-exploit nmap results */}
+                {controlData.autoExploitNmap && (
+                  <div className="border border-primary/20 rounded overflow-hidden">
+                    <div className="px-3 py-2 bg-primary/10 text-[10px] font-mono text-primary uppercase tracking-widest flex items-center gap-2">
+                      <Radio className="w-3 h-3" /> Auto Port Scan — {controlData.autoExploitIp}
+                    </div>
+                    <div className="p-3 bg-black text-[10px] font-mono text-primary/70 max-h-40 overflow-auto whitespace-pre-wrap">{controlData.autoExploitNmap}</div>
+                  </div>
+                )}
+
+                {/* Auto-exploit injection results */}
+                {controlData.autoExploitSqlmap && (
+                  <div className="border border-orange-500/20 rounded overflow-hidden">
+                    <div className="px-3 py-2 bg-orange-500/10 text-[10px] font-mono text-orange-400 uppercase tracking-widest flex items-center gap-2">
+                      <Zap className="w-3 h-3" /> Auto Injection Scan — {controlData.autoExploitIp}
+                    </div>
+                    <div className="p-3 bg-black text-[10px] font-mono text-orange-300/60 max-h-48 overflow-auto whitespace-pre-wrap">{controlData.autoExploitSqlmap.substring(0, 4000)}</div>
+                  </div>
+                )}
+
                 {/* Identity block */}
                 <div className="border border-cyan-500/20 rounded overflow-hidden">
                   <div className="px-3 py-2 bg-cyan-500/10 text-[10px] font-mono text-cyan-400 uppercase tracking-widest">Target Identity</div>
                   <div className="p-3 grid grid-cols-2 gap-2 text-[11px] font-mono">
                     {[
-                      ["IP Address", attacker.ip],
+                      ["Probe IP", attacker.ip],
+                      ["Real Callback IP", controlData.autoExploitIp ?? "—"],
                       ["Region", controlData.nodeRegion ?? "Unknown"],
                       ["Honeypot Port", attacker.honeypotPort ?? "—"],
                       ["Probe Type", attacker.probeType ?? "—"],
                       ["Loop Count", controlData.loopCount?.toString() ?? "0"],
-                      ["SQLmap Status", controlData.sqlmapStatus ?? "idle"],
                     ].map(([k, v]) => (
                       <div key={k}>
                         <div className="text-primary/30 text-[9px] uppercase">{k}</div>
@@ -1210,6 +1276,7 @@ function AttackerCommandPanel({
                           <div className="flex items-center gap-3 text-[9px] font-mono text-primary/40">
                             <span>{new Date(cb.ts).toLocaleString()}</span>
                             {cb.wormId && <span className="text-cyan-400/40">WORM:{cb.wormId}</span>}
+                            {cb.callbackIp && <span className="text-yellow-400/60">IP:{cb.callbackIp}</span>}
                           </div>
                           {cb.ua && <div className="text-[10px] font-mono text-cyan-300/60 truncate">{cb.ua}</div>}
                           {cb.ref && <div className="text-[9px] font-mono text-cyan-400/40">ref: {cb.ref}</div>}
@@ -1235,11 +1302,11 @@ function AttackerCommandPanel({
                   </div>
                 )}
 
-                {/* SQLmap summary */}
+                {/* Manual SQLmap summary */}
                 {controlData.sqlmapResults && (
                   <div className="border border-red-500/20 rounded overflow-hidden">
                     <div className="px-3 py-2 bg-red-500/10 text-[10px] font-mono text-red-400 uppercase tracking-widest flex items-center gap-2">
-                      <FileText className="w-3 h-3" /> SQLmap Results
+                      <FileText className="w-3 h-3" /> Manual Injection Results
                     </div>
                     <div className="p-3 bg-black text-[10px] font-mono text-red-300/60 max-h-48 overflow-auto whitespace-pre-wrap">{controlData.sqlmapResults.substring(0, 4000)}</div>
                   </div>
@@ -1257,32 +1324,38 @@ function AttackerCommandPanel({
   *{margin:0;padding:0;box-sizing:border-box}
   body{background:#050505;color:#e0e0e0;font-family:monospace;font-size:12px}
   h1{color:#00ff88;font-size:18px;padding:16px;border-bottom:1px solid #00ff8820;background:#00ff8808}
+  .banner{background:#0a1f0a;border-bottom:1px solid #00ff8820;padding:12px 16px;font-size:11px;color:#00ff8880}
   .row{display:flex;gap:0;border-bottom:1px solid #111}
   .cell{padding:8px 16px;flex:1;border-right:1px solid #111;overflow:auto}
   .label{color:#555;font-size:10px;text-transform:uppercase;margin-bottom:4px}
   .val{color:#00ff88}
-  pre{white-space:pre-wrap;word-break:break-word;color:#aaa;font-size:11px;max-height:200px;overflow:auto}
+  pre{white-space:pre-wrap;word-break:break-word;color:#aaa;font-size:11px;max-height:300px;overflow:auto}
   section{margin:16px;border:1px solid #0f0f0f;border-radius:4px;overflow:hidden}
   .sec-head{background:#111;color:#00ff88;padding:8px 12px;font-size:10px;text-transform:uppercase;letter-spacing:2px}
+  .sec-head.orange{color:#f97316}
+  .sec-head.yellow{color:#facc15}
   .callbacks{max-height:200px;overflow:auto}
   .cb{border-bottom:1px solid #0f0f0f;padding:8px 12px;font-size:10px}
-  .cb .ts{color:#555}.cb .ua{color:#00dd77;margin-top:2px}
+  .cb .ts{color:#555}.cb .ua{color:#00dd77;margin-top:2px}.cb .rip{color:#facc15;margin-top:2px}
 </style>
 </head>
 <body>
 <h1>🕸️ ProxhqVPN — Attacker Control Panel: ${attacker.ip}</h1>
+${controlData.autoExploitStatus ? `<div class="banner">Auto-Exploit Chain: <strong style="color:#00ff88">${controlData.autoExploitStatus.toUpperCase()}</strong> · Real IP: <strong style="color:#facc15">${controlData.autoExploitIp ?? "—"}</strong> · Job: ${controlData.autoExploitJobId ?? "—"}</div>` : ""}
 <section>
 <div class="sec-head">Identity</div>
 <div class="row">
-  <div class="cell"><div class="label">IP</div><div class="val">${attacker.ip}</div></div>
+  <div class="cell"><div class="label">Probe IP</div><div class="val">${attacker.ip}</div></div>
+  <div class="cell"><div class="label">Real Callback IP</div><div class="val" style="color:#facc15">${controlData.autoExploitIp ?? "—"}</div></div>
   <div class="cell"><div class="label">Region</div><div class="val">${controlData.nodeRegion ?? "Unknown"}</div></div>
   <div class="cell"><div class="label">Honeypot Port</div><div class="val">${attacker.honeypotPort ?? "—"}</div></div>
-  <div class="cell"><div class="label">Loop Count</div><div class="val">${controlData.loopCount ?? 0}</div></div>
 </div>
 </section>
+${controlData.autoExploitNmap ? `<section><div class="sec-head yellow">Auto Port Scan — ${controlData.autoExploitIp}</div><div style="padding:12px"><pre>${controlData.autoExploitNmap}</pre></div></section>` : ""}
+${controlData.autoExploitSqlmap ? `<section><div class="sec-head orange">Auto Injection Scan — ${controlData.autoExploitIp}</div><div style="padding:12px"><pre>${controlData.autoExploitSqlmap.substring(0, 8000)}</pre></div></section>` : ""}
 ${controlData.rawRequest ? `<section><div class="sec-head">Captured Request</div><div style="padding:12px"><pre>${controlData.rawRequest}</pre></div></section>` : ""}
-${controlData.wormCallbacks.length > 0 ? `<section><div class="sec-head">Worm Callbacks (${controlData.wormCallbacks.length})</div><div class="callbacks">${controlData.wormCallbacks.map(cb => `<div class="cb"><span class="ts">${new Date(cb.ts).toLocaleString()}</span>${cb.ua ? `<div class="ua">${cb.ua}</div>` : ""}</div>`).join("")}</div></section>` : ""}
-${controlData.sqlmapResults ? `<section><div class="sec-head">SQLmap Results</div><div style="padding:12px"><pre>${controlData.sqlmapResults.substring(0, 8000)}</pre></div></section>` : ""}
+${controlData.wormCallbacks.length > 0 ? `<section><div class="sec-head">Worm Callbacks (${controlData.wormCallbacks.length})</div><div class="callbacks">${controlData.wormCallbacks.map(cb => `<div class="cb"><span class="ts">${new Date(cb.ts).toLocaleString()}</span>${cb.callbackIp ? `<div class="rip">Real IP: ${cb.callbackIp}</div>` : ""}${cb.ua ? `<div class="ua">${cb.ua}</div>` : ""}</div>`).join("")}</div></section>` : ""}
+${controlData.sqlmapResults ? `<section><div class="sec-head">Manual Injection Results</div><div style="padding:12px"><pre>${controlData.sqlmapResults.substring(0, 8000)}</pre></div></section>` : ""}
 <section><div class="sec-head">Worm Banner</div><div style="padding:12px"><pre>${controlData.banner ?? "No banner captured"}</pre></div></section>
 </body></html>`;
                     const w = window.open("", "_blank", "width=1100,height=800,menubar=0,toolbar=0");

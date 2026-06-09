@@ -487,10 +487,17 @@ router.get("/trapped/:id/control-data", async (req, res) => {
     loopCount:    attacker.loopCount,
     sqlmapStatus: attacker.sqlmapStatus,
     sqlmapResults: attacker.sqlmapResults,
-    wormCallbacks: (collected.wormCallbacks as unknown[]) ?? [],
-    banner:        collected.banner ?? null,
-    rawRequest:    collected.rawRequest ?? null,
-    nodeRegion:    collected.nodeRegion ?? null,
+    wormCallbacks:      (collected.wormCallbacks as unknown[]) ?? [],
+    banner:              collected.banner ?? null,
+    rawRequest:          collected.rawRequest ?? null,
+    nodeRegion:          collected.nodeRegion ?? null,
+    autoExploitStatus:   (collected.autoExploitStatus as string | null) ?? null,
+    autoExploitIp:       (collected.autoExploitIp as string | null) ?? null,
+    autoExploitJobId:    (collected.autoExploitJobId as string | null) ?? null,
+    autoExploitStartedAt:(collected.autoExploitStartedAt as string | null) ?? null,
+    autoExploitFinishedAt:(collected.autoExploitFinishedAt as string | null) ?? null,
+    autoExploitNmap:     (collected.autoExploitNmap as string | null) ?? null,
+    autoExploitSqlmap:   (collected.autoExploitSqlmap as string | null) ?? null,
   });
 });
 
