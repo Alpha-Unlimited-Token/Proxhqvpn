@@ -4,7 +4,6 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
-  Clipboard,
   Easing,
   Linking,
   Platform,
@@ -16,6 +15,7 @@ import {
   Text,
   View,
 } from "react-native";
+import * as Clipboard from "expo-clipboard";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@clerk/clerk-expo";
@@ -257,9 +257,9 @@ export default function VpnConnectScreen() {
     }
   }, [wgConfig, selectedServer]);
 
-  const handleCopyConfig = useCallback(() => {
+  const handleCopyConfig = useCallback(async () => {
     if (!wgConfig) return;
-    Clipboard.setString(wgConfig);
+    await Clipboard.setStringAsync(wgConfig);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     Alert.alert("Copied", "WireGuard config copied to clipboard.");
   }, [wgConfig]);
