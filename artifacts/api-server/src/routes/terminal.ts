@@ -4,6 +4,9 @@ import { checkSsrf } from "../lib/ssrfGuard";
 import { exec, spawn } from "child_process";
 import { promisify } from "util";
 import { z } from "zod";
+import { Client as SshClient } from "ssh2";
+import type { ConnectConfig, SFTPWrapper } from "ssh2";
+import { randomUUID } from "crypto";
 
 const execAsync = promisify(exec);
 
@@ -349,6 +352,223 @@ router.post("/port-scan", async (req, res) => {
     openPorts: results.filter(r => r.open).length,
     results,
   });
+});
+
+// ─── SSH Session Manager ──────────────────────────────────────────────────────
+
+interface SshSession {
+  id: string;
+  host: string;
+  port: number;
+  username: string;
+  connectedAt: string;
+  client: SshClient;
+  sftp: SFTPWrapper | null;
+  label: string;
+}
+
+const sshSessions = new Map<string, SshSession>();
+
+// Helper: get SFTP subsystem for a session (lazy init)
+function getSftp(session: SshSession): Promise<SFTPWrapper> {
+  if (session.sftp) return Promise.resolve(session.sftp);
+  return new Promise((resolve, reject) => {
+    session.client.sftp((err, sftp) => {
+      if (err) return reject(err);
+      session.sftp = sftp;
+      resolve(sftp);
+    });
+  });
+}
+
+// POST /api/terminal/ssh/connect
+router.post("/ssh/connect", async (req, res) => {
+  const body = z.object({
+    host: z.string().min(1).max(253),
+    port: z.number().min(1).max(65535).optional().default(22),
+    username: z.string().min(1).max(64),
+    password: z.string().optional(),
+    privateKey: z.string().optional(),
+    passphrase: z.string().optional(),
+    label: z.string().max(64).optional(),
+    timeout: z.number().min(2000).max(30000).optional().default(10000),
+  }).parse(req.body);
+
+  if (!body.password && !body.privateKey) {
+    return res.status(400).json({ error: "Provide either password or privateKey" });
+  }
+
+  // SSRF guard — block private/metadata ranges
+  const ssrf = await checkSsrf(body.host, false);
+  if (ssrf.blocked) {
+    return res.status(403).json({ error: `SSRF blocked: ${ssrf.reason}` });
+  }
+
+  const sessionId = randomUUID();
+  const client = new SshClient();
+
+  const cfg: ConnectConfig = {
+    host: body.host,
+    port: body.port,
+    username: body.username,
+    readyTimeout: body.timeout,
+    ...(body.password   ? { password: body.password }   : {}),
+    ...(body.privateKey ? {
+      privateKey: body.privateKey,
+      ...(body.passphrase ? { passphrase: body.passphrase } : {}),
+    } : {}),
+  };
+
+  await new Promise<void>((resolve, reject) => {
+    client.on("ready", () => {
+      sshSessions.set(sessionId, {
+        id: sessionId,
+        host: body.host,
+        port: body.port,
+        username: body.username,
+        connectedAt: new Date().toISOString(),
+        client,
+        sftp: null,
+        label: body.label ?? `${body.username}@${body.host}`,
+      });
+      resolve();
+    });
+    client.on("error", (err) => reject(err));
+    client.connect(cfg);
+  }).catch((err: Error) => {
+    res.status(400).json({ error: `SSH connection failed: ${err.message}` });
+    throw err; // prevent double-send
+  });
+
+  res.json({ sessionId, host: body.host, port: body.port, username: body.username, connectedAt: new Date().toISOString() });
+});
+
+// GET /api/terminal/ssh/sessions
+router.get("/ssh/sessions", (_req, res) => {
+  const list = [...sshSessions.values()].map(s => ({
+    id: s.id,
+    host: s.host,
+    port: s.port,
+    username: s.username,
+    label: s.label,
+    connectedAt: s.connectedAt,
+  }));
+  res.json({ sessions: list });
+});
+
+// DELETE /api/terminal/ssh/sessions/:id
+router.delete("/ssh/sessions/:id", (req, res) => {
+  const session = sshSessions.get(req.params.id);
+  if (!session) return res.status(404).json({ error: "Session not found" });
+  try { session.client.end(); } catch { /* ignore */ }
+  sshSessions.delete(req.params.id);
+  res.json({ ok: true });
+});
+
+// POST /api/terminal/ssh/exec  — run a command in a session
+router.post("/ssh/exec", async (req, res) => {
+  const body = z.object({
+    sessionId: z.string().uuid(),
+    command: z.string().min(1).max(4096),
+    timeout: z.number().min(500).max(120000).optional().default(30000),
+  }).parse(req.body);
+
+  const session = sshSessions.get(body.sessionId);
+  if (!session) return res.status(404).json({ error: "Session not found or disconnected" });
+
+  // Enforce same hard-block patterns even on remote sessions
+  const blockReason = isBlocked(body.command);
+  if (blockReason) return res.status(403).json({ error: blockReason });
+
+  const executedAt = new Date().toISOString();
+
+  const result = await new Promise<{ stdout: string; stderr: string; exitCode: number }>((resolve) => {
+    const timer = setTimeout(() => {
+      resolve({ stdout: "", stderr: "Command timed out", exitCode: 124 });
+    }, body.timeout);
+
+    session.client.exec(body.command, (err, stream) => {
+      if (err) {
+        clearTimeout(timer);
+        return resolve({ stdout: "", stderr: err.message, exitCode: 1 });
+      }
+      let stdout = "";
+      let stderr = "";
+      const MAX = 2 * 1024 * 1024;
+      stream.on("data", (d: Buffer) => { stdout += d; if (stdout.length > MAX) stdout = stdout.slice(-MAX); });
+      stream.stderr.on("data", (d: Buffer) => { stderr += d; if (stderr.length > 256 * 1024) stderr = stderr.slice(-256 * 1024); });
+      stream.on("close", (code: number) => {
+        clearTimeout(timer);
+        resolve({ stdout, stderr, exitCode: code ?? 0 });
+      });
+      stream.on("error", (e: Error) => {
+        clearTimeout(timer);
+        resolve({ stdout, stderr: e.message, exitCode: 1 });
+      });
+    });
+  });
+
+  auditLog.push({ ts: executedAt, cmd: `[SSH:${session.label}] ${body.command}`, exitCode: result.exitCode, ip: req.ip ?? "unknown" });
+  res.json({ ...result, command: body.command, executedAt });
+});
+
+// POST /api/terminal/ssh/sftp/ls  — list directory
+router.post("/ssh/sftp/ls", async (req, res) => {
+  const body = z.object({
+    sessionId: z.string().uuid(),
+    path: z.string().min(1).max(4096).default("/"),
+  }).parse(req.body);
+
+  const session = sshSessions.get(body.sessionId);
+  if (!session) return res.status(404).json({ error: "Session not found" });
+
+  try {
+    const sftp = await getSftp(session);
+    const entries = await new Promise<any[]>((resolve, reject) => {
+      sftp.readdir(body.path, (err, list) => {
+        if (err) return reject(err);
+        resolve(list.map(e => ({
+          name: e.filename,
+          longname: e.longname,
+          isDir: (e.attrs.mode! & 0o170000) === 0o040000,
+          isSymlink: (e.attrs.mode! & 0o170000) === 0o120000,
+          size: e.attrs.size ?? 0,
+          mode: (e.attrs.mode ?? 0).toString(8),
+          mtime: e.attrs.mtime ?? 0,
+        })));
+      });
+    });
+    res.json({ path: body.path, entries });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// POST /api/terminal/ssh/sftp/read  — read a file (capped at 512 KB)
+router.post("/ssh/sftp/read", async (req, res) => {
+  const body = z.object({
+    sessionId: z.string().uuid(),
+    path: z.string().min(1).max(4096),
+  }).parse(req.body);
+
+  const session = sshSessions.get(body.sessionId);
+  if (!session) return res.status(404).json({ error: "Session not found" });
+
+  const MAX_BYTES = 512 * 1024;
+  try {
+    const sftp = await getSftp(session);
+    const content = await new Promise<string>((resolve, reject) => {
+      const chunks: Buffer[] = [];
+      let total = 0;
+      const stream = sftp.createReadStream(body.path, { start: 0, end: MAX_BYTES });
+      stream.on("data", (chunk: Buffer) => { chunks.push(chunk); total += chunk.length; });
+      stream.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
+      stream.on("error", reject);
+    });
+    res.json({ path: body.path, content, truncated: content.length >= MAX_BYTES });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
 });
 
 export default router;

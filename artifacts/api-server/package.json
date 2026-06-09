@@ -46,6 +46,7 @@
     "pino": "^9",
     "pino-http": "^10",
     "socks-proxy-agent": "^10.0.0",
+    "ssh2": "^1.17.0",
     "tiny-secp256k1": "^2.2.4",
     "zod": "catalog:"
   },
@@ -56,6 +57,7 @@
     "@types/express": "^5.0.6",
     "@types/node": "catalog:",
     "@types/nodemailer": "^8.0.0",
+    "@types/ssh2": "^1.15.5",
     "esbuild": "^0.27.3",
     "esbuild-plugin-pino": "^2.3.3",
     "pino-pretty": "^13",

@@ -1,7 +1,7 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { useState, useRef, useEffect, useCallback } from "react";
 import { usePersistedState } from "@/hooks/usePersistedState";
-import { Terminal as TerminalIcon, Wifi, Scan, FileText, Zap, Globe } from "lucide-react";
+import { Terminal as TerminalIcon, Wifi, Scan, FileText, Zap, Globe, Server, FolderOpen, Folder, FileCode, Trash2, RefreshCw, ChevronRight, PlugZap, LogOut } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,9 +13,14 @@ const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
 interface HistoryItem { cmd: string; out: string; isError: boolean; ghostMode?: boolean; durationMs?: number }
 interface AuditEntry { ts: string; cmd: string; exitCode: number; ip: string }
 
-type TabType = "shell" | "http" | "portscan" | "auditlog";
+type TabType = "shell" | "http" | "portscan" | "auditlog" | "ssh";
 
 const COMMON_PORTS = [21,22,23,25,53,80,110,143,443,445,993,995,1433,3306,3389,5432,5900,6379,8080,8443,27017];
+
+// ── SSH types ──
+interface SshSessionMeta { id: string; host: string; port: number; username: string; label: string; connectedAt: string }
+interface SshHistoryItem { cmd: string; out: string; isError: boolean; ts: string }
+interface FsEntry { name: string; isDir: boolean; isSymlink: boolean; size: number; mode: string; mtime: number }
 
 export default function Terminal() {
   const { toast } = useToast();
@@ -45,11 +50,37 @@ export default function Terminal() {
   // Audit log
   const [auditLog, setAuditLog]   = useState<AuditEntry[]>([]);
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [history]);
+  // ── SSH state ──
+  const [sshSessions, setSshSessions]       = useState<SshSessionMeta[]>([]);
+  const [activeSession, setActiveSession]   = useState<SshSessionMeta | null>(null);
+  const [sshHistory, setSshHistory]         = useState<SshHistoryItem[]>([]);
+  const [sshInput, setSshInput]             = useState("");
+  const [sshCmdHistory, setSshCmdHistory]   = useState<string[]>([]);
+  const [sshHistoryIdx, setSshHistoryIdx]   = useState(-1);
+  const [sshRunning, setSshRunning]         = useState(false);
+  const [sshPanel, setSshPanel]             = useState<"shell" | "files">("shell");
+  // Connection form
+  const [connHost, setConnHost]       = useState("");
+  const [connPort, setConnPort]       = useState("22");
+  const [connUser, setConnUser]       = useState("root");
+  const [connAuthMode, setConnAuthMode] = useState<"password" | "key">("password");
+  const [connPassword, setConnPassword] = useState("");
+  const [connKey, setConnKey]         = useState("");
+  const [connPassphrase, setConnPassphrase] = useState("");
+  const [connLabel, setConnLabel]     = useState("");
+  const [connConnecting, setConnConnecting] = useState(false);
+  // File browser
+  const [fbPath, setFbPath]           = useState("/");
+  const [fbEntries, setFbEntries]     = useState<FsEntry[]>([]);
+  const [fbLoading, setFbLoading]     = useState(false);
+  const [fbFileContent, setFbFileContent] = useState<{ path: string; content: string; truncated: boolean } | null>(null);
 
-  // Exec shell command
+  const sshBottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [history]);
+  useEffect(() => { sshBottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [sshHistory]);
+
+  // Exec local shell command
   const execCmd = useCallback(async (cmd: string) => {
     const t0 = Date.now();
     setRunning(true);
@@ -61,11 +92,7 @@ export default function Terminal() {
       });
       const data = await r.json();
       const out  = data.stdout || data.stderr || "[NO OUTPUT]";
-      setHistory(h => {
-        const n = [...h];
-        n[n.length - 1] = { cmd, out, isError: data.exitCode !== 0, ghostMode, durationMs: Date.now() - t0 };
-        return n;
-      });
+      setHistory(h => { const n = [...h]; n[n.length - 1] = { cmd, out, isError: data.exitCode !== 0, ghostMode, durationMs: Date.now() - t0 }; return n; });
     } catch (e: any) {
       setHistory(h => { const n = [...h]; n[n.length - 1] = { cmd, out: e.message, isError: true }; return n; });
     } finally { setRunning(false); }
@@ -97,16 +124,11 @@ export default function Terminal() {
   };
 
   const runHttp = async () => {
-    setHttpRunning(true);
-    setHttpResult(null);
+    setHttpRunning(true); setHttpResult(null);
     try {
       let parsedHeaders: Record<string, string> = {};
       try { parsedHeaders = JSON.parse(httpHeaders); } catch { }
-      const r = await fetch(`${BASE}/api/terminal/http-request`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: httpUrl, method: httpMethod, headers: parsedHeaders, data: httpBody || undefined }),
-      });
+      const r = await fetch(`${BASE}/api/terminal/http-request`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url: httpUrl, method: httpMethod, headers: parsedHeaders, data: httpBody || undefined }) });
       setHttpResult(await r.json());
     } catch (e: any) { setHttpResult({ error: e.message }); }
     finally { setHttpRunning(false); }
@@ -114,15 +136,10 @@ export default function Terminal() {
 
   const runScan = async () => {
     if (!scanHost.trim()) return;
-    setScanRunning(true);
-    setScanResult(null);
+    setScanRunning(true); setScanResult(null);
     try {
       const ports = scanPorts.split(",").map(p => parseInt(p.trim())).filter(p => p > 0 && p <= 65535);
-      const r = await fetch(`${BASE}/api/terminal/port-scan`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ host: scanHost.trim(), ports }),
-      });
+      const r = await fetch(`${BASE}/api/terminal/port-scan`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ host: scanHost.trim(), ports }) });
       setScanResult(await r.json());
     } catch (e: any) { setScanResult({ error: e.message }); }
     finally { setScanRunning(false); }
@@ -136,10 +153,145 @@ export default function Terminal() {
 
   const clearTerminal = () => setHistory([]);
 
+  // ── SSH helpers ──
+  const loadSessions = useCallback(async () => {
+    try {
+      const r = await fetch(`${BASE}/api/terminal/ssh/sessions`);
+      const d = await r.json();
+      setSshSessions(d.sessions ?? []);
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => {
+    if (tab === "ssh") loadSessions();
+  }, [tab, loadSessions]);
+
+  const sshConnect = async () => {
+    if (!connHost.trim() || !connUser.trim()) return;
+    if (connAuthMode === "password" && !connPassword) { toast({ title: "Password required", variant: "destructive" }); return; }
+    if (connAuthMode === "key" && !connKey.trim()) { toast({ title: "Private key required", variant: "destructive" }); return; }
+    setConnConnecting(true);
+    try {
+      const body: any = { host: connHost.trim(), port: parseInt(connPort) || 22, username: connUser.trim(), label: connLabel.trim() || undefined };
+      if (connAuthMode === "password") body.password = connPassword;
+      else { body.privateKey = connKey.trim(); if (connPassphrase) body.passphrase = connPassphrase; }
+      const r = await fetch(`${BASE}/api/terminal/ssh/connect`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error ?? "Connection failed");
+      toast({ title: "SSH Connected", description: d.label ?? `${connUser}@${connHost}` });
+      setSshHistory([]);
+      await loadSessions();
+      const sessions = await fetch(`${BASE}/api/terminal/ssh/sessions`).then(x => x.json());
+      const newSession = (sessions.sessions ?? []).find((s: SshSessionMeta) => s.id === d.sessionId);
+      if (newSession) setActiveSession(newSession);
+    } catch (e: any) {
+      toast({ title: "Connection failed", description: e.message, variant: "destructive" });
+    } finally { setConnConnecting(false); }
+  };
+
+  const sshDisconnect = async (id: string) => {
+    await fetch(`${BASE}/api/terminal/ssh/sessions/${id}`, { method: "DELETE" });
+    if (activeSession?.id === id) { setActiveSession(null); setSshHistory([]); }
+    await loadSessions();
+    toast({ title: "Session closed" });
+  };
+
+  const sshExec = useCallback(async (cmd: string) => {
+    if (!activeSession) return;
+    setSshRunning(true);
+    const ts = new Date().toLocaleTimeString();
+    setSshHistory(h => [...h, { cmd, out: "executing...", isError: false, ts }]);
+    try {
+      const r = await fetch(`${BASE}/api/terminal/ssh/exec`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sessionId: activeSession.id, command: cmd }) });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error ?? "Exec failed");
+      const out = d.stdout || d.stderr || "[no output]";
+      setSshHistory(h => { const n = [...h]; n[n.length - 1] = { cmd, out, isError: d.exitCode !== 0, ts }; return n; });
+    } catch (e: any) {
+      setSshHistory(h => { const n = [...h]; n[n.length - 1] = { cmd, out: e.message, isError: true, ts }; return n; });
+      if (e.message?.includes("not found") || e.message?.includes("disconnected")) {
+        await loadSessions();
+      }
+    } finally { setSshRunning(false); }
+  }, [activeSession, loadSessions]);
+
+  const sshKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "ArrowUp") {
+      e.preventDefault();
+      const ni = Math.min(sshHistoryIdx + 1, sshCmdHistory.length - 1);
+      setSshHistoryIdx(ni);
+      if (sshCmdHistory.length > 0) setSshInput(sshCmdHistory[sshCmdHistory.length - 1 - ni] ?? "");
+      return;
+    }
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      const ni = Math.max(sshHistoryIdx - 1, -1);
+      setSshHistoryIdx(ni);
+      setSshInput(ni === -1 ? "" : (sshCmdHistory[sshCmdHistory.length - 1 - ni] ?? ""));
+      return;
+    }
+    if (e.key === "Enter" && sshInput.trim()) {
+      const cmd = sshInput.trim();
+      setSshCmdHistory(h => [...h.filter(c => c !== cmd), cmd].slice(-200));
+      setSshHistoryIdx(-1);
+      setSshInput("");
+      sshExec(cmd);
+    }
+  };
+
+  const fbLoad = useCallback(async (path: string) => {
+    if (!activeSession) return;
+    setFbLoading(true); setFbFileContent(null);
+    try {
+      const r = await fetch(`${BASE}/api/terminal/ssh/sftp/ls`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sessionId: activeSession.id, path }) });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error ?? "SFTP error");
+      setFbPath(path);
+      setFbEntries(d.entries ?? []);
+    } catch (e: any) {
+      toast({ title: "SFTP error", description: e.message, variant: "destructive" });
+    } finally { setFbLoading(false); }
+  }, [activeSession, toast]);
+
+  const fbReadFile = async (path: string) => {
+    if (!activeSession) return;
+    setFbLoading(true);
+    try {
+      const r = await fetch(`${BASE}/api/terminal/ssh/sftp/read`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sessionId: activeSession.id, path }) });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error ?? "SFTP read error");
+      setFbFileContent({ path, content: d.content, truncated: d.truncated });
+    } catch (e: any) {
+      toast({ title: "Read error", description: e.message, variant: "destructive" });
+    } finally { setFbLoading(false); }
+  };
+
+  const fbNavigate = (entry: FsEntry) => {
+    if (entry.isDir) {
+      const next = fbPath === "/" ? `/${entry.name}` : `${fbPath}/${entry.name}`;
+      fbLoad(next);
+    } else {
+      const filePath = fbPath === "/" ? `/${entry.name}` : `${fbPath}/${entry.name}`;
+      fbReadFile(filePath);
+    }
+  };
+
+  const fbUp = () => {
+    if (fbPath === "/") return;
+    const parts = fbPath.split("/").filter(Boolean);
+    parts.pop();
+    fbLoad(parts.length === 0 ? "/" : "/" + parts.join("/"));
+  };
+
+  useEffect(() => {
+    if (sshPanel === "files" && activeSession) fbLoad(fbPath);
+  }, [sshPanel, activeSession]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const tabs: { id: TabType; label: string; icon: any }[] = [
     { id: "shell",    label: "SHELL",      icon: TerminalIcon },
     { id: "http",     label: "HTTP CLIENT", icon: Globe },
     { id: "portscan", label: "PORT SCAN",   icon: Scan },
+    { id: "ssh",      label: "SSH SESSION", icon: Server },
     { id: "auditlog", label: "AUDIT LOG",   icon: FileText },
   ];
 
@@ -178,7 +330,7 @@ export default function Terminal() {
           return (
             <button key={t.id} onClick={() => { setTab(t.id); if (t.id === "auditlog") loadAudit(); }}
               className={`flex items-center gap-1.5 px-3 py-2 text-[10px] font-mono uppercase tracking-wider border-b-2 transition-colors whitespace-nowrap shrink-0 ${tab === t.id ? "border-primary text-primary" : "border-transparent text-primary/40 hover:text-primary/70"}`}>
-              <Icon className="w-3 h-3" /> <span className="hidden sm:inline">{t.label}</span><span className="sm:hidden">{t.id === "shell" ? "SHELL" : t.id === "http" ? "HTTP" : t.id === "portscan" ? "SCAN" : "LOG"}</span>
+              <Icon className="w-3 h-3" /> <span className="hidden sm:inline">{t.label}</span>
             </button>
           );
         })}
@@ -236,10 +388,8 @@ export default function Terminal() {
                 ))}
               </div>
               <div className="flex gap-2 flex-1 min-w-0">
-                <Input value={httpUrl} onChange={e => setHttpUrl(e.target.value)}
-                  className="border-primary/20 bg-black/50 text-primary font-mono text-xs h-8 flex-1 min-w-0" placeholder="https://..." />
-                <Button onClick={runHttp} disabled={httpRunning} variant="outline"
-                  className="h-8 font-mono text-xs border-primary/30 text-primary hover:bg-primary/10 shrink-0">
+                <Input value={httpUrl} onChange={e => setHttpUrl(e.target.value)} className="border-primary/20 bg-black/50 text-primary font-mono text-xs h-8 flex-1 min-w-0" placeholder="https://..." />
+                <Button onClick={runHttp} disabled={httpRunning} variant="outline" className="h-8 font-mono text-xs border-primary/30 text-primary hover:bg-primary/10 shrink-0">
                   <Wifi className={`w-3 h-3 mr-1 ${httpRunning ? "animate-pulse" : ""}`} />
                   {httpRunning ? "..." : "SEND"}
                 </Button>
@@ -248,13 +398,11 @@ export default function Terminal() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <div>
                 <p className="text-[9px] font-mono text-primary/40 mb-1">HEADERS (JSON)</p>
-                <textarea value={httpHeaders} onChange={e => setHttpHeaders(e.target.value)}
-                  className="w-full h-16 bg-black/50 border border-primary/20 text-primary font-mono text-[10px] p-2 resize-none focus:outline-none" />
+                <textarea value={httpHeaders} onChange={e => setHttpHeaders(e.target.value)} className="w-full h-16 bg-black/50 border border-primary/20 text-primary font-mono text-[10px] p-2 resize-none focus:outline-none" />
               </div>
               <div>
                 <p className="text-[9px] font-mono text-primary/40 mb-1">BODY (for POST/PUT)</p>
-                <textarea value={httpBody} onChange={e => setHttpBody(e.target.value)}
-                  className="w-full h-16 bg-black/50 border border-primary/20 text-primary font-mono text-[10px] p-2 resize-none focus:outline-none" />
+                <textarea value={httpBody} onChange={e => setHttpBody(e.target.value)} className="w-full h-16 bg-black/50 border border-primary/20 text-primary font-mono text-[10px] p-2 resize-none focus:outline-none" />
               </div>
             </div>
           </div>
@@ -278,9 +426,7 @@ export default function Terminal() {
                 </div>
               )}
               <p className="text-[9px] font-mono text-primary/40 mb-1 uppercase">Body</p>
-              <pre className="text-xs font-mono text-primary/80 whitespace-pre-wrap max-h-96 overflow-auto">
-                {httpResult.error ?? httpResult.body}
-              </pre>
+              <pre className="text-xs font-mono text-primary/80 whitespace-pre-wrap max-h-96 overflow-auto">{httpResult.error ?? httpResult.body}</pre>
             </div>
           )}
         </div>
@@ -292,13 +438,10 @@ export default function Terminal() {
           <div className="bg-black border border-primary/20 rounded p-4 space-y-3 shrink-0">
             <p className="text-[10px] font-mono text-primary/40 uppercase tracking-widest pb-1 border-b border-primary/10">TCP Connect Port Scanner</p>
             <div className="flex flex-col sm:flex-row gap-2">
-              <Input value={scanHost} onChange={e => setScanHost(e.target.value)}
-                placeholder="Host or IP (e.g. example.com)" className="border-primary/20 bg-black/50 text-primary font-mono text-xs h-8 flex-1" />
+              <Input value={scanHost} onChange={e => setScanHost(e.target.value)} placeholder="Host or IP (e.g. example.com)" className="border-primary/20 bg-black/50 text-primary font-mono text-xs h-8 flex-1" />
               <div className="flex gap-2">
-                <Input value={scanPorts} onChange={e => setScanPorts(e.target.value)}
-                  placeholder="Ports: 22,80,443" className="border-primary/20 bg-black/50 text-primary font-mono text-xs h-8 flex-1 sm:w-40 sm:flex-none" />
-                <Button onClick={runScan} disabled={scanRunning || !scanHost.trim()} variant="outline"
-                  className="h-8 font-mono text-xs border-primary/30 text-primary hover:bg-primary/10 shrink-0">
+                <Input value={scanPorts} onChange={e => setScanPorts(e.target.value)} placeholder="Ports: 22,80,443" className="border-primary/20 bg-black/50 text-primary font-mono text-xs h-8 flex-1 sm:w-40 sm:flex-none" />
+                <Button onClick={runScan} disabled={scanRunning || !scanHost.trim()} variant="outline" className="h-8 font-mono text-xs border-primary/30 text-primary hover:bg-primary/10 shrink-0">
                   <Scan className={`w-3 h-3 mr-1 ${scanRunning ? "animate-spin" : ""}`} />
                   {scanRunning ? "..." : "SCAN"}
                 </Button>
@@ -307,8 +450,7 @@ export default function Terminal() {
             <div className="flex flex-wrap gap-1">
               <span className="text-[9px] font-mono text-primary/30">Quick:</span>
               {[["Web","80,443,8080,8443"],["DB","3306,5432,27017,6379,1433"],["SSH/RDP","22,3389"],["All Common", COMMON_PORTS.join(",")]].map(([label, ports]) => (
-                <button key={label} onClick={() => setScanPorts(ports as string)}
-                  className="text-[9px] font-mono px-1.5 py-0.5 border border-primary/20 text-primary/50 hover:text-primary hover:border-primary/40">{label}</button>
+                <button key={label} onClick={() => setScanPorts(ports as string)} className="text-[9px] font-mono px-1.5 py-0.5 border border-primary/20 text-primary/50 hover:text-primary hover:border-primary/40">{label}</button>
               ))}
             </div>
           </div>
@@ -338,6 +480,213 @@ export default function Terminal() {
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── SSH SESSION TAB ── */}
+      {tab === "ssh" && (
+        <div className="flex-1 flex gap-3 min-h-0 overflow-hidden">
+
+          {/* Left sidebar — sessions + connect form */}
+          <div className="w-72 shrink-0 flex flex-col gap-2 overflow-y-auto">
+
+            {/* Connect form */}
+            <div className="bg-black border border-primary/20 rounded p-3 space-y-2 shrink-0">
+              <p className="text-[10px] font-mono text-primary/50 uppercase tracking-widest border-b border-primary/10 pb-1.5 flex items-center gap-1.5">
+                <PlugZap className="w-3 h-3" /> New Connection
+              </p>
+              <div className="space-y-1.5">
+                <div className="flex gap-1.5">
+                  <Input value={connHost} onChange={e => setConnHost(e.target.value)} placeholder="Host / IP" className="border-primary/20 bg-black/50 text-primary font-mono text-xs h-7 flex-1 min-w-0" />
+                  <Input value={connPort} onChange={e => setConnPort(e.target.value)} placeholder="22" className="border-primary/20 bg-black/50 text-primary font-mono text-xs h-7 w-14 shrink-0" />
+                </div>
+                <Input value={connUser} onChange={e => setConnUser(e.target.value)} placeholder="Username" className="border-primary/20 bg-black/50 text-primary font-mono text-xs h-7" />
+                <Input value={connLabel} onChange={e => setConnLabel(e.target.value)} placeholder="Label (optional)" className="border-primary/20 bg-black/50 text-primary font-mono text-xs h-7" />
+                {/* Auth mode toggle */}
+                <div className="flex border border-primary/20 text-[9px] font-mono">
+                  {(["password","key"] as const).map(m => (
+                    <button key={m} onClick={() => setConnAuthMode(m)} className={`flex-1 py-1 uppercase ${connAuthMode === m ? "bg-primary text-black" : "text-primary/50 hover:text-primary"}`}>{m === "password" ? "Password" : "Private Key"}</button>
+                  ))}
+                </div>
+                {connAuthMode === "password" ? (
+                  <Input type="password" value={connPassword} onChange={e => setConnPassword(e.target.value)} placeholder="Password" className="border-primary/20 bg-black/50 text-primary font-mono text-xs h-7" />
+                ) : (
+                  <>
+                    <textarea value={connKey} onChange={e => setConnKey(e.target.value)} placeholder={"-----BEGIN OPENSSH PRIVATE KEY-----\n..."} className="w-full h-24 bg-black/50 border border-primary/20 text-primary font-mono text-[9px] p-2 resize-none focus:outline-none rounded-sm" />
+                    <Input type="password" value={connPassphrase} onChange={e => setConnPassphrase(e.target.value)} placeholder="Passphrase (if encrypted)" className="border-primary/20 bg-black/50 text-primary font-mono text-xs h-7" />
+                  </>
+                )}
+                <Button onClick={sshConnect} disabled={connConnecting || !connHost.trim() || !connUser.trim()} className="w-full h-7 font-mono text-xs bg-primary/20 border border-primary/40 text-primary hover:bg-primary/30">
+                  {connConnecting ? <><RefreshCw className="w-3 h-3 mr-1 animate-spin" />Connecting...</> : <><PlugZap className="w-3 h-3 mr-1" />Connect</>}
+                </Button>
+              </div>
+            </div>
+
+            {/* Active sessions */}
+            {sshSessions.length > 0 && (
+              <div className="bg-black border border-primary/20 rounded p-3 space-y-1.5 shrink-0">
+                <div className="flex items-center justify-between">
+                  <p className="text-[10px] font-mono text-primary/50 uppercase tracking-widest">Sessions ({sshSessions.length})</p>
+                  <button onClick={loadSessions} className="text-primary/30 hover:text-primary"><RefreshCw className="w-3 h-3" /></button>
+                </div>
+                {sshSessions.map(s => (
+                  <div key={s.id} onClick={() => { setActiveSession(s); setSshHistory([]); setSshPanel("shell"); }}
+                    className={`flex items-center justify-between px-2 py-1.5 rounded cursor-pointer border transition-colors ${activeSession?.id === s.id ? "border-primary/40 bg-primary/10 text-primary" : "border-primary/10 text-primary/60 hover:border-primary/30 hover:text-primary/80"}`}>
+                    <div className="min-w-0">
+                      <div className="text-[10px] font-mono font-bold truncate">{s.label}</div>
+                      <div className="text-[9px] font-mono text-primary/30">{new Date(s.connectedAt).toLocaleTimeString()}</div>
+                    </div>
+                    <button onClick={e => { e.stopPropagation(); sshDisconnect(s.id); }} className="text-red-400/50 hover:text-red-400 ml-2 shrink-0">
+                      <LogOut className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {sshSessions.length === 0 && (
+              <div className="text-center py-6 text-primary/20 font-mono text-xs">No active sessions</div>
+            )}
+          </div>
+
+          {/* Right panel — shell or file browser */}
+          <div className="flex-1 min-w-0 flex flex-col gap-2 overflow-hidden">
+            {!activeSession ? (
+              <div className="flex-1 bg-black border border-primary/20 rounded flex items-center justify-center">
+                <div className="text-center space-y-2">
+                  <Server className="w-10 h-10 text-primary/20 mx-auto" />
+                  <p className="text-primary/30 font-mono text-xs">Connect to an SSH host to start a session</p>
+                </div>
+              </div>
+            ) : (
+              <>
+                {/* Session header */}
+                <div className="bg-black border border-primary/20 rounded px-3 py-2 flex items-center justify-between shrink-0">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+                    <span className="text-xs font-mono text-primary font-bold">{activeSession.label}</span>
+                    <span className="text-[10px] font-mono text-primary/40">{activeSession.host}:{activeSession.port}</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {/* Sub-panel toggle */}
+                    <div className="flex border border-primary/20 text-[9px] font-mono mr-2">
+                      <button onClick={() => setSshPanel("shell")} className={`px-2 py-1 flex items-center gap-1 ${sshPanel === "shell" ? "bg-primary text-black" : "text-primary/50 hover:text-primary"}`}><TerminalIcon className="w-2.5 h-2.5" />SHELL</button>
+                      <button onClick={() => { setSshPanel("files"); fbLoad("/"); }} className={`px-2 py-1 flex items-center gap-1 ${sshPanel === "files" ? "bg-primary text-black" : "text-primary/50 hover:text-primary"}`}><FolderOpen className="w-2.5 h-2.5" />FILES</button>
+                    </div>
+                    <button onClick={() => sshDisconnect(activeSession.id)} className="text-red-400/50 hover:text-red-400 p-1" title="Disconnect">
+                      <LogOut className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* ── SHELL PANEL ── */}
+                {sshPanel === "shell" && (
+                  <div className="flex-1 bg-black border border-primary/20 rounded flex flex-col overflow-hidden min-h-0 font-mono text-xs">
+                    <div className="flex-1 overflow-auto p-3 space-y-2">
+                      {sshHistory.length === 0 && (
+                        <div className="text-primary/30 text-xs">
+                          Connected to <span className="text-primary/60">{activeSession.label}</span> — type commands below.<br />
+                          <span className="text-primary/20">Tip: try  ls -la  |  uname -a  |  cat /etc/os-release  |  ps aux  |  netstat -tlnp</span>
+                        </div>
+                      )}
+                      {sshHistory.map((item, i) => (
+                        <div key={i} className="space-y-0.5">
+                          <div className="flex items-center gap-2 text-primary/60">
+                            <span className="text-green-400">{activeSession.username}@{activeSession.host}:~$</span>
+                            <span>{item.cmd}</span>
+                            <span className="text-primary/20">{item.ts}</span>
+                          </div>
+                          <div className={`whitespace-pre-wrap text-xs leading-relaxed ${item.out === "executing..." ? "text-primary/30 animate-pulse" : item.isError ? "text-red-400/80" : "text-primary/80"}`}>
+                            {item.out}
+                          </div>
+                        </div>
+                      ))}
+                      {sshRunning && <div className="text-primary/30 animate-pulse">executing...</div>}
+                      <div ref={sshBottomRef} />
+                    </div>
+                    <div className="p-2 border-t border-primary/20 bg-black/60 flex items-center gap-2 shrink-0">
+                      <span className="text-green-400 font-mono text-xs shrink-0">{activeSession.username}@{activeSession.host}:~$</span>
+                      <Input
+                        className="border-0 bg-transparent shadow-none focus-visible:ring-0 text-primary font-mono text-xs rounded-none h-7 px-1"
+                        value={sshInput}
+                        onChange={e => setSshInput(e.target.value)}
+                        onKeyDown={sshKeyDown}
+                        placeholder="Type a command..."
+                        disabled={sshRunning}
+                        autoFocus
+                      />
+                      <button onClick={() => { setSshHistory([]); }} className="text-primary/20 hover:text-primary/60 shrink-0" title="Clear">
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* ── FILE BROWSER PANEL ── */}
+                {sshPanel === "files" && (
+                  <div className="flex-1 flex gap-2 min-h-0 overflow-hidden">
+                    {/* Directory tree */}
+                    <div className="w-64 shrink-0 bg-black border border-primary/20 rounded flex flex-col min-h-0 overflow-hidden">
+                      <div className="px-2 py-1.5 border-b border-primary/10 flex items-center gap-1.5 shrink-0">
+                        <button onClick={fbUp} disabled={fbPath === "/"} className="text-primary/40 hover:text-primary disabled:opacity-20 shrink-0"><ChevronRight className="w-3 h-3 rotate-180" /></button>
+                        <span className="text-[10px] font-mono text-primary/60 truncate flex-1">{fbPath}</span>
+                        <button onClick={() => fbLoad(fbPath)} className="text-primary/40 hover:text-primary shrink-0"><RefreshCw className={`w-3 h-3 ${fbLoading ? "animate-spin" : ""}`} /></button>
+                      </div>
+                      <div className="flex-1 overflow-y-auto">
+                        {fbLoading && fbEntries.length === 0 && (
+                          <div className="text-primary/30 text-[10px] font-mono text-center py-4 animate-pulse">Loading...</div>
+                        )}
+                        {[...fbEntries].sort((a, b) => {
+                          if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
+                          return a.name.localeCompare(b.name);
+                        }).map(entry => (
+                          <button key={entry.name} onClick={() => fbNavigate(entry)}
+                            className="w-full flex items-center gap-1.5 px-2 py-1 hover:bg-primary/5 text-left group">
+                            {entry.isDir
+                              ? <Folder className="w-3 h-3 text-yellow-400/70 shrink-0" />
+                              : <FileCode className="w-3 h-3 text-primary/40 shrink-0" />
+                            }
+                            <span className={`text-[10px] font-mono truncate ${entry.isDir ? "text-yellow-400/80" : "text-primary/70"} ${entry.isSymlink ? "italic" : ""}`}>
+                              {entry.name}{entry.isDir ? "/" : ""}
+                            </span>
+                            {!entry.isDir && entry.size > 0 && (
+                              <span className="text-[9px] font-mono text-primary/20 ml-auto shrink-0">{entry.size < 1024 ? `${entry.size}B` : `${(entry.size / 1024).toFixed(0)}K`}</span>
+                            )}
+                          </button>
+                        ))}
+                        {!fbLoading && fbEntries.length === 0 && (
+                          <div className="text-primary/20 text-[10px] font-mono text-center py-4">Empty directory</div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* File content viewer */}
+                    <div className="flex-1 bg-black border border-primary/20 rounded flex flex-col min-h-0 overflow-hidden">
+                      {!fbFileContent ? (
+                        <div className="flex-1 flex items-center justify-center">
+                          <p className="text-primary/20 font-mono text-xs">Click a file to view its contents</p>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="px-3 py-1.5 border-b border-primary/10 flex items-center justify-between shrink-0">
+                            <span className="text-[10px] font-mono text-primary/60 truncate">{fbFileContent.path}</span>
+                            <div className="flex items-center gap-2 shrink-0">
+                              {fbFileContent.truncated && <Badge variant="outline" className="text-[9px] font-mono text-yellow-400 border-yellow-400/30">TRUNCATED (512KB)</Badge>}
+                              <button onClick={() => navigator.clipboard.writeText(fbFileContent.content).then(() => toast({ title: "Copied" }))}
+                                className="text-primary/30 hover:text-primary text-[9px] font-mono">COPY</button>
+                            </div>
+                          </div>
+                          <pre className="flex-1 overflow-auto p-3 text-[10px] font-mono text-primary/80 leading-relaxed whitespace-pre-wrap">
+                            {fbFileContent.content || "[empty file]"}
+                          </pre>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
         </div>
       )}
 
