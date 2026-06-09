@@ -1,6 +1,6 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { useMemo, useState, useRef, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation } from "wouter";
 import { useAuth } from "@clerk/react";
 import {
   useGetSilkWeb, useCollapseSilkWeb, useListTrappedAttackers, getGetSilkWebQueryKey
@@ -166,7 +166,7 @@ function IpDropdown({
   const ref = useRef<HTMLDivElement>(null);
   const { toast }    = useToast();
   const { getToken } = useAuth();
-  const navigate     = useNavigate();
+  const [, navigate] = useLocation();
 
   useEffect(() => {
     if (!open) return;

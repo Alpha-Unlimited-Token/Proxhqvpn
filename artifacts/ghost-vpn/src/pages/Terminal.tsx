@@ -1,6 +1,6 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { useState, useRef, useEffect, useCallback } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearch } from "wouter";
 import { usePersistedState } from "@/hooks/usePersistedState";
 import { Terminal as TerminalIcon, Wifi, Scan, FileText, Zap, Globe, Server, FolderOpen, Folder, FileCode, Trash2, RefreshCw, ChevronRight, PlugZap, LogOut, Monitor, MousePointer, Keyboard, ZoomIn, ZoomOut, Pause, Play } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -25,7 +25,7 @@ interface FsEntry { name: string; isDir: boolean; isSymlink: boolean; size: numb
 
 export default function Terminal() {
   const { toast } = useToast();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const searchString = useSearch();
   const [tab, setTab]             = usePersistedState<TabType>("terminal-tab", "shell");
   const [history, setHistory]     = useState<HistoryItem[]>([]);
   const [input, setInput]         = useState("");
@@ -97,12 +97,14 @@ export default function Terminal() {
 
   // Pre-fill SSH form when navigated here via ?ssh=<ip> (e.g. from SilkWeb)
   useEffect(() => {
-    const sshIp = searchParams.get("ssh");
+    const params = new URLSearchParams(searchString);
+    const sshIp = params.get("ssh");
     if (sshIp) {
       setTab("ssh");
       setConnHost(sshIp);
       setConnLabel(`SilkWeb — ${sshIp}`);
-      setSearchParams({}, { replace: true }); // clear param from URL
+      // Clear the param from the URL without a re-render
+      window.history.replaceState(null, "", window.location.pathname);
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
