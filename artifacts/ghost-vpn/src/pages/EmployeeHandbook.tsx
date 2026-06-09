@@ -134,11 +134,23 @@ const SECTIONS: Section[] = [
         </ol>
         <CB label="example: run setup script on new vps">{`ssh root@YOUR_VPS_IP
 # Paste and run the setup script generated from VPN Servers page`}</CB>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Node Security Hardening (Required)</h4>
+        <p className="text-[10px] font-mono text-primary/83">After initial setup, all production nodes must run the security hardening script. This is not optional for nodes serving live traffic.</p>
+        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <li><span className="text-primary/30">1.</span> Navigate to <strong>Firewall → NodeSync tab → Full Node Security Hardening Script</strong>.</li>
+          <li><span className="text-primary/30">2.</span> Click the download button for the target node (Chicago 61 / London 62 / LA 63 / Tokyo 64).</li>
+          <li><span className="text-primary/30">3.</span> Copy the script to the node: <code>scp proxhq-hardening-*.sh root@NODE_IP:/root/</code></li>
+          <li><span className="text-primary/30">4.</span> SSH in and run as root: <code>bash proxhq-hardening-*.sh</code></li>
+          <li><span className="text-primary/30">5.</span> Verify all 9 services are active: <code>systemctl is-active proxhq-ddos-monitor proxhq-fw-sync proxhq-peer-rules</code></li>
+        </ol>
+        <Note type="warn">The hardening script disables SSH password auth. Ensure your SSH public key is in ~/.ssh/authorized_keys on the node before running. Use your cloud provider's rescue console if locked out.</Note>
+        <h4 className="font-bold text-primary text-[11px] mt-3">RAM-Only WireGuard Keys</h4>
+        <p className="text-[10px] font-mono text-primary/83">All 4 active nodes use Mullvad-style RAM-only key architecture. The server private key is never on disk — it's fetched from the API on boot and stored only in <code>/dev/shm/</code>. If a node is rebooted unexpectedly, clients will reconnect automatically once the node re-fetches its key (takes ~5 seconds). If the API is unreachable at boot, WireGuard will not start — check API health first.</p>
         <h4 className="font-bold text-primary text-[11px] mt-3">Node Maintenance</h4>
         <div className="space-y-1.5 text-[10px] font-mono text-primary/83">
           <div>• <strong>Monthly</strong>: Check node uptime and peer count. Replace any node offline for more than 24 hours.</div>
-          <div>• <strong>Quarterly</strong>: Update WireGuard and system packages on each node via the Terminal page.</div>
-          <div>• <strong>On compromise</strong>: Immediately disable the node, rotate all keys, provision a replacement.</div>
+          <div>• <strong>Quarterly</strong>: Update WireGuard and system packages on each node via the Terminal page. Re-run the hardening script after major OS updates.</div>
+          <div>• <strong>On compromise</strong>: Immediately disable the node, rotate all keys, provision a replacement. The RAM-only architecture means rebooting the compromised node immediately destroys the WireGuard private key.</div>
         </div>
       </div>
     ),
@@ -434,6 +446,9 @@ ss -tupn | grep LISTEN          # Listening ports`}</CB>
             { title: "Employee Procedures", tier: "All Plans", desc: "Admin tools, node management, incident response, escalation paths." },
             { title: "VPN Privacy Suite Tools", tier: "All Plans", desc: "GPS Spoofing, Port Forwarding, Dedicated IP, Meshnet, Data Broker Opt-Out — setup and usage." },
             { title: "Dev Security Tools v2", tier: "Pro", desc: "OAST Tester, Dependency Scanner, Token Sequencer, WebSocket Tester, SAST Scanner — complete reference." },
+            { title: "RAM-Only WireGuard Keys", tier: "All Plans", desc: "Boot sequence, /dev/shm architecture, API endpoint, threat model, troubleshooting." },
+            { title: "Node Security Hardening Script", tier: "All Plans", desc: "9 systemd services, pre-run checklist, WireGuard safety guarantee, verification commands." },
+            { title: "Advanced Firewall Suite", tier: "All Plans", desc: "ATR auto-response, composite risk score, per-peer rules, DDoS shield, AI optimizer — config & API reference." },
           ].map(({ title, tier, desc }) => (
             <div key={title} className="border border-primary/10 rounded px-2.5 py-2">
               <div className="flex items-center justify-between mb-0.5">

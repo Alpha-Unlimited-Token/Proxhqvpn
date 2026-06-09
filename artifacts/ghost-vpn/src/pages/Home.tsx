@@ -83,6 +83,16 @@ const FEATURES = [
     title: "Developer Security Suite",
     desc: "Command Center Pro adds OAST injection testing, dependency vulnerability scanning, JWT/API token sequence analysis, WebSocket security testing, and static code analysis — professional pentest tools in one platform.",
   },
+  {
+    icon: KeyRound,
+    title: "RAM-Only WireGuard Keys",
+    desc: "Mullvad-style server key architecture — private keys are never written to disk. Each node fetches its key into volatile RAM on boot. Power off the server and the key is gone. Physical seizure yields zero cryptographic material.",
+  },
+  {
+    icon: ShieldCheck,
+    title: "Auto Threat Response (ATR)",
+    desc: "IPS signatures trigger automatic perimeter responses — Monitor, Throttle, Trap, or Block — with no admin approval needed. WireGuard peer traffic is never interrupted. ATR only touches the INPUT chain, not the FORWARD chain.",
+  },
 ];
 
 const SECURITY = [
@@ -92,6 +102,8 @@ const SECURITY = [
   { title: "Beacon Intrusion Detection", body: "Real-time monitoring of your VPN node detects port scans, tunnel probes, and hostile actors — and alerts you the moment they appear." },
   { title: "Traffic Obfuscation", body: "Make your VPN traffic look like normal HTTPS. Bypass deep packet inspection used by ISPs, corporations, and restrictive governments." },
   { title: "Automatic IP Blocking", body: "One click blocks any attacking IP at the firewall level across your entire infrastructure. No SSH, no command line, no delay." },
+  { title: "RAM-Only Key Architecture", body: "Server-side WireGuard private keys live only in RAM — never on disk. Rebooting a node instantly destroys the key. Even a seized server yields no cryptographic material." },
+  { title: "Adaptive DDoS Shield", body: "Per-node watchdogs detect and auto-ban flood sources exceeding 5,000 connections per 10 seconds — protecting all 4 nodes without any manual intervention or rule writing." },
 ];
 
 const PRICING_PLANS = [
@@ -589,7 +601,7 @@ export default function Home() {
             <div className="h-px flex-1 bg-white/[0.05]" />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
             {/* Dark Web Monitor */}
             <Link href="/sign-up" className="group bg-[#0d1610] border border-white/[0.07] rounded-2xl p-6 hover:border-primary/25 hover:shadow-[0_0_30px_rgba(0,255,136,0.06)] transition-all">
               <div className="flex items-start justify-between mb-4">
@@ -605,6 +617,40 @@ export default function Home() {
               </p>
               <div className="flex items-center gap-1.5 text-xs text-primary/70 group-hover:text-primary transition-colors font-medium">
                 Try it free <ArrowRight className="w-3.5 h-3.5" />
+              </div>
+            </Link>
+
+            {/* RAM-Only WireGuard Keys */}
+            <Link href="/sign-up" className="group bg-[#0d1610] border border-white/[0.07] rounded-2xl p-6 hover:border-cyan-400/25 hover:shadow-[0_0_30px_rgba(34,211,238,0.05)] transition-all">
+              <div className="flex items-start justify-between mb-4">
+                <div className="w-11 h-11 rounded-xl bg-cyan-400/10 border border-cyan-400/20 flex items-center justify-center group-hover:bg-cyan-400/15 transition-colors">
+                  <Lock className="w-5 h-5 text-cyan-400" />
+                </div>
+                <span className="text-[9px] font-bold uppercase tracking-widest bg-cyan-400/10 text-cyan-400 border border-cyan-400/20 rounded-full px-2.5 py-1">All Plans</span>
+              </div>
+              <h3 className="text-base font-bold text-white mb-2">RAM-Only WireGuard Keys</h3>
+              <p className="text-xs text-white/70 leading-relaxed mb-4">
+                Mullvad-style server key architecture — private keys never touch disk. Each node fetches its key into volatile RAM on boot. Seize the server and find nothing. Reboot and the key is gone.
+              </p>
+              <div className="flex items-center gap-1.5 text-xs text-cyan-400/70 group-hover:text-cyan-400 transition-colors font-medium">
+                Zero key material on disk <ArrowRight className="w-3.5 h-3.5" />
+              </div>
+            </Link>
+
+            {/* Node Security Hardening */}
+            <Link href="/sign-up" className="group bg-[#0d1610] border border-white/[0.07] rounded-2xl p-6 hover:border-orange-400/25 hover:shadow-[0_0_30px_rgba(251,146,60,0.05)] transition-all">
+              <div className="flex items-start justify-between mb-4">
+                <div className="w-11 h-11 rounded-xl bg-orange-400/10 border border-orange-400/20 flex items-center justify-center group-hover:bg-orange-400/15 transition-colors">
+                  <ShieldCheck className="w-5 h-5 text-orange-400" />
+                </div>
+                <span className="text-[9px] font-bold uppercase tracking-widest bg-orange-400/10 text-orange-400 border border-orange-400/20 rounded-full px-2.5 py-1">9 Services</span>
+              </div>
+              <h3 className="text-base font-bold text-white mb-2">Node Security Hardening</h3>
+              <p className="text-xs text-white/70 leading-relaxed mb-4">
+                One script hardens every node: sysctl lockdown, WireGuard-aware iptables, fail2ban, SSH key-only auth, adaptive DDoS monitor, ATR watchdog, per-peer rules, and auto firewall sync.
+              </p>
+              <div className="flex items-center gap-1.5 text-xs text-orange-400/70 group-hover:text-orange-400 transition-colors font-medium">
+                Download per-node script <ArrowRight className="w-3.5 h-3.5" />
               </div>
             </Link>
 
@@ -625,24 +671,6 @@ export default function Home() {
                 Unlock with Command Center <ArrowRight className="w-3.5 h-3.5" />
               </div>
             </Link>
-
-            {/* Developer Suite */}
-            <Link href="/sign-up" className="group bg-[#0d1610] border border-white/[0.07] rounded-2xl p-6 hover:border-yellow-400/25 hover:shadow-[0_0_30px_rgba(250,204,21,0.04)] transition-all">
-              <div className="flex items-start justify-between mb-4">
-                <div className="w-11 h-11 rounded-xl bg-yellow-400/10 border border-yellow-400/20 flex items-center justify-center group-hover:bg-yellow-400/15 transition-colors">
-                  <ShieldCheck className="w-5 h-5 text-yellow-400" />
-                </div>
-                <span className="text-[9px] font-bold uppercase tracking-widest bg-yellow-400/10 text-yellow-400 border border-yellow-400/20 rounded-full px-2.5 py-1">5 New Tools</span>
-              </div>
-              <h3 className="text-base font-bold text-white mb-2">Developer Security Suite</h3>
-              <p className="text-xs text-white/70 leading-relaxed mb-4">
-                Five new tools just landed: OAST blind injection tester, dependency vulnerability scanner,
-                JWT token sequence analyzer, WebSocket security tester, and SAST static code analysis.
-              </p>
-              <div className="flex items-center gap-1.5 text-xs text-yellow-400/70 group-hover:text-yellow-400 transition-colors font-medium">
-                Explore the suite <ArrowRight className="w-3.5 h-3.5" />
-              </div>
-            </Link>
           </div>
         </div>
       </section>
@@ -654,7 +682,7 @@ export default function Home() {
             <div className="text-xs font-semibold text-primary/60 uppercase tracking-widest mb-3">Global Infrastructure</div>
             <h2 className="text-3xl font-bold tracking-tight mb-3">4 dedicated nodes. All online.</h2>
             <p className="text-white/78 max-w-xl mx-auto">
-              Each node runs WireGuard, a honeypot spider, and a beacon intrusion sensor — all reporting live to your dashboard.
+              Each node runs WireGuard with RAM-only key storage, a honeypot spider, a beacon intrusion sensor, fail2ban, and an adaptive DDoS shield — all reporting live to your dashboard.
             </p>
           </div>
 

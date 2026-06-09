@@ -169,6 +169,16 @@ PersistentKeepalive = 25`}</CB>
         <Note type="info">YOUR_SAFE_IP is automatically filled in from your detected IP. VPN_ENDPOINT_IP is the server's public IP — whitelisted so the WireGuard handshake always works even with the kill switch active.</Note>
         <h4 className="font-bold text-primary text-[11px] mt-3">Rotate Keys</h4>
         <p className="text-[10px] font-mono text-primary/83">Click <strong>Rotate Keys</strong> to generate a new keypair. Old configs are immediately invalidated — update all devices after rotating.</p>
+        <h4 className="font-bold text-primary text-[11px] mt-3">RAM-Only Server Keys (Mullvad Architecture)</h4>
+        <p className="text-[10px] font-mono text-primary/83">ProxhqVPN nodes use a <strong>RAM-only WireGuard key architecture</strong> — the server-side private key is never written to disk. On boot, each node fetches its private key from the API via a PSK-authenticated request and writes it only to <code>/dev/shm/</code> (RAM filesystem). When the node is powered off or rebooted, the key vanishes. A disk image of the server reveals no key material. This is the same architecture used by Mullvad and ensures even a physical server seizure yields no cryptographic material.</p>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Mobile WireGuard (iOS &amp; Android)</h4>
+        <p className="text-[10px] font-mono text-primary/83">The ProxhqVPN mobile app includes a 3-step native WireGuard import flow:</p>
+        <div className="space-y-1.5 text-[10px] font-mono text-primary/83">
+          <div><strong>Step 1 — Select Server:</strong> Choose a node (Chicago, London, LA, Tokyo) with live latency ping badges (green &lt;50ms / yellow &lt;150ms / red &gt;150ms).</div>
+          <div><strong>Step 2 — Generate Config:</strong> Tap "Generate WireGuard Config" to call <code>/api/wireguard?nodeId=N</code> and receive a per-device .conf with your unique keypair.</div>
+          <div><strong>Step 3 — Activate:</strong> Tap "Open in WireGuard" (iOS) or "Import to WireGuard" (Android). The app uses a <code>wireguard://airdrop/</code> deep link to pass the config directly to the official WireGuard app, which installs the tunnel at the OS level. A Share sheet fallback is provided if the deep link fails.</div>
+        </div>
+        <Note type="info">The official WireGuard app must be installed on your device. iOS: App Store. Android: Play Store. Links are shown inline in the ProxhqVPN mobile app.</Note>
       </div>
     ),
   },
@@ -573,14 +583,33 @@ Priority 100: Default deny all (DROP)`}</CB>
           <div>• <strong>Ghost Trap</strong> — IPs hitting 3+ trap endpoints in 60 min auto-added to Blocked IPs</div>
           <div>• <strong>Ghost Trace</strong> — malicious destination IPs suggested when peer anomaly score &gt; 90</div>
           <div>• <strong>AbuseIPDB</strong> — if auto-block enabled in Threat Intel, IPs with confidence &gt;90 blocked automatically</div>
+          <div>• <strong>ATR (Auto Threat Response)</strong> — IPS signatures from node Suricata trigger automatic block, trap, or throttle — no admin action required</div>
+          <div>• <strong>Adaptive DDoS Shield</strong> — any source exceeding 5,000 new connections/10 s is auto-blocked at the perimeter; threshold is configurable</div>
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Advanced Firewall Tabs (2026)</h4>
+        <div className="space-y-2">
+          {[
+            { t: "ATR — Auto Threat Response", d: "Configure automatic responses to IPS events without admin approval. 4 response levels: Monitor (log only), Throttle (rate-limit to 128 Kbps), Trap (redirect to SilkWeb honeypot), Block (immediate DROP + ip6tables mirror). Responses are applied at the node perimeter — WireGuard peer traffic always flows freely through the FORWARD chain." },
+            { t: "Composite IP Risk Score", d: "Each blocked IP receives a 0–100 risk score aggregated from: threat-feed confidence, beacon hit count, IPS signature match weight, geo-block status, fail2ban hit count, and Ghost Trace anomaly contribution. High-risk IPs are promoted to permanent blocks automatically." },
+            { t: "Per-WireGuard-Peer Rules", d: "Assign allow / block / throttle rules to individual WireGuard peer keys. Rules are pushed to each node's FORWARD chain so they apply in-tunnel. Useful for revoking a specific device without removing the peer's WireGuard key. Peer IPs are resolved live from wg show allowed-ips." },
+            { t: "Adaptive DDoS Shield", d: "A systemd watchdog on each node monitors per-source connection rates using ss -s and conntrack. Sources exceeding the configured threshold (default: 5,000 conn/10 s) are banned via iptables with a 30-minute expiry. The Security Events log captures all DDoS events with timestamp and source CIDR." },
+            { t: "AI Firewall Rule Optimizer", d: "Analyzes your current ruleset and suggests: merging redundant CIDRs into supernets, reordering rules by hit frequency (hot rules moved to lower priority numbers for earlier evaluation), deduplicating overlapping GeoIP blocks, and identifying shadowed rules that are never evaluated." },
+            { t: "Node Security Hardening Script", d: "Firewall → NodeSync tab → download a comprehensive bash script per node (Chicago 61, London 62, LA 63, Tokyo 64). Installs 9 systemd services: sysctl hardening, WireGuard-aware iptables (FORWARD -i wg0 -j ACCEPT), IPv6 mirror, fail2ban, SSH key-only auth, DDoS monitor, security event reporter, per-peer rules enforcer, firewall sync daemon." },
+          ].map(({ t, d }) => (
+            <div key={t} className="border border-primary/10 rounded px-3 py-2">
+              <div className="text-[10px] font-mono font-bold text-primary">{t}</div>
+              <div className="text-[9px] font-mono text-primary/83 mt-0.5">{d}</div>
+            </div>
+          ))}
         </div>
         <CB label="verify firewall state">{`sudo iptables -L INPUT -n --line-numbers   # All INPUT rules
 sudo iptables -L OUTPUT -n | grep REJECT   # Kill switch rules
 sudo ip6tables -L -n | grep DROP           # IPv6 rules active?
-sudo iptables -L INPUT | grep limit        # Rate limit active?`}</CB>
+sudo iptables -L INPUT | grep limit        # Rate limit active?
+sudo iptables -L FORWARD -n | grep wg0    # WireGuard FORWARD pass-through`}</CB>
         <h4 className="font-bold text-primary text-[11px] mt-3">Export iptables Script</h4>
         <p className="text-[10px] font-mono text-primary/83">Firewall → Export → "Generate iptables Script" downloads a .sh applying all active rules. Includes ip6tables mirroring for full IPv6 protection. Also available as nftables format (Settings → Export Format).</p>
-        <Note type="warn">Never block 51820/UDP — it disconnects all WireGuard peers. Emergency recovery: sudo iptables -F &amp;&amp; sudo iptables -P INPUT ACCEPT</Note>
+        <Note type="warn">Never block 51820/UDP — it disconnects all WireGuard peers. Emergency recovery: sudo iptables -F &amp;&amp; sudo iptables -P INPUT ACCEPT. The ATR and DDoS systems never auto-block port 51820/UDP.</Note>
       </div>
     ),
   },
@@ -2885,6 +2914,83 @@ Table: metadata      → Crawl session info, start time, depth`}</CB>
     ),
   },
   {
+    id: "ram-wireguard",
+    title: "RAM-Only WireGuard Keys",
+    icon: Key,
+    content: (
+      <div className="space-y-3">
+        <p>ProxhqVPN nodes implement a <strong>Mullvad-style RAM-only WireGuard key architecture</strong> — a critical privacy upgrade that means server-side private key material never touches a disk at any point. All 4 active nodes (Chicago 61, London 62, LA 63, Tokyo 64) use this architecture.</p>
+        <h4 className="font-bold text-primary text-[11px]">How It Works</h4>
+        <div className="space-y-2">
+          {[
+            { t: "No Key on Disk", d: "The WireGuard base config (/etc/wireguard/wg0-base.conf) contains no PrivateKey field. The key field is intentionally absent — a disk image of the server contains zero cryptographic material." },
+            { t: "Boot-Time Key Fetch", d: "On startup, the proxhq-wg-init.service systemd service runs a provisioning script that POSTs to POST /api/daemon-inbound/wg-key with the node ID and a pre-shared secret (X-Daemon-PSK header). The API returns the node's private key." },
+            { t: "RAM-Only Storage", d: "The key is written exclusively to /dev/shm/wg-private.key — a tmpfs (volatile RAM) filesystem. /dev/shm is never swapped to disk and is cleared on reboot/shutdown. The wg-quick@wg0 service is configured (via systemd override) to read the full config from /dev/shm/wg0.conf." },
+            { t: "Key Destruction", d: "Power off the server → key is gone. Reboot → key must be re-fetched. This ensures a physical server seizure (even mid-operation) yields no usable cryptographic material from the disk." },
+            { t: "API Security", d: "The key endpoint (POST /api/daemon-inbound/wg-key) requires both the X-Daemon-PSK header AND a valid nodeId in the body. Repeated auth failures trigger a 30-minute IP ban in the API server memory." },
+          ].map(({ t, d }) => (
+            <div key={t} className="border border-primary/10 rounded px-3 py-2">
+              <div className="text-[10px] font-mono font-bold text-primary">{t}</div>
+              <div className="text-[9px] font-mono text-primary/83 mt-0.5">{d}</div>
+            </div>
+          ))}
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Security Model</h4>
+        <CB label="what's on disk vs what's in ram">{`ON DISK (safe to seize):
+  /etc/wireguard/wg0-base.conf   # no PrivateKey field
+  /usr/local/bin/proxhq-wg-init.sh  # provisioning logic
+  /etc/systemd/system/proxhq-wg-init.service
+
+IN RAM ONLY (/dev/shm/ — destroyed on power-off):
+  /dev/shm/wg-private.key        # WireGuard private key
+  /dev/shm/wg0.conf              # full config read by wg-quick`}</CB>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Client-Side Keys</h4>
+        <p className="text-[10px] font-mono text-primary/83">Client private keys (generated via /wireguard or the mobile app) are generated in your browser/app and never sent to the server. The server only receives and stores the client's <strong>public key</strong>. Your client private key should be stored securely in your OS keychain or the WireGuard app's encrypted store.</p>
+        <Note type="info">RAM-only key storage means even a successful physical attack on a ProxhqVPN node yields no key material that could be used to decrypt past or future sessions. This is the strongest server-side key protection available without hardware HSMs.</Note>
+      </div>
+    ),
+  },
+  {
+    id: "node-hardening",
+    title: "Node Security Hardening",
+    icon: ShieldAlert,
+    content: (
+      <div className="space-y-3">
+        <p>The <strong>Node Security Hardening Script</strong> is a comprehensive automated hardening suite for each ProxhqVPN server node. Download it from <strong>Firewall → NodeSync tab → Full Node Security Hardening Script</strong>. Run once as root on a fresh node. It installs 9 independent systemd services — none of which block VPN user traffic.</p>
+        <h4 className="font-bold text-primary text-[11px]">The 9 Hardening Services</h4>
+        <div className="space-y-2">
+          {[
+            { t: "1. sysctl Hardening", d: "Applies 20+ kernel parameters: IP spoofing protection (rp_filter=1), SYN flood protection (syncookies=1), ICMP redirect rejection, log martians, ASLR (randomize_va_space=2), kernel pointer restriction (kptr_restrict=2), dmesg restriction (dmesg_restrict=1)." },
+            { t: "2. WireGuard-Aware iptables", d: "Sets INPUT DROP + FORWARD DROP default policies, then explicitly: FORWARD -i wg0 -j ACCEPT (client traffic in), FORWARD -o wg0 -j ACCEPT (client traffic out), INPUT -p udp --dport 51820 -j ACCEPT (WireGuard handshakes), INPUT -p tcp --dport 22 -j ACCEPT (SSH). All other INPUT is dropped at the perimeter." },
+            { t: "3. IPv6 Mirror (ip6tables)", d: "Mirrors all iptables rules onto ip6tables — same DROP policy, same WireGuard FORWARD ACCEPT, same SSH allow. Prevents IPv6 bypass attacks where an attacker reaches the node via its IPv6 address while iptables only watches IPv4." },
+            { t: "4. fail2ban", d: "Installs and configures fail2ban for SSH: 3 auth failures → 1-hour IP ban, 6 failures → 24-hour ban. Also monitors auth.log and the ProxhqVPN API log for repeated 401s. Bans applied via iptables and ip6tables simultaneously." },
+            { t: "5. SSH Hardening", d: "Rewrites /etc/ssh/sshd_config: PasswordAuthentication no, PermitRootLogin no, MaxAuthTries 3, ClientAliveInterval 300, ClientAliveCountMax 2, AllowAgentForwarding no, X11Forwarding no. Requires key-only SSH access." },
+            { t: "6. DDoS Monitor", d: "A systemd watchdog using ss + conntrack. Polls every 10 seconds. Any single source IP exceeding the threshold (default: 5,000 new connections/10 s) is immediately banned via iptables with a 30-minute expiry. Reports the event to POST /api/daemon-inbound/traffic-flag." },
+            { t: "7. Security Event Reporter", d: "Tails Suricata's fast.log (IPS signatures). When a VPN peer IP matches an alert, logs to the Security Events table in the dashboard for admin visibility. Traffic still flows — this is observation only, not blocking." },
+            { t: "8. Per-Peer Rules Enforcer", d: "Polls GET /api/daemon-inbound/peer-rules-export every 60 seconds. Resolves each peer's WireGuard public key to its allocated IP (via wg show allowed-ips), then applies the configured iptables FORWARD rule (ACCEPT / DROP / LIMIT). This is how per-device firewall rules work in real time." },
+            { t: "9. Firewall Sync Daemon", d: "Polls GET /api/daemon-inbound/wg-config every 30 seconds. Fetches the latest iptables ruleset from the dashboard and applies it atomically with iptables-restore. Rule changes you make in the UI propagate to all nodes within 30 seconds automatically." },
+          ].map(({ t, d }) => (
+            <div key={t} className="border border-primary/10 rounded px-3 py-2">
+              <div className="text-[10px] font-mono font-bold text-primary">{t}</div>
+              <div className="text-[9px] font-mono text-primary/83 mt-0.5">{d}</div>
+            </div>
+          ))}
+        </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Running the Script</h4>
+        <CB label="download and run on a node">{`# On your node as root:
+bash proxhq-hardening-chicago-61.sh   # adapt to your node
+
+# Verify all services started:
+systemctl status proxhq-ddos-monitor
+systemctl status proxhq-sec-reporter
+systemctl status proxhq-peer-rules
+systemctl status proxhq-atr-watchdog
+systemctl status proxhq-fw-sync`}</CB>
+        <Note type="warn">SSH hardening (step 5) disables password auth. Ensure your SSH public key is in ~/.ssh/authorized_keys before running. If you lock yourself out, use your cloud provider's web console to recover access.</Note>
+      </div>
+    ),
+  },
+  {
     id: "platform-faq",
     title: "Frequently Asked Questions",
     icon: BookOpen,
@@ -2905,6 +3011,10 @@ Table: metadata      → Crawl session info, start time, depth`}</CB>
             { q: "How do I use the Alpha Toolkit?", a: "Go to /alpha-tools. Enter the target URL in the Scanner tab. Select the detection profiles (XSS, SQLi, RCE, SSRF, etc.). Enable Tor routing if needed. Click Scan. When a finding shows the htmlReady flag, click Send to Verifier to auto-load the scanner report into the Verifier tab for deep validation. Download the full report as HTML." },
             { q: "How do I read the QuantumAudit Signature Miner results?", a: "Go to /quantum-audit/sig-miner. The Hybrid Engine runs all 4 engines in parallel: Block Scanner (on-chain ECDSA), Web Spider (paste sites/GitHub), OSINT Spider (code search), and Peel Chain (fund-flow). Results are aggregated through the Cross-Engine Pool and deduplicated. Nonce reuse findings include the recovered private key. R-collision findings include the shared nonce value. All results are for authorized blockchain forensic research only." },
             { q: "My Terminal command is blocked. Why?", a: "All Terminal commands run through a strict allowlist. If your command isn't on the allowlist, it will be blocked unless you enable ProxhqVPN Mode (the toggle next to the command input). ProxhqVPN Mode bypasses the allowlist but still enforces the HARD_BLOCKED destructive pattern list (rm -rf /, iptables -F, etc.) and logs every command to the audit trail." },
+            { q: "What are RAM-only WireGuard keys and why do they matter?", a: "ProxhqVPN nodes use a Mullvad-style RAM-only key architecture: the server private key is never written to disk. On boot, the node fetches its key from the API (authenticated by a pre-shared secret) and writes it only to /dev/shm/ (volatile RAM). Power-cycling the server permanently destroys the key — a disk image reveals nothing. This protects against cold-boot attacks and physical server seizure." },
+            { q: "How do I apply the Node Security Hardening Script?", a: "Go to Firewall → NodeSync tab → find the 'Full Node Security Hardening Script' section → click the download button for your node (Chicago 61 / London 62 / LA 63 / Tokyo 64). Copy the downloaded .sh to your node and run it as root: bash proxhq-hardening-<node>.sh. It installs 9 systemd services including WireGuard-aware iptables, fail2ban, DDoS monitor, ATR watchdog, and firewall sync. The FORWARD chain always accepts WireGuard traffic — no VPN users are affected." },
+            { q: "Does ATR (Auto Threat Response) disrupt VPN users?", a: "No. ATR acts only on the INPUT chain perimeter — external attackers, port scanners, and IPS-flagged sources. WireGuard peer traffic enters on the FORWARD chain via wg0, which has an explicit ACCEPT rule that ATR never modifies. VPN users continue passing traffic freely regardless of what the ATR is doing on the perimeter." },
+            { q: "How does the Per-WireGuard-Peer firewall work?", a: "In Firewall → Peer Rules tab, enter a WireGuard public key and set action (Allow / Block / Throttle) and direction (any/inbound/outbound). Rules are pushed to each node and applied to the FORWARD chain with iptables -m string matches on the peer's allocated IP (resolved live from wg show allowed-ips). Blocking a peer rule is lighter than removing the WireGuard peer config — you can re-enable it instantly." },
           ].map(({ q, a }) => (
             <div key={q} className="border border-primary/10 rounded px-3 py-3">
               <div className="text-[10px] font-mono font-bold text-primary mb-1">Q: {q}</div>

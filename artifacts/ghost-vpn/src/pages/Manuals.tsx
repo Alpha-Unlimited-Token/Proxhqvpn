@@ -7783,6 +7783,744 @@ TABLE OF CONTENTS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
   },
+
+  // ── RAM-Only WireGuard Keys ───────────────────────────────────────────────
+  {
+    id: "ram-wireguard-manual",
+    title: "RAM-Only WireGuard Key Architecture",
+    subtitle: "Mullvad-style server key management — no disk key material",
+    version: "1.0",
+    pages: 8,
+    icon: Lock,
+    iconColor: "text-cyan-400",
+    tier: "both",
+    content: `ProxhqVPN RAM-Only WireGuard Key Architecture
+Version 1.0 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+legal@alphauntechnologies.com | proxhqvpn.com
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TABLE OF CONTENTS
+
+1. Overview & Security Model
+2. How It Works (Boot Sequence)
+3. Files On Disk vs Files In RAM
+4. API Endpoint: wg-key
+5. Client-Side Key Handling
+6. Threat Model
+7. Node IDs & Configuration
+8. Troubleshooting
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW & SECURITY MODEL
+
+ProxhqVPN implements a Mullvad-style RAM-only WireGuard key architecture
+across all 4 active server nodes:
+
+  Node 61 — Chicago, USA
+  Node 62 — London, UK
+  Node 63 — Los Angeles, USA
+  Node 64 — Tokyo, Japan
+
+The server-side WireGuard private key is NEVER written to any persistent
+storage (disk, SSD, NVME, or swap). It exists exclusively in volatile RAM
+during the time the node is running.
+
+Security implications:
+  • Physical seizure of a running server yields no persistent key material
+  • Power-cycling or rebooting the node permanently destroys the key
+  • Cold-boot attacks are mitigated — /dev/shm is a tmpfs (in-memory FS)
+  • Disk forensics on a powered-off node reveals no WireGuard private key
+  • Only the encrypted API can reconstruct the key (requires PSK + nodeId)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2. HOW IT WORKS (BOOT SEQUENCE)
+
+Step 1: Node boots. wg-quick@wg0 is NOT yet started.
+
+Step 2: proxhq-wg-init.service starts (Before=wg-quick@wg0.service):
+  a. Runs /usr/local/bin/proxhq-wg-init.sh
+  b. Script POSTs to the ProxhqVPN API:
+       POST /api/daemon-inbound/wg-key
+       Headers: X-Daemon-PSK: <pre-shared-key>
+       Body: {"nodeId": <N>}
+  c. API validates PSK + nodeId. Returns private key JSON.
+  d. Script writes key to /dev/shm/wg-private.key (chmod 600)
+  e. Script assembles /dev/shm/wg0.conf from base config + key
+
+Step 3: wg-quick@wg0.service starts using systemd override:
+  Environment=WG_QUICK_USERSPACE_IMPLEMENTATION=wireguard-go
+  ExecStart=/usr/bin/wg-quick up /dev/shm/wg0.conf
+
+Step 4: WireGuard tunnel is active. Key is in RAM only.
+
+On shutdown/reboot:
+  • /dev/shm is cleared by the kernel
+  • Key is gone
+  • Disk image shows: wg0-base.conf (no PrivateKey), init script only
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3. FILES ON DISK vs FILES IN RAM
+
+ON DISK (persists across reboots — contains NO key material):
+  /etc/wireguard/wg0-base.conf          # [Interface] without PrivateKey
+  /usr/local/bin/proxhq-wg-init.sh      # provisioning script
+  /etc/systemd/system/proxhq-wg-init.service
+  /etc/systemd/system/wg-quick@wg0.service.d/ram-config.conf
+
+IN RAM ONLY — /dev/shm/ (cleared on power-off):
+  /dev/shm/wg-private.key               # WireGuard private key
+  /dev/shm/wg0.conf                     # full config = base + key
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4. API ENDPOINT: wg-key
+
+  POST /api/daemon-inbound/wg-key
+  Authentication: X-Daemon-PSK header (pre-shared secret)
+  Body: {"nodeId": <integer>}
+
+  Response (200):
+  {"privateKey": "<base64-wireguard-private-key>"}
+
+  Error responses:
+  401 — Invalid or missing PSK header
+  400 — Missing or invalid nodeId
+  429 — IP banned (repeated 401s trigger 30-min in-memory IP ban)
+
+  Security:
+  • PSK is a 256-bit random secret stored only in environment variables
+  • Repeated auth failures trigger automatic IP ban (30 min, in-memory)
+  • Restart the API server to clear IP bans during initial setup/testing
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+5. CLIENT-SIDE KEY HANDLING
+
+Client private keys (your device's WireGuard keys) are generated in:
+  • Browser: /wireguard page — keys generated client-side, never sent to server
+  • Mobile app: 3-step import flow — keys generated locally, config fetched
+
+The server only receives and stores your PUBLIC key.
+Your PRIVATE key stays on your device.
+
+Secure storage recommendations:
+  • iOS: WireGuard app uses iOS Keychain
+  • Android: WireGuard app uses Android Keystore
+  • Linux/macOS/Windows: WireGuard config file — chmod 600 on Linux
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+6. THREAT MODEL
+
+Threat: Physical server seizure (powered off)
+  Mitigation: /dev/shm cleared on shutdown — zero key material on disk
+  Residual risk: None for key material. Config and PSK still on disk.
+
+Threat: Physical server seizure (powered on)
+  Mitigation: Shut down immediately (or pull power). Key in RAM is gone.
+  Residual risk: If attacker has physical RAM access before shutdown, key
+  could theoretically be recovered via cold-boot. Extremely rare in practice.
+
+Threat: API compromise
+  Mitigation: PSK required. Rate limiting. IP ban on repeated failures.
+  Residual risk: If PSK is extracted, attacker can request key for any nodeId.
+  Rotate PSK immediately if API server is compromised.
+
+Threat: Node operator rogue access
+  Mitigation: Audit logs, 2FA on all admin accounts.
+  Residual risk: Admin with shell access can read /dev/shm/ while live.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+7. NODE IDs & CONFIGURATION
+
+  Node ID 61 — Chicago
+  Node ID 62 — London
+  Node ID 63 — Los Angeles
+  Node ID 64 — Tokyo
+
+WireGuard listen port: 51820/UDP (default)
+WireGuard interface: wg0
+Peer allocation: 10.8.0.x/24 (per-device allocation)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+8. TROUBLESHOOTING
+
+Q: WireGuard won't start after reboot.
+A: Check proxhq-wg-init service: systemctl status proxhq-wg-init
+   If it failed, the API may be unreachable. Test:
+   curl -X POST https://api.proxhqvpn.com/api/daemon-inbound/wg-key \
+     -H "X-Daemon-PSK: <PSK>" -d '{"nodeId":61}'
+
+Q: 401 errors from the wg-key endpoint.
+A: PSK mismatch or IP ban. Restart the API server to clear IP bans.
+
+Q: /dev/shm/wg-private.key exists but wg0 isn't up.
+A: Check wg-quick@wg0 override: systemctl cat wg-quick@wg0
+   Ensure ExecStart reads from /dev/shm/wg0.conf.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+
+  // ── Node Security Hardening ───────────────────────────────────────────────
+  {
+    id: "node-hardening-manual",
+    title: "Node Security Hardening Script",
+    subtitle: "9-service automated hardening for all VPN nodes",
+    version: "1.0",
+    pages: 14,
+    icon: Shield,
+    iconColor: "text-orange-400",
+    tier: "both",
+    content: `ProxhqVPN Node Security Hardening Script Manual
+Version 1.0 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+legal@alphauntechnologies.com | proxhqvpn.com
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TABLE OF CONTENTS
+
+1. Overview
+2. Downloading the Script
+3. Pre-Run Checklist
+4. The 9 Hardening Services
+5. WireGuard Safety Guarantee
+6. Running the Script
+7. Verifying Installation
+8. Service Management Reference
+9. Uninstallation
+10. FAQ
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW
+
+The ProxhqVPN Node Security Hardening Script installs 9 independent
+systemd services that collectively harden each VPN node against:
+  • Port scanning and reconnaissance
+  • SSH brute-force attacks
+  • DDoS floods
+  • IPS-detected malicious traffic
+  • Unauthorized firewall modifications
+  • IPv6 bypass attacks
+
+CRITICAL PRINCIPLE: WireGuard peer traffic is NEVER disrupted.
+The FORWARD chain has an explicit ACCEPT rule for wg0 traffic.
+All hardening applies to the INPUT chain perimeter only.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2. DOWNLOADING THE SCRIPT
+
+1. Log in to the ProxhqVPN dashboard.
+2. Navigate to: Firewall → NodeSync tab
+3. Scroll to: "Full Node Security Hardening Script"
+4. Click the download button for your node:
+     • Chicago (Node 61)
+     • London (Node 62)
+     • Los Angeles (Node 63)
+     • Tokyo (Node 64)
+
+The downloaded file is named:
+  proxhq-hardening-<city>-<nodeId>.sh
+
+Each script has the correct nodeId, PSK, and API base URL
+pre-populated from your platform configuration.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3. PRE-RUN CHECKLIST
+
+Before running the script, verify:
+  ☐ You have your SSH public key in ~/.ssh/authorized_keys on the node
+      (the script disables password auth — you will be locked out without this)
+  ☐ You are logged in as root or have sudo access
+  ☐ The node has internet access to install packages (apt)
+  ☐ Suricata is installed (for sec-reporter and ATR services)
+      Install: apt-get install suricata -y
+  ☐ The API server is reachable from the node
+      Test: curl -s https://api.proxhqvpn.com/api/healthz
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4. THE 9 HARDENING SERVICES
+
+SERVICE 1: sysctl Hardening
+  Config: written to /etc/sysctl.d/99-proxhq.conf
+  Applied: sysctl --system
+  Parameters:
+    net.ipv4.conf.all.rp_filter=1          # anti-spoofing
+    net.ipv4.tcp_syncookies=1              # SYN flood protection
+    net.ipv4.conf.all.accept_redirects=0   # no ICMP redirects
+    net.ipv4.conf.all.log_martians=1       # log suspicious packets
+    kernel.randomize_va_space=2            # ASLR max
+    kernel.kptr_restrict=2                 # hide kernel pointers
+    kernel.dmesg_restrict=1               # restrict dmesg
+    net.ipv6.conf.all.accept_redirects=0  # IPv6 redirect block
+    net.ipv4.conf.default.rp_filter=1     # default iface anti-spoof
+
+SERVICE 2: WireGuard-Aware iptables
+  Sets default DROP policy on INPUT and FORWARD, then:
+  ALLOW: loopback (lo), ICMP, established connections
+  ALLOW: 51820/UDP (WireGuard)
+  ALLOW: 22/TCP (SSH)
+  ALLOW: FORWARD -i wg0 -j ACCEPT  (VPN clients in)
+  ALLOW: FORWARD -o wg0 -j ACCEPT  (VPN clients out)
+  DROP: all other INPUT
+
+SERVICE 3: IPv6 Mirror (ip6tables)
+  Mirrors all iptables rules to ip6tables:
+  Same DROP INPUT policy, same FORWARD ACCEPT for wg0,
+  same SSH allow. Prevents IPv6 bypass attacks.
+
+SERVICE 4: fail2ban
+  Service name: fail2ban
+  SSH jail: 3 failures = 1-hour ban, 6 failures = 24-hour ban
+  Monitors: /var/log/auth.log, API access log (repeated 401s)
+  Actions: iptables ban + ip6tables ban simultaneously
+
+SERVICE 5: SSH Hardening
+  Rewrites /etc/ssh/sshd_config:
+  PasswordAuthentication no
+  PermitRootLogin no
+  MaxAuthTries 3
+  ClientAliveInterval 300
+  ClientAliveCountMax 2
+  AllowAgentForwarding no
+  X11Forwarding no
+  Restarts sshd after applying.
+
+SERVICE 6: proxhq-ddos-monitor
+  Polls every 10 seconds using ss + conntrack.
+  Threshold: 5,000 new connections / 10 s per source IP.
+  Action: immediate iptables ban (30-min expiry).
+  Reports event to: POST /api/daemon-inbound/traffic-flag
+
+SERVICE 7: proxhq-sec-reporter
+  Tails /var/log/suricata/fast.log (Suricata IPS).
+  When a VPN peer IP matches an alert:
+    → Logs to dashboard Security Events table.
+    → Traffic still flows (observation only, not blocking).
+  Reports to: POST /api/daemon-inbound/ips-event
+
+SERVICE 8: proxhq-peer-rules
+  Polls every 60 seconds:
+  GET /api/daemon-inbound/peer-rules-export
+  Resolves each peer public key → allocated IP (wg show allowed-ips).
+  Applies iptables FORWARD rules: ACCEPT / DROP / LIMIT per peer.
+  This is how per-device firewall rules work in real time.
+
+SERVICE 9: proxhq-fw-sync
+  Polls every 30 seconds:
+  GET /api/daemon-inbound/wg-config
+  Fetches full iptables ruleset from the dashboard.
+  Applies atomically with iptables-restore.
+  Firewall UI changes propagate to all nodes within 30 seconds.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+5. WIREGUARD SAFETY GUARANTEE
+
+The hardening script sets the following iptables FORWARD rules FIRST,
+before any DROP rules:
+
+  iptables -A FORWARD -i wg0 -j ACCEPT
+  iptables -A FORWARD -o wg0 -j ACCEPT
+  ip6tables -A FORWARD -i wg0 -j ACCEPT
+  ip6tables -A FORWARD -o wg0 -j ACCEPT
+
+These rules ensure:
+  • VPN client traffic entering on wg0 is always forwarded to internet
+  • VPN client return traffic arriving from internet is forwarded to wg0
+  • The INPUT DROP policy does NOT apply to FORWARD chain traffic
+  • ATR, DDoS monitor, and per-peer rules NEVER remove these ACCEPT rules
+
+The only way a VPN user can be affected is if a per-peer rule explicitly
+blocks their public key (configured intentionally in Firewall → Peer Rules).
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+6. RUNNING THE SCRIPT
+
+  # Copy script to node:
+  scp proxhq-hardening-chicago-61.sh root@NODE_IP:/root/
+
+  # Make executable and run:
+  chmod +x proxhq-hardening-chicago-61.sh
+  bash proxhq-hardening-chicago-61.sh 2>&1 | tee hardening.log
+
+  # Script runtime: ~3-5 minutes (package installs)
+  # The script is idempotent — safe to re-run after updates
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+7. VERIFYING INSTALLATION
+
+  # Check all 9 services are active:
+  systemctl is-active fail2ban sshd \
+    proxhq-ddos-monitor proxhq-sec-reporter \
+    proxhq-peer-rules proxhq-atr-watchdog \
+    proxhq-fw-sync
+
+  # Verify iptables FORWARD rules:
+  iptables -L FORWARD -n | grep wg0
+
+  # Check sysctl:
+  sysctl net.ipv4.tcp_syncookies
+
+  # Test firewall sync (wait 30s after install):
+  journalctl -u proxhq-fw-sync -n 20
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+8. SERVICE MANAGEMENT REFERENCE
+
+  # View service logs:
+  journalctl -u proxhq-ddos-monitor -f
+  journalctl -u proxhq-sec-reporter -f
+  journalctl -u proxhq-fw-sync -f
+
+  # Restart a service:
+  systemctl restart proxhq-fw-sync
+
+  # Disable a service (without uninstalling):
+  systemctl stop proxhq-ddos-monitor
+  systemctl disable proxhq-ddos-monitor
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+9. UNINSTALLATION
+
+  # Stop and disable all ProxhqVPN services:
+  for svc in proxhq-ddos-monitor proxhq-sec-reporter proxhq-peer-rules proxhq-atr-watchdog proxhq-fw-sync; do
+    systemctl stop $svc
+    systemctl disable $svc
+    rm /etc/systemd/system/$svc.service
+  done
+  systemctl daemon-reload
+
+  # Restore iptables to ACCEPT all (emergency):
+  iptables -F && iptables -P INPUT ACCEPT
+  ip6tables -F && ip6tables -P INPUT ACCEPT
+
+  # Remove sysctl hardening:
+  rm /etc/sysctl.d/99-proxhq.conf && sysctl --system
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+10. FAQ
+
+Q: Will this script lock me out of SSH?
+A: Only if your SSH public key is not in ~/.ssh/authorized_keys.
+   The script disables password auth. Add your key first:
+   ssh-copy-id root@NODE_IP
+
+Q: Does the DDoS monitor affect VPN users?
+A: No. It monitors the INPUT chain (external connections to the node).
+   WireGuard UDP (51820) is on the INPUT ACCEPT list and is excluded
+   from DDoS monitoring by protocol.
+
+Q: What if fail2ban bans my own IP?
+A: ssh root@NODE_IP "fail2ban-client set sshd unbanip YOUR_IP"
+   Or wait for the ban to expire (1h for first offense).
+
+Q: Do I need Suricata installed?
+A: Yes for proxhq-sec-reporter and proxhq-atr-watchdog.
+   Install: apt-get install suricata -y
+   These services gracefully degrade if Suricata logs are absent.
+
+Q: How often does firewall sync run?
+A: Every 30 seconds. Rule changes made in the Firewall UI
+   propagate to all nodes within 30 seconds automatically.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+
+  // ── Advanced Firewall Suite ───────────────────────────────────────────────
+  {
+    id: "advanced-firewall-manual",
+    title: "Advanced Firewall Suite",
+    subtitle: "ATR, Composite Risk Score, Peer Rules, DDoS Shield, AI Optimizer",
+    version: "1.0",
+    pages: 11,
+    icon: Shield,
+    iconColor: "text-red-400",
+    tier: "both",
+    content: `ProxhqVPN Advanced Firewall Suite Manual
+Version 1.0 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+legal@alphauntechnologies.com | proxhqvpn.com
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TABLE OF CONTENTS
+
+1. Overview
+2. ATR — Auto Threat Response
+3. Composite IP Risk Score
+4. Per-WireGuard-Peer Firewall Rules
+5. Adaptive DDoS Shield
+6. AI Firewall Rule Optimizer
+7. Security Events Log
+8. Integration with Node Hardening
+9. API Reference
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW
+
+The Advanced Firewall Suite extends the base ProxhqVPN Firewall with
+5 new intelligent protection layers:
+
+  ATR             — Auto Threat Response (IPS-triggered auto-actions)
+  Risk Score      — Composite 0–100 threat score per blocked IP
+  Peer Rules      — Per WireGuard key allow/block/throttle rules
+  DDoS Shield     — Adaptive connection-rate flood protection
+  AI Optimizer    — Machine-guided rule set optimization suggestions
+
+CORE PRINCIPLE: VPN users are NEVER disrupted. All enforcement happens
+on the node perimeter (INPUT chain). WireGuard FORWARD rules always
+accept peer traffic. Per-peer rules are the only exception — they apply
+to the FORWARD chain only when explicitly configured per public key.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2. ATR — AUTO THREAT RESPONSE
+
+Location: Firewall → ATR tab
+
+Purpose: Automatically respond to IPS signature matches from Suricata
+without requiring admin review or approval.
+
+Response Levels:
+  Monitor  — Log the event to Security Events. No traffic change.
+  Throttle — Rate-limit the source to 128 Kbps. Connection continues.
+  Trap     — Redirect source IP to SilkWeb honeypot (data collection).
+  Block    — Immediate DROP + ip6tables mirror. 24h expiry.
+
+Configuration:
+  • Set global default response level for IPS events.
+  • Override per Suricata rule category (e.g., "ET SCAN" → Block,
+    "ET INFO" → Monitor, "ET MALWARE" → Trap).
+  • Whitelist specific IPs that should never be auto-blocked.
+
+How it works:
+  1. Node's proxhq-atr-watchdog tails Suricata fast.log.
+  2. Matched alert → POSTs to POST /api/daemon-inbound/ips-event.
+  3. API evaluates the configured ATR level for that rule category.
+  4. Pushes the response action back to the node via the fw-sync daemon.
+  5. Node applies iptables rule (or throttle/redirect) within 30 seconds.
+
+Safety:
+  ATR NEVER acts on port 51820/UDP (WireGuard handshakes).
+  ATR NEVER modifies FORWARD chain wg0 rules.
+  ATR actions can be reviewed and reversed in the Security Events log.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3. COMPOSITE IP RISK SCORE
+
+Location: Firewall → Blocked IPs tab (score shown per IP)
+
+Purpose: Prioritize which blocked IPs deserve permanent blocks vs
+temporary holds by aggregating all available threat signals.
+
+Score Components (total: 0–100):
+  Threat Feed Confidence     0–30 pts  (AbuseIPDB, OTX, etc.)
+  Beacon Alert Hit Count     0–20 pts  (SilkWeb honeypot hits)
+  IPS Signature Match Weight 0–20 pts  (Suricata rule severity)
+  GeoIP Block Status         0–10 pts  (in a blocked country)
+  fail2ban Hit Count         0–10 pts  (repeated auth failures)
+  Ghost Trace Anomaly Contribution  0–10 pts
+
+Score thresholds:
+  0–30:  Low — monitor only, short expiry block
+  31–60: Medium — standard 24h block
+  61–80: High — 7-day block, promoted to blocklist
+  81–100: Critical — permanent block, reported to threat feed
+
+Auto-actions by score:
+  Score ≥ 81: Promoted to permanent block automatically.
+  Score ≥ 61: Retained for 7 days even if short block was set.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4. PER-WIREGUARD-PEER FIREWALL RULES
+
+Location: Firewall → Peer Rules tab
+
+Purpose: Apply allow / block / throttle rules to individual WireGuard
+clients by their public key without removing their WireGuard config.
+
+Rule fields:
+  Public Key   — WireGuard client public key (base64)
+  Action       — ACCEPT / DROP / LIMIT (rate limit)
+  Direction    — any / inbound (from peer) / outbound (to peer)
+  Throttle Kbps — if action=LIMIT, rate limit in Kbps
+  Reason       — admin note (visible in audit log)
+  Expiry       — optional: auto-expire rule after N hours
+
+How rules are applied:
+  1. proxhq-peer-rules service polls the API every 60 seconds.
+  2. Fetches rules from: GET /api/daemon-inbound/peer-rules-export
+  3. For each rule: resolves public key → peer IP via:
+       wg show wg0 allowed-ips | grep <pubkey>
+  4. Applies iptables FORWARD rule for that peer IP.
+  5. Old rules for that key are replaced atomically.
+
+Example use cases:
+  • Temporarily block a device suspected of misuse without
+    removing its WireGuard config (can re-enable instantly).
+  • Throttle a specific device that's consuming excessive bandwidth.
+  • Block outbound from a peer while allowing inbound (asymmetric).
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+5. ADAPTIVE DDOS SHIELD
+
+Location: Firewall → DDoS tab
+Node service: proxhq-ddos-monitor (systemd)
+
+Purpose: Automatically detect and ban flood sources at the node
+perimeter without any admin intervention.
+
+Detection method:
+  ss -s and conntrack are polled every 10 seconds per node.
+  A source IP creating more than THRESHOLD new connections in the
+  polling window is classified as a flood source.
+
+Default threshold: 5,000 connections / 10 seconds
+Configurable range: 100 – 50,000 connections / 10 seconds
+
+Actions on detection:
+  1. Source IP immediately banned via iptables DROP (30-min expiry).
+  2. ip6tables DROP also applied (IPv6 source if applicable).
+  3. Event reported to: POST /api/daemon-inbound/traffic-flag
+  4. Security Events log shows: timestamp, source IP/CIDR, connection count.
+
+What is NOT affected:
+  • UDP 51820 (WireGuard) — excluded from DDoS monitoring by protocol
+  • Existing established WireGuard sessions — FORWARD chain is untouched
+  • Admin SSH (22/TCP) — allowlisted separately
+
+Viewing DDoS events:
+  Firewall → Security Events → filter by source "DDoS Monitor"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+6. AI FIREWALL RULE OPTIMIZER
+
+Location: Firewall → Optimizer tab
+
+Purpose: Analyze the current firewall ruleset and surface actionable
+optimization suggestions — without automatically applying any changes.
+All suggestions require admin approval before being applied.
+
+Suggestion categories:
+  CIDR Consolidation
+    Detects multiple individual IPs from the same /24 or /16.
+    Suggests merging into a supernet (e.g., 10 IPs in 185.220.101.x
+    → suggest blocking 185.220.101.0/24 instead).
+
+  Rule Reordering (Hot Path)
+    Analyzes hit counts per rule over the last 7 days.
+    Suggests moving high-hit rules to lower priority numbers
+    (evaluated first) to reduce iptables chain traversal time.
+
+  Shadowed Rule Detection
+    Identifies rules that are never evaluated because a broader
+    rule earlier in the chain already matches and drops/accepts.
+    Example: a specific ALLOW for 10.0.0.5 that comes AFTER
+    a DROP for 10.0.0.0/8 — the ALLOW is never reached.
+
+  GeoIP Overlap
+    Detects individual IP blocks that are already covered by
+    an active GeoIP country block — redundant rules to remove.
+
+  Expired Block Cleanup
+    Lists blocks with expiry > 30 days ago that were never
+    explicitly promoted to permanent — safe to remove.
+
+Using suggestions:
+  • Each suggestion shows: current rule, proposed change, reason.
+  • Click "Apply" on any suggestion to stage it for review.
+  • Staged changes are previewed before being committed to the ruleset.
+  • All applies are logged in the audit trail.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+7. SECURITY EVENTS LOG
+
+Location: Firewall → Security Events tab
+
+Records:
+  • ATR actions (source IP, rule triggered, response applied)
+  • DDoS monitor bans (source, connection count, duration)
+  • Per-peer rule changes (public key, action, admin who applied)
+  • Firewall sync confirmations (timestamp, ruleset hash)
+  • IPS events from Suricata (signature, peer IP, severity)
+
+Filtering:
+  Source: ATR / DDoS / Peer Rules / Sync / IPS
+  Severity: Critical / High / Medium / Low / Info
+  Date range: last 1h / 24h / 7d / 30d / custom
+  Search: full-text across IPs, signatures, rule names
+
+Export: CSV / JSON (Splunk/Elastic compatible)
+
+Note: Security events are read-only records. They document what
+happened but do not affect traffic. All traffic decisions are
+made by iptables rules, not by the event log.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+8. INTEGRATION WITH NODE HARDENING
+
+The Advanced Firewall Suite requires the Node Security Hardening Script
+to be installed for full functionality:
+
+  proxhq-atr-watchdog   → ATR (reads Suricata, pushes to API)
+  proxhq-ddos-monitor   → DDoS Shield (monitors connections)
+  proxhq-peer-rules     → Peer Rules (applies FORWARD rules per key)
+  proxhq-fw-sync        → Firewall Sync (propagates rule changes)
+
+Without the hardening script:
+  • ATR suggestions appear in the dashboard but are NOT auto-applied
+  • DDoS events are not reported from nodes
+  • Peer rules must be manually applied via SSH on each node
+  • Firewall UI changes do NOT propagate automatically
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+9. API REFERENCE
+
+  POST /api/daemon-inbound/ips-event
+    Body: {nodeId, peerIp, signature, severity}
+    Action: logs IPS event, evaluates ATR level, schedules response
+
+  POST /api/daemon-inbound/traffic-flag
+    Body: {nodeId, peerIp?, destIp?, flagReason}
+    Action: logs security event (traffic always flows; observation only)
+
+  GET /api/daemon-inbound/peer-rules-export?nodeId=N
+    Returns: [{peerPublicKey, action, throttleKbps, direction}]
+    Used by: proxhq-peer-rules service (polls every 60s)
+
+  GET /api/firewall/security-events
+    Returns: paginated security event log for dashboard display
+
+  GET /api/firewall/node-hardening-script?nodeId=N
+    Returns: bash script text (Content-Disposition: attachment)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
 ];
 
 // ── Category grouping ─────────────────────────────────────────────────────────
@@ -7792,7 +8530,7 @@ const CATEGORIES = [
     color: "text-green-400",
     border: "border-green-900",
     bg: "bg-green-950/20",
-    ids: ["vpn-getting-started", "wireguard-advanced", "privacy-suite-tools", "network-monitor-manual", "dns-sinkhole-manual", "firewall-manual", "kill-switch-manual"],
+    ids: ["vpn-getting-started", "wireguard-advanced", "privacy-suite-tools", "network-monitor-manual", "dns-sinkhole-manual", "firewall-manual", "kill-switch-manual", "ram-wireguard-manual", "node-hardening-manual", "advanced-firewall-manual"],
   },
   {
     label: "Advanced Privacy",

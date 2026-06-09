@@ -7,6 +7,18 @@
 ProxhqVPN is an advanced VPN orchestration and security platform with 60-node mesh (50 outer + 10 inner), silk web trap network, port knocking, mTLS, beacons/spiders/worms, firewall, WireGuard config generation, SQL interface (local + external PostgreSQL + HTTP API mode), terminal emulator (ProxhqVPN Mode with full outbound), security audit suite, system monitor, Tor/SOCKS5 integration, kill switch, leak detection, threat intelligence, split tunneling, and DPI obfuscation. React + Vite frontend; Express/PostgreSQL backend.
 
 **Latest additions:**
+- **Documentation & Website Update (2026-06-09)** — All manuals, user guide, employee handbook, and home page updated to reflect all recent additions:
+  - UserGuide (`/guide`): firewall section expanded with 5 new tabs, WireGuard section adds RAM-only keys + mobile 3-step flow, 2 new sections (RAM-Only WireGuard Keys, Node Security Hardening), 4 new FAQ entries.
+  - EmployeeHandbook (`/handbook/employee`): nodes section updated with hardening script steps + RAM key info, manuals list adds 3 new entries.
+  - Home (`/`): 2 new FEATURES (RAM-Only WireGuard Keys, ATR), 2 new SECURITY highlights, updated node description, "What's New" strip expanded to 4 cards (added RAM Keys + Node Hardening).
+  - Manuals (`/manuals`): 3 new downloadable manuals — RAM-Only WireGuard Key Architecture (8pp), Node Security Hardening Script (14pp), Advanced Firewall Suite (11pp). Added to VPN & Privacy — Core category.
+
+- **Node Security Hardening Script (2026-06-09)** — Comprehensive per-node hardening script downloadable from Firewall → NodeSync tab.
+  - 9 systemd services: sysctl, WireGuard-aware iptables (FORWARD -i wg0 -j ACCEPT), IPv6 mirror, fail2ban, SSH key-only auth, DDoS monitor (5k conn/10s threshold), sec-reporter (Suricata tail, visibility only), per-peer rules enforcer, firewall sync (30s poll).
+  - DB table: `firewallTrafficDecisionsTable` (security event log).
+  - API: `GET /api/firewall/security-events`, `DELETE /api/firewall/security-events/:id`, `GET /api/firewall/node-hardening-script?nodeId=N`, `POST /api/daemon-inbound/traffic-flag` (auto-approve, log only), `POST /api/daemon-inbound/ips-event`, `GET /api/daemon-inbound/peer-rules-export`.
+  - ATR never blocks VPN user traffic — WireGuard FORWARD chain always has explicit ACCEPT rule.
+
 - **RAM-Only WireGuard Keys (2026-06-09) ✅ FULLY ACTIVE** — Mullvad-style RAM-only key architecture. WireGuard private keys never touch node disks.
   - All 4 nodes active: LA (63), London (62), Chicago (61), Tokyo (64).
   - Each node: `/etc/wireguard/wg0-base.conf` (no PrivateKey), `/usr/local/bin/proxhq-wg-init.sh` (fetches key from `POST /api/daemon-inbound/wg-key` with `{"nodeId": N}` + PSK header → writes to `/dev/shm/wg-private.key` + `/dev/shm/wg0.conf`), `proxhq-wg-init.service` + `wg-quick@wg0.service.d/ram-config.conf` override (wg-quick reads from `/dev/shm/`).
