@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>ProxhqVPN — Settings</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      width: 480px;
+      min-height: 500px;
+      background: #050a05;
+      color: #e0e0e0;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 13px;
+      padding: 24px;
+    }
+    .header { display: flex; align-items: center; gap: 12px; margin-bottom: 28px; }
+    .logo-svg { width: 36px; height: 36px; }
+    .title { font-size: 18px; font-weight: 700; color: #00ff88; }
+    .subtitle { font-size: 10px; color: #2a5a2a; margin-top: 2px; }
+    .section { margin-bottom: 24px; }
+    .section-title {
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: #2a5a2a;
+      margin-bottom: 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #0d2a0d;
+    }
+    .field { margin-bottom: 14px; }
+    label { display: block; font-size: 11px; color: #5a8a5a; margin-bottom: 5px; }
+    input[type="text"], input[type="password"], input[type="number"] {
+      width: 100%;
+      padding: 9px 12px;
+      background: #07100a;
+      border: 1px solid #0d2a0d;
+      border-radius: 6px;
+      color: #c0e0c0;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    input:focus { border-color: #00cc66; }
+    input::placeholder { color: #1a3a1a; }
+    .hint { font-size: 10px; color: #2a4a2a; margin-top: 4px; }
+    .row { display: flex; gap: 10px; }
+    .row .field { flex: 1; }
+    .btn-row { display: flex; gap: 10px; margin-top: 24px; }
+    .btn {
+      flex: 1;
+      padding: 11px;
+      border-radius: 7px;
+      border: 1px solid;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-primary { background: #003300; border-color: #00cc66; color: #00ff88; }
+    .btn-primary:hover { background: #004400; border-color: #00ff88; }
+    .btn-secondary { background: #0a1a0a; border-color: #0d2a0d; color: #3a6a3a; }
+    .btn-secondary:hover { border-color: #00cc66; color: #00ff88; }
+    .notif {
+      margin-top: 14px;
+      padding: 9px 12px;
+      border-radius: 6px;
+      font-size: 11px;
+      border: 1px solid;
+      display: none;
+    }
+    .notif.ok    { background: #061806; border-color: #00cc66; color: #00ff88; }
+    .notif.error { background: #1a0606; border-color: #ff4444; color: #ff6666; }
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 9px 0;
+      border-bottom: 1px solid #0a1a0a;
+    }
+    .toggle-row:last-child { border-bottom: none; }
+    .toggle-name { font-size: 12px; color: #c0d8c0; }
+    .toggle-desc { font-size: 10px; color: #2a4a2a; margin-top: 2px; }
+    .switch { position: relative; width: 40px; height: 22px; flex-shrink: 0; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      inset: 0;
+      background: #1a2a1a;
+      border-radius: 22px;
+      transition: 0.2s;
+      border: 1px solid #2a4a2a;
+    }
+    .slider::before {
+      content: '';
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      left: 2px;
+      top: 2px;
+      background: #3a6a3a;
+      border-radius: 50%;
+      transition: 0.2s;
+    }
+    input:checked + .slider { background: #003300; border-color: #00cc66; }
+    input:checked + .slider::before { transform: translateX(18px); background: #00ff88; }
+    .version { text-align: center; font-size: 10px; color: #1a3a1a; margin-top: 24px; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <svg class="logo-svg" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M16 2L4 7v9c0 7.18 5.14 13.89 12 15.5C22.86 29.89 28 23.18 28 16V7L16 2z" fill="#001a00" stroke="#00ff88" stroke-width="1.5"/>
+    <path d="M16 6L7 10v6c0 4.77 3.42 9.24 8 10.47 1.59.43 3.1.43 2 0C20.58 25.24 25 20.77 25 16v-6L16 6z" fill="#003300" opacity="0.6"/>
+    <path d="M11 16l3 3 7-7" stroke="#00ff88" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>
+  <div>
+    <div class="title">ProxhqVPN</div>
+    <div class="subtitle">EXTENSION SETTINGS — ALPHA UNLIMITED TECHNOLOGIES</div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">ProxhqVPN Dashboard</div>
+  <div class="field">
+    <label>Dashboard URL</label>
+    <input type="text" id="dashboardUrl" placeholder="https://proxhqvpn.com" />
+    <div class="hint">Your ProxhqVPN web app URL — used for quick-open links</div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">SOCKS5 Proxy Configuration</div>
+  <div class="row">
+    <div class="field">
+      <label>Proxy Host / IP</label>
+      <input type="text" id="proxyHost" placeholder="45.76.97.51" />
+    </div>
+    <div class="field" style="max-width:110px">
+      <label>Port</label>
+      <input type="number" id="proxyPort" placeholder="1080" min="1" max="65535" />
+    </div>
+  </div>
+  <div class="field">
+    <label>Proxy Username (optional)</label>
+    <input type="text" id="proxyUser" placeholder="Leave blank if not required" />
+  </div>
+  <div class="field">
+    <label>Proxy Password (optional)</label>
+    <input type="password" id="proxyPass" placeholder="Leave blank if not required" />
+  </div>
+  <div class="hint">Enter your ProxhqVPN node's SOCKS5 proxy IP and port. Configure SOCKS5 on your node via the Proxy Config page in the dashboard.</div>
+</div>
+
+<div class="section">
+  <div class="section-title">Protection Defaults</div>
+  <div class="toggle-row">
+    <div>
+      <div class="toggle-name">WebRTC Leak Protection</div>
+      <div class="toggle-desc">Block real IP from being exposed via WebRTC APIs</div>
+    </div>
+    <label class="switch">
+      <input type="checkbox" id="defaultWebRtc" checked>
+      <span class="slider"></span>
+    </label>
+  </div>
+  <div class="toggle-row">
+    <div>
+      <div class="toggle-name">DNS-over-HTTPS</div>
+      <div class="toggle-desc">Force encrypted DNS queries through Cloudflare / Google</div>
+    </div>
+    <label class="switch">
+      <input type="checkbox" id="defaultDoh">
+      <span class="slider"></span>
+    </label>
+  </div>
+  <div class="toggle-row">
+    <div>
+      <div class="toggle-name">Auto-enable on startup</div>
+      <div class="toggle-desc">Automatically activate VPN proxy when browser opens</div>
+    </div>
+    <label class="switch">
+      <input type="checkbox" id="autoEnable">
+      <span class="slider"></span>
+    </label>
+  </div>
+  <div class="toggle-row">
+    <div>
+      <div class="toggle-name">Show trigger notifications</div>
+      <div class="toggle-desc">Desktop alert when a canary token is triggered (via dashboard)</div>
+    </div>
+    <label class="switch">
+      <input type="checkbox" id="showNotifs" checked>
+      <span class="slider"></span>
+    </label>
+  </div>
+</div>
+
+<div class="btn-row">
+  <button class="btn btn-primary" id="saveBtn">Save Settings</button>
+  <button class="btn btn-secondary" id="testBtn">Test Connection</button>
+</div>
+
+<div class="notif" id="notif"></div>
+
+<div class="version">ProxhqVPN Browser Extension v1.0.0 · © 2026 Alpha Unlimited Technologies LLC</div>
+
+<script src="options.js"></script>
+</body>
+</html>

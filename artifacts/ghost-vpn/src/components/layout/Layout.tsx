@@ -17,7 +17,7 @@ import {
   ShieldCheck, Key, FileCode2, Filter, FlaskConical,
   MapPin, ArrowLeftRight, Share2, Crosshair, Package, Plug, FileSearch,
   CheckCircle2, X,
-  Camera, Clipboard, MessageSquare, FolderOpen, AppWindow,
+  Camera, Clipboard, MessageSquare, FolderOpen, AppWindow, Puzzle,
 } from "lucide-react";
 import { useAccess } from "@/hooks/useAccess";
 import { useNotifications } from "@/hooks/useNotifications";
@@ -130,8 +130,9 @@ const USER_NAV = [
   { href: "/my-vpn",        label: "Connect",         icon: Wifi },
   { href: "/pricing",       label: "Subscription",    icon: CreditCard },
   { href: "/devices",       label: "My Devices",      icon: Smartphone },
-  { href: "/downloads",     label: "Download App",    icon: Download },
-  { href: "/platforms",     label: "Setup Guide",     icon: BookOpen },
+  { href: "/downloads",          label: "Download App",      icon: Download },
+  { href: "/browser-extension", label: "Browser Extension", icon: Puzzle },
+  { href: "/platforms",         label: "Setup Guide",       icon: BookOpen },
   { href: "/guide",         label: "User Guide",      icon: FileText },
   { href: "/manuals",       label: "Manuals Download", icon: BookMarked },
 ];

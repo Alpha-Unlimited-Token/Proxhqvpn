@@ -1,0 +1,14 @@
+{
+  "name": "@workspace/browser-extension",
+  "version": "1.0.0",
+  "description": "ProxhqVPN Browser Extension build tooling",
+  "private": true,
+  "scripts": {
+    "build": "node build.mjs",
+    "watch": "node build.mjs --watch"
+  },
+  "devDependencies": {
+    "archiver": "^7.0.1",
+    "sharp": "^0.33.5"
+  }
+}

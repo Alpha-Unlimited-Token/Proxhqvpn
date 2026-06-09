@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ProxhqVPN</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      width: 320px;
+      min-height: 420px;
+      background: #050a05;
+      color: #e0e0e0;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 13px;
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 16px 12px;
+      border-bottom: 1px solid #0d2a0d;
+      background: #070e07;
+    }
+
+    .header-logo {
+      width: 28px;
+      height: 28px;
+    }
+
+    .header-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: #00ff88;
+      letter-spacing: 0.5px;
+    }
+
+    .header-subtitle {
+      font-size: 10px;
+      color: #3a6a3a;
+      margin-top: 1px;
+    }
+
+    .header-settings {
+      margin-left: auto;
+      background: none;
+      border: none;
+      color: #3a6a3a;
+      cursor: pointer;
+      font-size: 16px;
+      padding: 4px;
+      border-radius: 4px;
+      transition: color 0.2s;
+    }
+    .header-settings:hover { color: #00ff88; }
+
+    .status-card {
+      margin: 14px 14px 0;
+      border-radius: 10px;
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border: 1px solid;
+      transition: all 0.3s;
+    }
+
+    .status-card.protected {
+      background: linear-gradient(135deg, #061806 0%, #0a2a0a 100%);
+      border-color: #00ff88;
+    }
+
+    .status-card.exposed {
+      background: linear-gradient(135deg, #1a0606 0%, #2a0a0a 100%);
+      border-color: #ff4444;
+    }
+
+    .status-card.connecting {
+      background: linear-gradient(135deg, #0a0a06 0%, #1a1a0a 100%);
+      border-color: #ffa500;
+    }
+
+    .status-icon {
+      font-size: 32px;
+      flex-shrink: 0;
+    }
+
+    .status-text .label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #5a8a5a;
+    }
+
+    .status-text .value {
+      font-size: 17px;
+      font-weight: 700;
+      margin-top: 2px;
+    }
+
+    .status-card.protected .value { color: #00ff88; }
+    .status-card.exposed .value   { color: #ff4444; }
+    .status-card.connecting .value { color: #ffa500; }
+
+    .status-text .ip {
+      font-size: 11px;
+      color: #5a8a5a;
+      margin-top: 4px;
+      font-family: monospace;
+    }
+
+    .main-toggle-wrap {
+      padding: 16px 14px 0;
+    }
+
+    .main-toggle {
+      width: 100%;
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid #0d2a0d;
+      background: #0a1a0a;
+      color: #00ff88;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .main-toggle:hover { background: #0d2a0d; border-color: #00ff88; }
+    .main-toggle.active { background: #001a00; border-color: #00ff88; color: #00ff88; }
+    .main-toggle.inactive { background: #1a0000; border-color: #ff4444; color: #ff4444; }
+    .main-toggle:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .toggles-section {
+      padding: 14px 14px 0;
+    }
+
+    .section-label {
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: #2a4a2a;
+      margin-bottom: 8px;
+    }
+
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 9px 12px;
+      background: #07100a;
+      border: 1px solid #0d1f0d;
+      border-radius: 7px;
+      margin-bottom: 6px;
+      gap: 10px;
+    }
+
+    .toggle-info { flex: 1; }
+
+    .toggle-name {
+      font-size: 12px;
+      font-weight: 600;
+      color: #c0d8c0;
+    }
+
+    .toggle-desc {
+      font-size: 10px;
+      color: #2a4a2a;
+      margin-top: 2px;
+    }
+
+    .switch {
+      position: relative;
+      width: 40px;
+      height: 22px;
+      flex-shrink: 0;
+    }
+
+    .switch input { opacity: 0; width: 0; height: 0; }
+
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      inset: 0;
+      background: #1a2a1a;
+      border-radius: 22px;
+      transition: 0.2s;
+      border: 1px solid #2a4a2a;
+    }
+
+    .slider::before {
+      content: '';
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      left: 2px;
+      top: 2px;
+      background: #3a6a3a;
+      border-radius: 50%;
+      transition: 0.2s;
+    }
+
+    input:checked + .slider { background: #003300; border-color: #00cc66; }
+    input:checked + .slider::before { transform: translateX(18px); background: #00ff88; }
+
+    .proxy-config {
+      padding: 14px 14px 0;
+    }
+
+    .proxy-server-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      background: #07100a;
+      border: 1px solid #0d1f0d;
+      border-radius: 7px;
+    }
+
+    .proxy-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #3a6a3a;
+      flex-shrink: 0;
+    }
+
+    .proxy-dot.active { background: #00ff88; box-shadow: 0 0 6px #00ff88; }
+
+    .proxy-server-label { font-size: 10px; color: #3a6a3a; }
+    .proxy-server-value { font-size: 12px; color: #c0d8c0; font-weight: 600; margin-top: 1px; }
+
+    .proxy-change {
+      margin-left: auto;
+      background: none;
+      border: none;
+      color: #2a5a2a;
+      font-size: 10px;
+      cursor: pointer;
+      text-decoration: underline;
+      font-family: inherit;
+    }
+    .proxy-change:hover { color: #00ff88; }
+
+    .footer {
+      display: flex;
+      gap: 6px;
+      padding: 14px;
+      border-top: 1px solid #0d1f0d;
+      margin-top: 14px;
+    }
+
+    .footer-btn {
+      flex: 1;
+      padding: 8px;
+      background: #0a1a0a;
+      border: 1px solid #0d2a0d;
+      border-radius: 6px;
+      color: #3a6a3a;
+      font-family: 'Courier New', monospace;
+      font-size: 10px;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-align: center;
+    }
+
+    .footer-btn:hover { border-color: #00ff88; color: #00ff88; }
+
+    .ip-loading { animation: pulse 1.5s infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+    #notif {
+      margin: 8px 14px 0;
+      padding: 7px 10px;
+      border-radius: 6px;
+      font-size: 10px;
+      display: none;
+      border: 1px solid;
+    }
+    #notif.ok    { background: #061806; border-color: #00cc66; color: #00ff88; }
+    #notif.error { background: #1a0606; border-color: #ff4444; color: #ff6666; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <svg class="header-logo" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M16 2L4 7v9c0 7.18 5.14 13.89 12 15.5C22.86 29.89 28 23.18 28 16V7L16 2z" fill="#001a00" stroke="#00ff88" stroke-width="1.5"/>
+    <path d="M16 6L7 10v6c0 4.77 3.42 9.24 8 10.47 1.59.43 3.1.43 2 0C20.58 25.24 25 20.77 25 16v-6L16 6z" fill="#003300" opacity="0.6"/>
+    <path d="M11 16l3 3 7-7" stroke="#00ff88" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>
+  <div>
+    <div class="header-title">ProxhqVPN</div>
+    <div class="header-subtitle">ALPHA UNLIMITED TECHNOLOGIES</div>
+  </div>
+  <button class="header-settings" id="openOptions" title="Settings">⚙</button>
+</div>
+
+<div class="status-card exposed" id="statusCard">
+  <div class="status-icon" id="statusIcon">🔴</div>
+  <div class="status-text">
+    <div class="label">Status</div>
+    <div class="value" id="statusLabel">LOADING…</div>
+    <div class="ip ip-loading" id="statusIp">Fetching IP…</div>
+  </div>
+</div>
+
+<div id="notif"></div>
+
+<div class="main-toggle-wrap">
+  <button class="main-toggle inactive" id="mainToggle" disabled>
+    <span id="toggleIcon">⏸</span>
+    <span id="toggleLabel">Enable VPN Proxy</span>
+  </button>
+</div>
+
+<div class="proxy-config">
+  <div class="proxy-server-row">
+    <div class="proxy-dot" id="proxyDot"></div>
+    <div>
+      <div class="proxy-server-label">SOCKS5 Server</div>
+      <div class="proxy-server-value" id="proxyServerDisplay">Not configured</div>
+    </div>
+    <button class="proxy-change" id="changeProxy">change</button>
+  </div>
+</div>
+
+<div class="toggles-section">
+  <div class="section-label">Protection</div>
+
+  <div class="toggle-row">
+    <div class="toggle-info">
+      <div class="toggle-name">WebRTC Leak Protection</div>
+      <div class="toggle-desc">Prevents browser from exposing real IP via WebRTC</div>
+    </div>
+    <label class="switch">
+      <input type="checkbox" id="webrtcToggle">
+      <span class="slider"></span>
+    </label>
+  </div>
+
+  <div class="toggle-row">
+    <div class="toggle-info">
+      <div class="toggle-name">DNS-over-HTTPS</div>
+      <div class="toggle-desc">Encrypts DNS queries · Prevents ISP snooping</div>
+    </div>
+    <label class="switch">
+      <input type="checkbox" id="dohToggle">
+      <span class="slider"></span>
+    </label>
+  </div>
+
+  <div class="toggle-row">
+    <div class="toggle-info">
+      <div class="toggle-name">Secure DNS Mode</div>
+      <div class="toggle-desc">Block DNS leaks outside the proxy tunnel</div>
+    </div>
+    <label class="switch">
+      <input type="checkbox" id="dnsModeToggle">
+      <span class="slider"></span>
+    </label>
+  </div>
+</div>
+
+<div class="footer">
+  <button class="footer-btn" id="openDashboard">⚡ Dashboard</button>
+  <button class="footer-btn" id="openLeaks">🔍 Leak Test</button>
+  <button class="footer-btn" id="openCanary">🪤 Canary</button>
+</div>
+
+<script src="popup.js"></script>
+</body>
+</html>

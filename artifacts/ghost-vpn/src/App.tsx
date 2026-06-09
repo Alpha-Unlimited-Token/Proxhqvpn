@@ -71,7 +71,8 @@ import ToolRunner from "@/pages/ToolRunner";
 import HttpProbe from "@/pages/HttpProbe";
 import DirectoryFuzzer from "@/pages/DirectoryFuzzer";
 import SubdomainScan from "@/pages/SubdomainScan";
-const Downloads    = lazy(() => import("@/pages/Downloads"));
+const Downloads         = lazy(() => import("@/pages/Downloads"));
+const BrowserExtension  = lazy(() => import("@/pages/BrowserExtension"));
 const UserGuide    = lazy(() => import("@/pages/UserGuide"));
 const ParrotTools  = lazy(() => import("@/pages/ParrotTools"));
 const ImAutomation = lazy(() => import("@/pages/ImAutomation"));
@@ -650,6 +651,9 @@ function AppRoutes() {
           </Route>
           <Route path="/downloads">
             <PublicLayout><Downloads /></PublicLayout>
+          </Route>
+          <Route path="/browser-extension">
+            <PublicLayout><BrowserExtension /></PublicLayout>
           </Route>
           <Route path="/guide">
             <PublicLayout><UserGuide /></PublicLayout>
