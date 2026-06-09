@@ -55,6 +55,9 @@ ADMIN_EMAILS = "alphaunlimitedtechnologies@gmail.com,alphaunlimitedtoken@gmail.c
 SMTP_USER = "alphaunlimitedtechnologies@gmail.com"
 SMTP_HOST = "smtp.gmail.com"
 SMTP_PORT = "465"
+PROXHQ_MASTER_KEY_B64 = "oPtQ7tbxVA5IkSEC4QhYGlX2UvaAPAQFcjn94BwNdBA="
+AUDIT_HMAC_KEY_B64 = "6cyE33IGjJ5u5TosRPwGYQqGJ5X1jj5TOe9xkbDG4Xk="
+BREAK_GLASS_TOKEN = "loAgMgumA0C2xflSCkMf34LBX_Z2RbU1TuMzIpIPNlQ"
 
 [userenv.production]
 CUSTOM_DOMAIN = "proxhqvpn.com"
