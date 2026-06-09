@@ -68,15 +68,25 @@ router.post("/report", async (req, res) => {
       listenPort: z.string().optional(),
       activePeers: z.number(),
     }),
+    ramKeyLoaded: z.boolean().optional(),
+    wgBaseConfClean: z.boolean().optional(),
   }).parse(req.body);
 
   const [node] = await db.select().from(nodesTable).where(eq(nodesTable.id, body.nodeId));
   if (!node) return res.status(404).json({ error: "Node not found" });
 
-  await db.update(nodesTable).set({
+  const updateFields: Record<string, unknown> = {
     status: "active",
     lastSeen: new Date(),
-  }).where(eq(nodesTable.id, body.nodeId));
+  };
+  if (body.ramKeyLoaded !== undefined) {
+    updateFields.ramKeyLoaded = body.ramKeyLoaded;
+    updateFields.ramKeyCheckedAt = new Date();
+  }
+  if (body.wgBaseConfClean !== undefined) {
+    updateFields.wgBaseConfClean = body.wgBaseConfClean;
+  }
+  await db.update(nodesTable).set(updateFields as any).where(eq(nodesTable.id, body.nodeId));
 
   return res.json({ ok: true, nodeId: body.nodeId, receivedAt: new Date().toISOString() });
 });

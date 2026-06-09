@@ -23,6 +23,9 @@ export const nodesTable = pgTable("nodes", {
   lastSeen: timestamp("last_seen").defaultNow(),
   fwSyncedAt: timestamp("fw_synced_at"),
   fwSyncHash: text("fw_sync_hash"),
+  ramKeyLoaded: boolean("ram_key_loaded").default(false),
+  ramKeyCheckedAt: timestamp("ram_key_checked_at"),
+  wgBaseConfClean: boolean("wg_base_conf_clean"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

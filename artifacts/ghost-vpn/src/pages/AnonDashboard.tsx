@@ -236,17 +236,41 @@ export default function AnonDashboard() {
           )}
         </div>
 
-        {/* Upgrade CTA */}
+        {/* Subscription renewal / upgrade */}
+        {daysRemaining <= 7 && (
+          <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-5 flex items-center justify-between gap-4">
+            <div>
+              <div className="text-sm font-semibold text-amber-300 mb-1">
+                {daysRemaining === 0 ? "Subscription Expired" : `Expires in ${daysRemaining} day${daysRemaining === 1 ? "" : "s"}`}
+              </div>
+              <div className="text-xs text-white/60">Renew anonymously with BTC or ETH. No email, no identity.</div>
+            </div>
+            <a
+              href={`${BASE}/anon/upgrade`}
+              className="shrink-0 px-4 py-2 rounded-xl bg-amber-500 text-black font-semibold text-sm hover:brightness-110 transition-all whitespace-nowrap"
+            >
+              Renew Now
+            </a>
+          </div>
+        )}
+
+        {/* Upgrade CTA (always shown) */}
         <div className="bg-primary/5 border border-primary/20 rounded-2xl p-6 flex items-center justify-between gap-4">
           <div>
-            <div className="text-sm font-semibold text-white mb-1">Unlock the full platform</div>
-            <div className="text-xs text-white/60">SIEM, threat intel, kill switch, split tunneling, and 60+ VPN nodes.</div>
+            <div className="text-sm font-semibold text-white mb-1">
+              {daysRemaining > 7 ? "Extend Subscription" : "Unlock the full platform"}
+            </div>
+            <div className="text-xs text-white/60">
+              {daysRemaining > 7
+                ? "Pay anonymously with BTC or ETH. No email, no identity."
+                : "SIEM, threat intel, kill switch, split tunneling, and 60+ VPN nodes."}
+            </div>
           </div>
           <a
-            href={`${BASE}/pricing`}
+            href={`${BASE}/anon/upgrade`}
             className="shrink-0 px-4 py-2 rounded-xl bg-primary text-black font-semibold text-sm hover:brightness-110 transition-all whitespace-nowrap"
           >
-            View Plans
+            {daysRemaining > 7 ? "Renew →" : "View Plans →"}
           </a>
         </div>
       </div>

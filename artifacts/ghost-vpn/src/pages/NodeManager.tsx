@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Network, Plus, RefreshCw, Radio, Activity, Globe, Layers } from "lucide-react";
+import { Network, Plus, RefreshCw, Radio, Activity, Globe, Layers, KeyRound, ShieldCheck, ShieldAlert, ShieldOff } from "lucide-react";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -92,6 +92,129 @@ function VpnGateOuterCard({ server }: { server: VpnGateServer }) {
 
 const LAYER_FILTER_OPTIONS = ["all", "outer", "inner", "vpngate"] as const;
 type LayerFilter = (typeof LAYER_FILTER_OPTIONS)[number];
+
+interface RamKeyNode {
+  id: number;
+  name: string;
+  region: string;
+  ramKeyLoaded: boolean | null;
+  ramKeyCheckedAt: string | null;
+  wgBaseConfClean: boolean | null;
+  lastSeen: string | null;
+}
+
+interface RamKeyAudit {
+  total: number;
+  ramKeyActive: number;
+  baseConfClean: number;
+  baseConfDirty: number;
+  baseConfUnknown: number;
+  nodes: RamKeyNode[];
+}
+
+function RamKeyAuditPanel() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [rotatingId, setRotatingId] = useState<number | null>(null);
+
+  const { data, isFetching } = useQuery<RamKeyAudit>({
+    queryKey: ["ram-key-audit"],
+    queryFn: () => fetch(`${BASE}/api/nodes/ram-key-audit`).then((r) => r.json()),
+    refetchInterval: 30000,
+    staleTime: 20000,
+  });
+
+  const handleRotate = async (nodeId: number, nodeName: string) => {
+    setRotatingId(nodeId);
+    try {
+      const r = await fetch(`${BASE}/api/nodes/${nodeId}/rotate-wg-key`, { method: "POST" });
+      const body = await r.json();
+      if (!r.ok) throw new Error(body.error ?? "Rotation failed");
+      toast({
+        title: "Key Rotated",
+        description: `${nodeName}: new pubkey set. Restart proxhq-wg-init on the node to activate.`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["ram-key-audit"] });
+    } catch (e: any) {
+      toast({ title: "Rotation Failed", description: e.message, variant: "destructive" });
+    } finally {
+      setRotatingId(null);
+    }
+  };
+
+  const nodes = data?.nodes ?? [];
+
+  return (
+    <div className="border border-primary/20 bg-black p-3 space-y-2">
+      <div className="flex items-center justify-between">
+        <div className="text-[10px] font-mono uppercase tracking-widest text-primary/50 flex items-center gap-2">
+          <KeyRound className="w-3 h-3" />
+          RAM Key Audit
+        </div>
+        <div className="flex items-center gap-2 text-[9px] font-mono">
+          {data && (
+            <>
+              <span className="text-primary/30">{data.ramKeyActive}/{data.total} RAM</span>
+              <span className="text-primary/30">·</span>
+              <span className={data.baseConfDirty > 0 ? "text-red-400" : "text-primary/30"}>
+                {data.baseConfClean}/{data.total} clean
+              </span>
+            </>
+          )}
+          {isFetching && <RefreshCw className="w-2.5 h-2.5 text-primary/30 animate-spin" />}
+        </div>
+      </div>
+
+      {nodes.length === 0 && !isFetching && (
+        <div className="text-[9px] font-mono text-primary/25 text-center py-2">No nodes found</div>
+      )}
+
+      <div className="space-y-1.5">
+        {nodes.map((node) => {
+          const ramOk = node.ramKeyLoaded === true;
+          const ramUnknown = node.ramKeyLoaded === null;
+          const baseOk = node.wgBaseConfClean === true;
+          const baseDirty = node.wgBaseConfClean === false;
+          const isRotating = rotatingId === node.id;
+
+          return (
+            <div key={node.id} className="border border-primary/10 p-2 space-y-1.5">
+              <div className="flex items-center justify-between gap-1">
+                <span className="text-[9px] font-mono text-primary/60 truncate max-w-[120px]">{node.name}</span>
+                <button
+                  onClick={() => handleRotate(node.id, node.name)}
+                  disabled={isRotating}
+                  className="text-[8px] font-mono uppercase border border-primary/20 px-1.5 py-0.5 text-primary/40 hover:text-primary hover:border-primary/50 transition-colors disabled:opacity-40"
+                >
+                  {isRotating ? "…" : "rotate"}
+                </button>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className={`flex items-center gap-1 text-[8px] font-mono ${
+                  ramUnknown ? "text-primary/25" : ramOk ? "text-primary/70" : "text-red-400/70"
+                }`}>
+                  {ramUnknown ? <ShieldOff className="w-2.5 h-2.5" /> : ramOk ? <ShieldCheck className="w-2.5 h-2.5" /> : <ShieldAlert className="w-2.5 h-2.5" />}
+                  <span>RAM</span>
+                </div>
+                <div className={`flex items-center gap-1 text-[8px] font-mono ${
+                  node.wgBaseConfClean === null ? "text-primary/25" : baseOk ? "text-cyan-400/70" : "text-red-400"
+                }`}>
+                  {node.wgBaseConfClean === null ? <ShieldOff className="w-2.5 h-2.5" /> : baseOk ? <ShieldCheck className="w-2.5 h-2.5" /> : <ShieldAlert className="w-2.5 h-2.5" />}
+                  <span>{baseDirty ? "KEY ON DISK!" : baseOk ? "disk clean" : "unverified"}</span>
+                </div>
+              </div>
+              {node.ramKeyCheckedAt && (
+                <div className="text-[7px] font-mono text-primary/20">
+                  checked {format(new Date(node.ramKeyCheckedAt), "MMM d HH:mm")}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 export default function NodeManager() {
   const { nodes: outerNodes, lifecycleMap: outerLifecycle, currentRotatingId: outerRotatingId, rotationLog: outerLog } = useNodeLifecycle();
@@ -464,6 +587,8 @@ export default function NodeManager() {
               </div>
             ))}
           </div>
+
+          <RamKeyAuditPanel />
 
           <div className="border border-primary/20 bg-black p-3">
             <div className="text-[10px] font-mono uppercase tracking-widest text-primary/50 mb-2">

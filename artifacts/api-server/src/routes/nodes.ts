@@ -315,4 +315,58 @@ router.post("/shuffle-all", async (_req, res) => {
   res.json({ shuffled: updated.length, timestamp: now.toISOString() });
 });
 
+// ── WireGuard Key Rotation (admin panel) ──────────────────────────────────────
+// Generates a new WireGuard keypair for a node and stores it in the DB.
+// The node picks up the new key on next proxhq-wg-init.service run or
+// when an admin triggers a service restart via the Omega terminal.
+router.post("/:id/rotate-wg-key", async (req, res) => {
+  const id = parseInt(req.params.id);
+  const [node] = await db.select({ id: nodesTable.id, name: nodesTable.name }).from(nodesTable).where(eq(nodesTable.id, id));
+  if (!node) return res.status(404).json({ error: "Node not found" });
+
+  const newPrivateKey = generateWgPrivateKey();
+  const newPublicKey = generateWgPublicKey(newPrivateKey);
+
+  const [updated] = await db.update(nodesTable)
+    .set({ privateKey: newPrivateKey, publicKey: newPublicKey, lastSeen: new Date() })
+    .where(eq(nodesTable.id, id))
+    .returning({ id: nodesTable.id, name: nodesTable.name, publicKey: nodesTable.publicKey });
+
+  return res.json({
+    ok: true,
+    nodeId: updated.id,
+    nodeName: updated.name,
+    newPublicKey: updated.publicKey,
+    note: "New key stored. Run `systemctl restart proxhq-wg-init` on the node to activate.",
+  });
+});
+
+// ── WireGuard Base Config Audit ───────────────────────────────────────────────
+// Returns the RAM-key health status for all nodes as reported by their daemons.
+// wgBaseConfClean: true = /etc/wireguard/wg0-base.conf has no PrivateKey line (confirmed clean)
+// ramKeyLoaded: true = /dev/shm/wg-private.key exists (key is in RAM)
+router.get("/ram-key-audit", async (_req, res) => {
+  const nodes = await db.select({
+    id: nodesTable.id,
+    name: nodesTable.name,
+    region: nodesTable.region,
+    ipAddress: nodesTable.ipAddress,
+    ramKeyLoaded: nodesTable.ramKeyLoaded,
+    ramKeyCheckedAt: nodesTable.ramKeyCheckedAt,
+    wgBaseConfClean: nodesTable.wgBaseConfClean,
+    lastSeen: nodesTable.lastSeen,
+  }).from(nodesTable);
+
+  const summary = {
+    total: nodes.length,
+    ramKeyActive: nodes.filter(n => n.ramKeyLoaded).length,
+    baseConfClean: nodes.filter(n => n.wgBaseConfClean === true).length,
+    baseConfDirty: nodes.filter(n => n.wgBaseConfClean === false).length,
+    baseConfUnknown: nodes.filter(n => n.wgBaseConfClean === null).length,
+    nodes,
+  };
+
+  return res.json(summary);
+});
+
 export default router;

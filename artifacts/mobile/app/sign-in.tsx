@@ -181,6 +181,33 @@ export default function SignInScreen() {
               <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>Create an account</Text>
             </Pressable>
           </Link>
+
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginVertical: 2 }}>
+            <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
+            <Text style={{ fontSize: 11, color: colors.mutedForeground }}>or</Text>
+            <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
+          </View>
+
+          <Link href="/anon-sign-in" asChild>
+            <Pressable style={({ pressed }) => ({
+              height: 52,
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor: `${colors.primary}55`,
+              backgroundColor: `${colors.primary}0d`,
+              alignItems: "center",
+              justifyContent: "center",
+              flexDirection: "row",
+              gap: 8,
+              opacity: pressed ? 0.75 : 1,
+            })}>
+              <Feather name="shield" size={16} color={colors.primary} />
+              <Text style={{ fontSize: 15, fontWeight: "600", color: colors.primary }}>Anonymous Account</Text>
+            </Pressable>
+          </Link>
+          <Text style={{ textAlign: "center", fontSize: 11, color: colors.mutedForeground, marginTop: -4 }}>
+            No email · No password · Just a 16-digit number
+          </Text>
         </View>
 
         <Text style={{

@@ -160,6 +160,7 @@ import OmegaMessageManager from "@/pages/omega/message-manager";
 import OmegaRemoteCommands from "@/pages/omega/remote-commands";
 import AnonAuth from "@/pages/AnonAuth";
 import AnonDashboard from "@/pages/AnonDashboard";
+import AnonUpgrade from "@/pages/AnonUpgrade";
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
@@ -636,6 +637,7 @@ function AppRoutes() {
           <Route path="/sign-up/*?" component={SignUpPage} />
           <Route path="/anon-auth" component={AnonAuth} />
           <Route path="/anon" component={AnonDashboard} />
+          <Route path="/anon/upgrade" component={AnonUpgrade} />
 
           {/* ── Smart post-login redirect — reads tier, sends to the right page ── */}
           <Route path="/app">

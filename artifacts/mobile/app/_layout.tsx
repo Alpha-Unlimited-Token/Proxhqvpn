@@ -59,6 +59,7 @@ function RootLayoutNav() {
       <Stack.Screen name="index" />
       <Stack.Screen name="sign-in" />
       <Stack.Screen name="sign-up" />
+      <Stack.Screen name="anon-sign-in" />
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="tool/[slug]" />
     </Stack>

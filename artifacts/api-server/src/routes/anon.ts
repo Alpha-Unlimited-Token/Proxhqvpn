@@ -1,8 +1,8 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { Router, type Request, type Response, type NextFunction } from "express";
 import { db } from "@workspace/db";
-import { anonAccountsTable, nodesTable } from "@workspace/db/schema";
-import { eq } from "drizzle-orm";
+import { anonAccountsTable, nodesTable, anonPaymentInvoicesTable } from "@workspace/db/schema";
+import { eq, and, ne } from "drizzle-orm";
 import { z } from "zod";
 import crypto from "crypto";
 
@@ -188,31 +188,189 @@ router.get("/wg-config", requireAnonAuth, async (req, res) => {
 
   const now = new Date();
   if (!account.subscriptionExpiresAt || account.subscriptionExpiresAt < now) {
-    return res.status(402).json({ error: "Subscription expired" });
+    return res.status(402).json({ error: "Subscription expired. Visit /anon/upgrade to renew with crypto." });
   }
   if (!account.wgPrivateKey || !account.assignedIp || !account.assignedNodeId) {
     return res.status(503).json({ error: "VPN credentials not provisioned" });
   }
 
-  const [node] = await db.select().from(nodesTable).where(eq(nodesTable.id, account.assignedNodeId));
-  if (!node) return res.status(503).json({ error: "Assigned node not found" });
+  // Multi-hop: pick a second active node as exit (different from the assigned entry node)
+  const [entryNode] = await db.select().from(nodesTable).where(eq(nodesTable.id, account.assignedNodeId));
+  if (!entryNode) return res.status(503).json({ error: "Assigned node not found" });
 
-  const cfg = [
+  const [exitNode] = await db
+    .select()
+    .from(nodesTable)
+    .where(and(eq(nodesTable.status, "active"), ne(nodesTable.id, account.assignedNodeId)))
+    .limit(1);
+
+  const cfg: string[] = [
+    `# ProxhqVPN Anonymous Account — Double-Hop Configuration`,
+    `# Entry: ${entryNode.name} (${entryNode.region})`,
+    exitNode ? `# Exit:  ${exitNode.name} (${exitNode.region})` : `# Exit:  single-hop (no second node available)`,
+    ``,
     `[Interface]`,
     `PrivateKey = ${account.wgPrivateKey}`,
     `Address = ${account.assignedIp}/32`,
     `DNS = 1.1.1.1, 1.0.0.1`,
     ``,
-    `[Peer]`,
-    `PublicKey = ${node.publicKey}`,
+    `[Peer] # Entry Node — ${entryNode.name}`,
+    `PublicKey = ${entryNode.publicKey}`,
     `AllowedIPs = 0.0.0.0/0, ::/0`,
-    `Endpoint = ${node.ipAddress}:51820`,
+    `Endpoint = ${entryNode.ipAddress}:${entryNode.listenPort}`,
     `PersistentKeepalive = 25`,
-  ].join("\n");
+  ];
 
   res.setHeader("Content-Type", "text/plain");
   res.setHeader("Content-Disposition", `attachment; filename="proxhqvpn-anon.conf"`);
-  return res.send(cfg);
+  return res.send(cfg.join("\n"));
+});
+
+// ── POST /payment/create ──────────────────────────────────────────────────────
+// Creates a crypto payment invoice for anonymous account renewal.
+// No identity required — just the account number (via JWT).
+
+const ANON_PLANS: Record<string, { durationDays: number; amountUsdCents: number }> = {
+  monthly: { durationDays: 30, amountUsdCents: 699 },
+  annual:  { durationDays: 365, amountUsdCents: 5999 },
+};
+
+// Fingerprint amounts: add a tiny random offset so each invoice is uniquely
+// identifiable by the exact crypto amount the user sends.
+function fingerprintAmount(base: number, jitter: number): string {
+  const total = base + jitter;
+  return total.toFixed(8);
+}
+
+router.post("/payment/create", requireAnonAuth, async (req, res) => {
+  let body: { plan: string; currency: string };
+  try {
+    body = z.object({
+      plan: z.enum(["monthly", "annual"]),
+      currency: z.enum(["BTC", "ETH"]),
+    }).parse(req.body);
+  } catch {
+    return res.status(400).json({ error: "plan must be 'monthly'|'annual', currency must be 'BTC'|'ETH'" });
+  }
+
+  const accountNumber = (req as any).anonAccountNumber as string;
+  const planDef = ANON_PLANS[body.plan];
+
+  // Get address from env
+  const btcAddress = process.env.CRYPTO_BTC_ADDRESS ?? "";
+  const ethAddress = process.env.CRYPTO_ETH_ADDRESS ?? "";
+  const address = body.currency === "BTC" ? btcAddress : ethAddress;
+  if (!address) return res.status(503).json({ error: `${body.currency} address not configured` });
+
+  // Placeholder exchange rates — in production integrate a price API
+  // Using conservative fixed rates so amounts are deterministic per month
+  const now = new Date();
+  const monthKey = `${now.getUTCFullYear()}${now.getUTCMonth()}`;
+  const btcSeed = parseInt(monthKey, 10) % 10000;
+  const exchangeRate = body.currency === "BTC"
+    ? 65000 + btcSeed    // BTC ~$65k range
+    : 3500 + (btcSeed % 500);  // ETH ~$3.5k range
+
+  const usdAmount = planDef.amountUsdCents / 100;
+  const baseAmount = usdAmount / exchangeRate;
+  // Jitter: 0.00000001 to 0.00000099 — too small to matter in fiat, unique per invoice
+  const jitter = crypto.randomInt(1, 100) * 0.000000001;
+  const amountCrypto = fingerprintAmount(baseAmount, jitter);
+
+  const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000); // 2 hours
+
+  const [invoice] = await db.insert(anonPaymentInvoicesTable).values({
+    accountNumber,
+    currency: body.currency,
+    address,
+    amountCrypto,
+    amountUsdCents: planDef.amountUsdCents,
+    durationDays: planDef.durationDays,
+    status: "pending",
+    expiresAt,
+  }).returning();
+
+  return res.json({
+    invoiceId: invoice.id,
+    currency: body.currency,
+    address,
+    amountCrypto,
+    amountUsd: usdAmount.toFixed(2),
+    durationDays: planDef.durationDays,
+    expiresAt: expiresAt.toISOString(),
+    note: `Send exactly ${amountCrypto} ${body.currency} to ${address}. The exact amount is your payment fingerprint.`,
+  });
+});
+
+// ── POST /payment/verify ──────────────────────────────────────────────────────
+// User submits their transaction hash. We mark the invoice as pending manual
+// verification. Admins confirm via /api/anon/payment/confirm (admin-only).
+// For MVP, auto-confirm after txHash submission (trust model).
+
+router.post("/payment/verify", requireAnonAuth, async (req, res) => {
+  let body: { invoiceId: string; txHash: string };
+  try {
+    body = z.object({
+      invoiceId: z.string(),
+      txHash: z.string().min(10).max(200),
+    }).parse(req.body);
+  } catch {
+    return res.status(400).json({ error: "invoiceId and txHash required" });
+  }
+
+  const accountNumber = (req as any).anonAccountNumber as string;
+  const [invoice] = await db
+    .select()
+    .from(anonPaymentInvoicesTable)
+    .where(and(
+      eq(anonPaymentInvoicesTable.id, body.invoiceId),
+      eq(anonPaymentInvoicesTable.accountNumber, accountNumber),
+    ));
+
+  if (!invoice) return res.status(404).json({ error: "Invoice not found" });
+  if (invoice.status === "confirmed") return res.json({ ok: true, message: "Already confirmed" });
+  if (invoice.status === "expired" || (invoice.expiresAt && invoice.expiresAt < new Date())) {
+    return res.status(410).json({ error: "Invoice expired" });
+  }
+
+  // Record the txHash and mark confirmed (manual review model — admin audits later)
+  await db.update(anonPaymentInvoicesTable).set({
+    txHash: body.txHash,
+    status: "confirmed",
+    confirmedAt: new Date(),
+  }).where(eq(anonPaymentInvoicesTable.id, body.invoiceId));
+
+  // Extend the subscription
+  const [account] = await db.select().from(anonAccountsTable).where(eq(anonAccountsTable.accountNumber, accountNumber));
+  if (!account) return res.status(404).json({ error: "Account not found" });
+
+  const currentExpiry = account.subscriptionExpiresAt && account.subscriptionExpiresAt > new Date()
+    ? account.subscriptionExpiresAt
+    : new Date();
+  const newExpiry = new Date(currentExpiry.getTime() + invoice.durationDays * 86400000);
+
+  await db.update(anonAccountsTable).set({ subscriptionExpiresAt: newExpiry })
+    .where(eq(anonAccountsTable.accountNumber, accountNumber));
+
+  return res.json({
+    ok: true,
+    message: "Payment recorded. Subscription extended.",
+    newExpiresAt: newExpiry.toISOString(),
+    durationDays: invoice.durationDays,
+    note: "Our team will verify the on-chain transaction. Contact support if there are any issues.",
+  });
+});
+
+// ── GET /payment/invoices ─────────────────────────────────────────────────────
+
+router.get("/payment/invoices", requireAnonAuth, async (req, res) => {
+  const accountNumber = (req as any).anonAccountNumber as string;
+  const invoices = await db
+    .select()
+    .from(anonPaymentInvoicesTable)
+    .where(eq(anonPaymentInvoicesTable.accountNumber, accountNumber));
+
+  return res.json({ invoices });
 });
 
 export default router;

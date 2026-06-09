@@ -333,10 +333,18 @@ router.get("/trigger/:tokenId/pixel.gif", async (req: Request, res: Response) =>
 });
 
 router.get("/warrant-canary", (_req: Request, res: Response) => {
+  // Stable 30-day window: issuedAt is always the 1st of the current UTC month.
+  // This means all requests within the same month return an identical statement,
+  // making hash verification consistent for the full 30-day window.
   const now = new Date();
+  const issuedAt = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1, 0, 0, 0, 0));
+  const expiresAt = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1, 0, 0, 0, 0));
+  const daysRemaining = Math.max(0, Math.ceil((expiresAt.getTime() - now.getTime()) / 86400000));
+
   const statement = [
     "PROXHQVPN WARRANT CANARY",
-    `Issued: ${now.toUTCString()}`,
+    `Issued: ${issuedAt.toUTCString()}`,
+    `Expires: ${expiresAt.toUTCString()}`,
     "",
     "As of the date above, ALPHA UNLIMITED TECHNOLOGIES LLC (operating ProxhqVPN) hereby states:",
     "",
@@ -347,19 +355,25 @@ router.get("/warrant-canary", (_req: Request, res: Response) => {
     "5. We have NOT intentionally weakened or backdoored our cryptographic systems.",
     "6. We maintain a strict no-logs policy for all VPN connection data.",
     "",
-    "This canary is updated monthly. Removal or absence of this statement implies the canary has been triggered.",
+    "This canary is updated on the 1st of each calendar month (UTC). Removal or non-renewal implies a trigger.",
     "",
     "ProxhqVPN — ALPHA UNLIMITED TECHNOLOGIES LLC",
     "https://proxhqvpn.com",
   ];
+
+  const stmtText = statement.join("\n");
+  const sha256 = crypto.createHash("sha256").update(stmtText).digest("hex");
+
   res.json({
     status: "active",
-    issuedAt: now.toISOString(),
-    expiresAt: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-    statement: statement.join("\n"),
+    issuedAt: issuedAt.toISOString(),
+    expiresAt: expiresAt.toISOString(),
+    daysRemaining,
+    statement: stmtText,
     lines: statement,
-    pgpNote: "For cryptographic verification, sign this canary with the ProxhqVPN PGP key.",
-    canaryVersion: 1,
+    sha256,
+    pgpNote: "SHA-256 hash covers the full statement text. Verify each month that the hash matches the content.",
+    canaryVersion: 2,
   });
 });
 
