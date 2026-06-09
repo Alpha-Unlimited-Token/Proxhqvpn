@@ -1156,3 +1156,26 @@ export const firewallDdosEventsTable = pgTable("firewall_ddos_events", {
   unblockAt:    timestamp("unblock_at"),
   resolvedAt:   timestamp("resolved_at"),
 });
+
+// ── Traffic Bridge — VPN peer traffic flagging & admin approval ─────────────
+export const trafficDecisionStatusEnum = pgEnum("traffic_decision_status", ["pending","approved","denied","expired"]);
+
+export const firewallTrafficDecisionsTable = pgTable("firewall_traffic_decisions", {
+  id:              serial("id").primaryKey(),
+  peerPublicKey:   text("peer_public_key"),
+  peerDeviceName:  text("peer_device_name"),
+  peerIp:          text("peer_ip").notNull(),   // VPN client 10.8.0.x assigned IP
+  destIp:          text("dest_ip").notNull(),
+  destPort:        integer("dest_port"),
+  destDomain:      text("dest_domain"),
+  protocol:        text("protocol").notNull().default("tcp"),
+  nodeId:          integer("node_id").notNull(),
+  flagReason:      text("flag_reason").notNull(),  // "ips_match"|"geo_blocked_dest"|"c2_pattern"|"new_destination"|"ddos_source"
+  flagSid:         text("flag_sid"),
+  status:          trafficDecisionStatusEnum("status").notNull().default("pending"),
+  appliedToNode:   boolean("applied_to_node").notNull().default(false),
+  expiresInHours:  integer("expires_in_hours").default(24),
+  decidedAt:       timestamp("decided_at"),
+  expiresAt:       timestamp("expires_at"),
+  createdAt:       timestamp("created_at").defaultNow().notNull(),
+});

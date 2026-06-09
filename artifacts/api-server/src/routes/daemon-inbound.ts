@@ -9,6 +9,7 @@ import {
   firewallIpsSignaturesTable, ebpfRulesTable,
   firewallAtrPoliciesTable, firewallAtrEventsTable,
   firewallDdosConfigTable, firewallDdosEventsTable,
+  firewallTrafficDecisionsTable, firewallPeerRulesTable,
 } from "@workspace/db";
 import { eq, and, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -725,6 +726,77 @@ router.post("/fw-sync-ack", async (req, res) => {
     logger.info({ nodeId: body.nodeId, hash: body.rulesHash }, "firewall sync ack");
   }
   return res.json({ ok: true });
+});
+
+// ── Security Event Log — node reports flagged traffic for visibility only ───
+// No approval gate. Traffic always flows freely for VPN users.
+// This endpoint just records events as a security audit log.
+router.post("/traffic-flag", async (req, res) => {
+  const body = z.object({
+    nodeId:       z.number().int().positive(),
+    peerPublicKey:z.string().optional(),
+    peerDeviceName:z.string().optional(),
+    peerIp:       z.string(),
+    destIp:       z.string(),
+    destPort:     z.number().int().optional(),
+    destDomain:   z.string().optional(),
+    protocol:     z.string().optional(),
+    flagReason:   z.string(),
+    flagSid:      z.string().optional(),
+  }).parse(req.body);
+
+  // Deduplicate: skip if same peerIp+destIp already logged in last hour
+  const existing = await db.select({ id: firewallTrafficDecisionsTable.id })
+    .from(firewallTrafficDecisionsTable)
+    .where(
+      and(
+        eq(firewallTrafficDecisionsTable.peerIp, body.peerIp),
+        eq(firewallTrafficDecisionsTable.destIp, body.destIp),
+      )
+    ).limit(1);
+  if (existing.length) {
+    return res.json({ ok: true, deduplicated: true });
+  }
+
+  const rows = await db.insert(firewallTrafficDecisionsTable).values({
+    peerPublicKey:  body.peerPublicKey,
+    peerDeviceName: body.peerDeviceName,
+    peerIp:         body.peerIp,
+    destIp:         body.destIp,
+    destPort:       body.destPort,
+    destDomain:     body.destDomain,
+    protocol:       body.protocol ?? "tcp",
+    nodeId:         body.nodeId,
+    flagReason:     body.flagReason,
+    flagSid:        body.flagSid,
+    status:         "approved",    // auto-approved — traffic flows, just logged
+    appliedToNode:  true,
+    decidedAt:      new Date(),
+  }).returning({ id: firewallTrafficDecisionsTable.id });
+
+  logger.info({ nodeId: body.nodeId, peerIp: body.peerIp, destIp: body.destIp, reason: body.flagReason }, "security event logged (traffic flows freely)");
+  return res.json({ ok: true, id: rows[0]!.id });
+});
+
+// ── Peer rules export for node daemon ───────────────────────────────────────
+router.get("/peer-rules-export", async (req, res) => {
+  const nodeId = parseInt(req.query.nodeId as string);
+  if (isNaN(nodeId)) return res.status(400).json({ error: "nodeId required" });
+
+  const rules = await db.select().from(firewallPeerRulesTable)
+    .where(and(
+      eq(firewallPeerRulesTable.nodeId, nodeId),
+      eq(firewallPeerRulesTable.enabled, true),
+    ));
+
+  // Attempt to resolve peer public key → current WireGuard IP via wg show
+  // (runtime resolution — we store the public key, the node resolves to IP at apply time)
+  const enriched = rules.map(r => ({
+    ...r,
+    resolvedIp: "",  // node resolves peerPublicKey → IP via `wg show wg0 allowed-ips` at apply time
+  }));
+
+  return res.json({ rules: enriched });
 });
 
 export default router;

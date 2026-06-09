@@ -5903,6 +5903,44 @@ function NodeSyncTab() {
 
       <FwmCard style={{ marginTop:12 }}>
         <SectionTitle
+          icon={<ShieldCheck size={13}/>}
+          title="Full Node Security Hardening Script"
+          badge="Run once per node"
+          badgeColor="#00ff88"
+        />
+        <p style={{ margin:"0 0 4px", fontSize:10, color:"#555" }}>
+          Downloads a comprehensive <strong style={{color:"#aaa"}}>self-contained bash script</strong> for each node. Safe to run — VPN client traffic is never blocked. Includes:
+        </p>
+        <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:12 }}>
+          {["sysctl kernel hardening","iptables DROP perimeter (WireGuard-aware)","IPv6 mirroring","fail2ban SSH + brute-force","SSH key-only / no root","DDoS monitor daemon","ATR watchdog (Suricata → auto-block)","Per-peer rules enforcer","Firewall rule sync (30s)","RAM-only WireGuard key init"].map(f => (
+            <span key={f} style={{ background:"#00ff8811", border:"1px solid #00ff8822", color:"#00ff8899", fontSize:9, padding:"2px 7px", borderRadius:4 }}>{f}</span>
+          ))}
+        </div>
+        <div style={{ padding:"8px 12px", background:"#0a0a0a", border:"1px solid #00ff8822", borderRadius:6, marginBottom:12, fontSize:10, color:"#555" }}>
+          <strong style={{color:"#00ff8877"}}>WireGuard-aware design:</strong> <span style={{color:"#444"}}>The iptables <code style={{color:"#888"}}>FORWARD -i wg0 -j ACCEPT</code> and <code style={{color:"#888"}}>FORWARD -o wg0 -j ACCEPT</code> rules let all VPN client traffic through freely. The DROP policy only applies to the node&apos;s INPUT chain — blocking external attackers, not VPN users.</span>
+        </div>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:8 }}>
+          {status.nodes.map(n => (
+            <div key={n.id} style={{ background:"#0d0d0d", border:"1px solid #00ff8822", borderRadius:8, padding:"12px 14px" }}>
+              <div style={{ fontFamily:"monospace", fontWeight:700, color:"#fff", fontSize:12, marginBottom:2 }}>{n.name}</div>
+              <div style={{ fontSize:9, color:"#555", marginBottom:10 }}>{n.ipAddress} · node {n.id}</div>
+              <a
+                href={`/api/firewall/node-hardening-script?nodeId=${n.id}`}
+                download={`proxhq-node-${n.id}-hardening.sh`}
+                style={{ display:"inline-flex", alignItems:"center", gap:6, background:"#00ff8822", border:"1px solid #00ff8844", color:"#00ff88", borderRadius:5, padding:"6px 12px", fontSize:10, fontFamily:"monospace", textDecoration:"none", fontWeight:700 }}
+              >
+                <Download size={11}/> Download Hardening Script
+              </a>
+            </div>
+          ))}
+        </div>
+        <div style={{ marginTop:10, padding:"8px 12px", background:"#0a0a0a", borderRadius:6, border:"1px solid #1a1a1a", fontSize:10, color:"#444", fontFamily:"monospace" }}>
+          Run as root on each node: <span style={{ color:"#00ff88" }}>chmod +x proxhq-node-N-hardening.sh && ./proxhq-node-N-hardening.sh</span>
+        </div>
+      </FwmCard>
+
+      <FwmCard style={{ marginTop:12 }}>
+        <SectionTitle
           icon={<Shield size={13}/>}
           title="IPS Enforcement — Suricata Node Deployment"
           badge="Inline packet drop"

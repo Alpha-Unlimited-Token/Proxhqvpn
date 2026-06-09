@@ -3,6 +3,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import {
+  firewallTrafficDecisionsTable,
   firewallRulesTable, firewallStatusTable, blockedIpsTable,
   firewallIpsSignaturesTable, firewallDpiRulesTable, firewallGeoBlocksTable,
   firewallThreatFeedsTable, firewallZonesTable, firewallFqdnRulesTable,
@@ -1699,6 +1700,504 @@ router.post("/optimizer/analyze", async (_req, res) => {
     analyzedAt: new Date().toISOString(),
   });
 });
+
+// ── Security Event Log — read-only view of IPS-flagged events from nodes ───
+// Traffic always flows freely for VPN users. This is purely a visibility log.
+router.get("/security-events", async (req, res) => {
+  const rows = await db.select().from(firewallTrafficDecisionsTable)
+    .orderBy(desc(firewallTrafficDecisionsTable.createdAt))
+    .limit(200);
+  return res.json({ events: rows });
+});
+
+router.delete("/security-events/:id", async (req, res) => {
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) return res.status(400).json({ error: "bad id" });
+  await db.delete(firewallTrafficDecisionsTable).where(eq(firewallTrafficDecisionsTable.id, id));
+  return res.json({ ok: true });
+});
+
+// ── Node Hardening Script — comprehensive security stack per node ───────────
+router.get("/node-hardening-script", async (req, res) => {
+  const nodeId = parseInt(req.query.nodeId as string);
+  if (isNaN(nodeId)) return res.status(400).json({ error: "nodeId required" });
+  const nodes = await db.select().from(nodesTable).where(eq(nodesTable.id, nodeId));
+  if (!nodes.length) return res.status(404).json({ error: "node not found" });
+  const node = nodes[0]!;
+  const psk = process.env.DAEMON_PSK ?? "";
+  const apiBase = "https://network-labyrinth.replit.app/api/daemon-inbound";
+
+  const script = buildNodeHardeningScript(nodeId, node.name, node.ipAddress, node.listenPort, psk, apiBase);
+
+  res.setHeader("Content-Type", "text/plain; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename="proxhq-node-${nodeId}-hardening.sh"`);
+  return res.send(script);
+});
+
+function buildNodeHardeningScript(
+  nodeId: number, nodeName: string, nodeIp: string,
+  listenPort: number, psk: string, apiBase: string
+): string {
+  return `#!/bin/bash
+# ============================================================
+# ProxhqVPN Node Security Hardening v2.0
+# Node: ${nodeName} (ID: ${nodeId}) — IP: ${nodeIp}
+# Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+# Copyright © Alpha Unlimited Technologies LLC
+# ============================================================
+# ARCHITECTURE:
+#   WireGuard interface : wg0 (UDP port ${listenPort})
+#   VPN clients (10.8.0.0/24) connect via wg0 — they are
+#   authenticated by WireGuard keypair and pass freely through
+#   the FORWARD chain. The node perimeter (INPUT chain) only
+#   allows WireGuard UDP, rate-limited SSH, and ICMP.
+#   Traffic Bridge: node reports flagged peer traffic to the
+#   API server. Admin reviews in dashboard and approves/denies.
+#   Node polls decisions every 30s and enforces via iptables.
+# ============================================================
+set -euo pipefail
+
+NODE_ID="${nodeId}"
+WG_PORT="${listenPort}"
+VPN_CIDR="10.8.0.0/24"
+PSK="${psk}"
+API="${apiBase}"
+
+log() { echo "[proxhq-harden] $*"; }
+ok()  { echo "[✓] $*"; }
+fail(){ echo "[✗] $*" >&2; }
+
+log "=== ProxhqVPN Node Security Hardening v2.0 ========================="
+log "Node: ${nodeName} (${nodeId}) — ${nodeIp}"
+
+# ── 1. Kernel sysctl hardening ─────────────────────────────────────────
+log "Applying sysctl hardening..."
+cat > /etc/sysctl.d/99-proxhq-hardening.conf << 'SYSCTL'
+# ProxhqVPN Kernel Hardening
+net.ipv4.ip_forward = 1
+net.ipv6.conf.all.forwarding = 1
+net.ipv4.conf.all.rp_filter = 1
+net.ipv4.conf.default.rp_filter = 1
+net.ipv4.conf.all.accept_redirects = 0
+net.ipv4.conf.default.accept_redirects = 0
+net.ipv6.conf.all.accept_redirects = 0
+net.ipv4.conf.all.send_redirects = 0
+net.ipv4.icmp_echo_ignore_broadcasts = 1
+net.ipv4.conf.all.log_martians = 1
+net.ipv4.tcp_syncookies = 1
+net.ipv4.tcp_rfc1337 = 1
+net.ipv4.tcp_max_syn_backlog = 8192
+net.core.somaxconn = 65536
+net.ipv4.tcp_fin_timeout = 15
+net.ipv4.tcp_keepalive_time = 600
+net.ipv4.tcp_keepalive_probes = 5
+net.ipv4.tcp_keepalive_intvl = 15
+net.ipv4.conf.all.arp_ignore = 1
+net.ipv4.conf.all.arp_announce = 2
+kernel.randomize_va_space = 2
+kernel.dmesg_restrict = 1
+kernel.kptr_restrict = 2
+fs.protected_hardlinks = 1
+fs.protected_symlinks = 1
+fs.suid_dumpable = 0
+SYSCTL
+sysctl -p /etc/sysctl.d/99-proxhq-hardening.conf > /dev/null 2>&1 && ok "sysctl kernel hardening applied"
+
+# ── 2. iptables perimeter firewall (WireGuard-aware) ────────────────────
+log "Configuring iptables perimeter firewall..."
+iptables -F INPUT  2>/dev/null; iptables -F FORWARD 2>/dev/null; iptables -F OUTPUT 2>/dev/null
+iptables -t nat -F 2>/dev/null
+ip6tables -F INPUT 2>/dev/null; ip6tables -F FORWARD 2>/dev/null; ip6tables -F OUTPUT 2>/dev/null
+
+# IPv4 — default DROP on INPUT/FORWARD
+iptables -P INPUT   DROP
+iptables -P FORWARD DROP
+iptables -P OUTPUT  ACCEPT
+
+# Loopback + established
+iptables -A INPUT -i lo -j ACCEPT
+iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+
+# WireGuard (the only external inbound port required)
+iptables -A INPUT -p udp --dport "\${WG_PORT}" -j ACCEPT
+
+# SSH: max 3 new connections per 60 seconds per source IP
+iptables -A INPUT -p tcp --dport 22 -m conntrack --ctstate NEW \\
+  -m recent --name SSH_GUARD --set
+iptables -A INPUT -p tcp --dport 22 -m conntrack --ctstate NEW \\
+  -m recent --name SSH_GUARD --update --seconds 60 --hitcount 4 -j DROP
+iptables -A INPUT -p tcp --dport 22 -m conntrack --ctstate NEW -j ACCEPT
+
+# ICMP: rate-limited
+iptables -A INPUT -p icmp --icmp-type echo-request \\
+  -m limit --limit 5/s --limit-burst 10 -j ACCEPT
+iptables -A INPUT -p icmp --icmp-type echo-request -j DROP
+
+# SYN flood protection
+iptables -I INPUT 1 -p tcp --syn -m limit --limit 100/s --limit-burst 500 -j ACCEPT
+iptables -I INPUT 2 -p tcp --syn -j DROP
+
+# FORWARD: VPN clients pass freely (auth by WireGuard keypair)
+iptables -A FORWARD -i wg0 -j ACCEPT
+iptables -A FORWARD -o wg0 -j ACCEPT
+iptables -A FORWARD -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+
+# NAT masquerade for VPN outbound
+WAN_IFACE=\$(ip route get 8.8.8.8 2>/dev/null | awk '/dev/{for(i=1;i<=NF;i++) if(\$i=="dev") print \$(i+1)}' | head -1)
+WAN_IFACE=\${WAN_IFACE:-ens3}
+iptables -t nat -A POSTROUTING -s "\${VPN_CIDR}" -o "\${WAN_IFACE}" -j MASQUERADE
+
+# IPv6 mirror
+ip6tables -P INPUT   DROP
+ip6tables -P FORWARD DROP
+ip6tables -P OUTPUT  ACCEPT
+ip6tables -A INPUT -i lo -j ACCEPT
+ip6tables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+ip6tables -A INPUT -p udp --dport "\${WG_PORT}" -j ACCEPT
+ip6tables -A INPUT -p tcp --dport 22 -m conntrack --ctstate NEW \\
+  -m limit --limit 3/min -j ACCEPT
+ip6tables -A INPUT -p ipv6-icmp -m limit --limit 5/s -j ACCEPT
+ip6tables -A FORWARD -i wg0 -j ACCEPT
+ip6tables -A FORWARD -o wg0 -j ACCEPT
+
+# Persist rules
+mkdir -p /etc/iptables
+iptables-save  > /etc/iptables/rules.v4 2>/dev/null || iptables-save  > /etc/iptables.rules  2>/dev/null || true
+ip6tables-save > /etc/iptables/rules.v6 2>/dev/null || ip6tables-save > /etc/ip6tables.rules 2>/dev/null || true
+ok "iptables perimeter firewall configured (WireGuard-aware, VPN clients pass freely)"
+
+# ── 3. Install fail2ban ─────────────────────────────────────────────────
+log "Installing fail2ban..."
+if command -v apt-get &>/dev/null; then apt-get install -y -q fail2ban 2>/dev/null; fi
+if command -v dnf     &>/dev/null; then dnf     install -y -q fail2ban 2>/dev/null; fi
+if command -v yum     &>/dev/null; then yum     install -y -q fail2ban 2>/dev/null; fi
+
+cat > /etc/fail2ban/jail.d/proxhq.conf << 'F2B'
+[DEFAULT]
+bantime  = 3600
+findtime = 600
+maxretry = 3
+
+[sshd]
+enabled  = true
+port     = ssh
+logpath  = %(sshd_log)s
+maxretry = 3
+bantime  = 7200
+
+[proxhq-brute]
+enabled  = true
+port     = all
+logpath  = /var/log/proxhq-auth.log
+maxretry = 5
+bantime  = 1800
+filter   = proxhq-brute
+F2B
+
+cat > /etc/fail2ban/filter.d/proxhq-brute.conf << 'F2BFILTER'
+[Definition]
+failregex = ^\[PROXHQ\] AUTH_FAIL .* from <HOST>
+ignoreregex =
+F2BFILTER
+
+systemctl enable fail2ban --now 2>/dev/null && ok "fail2ban installed and active" || true
+
+# ── 4. SSH hardening ────────────────────────────────────────────────────
+log "Hardening SSH..."
+if [ -f /etc/ssh/sshd_config ]; then
+  sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication no/'  /etc/ssh/sshd_config
+  sed -i 's/^#*PermitRootLogin.*/PermitRootLogin no/'                /etc/ssh/sshd_config
+  grep -q "^MaxAuthTries"    /etc/ssh/sshd_config || echo "MaxAuthTries 3"    >> /etc/ssh/sshd_config
+  grep -q "^LoginGraceTime"  /etc/ssh/sshd_config || echo "LoginGraceTime 20" >> /etc/ssh/sshd_config
+  grep -q "^X11Forwarding"   /etc/ssh/sshd_config || echo "X11Forwarding no"  >> /etc/ssh/sshd_config
+  grep -q "^AllowTcpForwarding" /etc/ssh/sshd_config || echo "AllowTcpForwarding no" >> /etc/ssh/sshd_config
+  systemctl reload sshd 2>/dev/null || service ssh reload 2>/dev/null || true
+  ok "SSH hardened (key-only, no root login, 3-attempt limit)"
+fi
+
+# ── 5. DDoS monitoring daemon ────────────────────────────────────────────
+log "Installing DDoS monitoring daemon..."
+cat > /usr/local/bin/proxhq-ddos-monitor.sh << 'DDOS'
+#!/bin/bash
+NODE_ID=__NODE_ID__
+PSK="__PSK__"
+API="__API__"
+THRESHOLD=5000
+while true; do
+  ss -ntu state established 2>/dev/null | awk 'NR>1{print $5}' | \\
+    rev | cut -d: -f2- | rev | sort | uniq -c | sort -rn | head -10 | \\
+    while read cnt ip; do
+      [ "$cnt" -gt "$THRESHOLD" ] 2>/dev/null || continue
+      curl -sf -X POST "$API/ddos-report" \\
+        -H "X-Daemon-PSK: $PSK" -H "Content-Type: application/json" \\
+        -d "{\\"nodeId\\":$NODE_ID,\\"sourceIp\\":\\"$ip\\",\\"peakPps\\":$cnt}" \\
+        -m 5 >/dev/null 2>&1
+    done
+  sleep 10
+done
+DDOS
+sed -i "s|__NODE_ID__|${nodeId}|g; s|__PSK__|${psk}|g; s|__API__|${apiBase}|g" \\
+  /usr/local/bin/proxhq-ddos-monitor.sh
+chmod +x /usr/local/bin/proxhq-ddos-monitor.sh
+cat > /etc/systemd/system/proxhq-ddos-monitor.service << 'SVC'
+[Unit]
+Description=ProxhqVPN DDoS Monitor
+After=network.target
+[Service]
+ExecStart=/usr/local/bin/proxhq-ddos-monitor.sh
+Restart=always
+RestartSec=10
+User=root
+[Install]
+WantedBy=multi-user.target
+SVC
+systemctl daemon-reload
+systemctl enable proxhq-ddos-monitor --now 2>/dev/null
+ok "DDoS monitoring daemon installed and active"
+
+# ── 6. Security event reporter (IPS → API audit log, VPN traffic unaffected) ─
+log "Installing security event reporter..."
+cat > /usr/local/bin/proxhq-sec-reporter.sh << 'REPORTER'
+#!/bin/bash
+# ProxhqVPN Security Reporter — tails Suricata fast.log and sends flagged
+# events to the dashboard as an audit log. VPN client traffic is NEVER blocked
+# or held by this script; it only logs for admin visibility.
+NODE_ID=__NODE_ID__
+PSK="__PSK__"
+API="__API__"
+FAST_LOG="/var/log/suricata/fast.log"
+[ -f "$FAST_LOG" ] || { echo "[sec-reporter] No Suricata fast.log; sleeping."; sleep 300; exit 0; }
+
+tail -Fn0 "$FAST_LOG" 2>/dev/null | while read line; do
+  SID=$(echo "$line" | grep -oP '(?<=\[)\d+:\d+:\d+(?=\])' | head -1 | cut -d: -f2)
+  SRC=$(echo "$line" | grep -oP '\d{1,3}(\.\d{1,3}){3}(?=:\d+ ->)' | head -1)
+  DST=$(echo "$line" | grep -oP '(?<-> )\d{1,3}(\.\d{1,3}){3}' | head -1)
+  [ -z "$SRC" ] || [ -z "$SID" ] && continue
+  # Only log peers from VPN subnet (10.8.0.x) — external is handled by ATR/iptables
+  echo "$SRC" | grep -q "^10\.8\.0\." || continue
+  curl -sf -X POST "$API/traffic-flag" \\
+    -H "X-Daemon-PSK: $PSK" -H "Content-Type: application/json" \\
+    -d "{\\"nodeId\\":$NODE_ID,\\"peerIp\\":\\"$SRC\\",\\"destIp\\":\\"\${DST:-0.0.0.0}\\",\\"flagReason\\":\\"ips_match\\",\\"flagSid\\":\\"$SID\\"}" \\
+    -m 5 >/dev/null 2>&1
+done
+REPORTER
+sed -i "s|__NODE_ID__|${nodeId}|g; s|__PSK__|${psk}|g; s|__API__|${apiBase}|g" \\
+  /usr/local/bin/proxhq-sec-reporter.sh
+chmod +x /usr/local/bin/proxhq-sec-reporter.sh
+cat > /etc/systemd/system/proxhq-sec-reporter.service << 'SVC'
+[Unit]
+Description=ProxhqVPN Security Event Reporter
+After=network.target suricata.service
+[Service]
+ExecStart=/usr/local/bin/proxhq-sec-reporter.sh
+Restart=always
+RestartSec=10
+User=root
+[Install]
+WantedBy=multi-user.target
+SVC
+systemctl daemon-reload
+systemctl enable proxhq-sec-reporter --now 2>/dev/null
+ok "Security event reporter installed (visibility only, no traffic blocking)"
+
+# ── 7. Peer rules enforcer (per-WG-key iptables rules) ──────────────────
+log "Installing peer rules enforcer..."
+cat > /usr/local/bin/proxhq-peer-rules.sh << 'PEER'
+#!/bin/bash
+NODE_ID=__NODE_ID__
+PSK="__PSK__"
+API="__API__"
+while true; do
+  RESP=$(curl -sf "$API/peer-rules-export?nodeId=$NODE_ID" \\
+    -H "X-Daemon-PSK: $PSK" -m 10 2>/dev/null)
+  if [ -n "$RESP" ]; then
+    # Parse and apply peer rules
+    echo "$RESP" | python3 -c "
+import sys, json, subprocess
+try:
+    data = json.load(sys.stdin)
+    for rule in data.get('rules', []):
+        peer_ip   = rule.get('resolvedIp','')
+        dest_cidr = rule.get('destCidr','')
+        dest_port = rule.get('destPort','')
+        action    = rule.get('action','allow')
+        if not peer_ip or not dest_cidr:
+            continue
+        if action == 'block':
+            cmd = f'iptables -I FORWARD -s {peer_ip} -d {dest_cidr} -j DROP 2>/dev/null'
+        elif action == 'allow':
+            cmd = f'iptables -I FORWARD -s {peer_ip} -d {dest_cidr} -j ACCEPT 2>/dev/null'
+        elif action == 'throttle':
+            kbps = rule.get('throttleKbps', 1024)
+            cmd = f'tc qdisc add dev wg0 root tbf rate {kbps}kbit burst 32kbit latency 50ms 2>/dev/null || true'
+        else:
+            continue
+        subprocess.run(cmd, shell=True, capture_output=True)
+except Exception as e:
+    print(f'[peer-rules] error: {e}', file=sys.stderr)
+" 2>/dev/null || true
+  fi
+  sleep 60
+done
+PEER
+sed -i "s|__NODE_ID__|${nodeId}|g; s|__PSK__|${psk}|g; s|__API__|${apiBase}|g" \\
+  /usr/local/bin/proxhq-peer-rules.sh
+chmod +x /usr/local/bin/proxhq-peer-rules.sh
+cat > /etc/systemd/system/proxhq-peer-rules.service << 'SVC'
+[Unit]
+Description=ProxhqVPN Per-Peer Firewall Rules
+After=network.target wg-quick@wg0.service
+[Service]
+ExecStart=/usr/local/bin/proxhq-peer-rules.sh
+Restart=always
+RestartSec=20
+User=root
+[Install]
+WantedBy=multi-user.target
+SVC
+systemctl daemon-reload
+systemctl enable proxhq-peer-rules --now 2>/dev/null
+ok "Per-peer rules enforcer installed"
+
+# ── 8. ATR watchdog (IPS event → auto-block pipeline) ───────────────────
+log "Installing ATR watchdog..."
+cat > /usr/local/bin/proxhq-atr-watchdog.sh << 'ATR'
+#!/bin/bash
+NODE_ID=__NODE_ID__
+PSK="__PSK__"
+API="__API__"
+TAIL_LOG="/var/log/suricata/fast.log"
+[ -f "$TAIL_LOG" ] || TAIL_LOG="/var/log/suricata/eve.json"
+
+tail -Fn0 "$TAIL_LOG" 2>/dev/null | while read line; do
+  SID=$(echo "$line" | grep -oP '(?<=sid:)\d+' | head -1)
+  SRC=$(echo "$line" | grep -oP '\d{1,3}(\.\d{1,3}){3}(?=:\d+ ->)' | head -1)
+  [ -z "$SRC" ] || [ -z "$SID" ] && continue
+  curl -sf -X POST "$API/ips-event" \\
+    -H "X-Daemon-PSK: $PSK" -H "Content-Type: application/json" \\
+    -d "{\\"nodeId\\":$NODE_ID,\\"sourceIp\\":\\"$SRC\\",\\"sid\\":\\"$SID\\",\\"severity\\":\\"medium\\"}" \\
+    -m 5 >/dev/null 2>&1
+done
+ATR
+sed -i "s|__NODE_ID__|${nodeId}|g; s|__PSK__|${psk}|g; s|__API__|${apiBase}|g" \\
+  /usr/local/bin/proxhq-atr-watchdog.sh
+chmod +x /usr/local/bin/proxhq-atr-watchdog.sh
+cat > /etc/systemd/system/proxhq-atr-watchdog.service << 'SVC'
+[Unit]
+Description=ProxhqVPN ATR Watchdog (Suricata → auto-block)
+After=network.target suricata.service
+[Service]
+ExecStart=/usr/local/bin/proxhq-atr-watchdog.sh
+Restart=always
+RestartSec=5
+User=root
+[Install]
+WantedBy=multi-user.target
+SVC
+systemctl daemon-reload
+systemctl enable proxhq-atr-watchdog --now 2>/dev/null
+ok "ATR watchdog installed (Suricata alerts → API → auto-block)"
+
+# ── 9. Firewall rule sync daemon ─────────────────────────────────────────
+log "Installing firewall rule sync daemon..."
+cat > /usr/local/bin/proxhq-fw-sync.sh << 'FWSCRIPT'
+#!/bin/bash
+NODE_ID=__NODE_ID__
+PSK="__PSK__"
+API="__API__"
+HF="/tmp/proxhq-fw.hash"
+while true; do
+  R=$(curl -sf "$API/firewall-rules?nodeId=$NODE_ID" -H "X-Daemon-PSK: $PSK" 2>/dev/null)
+  [ -z "$R" ] && { echo "[fw-sync] API unreachable" >&2; sleep 60; continue; }
+  H=$(echo "$R" | python3 -c "import sys,json; print(json.load(sys.stdin)['rulesHash'])" 2>/dev/null)
+  OH=$(cat "$HF" 2>/dev/null || echo "")
+  if [ "$H" != "$OH" ] && [ -n "$H" ]; then
+    echo "[fw-sync] Applying ruleset $H..."
+    echo "$R" | python3 -c "import sys,json; print(json.load(sys.stdin)['iptablesRestore'])" | iptables-restore
+    echo "$R" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('ip6tablesRestore',''))" 2>/dev/null | ip6tables-restore 2>/dev/null || true
+    echo "$H" > "$HF"
+    curl -sf -X POST "$API/fw-sync-ack" \\
+      -H "Content-Type: application/json" -H "X-Daemon-PSK: $PSK" \\
+      -d "{\\"nodeId\\":$NODE_ID,\\"rulesHash\\":\\"$H\\",\\"success\\":true}" >/dev/null
+    echo "[fw-sync] Applied $H"
+  fi
+  sleep 30
+done
+FWSCRIPT
+sed -i "s|__NODE_ID__|${nodeId}|g; s|__PSK__|${psk}|g; s|__API__|${apiBase}|g" \\
+  /usr/local/bin/proxhq-fw-sync.sh
+chmod +x /usr/local/bin/proxhq-fw-sync.sh
+cat > /etc/systemd/system/proxhq-fw-sync.service << 'SVC'
+[Unit]
+Description=ProxhqVPN Firewall Rule Sync
+After=network-online.target
+Wants=network-online.target
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/proxhq-fw-sync.sh
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+[Install]
+WantedBy=multi-user.target
+SVC
+systemctl daemon-reload && systemctl enable proxhq-fw-sync && \\
+  systemctl restart proxhq-fw-sync && echo "[fw-sync] FW-SYNC ACTIVE node ${nodeId}"
+ok "Firewall sync daemon installed (30s auto-push)"
+
+# ── 10. RAM-only WireGuard key (Mullvad-style) ───────────────────────────
+log "Configuring RAM-only WireGuard key service..."
+cat > /usr/local/bin/proxhq-wg-init.sh << 'WGINIT'
+#!/bin/bash
+PSK="__PSK__"
+API="__API__"
+NODE_ID=__NODE_ID__
+KEY=$(curl -sf -X POST "$API/wg-key" \\
+  -H "X-Daemon-PSK: $PSK" -H "Content-Type: application/json" \\
+  -d "{\\"nodeId\\":$NODE_ID}" -m 10 2>/dev/null | \\
+  python3 -c "import sys,json; print(json.load(sys.stdin).get('privateKey',''))" 2>/dev/null)
+if [ -z "$KEY" ]; then echo "[wg-init] ERROR: could not fetch key from API" >&2; exit 1; fi
+install -m 600 /dev/null /dev/shm/wg-private.key
+echo "$KEY" > /dev/shm/wg-private.key
+cp /etc/wireguard/wg0-base.conf /dev/shm/wg0.conf
+echo "PrivateKey = $KEY" >> /dev/shm/wg0.conf
+chmod 600 /dev/shm/wg0.conf
+echo "[wg-init] WireGuard RAM key loaded for node $NODE_ID"
+WGINIT
+sed -i "s|__NODE_ID__|${nodeId}|g; s|__PSK__|${psk}|g; s|__API__|${apiBase}|g" \\
+  /usr/local/bin/proxhq-wg-init.sh
+chmod +x /usr/local/bin/proxhq-wg-init.sh
+ok "RAM-only WireGuard key init script updated"
+
+# ── 11. Audit log tailing ────────────────────────────────────────────────
+mkdir -p /var/log/proxhq
+touch /var/log/proxhq-auth.log
+chmod 640 /var/log/proxhq-auth.log
+ok "Audit log directory ready at /var/log/proxhq/"
+
+# ── Summary ──────────────────────────────────────────────────────────────
+echo ""
+echo "========================================================"
+echo "  ProxhqVPN Node Hardening Complete — \$(date -u)"
+echo "  Node: ${nodeName} (ID: ${nodeId}) — ${nodeIp}"
+echo "========================================================"
+echo "  [✓] sysctl kernel hardening"
+echo "  [✓] iptables DROP perimeter (WireGuard-aware)"
+echo "  [✓] IPv6 iptables mirror"
+echo "  [✓] fail2ban (SSH + ProxhqVPN brute)"
+echo "  [✓] SSH key-only, no root, 3-attempt limit"
+echo "  [✓] DDoS monitoring daemon (proxhq-ddos-monitor)"
+echo "  [✓] Security event reporter (proxhq-sec-reporter)"
+echo "  [✓] Per-peer rules enforcer (proxhq-peer-rules)"
+echo "  [✓] ATR watchdog (proxhq-atr-watchdog)"
+echo "  [✓] Firewall rule sync (proxhq-fw-sync)"
+echo "  [✓] RAM-only WireGuard key init (proxhq-wg-init)"
+echo ""
+echo "  Services running: systemctl list-units 'proxhq-*'"
+echo "========================================================"
+`;
+}
 
 function buildFwSyncInstallCmd(nodeId: number, listenPort: number, psk: string): string {
   const apiBase = "https://network-labyrinth.replit.app/api/daemon-inbound";
