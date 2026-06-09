@@ -449,8 +449,7 @@ def main():
 
     print(f"[proxhqd] Starting — node_id={args.node_id} api={args.api} interval={args.interval}s")
 
-    # Start honeypot spider in background thread
-    start_honeypot_thread(args.api, args.node_id, args.psk)
+    # Honeypot is now handled by the separate proxhq-trap service (runs as nobody)
 
     # VPN Gate state
     vpngate_proc = None         # OpenVPN subprocess
