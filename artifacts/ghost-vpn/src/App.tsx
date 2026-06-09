@@ -53,6 +53,7 @@ import ThreatIntel from "@/pages/ThreatIntel";
 import SplitTunnel from "@/pages/SplitTunnel";
 import Obfuscation from "@/pages/Obfuscation";
 import SecurityAudit from "@/pages/SecurityAudit";
+import AiAudit from "@/pages/AiAudit";
 const VpnCoexist = lazy(() => import("@/pages/VpnCoexist"));
 import VpnGate from "@/pages/VpnGate";
 import Platforms from "@/pages/Platforms";
@@ -770,6 +771,9 @@ function AppRoutes() {
           </Route>
           <Route path="/security-audit">
             <CcLayout><SecurityAudit /></CcLayout>
+          </Route>
+          <Route path="/ai-audit">
+            <CcLayout><AiAudit /></CcLayout>
           </Route>
           <Route path="/threat-intel">
             <CcLayout><ThreatIntel /></CcLayout>

@@ -18,6 +18,7 @@ import {
   MapPin, ArrowLeftRight, Share2, Crosshair, Package, Plug, FileSearch,
   CheckCircle2, X,
   Camera, Clipboard, MessageSquare, FolderOpen, AppWindow, Puzzle,
+  Bot,
 } from "lucide-react";
 import { useAccess } from "@/hooks/useAccess";
 import { useNotifications } from "@/hooks/useNotifications";
@@ -51,6 +52,7 @@ const PAGE_NAMES: Record<string, string> = {
   "/monitor":      "Performance",
   "/firewall":     "Firewall",
   "/security-audit":"Security Audit",
+  "/ai-audit":      "AI Security Audit",
   "/http-probe":    "HTTP Probe",
   "/dir-fuzzer":    "Directory Fuzzer",
   "/subdomain-scan":"Subdomain Scout",
@@ -182,6 +184,7 @@ const TOOL_TIER: Record<string, 1 | 2 | 3> = {
   "/parrot-tools": 1, "/ip-exposure": 1,
   "/hackanon": 2,
   "/sqlmap": 2, "/alpha-tools": 2, "/tool-runner": 2, "/intruder": 2, "/ghost-chain": 2,
+  "/ai-audit": 2,
   "/siem": 2, "/osint": 2, "/username-intel": 2, "/canary": 2, "/exploit-import": 2,
   "/omnistrike": 2, "/social-breach": 2, "/bug-bounty": 2,
   "/ssl-tls": 2, "/jwt-analyzer": 2, "/sqli-scanner": 2,
@@ -240,6 +243,7 @@ const ADVANCED_NAV = [
   { href: "/token-seq",          label: "Token Sequencer",        icon: Key },
   { href: "/ws-tester",          label: "WebSocket Tester",       icon: Plug },
   { href: "/sast",               label: "SAST Analyzer",          icon: FileSearch },
+  { href: "/ai-audit",           label: "AI Security Audit",      icon: Bot },
   { href: "/quantum-audit",      label: "QuantumAudit",           icon: ShieldCheck },
   { href: "/ghost-pentest",      label: "GhostPentest",           icon: Target },
   { href: "/request-mind",       label: "RequestMind",            icon: Globe2 },
