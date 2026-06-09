@@ -7,12 +7,12 @@
 ProxhqVPN is an advanced VPN orchestration and security platform with 60-node mesh (50 outer + 10 inner), silk web trap network, port knocking, mTLS, beacons/spiders/worms, firewall, WireGuard config generation, SQL interface (local + external PostgreSQL + HTTP API mode), terminal emulator (ProxhqVPN Mode with full outbound), security audit suite, system monitor, Tor/SOCKS5 integration, kill switch, leak detection, threat intelligence, split tunneling, and DPI obfuscation. React + Vite frontend; Express/PostgreSQL backend.
 
 **Latest additions:**
-- **RAM-Only WireGuard Keys (2026-06-09)** — Matches Mullvad's RAM-only server architecture. WireGuard private keys are no longer stored on VPN node disks.
-  - DB already had `private_key` column on `nodesTable`; keys for all 4 nodes confirmed and corrected in DB.
-  - New API endpoint: `POST /api/daemon-inbound/wg-key` (PSK-auth) — serves each node's WireGuard private key on demand.
-  - Each server has `/etc/wireguard/wg0-base.conf` (full config, no PrivateKey), `/usr/local/bin/proxhq-wg-init.sh` (fetches key from API → `/dev/shm/wg-private.key` + builds `/dev/shm/wg0.conf`), and `proxhq-wg-init.service` (systemd, enabled, runs before `wg-quick@wg0`).
-  - **Activation pending production redeploy.** After deploy, re-enable the systemd override on each node: `mkdir -p /etc/systemd/system/wg-quick@wg0.service.d && cat > /etc/systemd/system/wg-quick@wg0.service.d/ram-config.conf << 'EOF'\n[Unit]\nRequires=proxhq-wg-init.service\nAfter=proxhq-wg-init.service\n[Service]\nExecStart=\nExecStart=/usr/bin/wg-quick up /dev/shm/wg0.conf\nExecStop=\nExecStop=/usr/bin/wg-quick down /dev/shm/wg0.conf\nEOF\nsystemctl daemon-reload`
-  - Security model: private key only in RAM during operation; if a node disk is imaged, no WireGuard key material is present.
+- **RAM-Only WireGuard Keys (2026-06-09) ✅ FULLY ACTIVE** — Mullvad-style RAM-only key architecture. WireGuard private keys never touch node disks.
+  - All 4 nodes active: LA (63), London (62), Chicago (61), Tokyo (64).
+  - Each node: `/etc/wireguard/wg0-base.conf` (no PrivateKey), `/usr/local/bin/proxhq-wg-init.sh` (fetches key from `POST /api/daemon-inbound/wg-key` with `{"nodeId": N}` + PSK header → writes to `/dev/shm/wg-private.key` + `/dev/shm/wg0.conf`), `proxhq-wg-init.service` + `wg-quick@wg0.service.d/ram-config.conf` override (wg-quick reads from `/dev/shm/`).
+  - API endpoint: `POST /api/daemon-inbound/wg-key` — requires `X-Daemon-PSK` header AND `{"nodeId": N}` body.
+  - Security model: private key only in RAM during operation; disk image reveals no key material.
+  - IP-ban note: the API server has an in-memory 30-min IP ban after repeated 401s. Restart the API server to clear it during setup/testing.
 
 - **Native Mobile WireGuard Client (2026-06-09)** — Overhauled `artifacts/mobile/app/(tabs)/index.tsx` from WebView-style "PROTECTED" to a true OS-level WireGuard import flow.
   - 3-step progress indicator (Select → Generate → Activate).
