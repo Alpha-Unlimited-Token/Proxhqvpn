@@ -24,7 +24,12 @@ router.get("/", async (req, res) => {
     clerkUser.emailAddresses.find((e) => e.id === clerkUser.primaryEmailAddressId)
       ?.emailAddress ?? null;
 
-  const isAdminByEmail = email ? ADMIN_EMAILS.includes(email.toLowerCase()) : false;
+  // Check ALL email addresses on the account (primary + secondary) so admin status
+  // is preserved even if the primary email changes or a second address was added.
+  const allEmails = clerkUser.emailAddresses.map((e) => e.emailAddress.toLowerCase());
+  const isAdminByEmail =
+    allEmails.some((e) => ADMIN_EMAILS.includes(e)) ||
+    (email ? ADMIN_EMAILS.includes(email.toLowerCase()) : false);
 
   const conflictSet: Record<string, unknown> = { email: email ?? undefined };
   if (isAdminByEmail) conflictSet.isAdmin = true;
