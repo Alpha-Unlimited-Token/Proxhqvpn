@@ -1,7 +1,12 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
+import { createHash } from "crypto";
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { nodesTable, beaconAlertsTable, wgPeerCommandsTable, vpngateNodeSessionsTable, trappedAttackersTable, silkWebTable } from "@workspace/db";
+import {
+  nodesTable, beaconAlertsTable, wgPeerCommandsTable, vpngateNodeSessionsTable,
+  trappedAttackersTable, silkWebTable,
+  firewallRulesTable, blockedIpsTable, firewallGhostOsRulesTable, firewallGeoBlocksTable,
+} from "@workspace/db";
 import { eq, and, sql } from "drizzle-orm";
 import { z } from "zod";
 import { sendMail, adminEmails } from "../lib/mailer";
@@ -355,6 +360,114 @@ router.post("/wg-key", async (req, res) => {
   }
   logger.info({ nodeId: body.nodeId }, "wg private key served to daemon");
   return res.json({ privateKey: node.privateKey });
+});
+
+// ── Firewall Rule Enforcement Plane ────────────────────────────────────────────
+// Nodes poll this every 30s to get the current iptables-restore ruleset.
+// Only applies changes when the hash changes (efficient — no-op on unchanged rules).
+router.get("/firewall-rules", async (req, res) => {
+  const nodeId = parseInt(req.query.nodeId as string);
+  if (!nodeId) return res.status(400).json({ error: "nodeId required" });
+
+  const [node] = await db.select({ id: nodesTable.id, name: nodesTable.name, listenPort: nodesTable.listenPort })
+    .from(nodesTable).where(eq(nodesTable.id, nodeId));
+  if (!node) return res.status(404).json({ error: "Node not found" });
+
+  const [rules, blocked, ghostRules, geoBlocks] = await Promise.all([
+    db.select().from(firewallRulesTable).where(eq(firewallRulesTable.enabled, true)),
+    db.select().from(blockedIpsTable),
+    db.select().from(firewallGhostOsRulesTable).where(eq(firewallGhostOsRulesTable.enabled, true)),
+    db.select().from(firewallGeoBlocksTable).where(eq(firewallGeoBlocksTable.enabled, true)),
+  ]);
+
+  const filterLines: string[] = [
+    "*filter",
+    ":INPUT DROP [0:0]",
+    ":FORWARD DROP [0:0]",
+    ":OUTPUT ACCEPT [0:0]",
+    // Safety anchors — always first, cannot be overridden by admin rules
+    "-A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT",
+    "-A INPUT -i lo -j ACCEPT",
+    `-A INPUT -p tcp --dport 22 -j ACCEPT`,
+    `-A INPUT -p udp --dport ${node.listenPort} -j ACCEPT`,
+    `-A INPUT -i wg0 -j ACCEPT`,
+    `-A FORWARD -i wg0 -j ACCEPT`,
+    `-A FORWARD -o wg0 -j ACCEPT`,
+    // GhostOS compiled rules
+    ...ghostRules.map(r => r.compiledIptables ?? `# ghostos: ${r.symbolicRule}`),
+    // Blocked IPs
+    ...blocked.filter(b => !b.ip.includes(":")).map(b => `-A INPUT -s ${b.ip} -j DROP`),
+    // Standard rules
+    ...rules.map(r => {
+      const proto = r.protocol !== "any" ? `-p ${r.protocol}` : "";
+      const src = r.sourceIp ? `-s ${r.sourceIp}` : "";
+      const dst = r.destIp ? `-d ${r.destIp}` : "";
+      const dport = r.destPort ? `--dport ${r.destPort}` : "";
+      const chain = r.direction === "inbound" ? "INPUT" : r.direction === "outbound" ? "OUTPUT" : "FORWARD";
+      const action = r.action === "allow" ? "ACCEPT" : r.action === "log" ? "LOG --log-prefix PROXHQ_" : "DROP";
+      return `-A ${chain} ${[proto, src, dst, dport].filter(Boolean).join(" ")} -j ${action}`.replace(/\s+/g, " ").trim();
+    }),
+    "COMMIT",
+    "*nat",
+    ":PREROUTING ACCEPT [0:0]",
+    ":OUTPUT ACCEPT [0:0]",
+    ":POSTROUTING ACCEPT [0:0]",
+    "-A POSTROUTING -o eth0 -j MASQUERADE",
+    "COMMIT",
+  ];
+
+  // IPv6 mirror: blocked IPv6 IPs + safety anchors
+  const ip6Lines: string[] = [
+    "*filter",
+    ":INPUT DROP [0:0]",
+    ":FORWARD DROP [0:0]",
+    ":OUTPUT ACCEPT [0:0]",
+    "-A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT",
+    "-A INPUT -i lo -j ACCEPT",
+    `-A INPUT -p tcp --dport 22 -j ACCEPT`,
+    `-A INPUT -i wg0 -j ACCEPT`,
+    `-A FORWARD -i wg0 -j ACCEPT`,
+    `-A FORWARD -o wg0 -j ACCEPT`,
+    ...blocked.filter(b => b.ip.includes(":")).map(b => `-A INPUT -s ${b.ip} -j DROP`),
+    "COMMIT",
+  ];
+
+  const iptablesRestore = filterLines.join("\n");
+  const ip6tablesRestore = ip6Lines.join("\n");
+  const rulesHash = createHash("sha256").update(iptablesRestore).digest("hex").slice(0, 16);
+
+  logger.info({ nodeId, hash: rulesHash, ruleCount: rules.length }, "firewall rules served to daemon");
+  return res.json({
+    rulesHash,
+    iptablesRestore,
+    ip6tablesRestore,
+    ruleCount: rules.length,
+    blockedIpCount: blocked.length,
+    ghostOsRuleCount: ghostRules.length,
+    generatedAt: new Date().toISOString(),
+  });
+});
+
+// Nodes call this after successfully applying a ruleset
+router.post("/fw-sync-ack", async (req, res) => {
+  const body = z.object({
+    nodeId: z.number().int().positive(),
+    rulesHash: z.string(),
+    success: z.boolean(),
+    errorMessage: z.string().optional(),
+  }).parse(req.body);
+
+  await db.update(nodesTable).set({
+    fwSyncedAt: new Date(),
+    fwSyncHash: body.rulesHash,
+  }).where(eq(nodesTable.id, body.nodeId));
+
+  if (!body.success) {
+    logger.warn({ nodeId: body.nodeId, error: body.errorMessage }, "firewall sync failed on node");
+  } else {
+    logger.info({ nodeId: body.nodeId, hash: body.rulesHash }, "firewall sync ack");
+  }
+  return res.json({ ok: true });
 });
 
 export default router;

@@ -21,6 +21,8 @@ export const nodesTable = pgTable("nodes", {
   publicIp: text("public_ip"),
   latencyMs: real("latency_ms").notNull().default(0),
   lastSeen: timestamp("last_seen").defaultNow(),
+  fwSyncedAt: timestamp("fw_synced_at"),
+  fwSyncHash: text("fw_sync_hash"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

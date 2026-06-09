@@ -7,8 +7,9 @@ import {
   firewallIpsSignaturesTable, firewallDpiRulesTable, firewallGeoBlocksTable,
   firewallThreatFeedsTable, firewallZonesTable, firewallFqdnRulesTable,
   firewallGhostOsRulesTable, firewallTranscriberLogTable,
-  firewallConnectionQueueTable,
+  firewallConnectionQueueTable, nodesTable,
 } from "@workspace/db";
+import { createHash } from "crypto";
 import { eq, sql, lt, desc, asc, inArray } from "drizzle-orm";
 import { z } from "zod";
 
@@ -1053,5 +1054,104 @@ router.delete("/connection-queue/:id", async (req, res) => {
   if (!entry) return res.status(404).json({ error: "Entry not found" });
   res.json({ ok: true });
 });
+
+// ── Node Sync Status — admin UI polls this to see per-node sync state ──────────
+router.get("/sync-status", async (_req, res) => {
+  const [rules, blocked, ghostRules, nodes] = await Promise.all([
+    db.select().from(firewallRulesTable).where(eq(firewallRulesTable.enabled, true)),
+    db.select().from(blockedIpsTable),
+    db.select().from(firewallGhostOsRulesTable).where(eq(firewallGhostOsRulesTable.enabled, true)),
+    db.select({
+      id: nodesTable.id,
+      name: nodesTable.name,
+      ipAddress: nodesTable.ipAddress,
+      listenPort: nodesTable.listenPort,
+      fwSyncedAt: nodesTable.fwSyncedAt,
+      fwSyncHash: nodesTable.fwSyncHash,
+    }).from(nodesTable),
+  ]);
+
+  // Build the same hash the daemon would compute so UI can show in-sync status
+  const filterLines = [
+    "*filter", ":INPUT DROP [0:0]", ":FORWARD DROP [0:0]", ":OUTPUT ACCEPT [0:0]",
+    "-A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT",
+    "-A INPUT -i lo -j ACCEPT",
+    ...ghostRules.map(r => r.compiledIptables ?? `# ghostos: ${r.symbolicRule}`),
+    ...blocked.filter(b => !b.ip.includes(":")).map(b => `-A INPUT -s ${b.ip} -j DROP`),
+    ...rules.map(r => {
+      const proto = r.protocol !== "any" ? `-p ${r.protocol}` : "";
+      const src = r.sourceIp ? `-s ${r.sourceIp}` : "";
+      const dst = r.destIp ? `-d ${r.destIp}` : "";
+      const dport = r.destPort ? `--dport ${r.destPort}` : "";
+      const chain = r.direction === "inbound" ? "INPUT" : r.direction === "outbound" ? "OUTPUT" : "FORWARD";
+      const action = r.action === "allow" ? "ACCEPT" : r.action === "log" ? "LOG --log-prefix PROXHQ_" : "DROP";
+      return `-A ${chain} ${[proto, src, dst, dport].filter(Boolean).join(" ")} -j ${action}`.replace(/\s+/g, " ").trim();
+    }),
+    "COMMIT", "*nat", ":PREROUTING ACCEPT [0:0]", ":OUTPUT ACCEPT [0:0]", ":POSTROUTING ACCEPT [0:0]",
+    "-A POSTROUTING -o eth0 -j MASQUERADE", "COMMIT",
+  ];
+  const currentRulesHash = createHash("sha256").update(filterLines.join("\n")).digest("hex").slice(0, 16);
+
+  const psk = process.env.DAEMON_PSK ?? "";
+  const nodesWithCmd = nodes.map(n => ({
+    ...n,
+    installCmd: buildFwSyncInstallCmd(n.id, n.listenPort, psk),
+  }));
+
+  res.json({
+    currentRulesHash,
+    ruleCount: rules.length,
+    blockedIpCount: blocked.length,
+    ghostOsRuleCount: ghostRules.length,
+    nodes: nodesWithCmd,
+  });
+});
+
+function buildFwSyncInstallCmd(nodeId: number, listenPort: number, psk: string): string {
+  const apiBase = "https://network-labyrinth.replit.app/api/daemon-inbound";
+  return [
+    `cat > /usr/local/bin/proxhq-fw-sync.sh << 'SCRIPT'`,
+    `#!/bin/bash`,
+    `NODE_ID=PROXHQ_NODE_ID`,
+    `PSK="PROXHQ_PSK"`,
+    `API="${apiBase}"`,
+    `HF="/tmp/proxhq-fw.hash"`,
+    `while true; do`,
+    `  R=$(curl -sf "$API/firewall-rules?nodeId=$NODE_ID" -H "X-Daemon-PSK: $PSK" 2>/dev/null)`,
+    `  [ -z "$R" ] && { echo "[fw-sync] API unreachable" >&2; sleep 60; continue; }`,
+    `  H=$(echo "$R" | python3 -c "import sys,json; print(json.load(sys.stdin)['rulesHash'])" 2>/dev/null)`,
+    `  OH=$(cat "$HF" 2>/dev/null || echo "")`,
+    `  if [ "$H" != "$OH" ] && [ -n "$H" ]; then`,
+    `    echo "[fw-sync] Applying ruleset $H..."`,
+    `    echo "$R" | python3 -c "import sys,json; print(json.load(sys.stdin)['iptablesRestore'])" | iptables-restore`,
+    `    echo "$R" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('ip6tablesRestore',''))" 2>/dev/null | ip6tables-restore 2>/dev/null || true`,
+    `    echo "$H" > "$HF"`,
+    `    curl -sf -X POST "$API/fw-sync-ack" -H "Content-Type: application/json" -H "X-Daemon-PSK: $PSK" \\`,
+    `      -d "{\\"nodeId\\":$NODE_ID,\\"rulesHash\\":\\"$H\\",\\"success\\":true}" >/dev/null`,
+    `    echo "[fw-sync] Applied $H"`,
+    `  fi`,
+    `  sleep 30`,
+    `done`,
+    `SCRIPT`,
+    `sed -i "s/PROXHQ_NODE_ID/${nodeId}/g; s|PROXHQ_PSK|${psk}|g" /usr/local/bin/proxhq-fw-sync.sh`,
+    `chmod +x /usr/local/bin/proxhq-fw-sync.sh`,
+    `cat > /etc/systemd/system/proxhq-fw-sync.service << 'SVC'`,
+    `[Unit]`,
+    `Description=ProxhqVPN Firewall Rule Sync`,
+    `After=network-online.target`,
+    `Wants=network-online.target`,
+    `[Service]`,
+    `Type=simple`,
+    `ExecStart=/usr/local/bin/proxhq-fw-sync.sh`,
+    `Restart=always`,
+    `RestartSec=10`,
+    `StandardOutput=journal`,
+    `StandardError=journal`,
+    `[Install]`,
+    `WantedBy=multi-user.target`,
+    `SVC`,
+    `systemctl daemon-reload && systemctl enable proxhq-fw-sync && systemctl restart proxhq-fw-sync && echo "FW-SYNC ACTIVE node ${nodeId}"`,
+  ].join("\n");
+}
 
 export default router;

@@ -90,6 +90,7 @@ const TAB_ICONS: Record<string, React.ReactNode> = {
   looptrap:    <Infinity size={13} />,
   labyrinth:   <GitBranch size={13} />,
   tarpit:      <Hourglass size={13} />,
+  nodesync:    <Server size={13} />,
 };
 const TABS = [
   { id:"overview", label:"Overview" }, { id:"ghostos", label:"GhostOS™" }, { id:"ips", label:"IPS Engine" },
@@ -150,6 +151,8 @@ const TABS = [
   { id:"looptrap",    label:"Endless Loop Engine™" },
   { id:"labyrinth",   label:"Labyrinth Engine™" },
   { id:"tarpit",      label:"Tar Pit Drain™" },
+  // ── Enforcement Plane ────────────────────────────────────────────────────
+  { id:"nodesync",    label:"🟢 Node Sync" },
 ];
 const SEV_COLOR: Record<string,string> = { critical:"#ff2244", high:"#ff6600", medium:"#ffaa00", low:"#aaccff", info:"#888" };
 const TRUST_COLOR: Record<string,string> = { trusted:"#00ff88", untrusted:"#ff4444", dmz:"#ff9900", management:"#4488ff" };
@@ -5776,6 +5779,110 @@ function TarPitTab() {
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────
+// ── Node Sync Status Tab ──────────────────────────────────────────────────────
+function NodeInstallCommand({ node, cmd }: { node: { id: number; name: string; ipAddress: string }; cmd: string }) {
+  const [copied, setCopied] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div style={{ marginBottom:8, background:"#0a0a0a", borderRadius:6, border:"1px solid #1a1a1a" }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"8px 10px", cursor:"pointer" }} onClick={()=>setExpanded(!expanded)}>
+        <div style={{ fontFamily:"monospace", fontSize:11, color:"#ccc" }}>
+          {node.name} <span style={{ color:"#555", fontSize:9 }}>{node.ipAddress} · node {node.id}</span>
+        </div>
+        <div style={{ display:"flex", gap:6 }}>
+          <button
+            onClick={(e)=>{ e.stopPropagation(); navigator.clipboard.writeText(cmd); setCopied(true); setTimeout(()=>setCopied(false),2000); }}
+            style={{ background:"#00ff8822", border:"1px solid #00ff8844", color:"#00ff88", borderRadius:4, padding:"3px 10px", cursor:"pointer", fontSize:10, fontFamily:"monospace" }}
+          >{copied?"✓ Copied":"Copy"}</button>
+          <span style={{ color:"#555", fontSize:11 }}>{expanded?"▲":"▼"}</span>
+        </div>
+      </div>
+      {expanded && <pre style={{ margin:0, padding:"10px 12px", fontSize:8, color:"#888", borderTop:"1px solid #1a1a1a", overflow:"auto", maxHeight:220, fontFamily:"monospace", whiteSpace:"pre-wrap", wordBreak:"break-all" }}>{cmd}</pre>}
+    </div>
+  );
+}
+
+function NodeSyncTab() {
+  const [status, setStatus] = useState<{ currentRulesHash: string; ruleCount: number; blockedIpCount: number; ghostOsRuleCount: number; nodes: { id: number; name: string; ipAddress: string; fwSyncedAt: string | null; fwSyncHash: string | null; installCmd: string }[] } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [lastFetched, setLastFetched] = useState<Date | null>(null);
+
+  const fetchStatus = useCallback(async () => {
+    try {
+      const res = await fetch("/api/firewall/sync-status");
+      if (res.ok) { setStatus(await res.json()); setLastFetched(new Date()); }
+    } catch { /* ignore */ } finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { fetchStatus(); const iv = setInterval(fetchStatus, 30_000); return () => clearInterval(iv); }, [fetchStatus]);
+
+  if (loading) return <div style={{ color:"#555", fontFamily:"monospace", padding:20 }}>Loading sync status…</div>;
+  if (!status) return <div style={{ color:"#ff4444", fontFamily:"monospace", padding:20 }}>Failed to load sync status</div>;
+
+  const currentHash = status.currentRulesHash;
+  const syncedCount = status.nodes.filter(n => n.fwSyncHash === currentHash).length;
+  const allSynced = syncedCount === status.nodes.length && status.nodes.length > 0;
+
+  return (
+    <div>
+      <FwmCard>
+        <SectionTitle
+          icon={<Server size={13}/>}
+          title="Firewall Enforcement Plane — Node Sync"
+          badge={allSynced?`✓ ALL ${status.nodes.length} IN SYNC`:`⚠ ${status.nodes.length - syncedCount} STALE`}
+          badgeColor={allSynced?"#00ff88":"#ff4444"}
+        />
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8, marginBottom:12 }}>
+          {[
+            { label:"Current Hash", value:currentHash, color:"#00ff88" },
+            { label:"Active Rules", value:String(status.ruleCount), color:"#4488ff" },
+            { label:"Blocked IPs", value:String(status.blockedIpCount), color:"#ff6600" },
+            { label:"GhostOS Rules", value:String(status.ghostOsRuleCount), color:"#cc44ff" },
+          ].map(s => (
+            <div key={s.label} style={{ background:"#0a0a0a", borderRadius:6, padding:"8px 10px", border:"1px solid #1a1a1a" }}>
+              <div style={{ fontSize:9, color:"#555", marginBottom:3 }}>{s.label}</div>
+              <div style={{ fontFamily:"monospace", fontSize:11, color:s.color, fontWeight:700, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{s.value}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:8, marginBottom:6 }}>
+          {status.nodes.map(n => {
+            const inSync = n.fwSyncHash === currentHash && !!n.fwSyncHash;
+            const lastSync = n.fwSyncedAt ? new Date(n.fwSyncedAt) : null;
+            const ageSec = lastSync ? Math.floor((Date.now() - lastSync.getTime()) / 1000) : null;
+            const ageStr = ageSec === null ? "Never" : ageSec < 60 ? `${ageSec}s ago` : ageSec < 3600 ? `${Math.floor(ageSec/60)}m ago` : `${Math.floor(ageSec/3600)}h ago`;
+            return (
+              <div key={n.id} style={{ background:"#0d0d0d", border:`1px solid ${inSync?"#00ff8833":"#ff444433"}`, borderRadius:8, padding:"12px 14px" }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
+                  <div style={{ fontFamily:"monospace", fontWeight:700, color:"#fff", fontSize:12 }}>{n.name}</div>
+                  <span style={{ background:inSync?"#00ff8822":"#ff444422", color:inSync?"#00ff88":"#ff4444", fontSize:9, padding:"2px 8px", borderRadius:4, fontWeight:700 }}>{inSync?"✓ IN SYNC":"⚠ STALE"}</span>
+                </div>
+                <div style={{ fontSize:9, color:"#555", marginBottom:3 }}>{n.ipAddress} · node {n.id}</div>
+                <div style={{ fontSize:9, color:"#444", marginBottom:2 }}>Last sync: <span style={{ color:"#888" }}>{lastSync ? lastSync.toLocaleString() : "Never"}</span> <span style={{ color:"#555" }}>({ageStr})</span></div>
+                <div style={{ fontSize:8, color:"#333", fontFamily:"monospace", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>Applied: <span style={{ color:inSync?"#00ff8866":"#555" }}>{n.fwSyncHash ?? "none"}</span></div>
+              </div>
+            );
+          })}
+        </div>
+        <div style={{ fontSize:9, color:"#333", textAlign:"right" }}>Auto-refreshes every 30s · Last fetched: {lastFetched?.toLocaleTimeString() ?? "—"}</div>
+      </FwmCard>
+
+      <FwmCard style={{ marginTop:12 }}>
+        <SectionTitle
+          icon={<Terminal size={13}/>}
+          title="Node Install Commands"
+          badge="Run once per node"
+          badgeColor="#ff8800"
+        />
+        <p style={{ margin:"0 0 10px", fontSize:10, color:"#555" }}>
+          Paste the command for the matching node in its noVNC console. The service starts automatically, polls every 30 seconds, and applies iptables changes within 30s of any rule change in the UI.
+        </p>
+        {status.nodes.map(n => <NodeInstallCommand key={n.id} node={n} cmd={n.installCmd}/>)}
+      </FwmCard>
+    </div>
+  );
+}
+
 export default function Firewall() {
   const [tab, setTab] = useState("overview");
   return (
@@ -5861,6 +5968,8 @@ export default function Firewall() {
       {tab==="looptrap"    &&<LoopTrapTab/>}
       {tab==="labyrinth"   &&<LabyrinthTab/>}
       {tab==="tarpit"      &&<TarPitTab/>}
+      {/* ── Enforcement Plane ── */}
+      {tab==="nodesync"    &&<NodeSyncTab/>}
     </div>
   );
 }
