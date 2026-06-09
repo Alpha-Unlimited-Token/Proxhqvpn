@@ -7,11 +7,12 @@ import {
   firewallIpsSignaturesTable, firewallDpiRulesTable, firewallGeoBlocksTable,
   firewallThreatFeedsTable, firewallZonesTable, firewallFqdnRulesTable,
   firewallGhostOsRulesTable, firewallTranscriberLogTable,
-  firewallConnectionQueueTable, nodesTable,
+  firewallConnectionQueueTable, nodesTable, ebpfRulesTable,
 } from "@workspace/db";
 import { createHash } from "crypto";
 import { eq, sql, lt, desc, asc, inArray } from "drizzle-orm";
 import { z } from "zod";
+import { logger } from "../lib/logger";
 
 const router = Router();
 
@@ -1056,6 +1057,264 @@ router.delete("/connection-queue/:id", async (req, res) => {
 });
 
 // ── Node Sync Status — admin UI polls this to see per-node sync state ──────────
+// Force re-sync: clears all node fwSyncHash so next poll triggers fresh apply
+router.post("/force-sync", async (_req, res) => {
+  const result = await db.update(nodesTable).set({ fwSyncHash: null }).returning({ id: nodesTable.id });
+  logger.info({ nodeCount: result.length }, "force-sync: cleared fw hashes on all nodes");
+  res.json({ ok: true, nodesReset: result.length });
+});
+
+// ── Suricata IPS Setup Script ──────────────────────────────────────────────
+router.get("/ips/suricata-setup-script", async (req, res) => {
+  const nodeId = parseInt(req.query.nodeId as string) || 0;
+  const apiBase = "https://network-labyrinth.replit.app/api/daemon-inbound";
+  const psk = process.env.DAEMON_PSK ?? "";
+
+  const sigs = await db.select().from(firewallIpsSignaturesTable)
+    .where(eq(firewallIpsSignaturesTable.enabled, true));
+
+  const rulesLines = sigs.map(sig => {
+    const proto = sig.pattern.toLowerCase().startsWith("http") ? "http" : "tcp";
+    const action = sig.action === "drop" ? "drop" : "alert";
+    const content = sig.pattern.replace(/["'\\]/g, "").slice(0, 200);
+    const cveRef = sig.cveId ? `reference:cve,${sig.cveId.replace("CVE-", "")};` : "";
+    const sidNum = sig.sid.replace(/\D/g, "") || String(sig.id);
+    return `${action} ${proto} any any -> any any (msg:"ProxhqVPN - ${sig.name}"; content:"${content}"; sid:${sidNum}; rev:1; classtype:${sig.category}; ${cveRef}metadata:proxhq-fw;)`;
+  }).join("\n");
+
+  const syncDaemon = nodeId ? [
+    `cat > /usr/local/bin/proxhq-suricata-sync.sh << 'SCRIPT'`,
+    `#!/bin/bash`,
+    `NODE_ID=${nodeId}`,
+    `PSK="${psk}"`,
+    `API="${apiBase}"`,
+    `HF="/var/lib/suricata/rules/proxhq-fw.hash"`,
+    `RF="/var/lib/suricata/rules/proxhq.rules"`,
+    `while true; do`,
+    `  R=$(curl -sf "$API/suricata-rules?nodeId=$NODE_ID" -H "X-Daemon-PSK: $PSK" 2>/dev/null)`,
+    `  [ -z "$R" ] && { sleep 60; continue; }`,
+    `  H=$(echo "$R" | python3 -c "import sys,json; print(json.load(sys.stdin).get('rulesHash',''))" 2>/dev/null)`,
+    `  OH=$(cat "$HF" 2>/dev/null || echo "")`,
+    `  if [ "$H" != "$OH" ] && [ -n "$H" ]; then`,
+    `    echo "$R" | python3 -c "import sys,json; print(json.load(sys.stdin).get('rulesFile',''))" > "$RF"`,
+    `    echo "$H" > "$HF"`,
+    `    suricatasc -c reload-rules 2>/dev/null || systemctl reload suricata`,
+    `    curl -sf -X POST "$API/ips-event" -H "Content-Type: application/json" -H "X-Daemon-PSK: $PSK" \\`,
+    `      -d "{\\"nodeId\\":$NODE_ID,\\"event\\":\\"rules_synced\\",\\"rulesHash\\":\\"$H\\"}" >/dev/null`,
+    `    echo "[suricata-sync] reloaded $H"`,
+    `  fi`,
+    `  sleep 60`,
+    `done`,
+    `SCRIPT`,
+    `chmod +x /usr/local/bin/proxhq-suricata-sync.sh`,
+    `cat > /etc/systemd/system/proxhq-suricata-sync.service << 'SVC'`,
+    `[Unit]`,
+    `Description=ProxhqVPN Suricata Rules Sync`,
+    `After=suricata.service`,
+    `[Service]`,
+    `Type=simple`,
+    `ExecStart=/usr/local/bin/proxhq-suricata-sync.sh`,
+    `Restart=always`,
+    `RestartSec=10`,
+    `[Install]`,
+    `WantedBy=multi-user.target`,
+    `SVC`,
+    `systemctl daemon-reload && systemctl enable proxhq-suricata-sync && systemctl restart proxhq-suricata-sync`,
+    `echo "[✓] Suricata rule sync daemon active (60s poll)"`,
+  ].join("\n") : `echo "No nodeId provided — skipping sync daemon (add ?nodeId=N)"`;
+
+  const script = [
+    `#!/bin/bash`,
+    `# ProxhqVPN GhostOS™ — Suricata IPS Setup Script`,
+    `# Node: ${nodeId || "generic"} | Signatures: ${sigs.length} | Generated: ${new Date().toISOString()}`,
+    `# © 2026 Alpha Unlimited Technologies LLC`,
+    `set -e`,
+    `echo "=== ProxhqVPN Suricata IPS Setup ==="`,
+    ``,
+    `# ── 1. Install Suricata ──────────────────────────────────────────────`,
+    `if command -v apt-get &>/dev/null; then`,
+    `  add-apt-repository -y ppa:oisf/suricata-stable 2>/dev/null || true`,
+    `  apt-get update -qq && apt-get install -y suricata`,
+    `elif command -v yum &>/dev/null; then`,
+    `  yum install -y epel-release && yum install -y suricata`,
+    `else`,
+    `  echo "Unsupported package manager" >&2 && exit 1`,
+    `fi`,
+    ``,
+    `# ── 2. Configure Suricata ─────────────────────────────────────────────`,
+    `cat > /etc/suricata/suricata.yaml << 'YAML'`,
+    `%YAML 1.1`,
+    `---`,
+    `vars:`,
+    `  address-groups:`,
+    `    HOME_NET: "[10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,10.8.0.0/24]"`,
+    `    EXTERNAL_NET: "!$HOME_NET"`,
+    `outputs:`,
+    `  - eve-log:`,
+    `      enabled: yes`,
+    `      filetype: regular`,
+    `      filename: /var/log/suricata/eve.json`,
+    `      types: [alert, drop, stats]`,
+    `default-rule-path: /var/lib/suricata/rules`,
+    `rule-files:`,
+    `  - proxhq.rules`,
+    `af-packet:`,
+    `  - interface: eth0`,
+    `    cluster-id: 99`,
+    `    cluster-type: cluster_flow`,
+    `    defrag: yes`,
+    `    use-mmap: yes`,
+    `YAML`,
+    ``,
+    `# ── 3. Install ProxhqVPN IPS Rules ────────────────────────────────────`,
+    `mkdir -p /var/lib/suricata/rules`,
+    `cat > /var/lib/suricata/rules/proxhq.rules << 'RULES'`,
+    `# ProxhqVPN GhostOS™ IPS Signatures — ${sigs.length} rules`,
+    rulesLines,
+    `RULES`,
+    ``,
+    `# ── 4. Enable Suricata in IPS mode (NFQUEUE inline) ──────────────────`,
+    `sed -i 's/^#\\?.*nfqueue.*/nfqueue:\\n  mode: repeat\\n  repeat-mark: 1\\n  repeat-mask: 1/' /etc/suricata/suricata.yaml 2>/dev/null || true`,
+    `systemctl enable suricata && systemctl restart suricata`,
+    `echo "[✓] Suricata started — ${sigs.length} ProxhqVPN IPS rules active"`,
+    ``,
+    `# ── 5. Wire Suricata inline via NFQUEUE (replaces raw packet drop) ────`,
+    `iptables -I INPUT -j NFQUEUE --queue-num 0 2>/dev/null || echo "Note: NFQUEUE rule already present or requires CAP_NET_ADMIN"`,
+    `iptables -I FORWARD -j NFQUEUE --queue-num 0 2>/dev/null || true`,
+    ``,
+    `# ── 6. Install Rule Auto-Sync Daemon ───────────────────────────────────`,
+    syncDaemon,
+    ``,
+    `echo "=== ProxhqVPN Suricata IPS Setup Complete ==="`,
+    `suricata --build-info 2>/dev/null | grep -E "Suricata version" || true`,
+  ].join("\n");
+
+  res.setHeader("Content-Type", "text/plain");
+  res.setHeader("Content-Disposition", `attachment; filename="proxhq-suricata-setup${nodeId ? `-node${nodeId}` : ""}.sh"`);
+  return res.send(script);
+});
+
+// ── eBPF / XDP Node Deployment Script ────────────────────────────────────
+router.get("/ebpf/node-setup-script", async (req, res) => {
+  const nodeId = parseInt(req.query.nodeId as string) || 0;
+  const iface = (req.query.iface as string) || "eth0";
+
+  const rules = await db.select().from(ebpfRulesTable).where(eq(ebpfRulesTable.enabled, true));
+
+  // Generate XDP C program from DB rules
+  const matchBlocks = rules.map((r, i) => {
+    const lines: string[] = [`  /* Rule ${i + 1}: ${r.name} — ${r.action} */`];
+    if (r.matchDstPort) lines.push(`  if (dport == bpf_htons(${r.matchDstPort})) {`);
+    else lines.push(`  {`);
+    if (r.matchProto === "tcp") lines.push(`    if (ip->protocol != IPPROTO_TCP) goto rule_${i}_skip;`);
+    else if (r.matchProto === "udp") lines.push(`    if (ip->protocol != IPPROTO_UDP) goto rule_${i}_skip;`);
+    const verdict = r.action === "drop" ? "XDP_DROP" : r.action === "redirect" ? "XDP_TX" : "XDP_PASS";
+    lines.push(`    return ${verdict};`);
+    lines.push(`  }`);
+    lines.push(`  rule_${i}_skip:;`);
+    return lines.join("\n");
+  }).join("\n");
+
+  const cSource = `// ProxhqVPN GhostOS™ XDP Program — Node ${nodeId || "generic"}
+// Generated: ${new Date().toISOString()} — ${rules.length} rules active
+// © 2026 Alpha Unlimited Technologies LLC
+#include <linux/bpf.h>
+#include <linux/if_ether.h>
+#include <linux/ip.h>
+#include <linux/tcp.h>
+#include <linux/udp.h>
+#include <bpf/bpf_helpers.h>
+#include <bpf/bpf_endian.h>
+
+struct {
+  __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
+  __uint(max_entries, ${Math.max(rules.length, 64)});
+  __type(key, __u32);
+  __type(value, __u64);
+} proxhq_stats SEC(".maps");
+
+SEC("xdp")
+int proxhq_xdp(struct xdp_md *ctx) {
+  void *data     = (void *)(long)ctx->data;
+  void *data_end = (void *)(long)ctx->data_end;
+
+  struct ethhdr *eth = data;
+  if ((void *)(eth + 1) > data_end) return XDP_PASS;
+  if (eth->h_proto != bpf_htons(ETH_P_IP)) return XDP_PASS;
+
+  struct iphdr *ip = (void *)(eth + 1);
+  if ((void *)(ip + 1) > data_end) return XDP_PASS;
+
+  __u16 dport = 0;
+  if (ip->protocol == IPPROTO_TCP) {
+    struct tcphdr *tcp = (void *)(ip + 1);
+    if ((void *)(tcp + 1) > data_end) return XDP_PASS;
+    dport = tcp->dest;
+  } else if (ip->protocol == IPPROTO_UDP) {
+    struct udphdr *udp = (void *)(ip + 1);
+    if ((void *)(udp + 1) > data_end) return XDP_PASS;
+    dport = udp->dest;
+  }
+
+  // ── ProxhqVPN rules (${rules.length} active) ──────────────────────────
+${matchBlocks || "  /* no rules — pass all */"}
+
+  return XDP_PASS;
+}
+
+char _license[] SEC("license") = "GPL";
+`;
+
+  const script = [
+    `#!/bin/bash`,
+    `# ProxhqVPN GhostOS™ — eBPF/XDP Deployment Script`,
+    `# Node: ${nodeId || "generic"} | Interface: ${iface} | Rules: ${rules.length} | Generated: ${new Date().toISOString()}`,
+    `# © 2026 Alpha Unlimited Technologies LLC`,
+    `set -e`,
+    `IFACE="${iface}"`,
+    `BPF_DIR="/opt/proxhq-ebpf"`,
+    `echo "=== ProxhqVPN eBPF/XDP Deployment (${rules.length} rules) ==="`,
+    ``,
+    `# ── 1. Install build tools ───────────────────────────────────────────`,
+    `if command -v apt-get &>/dev/null; then`,
+    `  apt-get update -qq && apt-get install -y clang llvm libelf-dev libbpf-dev bpftool iproute2 linux-headers-$(uname -r)`,
+    `elif command -v yum &>/dev/null; then`,
+    `  yum install -y clang llvm elfutils-libelf-devel libbpf-devel bpftool iproute kernel-devel`,
+    `fi`,
+    ``,
+    `# ── 2. Write XDP C source ────────────────────────────────────────────`,
+    `mkdir -p $BPF_DIR`,
+    `cat > $BPF_DIR/proxhq_xdp.c << 'BPFC'`,
+    cSource,
+    `BPFC`,
+    ``,
+    `# ── 3. Compile to BPF object ─────────────────────────────────────────`,
+    `clang -O2 -g -Wall -target bpf \\`,
+    `  -I/usr/include/$(uname -m)-linux-gnu \\`,
+    `  -c $BPF_DIR/proxhq_xdp.c -o $BPF_DIR/proxhq_xdp.o`,
+    `echo "[✓] Compiled: $BPF_DIR/proxhq_xdp.o"`,
+    ``,
+    `# ── 4. Detach any existing XDP program ──────────────────────────────`,
+    `ip link set dev $IFACE xdp off 2>/dev/null || true`,
+    ``,
+    `# ── 5. Attach XDP (native mode first, fallback to generic) ──────────`,
+    `ip link set dev $IFACE xdp obj $BPF_DIR/proxhq_xdp.o sec xdp 2>/dev/null || \\`,
+    `ip link set dev $IFACE xdpgeneric obj $BPF_DIR/proxhq_xdp.o sec xdp`,
+    `echo "[✓] XDP program attached to $IFACE"`,
+    ``,
+    `# ── 6. Verify ───────────────────────────────────────────────────────`,
+    `ip link show $IFACE | grep -i xdp && echo "[✓] XDP active" || echo "[!] XDP not confirmed"`,
+    `bpftool prog list 2>/dev/null | grep proxhq || true`,
+    ``,
+    `echo "=== ProxhqVPN eBPF/XDP Deployment Complete ==="`,
+    `echo "Rules: ${rules.length} | Interface: $IFACE | Object: $BPF_DIR/proxhq_xdp.o"`,
+  ].join("\n");
+
+  res.setHeader("Content-Type", "text/plain");
+  res.setHeader("Content-Disposition", `attachment; filename="proxhq-ebpf-deploy${nodeId ? `-node${nodeId}` : ""}.sh"`);
+  return res.send(script);
+});
+
 router.get("/sync-status", async (_req, res) => {
   const [rules, blocked, ghostRules, nodes] = await Promise.all([
     db.select().from(firewallRulesTable).where(eq(firewallRulesTable.enabled, true)),

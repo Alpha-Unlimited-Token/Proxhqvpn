@@ -5874,10 +5874,84 @@ function NodeSyncTab() {
           badge="Run once per node"
           badgeColor="#ff8800"
         />
+        <div style={{ display:"flex", gap:8, marginBottom:12 }}>
+          <Btn onClick={async()=>{
+            try {
+              const r = await fetch("/api/firewall/force-sync", { method:"POST" });
+              if (r.ok) { await fetchStatus(); }
+            } catch { /* ignore */ }
+          }} color="#ff4444" sm>⚡ Force Re-sync All Nodes</Btn>
+          <span style={{ fontSize:10, color:"#555", alignSelf:"center" }}>Clears all node hashes — they pick up the latest rules within 30s</span>
+        </div>
         <p style={{ margin:"0 0 10px", fontSize:10, color:"#555" }}>
           Paste the command for the matching node in its noVNC console. The service starts automatically, polls every 30 seconds, and applies iptables changes within 30s of any rule change in the UI.
         </p>
         {status.nodes.map(n => <NodeInstallCommand key={n.id} node={n} cmd={n.installCmd}/>)}
+      </FwmCard>
+
+      <FwmCard style={{ marginTop:12 }}>
+        <SectionTitle
+          icon={<Shield size={13}/>}
+          title="IPS Enforcement — Suricata Node Deployment"
+          badge="Inline packet drop"
+          badgeColor="#ff9900"
+        />
+        <p style={{ margin:"0 0 12px", fontSize:10, color:"#555" }}>
+          Each node runs Suricata in NFQUEUE inline mode — all packets flow through Suricata before reaching the kernel network stack. IPS alerts automatically increment signature hit counters in real time. Rules sync every 60s from the API server.
+        </p>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:8 }}>
+          {status.nodes.map(n => (
+            <div key={n.id} style={{ background:"#0d0d0d", border:"1px solid #ff990033", borderRadius:8, padding:"12px 14px" }}>
+              <div style={{ fontFamily:"monospace", fontWeight:700, color:"#fff", fontSize:12, marginBottom:4 }}>{n.name}</div>
+              <div style={{ fontSize:9, color:"#555", marginBottom:8 }}>{n.ipAddress} · node {n.id}</div>
+              <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                <a href={`/api/firewall/ips/suricata-setup-script?nodeId=${n.id}`} download style={{ background:"#ff990022", border:"1px solid #ff990044", color:"#ff9900", borderRadius:4, padding:"4px 10px", fontSize:10, fontFamily:"monospace", textDecoration:"none" }}>
+                  ⬇ Suricata Setup (node {n.id})
+                </a>
+                <a href={`/api/firewall/ips/suricata-setup-script`} download style={{ background:"#33333311", border:"1px solid #333", color:"#555", borderRadius:4, padding:"4px 10px", fontSize:10, fontFamily:"monospace", textDecoration:"none" }}>
+                  Generic (no auto-sync)
+                </a>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div style={{ marginTop:10, padding:"8px 12px", background:"#0a0a0a", borderRadius:6, border:"1px solid #1a1a1a", fontSize:10, color:"#444", fontFamily:"monospace" }}>
+          After running: <span style={{ color:"#ff9900" }}>suricata --list-app-layer-protos</span> · IPS hits flow back to this page via <span style={{ color:"#44aaff" }}>POST /api/daemon-inbound/ips-event</span>
+        </div>
+      </FwmCard>
+
+      <FwmCard style={{ marginTop:12 }}>
+        <SectionTitle
+          icon={<Cpu size={13}/>}
+          title="eBPF/XDP Enforcement — Kernel-Bypass Deployment"
+          badge="Pre-stack drop · line-rate"
+          badgeColor="#4488ff"
+        />
+        <p style={{ margin:"0 0 12px", fontSize:10, color:"#555" }}>
+          XDP programs attach at the NIC driver level — packets are dropped before they ever reach the kernel network stack. Faster than iptables. Requires clang + libbpf on each node. Rules auto-compile from the eBPF/XDP tab.
+        </p>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:8 }}>
+          {status.nodes.map(n => (
+            <div key={n.id} style={{ background:"#0d0d0d", border:"1px solid #4488ff33", borderRadius:8, padding:"12px 14px" }}>
+              <div style={{ fontFamily:"monospace", fontWeight:700, color:"#fff", fontSize:12, marginBottom:4 }}>{n.name}</div>
+              <div style={{ fontSize:9, color:"#555", marginBottom:8 }}>{n.ipAddress} · node {n.id}</div>
+              <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                <a href={`/api/firewall/ebpf/node-setup-script?nodeId=${n.id}&iface=eth0`} download style={{ background:"#4488ff22", border:"1px solid #4488ff44", color:"#4488ff", borderRadius:4, padding:"4px 10px", fontSize:10, fontFamily:"monospace", textDecoration:"none" }}>
+                  ⬇ eBPF Deploy (eth0)
+                </a>
+                <a href={`/api/firewall/ebpf/node-setup-script?nodeId=${n.id}&iface=ens3`} download style={{ background:"#33333311", border:"1px solid #333", color:"#555", borderRadius:4, padding:"4px 10px", fontSize:10, fontFamily:"monospace", textDecoration:"none" }}>
+                  ens3
+                </a>
+                <a href={`/api/firewall/ebpf/node-setup-script?nodeId=${n.id}&iface=wg0`} download style={{ background:"#33333311", border:"1px solid #333", color:"#555", borderRadius:4, padding:"4px 10px", fontSize:10, fontFamily:"monospace", textDecoration:"none" }}>
+                  wg0
+                </a>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div style={{ marginTop:10, padding:"8px 12px", background:"#0a0a0a", borderRadius:6, border:"1px solid #1a1a1a", fontSize:10, color:"#444", fontFamily:"monospace" }}>
+          eBPF match events flow back via <span style={{ color:"#44aaff" }}>POST /api/daemon-inbound/ebpf-event</span> · Stats visible in eBPF/XDP tab
+        </div>
       </FwmCard>
     </div>
   );

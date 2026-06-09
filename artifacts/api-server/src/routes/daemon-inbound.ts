@@ -6,6 +6,7 @@ import {
   nodesTable, beaconAlertsTable, wgPeerCommandsTable, vpngateNodeSessionsTable,
   trappedAttackersTable, silkWebTable,
   firewallRulesTable, blockedIpsTable, firewallGhostOsRulesTable, firewallGeoBlocksTable,
+  firewallIpsSignaturesTable, ebpfRulesTable,
 } from "@workspace/db";
 import { eq, and, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -456,6 +457,107 @@ router.get("/firewall-rules", async (req, res) => {
     ghostOsRuleCount: ghostRules.length,
     generatedAt: new Date().toISOString(),
   });
+});
+
+// ── Suricata IPS Rules Export ──────────────────────────────────────────────
+// Nodes call this to get current IPS signatures in Suricata 7.x .rules format
+router.get("/suricata-rules", async (req, res) => {
+  const nodeId = parseInt(req.query.nodeId as string);
+  if (!nodeId) return res.status(400).json({ error: "nodeId required" });
+
+  const [node] = await db.select({ id: nodesTable.id, name: nodesTable.name })
+    .from(nodesTable).where(eq(nodesTable.id, nodeId));
+  if (!node) return res.status(404).json({ error: "Node not found" });
+
+  const sigs = await db.select().from(firewallIpsSignaturesTable)
+    .where(eq(firewallIpsSignaturesTable.enabled, true));
+
+  const rulesLines = sigs.map(sig => {
+    const proto = sig.pattern.toLowerCase().startsWith("http") ? "http" : "tcp";
+    const action = sig.action === "drop" ? "drop" : "alert";
+    const content = sig.pattern.replace(/["'\\]/g, "").slice(0, 200);
+    const cveRef = sig.cveId ? `reference:cve,${sig.cveId.replace("CVE-", "")};` : "";
+    const sidNum = sig.sid.replace(/\D/g, "") || String(sig.id);
+    const pri = sig.severity === "critical" ? 1 : sig.severity === "high" ? 2 : sig.severity === "medium" ? 3 : 4;
+    return `${action} ${proto} any any -> any any (msg:"ProxhqVPN - ${sig.name}"; content:"${content}"; sid:${sidNum}; rev:1; classtype:${sig.category}; priority:${pri}; ${cveRef}metadata:proxhq-fw;)`;
+  });
+
+  const rulesFile = [
+    "# ProxhqVPN GhostOS™ IPS Signatures — Suricata 7.x format",
+    `# Generated: ${new Date().toISOString()} — Node: ${node.name} (ID ${nodeId})`,
+    `# Total: ${sigs.length} signatures`,
+    "# © 2026 Alpha Unlimited Technologies LLC",
+    "",
+    ...rulesLines,
+  ].join("\n");
+
+  const rulesHash = createHash("sha256").update(rulesFile).digest("hex").slice(0, 16);
+  logger.info({ nodeId, sigCount: sigs.length, hash: rulesHash }, "suricata rules served to daemon");
+  return res.json({ rulesHash, rulesFile, sigCount: sigs.length, generatedAt: new Date().toISOString() });
+});
+
+// Nodes report Suricata alert/drop events back
+router.post("/ips-event", async (req, res) => {
+  const body = z.object({
+    nodeId: z.number().int().positive(),
+    event: z.string(),           // "alert" | "drop" | "rules_synced"
+    sid: z.string().optional(),
+    sigName: z.string().optional(),
+    srcIp: z.string().optional(),
+    dstIp: z.string().optional(),
+    dstPort: z.number().optional(),
+    rulesHash: z.string().optional(),
+    count: z.number().int().positive().default(1),
+  }).parse(req.body);
+
+  if ((body.event === "alert" || body.event === "drop") && body.sid) {
+    await db.update(firewallIpsSignaturesTable)
+      .set({ hitCount: sql`${firewallIpsSignaturesTable.hitCount} + ${body.count}` })
+      .where(eq(firewallIpsSignaturesTable.sid, body.sid));
+    logger.warn({ nodeId: body.nodeId, sid: body.sid, srcIp: body.srcIp, event: body.event }, "IPS alert from node");
+  } else if (body.event === "rules_synced") {
+    logger.info({ nodeId: body.nodeId, rulesHash: body.rulesHash }, "suricata rules sync confirmed by node");
+  }
+  return res.json({ ok: true });
+});
+
+// ── eBPF / XDP Rules Export ────────────────────────────────────────────────
+// Nodes call this to get current eBPF rule specs
+router.get("/ebpf-rules", async (req, res) => {
+  const nodeId = parseInt(req.query.nodeId as string);
+  if (!nodeId) return res.status(400).json({ error: "nodeId required" });
+
+  const [node] = await db.select({ id: nodesTable.id, name: nodesTable.name })
+    .from(nodesTable).where(eq(nodesTable.id, nodeId));
+  if (!node) return res.status(404).json({ error: "Node not found" });
+
+  const rules = await db.select().from(ebpfRulesTable)
+    .where(eq(ebpfRulesTable.enabled, true));
+  const rulesHash = createHash("sha256").update(JSON.stringify(rules.map(r => r.id))).digest("hex").slice(0, 16);
+
+  logger.info({ nodeId, ruleCount: rules.length, hash: rulesHash }, "ebpf rules served to daemon");
+  return res.json({ rulesHash, rules, ruleCount: rules.length, generatedAt: new Date().toISOString() });
+});
+
+// Nodes report eBPF packet match events back
+router.post("/ebpf-event", async (req, res) => {
+  const body = z.object({
+    nodeId: z.number().int().positive(),
+    ruleId: z.number().int().positive(),
+    packets: z.number().int().nonnegative().default(1),
+    bytes: z.number().int().nonnegative().default(0),
+    srcIp: z.string().optional(),
+    dstIp: z.string().optional(),
+  }).parse(req.body);
+
+  await db.update(ebpfRulesTable).set({
+    statsPackets: sql`${ebpfRulesTable.statsPackets} + ${body.packets}`,
+    statsBytes: sql`${ebpfRulesTable.statsBytes} + ${body.bytes}`,
+    lastHit: new Date(),
+  }).where(eq(ebpfRulesTable.id, body.ruleId));
+
+  logger.info({ nodeId: body.nodeId, ruleId: body.ruleId, packets: body.packets }, "eBPF event from node");
+  return res.json({ ok: true });
 });
 
 // Nodes call this after successfully applying a ruleset
