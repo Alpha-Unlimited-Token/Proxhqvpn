@@ -1,5 +1,7 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { createHash, randomUUID, timingSafeEqual } from "crypto";
+import { appendAuditEvent } from "../lib/audit-chain";
+import { shipSecurityEvent } from "../lib/siem";
 import { exec } from "child_process";
 import { Router } from "express";
 import { db } from "@workspace/db";
@@ -558,6 +560,22 @@ router.post("/wg-key", async (req, res) => {
     return res.status(503).json({ error: "Private key not configured for this node" });
   }
   logger.info({ nodeId: body.nodeId }, "wg private key served to daemon");
+  appendAuditEvent({
+    actor: `daemon:node${body.nodeId}`,
+    action: "daemon.wg_key_served",
+    resource: `node:${body.nodeId}`,
+    result: "allow",
+    ip: req.socket?.remoteAddress ?? "unknown",
+    metadata: { nodeId: body.nodeId },
+  });
+  void shipSecurityEvent({
+    actor: `daemon:node${body.nodeId}`,
+    action: "daemon.wg_key_served",
+    resource: `node:${body.nodeId}`,
+    result: "allow",
+    severity: "medium",
+    metadata: { nodeId: body.nodeId },
+  });
   return res.json({ privateKey: node.privateKey });
 });
 

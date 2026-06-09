@@ -7,6 +7,8 @@ import { eq, and, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import crypto from "crypto";
 import { encryptSecret, decryptSecret, wgConfigAad, isEncrypted } from "../lib/encrypted-secret-store";
+import { appendAuditEvent } from "../lib/audit-chain";
+import { shipSecurityEvent } from "../lib/siem";
 
 const router = Router();
 
@@ -105,6 +107,22 @@ router.post("/my-config", async (req, res) => {
     status: "pending",
   });
 
+  appendAuditEvent({
+    actor: userId,
+    action: "wireguard.config_created",
+    resource: `node:${body.nodeId}:config:${config.id}`,
+    result: "allow",
+    metadata: { nodeId: body.nodeId, assignedIp, configId: config.id },
+  });
+  void shipSecurityEvent({
+    actor: userId,
+    action: "wireguard.config_created",
+    resource: `node:${body.nodeId}:config:${config.id}`,
+    result: "allow",
+    severity: "low",
+    metadata: { nodeId: body.nodeId, assignedIp },
+  });
+
   return res.status(201).json({ ...config, node, alreadyExists: false });
 });
 
@@ -196,6 +214,22 @@ PersistentKeepalive = 25
 # PostUp = ip6tables -I OUTPUT ! -o %i -m mark ! --mark $(wg show %i fwmark) -j DROP
 # PreDown = ip6tables -D OUTPUT ! -o %i -m mark ! --mark $(wg show %i fwmark) -j DROP
 `;
+
+  appendAuditEvent({
+    actor: userId,
+    action: "wireguard.key_downloaded",
+    resource: `node:${cfg.nodeId}:config:${cfg.id}`,
+    result: "allow",
+    metadata: { nodeId: cfg.nodeId, configId: cfg.id, assignedIp: cfg.assignedIp },
+  });
+  void shipSecurityEvent({
+    actor: userId,
+    action: "wireguard.key_downloaded",
+    resource: `node:${cfg.nodeId}:config:${cfg.id}`,
+    result: "allow",
+    severity: "medium",
+    metadata: { nodeId: cfg.nodeId, configId: cfg.id },
+  });
 
   res.setHeader("Content-Type", "text/plain");
   res.setHeader("Content-Disposition", `attachment; filename="proxhqvpn-${node.region}-${cfg.assignedIp.replace(/\./g, "-")}.conf"`);

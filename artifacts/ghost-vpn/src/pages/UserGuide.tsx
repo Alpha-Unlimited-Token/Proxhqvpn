@@ -2991,6 +2991,184 @@ systemctl status proxhq-fw-sync`}</CB>
     ),
   },
   {
+    id: "ztna-device-posture",
+    title: "ZTNA & Device Posture",
+    icon: Shield,
+    content: (
+      <div className="space-y-3">
+        <p>ProxhqVPN uses Zero Trust Network Access (ZTNA) to verify the security posture of your device before issuing a WireGuard tunnel configuration. No device is trusted simply because it has valid credentials — it must also pass a posture check.</p>
+
+        <div className="border border-primary/20 rounded p-3 bg-primary/5">
+          <div className="text-[10px] font-mono font-bold text-primary mb-1">What is ZTNA?</div>
+          <p>Zero Trust means: <em>never trust, always verify</em>. Even after you authenticate with your account, ProxhqVPN evaluates whether your <strong>device</strong> is safe enough to receive a tunnel config. A stolen session token used on a rooted, unpatched device will still be denied.</p>
+        </div>
+
+        <div className="text-[10px] font-mono font-bold text-primary mt-3 mb-1">THE 8 POSTURE SIGNALS</div>
+        <div className="space-y-1">
+          {[
+            ["Disk Encryption", "20 pts", "BitLocker / FileVault / dm-crypt enabled"],
+            ["Firewall Enabled", "15 pts", "Host firewall is active"],
+            ["EDR Installed", "15 pts", "Endpoint Detection & Response agent present"],
+            ["No Root / Jailbreak", "20 pts", "Device is not rooted or jailbroken"],
+            ["Patch Age", "0–15 pts", "≤30 days = full 15 pts; 31–90 days = 8 pts; >90 days = 0"],
+            ["Certificate Valid", "10 pts", "Valid device cert signed by ProxhqVPN CA"],
+            ["IP Reputation Clean", "5 pts", "Source IP not on threat intelligence blocklists"],
+            ["OS Version", "+0 / –5 pts", "Unsupported OS versions lose 5 pts"],
+          ].map(([signal, pts, desc]) => (
+            <div key={signal} className="flex gap-2 text-[9px] font-mono border border-primary/10 rounded px-2 py-1">
+              <span className="text-primary font-bold w-36 shrink-0">{signal}</span>
+              <span className="text-yellow-400 w-16 shrink-0">{pts}</span>
+              <span className="text-primary/70">{desc}</span>
+            </div>
+          ))}
+        </div>
+
+        <div className="border border-primary/20 rounded p-3 bg-primary/5 mt-2">
+          <div className="text-[10px] font-mono font-bold text-primary mb-1">TRUST SCORE THRESHOLD</div>
+          <p className="text-[9px] font-mono">Score ≥ 75 → <span className="text-green-400">allow=true</span> — WireGuard config generation permitted.<br />Score &lt; 75 → <span className="text-red-400">allow=false</span> — config generation blocked, remediation shown.</p>
+        </div>
+
+        <div className="text-[10px] font-mono font-bold text-primary mt-3 mb-1">SUBMITTING A POSTURE CHECK</div>
+        <div className="bg-black/40 rounded p-2 font-mono text-[9px] text-green-300">
+          POST /api/ztna/posture{"\n"}
+          {`{
+  "fingerprint": "sha256-<stable-device-id>",
+  "signals": {
+    "diskEncryption":    true,
+    "firewallEnabled":   true,
+    "edrInstalled":      false,
+    "noRootOrJailbreak": true,
+    "patchAge":          14,
+    "certificateValid":  true,
+    "ipReputationClean": true,
+    "osVersion":         "Windows 11"
+  }
+}`}
+        </div>
+
+        <div className="text-[10px] font-mono font-bold text-primary mt-3 mb-1">ADMIN — VIEWING DEVICE RECORDS</div>
+        <p className="text-[9px] font-mono text-primary/80">
+          Security admins can view the full posture history for any device:<br />
+          <span className="text-green-300">GET /api/ztna/device/:fingerprint</span><br />
+          Requires <span className="text-yellow-300">security:read</span> permission (security_admin / auditor / owner roles).
+          All posture denials also appear on the SIEM page (<a href="/siem" className="text-primary hover:underline">/siem</a>).
+        </p>
+
+        <div className="border border-yellow-900/40 rounded p-3 bg-yellow-950/20 mt-2">
+          <div className="text-[10px] font-mono font-bold text-yellow-400 mb-1">⚠ CURRENT LIMITATION</div>
+          <p className="text-[9px] font-mono text-primary/80">
+            The posture check is available as an API but the VPN client does not yet enforce it before config generation.
+            This is the highest-priority open security item. For maximum security, manually call <code>POST /api/ztna/posture</code> and verify allow=true before generating your WireGuard config.
+          </p>
+        </div>
+
+        <div className="text-[10px] font-mono font-bold text-primary mt-3 mb-1">IMPROVING YOUR SCORE</div>
+        <div className="space-y-1">
+          {[
+            ["Enable full-disk encryption", "BitLocker (Windows), FileVault (macOS), dm-crypt (Linux) — adds 20 pts"],
+            ["Install an EDR agent", "CrowdStrike Falcon, Microsoft Defender ATP, or open-source Wazuh — adds 15 pts"],
+            ["Keep OS patches current", "Run Windows Update / sudo apt upgrade / softwareupdate — adds up to 15 pts"],
+            ["Get a device certificate", "Run: bash standalone/scripts/generate-ca-and-mtls.sh — adds 10 pts"],
+          ].map(([action, detail]) => (
+            <div key={action} className="border border-primary/10 rounded px-2 py-1 text-[9px] font-mono">
+              <div className="text-primary font-bold">{action}</div>
+              <div className="text-primary/70">{detail}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    ),
+  },
+  {
+    id: "rbac-roles",
+    title: "RBAC — Roles & Permissions",
+    icon: Shield,
+    content: (
+      <div className="space-y-3">
+        <p>ProxhqVPN uses Role-Based Access Control (RBAC) to limit what each user can do. Six roles are defined — from <strong>owner</strong> (unrestricted) to <strong>user</strong> (tunnel configs only). Roles are assigned per account and checked on every API request.</p>
+
+        <div className="text-[10px] font-mono font-bold text-primary mt-2 mb-1">THE SIX ROLES</div>
+        <div className="space-y-1">
+          {[
+            ["owner", "text-red-400", "Unrestricted access. Can manage all resources and assign roles."],
+            ["security_admin", "text-orange-400", "Full security toolkit: SIEM, audit chain, ZTNA policy, firewall. Can revoke WireGuard configs."],
+            ["network_admin", "text-yellow-400", "Node + WireGuard management: add/remove nodes, rotate keys, split tunneling, DNS."],
+            ["auditor", "text-blue-400", "Read-only across all security and network data. Can export audit chain and view SIEM events."],
+            ["support", "text-cyan-400", "View node status, user config list, and system health. Cannot see keys or audit chain."],
+            ["user", "text-green-400", "Can manage their own WireGuard configs and devices only."],
+          ].map(([role, color, desc]) => (
+            <div key={role} className="flex gap-2 border border-primary/10 rounded px-2 py-1 text-[9px] font-mono">
+              <span className={`font-bold w-28 shrink-0 ${color}`}>{role}</span>
+              <span className="text-primary/75">{desc}</span>
+            </div>
+          ))}
+        </div>
+
+        <div className="text-[10px] font-mono font-bold text-primary mt-3 mb-1">PERMISSION MATRIX (selected)</div>
+        <div className="overflow-x-auto">
+          <table className="text-[8px] font-mono w-full border-collapse">
+            <thead>
+              <tr className="text-primary/60">
+                <th className="text-left px-2 py-1 border border-primary/10">Action</th>
+                <th className="px-2 py-1 border border-primary/10">owner</th>
+                <th className="px-2 py-1 border border-primary/10">sec_admin</th>
+                <th className="px-2 py-1 border border-primary/10">net_admin</th>
+                <th className="px-2 py-1 border border-primary/10">auditor</th>
+                <th className="px-2 py-1 border border-primary/10">support</th>
+                <th className="px-2 py-1 border border-primary/10">user</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[
+                ["admin:write",     "✅","✅","❌","❌","❌","❌"],
+                ["vpn:write",       "✅","✅","✅","❌","❌","❌"],
+                ["vpn:own_config",  "✅","✅","✅","❌","❌","✅"],
+                ["audit:export",    "✅","✅","❌","✅","❌","❌"],
+                ["security:write",  "✅","✅","❌","❌","❌","❌"],
+                ["users:manage",    "✅","❌","❌","❌","❌","❌"],
+              ].map(([action, ...perms]) => (
+                <tr key={action} className="border-b border-primary/5">
+                  <td className="px-2 py-1 border border-primary/10 text-primary/90">{action}</td>
+                  {perms.map((p, i) => (
+                    <td key={i} className={`px-2 py-1 text-center border border-primary/10 ${p === "✅" ? "text-green-400" : "text-red-400/60"}`}>{p}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="text-[10px] font-mono font-bold text-primary mt-3 mb-1">ASSIGNING ROLES</div>
+        <div className="space-y-2">
+          <div className="bg-black/40 rounded p-2 font-mono text-[9px] text-green-300">
+            {"-- Via SQL interface (owner only)\nUPDATE users SET role = 'security_admin' WHERE email = 'alice@example.com';"}
+          </div>
+          <div className="bg-black/40 rounded p-2 font-mono text-[9px] text-green-300">
+            {"// Via Admin API (owner only)\nPUT /api/users/:id  { \"role\": \"auditor\" }"}
+          </div>
+          <p className="text-[9px] font-mono text-primary/70">
+            Owner guarantee: accounts listed in the <code>ADMIN_EMAILS</code> env var are always set to <span className="text-red-400">owner</span> regardless of the DB value.
+          </p>
+        </div>
+
+        <div className="text-[10px] font-mono font-bold text-primary mt-3 mb-1">ENFORCEMENT</div>
+        <p className="text-[9px] font-mono text-primary/80">
+          Roles are enforced via <code>requirePermission(action)</code> middleware in <code>lib/rbac.ts</code>.
+          Every permission denial is logged to the SIEM as a <span className="text-orange-400">rbac.denied</span> event and recorded in the audit chain.
+          Unauthorized access attempts are visible in <a href="/siem" className="text-primary hover:underline">/siem</a>.
+        </p>
+
+        <div className="border border-yellow-900/40 rounded p-3 bg-yellow-950/20 mt-2">
+          <div className="text-[10px] font-mono font-bold text-yellow-400 mb-1">⚠ CURRENT SCOPE</div>
+          <p className="text-[9px] font-mono text-primary/80">
+            Fine-grained RBAC is currently enforced on ZTNA routes. Most admin routes still use a coarse
+            admin check. Full <code>requirePermission()</code> wiring across all admin routes is planned for Q3 2026.
+          </p>
+        </div>
+      </div>
+    ),
+  },
+  {
     id: "platform-faq",
     title: "Frequently Asked Questions",
     icon: BookOpen,

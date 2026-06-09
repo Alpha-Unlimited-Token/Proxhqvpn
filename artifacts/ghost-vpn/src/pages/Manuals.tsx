@@ -12284,6 +12284,1080 @@ API: GET /api/monitor/cpu · /api/monitor/memory · /api/monitor/network
 
 Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
   },
+
+  // ── RBAC & Access Control ────────────────────────────────────────────────────
+  {
+    id: "rbac-access-manual",
+    title: "RBAC & Access Control",
+    subtitle: "6-Role model, permission table, route enforcement, and role assignment",
+    version: "1.0",
+    pages: 10,
+    icon: Shield,
+    iconColor: "text-cyan-400",
+    tier: "both",
+    content: `ProxhqVPN: RBAC & Access Control Manual v1.0
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+legal@alphauntechnologies.com | proxhqvpn.com
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TABLE OF CONTENTS
+
+1. Overview — Why RBAC?
+2. The Six Roles
+3. Permission Matrix
+4. Enforcement Points
+5. Assigning Roles
+6. API Reference
+7. Future Roadmap
+8. Audit & Compliance Notes
+9. Glossary
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW — WHY RBAC?
+
+ProxhqVPN operates across a diverse operator base: solo self-hosters,
+enterprise teams with separate network and security functions, and managed
+security service providers (MSSPs) running multi-tenant deployments.
+A flat "admin / not-admin" model is inadequate — a network engineer should
+not have access to billing records, and a read-only auditor should not be
+able to arm the kill switch.
+
+Role-Based Access Control (RBAC) solves this by assigning permissions to
+roles, and roles to users, rather than permissions directly to individuals.
+When an operator adds a new team member, they assign a role — not a
+checklist of individual permissions.
+
+Core principles:
+  ▸ Least privilege — every role has the minimum permissions required.
+  ▸ Separation of duties — security admins cannot change billing; billing
+    contacts cannot modify firewall rules.
+  ▸ Audit trail — every permission check is observable; denied actions are
+    logged with the action, role, and resource.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2. THE SIX ROLES
+
+┌─────────────────┬──────────────────────────────────────────────────────┐
+│ Role            │ Description                                          │
+├─────────────────┼──────────────────────────────────────────────────────┤
+│ owner           │ Unrestricted access. Creates/removes other roles.    │
+│                 │ Can destructively modify any resource.               │
+├─────────────────┼──────────────────────────────────────────────────────┤
+│ security_admin  │ Full security toolkit access: SIEM, audit chain,     │
+│                 │ ZTNA policy, firewall rules, threat intel.           │
+│                 │ Can revoke WireGuard configs and ban devices.        │
+├─────────────────┼──────────────────────────────────────────────────────┤
+│ network_admin   │ Node and WireGuard management: add/remove nodes,     │
+│                 │ rotate keys, modify split tunneling and DNS.         │
+│                 │ Cannot access audit chain or SIEM output.           │
+├─────────────────┼──────────────────────────────────────────────────────┤
+│ auditor         │ Read-only across all security and network data.      │
+│                 │ Can export audit chain and view SIEM events.         │
+│                 │ Cannot modify any configuration.                     │
+├─────────────────┼──────────────────────────────────────────────────────┤
+│ support         │ View-only access to node status, user config list,   │
+│                 │ and system health. Cannot see keys or audit chain.  │
+├─────────────────┼──────────────────────────────────────────────────────┤
+│ user            │ Standard authenticated user. Can manage their own    │
+│                 │ WireGuard configs and devices only.                  │
+└─────────────────┴──────────────────────────────────────────────────────┘
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3. PERMISSION MATRIX
+
+10 defined actions across 4 resource domains:
+
+┌─────────────────────────┬───────┬────────────┬─────────────┬─────────┬─────────┬──────┐
+│ Action                  │ owner │ sec_admin  │ net_admin   │ auditor │ support │ user │
+├─────────────────────────┼───────┼────────────┼─────────────┼─────────┼─────────┼──────┤
+│ admin:read              │  ✅   │     ✅     │      ✅     │   ✅    │   ✅    │  ❌  │
+│ admin:write             │  ✅   │     ✅     │      ❌     │   ❌    │   ❌    │  ❌  │
+│ vpn:read                │  ✅   │     ✅     │      ✅     │   ✅    │   ✅    │  ✅  │
+│ vpn:write               │  ✅   │     ✅     │      ✅     │   ❌    │   ❌    │  ❌  │
+│ vpn:own_config          │  ✅   │     ✅     │      ✅     │   ❌    │   ❌    │  ✅  │
+│ audit:read              │  ✅   │     ✅     │      ❌     │   ✅    │   ❌    │  ❌  │
+│ audit:export            │  ✅   │     ✅     │      ❌     │   ✅    │   ❌    │  ❌  │
+│ security:read           │  ✅   │     ✅     │      ❌     │   ✅    │   ❌    │  ❌  │
+│ security:write          │  ✅   │     ✅     │      ❌     │   ❌    │   ❌    │  ❌  │
+│ users:manage            │  ✅   │     ❌     │      ❌     │   ❌    │   ❌    │  ❌  │
+└─────────────────────────┴───────┴────────────┴─────────────┴─────────┴─────────┴──────┘
+
+vpn:own_config = can manage their own configs/devices only (not others').
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4. ENFORCEMENT POINTS
+
+RBAC is enforced via the requirePermission() middleware in lib/rbac.ts.
+
+Usage pattern:
+  router.post("/rule", requirePermission("security:write"), handler);
+
+Current enforcement:
+  ▸ POST /api/ztna/posture — requires security:write (or any security_admin+)
+  ▸ GET  /api/ztna/device/:fp — requires security:read
+
+Planned enforcement:
+  ▸ POST /api/firewall/rules — security:write
+  ▸ GET  /api/security-audit/audit-chain — audit:export
+  ▸ POST /api/nodes/:id — vpn:write
+  ▸ POST /api/terminal/exec — admin:write (owner/security_admin only)
+  ▸ PUT  /api/users/:id/role — users:manage (owner only)
+
+In absence of a DB role record, users default to the 'user' role.
+The ADMIN_EMAILS env var guarantees owner role on every login for listed emails.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+5. ASSIGNING ROLES
+
+Roles are stored in the users table, role column (default: 'user').
+
+Method 1 — Direct DB update (owner only, via SQL interface):
+  UPDATE users SET role = 'security_admin' WHERE email = 'alice@example.com';
+
+Method 2 — Admin API (owner only):
+  PUT /api/users/:id  { "role": "auditor" }
+
+Method 3 — Admin panel (upcoming):
+  /admin/users → Role column → dropdown selector
+
+Method 4 — Environment variable override (owner guarantee):
+  ADMIN_EMAILS=admin@example.com,backup@example.com
+  These users are forced to 'owner' on every login regardless of DB state.
+
+Role changes take effect on the next API request — no session restart required
+(roles are re-fetched from DB per request in requirePermission()).
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+6. API REFERENCE
+
+lib/rbac.ts exports:
+
+  can(role: Role, action: Action): boolean
+    → Returns true if the given role can perform the action.
+
+  requirePermission(action: Action): RequestHandler
+    → Express middleware. Reads userId from Clerk auth, fetches role from DB,
+      calls can(). Returns 403 if denied, 401 if unauthenticated.
+      Accepts owner bypass (ADMIN_EMAILS).
+
+  ROLE_PERMISSIONS: Record<Role, Action[]>
+    → Full static permission map — can be introspected for UI gating.
+
+  ROLES: Role[]  // ["owner","security_admin","network_admin","auditor","support","user"]
+  ACTIONS: Action[]  // 10 defined actions
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+7. FUTURE ROADMAP
+
+  Phase 2 (planned):
+    ▸ Resource-level permissions: user can vpn:write on their own nodes only
+    ▸ Temporary role escalation: time-limited security_admin for incident response
+    ▸ Role groups: assign a role to a team (org unit)
+    ▸ Attribute-based conditions: e.g., only allow auditor:export during business hours
+
+  Phase 3 (planned):
+    ▸ SCIM provisioning: auto-sync roles from Okta/Azure AD
+    ▸ Policy-as-code: role definitions in YAML/OPA format for GitOps workflows
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+8. AUDIT & COMPLIANCE NOTES
+
+Every requirePermission() denial is logged via shipSecurityEvent() with:
+  action: "rbac.denied"  |  result: "deny"  |  severity: "medium"
+  metadata: { attemptedAction, role, userId, resource }
+
+This means unauthorized access attempts are visible in:
+  ▸ Local pino log (structured JSON)
+  ▸ Splunk HEC (if SPLUNK_HEC_URL/TOKEN set)
+  ▸ Generic SIEM webhook (if SIEM_WEBHOOK_URL set)
+  ▸ SIEM page → /siem
+
+For SOC 2 Type II or ISO 27001 compliance, export RBAC denial logs
+monthly and include in your access control evidence package.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+9. GLOSSARY
+
+  RBAC      — Role-Based Access Control
+  Action    — A permission string ("security:write", "audit:export", etc.)
+  Role      — A named set of actions assigned to a user
+  Principal — The authenticated identity performing an action
+  Deny-all  — The default when no role record exists in DB (maps to 'user')
+  Owner     — The super-admin role; bypasses all permission checks
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+INTERNAL DOCUMENT — DO NOT DISTRIBUTE
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+
+  // ── ZTNA & Device Posture ────────────────────────────────────────────────────
+  {
+    id: "ztna-posture-manual",
+    title: "ZTNA & Device Posture",
+    subtitle: "Zero Trust Network Access — posture scoring, trust model, and client integration",
+    version: "1.0",
+    pages: 12,
+    icon: Shield,
+    iconColor: "text-purple-400",
+    tier: "pro",
+    content: `ProxhqVPN: ZTNA & Device Posture Manual v1.0
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+legal@alphauntechnologies.com | proxhqvpn.com
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TABLE OF CONTENTS
+
+1. What is Zero Trust Network Access?
+2. ProxhqVPN ZTNA Architecture
+3. The 8 Device Posture Signals
+4. Trust Score Calculation
+5. Allow / Deny Thresholds
+6. Submitting a Posture Check
+7. Client Integration Guide
+8. Admin — Viewing Device Records
+9. API Reference
+10. Troubleshooting
+11. Compliance Notes
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. WHAT IS ZERO TRUST NETWORK ACCESS?
+
+Traditional VPN security assumes: "If you can connect, you're trusted."
+This perimeter model is catastrophically insufficient for modern threats:
+  ▸ A stolen credential bypasses the VPN entirely.
+  ▸ A compromised device that passes authentication can exfiltrate data.
+  ▸ Malware on an "authorized" device is indistinguishable from the user.
+
+Zero Trust flips this: "Never trust, always verify — including connected devices."
+Every connection attempt is evaluated not just by who you are, but by the
+security posture of the device you're connecting from.
+
+ZTNA answers: "Is this device trustworthy enough to receive a tunnel config?"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2. PROXHQVPN ZTNA ARCHITECTURE
+
+  ┌──────────────┐   POST /api/ztna/posture    ┌──────────────────────┐
+  │  VPN Client  │ ─────────────────────────▶  │  Device Trust Engine │
+  │  (signals)   │                             │  lib/device-trust.ts │
+  └──────────────┘                             └──────────┬───────────┘
+                                                          │ score + allow
+                                                          ▼
+                                               ┌──────────────────────┐
+  ┌──────────────┐                             │   ztna_devices table │
+  │ WireGuard    │  if allow=true only         │   (audit + history)  │
+  │ Config Gen   │ ◀────────────────────────── └──────────────────────┘
+  └──────────────┘
+
+Flow:
+  1. Client collects 8 device signals.
+  2. Client POSTs signals to /api/ztna/posture.
+  3. Engine scores the device (0–100).
+  4. If score ≥ 75: allow=true — client proceeds to generate WireGuard config.
+  5. If score < 75: allow=false — client shows remediation guidance, blocks config.
+  6. Every decision is persisted to ztna_devices and emitted to SIEM.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3. THE 8 DEVICE POSTURE SIGNALS
+
+Signal data is collected by the ProxhqVPN client app and sent to the API.
+The API does not poll the device directly — all signals are client-reported
+and treated as attestations. Future versions will add server-side validation
+for certificate and IP reputation signals.
+
+┌────────────────────────┬────────────┬────────────────────────────────────────┐
+│ Signal                 │ Max Points │ Description                            │
+├────────────────────────┼────────────┼────────────────────────────────────────┤
+│ diskEncryption         │    20      │ Full-disk encryption enabled           │
+│                        │            │ (BitLocker / FileVault / dm-crypt)    │
+├────────────────────────┼────────────┼────────────────────────────────────────┤
+│ firewallEnabled        │    15      │ Host firewall active                   │
+│                        │            │ (Windows Firewall / pf / ufw)         │
+├────────────────────────┼────────────┼────────────────────────────────────────┤
+│ edrInstalled           │    15      │ Endpoint Detection & Response present  │
+│                        │            │ (CrowdStrike / Defender ATP / Wazuh)  │
+├────────────────────────┼────────────┼────────────────────────────────────────┤
+│ noRootOrJailbreak      │    20      │ Device not rooted / jailbroken         │
+│                        │            │ Rooted devices lose full 20 pts        │
+├────────────────────────┼────────────┼────────────────────────────────────────┤
+│ patchAge               │    15      │ Last OS patch ≤ 30 days old            │
+│                        │            │ (15=current, 8=31-90d, 0=>90d)        │
+├────────────────────────┼────────────┼────────────────────────────────────────┤
+│ certificateValid       │    10      │ Device certificate signed by trusted   │
+│                        │            │ ProxhqVPN CA and not expired          │
+├────────────────────────┼────────────┼────────────────────────────────────────┤
+│ ipReputationClean      │     5      │ Source IP not on Spamhaus/AbuseIPDB   │
+│                        │            │ threat intelligence blocklists         │
+├────────────────────────┼────────────┼────────────────────────────────────────┤
+│ osVersion              │   +0/-5    │ Unsupported OS versions: -5 pts        │
+│                        │            │ (e.g., Windows 7, macOS 11, Android 9)│
+└────────────────────────┴────────────┴────────────────────────────────────────┘
+
+Maximum score: 100  |  Minimum score: 0  |  Passing threshold: 75
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4. TRUST SCORE CALCULATION
+
+Score = Σ(signal points) — penalty(unsupportedOs)
+
+Example A — Corporate laptop, fully compliant:
+  diskEncryption:      ✅ +20
+  firewallEnabled:     ✅ +15
+  edrInstalled:        ✅ +15
+  noRootOrJailbreak:   ✅ +20
+  patchAge:            ✅ +15 (patched 3 days ago)
+  certificateValid:    ✅ +10
+  ipReputationClean:   ✅ +5
+  osVersion:           ✅ +0
+  ─────────────────────────────
+  TOTAL: 100/100  →  allow=true
+
+Example B — Personal phone, no EDR, old patch:
+  diskEncryption:      ✅ +20
+  firewallEnabled:     ✅ +15
+  edrInstalled:        ❌ +0
+  noRootOrJailbreak:   ✅ +20
+  patchAge:            ⚠️ +8  (patched 45 days ago)
+  certificateValid:    ✅ +10
+  ipReputationClean:   ✅ +5
+  osVersion:           ✅ +0
+  ─────────────────────────────
+  TOTAL: 78/100  →  allow=true (passes threshold)
+
+Example C — Rooted Android, no disk encryption:
+  diskEncryption:      ❌ +0
+  firewallEnabled:     ✅ +15
+  edrInstalled:        ❌ +0
+  noRootOrJailbreak:   ❌ +0  (ROOTED — full penalty)
+  patchAge:            ⚠️ +0  (>90 days)
+  certificateValid:    ✅ +10
+  ipReputationClean:   ✅ +5
+  osVersion:           ❌ -5  (Android 8)
+  ─────────────────────────────
+  TOTAL: 25/100  →  allow=false
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+5. ALLOW / DENY THRESHOLDS
+
+  ▸ score ≥ 75  →  allow=true   — tunnel config generation permitted
+  ▸ score 50–74 →  allow=false  — show remediation; flag for review
+  ▸ score < 50  →  allow=false  — high-risk device; log to SIEM as "high" severity
+  ▸ score = 0   →  allow=false  — critical signal failure; log as "critical"
+
+Threshold can be overridden per-deployment by setting:
+  ZTNA_MIN_SCORE=80  (in your .env or system environment)
+
+Default is 75 if the env var is not set.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+6. SUBMITTING A POSTURE CHECK
+
+Endpoint:  POST /api/ztna/posture
+Auth:      Clerk session (all authenticated users)
+Body:
+
+  {
+    "fingerprint": "sha256-device-identifier-unique-per-device",
+    "signals": {
+      "diskEncryption":    true,
+      "firewallEnabled":   true,
+      "edrInstalled":      false,
+      "noRootOrJailbreak": true,
+      "patchAge":          45,
+      "certificateValid":  true,
+      "ipReputationClean": true,
+      "osVersion":         "Windows 11"
+    }
+  }
+
+Response:
+
+  {
+    "fingerprint": "sha256-...",
+    "score": 78,
+    "allow": true,
+    "signals": { ... },
+    "checkedAt": "2026-06-09T12:00:00.000Z",
+    "details": {
+      "edrInstalled": "EDR not installed — risk +0 pts contribution"
+    }
+  }
+
+The fingerprint is a per-device stable identifier (e.g., SHA-256 of
+hardware ID + OS install ID). It is used to look up device history via
+GET /api/ztna/device/:fingerprint.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+7. CLIENT INTEGRATION GUIDE
+
+Before calling POST /api/wireguard/my-config, the client MUST:
+
+  1. Collect device signals (OS APIs or agent):
+       diskEncryption  → BitLocker API / FileVault API / cryptsetup
+       firewall        → netsh advfirewall / pfctl / ufw
+       edr             → registry probe / process list check
+       rootCheck       → SafetyNet (Android) / DeviceCheck (iOS) / su binary check
+       patchAge        → last Windows Update / softwareupdate / apt-get -s upgrade
+
+  2. POST signals to /api/ztna/posture
+     Store the response. If allow=false, show remediation and STOP.
+
+  3. If allow=true, proceed to POST /api/wireguard/my-config.
+
+Recommended UX flow:
+  [Step 1: Select Node] → [Step 2: Posture Check] → [Step 3: Generate Config]
+  Show posture score + breakdown in Step 2 so users understand why
+  their device passed or failed.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+8. ADMIN — VIEWING DEVICE RECORDS
+
+Endpoint:  GET /api/ztna/device/:fingerprint
+Auth:      Clerk session + security:read permission (security_admin / auditor / owner)
+
+Returns full posture history for the device fingerprint:
+  {
+    "device": { id, fingerprint, userId, score, allow, signals, checkedAt },
+    "history": [ { score, allow, checkedAt }, ... ]
+  }
+
+The ztna_devices table also feeds the SIEM page (/siem) — all posture denials
+appear in the GhostTrace event stream for incident correlation.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+9. API REFERENCE
+
+  POST /api/ztna/posture
+    Body:  ZtnaPostureRequest (fingerprint + signals object)
+    Auth:  requireAuth (any authenticated user)
+    Emits: appendAuditEvent("ztna.posture_checked") + shipSecurityEvent()
+
+  GET /api/ztna/device/:fp
+    Auth:  requirePermission("security:read")
+    Returns: full device record + signal history
+
+  lib/device-trust.ts
+    scoreDevice(signals): number   → raw score 0–100
+    evaluatePosture(signals): { score, allow, details }
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+10. TROUBLESHOOTING
+
+  "allow=false, score=74 — just below threshold"
+  → Check which signals are failing via the details field.
+  → Most commonly: patchAge (update your OS) or edrInstalled.
+
+  "certificateValid=false even though I have a cert"
+  → Certificate must be signed by the ProxhqVPN CA.
+  → Generate via: bash standalone/scripts/generate-ca-and-mtls.sh
+  → Install the resulting client.crt and client.key on the device.
+
+  "My fingerprint changed between checks"
+  → Fingerprint should be stable. Ensure it's based on hardware ID,
+    not something ephemeral like MAC address (may change with VPN).
+  → Recommended: SHA-256(cpu_id + motherboard_serial + os_install_id)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+11. COMPLIANCE NOTES
+
+ZTNA device posture enforcement supports:
+
+  NIST SP 800-207 (Zero Trust Architecture):
+    → Satisfies "Device Health" continuous verification requirement (§3.3.1)
+
+  CIS Controls v8:
+    → Control 1 (Enterprise Asset Management) via device fingerprinting
+    → Control 4 (Secure Configuration) via firewall + disk encryption checks
+    → Control 7 (Continuous Vulnerability Management) via patchAge signal
+
+  SOC 2 Type II / ISO 27001:
+    → Access control evidence: all posture decisions logged with timestamp,
+      score, signals, and allow/deny verdict in ztna_devices table.
+    → Export via: SELECT * FROM ztna_devices ORDER BY checked_at DESC;
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+INTERNAL DOCUMENT — DO NOT DISTRIBUTE
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+
+  // ── Security Architecture v3.0 ───────────────────────────────────────────────
+  {
+    id: "security-arch-v3",
+    title: "Security Architecture — v3.0",
+    subtitle: "Full-stack security model: defence layers, audit chain, RBAC, ZTNA, and threat model",
+    version: "3.0",
+    pages: 30,
+    icon: Shield,
+    iconColor: "text-red-400",
+    tier: "both",
+    content: `ProxhqVPN: Security Architecture Manual v3.0
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+legal@alphauntechnologies.com | proxhqvpn.com
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TABLE OF CONTENTS
+
+ 1. Introduction & Scope
+ 2. Threat Model — Attacker Profiles
+ 3. Defence-in-Depth Architecture
+ 4. Authentication Layer (Clerk)
+ 5. Authorization Layer (RBAC)
+ 6. Zero Trust — Device Posture (ZTNA)
+ 7. WireGuard Key Architecture (RAM-Only)
+ 8. Encrypted Secret Store (AES-256-GCM)
+ 9. Tamper-Evident Audit Chain (SHA3-256)
+10. SIEM Fanout & Real-Time Alerting
+11. Firewall Suite & ATR
+12. Daemon Security (mTLS + PSK)
+13. Transport Security (Helmet / HSTS / CSP)
+14. Rate Limiting Strategy
+15. Shell & SQL Security
+16. Honeypot & Deception Network (SilkWeb)
+17. Tor / Obfuscation Layer
+18. Post-Quantum Resistance (PSK)
+19. Incident Response Procedures
+20. Security Gaps & Remediation Roadmap
+21. Compliance Mappings
+22. Key Contacts & Escalation
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. INTRODUCTION & SCOPE
+
+This document is the authoritative security architecture reference for
+ProxhqVPN (Alpha Unlimited Technologies LLC). It covers all layers of the
+platform security model as of version 3.0 (June 2026).
+
+Audience:
+  ▸ Security administrators configuring the platform
+  ▸ Auditors conducting security reviews
+  ▸ Enterprise customers evaluating the platform for compliance
+  ▸ ProxhqVPN engineers extending or modifying security-relevant code
+
+Scope:
+  ▸ Cloud-hosted deployment (Replit / production)
+  ▸ Self-hosted standalone deployment
+  ▸ Mobile client (iOS / Android Expo)
+  ▸ Node infrastructure (60-node WireGuard mesh)
+
+Out of scope:
+  ▸ Physical datacenter security of hosting provider
+  ▸ Third-party Clerk authentication infrastructure
+  ▸ End-user device security (addressed separately in ZTNA Manual)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2. THREAT MODEL — ATTACKER PROFILES
+
+Four threat actors are in scope:
+
+  T1 — External Network Attacker
+    Motivation: Port scan, exploit public services, credential stuffing.
+    Vector: Public API endpoints, brute-force login.
+    Controls: Rate limiting, Clerk auth, Helmet CSP/HSTS, ATR perimeter.
+
+  T2 — Compromised User Account
+    Motivation: Unauthorized lateral movement, data exfiltration.
+    Vector: Stolen Clerk session token or phished credentials.
+    Controls: ZTNA device posture (stops token replay on untrusted device),
+              RBAC (limits blast radius), audit chain (detects anomaly).
+
+  T3 — Malicious Insider (Admin)
+    Motivation: Key theft, data exfiltration, service disruption.
+    Vector: Admin API access, SQL interface, terminal shell.
+    Controls: Audit chain with HMAC-SHA512 (tamper-evident log),
+              SIEM fanout (admin actions visible to external SIEM),
+              Break-glass token audit (logged), SHA3-256 chain verify.
+
+  T4 — Physical Server Seizure
+    Motivation: WireGuard private key recovery, traffic correlation.
+    Vector: Physical access to node hardware.
+    Controls: RAM-only WireGuard keys (no keys on disk), AES-256-GCM
+              encrypted config store, no plaintext key persistence.
+
+Out of scope: Nation-state adversaries with quantum computing capability
+(partially addressed via PSK post-quantum layer — see §18).
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3. DEFENCE-IN-DEPTH ARCHITECTURE
+
+Seven layers, outermost to innermost:
+
+  ┌──────────────────────────────────────────────────────────────────┐
+  │ Layer 7: Deception (SilkWeb honeypot + silk-web beacon network)  │
+  ├──────────────────────────────────────────────────────────────────┤
+  │ Layer 6: Obfuscation (obfs4/Shadowsocks/V2Ray/Meek — anti-DPI)  │
+  ├──────────────────────────────────────────────────────────────────┤
+  │ Layer 5: Tunnel (WireGuard PSK + RAM-only keys)                  │
+  ├──────────────────────────────────────────────────────────────────┤
+  │ Layer 4: Application Auth (Clerk JWT + RBAC + ZTNA posture)      │
+  ├──────────────────────────────────────────────────────────────────┤
+  │ Layer 3: Transport (HTTPS + HSTS + Helmet + CSP)                 │
+  ├──────────────────────────────────────────────────────────────────┤
+  │ Layer 2: Network (ATR + firewall + DDoS + rate limits)           │
+  ├──────────────────────────────────────────────────────────────────┤
+  │ Layer 1: Monitoring (Audit chain + SIEM + GhostTrace + IDS)      │
+  └──────────────────────────────────────────────────────────────────┘
+
+No single layer is sufficient. An attacker who bypasses one layer
+encounters the next. The audit chain (Layer 1) is the last line of
+accountability — even if all other layers are bypassed, the tamper-evident
+log records what happened.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4. AUTHENTICATION LAYER (CLERK)
+
+Provider: Clerk (app_3CcwHo66ohArVtaIa0XTcv88i4Y)
+Protocol: JWT-based session tokens, OpenID Connect
+MFA: Supported via Clerk dashboard (TOTP, SMS)
+
+Enforcement:
+  ▸ requireAuth middleware wraps all /api/* routes except /api/healthz
+    and /api/daemon-inbound/* (daemon routes use PSK — see §12).
+  ▸ getAuth(req) extracts userId from Clerk JWT. Returns null if invalid.
+  ▸ All admin routes additionally check userId against ADMIN_EMAILS or
+    verify the users.role value in the database.
+
+Session hardening:
+  ▸ SESSION_SECRET env var controls Express session signing (64-char hex).
+  ▸ Sessions are ephemeral — no persistent session store (stateless JWT).
+  ▸ Clerk proxy path: /api/__clerk (production — avoids direct Clerk CDN).
+
+Gaps:
+  ▸ MFA is not enforced — optional for users. Recommendation: enforce MFA
+    for owner and security_admin roles via Clerk organization rules.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+5. AUTHORIZATION LAYER (RBAC)
+
+See RBAC & Access Control Manual (rbac-access-manual) for full details.
+
+Key properties:
+  ▸ 6 roles: owner / security_admin / network_admin / auditor / support / user
+  ▸ 10 defined actions across 4 domains (admin, vpn, audit, security, users)
+  ▸ requirePermission() middleware enforces at route level
+  ▸ Default role: 'user' — least privilege on missing DB record
+  ▸ ADMIN_EMAILS bypass: owner-guaranteed for listed emails on every login
+
+Current gap:
+  Most admin routes still use coarse requireAdmin instead of fine-grained
+  requirePermission(). This is the primary outstanding authorization work item.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+6. ZERO TRUST — DEVICE POSTURE (ZTNA)
+
+See ZTNA & Device Posture Manual (ztna-posture-manual) for full details.
+
+Key properties:
+  ▸ 8 device signals → 0–100 trust score
+  ▸ Threshold ≥ 75 = allow tunnel config generation
+  ▸ All decisions persisted to ztna_devices table + SIEM
+  ▸ appendAuditEvent("ztna.posture_checked") on every check
+
+Current gap:
+  Client does not yet enforce posture check before config generation.
+  This is the highest-severity open finding (see §20).
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+7. WIREGUARD KEY ARCHITECTURE (RAM-ONLY)
+
+Server-side (nodes):
+  ▸ Mullvad-style RAM-only architecture.
+  ▸ Private key never written to disk. Lives only in /dev/shm/ (volatile RAM).
+  ▸ On boot, node calls POST /api/daemon-inbound/wg-key (PSK-authenticated).
+  ▸ Power cycle = key destruction. Disk image = no key.
+  ▸ 4 active nodes: Los Angeles, London, Chicago, Tokyo.
+
+Client-side (user configs):
+  ▸ Generated keypair — private key immediately encrypted via AES-256-GCM.
+  ▸ Stored as clientPrivateKeyEnc (encrypted ciphertext) in userWgConfigs.
+  ▸ Plaintext private key never persists in the database.
+  ▸ Decrypted on demand only in GET /api/wireguard/my-config/:id/text.
+
+PSK (PresharedKey):
+  ▸ 256-bit random PSK generated per peer, stored AES-256-GCM encrypted.
+  ▸ Mixed into WireGuard Noise handshake per §5.4 of WireGuard paper.
+  ▸ Provides post-quantum resistance (harvest-now/decrypt-later attack defense).
+  ▸ Rotatable via POST /api/wireguard/rotate-psk/:id.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+8. ENCRYPTED SECRET STORE (AES-256-GCM)
+
+Module: lib/encrypted-secret-store.ts
+
+Algorithm: AES-256-GCM (authenticated encryption with additional data)
+Key source: PROXHQ_MASTER_KEY_B64 env var (32-byte base64-encoded key)
+AAD binding: Each ciphertext is bound to a specific record via AAD string
+             (e.g., "user:{userId}:config:{configId}:clientPrivateKey")
+             This prevents ciphertext transplantation between rows.
+
+encryptSecret(plaintext, aad) → base64(iv || ciphertext || tag)
+decryptSecret(ciphertext, aad) → plaintext
+isEncrypted(value) → true if starts with "enc:v1:"
+
+Security properties:
+  ▸ Unique 12-byte random IV per encryption operation.
+  ▸ GCM authentication tag prevents bitflip attacks.
+  ▸ AAD binding prevents key/config swapping attacks.
+  ▸ No key derivation from password — direct 256-bit key from env.
+
+Rotation procedure:
+  1. Generate new PROXHQ_MASTER_KEY_B64 value.
+  2. Run POST /api/wireguard/backfill-encryption (re-encrypts all rows).
+  3. Replace env var. Zero-downtime if done atomically.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+9. TAMPER-EVIDENT AUDIT CHAIN (SHA3-256)
+
+Module: lib/audit-chain.ts
+
+Chain construction:
+  Each entry contains:
+    { id, timestamp, actor, action, resource, result, ip, metadata,
+      hash,     ← SHA3-256(prev_hash + canonical_entry_json)
+      hmac }    ← HMAC-SHA512(entry_json, AUDIT_HMAC_KEY_B64)
+
+Properties:
+  ▸ Hash chain: entry N's hash incorporates entry N-1's hash.
+    Any modification to a past entry invalidates all subsequent hashes.
+  ▸ HMAC signature: each entry is independently signed with the HMAC key.
+    Even if hashes are recomputed, HMAC cannot be forged without the key.
+  ▸ verifyChain() checks both hash continuity and all HMACs.
+
+Instrumented events (as of v3.0):
+  ▸ ztna.posture_checked — every ZTNA posture evaluation
+  ▸ wireguard.config_created — every WireGuard config generation
+  ▸ wireguard.key_downloaded — every WireGuard config text download
+  ▸ daemon.wg_key_served — every daemon key delivery
+
+Planned instrumentation:
+  ▸ rbac.denied — every permission denial
+  ▸ firewall.rule_changed — every firewall rule modification
+  ▸ admin.user_role_changed — every role assignment
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+10. SIEM FANOUT & REAL-TIME ALERTING
+
+Module: lib/siem.ts
+
+Every shipSecurityEvent() call fans out to three destinations simultaneously:
+
+  1. Local structured log (pino)
+     Always fires first. Guaranteed delivery.
+     Format: JSON with { actor, action, resource, result, severity, metadata }.
+
+  2. Splunk HEC (if configured)
+     Endpoint: SPLUNK_HEC_URL (env var)
+     Auth: SPLUNK_HEC_TOKEN (env var)
+     Event format: Splunk HEC JSON with sourcetype="proxhqvpn:security".
+
+  3. Generic webhook (if configured)
+     Endpoint: SIEM_WEBHOOK_URL (env var)
+     Auth: SIEM_WEBHOOK_SECRET (env var, sent as X-ProxhqVPN-Signature header)
+     Format: standard JSON body — compatible with Elastic, Datadog, PagerDuty.
+
+SIEM dashboard: /siem — aggregates Beacon, Firewall, GhostTrace, GhostChain
+events in a unified timeline with severity filtering.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+11. FIREWALL SUITE & ATR
+
+Components:
+  ▸ iptables-restore ruleset generated per-node via GET /api/daemon-inbound/firewall-rules
+  ▸ GhostOS rules: compiled symbolic rules → iptables lines
+  ▸ Geo-blocking: country-level IP blocks via firewall_geo_blocks table
+  ▸ Per-peer rules: WireGuard client-level allow/block/throttle via FORWARD chain
+
+Auto Threat Response (ATR):
+  ▸ Monitors INPUT chain perimeter only — never modifies FORWARD chain.
+  ▸ WireGuard peer traffic (FORWARD chain, wg0) is always preserved.
+  ▸ Automatic ban on: port scan detection, SYN flood, DDoS threshold.
+  ▸ Ban duration and thresholds configurable via firewall_atr_policies table.
+
+IPS Signatures:
+  ▸ Pattern-based detection via firewall_ips_signatures table.
+  ▸ Matches against packet payload strings (iptables -m string).
+  ▸ Signature updates via POST /api/firewall/ips/signatures.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+12. DAEMON SECURITY (mTLS + PSK)
+
+Daemon routes (/api/daemon-inbound/*) are excluded from Clerk auth
+(nodes cannot perform browser-based OAuth). Instead:
+
+  PSK Authentication:
+    ▸ All daemon-inbound requests must include X-Daemon-PSK: <token> header.
+    ▸ Token validated via timingSafeEqual() against DAEMON_PSK env var.
+    ▸ Invalid PSK → 401 before any processing.
+
+  mTLS (optional, recommended for production):
+    ▸ Generate CA + client cert: bash standalone/scripts/generate-ca-and-mtls.sh
+    ▸ Configure node to present client certificate on all daemon callbacks.
+    ▸ Verify client certificate in daemon-inbound.ts (not yet enforced — planned).
+
+  Passive-only architecture:
+    ▸ Daemon routes only accept inbound data from nodes.
+    ▸ No daemon route executes commands on the node.
+    ▸ Node-side actions are queued via wgPeerCommandsTable and polled by nodes.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+13. TRANSPORT SECURITY (HELMET / HSTS / CSP)
+
+  Helmet.js headers applied on all responses:
+    ▸ Strict-Transport-Security (HSTS): max-age=31536000; includeSubDomains
+    ▸ X-Content-Type-Options: nosniff
+    ▸ X-Frame-Options: DENY (clickjacking protection)
+    ▸ X-XSS-Protection: 1; mode=block
+    ▸ Referrer-Policy: no-referrer
+    ▸ Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'
+      (unsafe-inline required for Vite dev; nonce-based CSP planned for production)
+
+  CORS:
+    ▸ Strict regex allowlist — only Replit preview domains and proxhqvpn.com.
+    ▸ Non-matching origins receive 403 from CORS middleware.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+14. RATE LIMITING STRATEGY
+
+  Global:       300 req/min per IP
+  Terminal:      20 req/min per IP (shell exec is expensive + dangerous)
+  SQL:           30 req/min per IP (external DB queries can be slow)
+  Mutate routes: 60 req/min per IP (POST/PUT/DELETE)
+
+  Bypass risk: IP-based limits can be circumvented by proxy rotation.
+  Mitigation (planned): userId-based rate limiting on Clerk-authenticated routes.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+15. SHELL & SQL SECURITY
+
+  Shell (terminal.ts):
+    ▸ Command allowlist: only whitelisted commands execute in standard mode.
+    ▸ ProxhqVPN Mode: bypasses allowlist, logs ALL commands to audit trail.
+    ▸ HARD_BLOCKED patterns: rm -rf /, iptables -F, dd if=, mkfs, etc.
+      These patterns are rejected even in ProxhqVPN Mode.
+    ▸ Break-glass token: emergency access (logged + SIEM event).
+
+  SQL (sqlquery.ts):
+    ▸ Local mode: SELECT-only. All other statements rejected.
+    ▸ Comment stripping: prevents SQL comment-based injection bypasses.
+    ▸ External mode: full CRUD — only on explicitly added external connections.
+    ▸ All queries parameterized via pg driver interface.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+16. HONEYPOT & DECEPTION NETWORK (SILKWEB)
+
+  The SilkWeb network runs 50 outer + 10 inner WireGuard "silk" nodes —
+  these are intentionally enticing targets with fake services.
+
+  Components:
+    ▸ Beacon monitors: alert on any access to beacon URLs
+    ▸ Spider nodes: crawl inbound request patterns for C2 signatures
+    ▸ Worm nodes: propagate through attacker-controlled networks (read-only)
+    ▸ Trapped attacker registry: trappedAttackersTable tracks confirmed actors
+
+  When an attacker triggers a silk beacon:
+    1. beaconAlertsTable entry created
+    2. SIEM event: beacon.triggered (severity: high)
+    3. IP added to blockedIpsTable automatically
+    4. GhostTrace behavioral analysis triggered
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+17. TOR / OBFUSCATION LAYER
+
+  DPI-resistant tunneling methods:
+    ▸ obfs4: obfuscates WireGuard packets as random bytes
+    ▸ Shadowsocks: AEAD-encrypted SOCKS5 proxy
+    ▸ V2Ray-WebSocket: HTTP upgrade-based tunneling
+    ▸ Meek: domain-fronting via CDN (Azure/GCP)
+    ▸ Snowflake: WebRTC-based pluggable transport
+    ▸ XOR-stream: lightweight XOR cipher for low-latency scenarios
+
+  Tor integration:
+    ▸ SOCKS5 proxy to Tor exit (port 9050)
+    ▸ Double-hop: WireGuard inside Tor
+    ▸ ProxhqVPN-over-Tor: full browser isolation via /onion-browser
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+18. POST-QUANTUM RESISTANCE (PSK)
+
+Threat: Cryptographically relevant quantum computers can break ECDH
+(WireGuard's default key exchange — Curve25519) via Shor's algorithm.
+
+Defence: WireGuard PSK (§5.4 of WireGuard paper):
+  ▸ A 256-bit symmetric PSK is mixed into the Noise IKpsk2 handshake.
+  ▸ Breaking the tunnel requires breaking both Curve25519 (classical) AND
+    the PSK (symmetric AES-equivalent security).
+  ▸ Symmetric 256-bit keys require 2^128 Grover's-algorithm iterations
+    to break — computationally infeasible even for quantum adversaries.
+
+PSK properties in ProxhqVPN:
+  ▸ 256-bit random PSK per client, stored AES-256-GCM encrypted.
+  ▸ Rotatable on demand via POST /api/wireguard/rotate-psk/:id.
+  ▸ Last rotation timestamp shown in downloaded .conf file.
+  ▸ Recommended rotation: every 90 days.
+
+Limitation: PSK must be distributed securely (over HTTPS). If the
+distribution channel is compromised, PSK protection fails. Future:
+Kyber-based KEM for PSK distribution.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+19. INCIDENT RESPONSE PROCEDURES
+
+  IR-1: Suspected Key Compromise
+    1. Immediately rotate PSK: POST /api/wireguard/rotate-psk/:configId
+    2. Revoke affected configs: DELETE /api/wireguard/my-config/:id
+    3. Reboot the node (destroys RAM key, forces fresh key delivery).
+    4. Review audit chain for anomalous download events.
+    5. Check GhostTrace for behavioral anomalies from that peer's IP.
+
+  IR-2: Insider Threat / Admin Abuse
+    1. Export audit chain immediately: GET /api/security-audit/audit-chain
+    2. Verify chain integrity: verifyChain() — any tamper = chain was modified
+    3. Rotate ADMIN_EMAILS — remove suspect account.
+    4. Revoke Clerk session: Clerk dashboard → Users → Revoke session.
+    5. Change PROXHQ_MASTER_KEY_B64 and re-encrypt all configs.
+
+  IR-3: Node Seizure
+    1. Power off the node remotely (destroy RAM key).
+    2. Remove node from nodesTable: DELETE /api/nodes/:id
+    3. Issue new node with fresh keypair.
+    4. Notify affected users to re-download configs.
+    5. No disk key recovery is possible (RAM-only architecture).
+
+  IR-4: DDoS / Brute Force
+    1. ATR auto-bans source IPs on threshold.
+    2. Add country block: POST /api/firewall/geo-block if originating from
+       a specific region.
+    3. Scale rate limits via environment override.
+    4. Enable Meek/CDN obfuscation to mask node public IPs.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+20. SECURITY GAPS & REMEDIATION ROADMAP
+
+OPEN FINDINGS (as of June 2026):
+
+  [HIGH] ZTNA posture not enforced pre-tunnel
+    The client does not gate config generation on a passing posture check.
+    Fix: Add posture check step to WireGuard config generation flow.
+    Owner: frontend / mobile team | ETA: Q3 2026
+
+  [MEDIUM] RBAC not applied to most admin routes
+    Most routes use coarse requireAdmin instead of requirePermission().
+    Fix: Wire requirePermission() to firewall, terminal, users, audit routes.
+    Owner: backend team | ETA: Q3 2026
+
+  [MEDIUM] Audit chain coverage incomplete
+    Only ZTNA, WireGuard, and daemon events are instrumented.
+    Fix: Add appendAuditEvent() to firewall changes, role changes, SQL queries.
+    Owner: backend team | ETA: Q3 2026
+
+  [MEDIUM] mTLS not enforced for daemon callbacks
+    PSK is implemented; client cert verification is planned but not active.
+    Fix: Verify client certificate CN = node identity in daemon-inbound.ts.
+    Owner: backend team | ETA: Q4 2026
+
+  [LOW] No MFA enforcement for privileged roles
+    MFA is available via Clerk but not required for owner/security_admin.
+    Fix: Configure Clerk organization policy to require TOTP for privileged roles.
+    Owner: ops team | ETA: Q3 2026
+
+  [LOW] Session-level rate limiting not implemented
+    Rate limits are IP-based only. Session (userId) limits are not in place.
+    Fix: Add userId-based rate limiting on sensitive routes.
+    Owner: backend team | ETA: Q4 2026
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+21. COMPLIANCE MAPPINGS
+
+  NIST SP 800-207 (Zero Trust Architecture):
+    § 3.3.1 Device Health     → ZTNA posture scoring
+    § 3.3.2 User Auth         → Clerk JWT + MFA (optional)
+    § 3.3.3 Connection Auth   → WireGuard PSK + HMAC
+    § 3.3.6 Audit/Monitoring  → SHA3-256 audit chain + SIEM
+
+  CIS Controls v8:
+    Control 1  (Asset Mgmt)          → ZTNA device fingerprint registry
+    Control 3  (Data Protection)     → AES-256-GCM encrypted keys
+    Control 4  (Config)              → ZTNA posture (firewall + disk enc)
+    Control 6  (Access Control)      → RBAC + Clerk auth
+    Control 7  (Vuln Mgmt)          → ZTNA patchAge signal
+    Control 8  (Audit Log)           → SHA3-256 audit chain + SIEM
+    Control 12 (Network Monitoring)  → GhostTrace + SilkWeb + ATR
+    Control 13 (Monitoring/Defense)  → SIEM fanout + alerting
+
+  SOC 2 Type II / ISO 27001 A.9:
+    Access Control     → Clerk auth + RBAC (documented, partially enforced)
+    Cryptography       → AES-256-GCM + WireGuard Noise protocol
+    Audit Logging      → SHA3-256 chain + HMAC-SHA512 (tamper-evident)
+    Incident Response  → Documented IR procedures (§19)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+22. KEY CONTACTS & ESCALATION
+
+  Security incidents:        security@proxhqvpn.com
+  General support:           support@proxhqvpn.com
+  Legal / law enforcement:   legal@alphauntechnologies.com
+  Warrant canary:            GET /api/warrant-canary
+  Bug bounty:                /bug-bounty (upcoming)
+
+  Emergency escalation (production incidents):
+    1. Check GhostChain for automated kill chain discovery
+    2. Export audit chain for forensic evidence
+    3. Activate break-glass terminal access if API is unreachable
+    4. Contact security@proxhqvpn.com with [CRITICAL] subject prefix
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+CONFIDENTIAL — RESTRICTED DISTRIBUTION
+This document contains security-sensitive architecture details.
+Distribute only to authorized personnel with a need-to-know basis.
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
 ];
 
 // ── Category grouping ─────────────────────────────────────────────────────────
@@ -12381,7 +13455,7 @@ const CATEGORIES = [
     color: "text-green-400",
     border: "border-green-900",
     bg: "bg-green-950/20",
-    ids: ["security-hardening-v22"],
+    ids: ["security-hardening-v22", "rbac-access-manual", "ztna-posture-manual", "security-arch-v3"],
   },
   {
     label: "Admin & Infrastructure",
