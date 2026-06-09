@@ -100,6 +100,7 @@ import redteamScanRouter from "./redteamscan";
 import omegaAgentRouter from "./omega/agent";
 import ghostTrapRouter from "./ghosttrap";
 import firewallAdvancedRouter from "./firewall-advanced";
+import ztnaRouter from "./ztna";
 
 const router: IRouter = Router();
 
@@ -481,6 +482,9 @@ router.use("/meshnet",         requireAccess, meshnetRouter);
 router.use("/data-broker",     requireAccess, dataBrokerRouter);
 router.use("/fwn",             requireAccess, firewallNextRouter);
 router.use("/fwm",             requireAccess, firewallMilitaryRouter);
+
+// ── ZTNA / Zero Trust ─────────────────────────────────────────────────────
+router.use("/ztna",           requireAccess, ztnaRouter);
 
 // ── Admin-only routes ─────────────────────────────────────────────────────
 router.use("/admin/users",    requireAdmin, adminUsersRouter);

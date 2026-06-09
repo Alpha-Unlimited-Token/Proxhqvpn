@@ -33,3 +33,4 @@ export * from "./omega-messages";
 export * from "./omega-remote-commands";
 export * from "./anon-accounts";
 export * from "./anon-payments";
+export * from "./ztna-devices";
