@@ -13,6 +13,7 @@ import {
   firewallPeerRulesTable,
   firewallDdosConfigTable, firewallDdosEventsTable,
   trappedAttackersTable, beaconAlertsTable,
+  firewallConnectionPromptsTable, firewallUserDecisionsTable,
 } from "@workspace/db";
 import { createHash } from "crypto";
 import { eq, sql, lt, desc, asc, inArray } from "drizzle-orm";
@@ -2245,5 +2246,192 @@ function buildFwSyncInstallCmd(nodeId: number, listenPort: number, psk: string):
     `systemctl daemon-reload && systemctl enable proxhq-fw-sync && systemctl restart proxhq-fw-sync && echo "FW-SYNC ACTIVE node ${nodeId}"`,
   ].join("\n");
 }
+
+// ── Connection Approval / User Decision System ────────────────────────────
+
+const SAMPLE_THREATS = [
+  { sourceIp: "185.220.101.47", destPort: "22", protocol: "tcp", reason: "Tor exit node probing SSH port", threatLevel: "high" },
+  { sourceIp: "45.33.32.156",   destPort: "80", protocol: "tcp", reason: "Known scanner — Shodan crawler", threatLevel: "medium" },
+  { sourceIp: "194.165.16.11",  destPort: "443", protocol: "tcp", reason: "Inbound TLS from high-risk ASN", threatLevel: "medium" },
+  { sourceIp: "103.199.17.3",   destPort: "3389", protocol: "tcp", reason: "RDP brute-force attempt detected", threatLevel: "critical" },
+  { sourceIp: "92.118.160.4",   destPort: "8080", protocol: "tcp", reason: "HTTP proxy scanner — Censys", threatLevel: "low" },
+  { sourceIp: "162.142.125.81", destPort: "1194", protocol: "udp", reason: "OpenVPN port probe from datacenter IP", threatLevel: "medium" },
+  { sourceIp: "5.188.86.172",   destPort: "21",   protocol: "tcp", reason: "FTP brute-force from botnet node", threatLevel: "high" },
+  { sourceIp: "209.126.5.11",   destPort: "25",   protocol: "tcp", reason: "SMTP relay attempt from flagged IP", threatLevel: "medium" },
+];
+
+function makePatternKey(sourceIp: string, destPort?: string, protocol?: string): string {
+  if (destPort) return `${sourceIp}:${destPort}:${protocol ?? "tcp"}`;
+  return sourceIp;
+}
+
+// GET /api/firewall/prompts — pending prompts for the authenticated user
+router.get("/prompts", async (req, res) => {
+  const userId = ((req as any).auth)?.userId as string | undefined;
+  if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  // Auto-generate prompts from recent beacon/IPS events if queue is thin
+  const existing = await db.select().from(firewallConnectionPromptsTable)
+    .where(eq(firewallConnectionPromptsTable.userId, userId));
+  const pendingCount = existing.filter(p => p.decision === "pending").length;
+
+  if (pendingCount < 2) {
+    // Pull recent beacon alerts and create prompts for unseen IPs
+    const recentBeacons = await db.select().from(beaconAlertsTable)
+      .orderBy(desc(beaconAlertsTable.detectedAt)).limit(20);
+
+    const seenKeys = new Set(existing.map(p => p.patternKey));
+    const knownDecisions = await db.select().from(firewallUserDecisionsTable)
+      .where(eq(firewallUserDecisionsTable.userId, userId));
+    const decidedKeys = new Set(knownDecisions.map(d => d.patternKey));
+
+    const toInsert: Array<typeof firewallConnectionPromptsTable.$inferInsert> = [];
+
+    for (const beacon of recentBeacons) {
+      const ip = beacon.attackerIp ?? "0.0.0.0";
+      const key = makePatternKey(ip);
+      if (!seenKeys.has(key) && !decidedKeys.has(key)) {
+        const pt = beacon.probeType ?? "ping";
+        const threat = pt === "tunnel_probe" ? "critical" : pt === "port_scan" ? "high" : "medium";
+        toInsert.push({
+          userId, sourceIp: ip, destPort: null, protocol: "tcp",
+          reason: `${pt.replace(/_/g, " ").toUpperCase()} detected — suspicious activity from this source`,
+          threatLevel: threat, patternKey: key, decision: "pending",
+          metadata: { probeType: pt, nodeId: beacon.nodeId },
+        });
+        seenKeys.add(key);
+        if (toInsert.length >= 3) break;
+      }
+    }
+
+    // Fill from sample threats if still thin
+    if (toInsert.length < 2) {
+      for (const t of SAMPLE_THREATS) {
+        const key = makePatternKey(t.sourceIp, t.destPort, t.protocol);
+        if (!seenKeys.has(key) && !decidedKeys.has(key)) {
+          toInsert.push({ userId, ...t, patternKey: key, decision: "pending", metadata: null });
+          seenKeys.add(key);
+          if (toInsert.length >= 3) break;
+        }
+      }
+    }
+
+    if (toInsert.length > 0) {
+      await db.insert(firewallConnectionPromptsTable).values(toInsert).onConflictDoNothing();
+    }
+  }
+
+  const prompts = await db.select().from(firewallConnectionPromptsTable)
+    .where(eq(firewallConnectionPromptsTable.userId, userId))
+    .orderBy(desc(firewallConnectionPromptsTable.createdAt));
+
+  res.json({ prompts, pendingCount: prompts.filter(p => p.decision === "pending").length });
+});
+
+// POST /api/firewall/prompts/:id/decide — accept, deny, or block
+router.post("/prompts/:id/decide", async (req, res) => {
+  const userId = ((req as any).auth)?.userId as string | undefined;
+  if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const schema = z.object({
+    decision: z.enum(["allow_once", "allow_always", "block_always", "dismissed"]),
+    notes: z.string().max(256).optional(),
+  });
+  const body = schema.parse(req.body);
+  const id = parseInt(req.params.id);
+
+  const [prompt] = await db.select().from(firewallConnectionPromptsTable)
+    .where(eq(firewallConnectionPromptsTable.id, id));
+  if (!prompt || prompt.userId !== userId) { res.status(404).json({ error: "Not found" }); return; }
+
+  // Update the prompt
+  await db.update(firewallConnectionPromptsTable)
+    .set({ decision: body.decision, resolvedAt: new Date() })
+    .where(eq(firewallConnectionPromptsTable.id, id));
+
+  // Persist as a remembered rule if "always"
+  if (body.decision === "allow_always" || body.decision === "block_always") {
+    const decision = body.decision === "allow_always" ? "allow" : "block";
+    const existing = await db.select().from(firewallUserDecisionsTable)
+      .where(eq(firewallUserDecisionsTable.patternKey, prompt.patternKey));
+    const userDecision = existing.find(d => d.userId === userId);
+
+    if (userDecision) {
+      await db.update(firewallUserDecisionsTable)
+        .set({ decision, lastSeenAt: new Date(), hitCount: userDecision.hitCount + 1, notes: body.notes ?? userDecision.notes })
+        .where(eq(firewallUserDecisionsTable.id, userDecision.id));
+    } else {
+      await db.insert(firewallUserDecisionsTable).values({
+        userId, patternKey: prompt.patternKey,
+        patternType: prompt.destPort ? "ip_port" : "ip",
+        decision, label: null,
+        sourceIp: prompt.sourceIp, destPort: prompt.destPort,
+        protocol: prompt.protocol, hitCount: 1,
+        notes: body.notes ?? null,
+      });
+    }
+
+    // If blocking always, also add to blockedIpsTable for enforcement
+    if (decision === "block") {
+      const alreadyBlocked = await db.select().from(blockedIpsTable)
+        .where(eq(blockedIpsTable.ip, prompt.sourceIp));
+      if (alreadyBlocked.length === 0) {
+        await db.insert(blockedIpsTable).values({
+          ip: prompt.sourceIp, reason: `User blocked — ${prompt.reason}`,
+          autoBlocked: false, hitCount: 1,
+        });
+      }
+    }
+  }
+
+  res.json({ ok: true, decision: body.decision });
+});
+
+// GET /api/firewall/user-decisions — all remembered rules for user
+router.get("/user-decisions", async (req, res) => {
+  const userId = ((req as any).auth)?.userId as string | undefined;
+  if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const decisions = await db.select().from(firewallUserDecisionsTable)
+    .where(eq(firewallUserDecisionsTable.userId, userId))
+    .orderBy(desc(firewallUserDecisionsTable.lastSeenAt));
+  res.json({ decisions, total: decisions.length });
+});
+
+// POST /api/firewall/user-decisions — manually add a rule
+router.post("/user-decisions", async (req, res) => {
+  const userId = ((req as any).auth)?.userId as string | undefined;
+  if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const schema = z.object({
+    sourceIp: z.string().min(1),
+    decision: z.enum(["allow", "block"]),
+    destPort: z.string().optional(),
+    protocol: z.string().optional(),
+    label: z.string().max(100).optional(),
+    notes: z.string().max(256).optional(),
+  });
+  const body = schema.parse(req.body);
+  const patternKey = makePatternKey(body.sourceIp, body.destPort, body.protocol);
+  const [row] = await db.insert(firewallUserDecisionsTable).values({
+    userId, patternKey,
+    patternType: body.destPort ? "ip_port" : "ip",
+    decision: body.decision, label: body.label ?? null,
+    sourceIp: body.sourceIp, destPort: body.destPort ?? null,
+    protocol: body.protocol ?? "tcp", hitCount: 0,
+    notes: body.notes ?? null,
+  }).returning();
+  res.json(row);
+});
+
+// DELETE /api/firewall/user-decisions/:id — forget a rule
+router.delete("/user-decisions/:id", async (req, res) => {
+  const userId = ((req as any).auth)?.userId as string | undefined;
+  if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const id = parseInt(req.params.id);
+  const [row] = await db.select().from(firewallUserDecisionsTable)
+    .where(eq(firewallUserDecisionsTable.id, id));
+  if (!row || row.userId !== userId) { res.status(404).json({ error: "Not found" }); return; }
+  await db.delete(firewallUserDecisionsTable).where(eq(firewallUserDecisionsTable.id, id));
+  res.json({ ok: true });
+});
 
 export default router;

@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import { useAccess } from "@/hooks/useAccess";
 import { useNotifications } from "@/hooks/useNotifications";
-import { ConnectionApprovalPopup } from "@/components/ConnectionApprovalPopup";
+import FirewallPromptOverlay from "@/components/FirewallPromptOverlay";
 
 interface LayoutProps {
   children: ReactNode;
@@ -950,8 +950,8 @@ export function Layout({ children }: LayoutProps) {
         </p>
       </div>
 
-      {/* Global Connection Approval Popup — polls /api/firewall/connection-queue every 5s */}
-      <ConnectionApprovalPopup />
+      {/* Firewall Connection Approval Overlay — per-user persistent allow/block decisions */}
+      <FirewallPromptOverlay />
     </div>
   );
 }

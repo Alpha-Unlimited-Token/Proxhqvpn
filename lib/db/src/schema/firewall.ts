@@ -1157,6 +1157,41 @@ export const firewallDdosEventsTable = pgTable("firewall_ddos_events", {
   resolvedAt:   timestamp("resolved_at"),
 });
 
+// ── User Connection Approval System ────────────────────────────────────────
+export const promptDecisionEnum = pgEnum("prompt_decision", ["pending","allow_once","allow_always","block_always","dismissed"]);
+
+export const firewallConnectionPromptsTable = pgTable("firewall_connection_prompts", {
+  id:          serial("id").primaryKey(),
+  userId:      text("user_id").notNull(),
+  sourceIp:    text("source_ip").notNull(),
+  destIp:      text("dest_ip"),
+  destPort:    text("dest_port"),
+  protocol:    text("protocol").notNull().default("tcp"),
+  reason:      text("reason").notNull(),
+  threatLevel: text("threat_level").notNull().default("medium"),  // "low"|"medium"|"high"|"critical"
+  patternKey:  text("pattern_key").notNull(),                      // canonical dedup key
+  decision:    promptDecisionEnum("decision").notNull().default("pending"),
+  metadata:    jsonb("metadata"),
+  createdAt:   timestamp("created_at").defaultNow().notNull(),
+  resolvedAt:  timestamp("resolved_at"),
+});
+
+export const firewallUserDecisionsTable = pgTable("firewall_user_decisions", {
+  id:          serial("id").primaryKey(),
+  userId:      text("user_id").notNull(),
+  patternKey:  text("pattern_key").notNull(),
+  patternType: text("pattern_type").notNull().default("ip"),       // "ip"|"ip_port"|"cidr"
+  decision:    text("decision").notNull(),                          // "allow"|"block"
+  label:       text("label"),
+  sourceIp:    text("source_ip"),
+  destPort:    text("dest_port"),
+  protocol:    text("protocol"),
+  hitCount:    integer("hit_count").notNull().default(0),
+  notes:       text("notes"),
+  createdAt:   timestamp("created_at").defaultNow().notNull(),
+  lastSeenAt:  timestamp("last_seen_at").defaultNow().notNull(),
+});
+
 // ── Traffic Bridge — VPN peer traffic flagging & admin approval ─────────────
 export const trafficDecisionStatusEnum = pgEnum("traffic_decision_status", ["pending","approved","denied","expired"]);
 
