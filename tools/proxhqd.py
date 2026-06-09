@@ -314,17 +314,26 @@ def start_vpngate(config_b64: str, node_id: int) -> "subprocess.Popen | None":
         proc.terminate()
         return None
 
-    # Swap iptables NAT: eth0 → tun0 so WireGuard clients exit through VPN Gate
-    subprocess.run(["iptables", "-t", "nat", "-D", "POSTROUTING", "-o", "eth0", "-j", "MASQUERADE"],
+    # Detect the primary outbound interface (enp1s0, eth0, ens3, etc.)
+    _iface_result = subprocess.run(["ip", "route", "show", "default"], capture_output=True, text=True)
+    _iface = "enp1s0"
+    for _part in _iface_result.stdout.split():
+        if _part not in ("default", "via", "dev", "proto", "src", "metric") and not _part[0].isdigit():
+            if _part != "default":
+                _iface = _part
+                break
+
+    # Swap iptables NAT: primary iface → tun0 so WireGuard clients exit through VPN Gate
+    subprocess.run(["iptables", "-t", "nat", "-D", "POSTROUTING", "-o", _iface, "-j", "MASQUERADE"],
                    capture_output=True)
     subprocess.run(["iptables", "-t", "nat", "-A", "POSTROUTING", "-o", "tun0", "-j", "MASQUERADE"],
                    capture_output=True)
-    print("[proxhqd] VPN Gate double-hop active — traffic now exits through tun0")
+    print(f"[proxhqd] VPN Gate double-hop active — traffic now exits through tun0 (was {_iface})")
     return proc
 
 
 def stop_vpngate(proc: "subprocess.Popen | None", node_id: int) -> None:
-    """Stop OpenVPN and restore direct routing through eth0."""
+    """Stop OpenVPN and restore direct routing through the primary interface."""
     if proc and proc.poll() is None:
         print("[proxhqd] Stopping VPN Gate OpenVPN process...")
         proc.terminate()
@@ -333,10 +342,19 @@ def stop_vpngate(proc: "subprocess.Popen | None", node_id: int) -> None:
         except subprocess.TimeoutExpired:
             proc.kill()
 
-    # Remove NAT rule for tun0 and restore eth0
+    # Detect primary interface again for restore
+    _iface_result = subprocess.run(["ip", "route", "show", "default"], capture_output=True, text=True)
+    _iface = "enp1s0"
+    for _part in _iface_result.stdout.split():
+        if _part not in ("default", "via", "dev", "proto", "src", "metric") and not _part[0].isdigit():
+            if _part != "default":
+                _iface = _part
+                break
+
+    # Remove NAT rule for tun0 and restore primary interface
     subprocess.run(["iptables", "-t", "nat", "-D", "POSTROUTING", "-o", "tun0", "-j", "MASQUERADE"],
                    capture_output=True)
-    subprocess.run(["iptables", "-t", "nat", "-A", "POSTROUTING", "-o", "eth0", "-j", "MASQUERADE"],
+    subprocess.run(["iptables", "-t", "nat", "-A", "POSTROUTING", "-o", _iface, "-j", "MASQUERADE"],
                    capture_output=True)
 
     # Clean up temp files
