@@ -1,11 +1,12 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { Router, type Request, type Response } from "express";
 import { db } from "@workspace/db";
-import { canaryTokensTable, canaryTriggersTable } from "@workspace/db";
-import { eq, desc } from "drizzle-orm";
+import { canaryTokensTable, canaryTriggersTable, trappedAttackersTable, nodesTable } from "@workspace/db";
+import { eq, desc, sql } from "drizzle-orm";
 import { getAuth } from "@clerk/express";
 import crypto from "crypto";
 import dns from "dns";
+import { sendMail, adminEmails } from "../lib/mailer";
 
 const router = Router();
 
@@ -156,6 +157,104 @@ async function collectEnrichment(req: Request, ip: string) {
   };
 }
 
+// Shared async post-trigger logic: log trigger, auto-trap IP in SilkWeb, email admins.
+// Called after the HTTP response is sent so it never blocks the caller.
+async function handleTriggerAsync(req: Request, tokenId: string, ip: string, ua: string, ref: string) {
+  try {
+    const [token] = await db.select().from(canaryTokensTable)
+      .where(eq(canaryTokensTable.tokenId, tokenId)).limit(1);
+    if (!token || !token.active) return;
+
+    const enrichment = await collectEnrichment(req, ip);
+
+    // 1. Log the trigger
+    await db.insert(canaryTriggersTable).values({
+      tokenId,
+      sourceIp: ip,
+      userAgent: ua,
+      referer: ref,
+      headers: JSON.stringify(req.headers),
+      ...enrichment,
+    });
+
+    // 2. Update token counters
+    await db.update(canaryTokensTable).set({
+      triggerCount: token.triggerCount + 1,
+      lastTriggeredAt: new Date(),
+      lastTriggeredIp: ip,
+      lastTriggeredUserAgent: ua,
+    }).where(eq(canaryTokensTable.tokenId, tokenId));
+
+    // 3. Auto-trap: create trapped_attackers entry if this IP isn't already there.
+    //    entryNodeId is required — use first available node (any node).
+    const [existingTrap] = await db.select({ id: trappedAttackersTable.id })
+      .from(trappedAttackersTable)
+      .where(eq(trappedAttackersTable.ip, ip))
+      .limit(1);
+
+    if (!existingTrap) {
+      const [node] = await db.select({ id: nodesTable.id, name: nodesTable.name, region: nodesTable.region })
+        .from(nodesTable).limit(1);
+
+      if (node) {
+        const fp = `CANARY:${token.tokenType}|TOKEN:${tokenId}|IP:${ip}|ORG:${enrichment.geoOrg ?? "?"}|TS:${Date.now()}`;
+        await db.insert(trappedAttackersTable).values({
+          ip,
+          fingerprint: fp,
+          entryNodeId: node.id,
+          loopCount: 0,
+          probeType: `canary_${token.tokenType}`,
+          sqlmapStatus: "idle",
+          dataCollected: JSON.stringify({
+            tokenId,
+            tokenType: token.tokenType,
+            tokenLabel: token.label,
+            country: enrichment.geoCountry,
+            city: enrichment.geoCity,
+            org: enrichment.geoOrg,
+            asn: enrichment.geoAsn,
+            reverseDns: enrichment.reverseDns,
+            userAgent: ua,
+            referer: ref,
+          }),
+        });
+      }
+    }
+
+    // 4. Email admin(s)
+    const recipients = adminEmails();
+    if (recipients.length > 0) {
+      const geo = `${enrichment.geoCity ?? ""}${enrichment.geoCity && enrichment.geoCountry ? ", " : ""}${enrichment.geoCountry ?? "Unknown"}`;
+      const org = enrichment.geoOrg ?? "Unknown";
+      const rdns = enrichment.reverseDns ? `<br><b>Reverse DNS:</b> ${enrichment.reverseDns}` : "";
+      await sendMail({
+        to: recipients,
+        subject: `🚨 Canary Triggered — ${token.tokenType.toUpperCase()} token "${token.label ?? tokenId}"`,
+        html: `
+          <div style="font-family:monospace;background:#0a0a0a;color:#00ff88;padding:24px;border-radius:8px;">
+            <h2 style="color:#ff4444;margin:0 0 16px">⚠ CANARY TOKEN TRIGGERED</h2>
+            <table style="border-collapse:collapse;width:100%">
+              <tr><td style="padding:4px 12px 4px 0;color:#888">Token</td><td><b>${token.label ?? tokenId}</b> (${token.tokenType})</td></tr>
+              <tr><td style="padding:4px 12px 4px 0;color:#888">Source IP</td><td><b style="color:#ff4444">${ip}</b></td></tr>
+              <tr><td style="padding:4px 12px 4px 0;color:#888">Location</td><td>${geo}</td></tr>
+              <tr><td style="padding:4px 12px 4px 0;color:#888">Org / ASN</td><td>${org}</td></tr>
+              <tr><td style="padding:4px 12px 4px 0;color:#888">User Agent</td><td>${ua || "—"}</td></tr>
+              <tr><td style="padding:4px 12px 4px 0;color:#888">Referer</td><td>${ref || "—"}</td></tr>
+              <tr><td style="padding:4px 12px 4px 0;color:#888">Triggered At</td><td>${new Date().toUTCString()}</td></tr>
+            </table>
+            ${rdns}
+            <hr style="border-color:#222;margin:16px 0">
+            <p style="color:#888;font-size:12px;margin:0">IP has been automatically added to SilkWeb Trapped Entities.<br>
+            View at <a href="https://proxhqvpn.com/silkweb" style="color:#00ff88">proxhqvpn.com/silkweb</a></p>
+          </div>`,
+        text: `Canary triggered!\nToken: ${token.label ?? tokenId} (${token.tokenType})\nSource IP: ${ip}\nLocation: ${geo}\nOrg: ${org}\nUser-Agent: ${ua}\nTime: ${new Date().toUTCString()}`,
+      });
+    }
+  } catch (err: any) {
+    // Never propagate — response already sent
+  }
+}
+
 router.get("/tokens", async (req: Request, res: Response) => {
   const { userId } = getAuth(req);
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
@@ -237,34 +336,13 @@ router.get("/trigger/:tokenId", async (req: Request, res: Response) => {
   const ua = req.headers["user-agent"] || "";
   const ref = req.headers["referer"] || "";
 
-  // Respond immediately with 1x1 GIF — don't block caller
+  // Respond immediately — never block the caller
   res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
   res.setHeader("Content-Type", "image/gif");
   res.send(Buffer.from("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7", "base64"));
 
-  // Enrich and save after response
-  try {
-    const [token] = await db.select().from(canaryTokensTable)
-      .where(eq(canaryTokensTable.tokenId, tokenId)).limit(1);
-
-    if (token && token.active) {
-      const enrichment = await collectEnrichment(req, ip);
-      await db.insert(canaryTriggersTable).values({
-        tokenId,
-        sourceIp: ip,
-        userAgent: ua,
-        referer: ref,
-        headers: JSON.stringify(req.headers),
-        ...enrichment,
-      });
-      await db.update(canaryTokensTable).set({
-        triggerCount: token.triggerCount + 1,
-        lastTriggeredAt: new Date(),
-        lastTriggeredIp: ip,
-        lastTriggeredUserAgent: ua,
-      }).where(eq(canaryTokensTable.tokenId, tokenId));
-    }
-  } catch {}
+  // Log, auto-trap, and notify after response
+  handleTriggerAsync(req, tokenId, ip, ua, ref);
 });
 
 router.get("/trigger/:tokenId/redirect", async (req: Request, res: Response) => {
@@ -273,30 +351,9 @@ router.get("/trigger/:tokenId/redirect", async (req: Request, res: Response) => 
   const ua = req.headers["user-agent"] || "";
   const ref = req.headers["referer"] || "";
 
-  // Redirect immediately — enrich async
+  // Redirect immediately — log, trap, and notify after
   res.redirect(302, "https://proxhqvpn.com");
-
-  try {
-    const [token] = await db.select().from(canaryTokensTable)
-      .where(eq(canaryTokensTable.tokenId, tokenId)).limit(1);
-    if (token && token.active) {
-      const enrichment = await collectEnrichment(req, ip);
-      await db.insert(canaryTriggersTable).values({
-        tokenId,
-        sourceIp: ip,
-        userAgent: ua,
-        referer: ref,
-        headers: JSON.stringify(req.headers),
-        ...enrichment,
-      });
-      await db.update(canaryTokensTable).set({
-        triggerCount: token.triggerCount + 1,
-        lastTriggeredAt: new Date(),
-        lastTriggeredIp: ip,
-        lastTriggeredUserAgent: ua,
-      }).where(eq(canaryTokensTable.tokenId, tokenId));
-    }
-  } catch {}
+  handleTriggerAsync(req, tokenId, ip, ua, ref);
 });
 
 router.get("/trigger/:tokenId/pixel.gif", async (req: Request, res: Response) => {
@@ -309,27 +366,8 @@ router.get("/trigger/:tokenId/pixel.gif", async (req: Request, res: Response) =>
   res.setHeader("Content-Type", "image/gif");
   res.send(Buffer.from("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7", "base64"));
 
-  try {
-    const [token] = await db.select().from(canaryTokensTable)
-      .where(eq(canaryTokensTable.tokenId, tokenId)).limit(1);
-    if (token && token.active) {
-      const enrichment = await collectEnrichment(req, ip);
-      await db.insert(canaryTriggersTable).values({
-        tokenId,
-        sourceIp: ip,
-        userAgent: ua,
-        referer: ref,
-        headers: JSON.stringify(req.headers),
-        ...enrichment,
-      });
-      await db.update(canaryTokensTable).set({
-        triggerCount: token.triggerCount + 1,
-        lastTriggeredAt: new Date(),
-        lastTriggeredIp: ip,
-        lastTriggeredUserAgent: ua,
-      }).where(eq(canaryTokensTable.tokenId, tokenId));
-    }
-  } catch {}
+  // Log, auto-trap, and notify after response
+  handleTriggerAsync(req, tokenId, ip, ua, ref);
 });
 
 router.get("/warrant-canary", (_req: Request, res: Response) => {
