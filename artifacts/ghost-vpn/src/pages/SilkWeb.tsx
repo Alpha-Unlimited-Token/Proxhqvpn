@@ -1,5 +1,6 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { useMemo, useState, useRef, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@clerk/react";
 import {
   useGetSilkWeb, useCollapseSilkWeb, useListTrappedAttackers, getGetSilkWebQueryKey
@@ -10,7 +11,7 @@ import {
   Network, Skull, ShieldAlert, Bug, Loader2, XCircle,
   Copy, Search, ChevronDown, Syringe, Globe, TerminalSquare, Download,
   FolderOpen, Terminal, MonitorSmartphone, RefreshCw, FileText,
-  CheckCircle2, AlertTriangle, Zap, Radio, ShieldOff, ShieldCheck, Trash2,
+  CheckCircle2, AlertTriangle, Zap, Radio, ShieldOff, ShieldCheck, Trash2, Monitor,
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -165,6 +166,7 @@ function IpDropdown({
   const ref = useRef<HTMLDivElement>(null);
   const { toast }    = useToast();
   const { getToken } = useAuth();
+  const navigate     = useNavigate();
 
   useEffect(() => {
     if (!open) return;
@@ -270,6 +272,16 @@ function IpDropdown({
       sub: attacker.ip,
       color: "text-primary/60",
       onClick: copyIp,
+    },
+    {
+      icon: <Monitor className="w-3.5 h-3.5" />,
+      label: "Remote Access (SSH)",
+      sub: "Open SSH session → shell, files & screen viewer",
+      color: "text-cyan-400",
+      onClick: () => {
+        setOpen(false);
+        navigate(`/terminal?ssh=${encodeURIComponent(attacker.ip)}`);
+      },
     },
   ];
 
