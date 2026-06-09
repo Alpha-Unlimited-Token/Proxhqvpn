@@ -1,5 +1,6 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
-import { useMemo, useState, useRef, useEffect } from "react";
+import { useMemo, useState, useRef, useEffect, useCallback } from "react";
+import { useAuth } from "@clerk/react";
 import {
   useGetSilkWeb, useCollapseSilkWeb, useListTrappedAttackers, getGetSilkWebQueryKey
 } from "@workspace/api-client-react";
@@ -463,7 +464,18 @@ function AttackerCommandPanel({
   onRefresh: () => void;
 }) {
   const { toast } = useToast();
+  const { getToken } = useAuth();
   const [tab, setTab] = useState<PanelTab>(initialTab);
+
+  // Authenticated fetch — attaches Clerk Bearer token so requireAdmin passes
+  const authFetch = useCallback(async (url: string, init?: RequestInit) => {
+    const token = await getToken();
+    const headers: Record<string, string> = {
+      ...(init?.headers as Record<string, string> ?? {}),
+    };
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    return fetch(url, { credentials: "include", ...init, headers });
+  }, [getToken]);
 
   useEffect(() => { setTab(initialTab); }, [initialTab]);
 
@@ -489,9 +501,8 @@ function AttackerCommandPanel({
     setScanOutput(null);
     setScanCmd(null);
     try {
-      const res = await fetch(`${BASE}/api/silkweb/trapped/${attacker.id}/portscan`, {
+      const res = await authFetch(`${BASE}/api/silkweb/trapped/${attacker.id}/portscan`, {
         method: "POST",
-        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ports: scanPorts, flags: scanFlags }),
       });
@@ -504,7 +515,7 @@ function AttackerCommandPanel({
       toast({ title: "Port Scan Launched", description: `Job ${data.jobId} — scanning ${attacker.ip}` });
       const poll = setInterval(async () => {
         try {
-          const pr = await fetch(`${BASE}/api/silkweb/trapped/${attacker.id}/portscan/${data.jobId}`, { credentials: "include" });
+          const pr = await authFetch(`${BASE}/api/silkweb/trapped/${attacker.id}/portscan/${data.jobId}`);
           const pd = await pr.json();
           if (pd.status !== "running") {
             setScanOutput(pd.results ?? "No output");
@@ -523,9 +534,8 @@ function AttackerCommandPanel({
     setSqlOutput(null);
     setSqlStatus("running");
     try {
-      const res = await fetch(`${BASE}/api/silkweb/trapped/${attacker.id}/sqlmap`, {
+      const res = await authFetch(`${BASE}/api/silkweb/trapped/${attacker.id}/sqlmap`, {
         method: "POST",
-        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ targetUrl: sqlTarget, extraFlags: sqlFlags }),
       });
@@ -542,7 +552,7 @@ function AttackerCommandPanel({
 
       const poll = setInterval(async () => {
         try {
-          const pr = await fetch(`${BASE}/api/silkweb/trapped/${attacker.id}/sqlmap`, { credentials: "include" });
+          const pr = await authFetch(`${BASE}/api/silkweb/trapped/${attacker.id}/sqlmap`);
           const pd = await pr.json();
           if (pd.status !== "running") {
             setSqlStatus(pd.status ?? "complete");
