@@ -252,6 +252,110 @@ router.get("/trapped/:id/sqlmap", async (req, res) => {
   });
 });
 
+// Full dossier JSON for a trapped attacker
+router.get("/trapped/:id/dossier", async (req, res) => {
+  const id = parseInt(req.params.id);
+  const [attacker] = await db.select().from(trappedAttackersTable).where(eq(trappedAttackersTable.id, id));
+  if (!attacker) return res.status(404).json({ error: "Not found" });
+  let dataCollected: Record<string, unknown> = {};
+  try { dataCollected = JSON.parse(attacker.dataCollected ?? "{}"); } catch {}
+  return res.json({
+    id: attacker.id,
+    ip: attacker.ip,
+    fingerprint: attacker.fingerprint,
+    entryNodeId: attacker.entryNodeId,
+    loopCount: attacker.loopCount,
+    trappedAt: attacker.trappedAt,
+    honeypotPort: attacker.honeypotPort,
+    probeType: attacker.probeType,
+    sqlmapStatus: attacker.sqlmapStatus,
+    sqlmapResults: attacker.sqlmapResults,
+    sqlmapStartedAt: attacker.sqlmapStartedAt,
+    sqlmapFinishedAt: attacker.sqlmapFinishedAt,
+    dataCollected,
+  });
+});
+
+// Download full dossier as a formatted text report
+router.get("/trapped/:id/dossier/download", async (req, res) => {
+  const id = parseInt(req.params.id);
+  const [attacker] = await db.select().from(trappedAttackersTable).where(eq(trappedAttackersTable.id, id));
+  if (!attacker) return res.status(404).json({ error: "Not found" });
+
+  let dc: Record<string, unknown> = {};
+  try { dc = JSON.parse(attacker.dataCollected ?? "{}"); } catch {}
+
+  const now = new Date().toISOString();
+  const caseRef = `SILK-${attacker.id}-${new Date(attacker.trappedAt ?? now).toISOString().slice(0, 10).replace(/-/g, "")}`;
+  const wormCbs = Array.isArray(dc.wormCallbacks) ? (dc.wormCallbacks as string[]).join("\n  ") : "None detected";
+  const bar = "═".repeat(60);
+  const sep = "─".repeat(60);
+
+  const lines = [
+    bar,
+    "  PROXHQVPN — THREAT INTELLIGENCE DOSSIER",
+    "  Copyright © Alpha Unlimited Technologies LLC",
+    "  CONFIDENTIAL — FOR LAW ENFORCEMENT / SECURITY USE",
+    bar,
+    "",
+    `  Case Reference : ${caseRef}`,
+    `  Subject IP     : ${attacker.ip}`,
+    `  Generated      : ${now}`,
+    "",
+    bar,
+    "  SECTION 1 — ATTACK VECTOR",
+    sep,
+    `  Attacker IP    : ${attacker.ip}`,
+    `  Honeypot Port  : ${attacker.honeypotPort ?? "N/A"}`,
+    `  Probe Type     : ${attacker.probeType ?? "N/A"}`,
+    `  Entry Node ID  : ${attacker.entryNodeId}`,
+    `  Node Region    : ${dc.nodeRegion ?? "Unknown"}`,
+    `  Web Generation : ${dc.webId ?? "Unknown"}`,
+    `  Trapped At     : ${attacker.trappedAt}`,
+    `  Loop Count     : ${attacker.loopCount}`,
+    "",
+    bar,
+    "  SECTION 2 — TECHNICAL FINGERPRINT",
+    sep,
+    `  ${attacker.fingerprint}`,
+    "",
+    bar,
+    "  SECTION 3 — RAW ATTACK PAYLOAD",
+    sep,
+    dc.rawRequest ? `${dc.rawRequest}` : "  Not captured",
+    "",
+    bar,
+    "  SECTION 4 — SERVICE BANNER",
+    sep,
+    dc.banner ? `  ${dc.banner}` : "  Not captured",
+    "",
+    bar,
+    "  SECTION 5 — WORM CALLBACK INDICATORS",
+    sep,
+    `  ${wormCbs}`,
+    "",
+    bar,
+    "  SECTION 6 — AUTOMATED VULNERABILITY SCAN (SQLmap)",
+    sep,
+    `  Status   : ${attacker.sqlmapStatus ?? "idle"}`,
+    `  Started  : ${attacker.sqlmapStartedAt ?? "N/A"}`,
+    `  Finished : ${attacker.sqlmapFinishedAt ?? "N/A"}`,
+    "",
+    "  Results:",
+    attacker.sqlmapResults ? attacker.sqlmapResults : "  No results available",
+    "",
+    bar,
+    "  END OF DOSSIER — PROXHQVPN SILKWEB INTELLIGENCE SYSTEM",
+    bar,
+    "",
+  ];
+
+  const safeIp = attacker.ip.replace(/[:.]/g, "-");
+  res.setHeader("Content-Disposition", `attachment; filename="dossier-${safeIp}-${caseRef}.txt"`);
+  res.setHeader("Content-Type", "text/plain; charset=utf-8");
+  return res.send(lines.join("\n"));
+});
+
 // ── Direct IP scan endpoints (no trapped-attacker record needed) ─────────────
 // Used by the Beacon Alerts page to scan any raw IP directly.
 

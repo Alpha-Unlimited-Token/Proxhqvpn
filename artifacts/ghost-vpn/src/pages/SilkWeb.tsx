@@ -149,6 +149,271 @@ type AttackerRow = {
 
 type PanelTab = "portscan" | "sqlmap" | "console" | "files" | "osshell" | "control";
 
+// ── Expandable attack dossier + OSINT panel per trapped entity ────────────────
+function AttackerDossierDrawer({ att }: { att: AttackerRow }) {
+  const [open, setOpen]             = useState(false);
+  const [osintResult, setOsintResult] = useState<Record<string, unknown> | null>(null);
+  const [osintLoading, setOsintLoading] = useState(false);
+  const [osintError, setOsintError] = useState<string | null>(null);
+  const { getToken }  = useAuth();
+  const { toast }     = useToast();
+
+  const authFetch = useCallback(async (url: string, init?: RequestInit) => {
+    const token = await getToken();
+    const hdrs: Record<string, string> = { ...(init?.headers as Record<string, string> ?? {}) };
+    if (token) hdrs["Authorization"] = `Bearer ${token}`;
+    return fetch(url, { credentials: "include", ...init, headers: hdrs });
+  }, [getToken]);
+
+  type DC = { nodeRegion?: string; webId?: string; banner?: string; rawRequest?: string; wormCallbacks?: string[] };
+  let dc: DC = {};
+  try { dc = JSON.parse(att.dataCollected ?? "{}") as DC; } catch {}
+
+  const runOsint = async () => {
+    setOsintLoading(true);
+    setOsintError(null);
+    try {
+      const res = await authFetch(`${BASE}/api/osint/lookup`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ target: att.ip }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setOsintResult(await res.json());
+    } catch (e: unknown) {
+      setOsintError(e instanceof Error ? e.message : "Unknown error");
+    } finally {
+      setOsintLoading(false);
+    }
+  };
+
+  const downloadDossier = async () => {
+    try {
+      const res = await authFetch(`${BASE}/api/silkweb/trapped/${att.id}/dossier/download`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href     = url;
+      a.download = `dossier-${att.ip.replace(/[:.]/g, "-")}.txt`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast({ title: "Download failed", description: "Could not generate dossier", variant: "destructive" });
+    }
+  };
+
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className="flex items-center gap-1 text-[10px] text-primary/40 hover:text-cyan-400 transition-colors mt-1 font-mono"
+      >
+        <ChevronDown className="w-3 h-3" /> Full Report
+      </button>
+    );
+  }
+
+  const osintData = osintResult as {
+    dns?: { a?: string[]; ptr?: string[]; ns?: string[]; mx?: { exchange: string }[]; txt?: string[][] };
+    tls?: { subject?: string; issuer?: string; validFrom?: string; validTo?: string; daysLeft?: number; protocol?: string };
+    http?: { status?: number; server?: string; cdn?: string; hasHsts?: boolean; hasCsp?: boolean; hasCors?: boolean };
+    ip?: { primary?: string; asn?: string; isCloudflare?: boolean; isAws?: boolean };
+    exposure?: {
+      tlsRisk?: { level?: string; reason?: string };
+      headerRisk?: { missing?: string[] };
+    };
+  } | null;
+
+  return (
+    <div className="mt-2 border border-primary/20 rounded bg-black/40 text-xs font-mono">
+      {/* Drawer header */}
+      <div className="flex items-center justify-between px-3 py-1.5 border-b border-primary/20 bg-primary/5">
+        <span className="text-primary/60 text-[10px] uppercase tracking-widest flex items-center gap-1.5">
+          <FileText className="w-3 h-3" /> Attack Dossier — {att.ip}
+        </span>
+        <button onClick={() => setOpen(false)} className="text-primary/40 hover:text-primary/80 transition-colors">
+          <XCircle className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      {/* ── SECTION 1: Attack Details grid ── */}
+      <div className="p-3 border-b border-primary/10">
+        <div className="text-[9px] text-primary/30 uppercase tracking-widest mb-2">§1 — Attack Vector</div>
+        <div className="grid grid-cols-2 gap-x-6 gap-y-1.5">
+          {([
+            ["Attacker IP",    att.ip],
+            ["Honeypot Port",  att.honeypotPort ? `${att.honeypotPort}` : "—"],
+            ["Probe Type",     att.probeType ?? "—"],
+            ["Entry Node ID",  `${att.entryNodeId}`],
+            ["Node Region",    (dc.nodeRegion as string) ?? "—"],
+            ["Web Generation", (dc.webId as string) ?? "—"],
+            ["Loop Count",     `${att.loopCount}`],
+            ["Trapped At",     format(new Date(att.trappedAt), "yyyy-MM-dd HH:mm:ss 'UTC'")],
+            ["SQLmap Status",  att.sqlmapStatus ?? "idle"],
+          ] as [string, string][]).map(([label, value]) => (
+            <div key={label} className="min-w-0">
+              <div className="text-[9px] text-primary/25 uppercase">{label}</div>
+              <div className="text-[10px] text-primary/75 break-all">{value}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── SECTION 2: Fingerprint ── */}
+      <div className="px-3 py-2 border-b border-primary/10">
+        <div className="text-[9px] text-primary/30 uppercase tracking-widest mb-1">§2 — Technical Fingerprint</div>
+        <div className="bg-black/60 border border-primary/10 rounded p-1.5 text-[10px] text-primary/50 break-all">{att.fingerprint}</div>
+      </div>
+
+      {/* ── SECTION 3: Raw Request ── */}
+      {dc.rawRequest && (
+        <div className="px-3 py-2 border-b border-primary/10">
+          <div className="text-[9px] text-primary/30 uppercase tracking-widest mb-1">§3 — Raw Attack Payload</div>
+          <pre className="bg-black/60 border border-primary/10 rounded p-1.5 text-[10px] text-orange-400/60 overflow-auto max-h-28 whitespace-pre-wrap">{dc.rawRequest as string}</pre>
+        </div>
+      )}
+
+      {/* ── SECTION 4: Banner ── */}
+      {dc.banner && (
+        <div className="px-3 py-2 border-b border-primary/10">
+          <div className="text-[9px] text-primary/30 uppercase tracking-widest mb-1">§4 — Service Banner</div>
+          <div className="bg-black/60 border border-primary/10 rounded p-1.5 text-[10px] text-yellow-400/60 break-all">{dc.banner as string}</div>
+        </div>
+      )}
+
+      {/* ── SECTION 5: Worm Callbacks ── */}
+      {Array.isArray(dc.wormCallbacks) && (dc.wormCallbacks as string[]).length > 0 && (
+        <div className="px-3 py-2 border-b border-primary/10">
+          <div className="text-[9px] text-red-400/50 uppercase tracking-widest mb-1">§5 — Worm Callback Indicators ({(dc.wormCallbacks as string[]).length})</div>
+          {(dc.wormCallbacks as string[]).map((cb, i) => (
+            <div key={i} className="text-[10px] text-red-400/70">• {cb}</div>
+          ))}
+        </div>
+      )}
+
+      {/* ── SECTION 6: SQLmap Results ── */}
+      {att.sqlmapResults && (
+        <div className="px-3 py-2 border-b border-primary/10">
+          <div className="text-[9px] text-yellow-400/50 uppercase tracking-widest mb-1">§6 — SQLmap Findings</div>
+          <pre className="bg-black/60 border border-yellow-500/10 rounded p-1.5 text-[10px] text-yellow-400/60 overflow-auto max-h-28 whitespace-pre-wrap">{att.sqlmapResults}</pre>
+        </div>
+      )}
+
+      {/* ── SECTION 7: OSINT Intelligence ── */}
+      <div className="px-3 py-2 border-b border-primary/10">
+        <div className="flex items-center justify-between mb-2">
+          <div className="text-[9px] text-cyan-400/60 uppercase tracking-widest">§7 — OSINT Intelligence</div>
+          <button
+            onClick={runOsint}
+            disabled={osintLoading}
+            className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded border border-cyan-500/30 text-cyan-400/80 hover:bg-cyan-500/10 disabled:opacity-50 transition-colors"
+          >
+            {osintLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Search className="w-3 h-3" />}
+            {osintLoading ? "Searching…" : osintData ? "Re-run OSINT" : "Search IP"}
+          </button>
+        </div>
+
+        {osintError && (
+          <div className="text-red-400/70 text-[10px] mb-2 flex items-center gap-1">
+            <AlertTriangle className="w-3 h-3" /> Error: {osintError}
+          </div>
+        )}
+
+        {osintData && (
+          <div className="bg-black/70 border border-cyan-500/20 rounded overflow-auto max-h-64 p-2 space-y-3 text-[10px]">
+            {/* IP Intelligence */}
+            {osintData.ip && (
+              <div>
+                <div className="text-cyan-400/50 text-[9px] uppercase mb-0.5">IP Intelligence</div>
+                <div className="text-primary/70">Primary: {osintData.ip.primary ?? att.ip}</div>
+                {osintData.ip.asn && <div className="text-primary/60">ASN: {osintData.ip.asn}</div>}
+                <div className="text-primary/60">
+                  Cloudflare: {osintData.ip.isCloudflare ? <span className="text-yellow-400">Yes</span> : "No"} &nbsp;·&nbsp;
+                  AWS: {osintData.ip.isAws ? <span className="text-yellow-400">Yes</span> : "No"}
+                </div>
+              </div>
+            )}
+
+            {/* DNS */}
+            {osintData.dns && (
+              <div>
+                <div className="text-cyan-400/50 text-[9px] uppercase mb-0.5">DNS Records</div>
+                {osintData.dns.a?.length ? <div className="text-primary/70">A: {osintData.dns.a.join(", ")}</div> : null}
+                {osintData.dns.ptr?.length ? <div className="text-primary/60">PTR: {osintData.dns.ptr.join(", ")}</div> : null}
+                {osintData.dns.ns?.length ? <div className="text-primary/60">NS: {osintData.dns.ns.join(", ")}</div> : null}
+                {osintData.dns.mx?.length ? <div className="text-primary/60">MX: {osintData.dns.mx.map(m => m.exchange).join(", ")}</div> : null}
+              </div>
+            )}
+
+            {/* TLS */}
+            {osintData.tls?.subject && (
+              <div>
+                <div className="text-cyan-400/50 text-[9px] uppercase mb-0.5">TLS Certificate</div>
+                <div className="text-primary/70">Subject: {osintData.tls.subject}</div>
+                <div className="text-primary/60">Issuer: {osintData.tls.issuer}</div>
+                <div className="text-primary/60">
+                  Valid: {osintData.tls.validFrom} → {osintData.tls.validTo}
+                  {osintData.tls.daysLeft !== undefined && <span className={osintData.tls.daysLeft < 30 ? " text-red-400" : " text-primary/50"}> ({osintData.tls.daysLeft}d left)</span>}
+                </div>
+                {osintData.tls.protocol && <div className="text-primary/60">Protocol: {osintData.tls.protocol}</div>}
+              </div>
+            )}
+
+            {/* HTTP */}
+            {osintData.http && (
+              <div>
+                <div className="text-cyan-400/50 text-[9px] uppercase mb-0.5">HTTP Analysis</div>
+                <div className="text-primary/70">
+                  Status: {osintData.http.status} &nbsp;·&nbsp;
+                  Server: {osintData.http.server ?? "—"} &nbsp;·&nbsp;
+                  CDN: {osintData.http.cdn ?? "none"}
+                </div>
+                <div className="text-primary/60">
+                  HSTS: {osintData.http.hasHsts ? <span className="text-primary">✓</span> : <span className="text-red-400">✗</span>}
+                  &nbsp;·&nbsp; CSP: {osintData.http.hasCsp ? <span className="text-primary">✓</span> : <span className="text-red-400">✗</span>}
+                  &nbsp;·&nbsp; CORS: {osintData.http.hasCors ? <span className="text-yellow-400">open</span> : "closed"}
+                </div>
+              </div>
+            )}
+
+            {/* Risk Assessment */}
+            {osintData.exposure && (
+              <div>
+                <div className="text-cyan-400/50 text-[9px] uppercase mb-0.5">Risk Assessment</div>
+                {osintData.exposure.tlsRisk && (
+                  <div className="text-primary/70">
+                    TLS Risk:&nbsp;
+                    <span className={
+                      osintData.exposure.tlsRisk.level === "critical" ? "text-red-400" :
+                      osintData.exposure.tlsRisk.level === "high" ? "text-orange-400" :
+                      osintData.exposure.tlsRisk.level === "medium" ? "text-yellow-400" : "text-primary"
+                    }>{osintData.exposure.tlsRisk.level ?? "—"}</span>
+                    {osintData.exposure.tlsRisk.reason && <span className="text-primary/50"> — {osintData.exposure.tlsRisk.reason}</span>}
+                  </div>
+                )}
+                {osintData.exposure.headerRisk?.missing?.length ? (
+                  <div className="text-primary/60">Missing headers: {osintData.exposure.headerRisk.missing.join(", ")}</div>
+                ) : null}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Download Dossier ── */}
+      <div className="px-3 py-2 flex items-center justify-end gap-2">
+        <button
+          onClick={downloadDossier}
+          className="flex items-center gap-1.5 text-[10px] px-3 py-1 rounded border border-primary/30 text-primary/70 hover:bg-primary/10 hover:text-primary transition-colors"
+        >
+          <Download className="w-3 h-3" /> Download Full Dossier
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── IP address dropdown menu ──────────────────────────────────────────────────
 function IpDropdown({
   attacker,
@@ -543,7 +808,7 @@ export default function SilkWeb() {
 
                       {att.honeypotPort && (
                         <span className="text-yellow-400/70 text-[10px] border border-yellow-500/20 px-1 rounded">
-                          honeypot:{att.honeypotPort}
+                          :{att.honeypotPort}
                         </span>
                       )}
                       {att.probeType && (
@@ -556,6 +821,8 @@ export default function SilkWeb() {
                       <span className={`ml-auto text-[10px] uppercase ${statusColor}`}>{att.sqlmapStatus ?? "idle"}</span>
                     </div>
                     <div className="text-primary/25 text-[10px] truncate mt-0.5">{att.fingerprint}</div>
+                    {/* Expandable dossier + OSINT drawer */}
+                    <AttackerDossierDrawer att={att} />
                   </div>
                 );
               })}
