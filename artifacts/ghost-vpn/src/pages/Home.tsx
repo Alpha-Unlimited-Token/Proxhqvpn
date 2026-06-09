@@ -106,6 +106,24 @@ const SECURITY = [
   { title: "Adaptive DDoS Shield", body: "Per-node watchdogs detect and auto-ban flood sources exceeding 5,000 connections per 10 seconds — protecting all 4 nodes without any manual intervention or rule writing." },
 ];
 
+type ColVal = "yes" | "partial" | "no";
+const COMPARE_ROWS: { feature: string; proxhq: ColVal; nord: ColVal; express: ColVal; mullvad: ColVal; proton: ColVal; surf: ColVal }[] = [
+  { feature: "RAM-Only WireGuard Server Keys",      proxhq: "yes", nord: "no",      express: "no",      mullvad: "yes",     proton: "no",      surf: "no"      },
+  { feature: "Self-Hosted — You Own the Node",      proxhq: "yes", nord: "no",      express: "no",      mullvad: "no",      proton: "no",      surf: "no"      },
+  { feature: "Per-Device Firewall Rules",           proxhq: "yes", nord: "no",      express: "no",      mullvad: "no",      proton: "no",      surf: "no"      },
+  { feature: "Auto Threat Response (Node IPS)",     proxhq: "yes", nord: "no",      express: "no",      mullvad: "no",      proton: "no",      surf: "no"      },
+  { feature: "Adaptive DDoS Shield",               proxhq: "yes", nord: "partial",  express: "partial", mullvad: "partial", proton: "partial",  surf: "partial" },
+  { feature: "Post-Quantum Encryption",            proxhq: "yes", nord: "no",      express: "no",      mullvad: "no",      proton: "yes",     surf: "no"      },
+  { feature: "Anti-Traffic Analysis (DAITA)",      proxhq: "yes", nord: "no",      express: "no",      mullvad: "yes",     proton: "no",      surf: "no"      },
+  { feature: "Honeypot / SilkWeb Trap Mesh",       proxhq: "yes", nord: "no",      express: "no",      mullvad: "no",      proton: "no",      surf: "no"      },
+  { feature: "Composite IP Risk Scoring",          proxhq: "yes", nord: "no",      express: "no",      mullvad: "no",      proton: "no",      surf: "no"      },
+  { feature: "Full IPv6 Kill Switch",              proxhq: "yes", nord: "partial",  express: "partial", mullvad: "yes",     proton: "yes",     surf: "partial" },
+  { feature: "Warrant Canary",                     proxhq: "yes", nord: "no",      express: "no",      mullvad: "yes",     proton: "yes",     surf: "no"      },
+  { feature: "Full iptables / ip6tables Control",  proxhq: "yes", nord: "no",      express: "no",      mullvad: "no",      proton: "no",      surf: "no"      },
+  { feature: "Built-In Security Audit Toolkit",    proxhq: "yes", nord: "no",      express: "no",      mullvad: "no",      proton: "no",      surf: "no"      },
+  { feature: "sysctl Kernel Hardening on Nodes",   proxhq: "yes", nord: "no",      express: "no",      mullvad: "no",      proton: "no",      surf: "no"      },
+];
+
 const PRICING_PLANS = [
   {
     name: "VPN Basic",
@@ -871,6 +889,76 @@ export default function Home() {
               ))}
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* ── COMPETITOR COMPARISON ── */}
+      <section className="py-24 px-6 border-t border-white/[0.05] bg-[#060b08]">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-14">
+            <div className="text-xs font-semibold text-primary/60 uppercase tracking-widest mb-3">Head to Head</div>
+            <h2 className="text-4xl font-bold tracking-tight mb-4">
+              How we stack up against the <span className="text-primary drop-shadow-[0_0_20px_rgba(0,255,136,0.25)]">top VPNs</span>.
+            </h2>
+            <p className="text-white/78 text-lg max-w-2xl mx-auto leading-relaxed">
+              Every major VPN protects your IP. Only ProxhqVPN gives you control over the server, the firewall,
+              the keys, and the threat response — all at once.
+            </p>
+          </div>
+
+          <div className="overflow-x-auto rounded-2xl border border-white/[0.07]">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-white/[0.07]">
+                  <th className="text-left py-4 px-5 text-white/50 font-semibold text-xs uppercase tracking-widest w-[34%]">Feature</th>
+                  <th className="py-4 px-4 text-center">
+                    <div className="flex flex-col items-center gap-1">
+                      <div className="w-7 h-7 rounded-lg bg-primary/15 border border-primary/30 flex items-center justify-center">
+                        <Shield className="w-3.5 h-3.5 text-primary" />
+                      </div>
+                      <span className="text-[11px] font-bold text-primary">ProxhqVPN</span>
+                    </div>
+                  </th>
+                  {(["NordVPN", "ExpressVPN", "Mullvad", "ProtonVPN", "Surfshark"] as const).map(name => (
+                    <th key={name} className="py-4 px-4 text-center">
+                      <span className="text-[11px] font-semibold text-white/40">{name}</span>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {COMPARE_ROWS.map((row, i) => {
+                  const cols: ColVal[] = [row.nord, row.express, row.mullvad, row.proton, row.surf];
+                  const Cell = ({ val }: { val: ColVal }) => (
+                    <td className="py-3 px-4 text-center">
+                      {val === "yes"     && <div className="flex justify-center"><div className="w-5 h-5 rounded-full bg-white/[0.06] border border-white/10 flex items-center justify-center"><Check className="w-3 h-3 text-white/35" /></div></div>}
+                      {val === "partial" && <span className="text-[10px] font-semibold text-yellow-500/70 bg-yellow-500/8 border border-yellow-500/15 rounded-full px-2 py-0.5">Limited</span>}
+                      {val === "no"      && <div className="flex justify-center"><X className="w-3.5 h-3.5 text-white/15" /></div>}
+                    </td>
+                  );
+                  return (
+                    <tr key={row.feature} className={`border-b border-white/[0.04] hover:bg-white/[0.015] transition-colors ${i % 2 === 0 ? "bg-transparent" : "bg-white/[0.01]"}`}>
+                      <td className="py-3 px-5">
+                        <span className="text-[12px] text-white/80 font-medium">{row.feature}</span>
+                      </td>
+                      <td className="py-3 px-4 text-center bg-primary/[0.04]">
+                        <div className="flex justify-center">
+                          <div className="w-5 h-5 rounded-full bg-primary/20 border border-primary/35 flex items-center justify-center">
+                            <Check className="w-3 h-3 text-primary" />
+                          </div>
+                        </div>
+                      </td>
+                      {cols.map((val, ci) => <Cell key={ci} val={val} />)}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <p className="text-center text-[11px] text-white/30 mt-5">
+            ✓ = Full support &nbsp;·&nbsp; Limited = Hidden/uncontrollable &nbsp;·&nbsp; ✗ = Not available &nbsp;·&nbsp; Based on publicly documented features as of 2026.
+          </p>
         </div>
       </section>
 
