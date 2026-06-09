@@ -461,3 +461,9 @@ id = "x4b0O1kL1OquHEvF5txVC"
 uri = "file://standalone/PROXHQVPN-CHATGPT-AUDIT-v2.zip"
 type = "unspecified"
 title = "ProxhqVPN ChatGPT Audit Package v2"
+
+[[outputs]]
+id = "Clo69iElC8hs985TV-qEA"
+uri = "file://proxhq_ai_audit_prompts.zip"
+type = "unspecified"
+title = "ProxhqVPN AI Audit Prompts — Private Download"
