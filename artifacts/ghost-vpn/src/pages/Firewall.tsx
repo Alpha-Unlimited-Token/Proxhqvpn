@@ -91,6 +91,12 @@ const TAB_ICONS: Record<string, React.ReactNode> = {
   labyrinth:   <GitBranch size={13} />,
   tarpit:      <Hourglass size={13} />,
   nodesync:    <Server size={13} />,
+  // ── 5 New Firewall Enhancements ──
+  atr:         <Zap size={13} />,
+  peerrules:   <Key size={13} />,
+  ddos:        <Activity size={13} />,
+  optimizer:   <Bot size={13} />,
+  riskscore:   <BarChart3 size={13} />,
 };
 const TABS = [
   { id:"overview", label:"Overview" }, { id:"ghostos", label:"GhostOS™" }, { id:"ips", label:"IPS Engine" },
@@ -153,6 +159,12 @@ const TABS = [
   { id:"tarpit",      label:"Tar Pit Drain™" },
   // ── Enforcement Plane ────────────────────────────────────────────────────
   { id:"nodesync",    label:"🟢 Node Sync" },
+  // ── New Firewall Enhancements ────────────────────────────────────────────
+  { id:"atr",         label:"⚡ Auto-Response" },
+  { id:"peerrules",   label:"🔑 Peer Rules" },
+  { id:"ddos",        label:"🛡 DDoS Shield" },
+  { id:"optimizer",   label:"🤖 AI Optimizer" },
+  { id:"riskscore",   label:"📊 Risk Score" },
 ];
 const SEV_COLOR: Record<string,string> = { critical:"#ff2244", high:"#ff6600", medium:"#ffaa00", low:"#aaccff", info:"#888" };
 const TRUST_COLOR: Record<string,string> = { trusted:"#00ff88", untrusted:"#ff4444", dmz:"#ff9900", management:"#4488ff" };
@@ -5957,6 +5969,585 @@ function NodeSyncTab() {
   );
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// ── Automatic Threat Response (ATR) ────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+type AtrPolicy = { id:number; name:string; scope:string; category:string|null; sid:string|null; triggerCount:number; windowSecs:number; action:string; cooldownMins:number; enabled:boolean; triggeredCount:number; createdAt:string };
+type AtrEvent  = { id:number; policyId:number; policyName:string; sourceIp:string; nodeId:number; sid:string|null; triggerHits:number; action:string; triggeredAt:string };
+
+const ATR_ACTION_COLOR: Record<string,string> = { block:"#ff4444", trap:"#cc44ff", block_and_trap:"#ff2288", notify:"#ffaa00" };
+
+function AtrTab() {
+  const [policies, setPolicies] = useState<AtrPolicy[]>([]);
+  const [events, setEvents]     = useState<AtrEvent[]>([]);
+  const [loading, setLoading]   = useState(true);
+  const [form, setForm]         = useState({ name:"", scope:"category", category:"", sid:"", action:"block", cooldownMins:60 });
+  const [saving, setSaving]     = useState(false);
+  const [seeding, setSeeding]   = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const [p, e] = await Promise.all([
+      fetch("/api/firewall/atr/policies").then(r=>r.json()).catch(()=>({policies:[]})),
+      fetch("/api/firewall/atr/events?limit=30").then(r=>r.json()).catch(()=>({events:[]})),
+    ]);
+    setPolicies(p.policies ?? []);
+    setEvents(e.events ?? []);
+    setLoading(false);
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const createPolicy = async () => {
+    if (!form.name) return;
+    setSaving(true);
+    await fetch("/api/firewall/atr/policies", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ ...form, triggerCount:1 }) });
+    setSaving(false);
+    setForm({ name:"", scope:"category", category:"", sid:"", action:"block", cooldownMins:60 });
+    load();
+  };
+  const togglePolicy = async (p: AtrPolicy) => {
+    await fetch(`/api/firewall/atr/policies/${p.id}`, { method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ enabled:!p.enabled }) });
+    load();
+  };
+  const deletePolicy = async (id: number) => {
+    await fetch(`/api/firewall/atr/policies/${id}`, { method:"DELETE" });
+    load();
+  };
+  const seedDefaults = async () => {
+    setSeeding(true);
+    await fetch("/api/firewall/atr/seed", { method:"POST" });
+    setSeeding(false);
+    load();
+  };
+
+  const inp: React.CSSProperties = { background:"#111", border:"1px solid #333", color:"#eee", borderRadius:4, padding:"5px 8px", fontSize:12, fontFamily:"monospace", width:"100%" };
+  const sel: React.CSSProperties = { ...inp, cursor:"pointer" };
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+      <FwmCard>
+        <SectionTitle title="⚡ Automatic Threat Response (ATR)"/>
+        <p style={{ color:"#666", fontSize:12, marginBottom:12 }}>
+          ATR automatically blocks, traps, or notifies when Suricata IPS events match a policy — no human intervention required.
+          Detection-to-response latency: &lt; 1 second.
+        </p>
+        <div style={{ display:"flex", gap:8, marginBottom:12, flexWrap:"wrap" }}>
+          <button onClick={seedDefaults} disabled={seeding} style={{ background:"#1a1a2a", border:"1px solid #4444aa", color:"#88aaff", borderRadius:4, padding:"6px 14px", fontSize:11, cursor:"pointer" }}>
+            {seeding ? "Seeding…" : "Seed Default Policies (5)"}
+          </button>
+          <button onClick={load} style={{ background:"none", border:"1px solid #333", color:"#666", borderRadius:4, padding:"6px 12px", fontSize:11, cursor:"pointer" }}><RefreshCw size={11} /> Refresh</button>
+        </div>
+        {/* Create form */}
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 100px 100px 80px 80px auto", gap:6, marginBottom:14, alignItems:"end" }}>
+          <div><div style={{ fontSize:10, color:"#555", marginBottom:3 }}>Policy Name</div><input style={inp} value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="e.g. Auto-block SQL injection" /></div>
+          <div><div style={{ fontSize:10, color:"#555", marginBottom:3 }}>Scope</div><select style={sel} value={form.scope} onChange={e=>setForm(f=>({...f,scope:e.target.value}))}>
+            <option value="global">Global</option><option value="category">Category</option><option value="signature">Signature</option>
+          </select></div>
+          <div><div style={{ fontSize:10, color:"#555", marginBottom:3 }}>{form.scope==="signature"?"SID":"Category"}</div>
+            <input style={inp} value={form.scope==="signature"?form.sid:form.category} onChange={e=>setForm(f=>form.scope==="signature"?{...f,sid:e.target.value}:{...f,category:e.target.value})} placeholder={form.scope==="signature"?"2100498":"exploit"} />
+          </div>
+          <div><div style={{ fontSize:10, color:"#555", marginBottom:3 }}>Action</div><select style={sel} value={form.action} onChange={e=>setForm(f=>({...f,action:e.target.value}))}>
+            <option value="block">Block</option><option value="trap">Trap</option><option value="block_and_trap">Block+Trap</option><option value="notify">Notify</option>
+          </select></div>
+          <div><div style={{ fontSize:10, color:"#555", marginBottom:3 }}>Cooldown (min)</div><input style={inp} type="number" value={form.cooldownMins} onChange={e=>setForm(f=>({...f,cooldownMins:parseInt(e.target.value)||60}))} /></div>
+          <button onClick={createPolicy} disabled={saving||!form.name} style={{ background:"#00ff8833", border:"1px solid #00ff8866", color:"#00ff88", borderRadius:4, padding:"6px 14px", fontSize:11, cursor:"pointer", alignSelf:"end" }}>
+            {saving?"…":"+ Add"}
+          </button>
+        </div>
+        {/* Policy table */}
+        {loading ? <div style={{ color:"#555", fontSize:12 }}>Loading…</div> : (
+          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:11 }}>
+            <thead><tr style={{ color:"#555", borderBottom:"1px solid #1a1a1a" }}>
+              {["Policy","Scope","Target","Action","Cooldown","Triggered","Enabled",""].map(h=><th key={h} style={{ textAlign:"left", padding:"4px 8px", fontWeight:500 }}>{h}</th>)}
+            </tr></thead>
+            <tbody>
+              {policies.length===0&&<tr><td colSpan={8} style={{ color:"#444", textAlign:"center", padding:16 }}>No policies — click "Seed Default Policies" to get started</td></tr>}
+              {policies.map(p=>(
+                <tr key={p.id} style={{ borderBottom:"1px solid #111" }}>
+                  <td style={{ padding:"5px 8px", color:"#ccc" }}>{p.name}</td>
+                  <td style={{ padding:"5px 8px", color:"#888" }}>{p.scope}</td>
+                  <td style={{ padding:"5px 8px", color:"#aaa", fontFamily:"monospace" }}>{p.sid??p.category??"—"}</td>
+                  <td style={{ padding:"5px 8px" }}><Bdg label={p.action} color={ATR_ACTION_COLOR[p.action]??  "#888"} sm /></td>
+                  <td style={{ padding:"5px 8px", color:"#888" }}>{p.cooldownMins}m</td>
+                  <td style={{ padding:"5px 8px", color:"#00ff88", fontFamily:"monospace" }}>{p.triggeredCount}</td>
+                  <td style={{ padding:"5px 8px" }}>
+                    <button onClick={()=>togglePolicy(p)} style={{ background:"none", border:`1px solid ${p.enabled?"#00ff8844":"#333"}`, color:p.enabled?"#00ff88":"#444", borderRadius:4, padding:"2px 8px", fontSize:10, cursor:"pointer" }}>
+                      {p.enabled?"ON":"OFF"}
+                    </button>
+                  </td>
+                  <td style={{ padding:"5px 8px" }}>
+                    <button onClick={()=>deletePolicy(p.id)} style={{ background:"none", border:"none", color:"#553333", cursor:"pointer" }}><Trash2 size={11}/></button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </FwmCard>
+      <FwmCard>
+        <SectionTitle title="📋 Recent ATR Events"/>
+        {loading ? <div style={{ color:"#555", fontSize:12 }}>Loading…</div> : events.length===0 ? <div style={{ color:"#444", fontSize:12 }}>No ATR events yet. Events appear here when policies fire.</div> : (
+          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:11 }}>
+            <thead><tr style={{ color:"#555", borderBottom:"1px solid #1a1a1a" }}>
+              {["Time","Source IP","Node","Policy","SID","Action","Hits"].map(h=><th key={h} style={{ textAlign:"left", padding:"4px 8px", fontWeight:500 }}>{h}</th>)}
+            </tr></thead>
+            <tbody>
+              {events.map(e=>(
+                <tr key={e.id} style={{ borderBottom:"1px solid #0d0d0d" }}>
+                  <td style={{ padding:"4px 8px", color:"#555", fontFamily:"monospace", fontSize:10 }}>{new Date(e.triggeredAt).toLocaleString()}</td>
+                  <td style={{ padding:"4px 8px", color:"#ff8844", fontFamily:"monospace" }}>{e.sourceIp}</td>
+                  <td style={{ padding:"4px 8px", color:"#888" }}>#{e.nodeId}</td>
+                  <td style={{ padding:"4px 8px", color:"#ccc" }}>{e.policyName}</td>
+                  <td style={{ padding:"4px 8px", color:"#888", fontFamily:"monospace", fontSize:10 }}>{e.sid??"-"}</td>
+                  <td style={{ padding:"4px 8px" }}><Bdg label={e.action} color={ATR_ACTION_COLOR[e.action]??"#888"} sm /></td>
+                  <td style={{ padding:"4px 8px", color:"#aaa" }}>{e.triggerHits}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </FwmCard>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ── Per-WireGuard-Peer Firewall Rules ──────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+type PeerRule = { id:number; name:string; publicKey:string; deviceName:string|null; nodeId:number|null; action:string; throttleKbps:number|null; reason:string|null; enabled:boolean; hitCount:number; lastHit:string|null; expiresAt:string|null; createdAt:string };
+const PEER_ACTION_COLOR: Record<string,string> = { allow:"#00ff88", block:"#ff4444", throttle:"#ffaa00", trap:"#cc44ff" };
+
+function PeerRulesTab() {
+  const [rules, setRules]   = useState<PeerRule[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [form, setForm]     = useState({ name:"", publicKey:"", deviceName:"", action:"block", reason:"", throttleKbps:"" });
+  const [saving, setSaving] = useState(false);
+  const [exporting, setExporting] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const d = await fetch("/api/firewall/peer-rules").then(r=>r.json()).catch(()=>({rules:[]}));
+    setRules(d.rules ?? []);
+    setLoading(false);
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const create = async () => {
+    if (!form.name || !form.publicKey) return;
+    setSaving(true);
+    await fetch("/api/firewall/peer-rules", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ ...form, throttleKbps:form.throttleKbps?parseInt(form.throttleKbps):undefined }) });
+    setSaving(false);
+    setForm({ name:"", publicKey:"", deviceName:"", action:"block", reason:"", throttleKbps:"" });
+    load();
+  };
+  const toggle = async (r: PeerRule) => {
+    await fetch(`/api/firewall/peer-rules/${r.id}`, { method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ enabled:!r.enabled }) });
+    load();
+  };
+  const del = async (id: number) => {
+    await fetch(`/api/firewall/peer-rules/${id}`, { method:"DELETE" });
+    load();
+  };
+  const exportScript = () => {
+    setExporting(true);
+    window.open("/api/firewall/peer-rules/daemon-export", "_blank");
+    setTimeout(()=>setExporting(false), 1000);
+  };
+
+  const inp: React.CSSProperties = { background:"#111", border:"1px solid #333", color:"#eee", borderRadius:4, padding:"5px 8px", fontSize:11, fontFamily:"monospace", width:"100%" };
+  const sel: React.CSSProperties = { ...inp, cursor:"pointer" };
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+      <FwmCard>
+        <SectionTitle title="🔑 Per-WireGuard-Peer Firewall Rules"/>
+        <p style={{ color:"#666", fontSize:12, marginBottom:12 }}>
+          Rules keyed to a WireGuard peer's <strong style={{ color:"#aaa" }}>public key</strong>, not just their assigned IP.
+          Block, trap, or throttle a specific device regardless of IP address — zero-trust per peer.
+        </p>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 2fr 1fr 80px 100px auto", gap:6, marginBottom:14, alignItems:"end" }}>
+          <div><div style={{ fontSize:10, color:"#555", marginBottom:3 }}>Rule Name</div><input style={inp} value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="Block compromised device" /></div>
+          <div><div style={{ fontSize:10, color:"#555", marginBottom:3 }}>WireGuard Public Key</div><input style={inp} value={form.publicKey} onChange={e=>setForm(f=>({...f,publicKey:e.target.value}))} placeholder="base64-encoded public key" /></div>
+          <div><div style={{ fontSize:10, color:"#555", marginBottom:3 }}>Device Name (opt.)</div><input style={inp} value={form.deviceName} onChange={e=>setForm(f=>({...f,deviceName:e.target.value}))} placeholder="Laptop / Phone" /></div>
+          <div><div style={{ fontSize:10, color:"#555", marginBottom:3 }}>Action</div><select style={sel} value={form.action} onChange={e=>setForm(f=>({...f,action:e.target.value}))}>
+            <option value="block">Block</option><option value="allow">Allow</option><option value="throttle">Throttle</option><option value="trap">Trap</option>
+          </select></div>
+          <div><div style={{ fontSize:10, color:"#555", marginBottom:3 }}>Throttle kbps</div><input style={inp} type="number" value={form.throttleKbps} onChange={e=>setForm(f=>({...f,throttleKbps:e.target.value}))} placeholder="only for throttle" /></div>
+          <button onClick={create} disabled={saving||!form.name||!form.publicKey} style={{ background:"#00ff8833", border:"1px solid #00ff8866", color:"#00ff88", borderRadius:4, padding:"6px 14px", fontSize:11, cursor:"pointer", alignSelf:"end" }}>
+            {saving?"…":"+ Add"}
+          </button>
+        </div>
+        <div style={{ display:"flex", gap:8, marginBottom:12 }}>
+          <button onClick={exportScript} disabled={exporting} style={{ background:"#1a1a2a", border:"1px solid #333", color:"#88aaff", borderRadius:4, padding:"5px 12px", fontSize:10, cursor:"pointer" }}>
+            ⬇ Export iptables Script (.sh)
+          </button>
+          <button onClick={load} style={{ background:"none", border:"1px solid #333", color:"#666", borderRadius:4, padding:"5px 10px", fontSize:10, cursor:"pointer" }}><RefreshCw size={10}/></button>
+        </div>
+        {loading ? <div style={{ color:"#555", fontSize:12 }}>Loading…</div> : rules.length===0 ? (
+          <div style={{ color:"#444", fontSize:12, padding:"20px 0", textAlign:"center" }}>No peer rules yet. Add a public key above to create a peer-specific firewall rule.</div>
+        ) : (
+          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:11 }}>
+            <thead><tr style={{ color:"#555", borderBottom:"1px solid #1a1a1a" }}>
+              {["Name","Public Key","Device","Action","Hits","Last Hit","Enabled",""].map(h=><th key={h} style={{ textAlign:"left", padding:"4px 8px", fontWeight:500 }}>{h}</th>)}
+            </tr></thead>
+            <tbody>
+              {rules.map(r=>(
+                <tr key={r.id} style={{ borderBottom:"1px solid #0d0d0d", opacity:r.enabled?1:0.5 }}>
+                  <td style={{ padding:"5px 8px", color:"#ccc" }}>{r.name}</td>
+                  <td style={{ padding:"5px 8px", color:"#888", fontFamily:"monospace", fontSize:9 }}>
+                    {r.publicKey.slice(0,20)}…<CopyBtn text={r.publicKey}/>
+                  </td>
+                  <td style={{ padding:"5px 8px", color:"#888" }}>{r.deviceName??"-"}</td>
+                  <td style={{ padding:"5px 8px" }}><Bdg label={r.action} color={PEER_ACTION_COLOR[r.action]??"#888"} sm /></td>
+                  <td style={{ padding:"5px 8px", color:"#00ff88", fontFamily:"monospace" }}>{r.hitCount}</td>
+                  <td style={{ padding:"5px 8px", color:"#555", fontSize:10 }}>{r.lastHit?new Date(r.lastHit).toLocaleString():"—"}</td>
+                  <td style={{ padding:"5px 8px" }}>
+                    <button onClick={()=>toggle(r)} style={{ background:"none", border:`1px solid ${r.enabled?"#00ff8844":"#333"}`, color:r.enabled?"#00ff88":"#444", borderRadius:4, padding:"2px 8px", fontSize:10, cursor:"pointer" }}>
+                      {r.enabled?"ON":"OFF"}
+                    </button>
+                  </td>
+                  <td style={{ padding:"5px 8px" }}>
+                    <button onClick={()=>del(r.id)} style={{ background:"none", border:"none", color:"#553333", cursor:"pointer" }}><Trash2 size={11}/></button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </FwmCard>
+      <div style={{ padding:"10px 14px", background:"#0a1a0a", border:"1px solid #1a2a1a", borderRadius:6, fontSize:11, color:"#446644" }}>
+        <strong style={{ color:"#66aa66" }}>How it works:</strong> Peer rules are converted to iptables FORWARD rules. The daemon script uses <code style={{ color:"#88cc88", fontFamily:"monospace" }}>wg show wg0 allowed-ips</code> to resolve each public key to its assigned IP at runtime, then installs the matching iptables rule. Rules survive IP reassignment automatically.
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ── Adaptive DDoS Shield ───────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+type DdosConfig = { id:number; enabled:boolean; thresholdPps:number; windowSecs:number; action:string; rateLimitPps:number; autoUnblockMins:number; updatedAt:string };
+type DdosEvent  = { id:number; sourceIp:string; nodeId:number; peakPps:number; durationSecs:number|null; actionTaken:string; blockedAt:string; unblockAt:string|null; resolvedAt:string|null };
+
+function DdosTab() {
+  const [config, setConfig]   = useState<DdosConfig|null>(null);
+  const [events, setEvents]   = useState<DdosEvent[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving]   = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const [c, e] = await Promise.all([
+      fetch("/api/firewall/ddos/config").then(r=>r.json()).catch(()=>null),
+      fetch("/api/firewall/ddos/events?limit=50").then(r=>r.json()).catch(()=>({events:[]})),
+    ]);
+    setConfig(c);
+    setEvents(e.events ?? []);
+    setLoading(false);
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const save = async () => {
+    if (!config) return;
+    setSaving(true);
+    const updated = await fetch("/api/firewall/ddos/config", { method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ enabled:config.enabled, thresholdPps:config.thresholdPps, windowSecs:config.windowSecs, action:config.action, rateLimitPps:config.rateLimitPps, autoUnblockMins:config.autoUnblockMins }) }).then(r=>r.json());
+    setConfig(updated);
+    setSaving(false);
+  };
+  const resolve = async (id: number) => {
+    await fetch(`/api/firewall/ddos/events/${id}/resolve`, { method:"POST" });
+    load();
+  };
+
+  const inp: React.CSSProperties = { background:"#111", border:"1px solid #333", color:"#eee", borderRadius:4, padding:"5px 8px", fontSize:12, fontFamily:"monospace", width:110 };
+  const sel: React.CSSProperties = { ...inp, cursor:"pointer" };
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+      <FwmCard>
+        <SectionTitle title="🛡 Adaptive DDoS Auto-Response"/>
+        <p style={{ color:"#666", fontSize:12, marginBottom:14 }}>
+          Nodes report high-pps traffic sources via <code style={{ color:"#44aaff", fontFamily:"monospace" }}>POST /api/daemon-inbound/ddos-report</code>.
+          When a source exceeds the threshold, the server automatically blocks it and schedules auto-unblock.
+        </p>
+        {loading || !config ? <div style={{ color:"#555", fontSize:12 }}>Loading config…</div> : (
+          <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:16, flexWrap:"wrap" }}>
+              <label style={{ display:"flex", alignItems:"center", gap:8, fontSize:12, color:"#ccc" }}>
+                <input type="checkbox" checked={config.enabled} onChange={e=>setConfig(c=>c?({...c,enabled:e.target.checked}):c)} />
+                DDoS Auto-Response Enabled
+              </label>
+            </div>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:10 }}>
+              <div>
+                <div style={{ fontSize:10, color:"#555", marginBottom:3 }}>Threshold (pps)</div>
+                <input style={inp} type="number" value={config.thresholdPps} onChange={e=>setConfig(c=>c?({...c,thresholdPps:parseInt(e.target.value)||5000}):c)} />
+              </div>
+              <div>
+                <div style={{ fontSize:10, color:"#555", marginBottom:3 }}>Window (sec)</div>
+                <input style={inp} type="number" value={config.windowSecs} onChange={e=>setConfig(c=>c?({...c,windowSecs:parseInt(e.target.value)||10}):c)} />
+              </div>
+              <div>
+                <div style={{ fontSize:10, color:"#555", marginBottom:3 }}>Action</div>
+                <select style={sel} value={config.action} onChange={e=>setConfig(c=>c?({...c,action:e.target.value}):c)}>
+                  <option value="rate_limit">Rate Limit</option>
+                  <option value="block">Block</option>
+                  <option value="throttle">Throttle</option>
+                </select>
+              </div>
+              <div>
+                <div style={{ fontSize:10, color:"#555", marginBottom:3 }}>Rate Limit (pps)</div>
+                <input style={inp} type="number" value={config.rateLimitPps} onChange={e=>setConfig(c=>c?({...c,rateLimitPps:parseInt(e.target.value)||100}):c)} />
+              </div>
+              <div>
+                <div style={{ fontSize:10, color:"#555", marginBottom:3 }}>Auto-Unblock (min)</div>
+                <input style={inp} type="number" value={config.autoUnblockMins} onChange={e=>setConfig(c=>c?({...c,autoUnblockMins:parseInt(e.target.value)||30}):c)} />
+              </div>
+            </div>
+            <div style={{ display:"flex", gap:8 }}>
+              <button onClick={save} disabled={saving} style={{ background:"#00ff8833", border:"1px solid #00ff8866", color:"#00ff88", borderRadius:4, padding:"6px 16px", fontSize:11, cursor:"pointer" }}>
+                {saving?"Saving…":"Save Config"}
+              </button>
+              <button onClick={load} style={{ background:"none", border:"1px solid #333", color:"#666", borderRadius:4, padding:"6px 12px", fontSize:11, cursor:"pointer" }}><RefreshCw size={11}/></button>
+            </div>
+          </div>
+        )}
+      </FwmCard>
+      <FwmCard>
+        <SectionTitle title={`🚨 DDoS Events (${events.filter(e=>!e.resolvedAt).length} active)`}/>
+        <div style={{ marginBottom:10, display:"flex", gap:16, fontSize:11 }}>
+          <span style={{ color:"#ff4444" }}>🔴 Active: {events.filter(e=>!e.resolvedAt).length}</span>
+          <span style={{ color:"#555" }}>Total: {events.length}</span>
+          <span style={{ color:"#00ff88" }}>Resolved: {events.filter(e=>e.resolvedAt).length}</span>
+        </div>
+        {loading ? <div style={{ color:"#555", fontSize:12 }}>Loading…</div> : events.length===0 ? (
+          <div style={{ color:"#444", fontSize:12, padding:"20px 0", textAlign:"center" }}>No DDoS events. Events appear here when nodes report high-pps sources.</div>
+        ) : (
+          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:11 }}>
+            <thead><tr style={{ color:"#555", borderBottom:"1px solid #1a1a1a" }}>
+              {["Time","Source IP","Node","Peak PPS","Duration","Action","Auto-Unblock","Status",""].map(h=><th key={h} style={{ textAlign:"left", padding:"4px 8px", fontWeight:500 }}>{h}</th>)}
+            </tr></thead>
+            <tbody>
+              {events.map(e=>(
+                <tr key={e.id} style={{ borderBottom:"1px solid #0d0d0d", opacity:e.resolvedAt?0.4:1 }}>
+                  <td style={{ padding:"4px 8px", color:"#555", fontFamily:"monospace", fontSize:10 }}>{new Date(e.blockedAt).toLocaleString()}</td>
+                  <td style={{ padding:"4px 8px", color:"#ff8844", fontFamily:"monospace" }}>{e.sourceIp}</td>
+                  <td style={{ padding:"4px 8px", color:"#888" }}>#{e.nodeId}</td>
+                  <td style={{ padding:"4px 8px", color:"#ff4444", fontFamily:"monospace", fontWeight:700 }}>{e.peakPps.toLocaleString()}</td>
+                  <td style={{ padding:"4px 8px", color:"#888" }}>{e.durationSecs?`${e.durationSecs}s`:"—"}</td>
+                  <td style={{ padding:"4px 8px" }}><Bdg label={e.actionTaken} color="#ff6600" sm /></td>
+                  <td style={{ padding:"4px 8px", color:"#888", fontSize:10 }}>{e.unblockAt?new Date(e.unblockAt).toLocaleString():"—"}</td>
+                  <td style={{ padding:"4px 8px" }}><Bdg label={e.resolvedAt?"resolved":"active"} color={e.resolvedAt?"#555":"#ff4444"} sm /></td>
+                  <td style={{ padding:"4px 8px" }}>
+                    {!e.resolvedAt&&<button onClick={()=>resolve(e.id)} style={{ background:"none", border:"1px solid #333", color:"#666", borderRadius:3, padding:"2px 8px", fontSize:9, cursor:"pointer" }}>Resolve</button>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </FwmCard>
+      <div style={{ padding:"10px 14px", background:"#0a0a1a", border:"1px solid #1a1a2a", borderRadius:6, fontSize:11, color:"#446" }}>
+        <strong style={{ color:"#6688cc" }}>Node integration:</strong> Deploy a cron/daemon on each node that monitors <code style={{ fontFamily:"monospace", color:"#88aacc" }}>nstat -s</code> or eBPF pps counters, and POSTs to <code style={{ fontFamily:"monospace", color:"#88aacc" }}>POST /api/daemon-inbound/ddos-report</code> with <code style={{ fontFamily:"monospace", color:"#88aacc" }}>{"{ nodeId, sourceIp, peakPps }"}</code> when the threshold is exceeded.
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ── AI Firewall Rule Optimizer ─────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+type OptimizerResult = {
+  score: number; grade: string;
+  recommendations: Array<{ type:string; severity:string; title:string; detail:string; ruleIds?:number[] }>;
+  stats: { totalRules:number; blockedIps:number; ipsSignatures:number; atrPolicies:number; geoBlocks:number; zones:number };
+  analyzedAt: string;
+};
+const OPT_SEV_COLOR: Record<string,string> = { critical:"#ff2244", high:"#ff6600", medium:"#ffaa00", low:"#4488ff" };
+const GRADE_COLOR: Record<string,string> = { A:"#00ff88", B:"#44ff88", C:"#ffaa00", D:"#ff6600", F:"#ff2244" };
+
+function OptimizerTab() {
+  const [result, setResult]   = useState<OptimizerResult|null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const analyze = async () => {
+    setLoading(true);
+    const d = await fetch("/api/firewall/optimizer/analyze", { method:"POST" }).then(r=>r.json()).catch(()=>null);
+    setResult(d);
+    setLoading(false);
+  };
+
+  const gradeColor = result ? (GRADE_COLOR[result.grade] ?? "#888") : "#888";
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+      <FwmCard>
+        <SectionTitle title="🤖 AI Firewall Rule Optimizer"/>
+        <p style={{ color:"#666", fontSize:12, marginBottom:14 }}>
+          Analyzes your entire ruleset against traffic patterns to surface dead rules, conflicts, reorder opportunities,
+          and missing ATR coverage. Similar to Palo Alto's Security Policy Optimizer — built natively.
+        </p>
+        <button onClick={analyze} disabled={loading} style={{ background:"#1a1a2a", border:"1px solid #4444aa", color:"#88aaff", borderRadius:6, padding:"8px 20px", fontSize:12, cursor:"pointer", marginBottom:16 }}>
+          {loading ? "⏳ Analyzing ruleset…" : "🤖 Analyze Firewall Ruleset"}
+        </button>
+        {result && (
+          <>
+            {/* Score card */}
+            <div style={{ display:"grid", gridTemplateColumns:"120px 1fr", gap:16, marginBottom:16, alignItems:"center" }}>
+              <div style={{ textAlign:"center", background:"#0a0a0a", border:`2px solid ${gradeColor}44`, borderRadius:12, padding:"16px 0" }}>
+                <div style={{ fontSize:48, fontWeight:900, color:gradeColor, fontFamily:"monospace", lineHeight:1 }}>{result.grade}</div>
+                <div style={{ fontSize:11, color:"#555", marginTop:4 }}>Security Score</div>
+                <div style={{ fontSize:24, color:gradeColor, fontWeight:700 }}>{result.score}/100</div>
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8 }}>
+                {[
+                  ["Total Rules", result.stats.totalRules, "#4488ff"],
+                  ["Blocked IPs", result.stats.blockedIps, "#ff6600"],
+                  ["IPS Sigs", result.stats.ipsSignatures, "#cc44ff"],
+                  ["ATR Policies", result.stats.atrPolicies, "#00ff88"],
+                  ["Geo Blocks", result.stats.geoBlocks, "#ffaa00"],
+                  ["Zones", result.stats.zones, "#44aaff"],
+                ].map(([label,val,color])=>(
+                  <div key={String(label)} style={{ background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:6, padding:"8px 10px" }}>
+                    <div style={{ fontSize:18, fontWeight:700, color:String(color), fontFamily:"monospace" }}>{val}</div>
+                    <div style={{ fontSize:10, color:"#555" }}>{label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            {/* Recommendations */}
+            <div style={{ fontSize:12, color:"#888", marginBottom:8 }}>
+              {result.recommendations.length === 0 ? "✅ No issues found — ruleset is optimal." : `${result.recommendations.length} recommendation(s) found:`}
+            </div>
+            <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+              {result.recommendations.map((rec, i) => (
+                <div key={i} style={{ background:"#0a0a0a", border:`1px solid ${OPT_SEV_COLOR[rec.severity]??  "#333"}44`, borderRadius:6, padding:"10px 14px" }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
+                    <Bdg label={rec.severity} color={OPT_SEV_COLOR[rec.severity]??"#888"} sm />
+                    <span style={{ fontSize:12, color:"#ccc", fontWeight:600 }}>{rec.title}</span>
+                  </div>
+                  <div style={{ fontSize:11, color:"#666" }}>{rec.detail}</div>
+                  {rec.ruleIds && rec.ruleIds.length > 0 && (
+                    <div style={{ marginTop:4, fontSize:10, color:"#555", fontFamily:"monospace" }}>
+                      Affected rule IDs: {rec.ruleIds.join(", ")}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div style={{ marginTop:8, fontSize:10, color:"#333" }}>Analyzed at {new Date(result.analyzedAt).toLocaleString()}</div>
+          </>
+        )}
+      </FwmCard>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ── Composite IP Risk Score ─────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+type RiskResult = { ip:string; score:number; riskLevel:string; riskColor:string; factors:Array<{factor:string;score:number;detail:string}>; computedAt:string };
+
+function RiskScoreTab() {
+  const [ip, setIp]         = useState("");
+  const [result, setResult] = useState<RiskResult|null>(null);
+  const [loading, setLoading] = useState(false);
+  const [history, setHistory] = useState<RiskResult[]>([]);
+
+  const lookup = async () => {
+    if (!ip.trim()) return;
+    setLoading(true);
+    const d = await fetch(`/api/firewall/risk-score?ip=${encodeURIComponent(ip.trim())}`).then(r=>r.json()).catch(()=>null);
+    if (d?.score !== undefined) {
+      setResult(d);
+      setHistory(h => [d, ...h.filter(r=>r.ip!==d.ip)].slice(0,20));
+    }
+    setLoading(false);
+  };
+
+  const scoreGradient = (score: number) => score >= 75 ? "#ff2222" : score >= 50 ? "#ff6600" : score >= 25 ? "#ffaa00" : "#00ff88";
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+      <FwmCard>
+        <SectionTitle title="📊 Composite IP Risk Score"/>
+        <p style={{ color:"#666", fontSize:12, marginBottom:14 }}>
+          Aggregates intelligence from all sources — block lists, SilkWeb honeypot, ATR events, beacon alerts — into
+          a single 0–100 risk score per IP. Use as a unified verdict instead of checking 5 separate tables.
+        </p>
+        <div style={{ display:"flex", gap:8, marginBottom:16 }}>
+          <input
+            value={ip} onChange={e=>setIp(e.target.value)} onKeyDown={e=>e.key==="Enter"&&lookup()}
+            placeholder="Enter IP address to score…"
+            style={{ flex:1, background:"#111", border:"1px solid #333", color:"#eee", borderRadius:4, padding:"8px 12px", fontSize:13, fontFamily:"monospace" }}
+          />
+          <button onClick={lookup} disabled={loading||!ip.trim()} style={{ background:"#1a1a2a", border:"1px solid #4444aa", color:"#88aaff", borderRadius:4, padding:"8px 18px", fontSize:12, cursor:"pointer" }}>
+            {loading?"Scoring…":"Score IP"}
+          </button>
+        </div>
+        {result && (
+          <div style={{ display:"grid", gridTemplateColumns:"180px 1fr", gap:16, alignItems:"start" }}>
+            {/* Score dial */}
+            <div style={{ textAlign:"center", background:"#0a0a0a", border:`2px solid ${result.riskColor}44`, borderRadius:12, padding:"20px 0" }}>
+              <div style={{ fontSize:10, color:"#555", marginBottom:4 }}>RISK SCORE</div>
+              <div style={{ fontSize:52, fontWeight:900, color:result.riskColor, fontFamily:"monospace", lineHeight:1 }}>{result.score}</div>
+              <div style={{ fontSize:12, color:"#555", margin:"4px 0" }}>/100</div>
+              <Bdg label={result.riskLevel} color={result.riskColor} />
+              <div style={{ fontSize:10, color:"#888", marginTop:8, fontFamily:"monospace" }}>{result.ip}</div>
+            </div>
+            {/* Factor breakdown */}
+            <div>
+              <div style={{ fontSize:11, color:"#666", marginBottom:8 }}>Risk factors:</div>
+              {result.factors.length === 0 ? (
+                <div style={{ color:"#444", fontSize:12 }}>No risk signals detected — IP appears clean.</div>
+              ) : (
+                <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                  {result.factors.map((f,i) => (
+                    <div key={i} style={{ display:"flex", alignItems:"center", gap:10, background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:6, padding:"8px 12px" }}>
+                      <div style={{ width:36, height:36, borderRadius:"50%", background:`${scoreGradient(f.score)}22`, border:`1px solid ${scoreGradient(f.score)}44`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, fontWeight:700, color:scoreGradient(f.score), fontFamily:"monospace", flexShrink:0 }}>
+                        +{f.score}
+                      </div>
+                      <div>
+                        <div style={{ fontSize:12, color:"#ccc", fontWeight:600 }}>{f.factor}</div>
+                        <div style={{ fontSize:11, color:"#666" }}>{f.detail}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </FwmCard>
+      {history.length > 0 && (
+        <FwmCard>
+        <SectionTitle title="Recent Lookups"/>
+          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:11 }}>
+            <thead><tr style={{ color:"#555", borderBottom:"1px solid #1a1a1a" }}>
+              {["IP","Score","Risk Level","Factors","Computed At",""].map(h=><th key={h} style={{ textAlign:"left", padding:"4px 8px", fontWeight:500 }}>{h}</th>)}
+            </tr></thead>
+            <tbody>
+              {history.map(r=>(
+                <tr key={r.ip} style={{ borderBottom:"1px solid #0d0d0d", cursor:"pointer" }} onClick={()=>{ setIp(r.ip); setResult(r); }}>
+                  <td style={{ padding:"5px 8px", color:"#aaa", fontFamily:"monospace" }}>{r.ip}</td>
+                  <td style={{ padding:"5px 8px" }}>
+                    <div style={{ display:"inline-block", background:`${r.riskColor}22`, color:r.riskColor, border:`1px solid ${r.riskColor}44`, borderRadius:4, padding:"1px 8px", fontSize:12, fontFamily:"monospace", fontWeight:700 }}>{r.score}</div>
+                  </td>
+                  <td style={{ padding:"5px 8px" }}><Bdg label={r.riskLevel} color={r.riskColor} sm /></td>
+                  <td style={{ padding:"5px 8px", color:"#666" }}>{r.factors.length} factor(s)</td>
+                  <td style={{ padding:"5px 8px", color:"#555", fontSize:10 }}>{new Date(r.computedAt).toLocaleString()}</td>
+                  <td style={{ padding:"5px 8px" }}>
+                    <button onClick={e=>{e.stopPropagation();lookup();}} style={{ background:"none", border:"1px solid #333", color:"#666", borderRadius:3, padding:"2px 6px", fontSize:9, cursor:"pointer" }}>Re-score</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </FwmCard>
+      )}
+    </div>
+  );
+}
+
 export default function Firewall() {
   const [tab, setTab] = useState("overview");
   return (
@@ -6044,6 +6635,12 @@ export default function Firewall() {
       {tab==="tarpit"      &&<TarPitTab/>}
       {/* ── Enforcement Plane ── */}
       {tab==="nodesync"    &&<NodeSyncTab/>}
+      {/* ── New Firewall Enhancements ── */}
+      {tab==="atr"         &&<AtrTab/>}
+      {tab==="peerrules"   &&<PeerRulesTab/>}
+      {tab==="ddos"        &&<DdosTab/>}
+      {tab==="optimizer"   &&<OptimizerTab/>}
+      {tab==="riskscore"   &&<RiskScoreTab/>}
     </div>
   );
 }

@@ -7,6 +7,8 @@ import {
   trappedAttackersTable, silkWebTable,
   firewallRulesTable, blockedIpsTable, firewallGhostOsRulesTable, firewallGeoBlocksTable,
   firewallIpsSignaturesTable, ebpfRulesTable,
+  firewallAtrPoliciesTable, firewallAtrEventsTable,
+  firewallDdosConfigTable, firewallDdosEventsTable,
 } from "@workspace/db";
 import { eq, and, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -511,14 +513,157 @@ router.post("/ips-event", async (req, res) => {
   }).parse(req.body);
 
   if ((body.event === "alert" || body.event === "drop") && body.sid) {
-    await db.update(firewallIpsSignaturesTable)
+    // Update IPS hit count
+    const [sig] = await db.update(firewallIpsSignaturesTable)
       .set({ hitCount: sql`${firewallIpsSignaturesTable.hitCount} + ${body.count}` })
-      .where(eq(firewallIpsSignaturesTable.sid, body.sid));
+      .where(eq(firewallIpsSignaturesTable.sid, body.sid)).returning();
     logger.warn({ nodeId: body.nodeId, sid: body.sid, srcIp: body.srcIp, event: body.event }, "IPS alert from node");
+
+    // ── Automatic Threat Response ──────────────────────────────────────────
+    if (body.srcIp) {
+      const srcIp = body.srcIp;
+      const category = sig?.category ?? "";
+
+      // Find matching ATR policies (most-specific first: sid > category > global)
+      const policies = await db.select().from(firewallAtrPoliciesTable).where(eq(firewallAtrPoliciesTable.enabled, true));
+      const matchedPolicy = policies.find(p => p.sid === body.sid && p.scope === "signature")
+        ?? policies.find(p => p.scope === "category" && category && p.category === category)
+        ?? policies.find(p => p.scope === "global");
+
+      if (matchedPolicy) {
+        // Check if already blocked
+        const [alreadyBlocked] = await db.select({ id: blockedIpsTable.id }).from(blockedIpsTable)
+          .where(eq(blockedIpsTable.ip, srcIp)).limit(1);
+        if (!alreadyBlocked) {
+          // Check cooldown — skip if ATR event for this IP+policy fired recently
+          const cooldownMs = matchedPolicy.cooldownMins * 60 * 1000;
+          const cooldownCutoff = new Date(Date.now() - cooldownMs);
+          const [recentEvent] = await db.select({ id: firewallAtrEventsTable.id })
+            .from(firewallAtrEventsTable)
+            .where(and(
+              eq(firewallAtrEventsTable.sourceIp, srcIp),
+              eq(firewallAtrEventsTable.policyId, matchedPolicy.id),
+            )).limit(1);
+
+          const isStale = !recentEvent || (await db.select({ triggeredAt: firewallAtrEventsTable.triggeredAt })
+            .from(firewallAtrEventsTable).where(eq(firewallAtrEventsTable.id, recentEvent.id)).limit(1)
+            .then(r => r[0]?.triggeredAt && r[0].triggeredAt < cooldownCutoff));
+
+          if (!recentEvent || isStale) {
+            let blockedIpId: number | undefined;
+            let trappedAttackerId: number | undefined;
+
+            // Block: add to blocked_ips
+            if (matchedPolicy.action === "block" || matchedPolicy.action === "block_and_trap") {
+              const [blocked] = await db.insert(blockedIpsTable).values({
+                ip: srcIp, reason: `ATR: ${matchedPolicy.name} (SID ${body.sid ?? ""})`,
+                autoBlocked: true,
+              }).onConflictDoNothing().returning();
+              blockedIpId = blocked?.id;
+              logger.warn({ srcIp, policy: matchedPolicy.name, action: matchedPolicy.action }, "ATR: auto-blocked IP");
+            }
+
+            // Trap: add to trapped_attackers (SilkWeb)
+            if (matchedPolicy.action === "trap" || matchedPolicy.action === "block_and_trap") {
+              const [trapped] = await db.insert(trappedAttackersTable).values({
+                ip: srcIp,
+                fingerprint: `atr:${body.sid ?? "unknown"}:${Date.now()}`,
+                entryNodeId: body.nodeId,
+                loopCount: 0,
+                dataCollected: `ATR auto-trap from IPS event — SID ${body.sid ?? ""}`,
+                probeType: "ips_alert",
+                trappedAt: new Date(),
+              }).onConflictDoNothing().returning();
+              trappedAttackerId = trapped?.id;
+              logger.warn({ srcIp, policy: matchedPolicy.name }, "ATR: auto-trapped IP in SilkWeb");
+            }
+
+            // Log ATR event
+            await db.insert(firewallAtrEventsTable).values({
+              policyId: matchedPolicy.id,
+              policyName: matchedPolicy.name,
+              sourceIp: srcIp,
+              nodeId: body.nodeId,
+              sid: body.sid,
+              triggerHits: body.count,
+              action: matchedPolicy.action,
+              trappedAttackerId: trappedAttackerId ?? null,
+              blockedIpId: blockedIpId ?? null,
+              triggeredAt: new Date(),
+            });
+
+            // Increment policy trigger count
+            await db.update(firewallAtrPoliciesTable)
+              .set({ triggeredCount: sql`${firewallAtrPoliciesTable.triggeredCount} + 1` })
+              .where(eq(firewallAtrPoliciesTable.id, matchedPolicy.id));
+
+            // Send alert email for notify action
+            if (matchedPolicy.action === "notify") {
+              const emails = adminEmails();
+              for (const email of emails) {
+                await sendMail({
+                  to: email,
+                  subject: `[ProxhqVPN ATR] Alert: ${matchedPolicy.name} — ${srcIp}`,
+                  html: `<p><strong>ATR policy "${matchedPolicy.name}"</strong> fired on node ${body.nodeId}.</p><ul><li>Source IP: ${srcIp}</li><li>SID: ${body.sid}</li><li>Action: notify-only</li><li>Time: ${new Date().toISOString()}</li></ul>`,
+                  text: `ATR policy "${matchedPolicy.name}" fired on node ${body.nodeId}.\nSource IP: ${srcIp}\nSID: ${body.sid}\nAction: notify-only\nTime: ${new Date().toISOString()}`,
+                });
+              }
+            }
+          }
+        }
+      }
+    }
   } else if (body.event === "rules_synced") {
     logger.info({ nodeId: body.nodeId, rulesHash: body.rulesHash }, "suricata rules sync confirmed by node");
   }
   return res.json({ ok: true });
+});
+
+// ── Adaptive DDoS Report ───────────────────────────────────────────────────
+// Nodes report high-pps sources detected via eBPF/kernel metrics
+router.post("/ddos-report", async (req, res) => {
+  const body = z.object({
+    nodeId: z.number().int().positive(),
+    sourceIp: z.string(),
+    peakPps: z.number().int().positive(),
+    durationSecs: z.number().int().positive().optional(),
+  }).parse(req.body);
+
+  // Get DDoS config (or defaults)
+  let [config] = await db.select().from(firewallDdosConfigTable).limit(1);
+  if (!config) {
+    [config] = await db.insert(firewallDdosConfigTable).values({ enabled: true, thresholdPps: 5000, windowSecs: 10, action: "rate_limit", rateLimitPps: 100, autoUnblockMins: 30, updatedAt: new Date() }).returning();
+  }
+
+  if (!config.enabled) return res.json({ ok: true, skipped: "DDoS protection disabled" });
+  if (body.peakPps < config.thresholdPps) return res.json({ ok: true, skipped: "Below threshold" });
+
+  // Check if already blocked
+  const [alreadyBlocked] = await db.select({ id: blockedIpsTable.id }).from(blockedIpsTable)
+    .where(eq(blockedIpsTable.ip, body.sourceIp)).limit(1);
+
+  const actionTaken = alreadyBlocked ? "already_blocked" : config.action;
+  const unblockAt = new Date(Date.now() + config.autoUnblockMins * 60 * 1000);
+
+  if (!alreadyBlocked && (config.action === "block" || config.action === "rate_limit")) {
+    await db.insert(blockedIpsTable).values({
+      ip: body.sourceIp, reason: `DDoS auto-block: ${body.peakPps} pps on node ${body.nodeId}`,
+      autoBlocked: true,
+    }).onConflictDoNothing();
+    logger.warn({ sourceIp: body.sourceIp, peakPps: body.peakPps, nodeId: body.nodeId }, "DDoS: auto-blocked high-pps source");
+  }
+
+  await db.insert(firewallDdosEventsTable).values({
+    sourceIp: body.sourceIp,
+    nodeId: body.nodeId,
+    peakPps: body.peakPps,
+    durationSecs: body.durationSecs ?? null,
+    actionTaken,
+    blockedAt: new Date(),
+    unblockAt,
+  });
+
+  return res.json({ ok: true, action: actionTaken, unblockAt: unblockAt.toISOString() });
 });
 
 // ── eBPF / XDP Rules Export ────────────────────────────────────────────────

@@ -1081,3 +1081,78 @@ export const avRansomExtTable = pgTable("av_ransomware_extensions", {
   decryptable:  boolean("decryptable").notNull().default(false),
   active:       boolean("active").notNull().default(true),
 });
+
+// ── Automatic Threat Response (ATR) ────────────────────────────────────────
+export const atrActionEnum = pgEnum("atr_action", ["block","trap","block_and_trap","notify"]);
+export const atrScopeEnum  = pgEnum("atr_scope",  ["global","category","signature"]);
+
+export const firewallAtrPoliciesTable = pgTable("firewall_atr_policies", {
+  id:             serial("id").primaryKey(),
+  name:           text("name").notNull(),
+  scope:          atrScopeEnum("scope").notNull().default("category"),
+  category:       text("category"),
+  sid:            text("sid"),
+  triggerCount:   integer("trigger_count").notNull().default(1),
+  windowSecs:     integer("window_secs").notNull().default(300),
+  action:         atrActionEnum("action").notNull().default("block"),
+  cooldownMins:   integer("cooldown_mins").notNull().default(60),
+  enabled:        boolean("enabled").notNull().default(true),
+  triggeredCount: integer("triggered_count").notNull().default(0),
+  createdAt:      timestamp("created_at").defaultNow().notNull(),
+});
+
+export const firewallAtrEventsTable = pgTable("firewall_atr_events", {
+  id:                serial("id").primaryKey(),
+  policyId:          integer("policy_id").notNull(),
+  policyName:        text("policy_name").notNull(),
+  sourceIp:          text("source_ip").notNull(),
+  nodeId:            integer("node_id").notNull(),
+  sid:               text("sid"),
+  triggerHits:       integer("trigger_hits").notNull().default(1),
+  action:            text("action").notNull(),
+  trappedAttackerId: integer("trapped_attacker_id"),
+  blockedIpId:       integer("blocked_ip_id"),
+  triggeredAt:       timestamp("triggered_at").defaultNow().notNull(),
+  resolvedAt:        timestamp("resolved_at"),
+});
+
+// ── Per-WireGuard-Peer Firewall Rules ──────────────────────────────────────
+export const firewallPeerRulesTable = pgTable("firewall_peer_rules", {
+  id:           serial("id").primaryKey(),
+  name:         text("name").notNull(),
+  publicKey:    text("public_key").notNull(),
+  deviceName:   text("device_name"),
+  nodeId:       integer("node_id"),
+  action:       text("action").notNull().default("block"),
+  throttleKbps: integer("throttle_kbps"),
+  reason:       text("reason"),
+  enabled:      boolean("enabled").notNull().default(true),
+  hitCount:     integer("hit_count").notNull().default(0),
+  lastHit:      timestamp("last_hit"),
+  expiresAt:    timestamp("expires_at"),
+  createdAt:    timestamp("created_at").defaultNow().notNull(),
+});
+
+// ── Adaptive DDoS Auto-Response ────────────────────────────────────────────
+export const firewallDdosConfigTable = pgTable("firewall_ddos_config", {
+  id:              serial("id").primaryKey(),
+  enabled:         boolean("enabled").notNull().default(true),
+  thresholdPps:    integer("threshold_pps").notNull().default(5000),
+  windowSecs:      integer("window_secs").notNull().default(10),
+  action:          text("action").notNull().default("rate_limit"),
+  rateLimitPps:    integer("rate_limit_pps").notNull().default(100),
+  autoUnblockMins: integer("auto_unblock_mins").notNull().default(30),
+  updatedAt:       timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const firewallDdosEventsTable = pgTable("firewall_ddos_events", {
+  id:           serial("id").primaryKey(),
+  sourceIp:     text("source_ip").notNull(),
+  nodeId:       integer("node_id").notNull(),
+  peakPps:      integer("peak_pps").notNull(),
+  durationSecs: integer("duration_secs"),
+  actionTaken:  text("action_taken").notNull(),
+  blockedAt:    timestamp("blocked_at").defaultNow().notNull(),
+  unblockAt:    timestamp("unblock_at"),
+  resolvedAt:   timestamp("resolved_at"),
+});

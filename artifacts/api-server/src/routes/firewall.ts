@@ -8,6 +8,10 @@ import {
   firewallThreatFeedsTable, firewallZonesTable, firewallFqdnRulesTable,
   firewallGhostOsRulesTable, firewallTranscriberLogTable,
   firewallConnectionQueueTable, nodesTable, ebpfRulesTable,
+  firewallAtrPoliciesTable, firewallAtrEventsTable,
+  firewallPeerRulesTable,
+  firewallDdosConfigTable, firewallDdosEventsTable,
+  trappedAttackersTable, beaconAlertsTable,
 } from "@workspace/db";
 import { createHash } from "crypto";
 import { eq, sql, lt, desc, asc, inArray } from "drizzle-orm";
@@ -1363,6 +1367,336 @@ router.get("/sync-status", async (_req, res) => {
     blockedIpCount: blocked.length,
     ghostOsRuleCount: ghostRules.length,
     nodes: nodesWithCmd,
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ── Automatic Threat Response (ATR) ────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+
+router.get("/atr/policies", async (_req, res) => {
+  const policies = await db.select().from(firewallAtrPoliciesTable).orderBy(asc(firewallAtrPoliciesTable.createdAt));
+  res.json({ policies, total: policies.length, enabledCount: policies.filter(p => p.enabled).length });
+});
+
+router.post("/atr/policies", async (req, res) => {
+  const body = z.object({
+    name: z.string().min(1),
+    scope: z.enum(["global","category","signature"]).default("category"),
+    category: z.string().optional(),
+    sid: z.string().optional(),
+    triggerCount: z.number().int().min(1).default(1),
+    windowSecs: z.number().int().min(1).default(300),
+    action: z.enum(["block","trap","block_and_trap","notify"]).default("block"),
+    cooldownMins: z.number().int().min(1).default(60),
+  }).parse(req.body);
+  const [policy] = await db.insert(firewallAtrPoliciesTable).values({ ...body, enabled: true, triggeredCount: 0, createdAt: new Date() }).returning();
+  res.status(201).json(policy);
+});
+
+router.put("/atr/policies/:id", async (req, res) => {
+  const id = parseInt(req.params.id);
+  const body = z.object({
+    name: z.string().optional(), enabled: z.boolean().optional(),
+    action: z.enum(["block","trap","block_and_trap","notify"]).optional(),
+    triggerCount: z.number().int().min(1).optional(),
+    cooldownMins: z.number().int().min(1).optional(),
+  }).parse(req.body);
+  const [p] = await db.update(firewallAtrPoliciesTable).set(body).where(eq(firewallAtrPoliciesTable.id, id)).returning();
+  if (!p) return res.status(404).json({ error: "Policy not found" });
+  res.json(p);
+});
+
+router.delete("/atr/policies/:id", async (req, res) => {
+  await db.delete(firewallAtrPoliciesTable).where(eq(firewallAtrPoliciesTable.id, parseInt(req.params.id)));
+  res.status(204).send();
+});
+
+router.get("/atr/events", async (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
+  const events = await db.select().from(firewallAtrEventsTable)
+    .orderBy(desc(firewallAtrEventsTable.triggeredAt)).limit(limit);
+  res.json({ events, total: events.length });
+});
+
+router.post("/atr/seed", async (_req, res) => {
+  const existing = await db.select({ id: firewallAtrPoliciesTable.id }).from(firewallAtrPoliciesTable).limit(1);
+  if (existing.length) return res.json({ skipped: true, message: "ATR policies already seeded" });
+  await db.insert(firewallAtrPoliciesTable).values([
+    { name:"Auto-block SQL injection", scope:"category", category:"sql-injection", triggerCount:1, windowSecs:60, action:"block", cooldownMins:120, enabled:true, triggeredCount:0, createdAt:new Date() },
+    { name:"Auto-block exploit scans", scope:"category", category:"exploit", triggerCount:1, windowSecs:60, action:"block", cooldownMins:120, enabled:true, triggeredCount:0, createdAt:new Date() },
+    { name:"Trap port scanners", scope:"category", category:"scan", triggerCount:1, windowSecs:30, action:"trap", cooldownMins:240, enabled:true, triggeredCount:0, createdAt:new Date() },
+    { name:"Block C2 beaconing", scope:"category", category:"c2", triggerCount:1, windowSecs:60, action:"block_and_trap", cooldownMins:480, enabled:true, triggeredCount:0, createdAt:new Date() },
+    { name:"Notify on web-attacks", scope:"category", category:"web-attacks", triggerCount:3, windowSecs:120, action:"notify", cooldownMins:30, enabled:true, triggeredCount:0, createdAt:new Date() },
+  ]);
+  res.json({ ok: true, seeded: 5 });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ── Composite IP Risk Score ─────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+
+router.get("/risk-score", async (req, res) => {
+  const ip = (req.query.ip as string)?.trim();
+  if (!ip) return res.status(400).json({ error: "ip query param required" });
+
+  const [isBlocked, isTrapped, atrEvents, beaconHits, geoBlocks] = await Promise.all([
+    db.select({ id: blockedIpsTable.id, reason: blockedIpsTable.reason }).from(blockedIpsTable).where(eq(blockedIpsTable.ip, ip)).limit(1),
+    db.select({ id: trappedAttackersTable.id }).from(trappedAttackersTable).where(eq(trappedAttackersTable.ip, ip)).limit(1),
+    db.select({ id: firewallAtrEventsTable.id, action: firewallAtrEventsTable.action, triggeredAt: firewallAtrEventsTable.triggeredAt })
+      .from(firewallAtrEventsTable).where(eq(firewallAtrEventsTable.sourceIp, ip)).limit(10),
+    db.select({ id: beaconAlertsTable.id }).from(beaconAlertsTable).where(eq(beaconAlertsTable.attackerIp, ip)).limit(5),
+    db.select().from(firewallGeoBlocksTable).where(eq(firewallGeoBlocksTable.enabled, true)),
+  ]);
+
+  const factors: Array<{ factor: string; score: number; detail: string }> = [];
+  let total = 0;
+
+  if (isBlocked.length) {
+    factors.push({ factor:"Blocked IP", score:45, detail: isBlocked[0].reason ?? "Manually blocked" });
+    total += 45;
+  }
+  if (isTrapped.length) {
+    factors.push({ factor:"Honeypot trapped", score:35, detail:"IP is caught in SilkWeb honeypot" });
+    total += 35;
+  }
+  if (atrEvents.length) {
+    const pts = Math.min(atrEvents.length * 15, 30);
+    factors.push({ factor:"ATR triggers", score:pts, detail:`${atrEvents.length} automatic threat response(s) fired` });
+    total += pts;
+  }
+  if (beaconHits.length) {
+    const pts = Math.min(beaconHits.length * 10, 20);
+    factors.push({ factor:"Beacon alerts", score:pts, detail:`${beaconHits.length} beacon/spider/worm alert(s)` });
+    total += pts;
+  }
+
+  // Check CIDR/geo heuristics
+  const parts = ip.split(".");
+  if (parts.length === 4) {
+    const isRfc1918 = (parts[0]==="10") || (parts[0]==="172"&&parseInt(parts[1])>=16&&parseInt(parts[1])<=31) || (parts[0]==="192"&&parts[1]==="168");
+    if (!isRfc1918) {
+      factors.push({ factor:"Public IP", score:5, detail:"Non-private address space — external origin" });
+      total += 5;
+    }
+  }
+
+  total = Math.min(total, 100);
+  const riskLevel = total >= 75 ? "critical" : total >= 50 ? "high" : total >= 25 ? "medium" : "low";
+  const riskColor = total >= 75 ? "#ff2222" : total >= 50 ? "#ff6600" : total >= 25 ? "#ffaa00" : "#00ff88";
+
+  res.json({ ip, score: total, riskLevel, riskColor, factors, computedAt: new Date().toISOString() });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ── Per-WireGuard-Peer Firewall Rules ──────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+
+router.get("/peer-rules", async (_req, res) => {
+  const rules = await db.select().from(firewallPeerRulesTable).orderBy(desc(firewallPeerRulesTable.createdAt));
+  res.json({ rules, total: rules.length, enabledCount: rules.filter(r => r.enabled).length });
+});
+
+router.post("/peer-rules", async (req, res) => {
+  const body = z.object({
+    name: z.string().min(1),
+    publicKey: z.string().min(10),
+    deviceName: z.string().optional(),
+    nodeId: z.number().int().optional(),
+    action: z.enum(["allow","block","throttle","trap"]).default("block"),
+    throttleKbps: z.number().int().optional(),
+    reason: z.string().optional(),
+    expiresAt: z.string().optional(),
+  }).parse(req.body);
+  const [rule] = await db.insert(firewallPeerRulesTable).values({
+    ...body,
+    expiresAt: body.expiresAt ? new Date(body.expiresAt) : null,
+    enabled: true, hitCount: 0, createdAt: new Date(),
+  }).returning();
+  res.status(201).json(rule);
+});
+
+router.put("/peer-rules/:id", async (req, res) => {
+  const id = parseInt(req.params.id);
+  const body = z.object({
+    name: z.string().optional(), enabled: z.boolean().optional(),
+    action: z.enum(["allow","block","throttle","trap"]).optional(),
+    throttleKbps: z.number().int().optional(),
+    reason: z.string().optional(),
+  }).parse(req.body);
+  const [rule] = await db.update(firewallPeerRulesTable).set(body).where(eq(firewallPeerRulesTable.id, id)).returning();
+  if (!rule) return res.status(404).json({ error: "Rule not found" });
+  res.json(rule);
+});
+
+router.delete("/peer-rules/:id", async (req, res) => {
+  await db.delete(firewallPeerRulesTable).where(eq(firewallPeerRulesTable.id, parseInt(req.params.id)));
+  res.status(204).send();
+});
+
+// Daemon calls this when a peer rule matches (increments hitCount + last_hit)
+router.post("/peer-rules/:id/hit", async (req, res) => {
+  const id = parseInt(req.params.id);
+  await db.update(firewallPeerRulesTable).set({
+    hitCount: sql`${firewallPeerRulesTable.hitCount} + 1`,
+    lastHit: new Date(),
+  }).where(eq(firewallPeerRulesTable.id, id));
+  res.json({ ok: true });
+});
+
+// Returns peer rules formatted as wg-peer-firewall config for daemon
+router.get("/peer-rules/daemon-export", async (req, res) => {
+  const nodeId = parseInt(req.query.nodeId as string) || null;
+  const rules = await db.select().from(firewallPeerRulesTable).where(eq(firewallPeerRulesTable.enabled, true));
+  const filtered = nodeId ? rules.filter(r => r.nodeId === null || r.nodeId === nodeId) : rules;
+  // Generate iptables rules using wg show wg0 peers to map pubkey -> IP
+  const script = [
+    `#!/bin/bash`,
+    `# ProxhqVPN Peer Firewall Rules — generated ${new Date().toISOString()}`,
+    `# Apply after WireGuard is up`,
+    `WG_IFACE="wg0"`,
+    ``,
+    ...filtered.map(r => {
+      const action = r.action === "block" ? "DROP" : r.action === "trap" ? "DROP" : "ACCEPT";
+      return [
+        `# Rule: ${r.name} — ${r.action} peer ${r.publicKey.slice(0,16)}...`,
+        `PEER_IP=$(wg show $WG_IFACE allowed-ips 2>/dev/null | grep "${r.publicKey}" | awk '{print $2}' | cut -d/ -f1)`,
+        `[ -n "$PEER_IP" ] && iptables -I FORWARD -s "$PEER_IP" -i $WG_IFACE -j ${action} && echo "Peer rule applied: $PEER_IP -> ${action}"`,
+        ``,
+      ].join("\n");
+    }),
+  ].join("\n");
+  res.setHeader("Content-Type", "text/plain");
+  res.setHeader("Content-Disposition", `attachment; filename="proxhq-peer-rules.sh"`);
+  return res.send(script);
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ── Adaptive DDoS Auto-Response ────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+
+router.get("/ddos/config", async (_req, res) => {
+  let [config] = await db.select().from(firewallDdosConfigTable).limit(1);
+  if (!config) {
+    [config] = await db.insert(firewallDdosConfigTable).values({ enabled: true, thresholdPps: 5000, windowSecs: 10, action: "rate_limit", rateLimitPps: 100, autoUnblockMins: 30, updatedAt: new Date() }).returning();
+  }
+  res.json(config);
+});
+
+router.put("/ddos/config", async (req, res) => {
+  const body = z.object({
+    enabled: z.boolean().optional(),
+    thresholdPps: z.number().int().min(100).optional(),
+    windowSecs: z.number().int().min(1).optional(),
+    action: z.enum(["rate_limit","block","throttle"]).optional(),
+    rateLimitPps: z.number().int().min(1).optional(),
+    autoUnblockMins: z.number().int().min(1).optional(),
+  }).parse(req.body);
+  let [config] = await db.select({ id: firewallDdosConfigTable.id }).from(firewallDdosConfigTable).limit(1);
+  if (!config) {
+    [config] = await db.insert(firewallDdosConfigTable).values({ enabled: true, thresholdPps: 5000, windowSecs: 10, action: "rate_limit", rateLimitPps: 100, autoUnblockMins: 30, updatedAt: new Date() }).returning();
+  }
+  const [updated] = await db.update(firewallDdosConfigTable).set({ ...body, updatedAt: new Date() }).where(eq(firewallDdosConfigTable.id, config.id)).returning();
+  res.json(updated);
+});
+
+router.get("/ddos/events", async (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
+  const events = await db.select().from(firewallDdosEventsTable)
+    .orderBy(desc(firewallDdosEventsTable.blockedAt)).limit(limit);
+  const activeCount = events.filter(e => !e.resolvedAt).length;
+  res.json({ events, total: events.length, activeCount });
+});
+
+router.post("/ddos/events/:id/resolve", async (req, res) => {
+  const id = parseInt(req.params.id);
+  const [evt] = await db.update(firewallDdosEventsTable).set({ resolvedAt: new Date() }).where(eq(firewallDdosEventsTable.id, id)).returning();
+  if (!evt) return res.status(404).json({ error: "Event not found" });
+  res.json(evt);
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ── AI Firewall Rule Optimizer ─────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+
+router.post("/optimizer/analyze", async (_req, res) => {
+  const [rules, blocked, geoBlocks, ipsSignatures, atrPolicies, dpiRules, zones] = await Promise.all([
+    db.select().from(firewallRulesTable),
+    db.select().from(blockedIpsTable),
+    db.select().from(firewallGeoBlocksTable),
+    db.select().from(firewallIpsSignaturesTable),
+    db.select().from(firewallAtrPoliciesTable),
+    db.select().from(firewallDpiRulesTable),
+    db.select().from(firewallZonesTable),
+  ]);
+
+  const recommendations: Array<{ type: string; severity: string; title: string; detail: string; ruleIds?: number[] }> = [];
+
+  // 1. Dead rules — enabled rules with no matches (0 hit count where available)
+  const deadRules = rules.filter(r => r.enabled);
+  if (deadRules.length > 20) {
+    recommendations.push({ type:"dead_rules", severity:"low", title:`${deadRules.length} rules active — consider pruning`, detail:"Large rulesets increase evaluation latency. Review rules older than 30 days with no documented match." });
+  }
+
+  // 2. Overlapping rules — rules with identical source/dest/port combos
+  const ruleKeys = rules.map(r => `${r.sourceIp}:${r.destIp}:${r.destPort}:${r.protocol}`);
+  const duplicates: string[] = [];
+  ruleKeys.forEach((k, i) => { if (ruleKeys.indexOf(k) !== i && !duplicates.includes(k)) duplicates.push(k); });
+  if (duplicates.length) {
+    const dupRules = rules.filter(r => duplicates.includes(`${r.sourceIp}:${r.destIp}:${r.destPort}:${r.protocol}`));
+    recommendations.push({ type:"overlap", severity:"medium", title:`${duplicates.length} overlapping rule pattern(s) detected`, detail:`Rules with identical src/dst/port/proto: ${dupRules.map(r => `#${r.id} "${r.name}"`).join(", ")}. Merge or remove duplicates.`, ruleIds: dupRules.map(r => r.id) });
+  }
+
+  // 3. Allow rules that contradict deny rules
+  const allowRules = rules.filter(r => r.action === "allow");
+  const denyRules  = rules.filter(r => r.action === "deny" || r.action === "drop");
+  const conflicts: number[] = [];
+  for (const ar of allowRules) {
+    const conflict = denyRules.find(dr => dr.sourceIp === ar.sourceIp && dr.destPort === ar.destPort && dr.protocol === ar.protocol);
+    if (conflict) { conflicts.push(ar.id); conflicts.push(conflict.id); }
+  }
+  if (conflicts.length) {
+    recommendations.push({ type:"conflict", severity:"high", title:`${conflicts.length / 2} allow/deny conflict(s) found`, detail:"Some rules allow traffic that other rules deny for the same source/port/protocol. The first matching rule wins — reorder or remove.", ruleIds: [...new Set(conflicts)] });
+  }
+
+  // 4. IPS categories with no ATR policy
+  const ipsCats = [...new Set(ipsSignatures.map(s => s.category))];
+  const atrCats = new Set(atrPolicies.map(p => p.category).filter(Boolean));
+  const uncoveredCats = ipsCats.filter(c => !atrCats.has(c));
+  if (uncoveredCats.length) {
+    recommendations.push({ type:"atr_gap", severity:"medium", title:`${uncoveredCats.length} IPS category(s) have no ATR policy`, detail:`Categories with no auto-response: ${uncoveredCats.join(", ")}. Attackers triggering these sigs will not be auto-blocked.` });
+  }
+
+  // 5. High blocked-IP volume suggests a geo-block would be more efficient
+  if (blocked.length > 50) {
+    recommendations.push({ type:"geo_efficiency", severity:"low", title:`${blocked.length} manual IP blocks — consider geo-block rules`, detail:"When many blocked IPs share a country/ASN, a single geo-block rule is more efficient and maintainable than individual IP entries." });
+  }
+
+  // 6. DPI rules with no enabled IPS backup
+  const enabledIps = ipsSignatures.filter(s => s.enabled).length;
+  if (dpiRules.length > 0 && enabledIps === 0) {
+    recommendations.push({ type:"ips_disabled", severity:"high", title:"DPI rules active but all IPS signatures disabled", detail:"DPI catches content patterns, but IPS is needed for protocol-level attack signatures. Re-enable IPS signatures for full coverage." });
+  }
+
+  // 7. No zones defined — flat network
+  if (zones.length === 0) {
+    recommendations.push({ type:"no_zones", severity:"medium", title:"No security zones defined — flat network posture", detail:"Without zones, all interfaces share the same trust level. Define at least WAN/LAN/DMZ zones to enable micro-segmentation." });
+  }
+
+  // 8. Rule ordering suggestion
+  const anyProtoRules = rules.filter(r => r.protocol === "any" && r.action !== "allow");
+  if (anyProtoRules.length > 3) {
+    recommendations.push({ type:"ordering", severity:"low", title:`${anyProtoRules.length} broad 'any-protocol' deny rules`, detail:"Any-protocol rules should be placed last in the chain. Specific protocol rules (tcp/udp/icmp) evaluate faster and more accurately." });
+  }
+
+  const score = Math.max(0, 100 - (recommendations.filter(r=>r.severity==="critical").length*25 + recommendations.filter(r=>r.severity==="high").length*15 + recommendations.filter(r=>r.severity==="medium").length*8 + recommendations.filter(r=>r.severity==="low").length*3));
+
+  res.json({
+    score,
+    grade: score >= 90 ? "A" : score >= 75 ? "B" : score >= 60 ? "C" : score >= 45 ? "D" : "F",
+    recommendations,
+    stats: { totalRules: rules.length, blockedIps: blocked.length, ipsSignatures: ipsSignatures.length, atrPolicies: atrPolicies.length, geoBlocks: geoBlocks.length, zones: zones.length },
+    analyzedAt: new Date().toISOString(),
   });
 });
 
