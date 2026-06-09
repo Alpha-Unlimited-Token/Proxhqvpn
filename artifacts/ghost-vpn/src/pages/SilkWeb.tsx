@@ -10,7 +10,7 @@ import {
   Network, Skull, ShieldAlert, Bug, Loader2, XCircle,
   Copy, Search, ChevronDown, Syringe, Globe, TerminalSquare, Download,
   FolderOpen, Terminal, MonitorSmartphone, RefreshCw, FileText,
-  CheckCircle2, AlertTriangle, Zap, Radio,
+  CheckCircle2, AlertTriangle, Zap, Radio, ShieldOff, ShieldCheck, Trash2,
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -152,13 +152,19 @@ type PanelTab = "portscan" | "sqlmap" | "console" | "files" | "osshell" | "contr
 function IpDropdown({
   attacker,
   onOpen,
+  onMutated,
 }: {
   attacker: AttackerRow;
   onOpen: (att: AttackerRow, tab: PanelTab) => void;
+  onMutated: () => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [busyBlock, setBusyBlock]   = useState(false);
+  const [busyAllow, setBusyAllow]   = useState(false);
+  const [busyDelete, setBusyDelete] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  const { toast } = useToast();
+  const { toast }    = useToast();
+  const { getToken } = useAuth();
 
   useEffect(() => {
     if (!open) return;
@@ -169,6 +175,15 @@ function IpDropdown({
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
+  const authFetch = useCallback(async (url: string, init?: RequestInit) => {
+    const token = await getToken();
+    return fetch(url, {
+      ...init,
+      credentials: "include",
+      headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}), ...init?.headers },
+    });
+  }, [getToken]);
+
   const copyIp = () => {
     navigator.clipboard.writeText(attacker.ip);
     toast({ title: "Copied", description: `${attacker.ip} copied to clipboard` });
@@ -178,6 +193,53 @@ function IpDropdown({
   const whois = () => {
     window.open(`https://search.arin.net/rdap/?query=${attacker.ip}`, "_blank");
     setOpen(false);
+  };
+
+  const blockIp = async () => {
+    setBusyBlock(true);
+    setOpen(false);
+    try {
+      const r = await authFetch(`${BASE}/api/silkweb/trapped/${attacker.id}/block-ip`, { method: "POST" });
+      const d = await r.json();
+      if (d.alreadyBlocked) {
+        toast({ title: "Already Blocked", description: `${attacker.ip} is already in the firewall block list.` });
+      } else {
+        toast({ title: "IP Blocked", description: `${attacker.ip} added to firewall — all traffic dropped.` });
+      }
+      onMutated();
+    } catch {
+      toast({ title: "Block Failed", description: "Could not add IP to firewall.", variant: "destructive" });
+    } finally {
+      setBusyBlock(false);
+    }
+  };
+
+  const allowIp = async () => {
+    setBusyAllow(true);
+    setOpen(false);
+    try {
+      await authFetch(`${BASE}/api/silkweb/trapped/${attacker.id}/allow-ip`, { method: "POST" });
+      toast({ title: "IP Allowed", description: `${attacker.ip} removed from block list — traffic permitted.` });
+      onMutated();
+    } catch {
+      toast({ title: "Allow Failed", description: "Could not unblock IP.", variant: "destructive" });
+    } finally {
+      setBusyAllow(false);
+    }
+  };
+
+  const deleteEntry = async () => {
+    setBusyDelete(true);
+    setOpen(false);
+    try {
+      await authFetch(`${BASE}/api/silkweb/trapped/${attacker.id}`, { method: "DELETE" });
+      toast({ title: "Entry Deleted", description: `Trapped entry for ${attacker.ip} has been removed.` });
+      onMutated();
+    } catch {
+      toast({ title: "Delete Failed", description: "Could not remove entry.", variant: "destructive" });
+    } finally {
+      setBusyDelete(false);
+    }
   };
 
   const actions = [
@@ -211,12 +273,15 @@ function IpDropdown({
     },
   ];
 
+  const isBusy = busyBlock || busyAllow || busyDelete;
+
   return (
     <div ref={ref} className="relative inline-block">
       <button
         onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
         className="flex items-center gap-1 text-red-400 font-bold font-mono hover:text-red-300 transition-colors group"
       >
+        {isBusy ? <Loader2 className="w-3 h-3 animate-spin text-yellow-400" /> : null}
         <span className="underline underline-offset-2 decoration-red-500/40">{attacker.ip}</span>
         <ChevronDown className={`w-3 h-3 text-red-400/60 transition-transform duration-150 ${open ? "rotate-180" : ""}`} />
       </button>
@@ -233,7 +298,7 @@ function IpDropdown({
             </div>
           </div>
 
-          {/* Actions */}
+          {/* Recon / exploit actions */}
           <div className="py-1">
             {actions.map((a, i) => (
               <button
@@ -248,6 +313,49 @@ function IpDropdown({
                 </div>
               </button>
             ))}
+          </div>
+
+          {/* Management actions */}
+          <div className="border-t border-yellow-500/20 py-1">
+            <div className="px-3 py-1">
+              <span className="text-[9px] font-mono text-primary/30 uppercase tracking-widest">IP Management</span>
+            </div>
+            {/* Block */}
+            <button
+              onClick={blockIp}
+              disabled={busyBlock}
+              className="w-full flex items-start gap-3 px-3 py-2.5 hover:bg-red-500/5 transition-colors text-left disabled:opacity-50"
+            >
+              {busyBlock ? <Loader2 className="w-3.5 h-3.5 text-red-400 animate-spin mt-0.5 shrink-0" /> : <ShieldOff className="w-3.5 h-3.5 text-red-400 mt-0.5 shrink-0" />}
+              <div className="min-w-0">
+                <div className="text-xs font-mono font-semibold text-red-400">Block IP</div>
+                <div className="text-[10px] text-primary/35 font-mono">Add to firewall — drop all traffic</div>
+              </div>
+            </button>
+            {/* Allow */}
+            <button
+              onClick={allowIp}
+              disabled={busyAllow}
+              className="w-full flex items-start gap-3 px-3 py-2.5 hover:bg-primary/5 transition-colors text-left disabled:opacity-50"
+            >
+              {busyAllow ? <Loader2 className="w-3.5 h-3.5 text-primary animate-spin mt-0.5 shrink-0" /> : <ShieldCheck className="w-3.5 h-3.5 text-primary mt-0.5 shrink-0" />}
+              <div className="min-w-0">
+                <div className="text-xs font-mono font-semibold text-primary">Allow IP</div>
+                <div className="text-[10px] text-primary/35 font-mono">Remove from block list — permit traffic</div>
+              </div>
+            </button>
+            {/* Delete */}
+            <button
+              onClick={deleteEntry}
+              disabled={busyDelete}
+              className="w-full flex items-start gap-3 px-3 py-2.5 hover:bg-red-900/20 transition-colors text-left disabled:opacity-50"
+            >
+              {busyDelete ? <Loader2 className="w-3.5 h-3.5 text-red-500/70 animate-spin mt-0.5 shrink-0" /> : <Trash2 className="w-3.5 h-3.5 text-red-500/70 mt-0.5 shrink-0" />}
+              <div className="min-w-0">
+                <div className="text-xs font-mono font-semibold text-red-500/70">Delete Entry</div>
+                <div className="text-[10px] text-primary/35 font-mono">Remove from trapped entities list</div>
+              </div>
+            </button>
           </div>
 
           {/* Footer note */}
@@ -294,6 +402,11 @@ export default function SilkWeb() {
     setSelected(att);
     setActiveTab(tab);
   };
+
+  const handleMutated = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ["/api/silkweb/trapped"] });
+    queryClient.invalidateQueries({ queryKey: getGetSilkWebQueryKey() });
+  }, [queryClient]);
 
   const attackerList = (attackers?.attackers ?? []) as AttackerRow[];
 
@@ -414,7 +527,7 @@ export default function SilkWeb() {
                   >
                     <div className="flex items-start gap-2 flex-wrap">
                       {/* Clickable IP with dropdown */}
-                      <IpDropdown attacker={att} onOpen={openPanel} />
+                      <IpDropdown attacker={att} onOpen={openPanel} onMutated={handleMutated} />
 
                       {att.honeypotPort && (
                         <span className="text-yellow-400/70 text-[10px] border border-yellow-500/20 px-1 rounded">

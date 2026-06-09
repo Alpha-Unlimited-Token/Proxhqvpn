@@ -1,7 +1,7 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { silkWebTable, silkRoutesTable, trappedAttackersTable, nodesTable, beaconAlertsTable } from "@workspace/db";
+import { silkWebTable, silkRoutesTable, trappedAttackersTable, nodesTable, beaconAlertsTable, blockedIpsTable } from "@workspace/db";
 import { eq, sql, desc } from "drizzle-orm";
 import crypto from "crypto";
 import { exec } from "child_process";
@@ -499,6 +499,44 @@ router.get("/trapped/:id/control-data", async (req, res) => {
     autoExploitNmap:     (collected.autoExploitNmap as string | null) ?? null,
     autoExploitSqlmap:   (collected.autoExploitSqlmap as string | null) ?? null,
   });
+});
+
+// Delete a trapped attacker entry
+router.delete("/trapped/:id", async (req, res) => {
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
+  const [deleted] = await db.delete(trappedAttackersTable).where(eq(trappedAttackersTable.id, id)).returning();
+  if (!deleted) return res.status(404).json({ error: "Not found" });
+  return res.json({ ok: true });
+});
+
+// Block a trapped attacker's IP — adds to firewall blocked-IPs table
+router.post("/trapped/:id/block-ip", async (req, res) => {
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
+  const [attacker] = await db.select().from(trappedAttackersTable).where(eq(trappedAttackersTable.id, id));
+  if (!attacker) return res.status(404).json({ error: "Not found" });
+  // Upsert into blockedIpsTable (ignore if already blocked)
+  const existing = await db.select().from(blockedIpsTable).where(eq(blockedIpsTable.ip, attacker.ip)).limit(1);
+  if (existing.length > 0) return res.json({ ok: true, alreadyBlocked: true, ip: attacker.ip });
+  const [blocked] = await db.insert(blockedIpsTable).values({
+    ip: attacker.ip,
+    reason: `Silk Web Trap — manually blocked (entry #${id})`,
+    autoBlocked: true,
+    hitCount: 1,
+    blockedAt: new Date(),
+  }).returning();
+  return res.json({ ok: true, blocked, ip: attacker.ip });
+});
+
+// Allow (unblock) a trapped attacker's IP — removes from firewall blocked-IPs
+router.post("/trapped/:id/allow-ip", async (req, res) => {
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
+  const [attacker] = await db.select().from(trappedAttackersTable).where(eq(trappedAttackersTable.id, id));
+  if (!attacker) return res.status(404).json({ error: "Not found" });
+  await db.delete(blockedIpsTable).where(eq(blockedIpsTable.ip, attacker.ip));
+  return res.json({ ok: true, ip: attacker.ip });
 });
 
 // Live stats for homepage
