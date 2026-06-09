@@ -235,6 +235,308 @@ TABLE OF CONTENTS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
   },
+  {
+    id: "mobile-wireguard-manual",
+    title: "Native Mobile WireGuard Client",
+    subtitle: "iOS & Android 3-step setup, deep link import, real latency, kill switch & stealth",
+    version: "1.0",
+    pages: 16,
+    icon: Wifi,
+    iconColor: "text-green-400",
+    tier: "both",
+    content: `Native Mobile WireGuard Client — User Manual
+Version 1.0 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+All Plans (VPN Basic + Command Center Pro)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TABLE OF CONTENTS
+
+1. Overview & Requirements
+2. Step 1 — Select a VPN Server
+3. Step 2 — Generate Your WireGuard Config
+4. Step 3 — Import & Activate in WireGuard App
+5. Server Latency & Color-Coded Ping Badge
+6. View & Copy Configuration
+7. Kill Switch (Mobile)
+8. DNS Protection Toggle
+9. Stealth Mode Toggle
+10. Per-Platform Notes (iOS vs Android)
+11. Troubleshooting
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW & REQUIREMENTS
+
+The ProxhqVPN mobile app provides a true OS-level WireGuard VPN
+connection on iOS and Android. Unlike a WebView-based VPN indicator,
+this flow imports a real WireGuard tunnel configuration into the
+official WireGuard app (or a compatible app) on your device.
+
+Requirements:
+  iOS:    Official WireGuard app from App Store (free)
+          iOS 15.0 or later
+  Android: Official WireGuard app from Google Play (free)
+           Android 8.0 (Oreo) or later
+
+The ProxhqVPN mobile app itself does NOT require VPN permissions.
+The actual tunnel is managed entirely by the official WireGuard app.
+
+Note on native tunnel:
+  A fully embedded VPN daemon (VpnService on Android /
+  Network Extension on iOS) requires Apple entitlements and
+  native Expo modules. This will be available in a future release.
+  The current flow (import via deep link) provides identical
+  security with no performance difference.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2. STEP 1 — SELECT A VPN SERVER
+
+Open the ProxhqVPN mobile app.
+The main screen shows a 3-step progress indicator at the top:
+
+  Select → Generate → Activate
+
+In the server list, each server card shows:
+  • City & Country flag
+  • Real-time latency badge (measured via HTTP HEAD ping)
+  • Color coding:
+      Green  (≤ 80 ms)  — excellent connection
+      Yellow (80-200ms) — acceptable
+      Red    (> 200ms)  — high latency, choose another server
+
+Tap any server card to select it (highlighted with a border).
+The currently selected server is shown in the status bar.
+
+Available servers (4 active nodes):
+  Los Angeles (LA63)   — US West Coast
+  London (LON62)       — Europe
+  Chicago (CHI61)      — US Central
+  Tokyo (TYO64)        — Asia Pacific
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3. STEP 2 — GENERATE YOUR WIREGUARD CONFIG
+
+After selecting a server, tap "Generate WireGuard Config."
+
+The app calls: GET /api/wireguard?nodeId=<selectedNodeId>
+This returns a real per-node WireGuard .conf file containing:
+  [Interface]
+    PrivateKey = <your device private key>
+    Address    = 10.8.0.<N>/24
+    DNS        = 10.8.0.1
+
+  [Peer]
+    PublicKey  = <node public key>
+    Endpoint   = <node IP>:51820
+    AllowedIPs = 0.0.0.0/0, ::/0
+
+The config is generated fresh on every tap. Your device gets a
+unique IP allocation in the 10.8.0.0/24 range.
+
+Config generation takes 1-3 seconds. A loading indicator
+appears while the API processes the request.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4. STEP 3 — IMPORT & ACTIVATE IN WIREGUARD APP
+
+After config generation, tap the import button.
+
+iOS — "Open in WireGuard":
+  The app opens the deep link:
+    wireguard://airdrop/<base64-encoded-config>
+  If the official WireGuard iOS app is installed, it opens
+  immediately and prompts: "Add Tunnel?"
+  Tap "Allow" to import. The tunnel appears in WireGuard's
+  tunnel list ready to activate.
+
+  If WireGuard is not installed:
+  A Share sheet appears. You can:
+    • AirDrop the .conf file to another device
+    • Save to Files and open from WireGuard later
+  An App Store link appears below for one-tap install.
+
+Android — "Import to WireGuard":
+  The app opens the same wireguard:// deep link.
+  If WireGuard is installed, it opens directly to the
+  "Create Tunnel from QR or File" screen.
+  Tap "Import" to complete the process.
+
+  If WireGuard is not installed:
+  Google Play Store opens to the WireGuard app listing.
+  Install, then return to ProxhqVPN and tap import again.
+
+Activating the tunnel (in WireGuard app):
+  1. Tap the tunnel you just imported.
+  2. Toggle the switch to ON.
+  3. iOS will prompt for VPN permission — tap "Allow."
+  4. Android will prompt for VPN permission — tap "OK."
+  5. The tunnel activates. Your traffic is now encrypted.
+
+Verify connection:
+  Return to ProxhqVPN mobile app.
+  Dashboard shows: current public IP (should be the VPN node IP),
+  connection status, and bytes sent/received.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+5. SERVER LATENCY & COLOR-CODED PING BADGE
+
+The ProxhqVPN mobile app measures real server latency every 30
+seconds using an HTTP HEAD request to each node endpoint.
+
+Ping badges:
+  🟢 ≤ 80 ms   — Green  — ideal for streaming and gaming
+  🟡 80-200 ms — Yellow — suitable for browsing and work
+  🔴 > 200 ms  — Red    — consider switching servers
+
+The latency shown is the HTTPS round-trip time from your device
+to the ProxhqVPN API server — not the WireGuard tunnel latency.
+Actual VPN latency is typically 5-20ms lower (UDP vs HTTPS).
+
+If all servers show Red:
+  → Check your internet connection.
+  → If on cellular, try switching to Wi-Fi.
+  → The API server may be temporarily under load — wait 30s.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+6. VIEW & COPY CONFIGURATION
+
+After generating a config, tap "View Config" to expand a
+read-only configuration panel showing the full .conf text.
+
+In the view panel:
+  • Copy button — copies the entire .conf to your clipboard
+  • The config text is scrollable if it exceeds the panel height
+
+You can manually paste this config into any WireGuard-compatible
+app (e.g., Wireguard for macOS, WireGuard for Windows, etc.)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+7. KILL SWITCH (MOBILE)
+
+The Kill Switch toggle in the ProxhqVPN mobile app adds
+"AllowedIPs = 0.0.0.0/0, ::/0" and sets "PersistentKeepalive = 25"
+in the generated config.
+
+When the WireGuard tunnel is active with these settings:
+  • ALL traffic is routed through the VPN (no split tunneling)
+  • PersistentKeepalive keeps the tunnel alive through NAT/sleep
+  • If the VPN drops, WireGuard's own routing prevents leaks
+    (the WireGuard app itself acts as a kill switch on iOS/Android)
+
+To enable:
+  Toggle "Kill Switch" ON before tapping "Generate WireGuard Config."
+  Re-generate the config and re-import if you had already generated one.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+8. DNS PROTECTION TOGGLE
+
+When DNS Protection is ON, the generated config sets:
+  DNS = 10.8.0.1, 1.1.1.1
+
+The first DNS (10.8.0.1) is the ProxhqVPN private resolver.
+It blocks ads, trackers, and malware domains (same rule set as
+DNS Sinkhole on the web dashboard). The Cloudflare DNS (1.1.1.1)
+is a fallback for any domains not resolved by the private resolver.
+
+When DNS Protection is OFF:
+  DNS = 1.1.1.1, 8.8.8.8  (Cloudflare + Google, no filtering)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+9. STEALTH MODE TOGGLE
+
+Stealth Mode wraps the WireGuard UDP traffic in an additional
+obfuscation layer to bypass deep packet inspection (DPI).
+
+When Stealth Mode is ON:
+  • The generated config adds obfuscation headers
+  • Endpoint port changes from 51820 to 443 (HTTPS port)
+    → Makes VPN traffic look like HTTPS to DPI firewalls
+  • Compatible with: corporate networks, hotel Wi-Fi, countries
+    that block standard VPN protocols (China, Russia, UAE, etc.)
+
+Note: Stealth Mode requires the node to have obfs4/Shadowsocks
+running on port 443. All 4 active nodes support Stealth Mode.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+10. PER-PLATFORM NOTES
+
+iOS specific:
+  • WireGuard uses the Network Extension entitlement (no jailbreak needed)
+  • The iOS WireGuard app is developed and maintained by the WireGuard project
+  • "On-Demand" activation can be set in WireGuard iOS to auto-connect
+    when on untrusted Wi-Fi networks
+  • Battery impact: WireGuard is highly efficient — typical idle drain
+    is < 1% per hour extra vs no VPN
+  • Import button label: "Open in WireGuard"
+
+Android specific:
+  • WireGuard uses VpnService API (standard Android permission)
+  • The Android WireGuard app is available on Google Play and F-Droid
+  • Android 10+ allows "Always-on VPN" in Settings → Network →
+    Advanced → VPN — set ProxhqVPN/WireGuard as Always-on
+  • On some Android OEMs (Samsung, Xiaomi), battery optimization
+    may kill the WireGuard app — add it to the "Unrestricted" list
+    in Battery settings
+  • Import button label: "Import to WireGuard"
+
+Amazon Fire Stick / Fire TV:
+  • Install WireGuard from the Amazon Appstore
+  • Use the ProxhqVPN mobile app on a phone/tablet to generate
+    the config, then sideload the .conf to the Fire device via ADB:
+    adb connect <fire-device-ip>:5555
+    adb push wg0.conf /sdcard/Download/
+  • Import from the WireGuard app on Fire OS
+
+Apple TV (tvOS):
+  • WireGuard is available on the Apple TV App Store (tvOS 17+)
+  • Import via SharePlay or use the QR code from the WireGuard
+    Config page (/wireguard) on the web dashboard
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+11. TROUBLESHOOTING
+
+Deep link does not open WireGuard:
+  → Ensure the official WireGuard app is installed and set as
+    the default handler for wireguard:// links.
+  → On Android: Settings → Apps → WireGuard → Set as default
+  → Use "View Config" → Copy, then paste manually in WireGuard.
+
+Config generation fails:
+  → Check your internet connection (the app must reach the API).
+  → Ensure you are signed in to ProxhqVPN (tap Profile tab to verify).
+  → Try a different server node.
+
+Tunnel imports but does not connect:
+  → Check that port UDP 51820 (or 443 in stealth mode) is not
+    blocked by your carrier or network.
+  → Verify the node IP is reachable: ping <node-ip> from another device.
+  → Re-generate the config (endpoint IP may have rotated).
+
+Slow speeds after connecting:
+  → Switch to a geographically closer server.
+  → Toggle Stealth Mode OFF if you are not behind a DPI firewall.
+  → Disable PersistentKeepalive by turning off Kill Switch toggle.
+
+IP address shows home IP even with tunnel active:
+  → Verify AllowedIPs = 0.0.0.0/0 in the WireGuard tunnel settings.
+  → Restart the WireGuard tunnel (toggle OFF then ON).
+  → Check for a secondary VPN or proxy app running simultaneously.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+All rights reserved. Unauthorized distribution prohibited.`,
+  },
   // ── SECURITY TOOLS ───────────────────────────────────────────────────────
   {
     id: "omnistrike-manual",
@@ -5792,15 +6094,15 @@ Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
   },
   {
     id: "post-quantum-manual",
-    title: "Post-Quantum Cryptography",
-    subtitle: "ML-KEM, ML-DSA, SLH-DSA, Classic McEliece — quantum-resistant VPN tunnel upgrade",
-    version: "1.0",
-    pages: 14,
+    title: "Post-Quantum Cryptography Suite",
+    subtitle: "ML-KEM-768 + ML-DSA-65 (FIPS 203/204), CNSA 2.0, audit chain, offline key bundle",
+    version: "2.0",
+    pages: 26,
     icon: Zap,
     iconColor: "text-violet-400",
     tier: "pro",
-    content: `Post-Quantum Cryptography — User Manual
-Version 1.0 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+    content: `Post-Quantum Cryptography Suite — User Manual
+Version 2.0 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
 Command Center Pro Feature
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -5816,6 +6118,12 @@ TABLE OF CONTENTS
 7. Performance Impact
 8. Compatibility Notes
 9. Testing & Verification
+10. Live ML-KEM-768 Key Generation (v2.0)
+11. ML-DSA-65 Sign & Verify Tool (v2.0)
+12. CNSA 2.0 Compliance Scorecard (v2.0)
+13. Hash-Chained Audit Log (v2.0)
+14. Air-Gapped Offline Key Bundle (v2.0)
+15. API Reference
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -6013,7 +6321,265 @@ TABLE OF CONTENTS
   Verifies the handshake used PQ algorithms and not classical fallback.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+
+10. LIVE ML-KEM-768 KEY GENERATION (v2.0)
+
+  ProxhqVPN now generates REAL ML-KEM-768 keypairs server-side using
+  @noble/post-quantum (FIPS 203 certified implementation). Keys are
+  generated fresh on every request — never cached or stored to disk.
+
+  Navigate to: Post-Quantum (/post-quantum) → Encryption tab
+
+  Generate a New Keypair:
+  Click "Generate New ML-KEM-768 Keypair"
+  The API calls POST /api/pqc/generate-keys and returns:
+    • Public Key   — 1,184 bytes (Base64, ~1.6 KB encoded)
+    • Secret Key   — 2,400 bytes (Base64, ~3.2 KB encoded)
+    • Key ID       — random 8-byte hex identifier
+    • Generated At — ISO timestamp
+
+  Key Storage:
+  Keys are stored in memory only for your current session.
+  The server never persists private keys to the database or disk.
+  Export your keypair via the Offline Bundle (Section 14) if you
+  need to retain them for long-term use.
+
+  Encapsulate (send an encrypted shared secret to a peer):
+  1. Paste the peer's ML-KEM-768 public key (Base64).
+  2. Click "Encapsulate."
+  3. You receive:
+     • Ciphertext   — 1,088 bytes — send this to the peer
+     • Shared Secret — 32 bytes   — your side of the session key
+  API: POST /api/pqc/encapsulate  Body: { publicKey }
+
+  Decapsulate (recover the shared secret from ciphertext):
+  1. Paste the ciphertext received from the peer (Base64).
+  2. Click "Decapsulate" (uses your current secret key).
+  3. Recovered shared secret is shown (must match peer's).
+  API: POST /api/pqc/decapsulate  Body: { cipherText }
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+11. ML-DSA-65 SIGN & VERIFY TOOL (v2.0)
+
+  Navigate to: Post-Quantum (/post-quantum) → ML-DSA Signatures tab
+
+  The ML-DSA-65 tool lets you sign arbitrary messages and verify
+  signatures using FIPS 204 lattice-based digital signatures.
+
+  Generate ML-DSA-65 Keypair:
+  Click "Generate ML-DSA-65 Keypair"
+  Returns:
+    • Public Key  — 1,952 bytes (Base64, ~2.6 KB encoded)
+    • Secret Key  — 4,032 bytes (Base64, ~5.4 KB encoded)
+  API: POST /api/pqc/generate-keys?algorithm=ml-dsa-65
+
+  Sign a Message:
+  1. Paste your ML-DSA-65 secret key (Base64).
+  2. Enter the message text to sign.
+  3. Click "Sign Message."
+  4. Signature returned: 3,293 bytes (Base64, ~4.4 KB encoded).
+  API: POST /api/pqc/sign  Body: { secretKey, message }
+
+  Verify a Signature:
+  1. Paste the ML-DSA-65 public key of the signer.
+  2. Paste the message text (must be identical to what was signed).
+  3. Paste the ML-DSA-65 signature (Base64).
+  4. Click "Verify Signature."
+  5. Result: VALID ✓ or INVALID ✗
+  API: POST /api/pqc/verify  Body: { publicKey, message, signature }
+
+  Use cases:
+  • Sign WireGuard configuration files before distribution
+  • Sign firmware update manifests for VPN nodes
+  • Verify the authenticity of peer public keys
+  • Sign audit reports with post-quantum non-repudiation
+
+  Security note:
+  ML-DSA-65 provides ~192 bits of quantum security.
+  Signature size (3,293 bytes) is ~51× larger than Ed25519 (64 bytes).
+  For maximum security, use ML-DSA-87 (4,595-byte signatures,
+  ~256 bits quantum security) — selectable in Settings.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+12. CNSA 2.0 COMPLIANCE SCORECARD (v2.0)
+
+  Navigate to: Post-Quantum (/post-quantum) → CNSA 2.0 Compliance tab
+
+  CNSA 2.0 (Commercial National Security Algorithm Suite 2.0) is
+  the NSA's mandatory quantum-resistant algorithm set for systems
+  handling national security information. ProxhqVPN implements the
+  full CNSA 2.0 stack and provides a real-time compliance scorecard.
+
+  CNSA 2.0 Algorithm Requirements:
+  ┌──────────────────────────────────────────────────────────┐
+  │ Function          │ Required Algorithm    │ Status       │
+  ├──────────────────────────────────────────────────────────┤
+  │ Key Encapsulation │ ML-KEM-1024           │ ✓ Supported  │
+  │ Digital Signature │ ML-DSA-87             │ ✓ Supported  │
+  │ Digital Signature │ SLH-DSA-256           │ ✓ Supported  │
+  │ Bulk Encryption   │ AES-256-GCM           │ ✓ Active     │
+  │ Key Agreement     │ ECDH P-384 (hybrid)   │ ✓ Hybrid OK  │
+  │ Hashing           │ SHA-384 / SHA-512     │ ✓ Active     │
+  └──────────────────────────────────────────────────────────┘
+
+  Note: The default profile uses ML-KEM-768 + ML-DSA-65 (NIST
+  recommended for most deployments). Strict CNSA 2.0 compliance
+  requires upgrading to ML-KEM-1024 + ML-DSA-87.
+
+  Scorecard Controls:
+  The scorecard shows a live evidence matrix with:
+  • Algorithm in use
+  • Key sizes (bytes)
+  • NIST standard and year
+  • Compliance status per function
+  • Overall compliance percentage
+
+  Switch to CNSA 2.0 Strict Mode:
+  Post-Quantum → Settings → Algorithm Profile → "CNSA 2.0 Strict"
+  This sets: ML-KEM-1024 + ML-DSA-87 + SHA-512 + AES-256-GCM hybrid.
+
+  Timeline note:
+  NSA mandates CNSA 2.0 adoption for national security systems:
+  • Software and firmware: transition by 2025 (already required)
+  • Network devices:       transition by 2026 (current year)
+  • Systems:              full adoption by 2030
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+13. HASH-CHAINED AUDIT LOG (v2.0)
+
+  Navigate to: Post-Quantum (/post-quantum) → Audit Chain tab
+
+  Every post-quantum cryptographic operation is recorded in a
+  tamper-evident, SHA-256 hash-chained audit log. This provides
+  non-repudiation and makes post-hoc modification detectable.
+
+  How the chain works:
+  • Entry 0: { operation, timestamp, inputs, chainHash: SHA256(entry) }
+  • Entry 1: { ..., chainHash: SHA256(entry0.chainHash + entry1data) }
+  • Entry N: chainHash = SHA256(chainHash[N-1] + entryNdata)
+  Each entry's hash incorporates the previous entry's hash, forming
+  a chain where altering any historical entry invalidates all
+  subsequent hashes.
+
+  Viewing the Audit Chain:
+  The Audit Chain tab shows:
+  • Total entries in the chain
+  • Chain head hash (current tip, SHA-256 hex)
+  • Per-entry log: timestamp, operation type, inputs digest, hash
+  • Chain integrity status: VALID ✓ or BROKEN ✗ at entry N
+
+  Chain Verification:
+  Click "Verify Chain" to re-compute all hashes from the genesis
+  entry and compare against stored hashes. If any entry was tampered
+  with, the verification will report the exact entry where the chain
+  breaks.
+  API: GET /api/pqc/audit-chain
+  Returns: { ok, total, brokenAt, chainHead, algorithm, entries[] }
+
+  Logged operations include:
+  • Key generation (ML-KEM / ML-DSA)
+  • Encapsulate / Decapsulate
+  • Sign / Verify
+  • Offline bundle download
+  • Settings changes
+  • Compliance attestation
+
+  Exporting the audit log:
+  The audit chain can be exported as a JSON file from the UI.
+  The exported file includes all entries and can be independently
+  verified using any SHA-256 implementation.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+14. AIR-GAPPED OFFLINE KEY BUNDLE (v2.0)
+
+  Navigate to: Post-Quantum (/post-quantum) → Offline Bundle tab
+
+  The Offline Bundle generates a cryptographically complete key
+  package for air-gapped or offline environments where network
+  connectivity to the ProxhqVPN server is unavailable.
+
+  What is included in the bundle:
+  ┌────────────────────────────────────────────────────────┐
+  │ File               │ Contents                          │
+  ├────────────────────────────────────────────────────────┤
+  │ kem-public.b64     │ ML-KEM-768 public key (Base64)    │
+  │ kem-secret.b64     │ ML-KEM-768 secret key (Base64)    │
+  │ dsa-public.b64     │ ML-DSA-65 public key (Base64)     │
+  │ dsa-secret.b64     │ ML-DSA-65 secret key (Base64)     │
+  │ wg0.conf           │ WireGuard config with PQ keys      │
+  │ manifest.json      │ Key IDs, sizes, generation time   │
+  │ chain-snapshot.json│ Audit chain at time of export     │
+  └────────────────────────────────────────────────────────┘
+
+  Downloading the bundle:
+  Click "Download Offline Bundle" on the Offline Bundle tab.
+  API: GET /api/pqc/offline-bundle
+  Returns: application/zip — proxhqvpn-offline-keys-<timestamp>.zip
+
+  Security precautions for offline use:
+  1. Download the bundle over an HTTPS connection.
+  2. Transfer to the air-gapped system via encrypted USB only.
+  3. Verify the bundle SHA-256 checksum (shown in the UI after download)
+     on the receiving system using: sha256sum proxhqvpn-offline-keys-*.zip
+  4. Shred the USB after transfer: shred -u /dev/sdX
+  5. Store the secret key files in an encrypted volume (LUKS / VeraCrypt).
+  6. Never store plain-text secret keys on internet-connected storage.
+
+  Key rotation for air-gapped systems:
+  Generate a new offline bundle every 90 days or after any suspected
+  compromise. The old bundle's public key should be revoked from all
+  peer configurations before bringing the new bundle online.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+15. API REFERENCE
+
+  All endpoints require a valid Clerk Bearer token header:
+  Authorization: Bearer <clerk_session_token>
+
+  POST /api/pqc/generate-keys
+    Generates a fresh ML-KEM-768 + ML-DSA-65 keypair.
+    Query: ?algorithm=ml-kem-768|ml-dsa-65|both (default: both)
+    Response: { kemPublicKey, kemSecretKey, dsaPublicKey, dsaSecretKey,
+                keyId, generatedAt }
+
+  POST /api/pqc/encapsulate
+    Body: { publicKey: string }  (Base64 ML-KEM-768 public key)
+    Response: { cipherText, sharedSecret, keyId }
+
+  POST /api/pqc/decapsulate
+    Body: { cipherText: string }  (Base64 — uses current session key)
+    Response: { sharedSecret, keyId }
+
+  POST /api/pqc/sign
+    Body: { secretKey: string, message: string }
+    Response: { signature: string, algorithm: "ML-DSA-65", bytes: 3293 }
+
+  POST /api/pqc/verify
+    Body: { publicKey: string, message: string, signature: string }
+    Response: { valid: boolean, algorithm: "ML-DSA-65" }
+
+  GET /api/pqc/offline-bundle
+    Response: application/zip (contains all key files + wg config)
+
+  GET /api/pqc/audit-chain
+    Response: { ok, total, brokenAt, chainHead, algorithm, entries[] }
+
+  POST /api/pqc/attest
+    Returns a signed CNSA 2.0 compliance attestation document.
+    Response: { attestation: string, signature: string, timestamp }
+
+  GET /api/pqc/compliance
+    Returns real-time CNSA 2.0 scorecard.
+    Response: { score, controls[], overallCompliant, timestamp }
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+All rights reserved. Unauthorized distribution prohibited.`,
   },
   {
     id: "daita-manual",
@@ -10878,14 +11444,14 @@ Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
   {
     id: "silkweb-manual",
     title: "SilkWeb Honeypot Network",
-    subtitle: "SVG Topology Map, Worm Injection, Trapped Entities & Attacker Intelligence",
+    subtitle: "SVG Topology Map, Worm Injection, Trapped Entities, Attacker Dossier & OSINT",
     tier: "both",
-    pages: 28,
+    pages: 34,
     icon: Network,
-    version: "3.0",
+    version: "3.1",
     iconColor: "text-blue-400",
     content: `SILKWEB HONEYPOT NETWORK — COMPLETE MANUAL
-Version 3.0 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+Version 3.1 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -10905,6 +11471,7 @@ TABLE OF CONTENTS
 8. Auto-Block & SIEM Export
 9. Daemon-Inbound API Reference
 10. Deploying & Configuring Honeypots
+11. Attacker Dossier & OSINT Intelligence (NEW v3.1)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -11205,6 +11772,85 @@ Best practices:
   • Keep worm banner response times under 500ms to avoid timeouts.
   • Review worm callbacks daily in the Control Panel tab.
   • Export high-value entities to SIEM for correlation with firewall logs.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+11. ATTACKER DOSSIER & OSINT INTELLIGENCE (NEW v3.1)
+
+Each trapped entity now features an Attacker Dossier drawer that
+generates a comprehensive passive OSINT report for their source IP.
+Open it by clicking the "Dossier" button on any trapped entity row.
+
+What the dossier compiles:
+
+  IP Intelligence:
+  • ASN (Autonomous System Number) and hosting provider name
+  • Country, city, and ISP (via passive DB lookup)
+  • BGP prefix / network range the IP belongs to
+  • Whether the IP is a known datacenter, VPN, or Tor exit node
+  • RDAP/WHOIS organization and abuse contact
+
+  Threat Reputation:
+  • AbuseIPDB score and report count
+  • VirusTotal community detection count
+  • Known threat feeds: Blocklist.de, DShield, Emerging Threats
+  • Historical involvement in: DDoS, scanning, brute-force, spam
+  • First seen / last seen timestamps in threat databases
+
+  Behavioral Pattern:
+  • Total honeypot hits from this IP across all your nodes
+  • Trap types triggered (SSH, HTTP, FTP, etc.)
+  • Time-of-day distribution of activity (timezone inference)
+  • Tool signatures detected in banners/User-Agent strings
+  • Attempted credentials (masked) on honey services
+  • Correlated ghost-trace observations if IP appears as WG peer
+
+  Attack Classification:
+  Based on the above data, the dossier auto-classifies the attacker:
+  • Script Kiddie — common scanning tools, no novel techniques
+  • Opportunistic Bot — automated sweep, part of a botnet
+  • Targeted Threat Actor — focused, low-noise, specific payloads
+  • APT Indicator — nation-state TTPs, long dwell time, stealth
+  • Pen Tester — commercial scanner signatures (Shodan, Censys, BurpSuite)
+
+  Worm Intelligence:
+  All worm callbacks from this IP, formatted as a timeline:
+  • Browser fingerprint (navigator.userAgent, platform, language)
+  • Screen dimensions and color depth
+  • WebGL renderer and vendor (GPU fingerprinting)
+  • Timezone offset
+  • Local IP (if leaked via WebRTC)
+
+  Correlated Entities:
+  Other trapped entities sharing the same /24 subnet, ASN,
+  or organization — revealing botnet clusters or shared infrastructure.
+
+Accessing the dossier:
+
+  Via UI:
+  SilkWeb → Trapped Entities → Click any row → "Dossier" button
+  A side drawer slides in with all intelligence sections collapsed.
+  Expand each section to view the detail.
+
+  Via API:
+  GET /api/silkweb/trapped/:id/dossier
+  Returns JSON with all intelligence sections.
+  Requires Clerk session Bearer token.
+
+  Download full dossier report:
+  GET /api/silkweb/trapped/:id/dossier/download
+  Returns a plain-text formatted dossier for offline reference.
+
+Operational security notes:
+  • All OSINT is PASSIVE — no active scans are sent to the attacker's IP.
+  • Dossier generation does not alert the attacker that they are being
+    tracked. All data sources are third-party lookups and local DB records.
+  • Do not share dossier reports externally without redacting the
+    attacker's IP if your jurisdiction requires it.
+  • Dossier data is only as fresh as the underlying threat databases.
+    AbuseIPDB data can be up to 24 hours old.
+  • For active scanning of the attacker, use the Port Scan tab
+    (Section 7a) — this DOES send traffic to the attacker's IP.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
@@ -11648,12 +12294,12 @@ const CATEGORIES = [
     border: "border-green-900",
     bg: "bg-green-950/20",
     ids: [
-      "vpn-getting-started", "wireguard-advanced", "privacy-suite-tools",
-      "leak-detection-manual", "dns-shield-manual", "obfuscation-manual",
-      "device-manager-manual", "router-setup-manual", "smart-dns-manual",
-      "vpngate-manual", "network-monitor-manual", "dns-sinkhole-manual",
-      "firewall-manual", "kill-switch-manual", "ram-wireguard-manual",
-      "node-hardening-manual", "advanced-firewall-manual",
+      "vpn-getting-started", "wireguard-advanced", "mobile-wireguard-manual",
+      "privacy-suite-tools", "leak-detection-manual", "dns-shield-manual",
+      "obfuscation-manual", "device-manager-manual", "router-setup-manual",
+      "smart-dns-manual", "vpngate-manual", "network-monitor-manual",
+      "dns-sinkhole-manual", "firewall-manual", "kill-switch-manual",
+      "ram-wireguard-manual", "node-hardening-manual", "advanced-firewall-manual",
     ],
   },
   {
@@ -11727,7 +12373,7 @@ const CATEGORIES = [
     ids: [
       "osint-recon-manual", "canary-tokens-manual", "siem-manual",
       "ghost-trap-manual", "ghost-trace-manual", "dark-web-monitor-manual",
-      "username-intel-manual", "beacon-monitor-manual",
+      "username-intel-manual", "beacon-monitor-manual", "attacker-console-manual",
     ],
   },
   {
