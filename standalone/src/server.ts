@@ -77,20 +77,32 @@ async function createApp() {
     },
   }));
 
+  // Audit finding: standalone CSP allowed unsafe-inline for scripts and styles — High severity.
+  // Removed unsafe-inline from both scriptSrc and styleSrc. Inline styles must use
+  // CSS classes; inline scripts must be moved to external files with a nonce or hash.
   app.use(helmet({
     contentSecurityPolicy: {
+      useDefaults: false,
       directives: {
-        defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'"],
-        styleSrc: ["'self'", "'unsafe-inline'"],
-        imgSrc: ["'self'", "data:", "blob:"],
-        connectSrc: ["'self'"],
-        fontSrc: ["'self'", "data:"],
-        objectSrc: ["'none'"],
-        frameSrc: ["'self'"],
+        defaultSrc:              ["'self'"],
+        scriptSrc:               ["'self'"],
+        styleSrc:                ["'self'"],
+        imgSrc:                  ["'self'", "data:", "blob:"],
+        connectSrc:              ["'self'"],
+        fontSrc:                 ["'self'", "data:"],
+        objectSrc:               ["'none'"],
+        frameAncestors:          ["'none'"],
+        frameSrc:                ["'self'"],
+        baseUri:                 ["'self'"],
+        formAction:              ["'self'"],
+        upgradeInsecureRequests: [],
       },
     },
-    crossOriginEmbedderPolicy: false,
+    crossOriginEmbedderPolicy:  false,
+    crossOriginOpenerPolicy:    { policy: "same-origin" },
+    crossOriginResourcePolicy:  { policy: "same-origin" },
+    referrerPolicy:             { policy: "no-referrer" },
+    hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
   }));
 
   // Restrict CORS to localhost only — standalone is a local management interface

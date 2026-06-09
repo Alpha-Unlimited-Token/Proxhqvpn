@@ -6,6 +6,7 @@ import { userWgConfigsTable, nodesTable, usersTable, wgPeerCommandsTable } from 
 import { eq, and, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import crypto from "crypto";
+import { encryptSecret, decryptSecret, wgConfigAad, isEncrypted } from "../lib/encrypted-secret-store";
 
 const router = Router();
 
@@ -80,13 +81,20 @@ router.post("/my-config", async (req, res) => {
   const { privateKey, publicKey } = generateWireGuardKeyPair();
   const assignedIp = await nextAvailableIp(body.nodeId);
 
+  // Insert with plaintext sentinel — encrypt after we have the row ID for AAD
   const [config] = await db.insert(userWgConfigsTable).values({
     userId,
     nodeId: body.nodeId,
-    clientPrivateKey: privateKey,
+    clientPrivateKey: "__encrypted__",
     clientPublicKey: publicKey,
     assignedIp,
   }).returning();
+
+  // Encrypt private key with AAD bound to this specific row
+  const privKeyEnc = encryptSecret(privateKey, wgConfigAad(userId, config.id, "clientPrivateKey"));
+  await db.update(userWgConfigsTable)
+    .set({ clientPrivateKeyEnc: privKeyEnc, keyEncryptionVersion: "v1" })
+    .where(eq(userWgConfigsTable.id, config.id));
 
   await db.insert(wgPeerCommandsTable).values({
     configId: config.id,
@@ -134,21 +142,38 @@ router.get("/my-config/:id/text", async (req, res) => {
     ? `${node.publicIp}:${node.listenPort}`
     : `# SET_SERVER_PUBLIC_IP:${node.listenPort}`;
 
-  // Use existing stored PSK or generate a new one on first download.
-  // Storing the PSK allows rotation via POST /rotate-psk/:id without full re-provisioning.
+  // Decrypt private key — use encrypted column if available, fall back to legacy plaintext.
+  let privateKeyForDownload: string;
+  if (cfg.clientPrivateKeyEnc && isEncrypted(cfg.clientPrivateKeyEnc)) {
+    privateKeyForDownload = decryptSecret(cfg.clientPrivateKeyEnc, wgConfigAad(userId, cfg.id, "clientPrivateKey"));
+  } else if (cfg.clientPrivateKey && cfg.clientPrivateKey !== "__encrypted__") {
+    privateKeyForDownload = cfg.clientPrivateKey; // legacy plaintext — backfill not yet run
+  } else {
+    return res.status(500).json({ error: "Private key unavailable — backfill migration required" });
+  }
+
+  // Use existing stored PSK (encrypted) or generate + encrypt a new one on first download.
   // Per WireGuard paper §5.4: PSK provides post-quantum resistance by mixing a 256-bit
   // symmetric key into the Noise handshake, defeating harvest-now/decrypt-later attacks.
-  let psk = cfg.pskKey;
-  if (!psk) {
+  let psk: string;
+  if (cfg.pskKeyEnc && isEncrypted(cfg.pskKeyEnc)) {
+    psk = decryptSecret(cfg.pskKeyEnc, wgConfigAad(userId, cfg.id, "pskKey"));
+  } else if (cfg.pskKey && cfg.pskKey !== "__encrypted__") {
+    psk = cfg.pskKey; // legacy plaintext — encrypt and store now
+    const pskEnc = encryptSecret(psk, wgConfigAad(userId, cfg.id, "pskKey"));
+    await db.update(userWgConfigsTable)
+      .set({ pskKeyEnc: pskEnc, pskKey: "__encrypted__", pskRotatedAt: cfg.pskRotatedAt ?? new Date() })
+      .where(eq(userWgConfigsTable.id, cfg.id));
+  } else {
     psk = crypto.randomBytes(32).toString("base64");
-    await db
-      .update(userWgConfigsTable)
-      .set({ pskKey: psk, pskRotatedAt: new Date() })
+    const pskEnc = encryptSecret(psk, wgConfigAad(userId, cfg.id, "pskKey"));
+    await db.update(userWgConfigsTable)
+      .set({ pskKeyEnc: pskEnc, pskKey: "__encrypted__", pskRotatedAt: new Date() })
       .where(eq(userWgConfigsTable.id, cfg.id));
   }
 
   const configText = `[Interface]
-PrivateKey = ${cfg.clientPrivateKey}
+PrivateKey = ${privateKeyForDownload}
 Address = ${cfg.assignedIp}/24
 DNS = 1.1.1.1, 1.0.0.1
 
@@ -195,10 +220,11 @@ router.post("/rotate-psk/:id", async (req, res) => {
 
   const newPsk = crypto.randomBytes(32).toString("base64");
   const rotatedAt = new Date();
+  const newPskEnc = encryptSecret(newPsk, wgConfigAad(userId, id, "pskKey"));
 
   await db
     .update(userWgConfigsTable)
-    .set({ pskKey: newPsk, pskRotatedAt: rotatedAt })
+    .set({ pskKeyEnc: newPskEnc, pskKey: "__encrypted__", pskRotatedAt: rotatedAt })
     .where(eq(userWgConfigsTable.id, id));
 
   return res.json({

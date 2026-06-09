@@ -6,7 +6,7 @@ import { promisify } from "util";
 import { z } from "zod";
 import { Client as SshClient } from "ssh2";
 import type { ConnectConfig, SFTPWrapper } from "ssh2";
-import { randomUUID } from "crypto";
+import { randomUUID, timingSafeEqual } from "crypto";
 
 const execAsync = promisify(exec);
 
@@ -192,7 +192,26 @@ router.post("/exec", async (req, res) => {
   }
 
   // Ghost mode (ProxhqVPN Mode) = full outbound shell, admin-only, everything audited.
-  // Non-ghost mode = spawn(shell:false) with allowlist — prevents shell metacharacter injection.
+  // Audit finding: ghost mode requires break-glass authorization token — High severity.
+  // A short-lived token must be issued by an admin and presented in X-Break-Glass-Token.
+  // This prevents accidental enablement and provides a clear audit trail.
+  if (body.ghostMode) {
+    const bgToken = String(req.headers["x-break-glass-token"] ?? "").trim();
+    const bgExpected = (process.env.BREAK_GLASS_TOKEN ?? "").trim();
+    if (!bgExpected) {
+      return res.status(403).json({
+        error: "Ghost mode is disabled — BREAK_GLASS_TOKEN env var not set by admin",
+      });
+    }
+    if (
+      bgToken.length !== bgExpected.length ||
+      !timingSafeEqual(Buffer.from(bgToken), Buffer.from(bgExpected))
+    ) {
+      return res.status(403).json({
+        error: "Ghost mode requires a valid break-glass token (X-Break-Glass-Token header)",
+      });
+    }
+  }
   if (body.ghostMode) {
     try {
       const { stdout, stderr } = await execAsync(cmd, {

