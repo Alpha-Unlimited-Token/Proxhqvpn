@@ -455,3 +455,9 @@ id = "AemkuWqh1c-6XAQsDvfx0"
 uri = "file://standalone/CHATGPT-FULL-CODE.txt"
 type = "text"
 title = "FULL SOURCE CODE DUMP — All 523 Files (9.29 MB)"
+
+[[outputs]]
+id = "x4b0O1kL1OquHEvF5txVC"
+uri = "file://standalone/PROXHQVPN-CHATGPT-AUDIT-v2.zip"
+type = "unspecified"
+title = "ProxhqVPN ChatGPT Audit Package v2"
