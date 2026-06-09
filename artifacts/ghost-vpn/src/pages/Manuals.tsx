@@ -8521,6 +8521,2591 @@ Without the hardening script:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
   },
+
+  // ── VPN & Privacy — Core (new additions) ──────────────────────────────────
+  {
+    id: "leak-detection-manual",
+    title: "Leak Detection Suite",
+    subtitle: "DNS, IPv6 & WebRTC Leak Testing",
+    tier: "both",
+    pages: 5,
+    icon: Search,
+    version: "1.0",
+    iconColor: "text-yellow-400",
+    content: `LEAK DETECTION SUITE — COMPLETE MANUAL
+ProxhqVPN v1.0 · © 2026 Alpha Unlimited Technologies LLC
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW
+
+The Leak Detection Suite tests your VPN connection for three critical
+privacy vulnerabilities that can expose your real identity even when
+a VPN appears to be working:
+
+  • DNS Leak     — your ISP can see what domains you visit
+  • IPv6 Leak    — your real IPv6 address bypasses the VPN tunnel
+  • WebRTC Leak  — the browser exposes your local/public IP via RTC
+
+Navigate to: Dashboard → Leak Test (or /leaks)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2. DNS LEAK TEST
+
+How it works:
+  Each DNS test makes a series of DNS queries to unique subdomains
+  of a ProxhqVPN-controlled DNS log server. If your ISP's resolver
+  answers those queries instead of ProxhqVPN's resolver, your ISP
+  can see every domain you look up.
+
+What to look for:
+  PASS — only ProxhqVPN resolver IPs appear in the results
+  FAIL — your ISP's resolver IP appears, or geolocation shows
+         your real country/city
+
+Fix a DNS leak:
+  1. Enable DNS Shield (Settings → DNS Protection → Enable)
+  2. Set DNS-over-HTTPS provider to ProxhqVPN or Cloudflare 1.1.1.1
+  3. On Linux: edit /etc/resolv.conf → nameserver 10.8.0.1
+  4. Re-run the test to confirm
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3. IPv6 LEAK TEST
+
+Most consumer ISPs now assign IPv6 addresses. If your VPN only
+tunnels IPv4, your real IPv6 address is visible to every site you visit.
+
+ProxhqVPN mitigation:
+  Kill Switch → Enable IPv6 Protection applies ip6tables rules that
+  DROP all IPv6 traffic not routed through the WireGuard interface.
+  The Node Security Hardening Script mirrors all ip6tables rules
+  automatically on every node.
+
+Fix an IPv6 leak:
+  1. Kill Switch → Enable → toggle "IPv6 Leak Protection"
+  2. Alternatively, disable IPv6 on your OS adapter entirely
+  3. Linux: sysctl net.ipv6.conf.all.disable_ipv6=1
+  4. Windows: netsh int ipv6 set global randomizeidentifiers=disabled
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4. WebRTC LEAK TEST
+
+WebRTC is a browser protocol for real-time communication. It can expose
+your local network IP and sometimes your public IP even through a VPN,
+because the browser accesses STUN/TURN servers outside the tunnel.
+
+Browser mitigations:
+  Chrome/Brave  → install "WebRTC Leak Prevent" or "uBlock Origin"
+                  (enable "Prevent WebRTC from leaking local IP")
+  Firefox       → about:config → media.peerconnection.enabled = false
+  Safari        → WebRTC is more restricted; leaks less common
+
+ProxhqVPN mitigation:
+  The browser extension (when available) intercepts WebRTC API calls
+  and routes STUN requests through the VPN tunnel.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+5. CONTINUOUS LEAK MONITORING
+
+The Leak Test page includes a "Run All Tests" button and an
+auto-refresh option (every 5 minutes) for ongoing monitoring.
+Results are logged to the Security Event Log (SIEM) for audit trails.
+
+API: GET /api/leaks/dns-check · /api/leaks/ipv6-check · /api/leaks/webrtc-info
+
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+  {
+    id: "dns-shield-manual",
+    title: "DNS Shield",
+    subtitle: "DNS-Level Ad, Tracker & Malware Blocking",
+    tier: "both",
+    pages: 5,
+    icon: Shield,
+    version: "1.0",
+    iconColor: "text-blue-400",
+    content: `DNS SHIELD — COMPLETE MANUAL
+ProxhqVPN v1.0 · © 2026 Alpha Unlimited Technologies LLC
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW
+
+DNS Shield is ProxhqVPN's built-in DNS-level content blocker, similar
+to Pi-hole and AdGuard Home. It intercepts DNS queries at the resolver
+level and blocks requests to domains on curated blocklists — before
+any connection is made to the ad/tracker/malware server.
+
+Navigate to: Dashboard → DNS Protection → DNS Shield (/dns-shield)
+
+Key benefit: blocking at DNS level means zero bandwidth is used by
+ads and trackers — they never reach your device at all.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2. BLOCK CATEGORIES
+
+Toggle any category on or off. Changes apply immediately:
+
+  Ads             — advertising networks, banner/video ad domains
+  Trackers        — analytics, user behaviour tracking, heatmaps
+  Malware         — known malware C2, phishing, dropper domains
+  Phishing        — credential harvesting domains
+  Cryptomining    — browser-based mining (Coinhive derivatives)
+  Botnet C2       — command-and-control infrastructure
+  Adult Content   — optional content filtering
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3. CUSTOM RULES
+
+Add your own allow (whitelist) or block (blacklist) rules:
+
+  1. Go to DNS Shield → Custom Rules
+  2. Enter the domain (e.g. analytics.example.com)
+  3. Select Allow or Block
+  4. Click Add Rule
+
+Custom rules take precedence over all built-in blocklists.
+Rules match the exact domain AND all subdomains unless prefixed with
+a dot (e.g. .ads.example.com matches only that subdomain).
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4. DOMAIN LOOKUP TOOL
+
+Test whether a specific domain would be blocked:
+  1. DNS Shield → Lookup
+  2. Enter domain name
+  3. Result shows: BLOCKED / ALLOWED + which rule matched
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+5. DNS-OVER-HTTPS (DoH)
+
+Enable DoH to encrypt all DNS queries end-to-end, preventing ISP
+interception of even metadata:
+
+  Providers: Cloudflare 1.1.1.1, Google 8.8.8.8, ProxhqVPN resolver
+  Protocol: HTTPS POST (RFC 8484)
+  Fallback: standard UDP 53 if DoH is unreachable
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+6. STATISTICS
+
+24-hour stats shown on the DNS Shield dashboard:
+  • Total queries processed
+  • Queries blocked (number + percentage)
+  • Queries allowed
+  • Top 10 blocked domains chart
+
+API: GET /api/dns-shield/stats · /api/dns-shield/rules · POST /api/dns-shield/lookup
+
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+  {
+    id: "obfuscation-manual",
+    title: "Stealth Protocol & DPI Obfuscation",
+    subtitle: "Bypassing Deep Packet Inspection",
+    tier: "both",
+    pages: 6,
+    icon: Eye,
+    version: "1.0",
+    iconColor: "text-violet-400",
+    content: `STEALTH PROTOCOL & DPI OBFUSCATION — COMPLETE MANUAL
+ProxhqVPN v1.0 · © 2026 Alpha Unlimited Technologies LLC
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW
+
+Deep Packet Inspection (DPI) is used by ISPs, governments, and
+corporate firewalls to detect and block VPN protocols. ProxhqVPN
+offers six obfuscation techniques that disguise WireGuard traffic
+as ordinary web traffic, making it undetectable.
+
+Navigate to: Dashboard → Stealth Protocol (/obfuscation)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2. OBFUSCATION METHODS
+
+obfs4 (Tor Project):
+  Adds random-looking padding and re-randomizes packet timing.
+  Effective against signature-based DPI. Tor Browser project standard.
+  Config: Bridge address + certificate fingerprint required.
+
+Shadowsocks (SOCKS5 over encrypted TCP):
+  Disguises traffic as HTTPS. Widely used to bypass China's Great
+  Firewall. Fast and lightweight.
+  Config: Server IP, port, password, cipher (ChaCha20-IETF-Poly1305)
+
+V2Ray WebSocket + TLS:
+  WireGuard wrapped in WebSocket then TLS. Appears identical to
+  normal HTTPS web browsing. The strongest obfuscation for
+  censorship-heavy networks.
+  Config: WebSocket path (e.g. /vpn), TLS domain, port 443
+
+Meek (domain-fronting):
+  Routes traffic through a CDN (Cloudflare, Azure, or Google) so
+  DPI sees traffic to a legitimate CDN endpoint, not a VPN server.
+  Highest latency but extremely hard to block without blocking CDN.
+
+Snowflake (WebRTC proxies):
+  Uses volunteer WebRTC proxies as entry points. Traffic appears
+  as browser WebRTC calls. Requires Tor for full routing.
+
+XOR Scramble:
+  Simple XOR byte-scrambling of WireGuard UDP packets. Lightweight,
+  CPU-free, effective against basic DPI signatures but not ML-based.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3. CHOOSING A METHOD
+
+  Restricted network (office/school): V2Ray WebSocket+TLS or Shadowsocks
+  High-censorship country: V2Ray WebSocket+TLS or Meek
+  Tor network: Snowflake → Tor → WireGuard
+  Low-latency priority: XOR Scramble or Shadowsocks
+  Maximum stealth: obfs4 or V2Ray WebSocket+TLS
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4. CONFIGURATION
+
+Each method generates a config block you paste into your WireGuard
+or proxy client:
+  1. Select a method
+  2. Choose a node (LA, London, Chicago, Tokyo)
+  3. Click "Generate Config"
+  4. Copy and paste into your client application
+
+For V2Ray and obfs4, a companion process must run alongside WireGuard.
+The config page provides the full startup command for each OS.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+5. DPI TEST GUIDE
+
+Use the built-in DPI test to check whether your connection is being
+inspected. The test sends probe packets and analyzes response patterns
+to detect common DPI appliances (Cisco, Juniper, Huawei, Palo Alto).
+
+API: GET /api/obfuscation/methods · POST /api/obfuscation/generate-config
+
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+  {
+    id: "device-manager-manual",
+    title: "Device Manager",
+    subtitle: "WireGuard Device Registry & Per-Device Config",
+    tier: "both",
+    pages: 4,
+    icon: Cpu,
+    version: "1.0",
+    iconColor: "text-cyan-400",
+    content: `DEVICE MANAGER — COMPLETE MANUAL
+ProxhqVPN v1.0 · © 2026 Alpha Unlimited Technologies LLC
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW
+
+The Device Manager is ProxhqVPN's central registry for all WireGuard
+client devices. Each device gets a unique IP allocation (10.8.0.x/24),
+a dedicated WireGuard keypair, and a downloadable .conf file.
+
+Navigate to: Dashboard → My Devices (/devices)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2. ADDING A DEVICE
+
+  1. Click "Add Device"
+  2. Enter a device name (e.g. "MacBook Pro", "iPhone 15")
+  3. Select a node (LA-63, London-62, Chicago-61, Tokyo-64)
+  4. The system auto-generates:
+       • WireGuard keypair (private key generated client-side)
+       • IP allocation from 10.8.0.0/24 pool
+       • Full WireGuard .conf file
+  5. Download the .conf or scan the QR code
+
+Private keys are generated in your browser and NEVER sent to the server.
+The server stores only the device's public key.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3. QR CODE IMPORT
+
+Mobile devices can import the WireGuard config by scanning the QR code:
+  iOS/Android: Open WireGuard app → "+" → "Create from QR Code"
+  Scan the QR displayed in Device Manager
+
+The QR code encodes the full WireGuard configuration including
+AllowedIPs, DNS, Endpoint, and PrivateKey.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4. REMOVING A DEVICE
+
+Removing a device from the registry revokes its public key from the
+WireGuard server peer list. The removed device can no longer connect
+even if it still has the .conf file.
+
+  1. Find the device in the list
+  2. Click the trash icon
+  3. Confirm deletion
+
+Key revocation propagates to the WireGuard node within 30 seconds
+via the Firewall Sync daemon.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+5. IP ALLOCATION
+
+Devices are assigned IPs from the 10.8.0.0/24 range:
+  10.8.0.1   — VPN gateway (WireGuard server)
+  10.8.0.2   — first device
+  10.8.0.254 — last device (max 253 devices per node)
+
+IP assignments are persistent — the same device always gets the
+same internal IP even after reconnecting.
+
+API: GET /api/devices · POST /api/devices · DELETE /api/devices/:id
+
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+  {
+    id: "router-setup-manual",
+    title: "Router Setup Guide",
+    subtitle: "OpenWRT, DD-WRT, pfSense, GL.iNet, Ubiquiti & More",
+    tier: "both",
+    pages: 7,
+    icon: Settings,
+    version: "1.0",
+    iconColor: "text-orange-400",
+    content: `ROUTER SETUP GUIDE — COMPLETE MANUAL
+ProxhqVPN v1.0 · © 2026 Alpha Unlimited Technologies LLC
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW
+
+Installing ProxhqVPN at the router level protects every device on your
+network automatically — TVs, game consoles, smart home devices, guests
+— without installing any software on individual devices.
+
+Navigate to: Dashboard → Router Setup (/router-config)
+
+Supported firmware:
+  • OpenWRT (most common, open source)
+  • DD-WRT (wide hardware support)
+  • Asus Merlin (ASUS routers)
+  • pfSense / OPNsense (enterprise/home lab)
+  • GL.iNet (travel routers, WireGuard native)
+  • Ubiquiti UniFi / EdgeOS
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2. GENERATING CONFIG
+
+The Router Config Generator produces firmware-specific commands:
+  1. Go to /router-config
+  2. Select your firmware
+  3. Select a ProxhqVPN node
+  4. Click "Generate"
+  5. Copy the commands or download the .conf file
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3. OPENWRT SETUP (RECOMMENDED)
+
+Prerequisites: OpenWRT 22.03+ with wireguard-tools package
+
+  opkg update && opkg install wireguard-tools
+  # Paste generated wg0.conf to /etc/wireguard/wg0.conf
+  wg-quick up wg0
+  # Make permanent:
+  /etc/init.d/wg-quick enable
+  /etc/init.d/wg-quick start
+
+  Set DNS: Network → Interfaces → LAN → DHCP → DNS → 10.8.0.1
+  Set firewall: Zone WG → allow forward from LAN to WG
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4. GL.iNet SETUP (SIMPLEST)
+
+GL.iNet routers have native WireGuard support in the admin panel:
+  1. Admin Panel → VPN → WireGuard Client → Add Profile
+  2. Paste the generated .conf content
+  3. Enable the profile
+  4. All connected devices are now protected
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+5. PFSENSE/OPNSENSE SETUP
+
+  1. System → Package Manager → Install "WireGuard"
+  2. VPN → WireGuard → Tunnels → Add Tunnel
+  3. Paste PrivateKey, set Interface Address to 10.8.0.X/24
+  4. Add Peer: paste ProxhqVPN server public key + endpoint
+  5. Firewall → Rules → allow traffic from LAN to WireGuard interface
+  6. System → Routing → Set WireGuard as gateway for LAN
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+6. SPLIT ROUTING ON ROUTER
+
+To route only specific subnets through ProxhqVPN:
+  AllowedIPs = 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16
+  (removes 0.0.0.0/0 so only private-range traffic uses the VPN)
+
+For full tunnel (all traffic):
+  AllowedIPs = 0.0.0.0/0, ::/0
+
+API: GET /api/router-config/generate?firmware=openwrt&nodeId=63
+
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+  {
+    id: "smart-dns-manual",
+    title: "Smart DNS",
+    subtitle: "DNS-Only Routing for TVs, Consoles & Streaming Devices",
+    tier: "both",
+    pages: 4,
+    icon: Zap,
+    version: "1.0",
+    iconColor: "text-green-400",
+    content: `SMART DNS — COMPLETE MANUAL
+ProxhqVPN v1.0 · © 2026 Alpha Unlimited Technologies LLC
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW
+
+Smart DNS routes only DNS queries (and a small set of geo-relevant
+HTTP requests) through ProxhqVPN, while all other traffic goes
+directly to the internet. This provides geo-unblocking without the
+overhead of a full VPN tunnel — ideal for devices that cannot run
+WireGuard natively.
+
+Navigate to: Dashboard → Smart DNS (/smart-dns)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2. COMPATIBLE DEVICES
+
+Smart DNS works on any device that lets you set a custom DNS server:
+  • Samsung Smart TV (Tizen)
+  • LG Smart TV (webOS)
+  • Apple TV (tvOS)
+  • Roku
+  • PlayStation 4 / 5
+  • Xbox One / Series X|S
+  • Nintendo Switch
+  • Amazon Fire TV / Stick
+  • Android TV / Google TV
+  • iOS and Android (manual DNS)
+  • Windows and macOS
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3. SETUP BY PLATFORM
+
+Samsung TV:
+  Settings → General → Network → Network Status → IP Settings
+  → DNS Setting: Manual → enter ProxhqVPN Smart DNS IP
+
+LG TV:
+  Settings → All Settings → Network → Wi-Fi Connection
+  → Advanced Wi-Fi Settings → DNS Server: Manual → enter IP
+
+PlayStation:
+  Settings → Network → Setup → Custom → DNS Settings
+  → Primary DNS: ProxhqVPN IP · Secondary DNS: 1.1.1.1
+
+Apple TV:
+  Settings → Network → Wi-Fi → Configure DNS → Manual
+  → Add ProxhqVPN Smart DNS IP
+
+  (See /smart-dns for the current Smart DNS server IP address)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4. DNS REACHABILITY TEST
+
+The Smart DNS page includes a live reachability test that confirms
+your device can reach the ProxhqVPN Smart DNS server. Run this test
+after configuring DNS on your device.
+
+Important: Smart DNS does NOT encrypt your traffic. It only
+re-routes geo-sensitive DNS lookups. For full privacy, use
+WireGuard instead of Smart DNS.
+
+API: GET /api/smart-dns/server-ip · GET /api/smart-dns/instructions?platform=samsung · GET /api/smart-dns/test
+
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+  {
+    id: "vpngate-manual",
+    title: "VPN Gate Integration",
+    subtitle: "6,000+ Free Community VPN Nodes Worldwide",
+    tier: "both",
+    pages: 4,
+    icon: Globe,
+    version: "1.0",
+    iconColor: "text-green-400",
+    content: `VPN GATE INTEGRATION — COMPLETE MANUAL
+ProxhqVPN v1.0 · © 2026 Alpha Unlimited Technologies LLC
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW
+
+VPN Gate is an academic public VPN relay project operated by the
+University of Tsukuba (Japan). It provides 6,000+ free community-run
+relay servers in 100+ countries. ProxhqVPN integrates directly with
+the VPN Gate API so you can browse, filter, and connect to these
+relays from within your dashboard.
+
+Navigate to: Dashboard → Network → VPN Gate (/vpngate)
+
+Note: VPN Gate servers are third-party community relays, NOT
+ProxhqVPN servers. Use for geographic diversity only. Do not
+transmit sensitive credentials through VPN Gate nodes.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2. BROWSING SERVERS
+
+The server list updates every 15 minutes from the VPN Gate API.
+Filter by:
+  • Country
+  • Protocol (L2TP, OpenVPN, SoftEther)
+  • Ping (ms)
+  • Uptime score
+  • Total sessions served
+
+Each server shows: operator, country, IP, ping, uptime, session count,
+and total traffic relayed (transparency metric).
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3. CONNECTING
+
+  1. Browse the server list
+  2. Click a server → "Connect"
+  3. ProxhqVPN downloads the OpenVPN config for that relay
+  4. Import the config into your OpenVPN client
+     (OpenVPN Connect iOS/Android, Tunnelblick macOS, OpenVPN GUI Windows)
+
+ProxhqVPN's "Veil" selector automatically picks the lowest-latency
+relay matching your country filter.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4. SECURITY CONSIDERATIONS
+
+VPN Gate relay operators are volunteers. While the University of Tsukuba
+provides the framework, individual relay servers are not audited.
+  ✓ Good for: geo-unblocking content in specific countries
+  ✓ Good for: adding a hop between you and your destination
+  ✗ Not for: sensitive communications, banking, credentials
+
+For maximum privacy, chain a VPN Gate relay with ProxhqVPN
+(VPN Coexistence → Double-Hop mode).
+
+API: GET /api/vpngate/servers · POST /api/vpngate/connect · GET /api/vpngate/status
+
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+
+  // ── Network & Connectivity ─────────────────────────────────────────────────
+  {
+    id: "split-tunnel-manual",
+    title: "Split Tunneling",
+    subtitle: "Per-IP, CIDR, Port & App Routing Rules",
+    tier: "both",
+    pages: 5,
+    icon: Network,
+    version: "1.0",
+    iconColor: "text-blue-400",
+    content: `SPLIT TUNNELING — COMPLETE MANUAL
+ProxhqVPN v1.0 · © 2026 Alpha Unlimited Technologies LLC
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW
+
+Split tunneling lets you choose which traffic uses the VPN tunnel and
+which traffic goes directly to the internet. This gives you the
+privacy benefits of ProxhqVPN for sensitive apps while keeping
+local network access and maximum speed for other apps.
+
+Navigate to: Dashboard → Network → Split Tunneling (/split-tunnel)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2. RULE TYPES
+
+IP-Based Rules:
+  Route a specific IP through or around the VPN:
+  e.g. 192.168.1.1/32 → direct (your NAS stays on local network)
+
+CIDR-Based Rules:
+  Route entire subnets:
+  e.g. 10.0.0.0/8 → direct (all private addresses stay local)
+
+Port-Based Rules:
+  Route specific TCP/UDP ports:
+  e.g. TCP:8080 → VPN (only development traffic goes through tunnel)
+
+App-Based Rules:
+  Route traffic from specific applications:
+  e.g. zoom.exe → direct (Zoom uses direct; everything else uses VPN)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3. ADDING RULES
+
+  1. Split Tunneling → Add Rule
+  2. Select rule type: IP / CIDR / Port / App
+  3. Enter the target value
+  4. Select action: VPN (route through tunnel) or Direct (bypass)
+  5. Click Save
+
+Rules are evaluated top-to-bottom. Drag to reorder.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4. SCRIPT GENERATOR
+
+ProxhqVPN generates OS-specific routing scripts from your rules:
+  Linux: ip route / iptables rules
+  Windows: route ADD commands + PowerShell policy script
+
+  1. Configure your rules
+  2. Click "Generate Script" and select OS
+  3. Run the script on your device as root/administrator
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+5. COMMON USE CASES
+
+  • Route only browser traffic through VPN; keep gaming direct
+  • Keep local printer/NAS on direct; route all internet through VPN
+  • Route corporate intranet traffic direct; all other traffic through VPN
+  • Route specific streaming services direct for better speed
+
+API: GET /api/split-tunnel/rules · POST /api/split-tunnel/rules · GET /api/split-tunnel/script-generate
+
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+  {
+    id: "proxy-tor-manual",
+    title: "Proxy & Tor Configuration",
+    subtitle: "SOCKS5, Port Knocking & Multi-Hop Routing",
+    tier: "both",
+    pages: 6,
+    icon: Globe,
+    version: "1.0",
+    iconColor: "text-green-400",
+    content: `PROXY & TOR CONFIGURATION — COMPLETE MANUAL
+ProxhqVPN v1.0 · © 2026 Alpha Unlimited Technologies LLC
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW
+
+ProxhqVPN integrates multiple proxy and anonymity routing options:
+  • SOCKS5 proxy (built into each node)
+  • Tor integration (VPN over Tor and Tor over VPN)
+  • Port knocking (stealth firewall bypass)
+  • Multi-hop routing (chain multiple nodes)
+
+Navigate to: Dashboard → Network → Proxy & Tor (/proxy)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2. SOCKS5 PROXY
+
+Each ProxhqVPN node exposes a SOCKS5 proxy server:
+  Host: <node-ip>
+  Port: 1080
+  Auth: your ProxhqVPN credentials
+
+Configure in your application:
+  Chrome/Firefox: Settings → Proxy → SOCKS5 Host: <node-ip> Port: 1080
+  Terminal: export ALL_PROXY=socks5://user:pass@<node-ip>:1080
+  Python: requests library → proxies={'https': 'socks5h://...'}
+  curl: curl --socks5 <node-ip>:1080 https://example.com
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3. TOR INTEGRATION
+
+Mode 1 — VPN over Tor (VPN inside Tor):
+  Traffic → Tor Network → ProxhqVPN Node → Internet
+  Benefit: Tor entry guard sees only your traffic to ProxhqVPN (hidden)
+  Use case: access .onion sites with VPN privacy + Tor anonymity
+
+Mode 2 — Tor over VPN (Tor inside VPN):
+  Traffic → ProxhqVPN Node → Tor Network → Internet
+  Benefit: ISP cannot see you're using Tor; ProxhqVPN node masks Tor usage
+  Use case: hide Tor usage from ISP/network administrator
+
+Setup:
+  1. Install Tor Browser or the Tor daemon
+  2. Configure your WireGuard client to connect to ProxhqVPN
+  3. Select routing mode from the Proxy page
+  4. The Proxy page shows the full proxychains config
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4. PORT KNOCKING
+
+Port knocking allows you to open ports on the server firewall by
+sending a predefined sequence of packets to closed ports. This
+keeps the WireGuard port invisible until you "knock":
+
+Default sequence: TCP 7000 → TCP 8000 → TCP 9000 → port 51820 opens (30s)
+
+  Linux: knock <node-ip> 7000 8000 9000
+  Windows: ProxhqVPN desktop app handles knocking automatically
+  Manual: nmap -p 7000 <ip>; nmap -p 8000 <ip>; nmap -p 9000 <ip>
+
+API: GET /api/proxy/config · GET /api/proxy/tor-status · POST /api/proxy/knock
+
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+  {
+    id: "onion-browser-manual",
+    title: "Onion Browser",
+    subtitle: "Proxied Browser with Tor, SOCKS4/5 & Custom Proxy Support",
+    tier: "both",
+    pages: 4,
+    icon: Globe,
+    version: "1.0",
+    iconColor: "text-green-400",
+    content: `ONION BROWSER — COMPLETE MANUAL
+ProxhqVPN v1.0 · © 2026 Alpha Unlimited Technologies LLC
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW
+
+The Onion Browser is a proxied web browser built directly into
+the ProxhqVPN dashboard. It routes all browsing through configurable
+proxy chains — without needing to install any external browser.
+
+Navigate to: Dashboard → Network → Onion Browser (/onion-browser)
+Tier: VPN Basic and above
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2. PROXY MODES
+
+Direct:
+  No proxy — standard browsing via the ProxhqVPN tunnel
+
+ProxhqVPN Onion:
+  Traffic routed through the nearest ProxhqVPN node's SOCKS5 proxy
+  Fastest option while inside the dashboard
+
+Tor:
+  Traffic routed through the Tor network (3-hop onion routing)
+  Accesses .onion sites; highest anonymity, highest latency
+
+Double-Hop:
+  Traffic goes VPN Node 1 → VPN Node 2 → destination
+  Two layers of encryption; destination sees Node 2's IP
+
+Custom SOCKS4/5 or HTTP:
+  Specify any proxy server address and port
+  Supports username/password authentication
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3. NAVIGATING
+
+  • Enter a URL in the address bar (supports http, https, .onion)
+  • The browser renders pages through the server-side proxy
+  • JavaScript is restricted by default for security
+  • Downloads are not supported in the embedded browser
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4. SECURITY NOTES
+
+  • Cookies and history are NOT persisted between sessions
+  • No tracking pixels or fingerprinting scripts (JS restricted)
+  • Each page load creates a fresh proxy connection
+  • For maximum anonymity: use Tor mode + disable JavaScript
+
+API: POST /api/proxy-browser/browse · GET /api/proxy-browser/proxy-status
+
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+  {
+    id: "meshnet-manual",
+    title: "Meshnet P2P",
+    subtitle: "Direct Encrypted Device-to-Device Routing",
+    tier: "both",
+    pages: 4,
+    icon: Network,
+    version: "1.0",
+    iconColor: "text-blue-400",
+    content: `MESHNET P2P — COMPLETE MANUAL
+ProxhqVPN v1.0 · © 2026 Alpha Unlimited Technologies LLC
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW
+
+Meshnet creates a direct encrypted P2P tunnel between your own devices
+(or with trusted peers) using WireGuard, without routing traffic
+through a central server. Ideal for remote desktop, LAN gaming,
+file sharing, and team collaboration.
+
+Navigate to: Dashboard → Network → Meshnet P2P (/meshnet)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2. HOW IT WORKS
+
+All devices in your Meshnet are assigned IPs from the 100.64.0.0/10
+(CGNAT) range — a range never used on the public internet.
+
+  Device A (100.64.0.1) ←→ Direct WireGuard P2P ←→ Device B (100.64.0.2)
+
+Each device generates its own WireGuard keypair. Peers exchange
+public keys through the ProxhqVPN coordination server (no traffic
+goes through the server — only key exchange).
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3. ADDING PEERS
+
+  1. Meshnet → Add Device to Mesh
+  2. Generate a Meshnet invite link
+  3. Share with the other device's owner
+  4. They accept → WireGuard peer exchange happens automatically
+  5. Both devices can now reach each other on their 100.64.x.x addresses
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4. USE CASES
+
+  Remote desktop: RDP/VNC over Meshnet IP (100.64.0.x)
+  File server: SMB share on Meshnet IP — accessible from anywhere
+  LAN gaming: game LAN games over internet using Meshnet
+  Secure team access: give contractors Meshnet access to internal tools
+  SSH: ssh user@100.64.0.x (no exposed ports, no public IP needed)
+
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+
+  // ── Advanced Privacy Suite ────────────────────────────────────────────────
+  {
+    id: "alt-id-manual",
+    title: "Alternative Identity",
+    subtitle: "Fake Identity Generator for Account Registration",
+    tier: "both",
+    pages: 3,
+    icon: Eye,
+    version: "1.0",
+    iconColor: "text-violet-400",
+    content: `ALTERNATIVE IDENTITY — COMPLETE MANUAL
+ProxhqVPN v1.0 · © 2026 Alpha Unlimited Technologies LLC
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW
+
+Alternative Identity generates realistic but entirely synthetic personal
+identities for use when registering with services that demand personal
+details — protecting your real identity from data breaches and leaks.
+
+Navigate to: Dashboard → Privacy Suite → Alternative Identity (/alt-id)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2. GENERATED FIELDS
+
+Each identity includes:
+  • Full name (country-appropriate)
+  • Date of birth (configurable age range)
+  • Address (real city/zip format, fake street)
+  • Phone number (valid prefix, fake subscriber)
+  • Email suggestions (pattern-matched to name)
+  • Username suggestions
+  • Password suggestion (high-entropy)
+  • Security question answers
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3. USING ALT-IDS SAFELY
+
+  • Track which alt-id you use per service (use a password manager)
+  • Use a separate email alias per service (ProtonMail + aliases)
+  • Combine with IP Rotator to prevent cross-service tracking
+  • Never use alt-id for services requiring legal identity verification
+
+Legal note: Alternative Identity is for privacy protection. Do not
+use to misrepresent yourself in legal or financial contexts.
+
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+  {
+    id: "ip-rotator-manual",
+    title: "IP Rotator",
+    subtitle: "Automatic IP Address Rotation on Schedule",
+    tier: "both",
+    pages: 3,
+    icon: Settings,
+    version: "1.0",
+    iconColor: "text-orange-400",
+    content: `IP ROTATOR — COMPLETE MANUAL
+ProxhqVPN v1.0 · © 2026 Alpha Unlimited Technologies LLC
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW
+
+IP Rotator automatically switches your exit IP at configurable
+intervals. This prevents websites, ad networks, and trackers from
+building a persistent profile tied to a single VPN IP address.
+
+Navigate to: Dashboard → Privacy Suite → IP Rotator (/ip-rotator)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2. ROTATION MODES
+
+Node Rotation:
+  Switches between ProxhqVPN nodes (LA → London → Chicago → Tokyo)
+  on a schedule. Your IP changes to a different country's node.
+
+IP Rotation within Node:
+  ProxhqVPN nodes are configured with a pool of exit IPs. Rotation
+  picks a different IP from the pool without changing the node.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3. ROTATION SCHEDULE
+
+Options:
+  • Every 5 minutes
+  • Every 15 minutes
+  • Every 30 minutes
+  • Every hour
+  • On every new browser session
+  • Manual (click to rotate)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4. NOTES
+
+IP rotation causes brief reconnection events (typically 1-2 seconds).
+Keep-alive connections (streaming, downloads) may be interrupted.
+Combine with DAITA to prevent traffic analysis during rotation.
+
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+  {
+    id: "data-broker-manual",
+    title: "Data Broker Removal",
+    subtitle: "Automated Opt-Out Requests to People-Search Sites",
+    tier: "both",
+    pages: 4,
+    icon: Search,
+    version: "1.0",
+    iconColor: "text-yellow-400",
+    content: `DATA BROKER REMOVAL — COMPLETE MANUAL
+ProxhqVPN v1.0 · © 2026 Alpha Unlimited Technologies LLC
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW
+
+Data brokers are companies that collect, aggregate, and sell your
+personal information — address, phone number, relatives, income,
+purchase history — without your consent. ProxhqVPN's Data Broker
+Removal tool sends opt-out requests to 180+ known brokers.
+
+Navigate to: Dashboard → Privacy Suite → Data Broker Removal (/data-broker)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2. HOW IT WORKS
+
+  1. Enter the information to search for (name, city, approximate age)
+  2. The tool queries the 180 broker APIs and public search pages
+  3. Matches are identified and shown (name, found-at URL, data types)
+  4. For each match: click "Send Opt-Out" or "Send All Opt-Outs"
+  5. Opt-out emails and form submissions are sent automatically
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3. COVERED BROKERS (SAMPLE)
+
+  Spokeo · Whitepages · BeenVerified · Intelius · PeopleFinder
+  Radaris · MyLife · PeopleSmart · USSearch · ZabaSearch
+  TruthFinder · Instant Checkmate · CheckPeople · PublicRecordsNow
+  …and 166+ more
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4. EXPECTATIONS
+
+  • Opt-outs take 2–30 days to process depending on the broker
+  • Some brokers re-add data from public records (re-scrape every 3 months)
+  • Run the scan quarterly to catch re-appearances
+  • Not all brokers honor opt-outs (legal in some jurisdictions only)
+
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+
+  // ── Command Center — Recon Tools ──────────────────────────────────────────
+  {
+    id: "http-probe-manual",
+    title: "HTTP Probe",
+    subtitle: "Manual HTTP Request Builder & Inspector",
+    tier: "pro",
+    pages: 4,
+    icon: Terminal,
+    version: "1.0",
+    iconColor: "text-blue-400",
+    content: `HTTP PROBE — COMPLETE MANUAL
+ProxhqVPN v1.0 · © 2026 Alpha Unlimited Technologies LLC
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW
+
+HTTP Probe is a full-featured HTTP request builder and inspector.
+Craft any HTTP request — any method, custom headers, body, cookies —
+and inspect the complete response including headers, status code,
+redirect chain, TLS info, and timing.
+
+Navigate to: Command Center → HTTP Probe (/http-probe)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2. REQUEST BUILDER
+
+  Method: GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD, TRACE
+  URL: any http/https endpoint
+  Headers: add/remove any header (Authorization, Content-Type, etc.)
+  Body: Raw / JSON / Form URL-encoded / Multipart / Binary
+  Auth: None / Basic / Bearer / Digest / API Key
+  Proxy: route through ProxhqVPN tunnel or custom SOCKS5
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3. RESPONSE INSPECTOR
+
+  Status code + reason phrase
+  Response headers (full list, copyable)
+  Response body (formatted JSON/HTML/XML, or raw)
+  Redirect chain (shows each hop)
+  TLS certificate info (subject, issuer, expiry, SANs)
+  Timing breakdown (DNS, TCP, TLS, TTFB, total)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4. SECURITY TESTING USES
+
+  Test API authentication bypass (remove/modify Authorization header)
+  Test for missing security headers (check response for HSTS, CSP, etc.)
+  Test HTTP verb tampering (send DELETE to a GET-only endpoint)
+  Test for CORS misconfiguration (add Origin: evil.com header)
+  Inspect cookies for Secure/HttpOnly/SameSite flags
+
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+  {
+    id: "subdomain-scout-manual",
+    title: "Subdomain Scout",
+    subtitle: "9-Source Passive Subdomain Enumeration",
+    tier: "pro",
+    pages: 5,
+    icon: Search,
+    version: "1.0",
+    iconColor: "text-yellow-400",
+    content: `SUBDOMAIN SCOUT — COMPLETE MANUAL
+ProxhqVPN v1.0 · © 2026 Alpha Unlimited Technologies LLC
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW
+
+Subdomain Scout performs passive OSINT enumeration of subdomains from
+9 independent sources simultaneously. Passive scanning never touches
+the target server — all data comes from public record archives.
+
+Navigate to: Command Center → Subdomain Scout (/subdomain-scan)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2. DATA SOURCES (9)
+
+  crt.sh             — Certificate Transparency logs
+  AlienVault OTX     — Open Threat Exchange
+  HackerTarget       — DNS lookup API
+  URLScan.io         — Browser scan archive
+  Wayback Machine    — CDX API historical crawl data
+  AnubisDB (jldc.me) — passive DNS database
+  RapidDNS           — rapid DNS record database
+  ThreatCrowd        — threat intelligence passive DNS
+  BufferOver         — tls.bufferover.run certificate data
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3. RUNNING A SCAN
+
+  1. Enter target domain (e.g. example.com — no http://)
+  2. Click "Enumerate"
+  3. Results stream in as each source responds (~10-30 seconds total)
+
+Results include:
+  • Subdomain hostname
+  • Sources that found it (per-source breakdown)
+  • uniqueSources count (higher = more trustworthy result)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4. INTERPRETING RESULTS
+
+  High uniqueSources (5+): subdomain is well-indexed and likely live
+  Low uniqueSources (1): may be historical; verify with DNS lookup
+  dev.*, staging.*: likely interesting internal environments
+  admin.*, vpn.*, webmail.*: high-value targets
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+5. EXPORT
+
+Results are exportable as JSON or CSV for use in other tools.
+Feed into Directory Fuzzer or Ghost Chain for continued recon.
+
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+  {
+    id: "dir-fuzzer-manual",
+    title: "Directory Fuzzer",
+    subtitle: "Recursive Directory & File Discovery",
+    tier: "pro",
+    pages: 5,
+    icon: Search,
+    version: "1.0",
+    iconColor: "text-yellow-400",
+    content: `DIRECTORY FUZZER — COMPLETE MANUAL
+ProxhqVPN v1.0 · © 2026 Alpha Unlimited Technologies LLC
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW
+
+Directory Fuzzer discovers hidden paths, files, and directories on
+web servers by trying a large wordlist of common names. Supports
+recursive scanning up to depth 3, response-size filtering, and
+custom wordlists.
+
+Navigate to: Command Center → Directory Fuzzer (/dir-fuzzer)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2. CONFIGURATION
+
+Target URL: Full URL including protocol (https://example.com)
+Wordlist: Built-in lists (small: 1k / medium: 10k / large: 50k) or custom
+Extensions: Append extensions to each word (php,asp,html,js,txt,bak)
+Threads: Concurrent requests (1–50; respect target limits)
+Timeout: Per-request timeout in milliseconds
+
+Recursive Mode:
+  When enabled, the fuzzer re-scans each discovered 2xx/3xx path
+  with a smaller wordlist (50 words) up to depth 3.
+  e.g. /admin/ found → fuzz /admin/login, /admin/users, etc.
+
+Response Size Filter:
+  Enter exact byte counts to exclude from results.
+  Common use: filter out the site's 404 page size to remove false positives.
+  Get the 404 size first: curl -so /dev/null -w "%{size_download}" URL/notfound
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3. READING RESULTS
+
+  200 OK     — path exists and is accessible
+  301/302    — redirects to another path (follow the redirect)
+  401/403    — path exists but is protected (authentication required)
+  500        — server error — may indicate injection opportunity
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4. INTERESTING FINDINGS
+
+Look for:
+  .git/          — exposed version control repository
+  .env           — environment variables (API keys, DB passwords)
+  backup.zip     — unprotected backup archives
+  admin/         — administrative interfaces
+  api/           — undocumented API endpoints
+  config.php.bak — source code backups
+
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+  {
+    id: "intruder-manual",
+    title: "Intruder",
+    subtitle: "Automated HTTP Fuzzing & Brute-Force Engine",
+    tier: "pro",
+    pages: 5,
+    icon: Shield,
+    version: "1.0",
+    iconColor: "text-blue-400",
+    content: `INTRUDER — COMPLETE MANUAL
+ProxhqVPN v1.0 · © 2026 Alpha Unlimited Technologies LLC
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW
+
+Intruder automates HTTP request fuzzing with configurable payload
+positions and wordlists. Inspired by Burp Suite's Intruder, it
+supports Sniper, Battering Ram, Pitchfork, and Cluster Bomb attack types.
+
+Navigate to: Command Center → Intruder (/intruder)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2. ATTACK TYPES
+
+Sniper (single position):
+  One payload list. Fuzzes one marked position at a time.
+  Use for: username brute-force, single-parameter testing
+
+Battering Ram (all positions same payload):
+  One payload list inserted into all marked positions simultaneously.
+  Use for: username=password brute-force
+
+Pitchfork (parallel lists):
+  Multiple payload lists, one per position, iterated in lockstep.
+  Use for: credential stuffing (user:pass pairs from a breach list)
+
+Cluster Bomb (cartesian product):
+  Multiple payload lists — tries every combination.
+  Use for: exhaustive parameter combination testing
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3. MARKING POSITIONS
+
+  1. Paste the raw HTTP request in the editor
+  2. Select a value to fuzz (e.g. a parameter value)
+  3. Click "Mark" to add §§ delimiters: username=§admin§
+  4. Add a payload list for each marked position
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4. PAYLOAD TYPES
+
+  Simple list  — newline-separated wordlist
+  Numbers      — sequential or random integer range
+  Dates        — date format patterns
+  Custom       — paste any list
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+5. RESULTS
+
+Results table shows each request:
+  Payload, Status code, Response length, Response time
+  Flag anomalies: different length from baseline = interesting
+
+Grep match: highlight responses containing specific strings (e.g. "Invalid username" vs "Invalid password" to enumerate valid usernames)
+
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+  {
+    id: "payload-gen-manual",
+    title: "Payload Generator",
+    subtitle: "XSS, SQLi, LFI, SSRF & Command Injection Payloads",
+    tier: "pro",
+    pages: 4,
+    icon: Code,
+    version: "1.0",
+    iconColor: "text-blue-400",
+    content: `PAYLOAD GENERATOR — COMPLETE MANUAL
+ProxhqVPN v1.0 · © 2026 Alpha Unlimited Technologies LLC
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW
+
+Payload Generator creates categorized attack payloads for security
+testing. Use with Intruder, HTTP Probe, or any other testing tool.
+
+Navigate to: Command Center → Payload Generator (/payloads)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2. PAYLOAD CATEGORIES
+
+XSS (Cross-Site Scripting):
+  Basic, attribute-context, event-handler, DOM-based, filter-bypass,
+  polyglot payloads. Includes encoding variants (HTML entity, URL, Unicode).
+
+SQL Injection:
+  Error-based, blind boolean, time-based blind, UNION-based, OOB.
+  MySQL, PostgreSQL, MSSQL, Oracle, SQLite dialects.
+
+Local File Inclusion (LFI):
+  Path traversal (../../../etc/passwd), null-byte bypass,
+  PHP wrapper (php://filter/), log poisoning setup payloads.
+
+SSRF (Server-Side Request Forgery):
+  Internal network probes (127.0.0.1, 169.254.x.x, 10.x.x.x),
+  cloud metadata endpoints (AWS, GCP, Azure), protocol variants.
+
+Command Injection:
+  Semicolon, pipe, backtick, $() syntax for Linux and Windows.
+  URL-encoded and double-encoded variants.
+
+SSTI (Server-Side Template Injection):
+  Jinja2, Twig, Freemarker, Pebble, Velocity detection payloads.
+
+Open Redirect:
+  Protocol-relative, whitelist bypass, parameter pollution payloads.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3. ENCODING OPTIONS
+
+Apply encoding to any payload before copy:
+  URL encode · Double URL encode · HTML entities · Base64 · Unicode escape
+
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+  {
+    id: "cve-lookup-manual",
+    title: "CVE Lookup",
+    subtitle: "Live CVE Database Search & Vulnerability Intelligence",
+    tier: "pro",
+    pages: 3,
+    icon: Shield,
+    version: "1.0",
+    iconColor: "text-blue-400",
+    content: `CVE LOOKUP — COMPLETE MANUAL
+ProxhqVPN v1.0 · © 2026 Alpha Unlimited Technologies LLC
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW
+
+CVE Lookup queries the NVD (National Vulnerability Database) and
+multiple threat intelligence feeds in real-time to provide complete
+vulnerability intelligence for any CVE identifier or product.
+
+Navigate to: Command Center → CVE Lookup (/cve-search)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2. SEARCH MODES
+
+By CVE ID:
+  Enter CVE-YYYY-NNNNN → full NVD record, CVSS score, affected versions,
+  references, patch status, PoC availability
+
+By Product:
+  Enter software/vendor name → all known CVEs sorted by CVSS score
+
+By Keyword:
+  Free-text search across CVE descriptions
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3. RESULT FIELDS
+
+  CVE ID, CWE, CVSS Base Score (v3.1), CVSS Vector
+  Severity: Critical / High / Medium / Low / None
+  Affected CPE configurations (exact product + version ranges)
+  References (NVD, vendor advisory, PoC repos)
+  EPSS score (Exploit Prediction Scoring System — probability of exploitation)
+  Known exploited: in CISA KEV catalog (yes/no + deadline)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4. BUG BOUNTY USE
+
+Look up CVEs for technologies you identified during recon to find:
+  • Unpatched versions of known-vulnerable software
+  • PoC exploit code for vulnerabilities
+  • Affected version ranges to compare against target fingerprint
+
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+  {
+    id: "encoder-decoder-manual",
+    title: "Encoder / Decoder",
+    subtitle: "Multi-Format Encoding, Decoding & Hashing",
+    tier: "pro",
+    pages: 3,
+    icon: Code,
+    version: "1.0",
+    iconColor: "text-blue-400",
+    content: `ENCODER / DECODER — COMPLETE MANUAL
+ProxhqVPN v1.0 · © 2026 Alpha Unlimited Technologies LLC
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW
+
+The Encoder/Decoder handles all common encoding and hashing schemes
+used in web application security testing.
+
+Navigate to: Command Center → Encoder / Decoder (/encoder)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2. ENCODING TYPES
+
+  URL encode / decode        (percent-encoding)
+  Double URL encode          (bypass WAF filters)
+  HTML entity encode/decode  (&amp; &#x3C; etc.)
+  Base64 encode/decode       (standard + URL-safe variants)
+  Base32 encode/decode
+  Hex encode/decode
+  Unicode escape (\\uXXXX)
+  Binary representation
+  Punycode (IDN domain encoding)
+  JWT decode (payload inspection, no signature verification)
+  gzip compress/decompress (base64-wrapped)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3. HASHING
+
+  MD5 · SHA-1 · SHA-256 · SHA-512 · SHA3-256 · SHA3-512
+  HMAC-SHA256 (with key)
+  bcrypt verify (compare plaintext against hash)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4. SMART DECODE
+
+Paste any string — the Smart Decode function automatically detects
+and decodes multiple encoding layers (e.g. URL → Base64 → HTML entity).
+Useful for decoding obfuscated malware URLs or WAF bypass payloads.
+
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+  {
+    id: "api-tester-manual",
+    title: "API Security Tester",
+    subtitle: "REST & GraphQL Security Assessment",
+    tier: "pro",
+    pages: 5,
+    icon: Database,
+    version: "1.0",
+    iconColor: "text-cyan-400",
+    content: `API SECURITY TESTER — COMPLETE MANUAL
+ProxhqVPN v1.0 · © 2026 Alpha Unlimited Technologies LLC
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW
+
+API Security Tester is purpose-built for REST and GraphQL API security
+assessment, going beyond general HTTP testing to automate API-specific
+vulnerability checks from the OWASP API Security Top 10.
+
+Navigate to: Command Center → API Security Tester (/api-tester)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2. OWASP API TOP 10 CHECKS
+
+API1: Broken Object Level Authorization (BOLA/IDOR)
+  Systematically replaces object IDs with sequential/random values.
+
+API2: Broken Authentication
+  Tests JWT alg:none, weak secrets, missing expiry checks.
+
+API3: Broken Object Property Level Authorization
+  Tests for mass assignment — sends extra properties to PATCH/PUT.
+
+API4: Unrestricted Resource Consumption
+  Sends very large payloads, deeply nested JSON, large page sizes.
+
+API5: Broken Function Level Authorization
+  Tests admin endpoints with unprivileged tokens.
+
+API6: Unrestricted Access to Sensitive Business Flows
+  Tests for rate limiting on critical workflows (login, checkout).
+
+API7: SSRF — Server-Side Request Forgery via API parameters.
+
+API8: Security Misconfiguration
+  Checks CORS, verbose error messages, debug endpoints.
+
+API9: Improper Inventory Management
+  Tests non-production endpoints (/v1, /dev, /internal).
+
+API10: Unsafe Consumption of APIs
+  Tests for injection via third-party API response handling.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3. GRAPHQL TESTING
+
+  Introspection: GET /graphql?query={__schema{types{name}}}
+  Field suggestion bypass
+  Query depth/complexity bomb testing
+  Batch query abuse
+  Alias-based rate limit bypass
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4. USAGE
+
+  1. Enter the API base URL
+  2. Import OpenAPI/Swagger spec (optional, auto-discovers endpoints)
+  3. Set authentication (Bearer token, API key, Basic auth, Cookie)
+  4. Select checks to run
+  5. Review findings report with severity ratings and remediation steps
+
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+  {
+    id: "oast-manual",
+    title: "OAST Blind Tester & Callback Server",
+    subtitle: "Out-of-Band Application Security Testing",
+    tier: "pro",
+    pages: 5,
+    icon: Eye,
+    version: "1.0",
+    iconColor: "text-violet-400",
+    content: `OAST BLIND TESTER & CALLBACK SERVER — COMPLETE MANUAL
+ProxhqVPN v1.0 · © 2026 Alpha Unlimited Technologies LLC
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW
+
+OAST (Out-of-Band Application Security Testing) detects blind
+vulnerabilities that don't produce visible output in HTTP responses.
+ProxhqVPN runs an OAST callback server that logs DNS, HTTP, and
+SMTP interactions triggered by payloads you inject.
+
+Navigate to: Command Center → OAST Blind Tester (/oast-tester)
+            Command Center → OAST Callback Server (/oast-server)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2. HOW OAST WORKS
+
+  1. You generate a unique OAST payload (DNS or URL-based)
+  2. You inject it into a target parameter
+  3. If the server processes your payload (e.g. resolves DNS, fetches URL),
+     the ProxhqVPN OAST callback server receives and logs the interaction
+  4. You see the interaction in the OAST Server dashboard
+
+This detects:
+  Blind SSRF — server fetches your OAST URL
+  Blind XXE — XML parser fetches your OAST URL or DNS
+  Blind SQL injection — xp_dirtree UNC path triggers DNS lookup
+  Blind OS command injection — curl/wget fetches your OAST URL
+  Log4Shell — JNDI lookup triggers DNS to your OAST domain
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3. GENERATING PAYLOADS
+
+  1. OAST Blind Tester → "Generate New Payload"
+  2. Select type: DNS / HTTP / HTTPS / DNS+HTTP / SMTP
+  3. Copy the unique payload URL or domain
+  4. Inject into your target:
+       HTTP parameter: url=http://your-oast-id.oast.proxhqvpn.com
+       XML (XXE): <!ENTITY x SYSTEM "http://your-oast-id.oast...">
+       SQL (MSSQL): EXEC xp_dirtree '//your-oast-id.oast.../share'
+       Log4j: \${jndi:dns://your-oast-id.oast.proxhqvpn.com/a}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4. CALLBACK SERVER DASHBOARD
+
+The OAST Server (/oast-server) shows all received interactions:
+  Timestamp, interaction type (DNS/HTTP), source IP, payload matched,
+  full DNS query or HTTP request (method, headers, body)
+
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+  {
+    id: "waf-bypass-manual",
+    title: "WAF Bypass Generator",
+    subtitle: "Automated WAF Evasion Payload Crafting",
+    tier: "pro",
+    pages: 4,
+    version: "1.0",
+    icon: Shield,
+    iconColor: "text-red-400",
+    content: `WAF BYPASS GENERATOR — COMPLETE MANUAL
+ProxhqVPN v1.0 · © 2026 Alpha Unlimited Technologies LLC
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW
+
+WAF Bypass Generator takes a known attack payload and automatically
+generates dozens of evasion variants that bypass common WAF rule sets
+(ModSecurity, Cloudflare WAF, AWS WAF, Imperva, Akamai, F5 AWAF).
+
+Navigate to: Command Center → WAF Bypass Generator (/waf-bypass)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2. BYPASS TECHNIQUES
+
+Encoding bypasses:
+  URL double-encode · HTML entity · Unicode normalization
+  UTF-8 overlong sequences · Null-byte injection · Case variation
+
+Syntax bypasses (SQL):
+  Comment injection (/**/, --+, #, /*!50000*/
+  Scientific notation (1e0 = 1), hexadecimal values
+  Alternative operators (||, &&, AND, OR equivalents)
+
+Syntax bypasses (XSS):
+  Tag variation (<ScRiPt>, <svg>, <img onerror=...>)
+  Event handler variation, javascript: protocol variants
+  CSS injection via expression()
+
+WAF fingerprinting:
+  Send known WAF challenge strings to identify the WAF in use
+  Then select the WAF-specific bypass template
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3. USAGE
+
+  1. Enter your base payload (e.g. ' OR 1=1--)
+  2. Select attack type (SQLi / XSS / CMD)
+  3. Select target WAF (or "Auto-detect")
+  4. Click "Generate Bypasses"
+  5. Copy variants to Intruder or HTTP Probe for testing
+
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+  {
+    id: "ws-tester-manual",
+    title: "WebSocket Security Tester",
+    subtitle: "WebSocket Fuzzing, Interception & Security Analysis",
+    tier: "pro",
+    pages: 4,
+    icon: Network,
+    version: "1.0",
+    iconColor: "text-blue-400",
+    content: `WEBSOCKET SECURITY TESTER — COMPLETE MANUAL
+ProxhqVPN v1.0 · © 2026 Alpha Unlimited Technologies LLC
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW
+
+WebSocket Tester connects to any WebSocket endpoint, logs all frames,
+and lets you send arbitrary messages for security analysis including
+injection testing, authentication bypass, and DoS assessment.
+
+Navigate to: Command Center → WebSocket Tester (/ws-tester)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2. CONNECTING
+
+  1. Enter WebSocket URL: ws:// or wss://
+  2. Optional: add HTTP upgrade headers (Origin, Cookie, Authorization)
+  3. Click Connect
+  4. Connection state and handshake headers are displayed
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3. SECURITY TESTS
+
+Cross-Site WebSocket Hijacking:
+  Connect with a forged Origin header
+  If accepted: CSWSH vulnerability (no origin validation)
+
+Authentication bypass:
+  Connect without the expected auth token
+  Connect with an expired token
+  Connect with another user's token (IDOR test)
+
+Message injection:
+  Send SQLi / XSS / SSTI payloads as WebSocket messages
+  Watch for errors revealing server-side template or DB technology
+
+DoS assessment:
+  Send very large frames (frame size abuse)
+  Send high-frequency messages (rate limit test)
+  Send malformed JSON or unexpected data types
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4. FRAME LOG
+
+All sent and received frames are logged with:
+  Direction (↑ sent / ↓ received), timestamp, frame type (text/binary), payload
+
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+  {
+    id: "sast-manual",
+    title: "SAST Analyzer",
+    subtitle: "Static Application Security Testing",
+    tier: "pro",
+    pages: 4,
+    icon: Search,
+    version: "1.0",
+    iconColor: "text-yellow-400",
+    content: `SAST ANALYZER — COMPLETE MANUAL
+ProxhqVPN v1.0 · © 2026 Alpha Unlimited Technologies LLC
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW
+
+SAST (Static Application Security Testing) analyzes source code
+without executing it, identifying security vulnerabilities by pattern
+matching, taint analysis, and control-flow examination.
+
+Navigate to: Command Center → SAST Analyzer (/sast)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2. SUPPORTED LANGUAGES
+
+  JavaScript / TypeScript · Python · PHP · Java · C# (.NET)
+  Go · Ruby · Rust · Kotlin · Swift · Bash / Shell
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3. VULNERABILITY CATEGORIES DETECTED
+
+  SQL Injection (taint: user input → database query)
+  Command Injection (taint: user input → exec/shell)
+  Path Traversal (taint: user input → file path)
+  XSS (taint: user input → HTML output without escaping)
+  Hardcoded credentials / secrets / API keys
+  Insecure crypto (MD5, SHA1, DES, ECB mode)
+  Dangerous functions (eval, exec, unserialize)
+  Insecure deserialization
+  XXE — disabled entity processing
+  Open redirect
+  CSRF — missing token validation
+  Missing authentication checks on sensitive functions
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4. USAGE
+
+  1. Paste code or upload a file (max 500KB)
+  2. Select language (or auto-detect)
+  3. Click "Analyze"
+  4. Results show: file, line number, severity, description, remediation
+
+CodeSentinel (AI-powered) provides auto-fix suggestions for each
+finding — see the CodeSentinel manual for details.
+
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+  {
+    id: "dep-scanner-manual",
+    title: "Dependency Scanner",
+    subtitle: "SCA — Software Composition Analysis",
+    tier: "pro",
+    pages: 4,
+    icon: FileText,
+    version: "1.0",
+    iconColor: "text-amber-400",
+    content: `DEPENDENCY SCANNER — COMPLETE MANUAL
+ProxhqVPN v1.0 · © 2026 Alpha Unlimited Technologies LLC
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW
+
+Dependency Scanner performs SCA (Software Composition Analysis) —
+identifying known vulnerabilities in third-party libraries and
+packages used by your application.
+
+Navigate to: Command Center → Dependency Scanner (/dep-scanner)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2. SUPPORTED MANIFESTS
+
+  Node.js:  package.json, package-lock.json, yarn.lock, pnpm-lock.yaml
+  Python:   requirements.txt, Pipfile, pyproject.toml, poetry.lock
+  Java:     pom.xml, build.gradle
+  .NET:     *.csproj, packages.config, NuGet.Config
+  Ruby:     Gemfile, Gemfile.lock
+  PHP:      composer.json, composer.lock
+  Go:       go.mod, go.sum
+  Rust:     Cargo.toml, Cargo.lock
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3. VULNERABILITY SOURCES
+
+Findings are cross-referenced against:
+  NVD (National Vulnerability Database) CVEs
+  GitHub Advisory Database
+  OSV (Open Source Vulnerabilities)
+  Snyk Vulnerability DB
+  npm audit, pip-audit equivalent checks
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4. RESULTS
+
+For each vulnerable dependency:
+  Package name + installed version
+  CVE ID(s), CVSS score, severity
+  Fix version (upgrade to X.X.X to remediate)
+  Direct vs transitive dependency indicator
+  License risk flag (GPL in commercial project, etc.)
+
+Export results as JSON, CSV, or SARIF for integration with CI/CD.
+
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+
+  // ── Command Center — AI Security Suite ────────────────────────────────────
+  {
+    id: "ghost-pentest-manual",
+    title: "GhostPentest — AI Pentest Engine",
+    subtitle: "Autonomous AI-Directed Penetration Testing",
+    tier: "pro",
+    pages: 5,
+    icon: Shield,
+    version: "1.0",
+    iconColor: "text-blue-400",
+    content: `GHOSTPENTEST — AI PENTEST ENGINE — COMPLETE MANUAL
+ProxhqVPN v1.0 · © 2026 Alpha Unlimited Technologies LLC
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW
+
+GhostPentest is an autonomous AI-directed penetration testing engine.
+It conducts multi-stage reconnaissance, fingerprinting, vulnerability
+discovery, and exploitation attempts — all guided by an AI planner
+that adapts its strategy based on intermediate findings.
+
+Navigate to: Command Center → GhostPentest (/ghost-pentest)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2. TESTING STAGES
+
+Stage 1 — Surface Discovery:
+  Subdomain enumeration (9-source passive), port scanning, banner grabbing
+
+Stage 2 — Technology Fingerprinting:
+  Web framework, CMS, server, CDN, WAF detection
+  JavaScript library versions, API endpoints
+
+Stage 3 — Vulnerability Assessment:
+  CVE mapping against fingerprinted versions
+  OWASP Top 10 automated checks
+  Authentication flow analysis
+
+Stage 4 — Exploitation Attempts (with permission only):
+  Safe exploitation of confirmed vulnerabilities
+  Proof-of-concept extraction (e.g. reading /etc/passwd via LFI)
+  Authentication bypass confirmation
+
+Stage 5 — Impact Assessment:
+  CVSS score assignment
+  Business impact narrative
+  Complete pentest report generation
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3. USAGE
+
+  1. Enter target scope (domain, IP range, or specific URLs)
+  2. Select test depth: Recon Only / Assessment / Full Pentest
+  3. Confirm scope agreement (only test systems you own or have permission)
+  4. Click "Launch GhostPentest"
+  5. Monitor live findings as stages complete
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4. REPORTS
+
+PDF and JSON reports generated automatically:
+  Executive summary, technical findings, evidence screenshots,
+  CVSS scores, remediation steps, re-test checklist
+
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+  {
+    id: "soc-copilot-manual",
+    title: "SOC Copilot — AI Security Operations",
+    subtitle: "AI-Assisted Alert Triage & Incident Response",
+    tier: "pro",
+    pages: 4,
+    icon: Terminal,
+    version: "1.0",
+    iconColor: "text-blue-400",
+    content: `SOC COPILOT — AI SECURITY OPERATIONS — COMPLETE MANUAL
+ProxhqVPN v1.0 · © 2026 Alpha Unlimited Technologies LLC
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW
+
+SOC Copilot is an AI assistant trained on security operations workflows.
+It helps analysts triage alerts, investigate incidents, query the
+Security Event Log (SIEM), and draft incident response playbooks.
+
+Navigate to: Command Center → SOC Copilot (/soc-copilot)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2. CAPABILITIES
+
+Alert Triage:
+  Paste any SIEM alert → SOC Copilot explains what it means,
+  rates its severity, and recommends investigation steps.
+
+IOC Enrichment:
+  Submit an IP, domain, hash, or URL → Copilot queries threat
+  intelligence feeds and summarizes the reputation, associated
+  malware families, and recommended response.
+
+Log Analysis:
+  Paste firewall, proxy, or syslog entries → Copilot identifies
+  anomalous patterns, attack indicators, and timeline reconstruction.
+
+Playbook Generation:
+  Describe an incident type → Copilot generates a complete
+  step-by-step IR playbook (containment, eradication, recovery).
+
+Custom Queries:
+  Ask any security operations question in natural language:
+  "What Firewall rules would protect against this attack?"
+  "How do I configure fail2ban for this log format?"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3. INTEGRATION WITH PROXHQVPN
+
+SOC Copilot has direct read access to:
+  • Security Event Log (SIEM) — query across all event sources
+  • Firewall Analytics — threat level, blocked IPs, rule matches
+  • Ghost Trace observations
+  • Beacon Monitor alerts
+
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+  {
+    id: "code-sentinel-manual",
+    title: "CodeSentinel — AI SAST & Autofix",
+    subtitle: "AI-Powered Code Security Analysis with Automatic Fixes",
+    tier: "pro",
+    pages: 4,
+    icon: Code,
+    version: "1.0",
+    iconColor: "text-blue-400",
+    content: `CODESENTINEL — AI SAST & AUTOFIX — COMPLETE MANUAL
+ProxhqVPN v1.0 · © 2026 Alpha Unlimited Technologies LLC
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW
+
+CodeSentinel combines traditional SAST pattern matching with an
+AI model that understands code semantics. Unlike rule-based scanners,
+it can detect novel vulnerabilities through reasoning, and it
+generates verified fixes for every finding.
+
+Navigate to: Command Center → CodeSentinel (/code-sentinel)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2. AI ADVANTAGE OVER TRADITIONAL SAST
+
+Traditional SAST:
+  Pattern matching against known vulnerable code patterns.
+  High false-positive rate. Cannot understand context.
+
+CodeSentinel AI:
+  Understands data flow, control flow, and developer intent.
+  Reduces false positives by 70%+ vs pattern matching.
+  Detects zero-day patterns through semantic reasoning.
+  Explains WHY code is vulnerable in plain language.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3. AUTOFIX
+
+For every finding, CodeSentinel generates:
+  • A corrected version of the vulnerable function
+  • An explanation of what changed and why
+  • Unit tests that verify the fix
+
+Autofix supports all 12 languages in the SAST Analyzer.
+Fixes are reviewed-before-apply — never automatically committed.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4. CI/CD INTEGRATION
+
+CodeSentinel can be triggered via API for CI pipeline integration:
+  POST /api/code-sentinel/analyze
+  Body: {code, language, autofix: true/false}
+  Returns: {findings[], fixedCode, summary}
+
+Use the SARIF output format for integration with GitHub Advanced Security.
+
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+  {
+    id: "llm-probe-manual",
+    title: "LLMProbe — LLM Vulnerability Scanner",
+    subtitle: "Prompt Injection, Jailbreak & LLM Security Testing",
+    tier: "pro",
+    pages: 4,
+    icon: Cpu,
+    version: "1.0",
+    iconColor: "text-cyan-400",
+    content: `LLMPROBE — LLM VULNERABILITY SCANNER — COMPLETE MANUAL
+ProxhqVPN v1.0 · © 2026 Alpha Unlimited Technologies LLC
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW
+
+LLMProbe tests AI/LLM-powered applications for the OWASP Top 10
+for LLMs — vulnerabilities unique to systems using language models.
+
+Navigate to: Command Center → LLMProbe (/llm-probe)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2. OWASP LLM TOP 10 CHECKS
+
+LLM01: Prompt Injection
+  Direct injection (user input modifies system prompt behavior)
+  Indirect injection (malicious content in retrieved context)
+
+LLM02: Insecure Output Handling
+  Test if LLM output reaches HTML/SQL/shell without sanitization
+
+LLM03: Training Data Poisoning (assessment only — detect symptoms)
+
+LLM04: Model Denial of Service
+  Extremely long prompts, recursive references, billion-laughs style
+
+LLM05: Supply Chain Vulnerabilities (model provenance checks)
+
+LLM06: Sensitive Information Disclosure
+  Attempt to extract training data, system prompts, other users' data
+
+LLM07: Insecure Plugin Design
+  Test plugins/tools the LLM can invoke for SSRF, command injection
+
+LLM08: Excessive Agency
+  Verify the LLM cannot take unintended actions beyond its scope
+
+LLM09: Overreliance on LLM output in security-sensitive contexts
+
+LLM10: Model Theft — probe for model extraction via API queries
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3. USAGE
+
+  1. Enter the LLM API endpoint or paste the chatbot URL
+  2. Configure API key/auth for the target system
+  3. Select checks to run
+  4. Review findings — each shows the payload used and the response evidence
+
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+  {
+    id: "ai-shield-manual",
+    title: "AIShield — LLM Security Firewall",
+    subtitle: "Prompt Injection Detection & LLM Traffic Filtering",
+    tier: "pro",
+    pages: 4,
+    icon: Shield,
+    version: "1.0",
+    iconColor: "text-blue-400",
+    content: `AISHIELD — LLM SECURITY FIREWALL — COMPLETE MANUAL
+ProxhqVPN v1.0 · © 2026 Alpha Unlimited Technologies LLC
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW
+
+AIShield is a reverse proxy firewall for LLM applications. It sits
+between users and your AI model, intercepting and filtering prompts
+for injection attacks, sensitive data, and policy violations — before
+they reach the model.
+
+Navigate to: Command Center → AIShield (/ai-shield)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2. DETECTION CAPABILITIES
+
+Prompt Injection Detection:
+  Classifies prompts as benign or injection attempt using a dedicated
+  classifier model. Confidence score shown with each decision.
+
+Jailbreak Detection:
+  Detects DAN prompts, roleplay-based jailbreaks, many-shot jailbreaks,
+  and token manipulation techniques.
+
+PII Filtering:
+  Detects and masks: email addresses, phone numbers, SSNs, credit card
+  numbers, IP addresses in both prompts and responses.
+
+Toxic Content:
+  Blocks prompts and responses containing hate speech, violence,
+  self-harm content — configurable per policy.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3. INTEGRATION
+
+  1. Point your application's LLM calls to AIShield proxy endpoint
+  2. AIShield forwards clean prompts to the actual LLM (OpenAI, Anthropic, etc.)
+  3. Responses are also filtered before returning to the application
+
+API: POST /api/ai-shield/analyze · POST /api/ai-shield/proxy · GET /api/ai-shield/logs
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4. DASHBOARD
+
+Real-time stats:
+  Prompts inspected, blocked, passed
+  Block reason distribution (injection, jailbreak, PII, toxic)
+  Top flagged patterns
+
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+  {
+    id: "request-mind-manual",
+    title: "RequestMind — AI HTTP Scanner",
+    subtitle: "AI-Assisted HTTP Traffic Analysis & Vulnerability Detection",
+    tier: "pro",
+    pages: 4,
+    icon: Globe,
+    version: "1.0",
+    iconColor: "text-green-400",
+    content: `REQUESTMIND — AI HTTP SCANNER — COMPLETE MANUAL
+ProxhqVPN v1.0 · © 2026 Alpha Unlimited Technologies LLC
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW
+
+RequestMind uses AI to analyze HTTP request/response pairs for
+security issues — going beyond header checklists to understand
+application logic vulnerabilities that rule-based scanners miss.
+
+Navigate to: Command Center → RequestMind (/request-mind)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2. INPUT MODES
+
+Manual Paste:
+  Paste raw HTTP request + response → AI analyzes immediately
+
+Capture Mode:
+  Configure your browser to proxy through RequestMind.
+  All requests are captured and analyzed in real-time as you browse.
+
+Bulk Import:
+  Import HAR (HTTP Archive) files from browser DevTools for batch analysis.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3. AI ANALYSIS CATEGORIES
+
+Authentication & Session:
+  Detects weak session tokens, missing SameSite cookie flags,
+  JWT configuration issues, predictable token patterns.
+
+Business Logic:
+  Identifies price manipulation opportunities, quantity bypass,
+  workflow step skipping, and privilege escalation patterns.
+
+Information Disclosure:
+  Finds sensitive data in responses: tokens, keys, internal paths,
+  stack traces, version strings, debug information.
+
+Input Validation:
+  Highlights unvalidated parameters likely to be vulnerable
+  to injection based on context and type.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4. REPORTS
+
+Each session produces a prioritized finding list with:
+  HTTP request/response evidence, severity, CWE mapping, fix recommendation.
+
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+  {
+    id: "agent-strike-manual",
+    title: "AgentStrike — Agentic Security",
+    subtitle: "Multi-Agent Autonomous Security Research System",
+    tier: "pro",
+    pages: 4,
+    icon: Zap,
+    version: "1.0",
+    iconColor: "text-green-400",
+    content: `AGENTSTRIKE — AGENTIC SECURITY — COMPLETE MANUAL
+ProxhqVPN v1.0 · © 2026 Alpha Unlimited Technologies LLC
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW
+
+AgentStrike deploys a network of specialized AI agents that collaborate
+on complex security tasks — similar to a human red team, but autonomous.
+Agents specialize in recon, exploitation, persistence, and reporting.
+
+Navigate to: Command Center → AgentStrike (/agent-strike)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2. AGENT ROLES
+
+ReconAgent:
+  Passive and active reconnaissance. Subdomain enum, port scan,
+  technology fingerprinting, credential leak search.
+
+VulnAgent:
+  Takes ReconAgent output and maps CVEs + manual test vectors.
+  Prioritizes by exploitability and business impact.
+
+ExploitAgent:
+  Attempts safe proof-of-concept exploitation of confirmed vulns.
+  Never attempts persistent access or data exfil without explicit permission.
+
+ChainAgent:
+  Correlates individual findings into attack chains.
+  "Finding A + Finding B = Full Server Compromise" style narrative.
+
+ReportAgent:
+  Synthesizes all agent output into a professional pentest report.
+  CVSS scoring, executive summary, technical details, remediation.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3. AGENT COMMUNICATION
+
+Agents share a working memory pool. ReconAgent findings are
+automatically consumed by VulnAgent and ExploitAgent.
+You can observe agent-to-agent communications in real time in the
+"Agent Chat" panel.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4. SCOPE CONTROL
+
+All agents respect a strict scope file:
+  Allowed domains/IPs, excluded paths, max request rate,
+  time window for testing (e.g. business hours only).
+  Agents automatically pause if they detect they've strayed out of scope.
+
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+
+  // ── Intelligence & Monitoring ──────────────────────────────────────────────
+  {
+    id: "beacon-monitor-manual",
+    title: "Beacon Monitor",
+    subtitle: "Real-Time Spider, Worm & Beacon Alert Dashboard",
+    tier: "both",
+    pages: 4,
+    icon: Shield,
+    version: "1.0",
+    iconColor: "text-blue-400",
+    content: `BEACON MONITOR — COMPLETE MANUAL
+ProxhqVPN v1.0 · © 2026 Alpha Unlimited Technologies LLC
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW
+
+Beacon Monitor displays real-time intrusion alerts from the SilkWeb
+honeypot mesh. Every spider crawl, worm probe, automated scanner,
+and beacon callback that touches any ProxhqVPN honeypot node is
+logged and classified here.
+
+Navigate to: Dashboard → Threat Monitor (/beacons)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2. ALERT TYPES
+
+Spider:
+  Web crawler or scraper has entered a honeypot path.
+  Source: User-Agent matches known crawler or follows honey links.
+
+Worm:
+  Automated propagation attempt detected — network scan or exploit
+  attempt from inside the VPN subnet (lateral movement indicator).
+
+Beacon:
+  Periodic callback from a device indicating possible C2 infection.
+  Ghost Trace detects abnormal beacon timing patterns.
+
+Probe:
+  Port scan or service enumeration from an external IP.
+  Classified by scan type: SYN, ACK, XMAS, NULL, FIN.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3. ALERT FIELDS
+
+  Alert ID, timestamp, source IP, target node, alert type
+  Severity (critical / high / medium / low)
+  Geo-location (country, city, ASN)
+  Matched trap (which honeypot rule triggered)
+  Raw payload (first 256 bytes of the triggering request)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4. RESPONSE ACTIONS
+
+From the Beacon Monitor, you can:
+  → Block IP in Firewall (one click → adds to Firewall blacklist)
+  → Add to Ghost Trace watchlist (monitors future traffic from this device)
+  → Export alert to SIEM (adds to Security Event Log)
+  → View full honey session (what paths the attacker visited)
+
+API: GET /api/beacons · POST /api/beacons/:id/block
+
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+
+  // ── Admin & Infrastructure ────────────────────────────────────────────────
+  {
+    id: "silkweb-manual",
+    title: "SilkWeb Honeypot Network",
+    subtitle: "SVG Topology Map, Trapped Entities & Honey Sessions",
+    tier: "both",
+    pages: 5,
+    icon: Network,
+    version: "1.0",
+    iconColor: "text-blue-400",
+    content: `SILKWEB HONEYPOT NETWORK — COMPLETE MANUAL
+ProxhqVPN v1.0 · © 2026 Alpha Unlimited Technologies LLC
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW
+
+SilkWeb is ProxhqVPN's honeypot network — a web of fake endpoints,
+services, and documents designed to attract and trap attackers.
+Every interaction with a honeypot reveals attacker intent, tools,
+and techniques in a safe, controlled environment.
+
+Navigate to: Dashboard → Decoy Network (/silkweb)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2. SVG TOPOLOGY MAP
+
+The main SilkWeb page displays a real-time SVG chord diagram
+showing:
+  • Node relationships (which VPN nodes host which honeypots)
+  • Active connections from trapped entities
+  • Traffic density between nodes (chord width = traffic volume)
+  • Live pulse animation when a new entity is trapped
+
+Click any chord to zoom into that connection's session log.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3. HONEYPOT TYPES
+
+Honey URLs:
+  Fake paths planted in legitimate pages via invisible HTML links.
+  Crawlers follow them; legitimate users never see or click them.
+
+Honey Services:
+  Fake SSH, FTP, RDP, SMB listeners that log credentials and tools.
+
+Honey Documents:
+  PDF, Word, Excel files with embedded callbacks.
+  When opened and internet-connected, they call back to SilkWeb.
+
+Honey Tokens:
+  Fake AWS keys, API tokens — when used, they trigger alerts.
+  See also: Canary Tokens (/canary) for user-deployable tokens.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4. TRAPPED ENTITIES
+
+The "Trapped Entities" list shows:
+  Source IP, first seen, last seen, trap type, interaction count,
+  geo-location, ASN, attempted credentials (if honey service), tools used
+
+Each entity can be:
+  → Permanently blocked (adds to Firewall blacklist)
+  → Watched (adds to Ghost Trace for behavioral analysis)
+  → Exported (sends to SIEM)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+5. DEPLOYING HONEYPOTS
+
+Admins can configure new honeypot locations from the SilkWeb admin
+panel. Each honeypot requires: node assignment, trap type, decoy content.
+
+API: GET /api/silkweb/stats · GET /api/silkweb/trapped · POST /api/silkweb/block
+
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+  {
+    id: "nodes-manual",
+    title: "VPN Server Management",
+    subtitle: "Node Lifecycle, IP Rotation & Health Monitoring",
+    tier: "both",
+    pages: 5,
+    icon: Server,
+    version: "1.0",
+    iconColor: "text-blue-400",
+    content: `VPN SERVER MANAGEMENT — COMPLETE MANUAL
+ProxhqVPN v1.0 · © 2026 Alpha Unlimited Technologies LLC
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW
+
+The VPN Server Management page (Nodes) is the control center for all
+ProxhqVPN server nodes. Admins can view status, rotate IPs, restart
+services, and monitor health across all nodes in the 60-node mesh.
+
+Navigate to: Admin → VPN Servers (/nodes)
+
+Current nodes:
+  Node 61 — Chicago, IL, USA
+  Node 62 — London, UK
+  Node 63 — Los Angeles, CA, USA
+  Node 64 — Tokyo, Japan
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2. NODE GRID VIEW
+
+The Node Manager displays nodes in a swarm grid that auto-rotates
+every 3 seconds showing different views:
+  • Status (online/offline/degraded)
+  • Active peers (connected WireGuard clients)
+  • Bandwidth (real-time RX/TX)
+  • CPU/RAM utilization
+  • Last key rotation timestamp
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3. IP ROTATION
+
+Each node supports public IP rotation to prevent long-term IP
+profiling by ISPs or websites:
+  1. Select node → "Rotate IP"
+  2. System re-allocates a new IP from the provider's pool
+  3. WireGuard endpoint updates automatically
+  4. Connected clients reconnect within 30 seconds
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4. NODE LIFECYCLE
+
+Adding a node:
+  1. Provision a Linux VPS (Ubuntu 22.04+ recommended)
+  2. Run the Node Security Hardening Script (Firewall → NodeSync)
+  3. Configure RAM-only WireGuard keys (see RAM-Only WireGuard manual)
+  4. Register node IP in Admin → VPN Servers → Add Node
+
+Removing a node:
+  1. Admin → VPN Servers → Select node → "Decommission"
+  2. All active peer configs for this node are invalidated
+  3. Users with configs for this node should regenerate
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+5. HEALTH MONITORING
+
+Node health is checked every 30 seconds:
+  • WireGuard tunnel active (wg show)
+  • Systemd services running (proxhq-wg-init, proxhq-iptables, etc.)
+  • Latency from dashboard to node
+  • Outbound connectivity (curl api.ipify.org)
+
+Degraded nodes trigger a Beacon Monitor alert.
+
+API: GET /api/nodes · POST /api/nodes · PATCH /api/nodes/:id/rotate-ip
+
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+  {
+    id: "performance-monitor-manual",
+    title: "Performance Monitor",
+    subtitle: "Real-Time CPU, RAM, Network & WireGuard Metrics",
+    tier: "both",
+    pages: 4,
+    icon: Zap,
+    version: "1.0",
+    iconColor: "text-green-400",
+    content: `PERFORMANCE MONITOR — COMPLETE MANUAL
+ProxhqVPN v1.0 · © 2026 Alpha Unlimited Technologies LLC
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW
+
+The Performance Monitor provides live, real operating system metrics
+from the ProxhqVPN API server — not mocked data. All metrics are
+sourced directly from the OS and WireGuard runtime.
+
+Navigate to: Admin → Performance (/monitor)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2. METRICS SOURCES
+
+CPU Usage:
+  Source: Node.js os.cpus() — per-core user/system/idle breakdown
+  Refresh: 5 seconds
+
+Memory Usage:
+  Source: os.totalmem() and os.freemem()
+  Shows: total, used, free, usage percentage
+
+Network I/O:
+  Source: /proc/net/dev (Linux) — per-interface RX/TX bytes
+  Interfaces: eth0, wg0, and all active WireGuard tunnels
+
+Active Connections:
+  Source: ss -ntu | wc -l — real socket count from the kernel
+
+WireGuard Peers:
+  Source: wg show all dump — live peer list with:
+  public key (truncated), allowed IPs, endpoint, latest handshake timestamp,
+  RX/TX bytes per peer
+
+External IP:
+  Source: api.ipify.org — confirms the server's current public IP
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3. CHARTS
+
+24-hour bandwidth chart:
+  RX and TX in MB/s for eth0 (internet-facing interface)
+  Stored in memory — resets on API server restart
+
+WireGuard peer activity chart:
+  Connected peer count over time
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4. ALERTS
+
+High CPU (>85% for 60s): notification in dashboard
+High Memory (>90%): notification + recommendation to restart API server
+No active WireGuard peers: alert (may indicate WireGuard daemon crash)
+
+API: GET /api/monitor/cpu · /api/monitor/memory · /api/monitor/network
+     /api/monitor/connections · /api/monitor/wireguard · /api/monitor/external-ip
+
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
 ];
 
 // ── Category grouping ─────────────────────────────────────────────────────────
@@ -8530,21 +11115,70 @@ const CATEGORIES = [
     color: "text-green-400",
     border: "border-green-900",
     bg: "bg-green-950/20",
-    ids: ["vpn-getting-started", "wireguard-advanced", "privacy-suite-tools", "network-monitor-manual", "dns-sinkhole-manual", "firewall-manual", "kill-switch-manual", "ram-wireguard-manual", "node-hardening-manual", "advanced-firewall-manual"],
+    ids: [
+      "vpn-getting-started", "wireguard-advanced", "privacy-suite-tools",
+      "leak-detection-manual", "dns-shield-manual", "obfuscation-manual",
+      "device-manager-manual", "router-setup-manual", "smart-dns-manual",
+      "vpngate-manual", "network-monitor-manual", "dns-sinkhole-manual",
+      "firewall-manual", "kill-switch-manual", "ram-wireguard-manual",
+      "node-hardening-manual", "advanced-firewall-manual",
+    ],
   },
   {
-    label: "Advanced Privacy",
+    label: "Network & Connectivity",
+    color: "text-cyan-400",
+    border: "border-cyan-900",
+    bg: "bg-cyan-950/20",
+    ids: [
+      "split-tunnel-manual", "proxy-tor-manual", "onion-browser-manual",
+      "meshnet-manual", "vpn-coexist-manual",
+    ],
+  },
+  {
+    label: "Advanced Privacy Suite",
     color: "text-violet-400",
     border: "border-violet-900",
     bg: "bg-violet-950/20",
-    ids: ["post-quantum-manual", "daita-manual", "vpn-coexist-manual"],
+    ids: [
+      "post-quantum-manual", "daita-manual", "alt-id-manual",
+      "ip-rotator-manual", "data-broker-manual",
+    ],
+  },
+  {
+    label: "Command Center Pro — Recon & Testing",
+    color: "text-orange-400",
+    border: "border-orange-900",
+    bg: "bg-orange-950/20",
+    ids: [
+      "http-probe-manual", "subdomain-scout-manual", "dir-fuzzer-manual",
+      "intruder-manual", "payload-gen-manual", "cve-lookup-manual",
+      "encoder-decoder-manual", "alpha-toolkit-manual",
+    ],
   },
   {
     label: "Command Center Pro — Security Tools",
     color: "text-red-400",
     border: "border-red-900",
     bg: "bg-red-950/20",
-    ids: ["omnistrike-manual", "waf-analyzer-manual", "social-breach-manual", "bug-bounty-hub-manual", "dev-security-tools-v2", "ghost-chain-manual", "http-interceptor-manual", "jwt-analyzer-manual", "sqli-scanner-manual", "ssl-tls-manual", "iac-scanner-manual", "alpha-toolkit-manual"],
+    ids: [
+      "omnistrike-manual", "waf-analyzer-manual", "social-breach-manual",
+      "bug-bounty-hub-manual", "dev-security-tools-v2", "ghost-chain-manual",
+      "http-interceptor-manual", "jwt-analyzer-manual", "sqli-scanner-manual",
+      "ssl-tls-manual", "iac-scanner-manual", "api-tester-manual",
+      "oast-manual", "waf-bypass-manual", "ws-tester-manual",
+      "sast-manual", "dep-scanner-manual",
+    ],
+  },
+  {
+    label: "Command Center Pro — AI Security",
+    color: "text-purple-400",
+    border: "border-purple-900",
+    bg: "bg-purple-950/20",
+    ids: [
+      "ghost-pentest-manual", "soc-copilot-manual", "code-sentinel-manual",
+      "llm-probe-manual", "ai-shield-manual", "request-mind-manual",
+      "agent-strike-manual",
+    ],
   },
   {
     label: "Blockchain Security",
@@ -8558,7 +11192,11 @@ const CATEGORIES = [
     color: "text-blue-400",
     border: "border-blue-900",
     bg: "bg-blue-950/20",
-    ids: ["osint-recon-manual", "canary-tokens-manual", "siem-manual", "ghost-trap-manual", "ghost-trace-manual", "dark-web-monitor-manual", "username-intel-manual"],
+    ids: [
+      "osint-recon-manual", "canary-tokens-manual", "siem-manual",
+      "ghost-trap-manual", "ghost-trace-manual", "dark-web-monitor-manual",
+      "username-intel-manual", "beacon-monitor-manual",
+    ],
   },
   {
     label: "Platform Security",
@@ -8568,11 +11206,14 @@ const CATEGORIES = [
     ids: ["security-hardening-v22"],
   },
   {
-    label: "Admin Tools",
+    label: "Admin & Infrastructure",
     color: "text-amber-400",
     border: "border-amber-900",
     bg: "bg-amber-950/20",
-    ids: ["employee-procedures", "terminal-manual", "sql-interface-manual"],
+    ids: [
+      "employee-procedures", "terminal-manual", "sql-interface-manual",
+      "silkweb-manual", "nodes-manual", "performance-monitor-manual",
+    ],
   },
 ];
 
