@@ -754,7 +754,7 @@ function AttackerCommandPanel({
       </div>
 
       {/* Tab bar */}
-      <div className="flex border-b border-yellow-500/20 shrink-0 overflow-x-auto">
+      <div className="flex border-b border-yellow-500/20 shrink-0 overflow-x-auto [&::-webkit-scrollbar]:h-[3px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-primary/40 [&::-webkit-scrollbar-thumb]:rounded-full">
         {([
           { id: "portscan",  icon: Search,          label: "Port Scan",  color: "primary" },
           { id: "sqlmap",    icon: Syringe,         label: "Inject",     color: "red" },
