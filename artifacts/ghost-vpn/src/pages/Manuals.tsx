@@ -10878,37 +10878,68 @@ Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
   {
     id: "silkweb-manual",
     title: "SilkWeb Honeypot Network",
-    subtitle: "SVG Topology Map, Trapped Entities & Honey Sessions",
+    subtitle: "SVG Topology Map, Worm Injection, Trapped Entities & Attacker Intelligence",
     tier: "both",
-    pages: 5,
+    pages: 28,
     icon: Network,
-    version: "1.0",
+    version: "3.0",
     iconColor: "text-blue-400",
     content: `SILKWEB HONEYPOT NETWORK — COMPLETE MANUAL
-ProxhqVPN v1.0 · © 2026 Alpha Unlimited Technologies LLC
+Version 3.0 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-1. OVERVIEW
+TABLE OF CONTENTS
 
-SilkWeb is ProxhqVPN's honeypot network — a web of fake endpoints,
-services, and documents designed to attract and trap attackers.
-Every interaction with a honeypot reveals attacker intent, tools,
-and techniques in a safe, controlled environment.
+1. Overview & Architecture
+2. SVG Topology Map
+3. Honeypot Types
+4. Worm Banner Injection (NEW v3.0)
+5. Worm Callhome Tracking (NEW v3.0)
+6. Trapped Entities List
+7. Attacker Intelligence Console (NEW v3.0)
+   7a. Port Scan Tab
+   7b. OS Shell Tab
+   7c. File Manager Tab
+   7d. Control Panel Tab
+8. Auto-Block & SIEM Export
+9. Daemon-Inbound API Reference
+10. Deploying & Configuring Honeypots
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW & ARCHITECTURE
+
+SilkWeb is ProxhqVPN's honeypot and counter-intelligence layer. It
+deploys a web of fake services, documents, and endpoints that attract
+and silently fingerprint attackers without exposing any real data or
+infrastructure.
 
 Navigate to: Dashboard → Decoy Network (/silkweb)
+
+Backend: Express API at /api/silkweb and /api/daemon-inbound
+Database tables: trappedAttackersTable, nodesTable
+All routes require Clerk session (except /api/daemon-inbound/worm-callhome)
+
+Architecture layers:
+  Layer 1 — Lure: fake services attract attacker connections
+  Layer 2 — Capture: connection metadata logged to DB
+  Layer 3 — Inject: worm payload embedded in the response banner
+  Layer 4 — Callhome: worm reports attacker browser fingerprint
+  Layer 5 — Console: 6-tab intelligence panel per trapped entity
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 2. SVG TOPOLOGY MAP
 
-The main SilkWeb page displays a real-time SVG chord diagram
-showing:
+The main SilkWeb page displays a real-time SVG chord diagram showing:
   • Node relationships (which VPN nodes host which honeypots)
   • Active connections from trapped entities
   • Traffic density between nodes (chord width = traffic volume)
   • Live pulse animation when a new entity is trapped
 
 Click any chord to zoom into that connection's session log.
+The topology updates every 5 seconds automatically.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -10917,41 +10948,542 @@ Click any chord to zoom into that connection's session log.
 Honey URLs:
   Fake paths planted in legitimate pages via invisible HTML links.
   Crawlers follow them; legitimate users never see or click them.
+  Examples: /.env, /admin/config, /backup.sql, /phpinfo.php
 
 Honey Services:
-  Fake SSH, FTP, RDP, SMB listeners that log credentials and tools.
+  Fake SSH (port 22), FTP (port 21), HTTP (port 80/443), RDP (port 3389),
+  SMB (port 445) listeners. Log credentials, tool signatures, and banners.
+  When an attacker hits one of these, a honeypot hit is recorded and a
+  worm payload is injected into the response banner automatically.
 
 Honey Documents:
-  PDF, Word, Excel files with embedded callbacks.
-  When opened and internet-connected, they call back to SilkWeb.
+  PDF, Word, Excel files with embedded URL callbacks.
+  When opened on an internet-connected device, they call back to SilkWeb.
 
 Honey Tokens:
-  Fake AWS keys, API tokens — when used, they trigger alerts.
-  See also: Canary Tokens (/canary) for user-deployable tokens.
+  Fake AWS keys (AKIA-format), API tokens, database credentials.
+  When any of these are used against real services, the attempt is logged.
+  See also: Canary Tokens (/canary) for user-deployable standalone tokens.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-4. TRAPPED ENTITIES
+4. WORM BANNER INJECTION (NEW v3.0)
 
-The "Trapped Entities" list shows:
+When a honeypot records a new hit, SilkWeb automatically embeds a
+worm payload inside the response banner that the attacker receives.
+
+Endpoint: GET /api/daemon-inbound/worm-payload
+  Requires: X-Daemon-PSK header (per-node PSK)
+  Returns a banner string for the configured service type:
+    • HTTP — full HTTP/1.1 200 response with:
+        <script> tag that fetches /api/t/<tokenId>/pixel.gif
+        <img> tag with the same pixel URL as a fallback
+        Embedded JSON beacon (navigator data, screen dimensions)
+    • FTP  — 220 FTP server banner with embedded URL comment
+    • SSH  — SSH-2.0 banner with fake version + embedded tracker
+
+The worm payload is designed to blend into legitimate-looking service
+responses. A real administrator would not notice it. An attacker's
+tool or browser will silently execute the JS and load the pixel.
+
+How injection is triggered automatically:
+  1. Attacker probes your node IP on a honeypot port.
+  2. POST /api/daemon-inbound/honeypot-hit records the connection.
+  3. If bannerData contains an HTTP response, auto-injection fires.
+  4. The worm-injected banner is returned to the attacker's tool.
+  5. If the attacker opens the response in a browser, callhome fires.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+5. WORM CALLHOME TRACKING (NEW v3.0)
+
+Endpoint: POST /api/daemon-inbound/worm-callhome (PUBLIC — no auth)
+
+When the worm JS executes in the attacker's browser (or any tool that
+renders HTML), it sends a beacon back with:
+  • IP address
+  • User-Agent string
+  • Referer header
+  • Timestamp
+  • Any captured navigator.* data
+
+The callhome handler:
+  1. Looks up the trappedAttacker record by tokenId.
+  2. Appends the callback object to dataCollected.wormCallbacks[].
+  3. Returns a 1×1 transparent GIF (Content-Type: image/gif).
+     The GIF response is intentionally invisible to the attacker.
+
+The worm callbacks appear in real time inside the Attacker Intelligence
+Console → Control Panel tab for the affected entity.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+6. TRAPPED ENTITIES LIST
+
+The "Trapped Entities" list (right panel in SilkWeb) shows:
   Source IP, first seen, last seen, trap type, interaction count,
   geo-location, ASN, attempted credentials (if honey service), tools used
 
+Rows are sorted newest first. Each row expands to show the 6-tab
+Attacker Intelligence Console (see Section 7).
+
 Each entity can be:
-  → Permanently blocked (adds to Firewall blacklist)
-  → Watched (adds to Ghost Trace for behavioral analysis)
-  → Exported (sends to SIEM)
+  → Permanently blocked (adds to Firewall blacklist via POST /api/silkweb/block)
+  → Watched (adds to Ghost Trace for ongoing behavioral analysis)
+  → Exported to SIEM (sends event to security event log)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-5. DEPLOYING HONEYPOTS
+7. ATTACKER INTELLIGENCE CONSOLE (NEW v3.0)
 
-Admins can configure new honeypot locations from the SilkWeb admin
-panel. Each honeypot requires: node assignment, trap type, decoy content.
+Each trapped entity now has a full 6-tab console that expands inline.
+Open it by clicking any row in the Trapped Entities list.
 
-API: GET /api/silkweb/stats · GET /api/silkweb/trapped · POST /api/silkweb/block
+Tabs:
+  Port Scan | OS Shell | File Manager | Control Panel
+  (Plus: the original Inject tab for injection-based analysis)
 
-Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+7a. PORT SCAN TAB
+
+Performs an nmap port scan against the trapped attacker's source IP.
+
+Presets:
+  Fast Scan      — top 100 ports, no service detection (-F)
+  Service Scan   — version detection on top 1000 ports (-sV)
+  OS Detection   — OS fingerprinting (requires root) (-O)
+  Full Scan      — all 65535 ports (-p-)
+  UDP Scan       — top 100 UDP ports (-sU)
+  Stealth SYN    — SYN scan, no ping, random timing (-sS -Pn -T2)
+
+API: POST /api/silkweb/trapped/:id/portscan
+     POST /api/silkweb/trapped/:id/portscan-poll
+
+Results are shown in a fixed-height scrollable terminal output box.
+Status updates every 2 seconds while the scan runs.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+7b. OS SHELL TAB
+
+Execute OS commands against the trapped attacker's environment.
+Commands are entered in the terminal input field and run on Enter.
+A scrollable history shows all past commands and their outputs.
+
+Presets:
+  id && whoami         — user identity
+  ps aux               — running processes
+  netstat -tulnp       — open ports and listeners
+  iptables -L -n       — firewall rules
+  find / -perm -4000   — SUID binaries
+  cat /etc/passwd      — local user list
+
+API: POST /api/silkweb/trapped/:id/os-cmd
+  Body: { "cmd": "your command" }
+  Response: { "output": "..." }
+
+Command history is stored per-session in the frontend.
+Previous commands can be re-run with one click.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+7c. FILE MANAGER TAB
+
+Read files from the attacker's system remotely.
+
+Enter any absolute file path and click "Read File."
+
+Linux quick-access shortcuts:
+  /etc/passwd          — local user accounts
+  /etc/shadow          — password hashes (requires root)
+  /root/.ssh/id_rsa    — root SSH private key
+  ~/.bash_history      — shell command history
+  ~/.aws/credentials   — AWS credentials
+  /proc/self/environ   — process environment variables
+  /var/log/auth.log    — SSH/sudo auth log
+
+Windows quick-access shortcuts:
+  C:\inetpub\wwwroot\web.config   — IIS config with DB credentials
+  C:\Windows\System32\drivers\etc\hosts — hosts file
+  C:\boot.ini                     — Windows boot configuration
+
+The file contents are displayed in a scrollable monospace box.
+A "Download" button saves the content as a .txt file locally.
+
+API: POST /api/silkweb/trapped/:id/file-read
+  Body: { "filePath": "/etc/passwd" }
+  Response: { "content": "...", "filePath": "..." }
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+7d. CONTROL PANEL TAB
+
+The Control Panel is the intelligence summary for a trapped entity.
+
+Sections:
+  Worm Callbacks (live):
+    Every callback from the worm beacon appears here as it arrives.
+    Each entry shows: IP, User-Agent, Referer, timestamp.
+    Updates automatically every 10 seconds.
+
+  Captured Raw Request:
+    The original HTTP/TCP request that triggered the honeypot.
+    Includes all headers, method, path, and body (if any).
+
+  Injected Worm Banner:
+    The exact banner that was served to the attacker, with the worm
+    payload embedded. Shows the full response text.
+
+  Intelligence Actions:
+    → "Open Full HTML Control Panel" — opens a standalone browser
+       window with all intelligence formatted as a professional
+       HTML report: summary card, worm callback table, file reads,
+       OS command outputs, port scan results.
+
+API: GET /api/silkweb/trapped/:id/control-data
+  Returns: { callbacks: [...], rawRequest, banner, sqlmapResults }
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+8. AUTO-BLOCK & SIEM EXPORT
+
+Auto-Block:
+  Click "Block IP" on any trapped entity to add their source IP to
+  the global firewall blacklist. This fires POST /api/silkweb/block
+  which calls the Firewall module to add an iptables DROP rule.
+  The block takes effect on all nodes within 30 seconds (via the
+  firewall sync service running on each node).
+
+SIEM Export:
+  Click "Export to SIEM" to push the trapped entity event to the
+  Security Event Log at /siem. The event includes source IP,
+  trap type, interaction count, and any collected intelligence.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+9. DAEMON-INBOUND API REFERENCE
+
+All daemon-inbound routes require X-Daemon-PSK header EXCEPT
+worm-callhome (which is intentionally public so attacker browsers
+can reach it without authentication).
+
+POST /api/daemon-inbound/honeypot-hit
+  Records a new honeypot interaction.
+  Body: { nodeId, sourceIp, trapType, bannerData, rawRequest }
+  On HTTP banner: auto-triggers worm injection.
+
+GET /api/daemon-inbound/worm-payload
+  Returns a worm-injected banner string for the requesting node.
+  Response includes embedded JS tracker and pixel img tag.
+
+POST /api/daemon-inbound/worm-callhome  (PUBLIC)
+  Receives worm beacon callbacks from attacker browsers.
+  Body: tokenId, ip, userAgent, referer, timestamp
+  Response: 1×1 transparent GIF
+
+POST /api/daemon-inbound/ips-event
+  Reports an IPS/Suricata alert event from a node.
+  Triggers ATR decision (Monitor / Throttle / Trap / Block).
+
+GET /api/daemon-inbound/peer-rules-export
+  Returns per-peer WireGuard FORWARD/INPUT rule set for a node.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+10. DEPLOYING & CONFIGURING HONEYPOTS
+
+Each honeypot is assigned to a node and configured with:
+  • Service type (HTTP / SSH / FTP / RDP / SMB)
+  • Decoy content (fake credentials, fake API, fake document)
+  • Worm injection template (auto-generated per service type)
+  • Tarpit delay (optional: hold connection open N seconds)
+
+Best practices:
+  • Deploy honeypots on ports the attacker would expect to find open.
+  • Use realistic fake credentials (admin/password123, root/toor).
+  • Keep worm banner response times under 500ms to avoid timeouts.
+  • Review worm callbacks daily in the Control Panel tab.
+  • Export high-value entities to SIEM for correlation with firewall logs.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+All rights reserved. Unauthorized distribution prohibited.`,
+  },
+  {
+    id: "attacker-console-manual",
+    title: "Attacker Intelligence Console",
+    subtitle: "Port Scan, OS Shell, File Manager, Worm Callbacks & HTML Intelligence Reports",
+    tier: "pro",
+    pages: 18,
+    icon: Eye,
+    version: "1.0",
+    iconColor: "text-violet-400",
+    content: `ATTACKER INTELLIGENCE CONSOLE — USER MANUAL
+Version 1.0 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+Command Center Pro Feature
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+IMPORTANT: This console operates against trapped attacker IPs that
+have actively probed your ProxhqVPN infrastructure. All operations
+are defensive and intelligence-gathering in nature. Only use Port
+Scan and OS Shell features against IPs that have first attacked
+your systems. ALPHA UNLIMITED TECHNOLOGIES LLC assumes no liability.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TABLE OF CONTENTS
+
+1. Overview
+2. Opening the Console
+3. Port Scan Tab
+4. OS Shell Tab
+5. File Manager Tab
+6. Control Panel Tab
+7. Worm Callback Intelligence
+8. HTML Intelligence Report Export
+9. API Reference
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. OVERVIEW
+
+The Attacker Intelligence Console is a 6-tab dossier panel that opens
+inline for every trapped entity in the SilkWeb Honeypot Network.
+
+When a honeypot records a connection from an attacker, their source
+IP is logged and a worm payload is injected into the honeypot's
+response banner. The Intelligence Console gives you tools to:
+
+  • Scan the attacker's IP for open ports and services
+  • Execute OS commands on a compromised attacker system
+  • Read sensitive files from the attacker's filesystem
+  • View real-time worm callback data from their browser
+  • Export a full formatted intelligence report as HTML
+
+Navigate to: Dashboard → Decoy Network (/silkweb)
+  → Click any row in the Trapped Entities list to expand the console.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2. OPENING THE CONSOLE
+
+1. Go to /silkweb.
+2. In the Trapped Entities panel (right side), click any attacker row.
+3. The 6-tab console expands inline below the row.
+4. Tabs: Port Scan · OS Shell · File Manager · Control Panel
+   (Plus: Inject tab for injection-based investigation)
+5. The entity's source IP, trap type, and timestamp are shown at the top.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3. PORT SCAN TAB
+
+Purpose: Enumerate open ports and running services on the attacker's IP.
+
+Select a scan preset, then click "Run Scan."
+
+Preset         nmap flags      Description
+─────────────────────────────────────────────
+Fast Scan      -F              Top 100 ports, no probing
+Service Scan   -sV             Version detection, top 1000
+OS Detection   -O              OS fingerprinting
+Full Scan      -p-             All 65535 ports (slow, thorough)
+UDP Scan       -sU -F          Top 100 UDP ports
+Stealth SYN    -sS -Pn -T2     Low-noise, no ping, random timing
+
+The scan runs server-side (never from your browser IP).
+Results appear in a scrollable terminal box below the controls.
+Status updates every 2 seconds during the scan.
+
+Typical scan time:
+  Fast: 5-15s · Service: 30-90s · OS: 60-120s
+  Full: 5-20 min · UDP: 3-8 min · Stealth: 2-5 min
+
+API:
+  POST /api/silkweb/trapped/:id/portscan
+    Body: { "flags": "-F" }
+    Response: { "jobId": "..." }
+
+  GET /api/silkweb/trapped/:id/portscan-poll?jobId=...
+    Response: { "done": true/false, "output": "..." }
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4. OS SHELL TAB
+
+Purpose: Execute OS commands on a compromised attacker system.
+
+Enter any command in the terminal input and press Enter (or click Run).
+Output appears in the terminal panel below.
+Past commands are listed in the History section for one-click re-run.
+
+Built-in presets:
+  Command                      Purpose
+  ─────────────────────────────────────────────
+  id && whoami                 Identify current user
+  uname -a                     Kernel and OS version
+  ps aux                       List all running processes
+  netstat -tulnp               Open ports and listening services
+  iptables -L -n               Active firewall rules
+  find / -perm -4000 2>/dev/null  SUID binaries (privilege escalation)
+  cat /etc/passwd              Local user accounts
+  env                          Environment variables (credentials)
+  last                         Recent login history
+  crontab -l                   Scheduled tasks
+
+API:
+  POST /api/silkweb/trapped/:id/os-cmd
+    Body: { "cmd": "your command here" }
+    Response: { "output": "...", "exitCode": 0 }
+
+Output is displayed in a monospace terminal panel with green text on
+black background. Scroll up to see previous command outputs.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+5. FILE MANAGER TAB
+
+Purpose: Read the contents of any file on the attacker's system.
+
+Enter a file path in the input field and click "Read File."
+File contents appear in the scrollable file viewer below.
+Click "Download" to save the contents as a .txt file locally.
+
+Linux quick-access presets:
+  Path                              Contents
+  ─────────────────────────────────────────────
+  /etc/passwd                       User accounts & UIDs
+  /etc/shadow                       Password hashes
+  /root/.ssh/id_rsa                 Root SSH private key
+  ~/.bash_history                   Recent shell commands
+  ~/.aws/credentials                AWS access keys
+  /proc/self/environ                Running process env vars
+  /var/log/auth.log                 SSH/sudo authentication log
+  /etc/crontab                      System-wide cron jobs
+
+Windows quick-access presets:
+  Path                                   Contents
+  ─────────────────────────────────────────────
+  C:\inetpub\wwwroot\web.config          IIS DB connection strings
+  C:\Windows\System32\drivers\etc\hosts  DNS override file
+  C:\boot.ini                            Windows boot config
+  %APPDATA%\Microsoft\Credentials        Cached Windows credentials
+
+API:
+  POST /api/silkweb/trapped/:id/file-read
+    Body: { "filePath": "/etc/passwd" }
+    Response: { "content": "...", "filePath": "/etc/passwd" }
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+6. CONTROL PANEL TAB
+
+Purpose: Intelligence summary — worm callbacks, raw request, banner, and report export.
+
+Sections in the Control Panel:
+
+  WORM CALLBACK LOG (live):
+    Shows every time the worm beacon has fired in the attacker's browser.
+    Each entry: IP · User-Agent · Referer · Timestamp
+    Updated automatically. Each callback reveals the attacker's real
+    browser, OS, and potentially their actual home/office IP.
+
+  CAPTURED RAW REQUEST:
+    The raw TCP/HTTP request that triggered the honeypot entry.
+    Includes all request headers, HTTP method, path, and body.
+    Useful for identifying the scanner tool (Shodan, Nmap scripts, Burp).
+
+  INJECTED WORM BANNER:
+    The exact response served back to the attacker, with the worm
+    payload visible. Compare this against the callback log to verify
+    the worm executed successfully.
+
+  OPEN FULL HTML REPORT:
+    Clicking "Open Full HTML Control Panel" opens a new browser window
+    containing a professionally formatted intelligence report with:
+      • Attacker summary card (IP, ASN, first seen, trap type)
+      • Worm callback table
+      • Port scan results
+      • OS shell command history and outputs
+      • File manager reads
+      • Raw captured request
+      • Injected banner text
+
+API:
+  GET /api/silkweb/trapped/:id/control-data
+    Response: {
+      callbacks: [{ ip, userAgent, referer, timestamp }],
+      rawRequest: "...",
+      banner: "...",
+      sqlmapResults: "..."
+    }
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+7. WORM CALLBACK INTELLIGENCE
+
+The worm payload injected into honeypot banners is a lightweight
+multi-method beacon:
+
+  Method 1 — Image pixel:
+    <img src="/api/t/<tokenId>/pixel.gif" style="display:none">
+    Loaded by any browser, curl with --include, or wget.
+    Captures: IP, User-Agent, Referer.
+
+  Method 2 — JavaScript beacon:
+    Sends navigator.userAgent, screen.width/height, platform,
+    and connection type via fetch() to /api/daemon-inbound/worm-callhome.
+    Fires only in JavaScript-enabled environments (real browsers).
+
+  Combination result:
+    If both fire, you get the tool's User-Agent AND the browser's
+    navigator data — two separate profiles of the same attacker.
+    If only the pixel fires, the attacker used a non-JS tool.
+    If only JS fires, the tool stripped img tags but ran scripts.
+
+All callbacks are public-endpoint hits (no auth required) so they
+work even if the attacker is isolated behind a restrictive proxy.
+The response is always a 1×1 transparent GIF.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+8. HTML INTELLIGENCE REPORT EXPORT
+
+The "Open Full HTML Control Panel" button generates a self-contained
+HTML document with all collected intelligence formatted for review.
+
+The report includes:
+  • Header: ProxhqVPN Counter-Intelligence Report branding
+  • Attacker summary card: IP, ASN, geo, first/last seen, trap type
+  • Worm Callbacks section: full table of all beacon hits
+  • Port Scan Results: nmap raw output with service annotations
+  • OS Shell History: all commands executed and their outputs
+  • File Reads: file paths and truncated contents
+  • Raw Captured Request: full request as received by honeypot
+  • Injected Banner: the exact worm-injected response served
+
+The report opens in a new browser window (window.open + document.write).
+It can be printed or saved as PDF from the browser's print dialog.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+9. API REFERENCE
+
+  POST   /api/silkweb/trapped/:id/portscan           Start port scan
+  GET    /api/silkweb/trapped/:id/portscan-poll       Poll scan status
+  POST   /api/silkweb/trapped/:id/os-cmd             Execute OS command
+  POST   /api/silkweb/trapped/:id/file-read          Read remote file
+  GET    /api/silkweb/trapped/:id/control-data       Full intelligence data
+
+  POST   /api/daemon-inbound/honeypot-hit            Record honeypot trigger
+  GET    /api/daemon-inbound/worm-payload            Get worm-injected banner
+  POST   /api/daemon-inbound/worm-callhome           Receive worm beacon (public)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+All rights reserved. Unauthorized distribution prohibited.`,
   },
   {
     id: "nodes-manual",

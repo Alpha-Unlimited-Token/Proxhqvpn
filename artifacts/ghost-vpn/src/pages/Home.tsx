@@ -93,6 +93,16 @@ const FEATURES = [
     title: "Auto Threat Response (ATR)",
     desc: "IPS signatures trigger automatic perimeter responses — Monitor, Throttle, Trap, or Block — with no admin approval needed. WireGuard peer traffic is never interrupted. ATR only touches the INPUT chain, not the FORWARD chain.",
   },
+  {
+    icon: Radio,
+    title: "Ghost Trap Worm Injection",
+    desc: "Honeypot banners now carry embedded worm payloads — invisible JS trackers and pixel callbacks served inside fake SSH/FTP/HTTP responses. The moment an attacker opens a captured banner in any browser, their real fingerprint, OS, and user-agent are silently reported back.",
+  },
+  {
+    icon: Search,
+    title: "Attacker Intelligence Panel",
+    desc: "Every trapped attacker gets a 6-tab intelligence dossier inside the SilkWeb console: live port scan, worm callback log, captured raw request, injected banner, browser fingerprint, and a full-page HTML intelligence report exportable in one click.",
+  },
 ];
 
 const SECURITY = [
@@ -104,6 +114,8 @@ const SECURITY = [
   { title: "Automatic IP Blocking", body: "One click blocks any attacking IP at the firewall level across your entire infrastructure. No SSH, no command line, no delay." },
   { title: "RAM-Only Key Architecture", body: "Server-side WireGuard private keys live only in RAM — never on disk. Rebooting a node instantly destroys the key. Even a seized server yields no cryptographic material." },
   { title: "Adaptive DDoS Shield", body: "Per-node watchdogs detect and auto-ban flood sources exceeding 5,000 connections per 10 seconds — protecting all 4 nodes without any manual intervention or rule writing." },
+  { title: "Worm Callback Intelligence", body: "Honeypot worm payloads report back when an attacker opens a captured banner. Browser fingerprint, OS, referrer, and IP are logged in real time — even if the attacker never connects again." },
+  { title: "6-Tab Attacker Control Panel", body: "Each trapped entity in SilkWeb gets a full intelligence dossier: port scan, worm callback stream, raw captured request, injected banner, and a one-click exportable HTML intelligence report." },
 ];
 
 type ColVal = "yes" | "partial" | "no";
@@ -122,6 +134,8 @@ const COMPARE_ROWS: { feature: string; proxhq: ColVal; nord: ColVal; express: Co
   { feature: "Full iptables / ip6tables Control",  proxhq: "yes", nord: "no",      express: "no",      mullvad: "no",      proton: "no",      surf: "no"      },
   { feature: "Built-In Security Audit Toolkit",    proxhq: "yes", nord: "no",      express: "no",      mullvad: "no",      proton: "no",      surf: "no"      },
   { feature: "sysctl Kernel Hardening on Nodes",   proxhq: "yes", nord: "no",      express: "no",      mullvad: "no",      proton: "no",      surf: "no"      },
+  { feature: "Honeypot Worm Injection & Callbacks", proxhq: "yes", nord: "no",      express: "no",      mullvad: "no",      proton: "no",      surf: "no"      },
+  { feature: "Per-Attacker Intelligence Dossier",  proxhq: "yes", nord: "no",      express: "no",      mullvad: "no",      proton: "no",      surf: "no"      },
 ];
 
 const PRICING_PLANS = [
@@ -669,6 +683,40 @@ export default function Home() {
               </p>
               <div className="flex items-center gap-1.5 text-xs text-orange-400/70 group-hover:text-orange-400 transition-colors font-medium">
                 Download per-node script <ArrowRight className="w-3.5 h-3.5" />
+              </div>
+            </Link>
+
+            {/* Ghost Trap Worm Injection */}
+            <Link href="/sign-up" className="group bg-[#0d1610] border border-white/[0.07] rounded-2xl p-6 hover:border-violet-400/25 hover:shadow-[0_0_30px_rgba(167,139,250,0.05)] transition-all">
+              <div className="flex items-start justify-between mb-4">
+                <div className="w-11 h-11 rounded-xl bg-violet-400/10 border border-violet-400/20 flex items-center justify-center group-hover:bg-violet-400/15 transition-colors">
+                  <Radio className="w-5 h-5 text-violet-400" />
+                </div>
+                <span className="text-[9px] font-bold uppercase tracking-widest bg-violet-400/10 text-violet-400 border border-violet-400/20 rounded-full px-2.5 py-1">All Plans</span>
+              </div>
+              <h3 className="text-base font-bold text-white mb-2">Ghost Trap Worm Injection</h3>
+              <p className="text-xs text-white/70 leading-relaxed mb-4">
+                Honeypot banners now carry embedded worm payloads. Invisible JS trackers and pixel callbacks are served inside fake SSH/FTP/HTTP responses — the moment an attacker opens a captured banner, their real browser fingerprint, OS, and IP report back silently.
+              </p>
+              <div className="flex items-center gap-1.5 text-xs text-violet-400/70 group-hover:text-violet-400 transition-colors font-medium">
+                Passive attacker fingerprinting <ArrowRight className="w-3.5 h-3.5" />
+              </div>
+            </Link>
+
+            {/* Attacker Intelligence Panel */}
+            <Link href="/sign-up" className="group bg-[#0d1610] border border-white/[0.07] rounded-2xl p-6 hover:border-yellow-400/25 hover:shadow-[0_0_30px_rgba(250,204,21,0.05)] transition-all">
+              <div className="flex items-start justify-between mb-4">
+                <div className="w-11 h-11 rounded-xl bg-yellow-400/10 border border-yellow-400/20 flex items-center justify-center group-hover:bg-yellow-400/15 transition-colors">
+                  <Search className="w-5 h-5 text-yellow-400" />
+                </div>
+                <span className="text-[9px] font-bold uppercase tracking-widest bg-yellow-400/10 text-yellow-400 border border-yellow-400/20 rounded-full px-2.5 py-1">Command Center</span>
+              </div>
+              <h3 className="text-base font-bold text-white mb-2">Attacker Intelligence Panel</h3>
+              <p className="text-xs text-white/70 leading-relaxed mb-4">
+                Every trapped attacker gets a 6-tab intelligence dossier in SilkWeb: live port scan, worm callback stream, captured raw request, injected banner, browser fingerprint, and a full exportable HTML intelligence report.
+              </p>
+              <div className="flex items-center gap-1.5 text-xs text-yellow-400/70 group-hover:text-yellow-400 transition-colors font-medium">
+                Full attacker dossier per entity <ArrowRight className="w-3.5 h-3.5" />
               </div>
             </Link>
 
