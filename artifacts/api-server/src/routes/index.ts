@@ -7,6 +7,7 @@ import { eq } from "drizzle-orm";
 import { requireAdmin as _requireAdmin } from "../middlewares/requireAdmin";
 import { requireAccess } from "../middlewares/requireAccess";
 import { requireCommandCenter } from "../middlewares/requireCommandCenter";
+import { daemonIpBanMiddleware } from "../app";
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
@@ -128,7 +129,9 @@ router.get("/update/check", (_req, res) => {
 });
 
 // Daemon inbound — authenticated via PSK header (not Clerk), public route
-router.use("/daemon-inbound", daemonInboundRouter);
+// daemonIpBanMiddleware is applied HERE ONLY — not globally — so normal Clerk
+// 401s on other routes never count toward the brute-force threshold.
+router.use("/daemon-inbound", daemonIpBanMiddleware, daemonInboundRouter);
 
 // Canary token trigger — public, must fire even without auth
 router.get("/t/:tokenId", (req, res, next) => {

@@ -212,31 +212,29 @@ app.use((req: Request, _res: Response, next: NextFunction) => {
   next();
 });
 
-// ── IP Auto-Ban: block IPs with repeated auth failures ────────────────────────
-// Tracks 401 responses per IP. After BAN_THRESHOLD failures within BAN_WINDOW,
-// the IP is blocked for BAN_DURATION. Cleared on server restart (in-memory).
+// ── IP Auto-Ban: brute-force protection for daemon key endpoints only ─────────
+// IMPORTANT: this ban is SCOPED TO /api/daemon-inbound/* only.
+// Applying it globally would lock out browser users whose Clerk session
+// hasn't loaded yet (normal 401s from /api/me) — causing the paywall to
+// show for admin users who have no subscription in the DB.
 const ipFailures = new Map<string, { count: number; since: number; bannedUntil: number }>();
-const BAN_THRESHOLD = 20;
+const BAN_THRESHOLD = 10;
 const BAN_WINDOW_MS = 5 * 60_000;   // 5 minutes
 const BAN_DURATION_MS = 30 * 60_000; // 30 minutes
 
-// trust proxy = 1 is set above, so req.ip is already the de-proxied client IP.
-// Reading x-forwarded-for directly would let an attacker spoof their IP by
-// injecting a forged XFF header, poisoning the IP-ban accounting.
 function getClientIp(req: Request): string {
   return req.ip ?? req.socket.remoteAddress ?? "unknown";
 }
 
-// Check ban before processing request
-app.use((req: Request, res: Response, next: NextFunction) => {
-  if (req.path === "/api/healthz") return next(); // never ban health checks
+// Daemon-inbound ban middleware — applied only to /api/daemon-inbound routes below.
+// Not exported as a global middleware so normal Clerk 401s never count toward the threshold.
+export function daemonIpBanMiddleware(req: Request, res: Response, next: NextFunction) {
   const ip = getClientIp(req);
   const rec = ipFailures.get(ip);
   if (rec && rec.bannedUntil > Date.now()) {
     const mins = Math.ceil((rec.bannedUntil - Date.now()) / 60_000);
     return res.status(429).json({ error: `Access suspended due to repeated failures. Retry in ${mins} min.` });
   }
-  // Track 401 responses to update ban state
   res.on("finish", () => {
     if (res.statusCode === 401) {
       const now = Date.now();
@@ -245,13 +243,13 @@ app.use((req: Request, res: Response, next: NextFunction) => {
       existing.count++;
       if (existing.count >= BAN_THRESHOLD) {
         existing.bannedUntil = now + BAN_DURATION_MS;
-        logger.warn({ ip, count: existing.count }, "[security] IP auto-banned for repeated auth failures");
+        logger.warn({ ip, count: existing.count }, "[security] IP auto-banned for repeated daemon auth failures");
       }
       ipFailures.set(ip, existing);
     }
   });
   next();
-});
+}
 
 // ── WAF-Light: Inline Request Inspection ─────────────────────────────────────
 // Blocks high-confidence attack signatures in query strings and path.
