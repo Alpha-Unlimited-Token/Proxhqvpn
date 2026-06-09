@@ -11,6 +11,7 @@ import fs from "fs";
 import path from "path";
 import crypto from "crypto";
 import healthRouter from "./health";
+import anonRouter from "./anon";
 import meRouter from "./me";
 import nodesRouter from "./nodes";
 import beaconsRouter from "./beacons";
@@ -344,6 +345,9 @@ echo ""
   res.setHeader("Content-Type", "text/plain");
   res.send(script);
 });
+
+// Anonymous account routes — public (create + auth require no Clerk session)
+router.use("/anon", anonRouter);
 
 // Ambassador routes — public (browse list + promo lookup require no auth)
 // Individual protected endpoints inside check auth themselves via getAuth()

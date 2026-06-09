@@ -31,3 +31,4 @@ export * from "./omega-system-info";
 export * from "./omega-windows";
 export * from "./omega-messages";
 export * from "./omega-remote-commands";
+export * from "./anon-accounts";
