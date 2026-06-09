@@ -6587,7 +6587,20 @@ function RiskScoreTab() {
 }
 
 export default function Firewall() {
-  const [tab, setTab] = useState("overview");
+  const getInitialTab = () => {
+    try { return new URLSearchParams(window.location.search).get("tab") ?? "overview"; } catch { return "overview"; }
+  };
+  const [tab, setTab] = useState(getInitialTab);
+
+  const switchTab = (t: string) => {
+    setTab(t);
+    try {
+      const u = new URL(window.location.href);
+      u.searchParams.set("tab", t);
+      window.history.replaceState({}, "", u.toString());
+    } catch { /* noop */ }
+  };
+
   return (
     <div style={{ padding:"20px 24px", minHeight:"100vh", background:"#050505", color:"#ccc" }}>
       <div style={{ marginBottom:18 }}>
@@ -6602,7 +6615,7 @@ export default function Firewall() {
       </div>
       <div style={{ display:"flex", gap:2, marginBottom:18, background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:8, padding:3, flexWrap:"wrap" }}>
         {TABS.map(t=>(
-          <button key={t.id} onClick={()=>setTab(t.id)} style={{ display:"flex", alignItems:"center", gap:4, background:tab===t.id?"#181818":"transparent", border:tab===t.id?"1px solid #2a2a2a":"1px solid transparent", color:tab===t.id?(t.id==="ghostos"?"#cc44ff":"#fff"):"#555", borderRadius:6, padding:"6px 11px", cursor:"pointer", fontSize:11, fontFamily:"monospace", transition:"all 0.15s" }}>
+          <button key={t.id} onClick={()=>switchTab(t.id)} style={{ display:"flex", alignItems:"center", gap:4, background:tab===t.id?"#181818":"transparent", border:tab===t.id?"1px solid #2a2a2a":"1px solid transparent", color:tab===t.id?(t.id==="ghostos"?"#cc44ff":"#fff"):"#555", borderRadius:6, padding:"6px 11px", cursor:"pointer", fontSize:11, fontFamily:"monospace", transition:"all 0.15s" }}>
             {TAB_ICONS[t.id]}{t.label}{t.id==="ghostos"&&<span style={{fontSize:7,color:"#cc44ff",marginLeft:1}}>™</span>}
           </button>
         ))}

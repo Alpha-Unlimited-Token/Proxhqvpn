@@ -279,7 +279,6 @@ const ADMIN_NAV = [
   { href: "/beacons",            label: "Threat Monitor",     icon: ShieldAlert },
   { href: "/silkweb",            label: "Decoy Network",      icon: Network },
   { href: "/monitor",            label: "Performance",        icon: Activity },
-  { href: "/firewall",           label: "Firewall",           icon: Shield },
   { href: "/user-management",    label: "User Management",    icon: Users },
   { href: "/employees",          label: "Employee Access",    icon: UserX },
   { href: "/handbook/employee",  label: "Employee Handbook",  icon: BookMarked },
@@ -288,12 +287,40 @@ const ADMIN_NAV = [
   { href: "/sql",                label: "Database",           icon: Database },
 ];
 
+const FIREWALL_NAV = [
+  { href: "/firewall",                    label: "Overview",           icon: Shield },
+  { href: "/firewall?tab=ghostos",        label: "GhostOS™ Terminal",  icon: Terminal },
+  { href: "/firewall?tab=rules",          label: "Firewall Rules",     icon: Filter },
+  { href: "/firewall?tab=blacklist",      label: "Blocked IPs",        icon: Ban },
+  { href: "/firewall?tab=zones",          label: "Network Zones",      icon: Network },
+  { href: "/firewall?tab=nat",            label: "NAT / Forwarding",   icon: ArrowLeftRight },
+  { href: "/firewall?tab=ips",            label: "IPS Engine",         icon: Zap },
+  { href: "/firewall?tab=dpi",            label: "DPI Engine",         icon: ScanSearch },
+  { href: "/firewall?tab=threat",         label: "Threat Intel",       icon: ShieldAlert },
+  { href: "/firewall?tab=atr",            label: "Auto-Response (ATR)",icon: ShieldCheck },
+  { href: "/firewall?tab=ddos",           label: "DDoS Shield",        icon: Shield },
+  { href: "/firewall?tab=peerrules",      label: "Per-Peer Rules",     icon: Key },
+  { href: "/firewall?tab=riskscore",      label: "Risk Score",         icon: BarChart2 },
+  { href: "/firewall?tab=optimizer",      label: "AI Optimizer",       icon: Cpu },
+  { href: "/firewall?tab=geoip",          label: "Geo-IP Blocking",    icon: Globe },
+  { href: "/firewall?tab=portscans",      label: "Portscan Detection", icon: Radar },
+  { href: "/firewall?tab=qos",            label: "QoS / Shaping",      icon: Layers },
+  { href: "/firewall?tab=analytics",      label: "Analytics",          icon: Activity },
+  { href: "/firewall?tab=nodesync",       label: "Node Sync",          icon: Server },
+  { href: "/firewall?tab=selinux",        label: "SELinux MAC",        icon: Lock },
+  { href: "/firewall?tab=zerotrust",      label: "Zero Trust Seg.",    icon: CheckCircle2 },
+  { href: "/firewall?tab=avengine",       label: "ProxhqAV Engine",    icon: Bug },
+  { href: "/firewall?tab=looptrap",       label: "Endless Loop Engine™", icon: Shuffle },
+  { href: "/firewall?tab=export",         label: "Export / Import",    icon: Upload },
+];
+
 function NavItem({ href, label, icon: Icon, onClick, locked, tier }: {
   href: string; label: string; icon: any; onClick?: () => void;
   locked?: boolean; tier?: 1 | 2 | 3;
 }) {
   const [location] = useLocation();
-  const isActive = location === href;
+  const basePath = href.split("?")[0];
+  const isActive = location === basePath;
 
   if (locked) {
     const tierNum = tier ?? 3;
@@ -480,6 +507,7 @@ export function Layout({ children }: LayoutProps) {
       if (PROTECTION_NAV.some((i) => i.href === location)) return "protection";
       if (PRIVACY_SUITE_NAV.some((i) => i.href === location)) return "privacysuite";
       if (NETWORK_NAV.some((i) => i.href === location)) return "network";
+      if (FIREWALL_NAV.some((i) => i.href.split("?")[0] === location)) return "firewall";
       if (ADVANCED_NAV.some((i) => i.href === location)) return "commandcenter";
       if (ADMIN_NAV.some((i) => i.href === location)) return "admin";
       return "myvpn";
@@ -523,6 +551,7 @@ export function Layout({ children }: LayoutProps) {
             <NavSection label="Protection"    items={PROTECTION_NAV}    onNav={closeSidebar} isOpen={openSection === "protection"}    onToggle={() => toggle("protection")} />
             <NavSection label="Privacy Suite" items={PRIVACY_SUITE_NAV} onNav={closeSidebar} isOpen={openSection === "privacysuite"} onToggle={() => toggle("privacysuite")} />
             <NavSection label="Network"       items={NETWORK_NAV}       onNav={closeSidebar} isOpen={openSection === "network"}       onToggle={() => toggle("network")} />
+            <NavSection label="🔥 Firewall"  items={FIREWALL_NAV}      onNav={closeSidebar} isOpen={openSection === "firewall"}      onToggle={() => toggle("firewall")} />
           </>
         )}
         {hasCommandCenter && (
