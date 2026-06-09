@@ -1,5 +1,5 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
-import { createHash, randomUUID } from "crypto";
+import { createHash, randomUUID, timingSafeEqual } from "crypto";
 import { exec } from "child_process";
 import { Router } from "express";
 import { db } from "@workspace/db";
@@ -47,7 +47,22 @@ function requirePsk(req: any, res: any, next: any) {
   if (!DAEMON_PSK) {
     return res.status(503).json({ error: "DAEMON_PSK not configured. Set the DAEMON_PSK environment variable." });
   }
-  if (!psk || psk !== DAEMON_PSK) {
+  // Use crypto.timingSafeEqual to prevent timing oracle attacks.
+  // Pad both buffers to the same length before comparison so the
+  // function never throws (it requires equal-length inputs).
+  if (!psk) return res.status(401).json({ error: "Invalid daemon PSK" });
+  const provided = Buffer.alloc(256);
+  const expected = Buffer.alloc(256);
+  Buffer.from(String(psk),    "utf8").copy(provided);
+  Buffer.from(DAEMON_PSK,     "utf8").copy(expected);
+  // Also constant-time check that actual string lengths match, to
+  // prevent an attacker from submitting a shorter prefix that padded
+  // zeros still accept.
+  const lenMatch = Buffer.alloc(4);
+  const lenExpected = Buffer.alloc(4);
+  lenMatch.writeUInt32BE(String(psk).length, 0);
+  lenExpected.writeUInt32BE(DAEMON_PSK.length, 0);
+  if (!timingSafeEqual(provided, expected) || !timingSafeEqual(lenMatch, lenExpected)) {
     return res.status(401).json({ error: "Invalid daemon PSK" });
   }
   next();
