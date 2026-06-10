@@ -2268,6 +2268,427 @@ router.post("/address", async (req: Request, res: Response) => {
   });
 });
 
+// ── POST /api/osint/platform-uid ─────────────────────────────────────────────
+// Look up a username on one specific platform (or all) and return the internal
+// user ID where the platform exposes it publicly.
+
+interface PlatformUidResult {
+  platform:    string;
+  category:    string;
+  status:      "found" | "not_found" | "error" | "unavailable" | "partial";
+  userId:      string | null;
+  userIdType:  "numeric" | "snowflake" | "base36" | "did" | "handle" | "name" | "unknown";
+  profileUrl:  string;
+  displayName: string | null;
+  avatar:      string | null;
+  extra:       Record<string, unknown>;
+  note:        string | null;
+}
+
+async function lookupGitHub(uname: string): Promise<PlatformUidResult> {
+  const base: PlatformUidResult = { platform: "GitHub", category: "Dev", status: "error", userId: null, userIdType: "numeric", profileUrl: `https://github.com/${uname}`, displayName: null, avatar: null, extra: {}, note: null };
+  try {
+    const body = await fetchBody(`https://api.github.com/users/${encodeURIComponent(uname)}`, 8000);
+    if (!body) return { ...base, status: "error", note: "Request timed out" };
+    const d = JSON.parse(body) as Record<string, unknown>;
+    if ((d.message as string)?.toLowerCase().includes("not found")) return { ...base, status: "not_found" };
+    return { ...base, status: "found", userId: String(d.id), displayName: (d.name as string) ?? (d.login as string) ?? null, avatar: (d.avatar_url as string) ?? null, extra: { login: d.login, publicRepos: d.public_repos, followers: d.followers, createdAt: d.created_at } };
+  } catch { return { ...base, status: "error" }; }
+}
+
+async function lookupReddit(uname: string): Promise<PlatformUidResult> {
+  const base: PlatformUidResult = { platform: "Reddit", category: "Community", status: "error", userId: null, userIdType: "base36", profileUrl: `https://www.reddit.com/user/${uname}`, displayName: null, avatar: null, extra: {}, note: "Reddit base36 ID is prefixed t2_ internally" };
+  try {
+    const body = await fetchBody(`https://www.reddit.com/user/${encodeURIComponent(uname)}/about.json`, 8000);
+    if (!body) return { ...base, status: "error" };
+    const d = JSON.parse(body) as Record<string, unknown>;
+    const data = d.data as Record<string, unknown> | undefined;
+    if (!data || (d.error as number) === 404) return { ...base, status: "not_found" };
+    const rawId = (data.id as string) ?? null;
+    return { ...base, status: "found", userId: rawId ? `t2_${rawId}` : null, displayName: (data.name as string) ?? null, avatar: typeof data.icon_img === "string" ? data.icon_img.split("?")[0] : null, extra: { karma: data.total_karma, commentKarma: data.comment_karma, linkKarma: data.link_karma, createdUtc: data.created_utc, verified: data.verified } };
+  } catch { return { ...base, status: "error" }; }
+}
+
+async function lookupDiscord(uname: string): Promise<PlatformUidResult> {
+  const base: PlatformUidResult = { platform: "Discord", category: "Social", status: "error", userId: null, userIdType: "snowflake", profileUrl: "", displayName: null, avatar: null, extra: {}, note: "Snowflake ID — encode creation timestamp via (id >> 22) + 1420070400000" };
+  try {
+    const [guru, did] = await Promise.all([
+      discordLookupGuru(uname).catch(() => ({} as Record<string, string>)),
+      discordIdLookup(uname).catch(() => ({} as Record<string, string>)),
+    ]);
+    const userId = (guru as any).userId ?? (did as any).userId ?? null;
+    const displayName = (guru as any).displayName ?? (did as any).displayName ?? null;
+    const avatar = (guru as any).avatar ?? null;
+    if (!userId) return { ...base, status: "not_found", note: "No Discord user ID found via public lookup sources" };
+    const ts = Number((BigInt(userId) >> BigInt(22)) + BigInt(1420070400000));
+    return { ...base, status: "found", userId, displayName, avatar, profileUrl: `https://discord.com/users/${userId}`, extra: { createdAt: new Date(ts).toISOString(), snowflakeTs: ts } };
+  } catch { return { ...base, status: "error" }; }
+}
+
+async function lookupRoblox(uname: string): Promise<PlatformUidResult> {
+  const base: PlatformUidResult = { platform: "Roblox", category: "Gaming", status: "error", userId: null, userIdType: "numeric", profileUrl: `https://www.roblox.com/users/profile?username=${uname}`, displayName: null, avatar: null, extra: {}, note: null };
+  try {
+    const body = await fetchBody("https://users.roblox.com/v1/usernames/users", 8000);
+    // POST with JSON body — fetchBody only does GET, so use the global fetch
+    const res = await globalThis.fetch("https://users.roblox.com/v1/usernames/users", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ usernames: [uname], excludeBannedUsers: false }),
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return { ...base, status: res.status === 404 ? "not_found" : "error" };
+    const d = await res.json() as { data: Array<{ id: number; name: string; displayName: string }> };
+    const user = d.data?.[0];
+    if (!user) return { ...base, status: "not_found" };
+    const avatarRes = await globalThis.fetch(`https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=${user.id}&size=150x150&format=Png&isCircular=false`, { signal: AbortSignal.timeout(5000) }).catch(() => null);
+    let avatar: string | null = null;
+    if (avatarRes?.ok) { const av = await avatarRes.json() as any; avatar = av?.data?.[0]?.imageUrl ?? null; }
+    return { ...base, status: "found", userId: String(user.id), displayName: user.displayName ?? user.name, avatar, profileUrl: `https://www.roblox.com/users/${user.id}/profile`, extra: { username: user.name } };
+  } catch { return { ...base, status: "error" }; }
+}
+
+async function lookupHackerNews(uname: string): Promise<PlatformUidResult> {
+  const base: PlatformUidResult = { platform: "HackerNews", category: "Dev", status: "error", userId: null, userIdType: "handle", profileUrl: `https://news.ycombinator.com/user?id=${uname}`, displayName: null, avatar: null, extra: {}, note: "HackerNews uses username as ID (no numeric UID)" };
+  try {
+    const body = await fetchBody(`https://hacker-news.firebaseio.com/v0/user/${encodeURIComponent(uname)}.json`, 6000);
+    if (!body || body.trim() === "null") return { ...base, status: "not_found" };
+    const d = JSON.parse(body) as Record<string, unknown>;
+    if (!d.id) return { ...base, status: "not_found" };
+    return { ...base, status: "found", userId: String(d.id), displayName: String(d.id), extra: { karma: d.karma, submitted: Array.isArray(d.submitted) ? d.submitted.length : 0, createdUtc: d.created, about: typeof d.about === "string" ? d.about.replace(/<[^>]+>/g, "").slice(0, 200) : null } };
+  } catch { return { ...base, status: "error" }; }
+}
+
+async function lookupBluesky(uname: string): Promise<PlatformUidResult> {
+  const handle = uname.includes(".") ? uname : `${uname}.bsky.social`;
+  const base: PlatformUidResult = { platform: "Bluesky", category: "Social", status: "error", userId: null, userIdType: "did", profileUrl: `https://bsky.app/profile/${handle}`, displayName: null, avatar: null, extra: {}, note: "DID = Decentralized Identifier (ATProto)" };
+  try {
+    const res = await globalThis.fetch(`https://public.api.bsky.app/xrpc/app.bsky.actor.getProfile?actor=${encodeURIComponent(handle)}`, { signal: AbortSignal.timeout(8000) });
+    if (res.status === 400 || res.status === 404) return { ...base, status: "not_found" };
+    if (!res.ok) return { ...base, status: "error" };
+    const d = await res.json() as Record<string, unknown>;
+    if (!d.did) return { ...base, status: "not_found" };
+    return { ...base, status: "found", userId: String(d.did), displayName: (d.displayName as string) ?? (d.handle as string) ?? null, avatar: (d.avatar as string) ?? null, profileUrl: `https://bsky.app/profile/${d.handle}`, extra: { handle: d.handle, followersCount: d.followersCount, followsCount: d.followsCount, postsCount: d.postsCount, description: typeof d.description === "string" ? d.description.slice(0, 200) : null } };
+  } catch { return { ...base, status: "error" }; }
+}
+
+async function lookupMastodon(uname: string): Promise<PlatformUidResult> {
+  const base: PlatformUidResult = { platform: "Mastodon", category: "Social", status: "error", userId: null, userIdType: "numeric", profileUrl: `https://mastodon.social/@${uname}`, displayName: null, avatar: null, extra: {}, note: "Numeric ID is instance-specific (mastodon.social)" };
+  try {
+    const res = await globalThis.fetch(`https://mastodon.social/api/v1/accounts/lookup?acct=${encodeURIComponent(uname)}`, { signal: AbortSignal.timeout(8000) });
+    if (res.status === 404) return { ...base, status: "not_found" };
+    if (!res.ok) return { ...base, status: "error" };
+    const d = await res.json() as Record<string, unknown>;
+    return { ...base, status: "found", userId: String(d.id), displayName: (d.display_name as string) ?? (d.username as string) ?? null, avatar: (d.avatar as string) ?? null, profileUrl: (d.url as string) ?? base.profileUrl, extra: { username: d.username, acct: d.acct, followersCount: d.followers_count, followingCount: d.following_count, statusesCount: d.statuses_count, createdAt: d.created_at, bot: d.bot, note: typeof d.note === "string" ? d.note.replace(/<[^>]+>/g, "").slice(0, 200) : null } };
+  } catch { return { ...base, status: "error" }; }
+}
+
+async function lookupYouTube(uname: string): Promise<PlatformUidResult> {
+  const base: PlatformUidResult = { platform: "YouTube", category: "Video", status: "error", userId: null, userIdType: "handle", profileUrl: `https://www.youtube.com/@${uname}`, displayName: null, avatar: null, extra: {}, note: "Channel ID starts with UC" };
+  try {
+    const body = await fetchBody(`https://www.youtube.com/@${encodeURIComponent(uname)}`, 10000);
+    if (!body) return { ...base, status: "error" };
+    // Extract channel ID from various JSON patterns in page source
+    const patterns = [
+      /"externalId":"(UC[a-zA-Z0-9_-]{22})"/,
+      /"channelId":"(UC[a-zA-Z0-9_-]{22})"/,
+      /"browse_id":"(UC[a-zA-Z0-9_-]{22})"/,
+      /channel\/(UC[a-zA-Z0-9_-]{22})/,
+    ];
+    let channelId: string | null = null;
+    for (const pat of patterns) { const m = body.match(pat); if (m) { channelId = m[1]; break; } }
+    // Extract display name
+    const nameMatch = body.match(/"channelHandleText":\{"runs":\[\{"text":"([^"]+)"\}\]/) ?? body.match(/"title":"([^"]{2,80})","description"/) ?? body.match(/<title>([^<]{2,80}) - YouTube<\/title>/);
+    const displayName = nameMatch?.[1] ?? null;
+    if (!channelId && body.includes("yt-page-type-404")) return { ...base, status: "not_found" };
+    if (!channelId) return { ...base, status: "partial", note: "Profile exists but channel ID not extractable (YouTube obfuscation)" };
+    return { ...base, status: "found", userId: channelId, displayName, profileUrl: `https://www.youtube.com/channel/${channelId}` };
+  } catch { return { ...base, status: "error" }; }
+}
+
+async function lookupTwitch(uname: string): Promise<PlatformUidResult> {
+  const base: PlatformUidResult = { platform: "Twitch", category: "Video", status: "error", userId: null, userIdType: "numeric", profileUrl: `https://www.twitch.tv/${uname}`, displayName: null, avatar: null, extra: {}, note: null };
+  try {
+    const body = await fetchBody(`https://www.twitch.tv/${encodeURIComponent(uname)}`, 10000);
+    if (!body) return { ...base, status: "error" };
+    if (body.includes('"isNotFound":true') || body.includes("this page is unavailable")) return { ...base, status: "not_found" };
+    // Look for numeric user ID in embedded JSON
+    const patterns = [
+      /"id":"(\d{5,12})","login":"' + uname.toLowerCase() + '"/i,
+      new RegExp(`"login":"${uname.toLowerCase()}","id":"(\\d{5,12})"`, "i"),
+      /"userID":"(\d{5,12})"/,
+      /"channelLogin":"[^"]+","id":"(\d{5,12})"/,
+    ];
+    let userId: string | null = null;
+    for (const pat of patterns) { const m = body.match(pat); if (m) { userId = m[1]; break; } }
+    if (!userId) {
+      // Fallback: look for any id near the username in JSON blobs
+      const loginIdx = body.toLowerCase().indexOf(`"login":"${uname.toLowerCase()}"`);
+      if (loginIdx > -1) {
+        const slice = body.slice(Math.max(0, loginIdx - 100), loginIdx + 100);
+        const idMatch = slice.match(/"id":"(\d{5,12})"/);
+        userId = idMatch?.[1] ?? null;
+      }
+    }
+    const displayMatch = body.match(/"displayName":"([^"]{1,60})"/i);
+    const displayName = displayMatch?.[1] ?? null;
+    if (!userId && body.includes("twitch.tv")) return { ...base, status: "partial", note: "Profile may exist but user ID not extractable (Twitch obfuscation)" };
+    return { ...base, status: userId ? "found" : "partial", userId, displayName };
+  } catch { return { ...base, status: "error" }; }
+}
+
+async function lookupSteam(uname: string): Promise<PlatformUidResult> {
+  const base: PlatformUidResult = { platform: "Steam", category: "Gaming", status: "error", userId: null, userIdType: "numeric", profileUrl: `https://steamcommunity.com/id/${uname}`, displayName: null, avatar: null, extra: {}, note: "Steam64 ID (17-digit)" };
+  try {
+    const body = await fetchBody(`https://steamcommunity.com/id/${encodeURIComponent(uname)}?xml=1`, 10000);
+    if (!body) return { ...base, status: "error" };
+    if (body.includes("<error>") || body.includes("The specified profile could not be found")) return { ...base, status: "not_found" };
+    // XML response has <steamID64> and <steamID>
+    const id64Match = body.match(/<steamID64>(\d{17})<\/steamID64>/);
+    const nameMatch = body.match(/<steamID><!?\[CDATA\[([^\]]+)\]\]><\/steamID>/) ?? body.match(/<steamID>([^<]{2,60})<\/steamID>/);
+    const avatarMatch = body.match(/<avatarFull><!?\[CDATA\[(https?:\/\/[^\]]+)\]\]>/);
+    if (!id64Match) return { ...base, status: "partial", note: "Profile found but Steam64 ID not in XML response" };
+    return { ...base, status: "found", userId: id64Match[1], displayName: nameMatch?.[1] ?? null, avatar: avatarMatch?.[1] ?? null, extra: { vanityUrl: uname } };
+  } catch { return { ...base, status: "error" }; }
+}
+
+async function lookupTikTok(uname: string): Promise<PlatformUidResult> {
+  const base: PlatformUidResult = { platform: "TikTok", category: "Social", status: "error", userId: null, userIdType: "numeric", profileUrl: `https://www.tiktok.com/@${uname}`, displayName: null, avatar: null, extra: {}, note: null };
+  try {
+    const body = await fetchBody(`https://www.tiktok.com/@${encodeURIComponent(uname)}`, 10000);
+    if (!body) return { ...base, status: "error" };
+    if (body.includes('"statusCode":10202') || body.includes("couldn&#39;t find this account")) return { ...base, status: "not_found" };
+    // TikTok embeds __UNIVERSAL_DATA_FOR_REHYDRATION__ or SIGI_STATE with user data
+    const patterns = [
+      /"uniqueId":"[^"]+","secUid":"([^"]{20,})"/,
+      /"id":"(\d{16,20})","uniqueId":"' + uname + '"/i,
+      new RegExp(`"uniqueId":"${uname}","id":"(\\d{10,20})"`, "i"),
+      /"authorId":"(\d{10,20})"/,
+    ];
+    let userId: string | null = null;
+    for (const pat of patterns) { const m = body.match(pat); if (m) { userId = m[1]; break; } }
+    const nameMatch = body.match(/"nickname":"([^"]{1,80})"/);
+    const avatarMatch = body.match(/"avatarLarger":"([^"]+)"/);
+    if (!userId) return { ...base, status: "partial", note: "Profile may exist but user ID not extractable (TikTok bot protection)" };
+    return { ...base, status: "found", userId, displayName: nameMatch?.[1] ?? null, avatar: avatarMatch?.[1]?.replace(/\\\//g, "/") ?? null };
+  } catch { return { ...base, status: "error" }; }
+}
+
+async function lookupInstagram(uname: string): Promise<PlatformUidResult> {
+  const base: PlatformUidResult = { platform: "Instagram", category: "Social", status: "unavailable", userId: null, userIdType: "numeric", profileUrl: `https://www.instagram.com/${uname}/`, displayName: null, avatar: null, extra: {}, note: "Instagram requires login for ID lookup — profile link only" };
+  try {
+    // Try the unofficial API endpoint (often blocked)
+    const body = await fetchBody(`https://www.instagram.com/${encodeURIComponent(uname)}/?__a=1&__d=dis`, 8000);
+    if (body && body.includes('"id"')) {
+      const idMatch = body.match(/"id":"(\d{5,20})"/);
+      const nameMatch = body.match(/"full_name":"([^"]{1,80})"/);
+      const avatarMatch = body.match(/"profile_pic_url":"([^"]+)"/);
+      if (idMatch) return { ...base, status: "found", userId: idMatch[1], displayName: nameMatch?.[1] ?? null, avatar: avatarMatch?.[1]?.replace(/\\/g, "") ?? null };
+    }
+    // Fallback: scrape HTML for og:image or any id pattern
+    const htmlBody = await fetchBody(`https://www.instagram.com/${encodeURIComponent(uname)}/`, 10000);
+    if (htmlBody?.includes("Page Not Found") || htmlBody?.includes('"user":null')) return { ...base, status: "not_found" };
+    const idMatch = htmlBody?.match(/"profilePage_([0-9]+)"/);
+    if (idMatch) return { ...base, status: "found", userId: idMatch[1] };
+    return base; // unavailable — login required
+  } catch { return base; }
+}
+
+async function lookupTwitterX(uname: string): Promise<PlatformUidResult> {
+  const base: PlatformUidResult = { platform: "X (Twitter)", category: "Social", status: "unavailable", userId: null, userIdType: "numeric", profileUrl: `https://x.com/${uname}`, displayName: null, avatar: null, extra: {}, note: "X/Twitter requires API auth — use third-party lookup sites via OSINT links" };
+  try {
+    const body = await fetchBody(`https://syndication.twitter.com/srv/timeline-profile/screen-name/${encodeURIComponent(uname)}?showReplies=false`, 8000);
+    if (!body) return base;
+    // Look for numeric user ID in the syndication payload
+    const idMatch = body.match(/"id_str":"(\d{5,20})"/);
+    const nameMatch = body.match(/"name":"([^"]{1,80})"/);
+    const avatarMatch = body.match(/"profile_image_url_https":"([^"]+)"/);
+    if (idMatch) return { ...base, status: "found", userId: idMatch[1], displayName: nameMatch?.[1] ?? null, avatar: avatarMatch?.[1]?.replace(/\\/g, "") ?? null, note: "Numeric Twitter/X user ID" };
+    // Check if profile exists at all
+    const headRes = await fetchHead(`https://x.com/${uname}`);
+    if (headRes?.status === 404) return { ...base, status: "not_found" };
+    return base;
+  } catch { return base; }
+}
+
+async function lookupTelegram(uname: string): Promise<PlatformUidResult> {
+  const base: PlatformUidResult = { platform: "Telegram", category: "Messaging", status: "error", userId: null, userIdType: "handle", profileUrl: `https://t.me/${uname}`, displayName: null, avatar: null, extra: {}, note: "Telegram numeric IDs require user interaction — handle only" };
+  try {
+    const body = await fetchBody(`https://t.me/${encodeURIComponent(uname)}`, 8000);
+    if (!body) return { ...base, status: "error" };
+    if (body.includes("tgme_page_extra") && body.includes("If you have Telegram")) return { ...base, status: "not_found" };
+    const nameMatch = body.match(/<div class="tgme_page_title"[^>]*><span[^>]*>([^<]{1,80})<\/span>/);
+    const descMatch = body.match(/<div class="tgme_page_description"[^>]*>([^<]{1,200})<\/div>/);
+    const avatarMatch = body.match(/src="(https:\/\/cdn[0-9]*\.telegram-cdn\.org\/file\/[^"]+)"/);
+    const isChannel = body.includes("tgme_page_extra") && body.includes("subscribers");
+    const membersMatch = body.match(/([\d,]+)\s*(?:subscribers|members)/);
+    if (nameMatch) {
+      return { ...base, status: "found", userId: uname, displayName: nameMatch[1].trim() ?? null, avatar: avatarMatch?.[1] ?? null, extra: { type: isChannel ? "channel/group" : "user", subscribers: membersMatch?.[1] ?? null, description: descMatch?.[1]?.replace(/<[^>]+>/g, "").trim() ?? null }, note: "Handle only — numeric ID requires auth" };
+    }
+    return { ...base, status: "partial", note: "Handle may exist but profile not fully public" };
+  } catch { return { ...base, status: "error" }; }
+}
+
+async function lookupSnapchat(uname: string): Promise<PlatformUidResult> {
+  const base: PlatformUidResult = { platform: "Snapchat", category: "Social", status: "error", userId: null, userIdType: "handle", profileUrl: `https://www.snapchat.com/add/${uname}`, displayName: null, avatar: null, extra: {}, note: "Snapchat does not expose numeric user IDs publicly" };
+  try {
+    const body = await fetchBody(`https://www.snapchat.com/add/${encodeURIComponent(uname)}`, 9000);
+    if (!body) return { ...base, status: "error" };
+    if (body.includes('"statusCode":404') || body.includes("We couldn") || body.toLowerCase().includes("page not found")) return { ...base, status: "not_found" };
+    const nameMatch = body.match(/"displayName":"([^"]{1,80})"/);
+    const avatarMatch = body.match(/"bitmoji_background_url":"([^"]+)"/i) ?? body.match(/content="(https:\/\/cf[^"]+snapchat[^"]+)"/);
+    const linkMatch = body.match(/"addedViaDeeplink":"([^"]+)"/);
+    if (body.includes("snapcode") || body.includes("addedVia") || nameMatch) {
+      return { ...base, status: "found", userId: uname, displayName: nameMatch?.[1] ?? null, avatar: avatarMatch?.[1] ?? null, note: "Handle confirmed — no numeric ID available", extra: { addLink: linkMatch?.[1] ?? `https://www.snapchat.com/add/${uname}` } };
+    }
+    return { ...base, status: "partial" };
+  } catch { return { ...base, status: "error" }; }
+}
+
+async function lookupGenericProfile(platform: string, category: string, url: string, uname: string): Promise<PlatformUidResult> {
+  const base: PlatformUidResult = { platform, category, status: "error", userId: null, userIdType: "unknown", profileUrl: url.replace("{u}", uname).replace("{u}", uname), displayName: null, avatar: null, extra: {}, note: null };
+  try {
+    const profileUrl = url.replace(/\{u\}/g, encodeURIComponent(uname));
+    const res = await fetchHead(profileUrl);
+    if (!res) return { ...base, status: "error" };
+    if (res.status === 404 || res.status === 410) return { ...base, status: "not_found", profileUrl };
+    if (res.status === 200) return { ...base, status: "partial", userId: uname, userIdType: "handle", profileUrl, note: "Profile URL confirmed — numeric ID not available for this platform" };
+    return { ...base, status: "partial", profileUrl, note: `HTTP ${res.status} — may exist behind login` };
+  } catch { return { ...base, status: "error" }; }
+}
+
+const PLATFORM_LOOKUP_MAP: Record<string, (uname: string) => Promise<PlatformUidResult>> = {
+  "github":       lookupGitHub,
+  "reddit":       lookupReddit,
+  "discord":      lookupDiscord,
+  "roblox":       lookupRoblox,
+  "hackernews":   lookupHackerNews,
+  "bluesky":      lookupBluesky,
+  "mastodon":     lookupMastodon,
+  "youtube":      lookupYouTube,
+  "twitch":       lookupTwitch,
+  "steam":        lookupSteam,
+  "tiktok":       lookupTikTok,
+  "instagram":    lookupInstagram,
+  "x (twitter)":  lookupTwitterX,
+  "twitter":      lookupTwitterX,
+  "telegram":     lookupTelegram,
+  "snapchat":     lookupSnapchat,
+};
+
+// Generic profile URL mappings for platforms without dedicated ID extractors
+const GENERIC_PLATFORMS: Array<{ name: string; category: string; url: string }> = [
+  { name: "Facebook",       category: "Social",    url: "https://www.facebook.com/{u}" },
+  { name: "Pinterest",      category: "Social",    url: "https://www.pinterest.com/{u}/" },
+  { name: "Tumblr",         category: "Social",    url: "https://{u}.tumblr.com" },
+  { name: "Threads",        category: "Social",    url: "https://www.threads.net/@{u}" },
+  { name: "Vimeo",          category: "Video",     url: "https://vimeo.com/{u}" },
+  { name: "Dailymotion",    category: "Video",     url: "https://www.dailymotion.com/{u}" },
+  { name: "Kick",           category: "Live",      url: "https://kick.com/{u}" },
+  { name: "Rumble",         category: "Live",      url: "https://rumble.com/user/{u}" },
+  { name: "Bigo Live",      category: "Live",      url: "https://www.bigo.tv/{u}" },
+  { name: "Likee",          category: "Live",      url: "https://likee.video/@{u}" },
+  { name: "Trovo",          category: "Live",      url: "https://trovo.live/{u}" },
+  { name: "GitLab",         category: "Dev",       url: "https://gitlab.com/{u}" },
+  { name: "Replit",         category: "Dev",       url: "https://replit.com/@{u}" },
+  { name: "Keybase",        category: "Dev",       url: "https://keybase.io/{u}" },
+  { name: "Stack Overflow", category: "Dev",       url: "https://stackoverflow.com/users/{u}" },
+  { name: "LinkedIn",       category: "Pro",       url: "https://www.linkedin.com/in/{u}/" },
+  { name: "Medium",         category: "Pro",       url: "https://medium.com/@{u}" },
+  { name: "Substack",       category: "Pro",       url: "https://{u}.substack.com" },
+  { name: "Patreon",        category: "Pro",       url: "https://www.patreon.com/{u}" },
+  { name: "Product Hunt",   category: "Pro",       url: "https://www.producthunt.com/@{u}" },
+  { name: "Behance",        category: "Creative",  url: "https://www.behance.net/{u}" },
+  { name: "Dribbble",       category: "Creative",  url: "https://dribbble.com/{u}" },
+  { name: "DeviantArt",     category: "Creative",  url: "https://www.deviantart.com/{u}" },
+  { name: "Flickr",         category: "Creative",  url: "https://www.flickr.com/people/{u}/" },
+  { name: "SoundCloud",     category: "Creative",  url: "https://soundcloud.com/{u}" },
+  { name: "Bandcamp",       category: "Creative",  url: "https://{u}.bandcamp.com" },
+  { name: "Quora",          category: "Community", url: "https://www.quora.com/profile/{u}" },
+];
+
+const ALL_PLATFORM_NAMES = [
+  "GitHub", "Reddit", "Discord", "Roblox", "HackerNews", "Bluesky", "Mastodon",
+  "YouTube", "Twitch", "Steam", "TikTok", "Instagram", "X (Twitter)", "Telegram", "Snapchat",
+  ...GENERIC_PLATFORMS.map(p => p.name),
+];
+
+router.post("/platform-uid", async (req: Request, res: Response) => {
+  const schema = z.object({
+    username: z.string().min(1).max(50),
+    platform: z.string().min(1).max(60),  // platform name or "all"
+  });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "username and platform required" });
+
+  const uname = parsed.data.username.trim().replace(/^@/, "");
+  if (!/^[a-zA-Z0-9_.%-]{1,50}$/.test(uname)) {
+    return res.status(400).json({ error: "Invalid username format" });
+  }
+  const platformInput = parsed.data.platform.toLowerCase().trim();
+
+  // Single platform
+  if (platformInput !== "all") {
+    const lookupFn = PLATFORM_LOOKUP_MAP[platformInput];
+    if (lookupFn) {
+      const result = await lookupFn(uname);
+      return res.json({ username: uname, platform: parsed.data.platform, results: [result], checkedAt: new Date().toISOString() });
+    }
+    // Try generic platforms
+    const generic = GENERIC_PLATFORMS.find(p => p.name.toLowerCase() === platformInput);
+    if (generic) {
+      const result = await lookupGenericProfile(generic.name, generic.category, generic.url, uname);
+      return res.json({ username: uname, platform: parsed.data.platform, results: [result], checkedAt: new Date().toISOString() });
+    }
+    return res.status(400).json({ error: `Unknown platform: ${parsed.data.platform}`, available: ALL_PLATFORM_NAMES });
+  }
+
+  // All platforms — run dedicated + generic in parallel
+  const dedicatedPromises = Object.entries(PLATFORM_LOOKUP_MAP).map(([, fn]) => fn(uname).catch((): PlatformUidResult => ({
+    platform: "Unknown", category: "Unknown", status: "error", userId: null, userIdType: "unknown",
+    profileUrl: "", displayName: null, avatar: null, extra: {}, note: null,
+  })));
+
+  // Deduplicate by platform name in case there are aliases (twitter/x)
+  const seenPlatforms = new Set(Object.keys(PLATFORM_LOOKUP_MAP).map(k =>
+    k === "twitter" ? "x (twitter)" : k
+  ));
+  const genericPromises = GENERIC_PLATFORMS.map(p =>
+    lookupGenericProfile(p.name, p.category, p.url, uname).catch((): PlatformUidResult => ({
+      platform: p.name, category: p.category, status: "error", userId: null, userIdType: "unknown",
+      profileUrl: "", displayName: null, avatar: null, extra: {}, note: null,
+    }))
+  );
+
+  const [dedicatedResults, genericResults] = await Promise.all([
+    Promise.all(dedicatedPromises),
+    Promise.all(genericPromises),
+  ]);
+
+  // Deduplicate dedicated (twitter/x alias produces two entries; keep first non-null)
+  const seen = new Set<string>();
+  const deduped: PlatformUidResult[] = [];
+  for (const r of dedicatedResults) {
+    const key = r.platform.toLowerCase();
+    if (!seen.has(key)) { seen.add(key); deduped.push(r); }
+  }
+
+  const allResults = [...deduped, ...genericResults];
+  const foundCount   = allResults.filter(r => r.status === "found").length;
+  const partialCount = allResults.filter(r => r.status === "partial").length;
+  const withId       = allResults.filter(r => r.userId !== null).length;
+
+  return res.json({
+    username:     uname,
+    platform:     "all",
+    foundCount,
+    partialCount,
+    withIdCount:  withId,
+    totalChecked: allResults.length,
+    results:      allResults,
+    checkedAt:    new Date().toISOString(),
+  });
+});
+
 export default router;
 
 
