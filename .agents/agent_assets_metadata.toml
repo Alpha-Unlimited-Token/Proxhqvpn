@@ -479,3 +479,9 @@ id = "oLLeAn3_m_UPCWiGGeZUG"
 uri = "file://proxhqvpn_full_source_audit.zip"
 type = "unspecified"
 title = "ProxhqVPN Full Source Code — AI Audit Package"
+
+[[outputs]]
+id = "v6AC0ZSUiu4TLCiuMyD1I"
+uri = "file://proxhqvpn_complete_audit_2026.zip"
+type = "unspecified"
+title = "ProxhqVPN Complete Audit Package — June 10, 2026"

@@ -1,0 +1,320 @@
+================================================================================
+  PROXHQVPN — COMPREHENSIVE AI AUDIT REQUEST
+  © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+  Prepared: June 10, 2026
+================================================================================
+
+YOU ARE ACTING AS A SENIOR SECURITY ARCHITECT, FULL-STACK ENGINEER, AND
+COMPETITIVE ANALYST FOR THIS AUDIT. READ EVERY FILE IN THIS ARCHIVE.
+
+================================================================================
+SECTION 1 — WHAT THIS PROJECT IS
+================================================================================
+
+ProxhqVPN is an enterprise-grade, proprietary VPN orchestration and security
+platform built by Alpha Unlimited Technologies LLC. It is NOT a simple VPN
+client — it is a full next-generation firewall (NGFW), threat intelligence
+platform, endpoint security suite, and WireGuard mesh orchestration system.
+
+ARCHITECTURE SUMMARY:
+  - 60-node WireGuard mesh (50 outer + 10 inner nodes)
+  - GhostOS™ Firewall with SymScript™ proprietary symbolic command language
+  - 60+ security engines (IPS, DPI, AV, YARA, IOC, SELinux, AppArmor, etc.)
+  - Silk-web honeypot network
+  - RAM-only WireGuard key architecture (Mullvad-style, keys only in /dev/shm)
+  - SHA3-256 + HMAC-SHA512 audit chain
+  - RBAC (6 roles: owner/security_admin/network_admin/auditor/support/user)
+  - ZTNA device posture scoring (score ≥75 = allow)
+  - SIEM fanout (Splunk HEC + webhook)
+  - QuantumAudit blockchain security scanner
+  - Signature Mining Engine (5 engines: Block Scanner/Web Spider/OSINT/Peel Chain/Hybrid)
+  - Tor/SOCKS5, kill switch, DPI obfuscation (obfs4/Shadowsocks/V2Ray/Meek/Snowflake)
+  - Three-layer deception engine (Endless Loop™ / Labyrinth™ / Tar Pit™)
+  - Port knocking, mTLS, beacons/spiders/worms
+  - SQL interface (local + external PostgreSQL + HTTP API)
+  - Standalone desktop, mobile (Expo/React Native), browser extension
+  - Stripe payments, ambassador program, subscription tiers
+
+TECH STACK:
+  - Frontend: React + Vite + TypeScript (wouter routing, Clerk auth)
+  - Backend: Express 5 + TypeScript + PostgreSQL + Drizzle ORM
+  - Mobile: Expo / React Native
+  - Auth: Clerk (app_3CcwHo66ohArVtaIa0XTcv88i4Y)
+  - Validation: Zod v3
+  - API codegen: Orval (OpenAPI → React Query hooks + Zod schemas)
+  - Build: esbuild (ESM bundle)
+  - Monorepo: pnpm workspaces
+  - Node.js 24, TypeScript 5.9
+
+================================================================================
+SECTION 2 — WHAT YOU MUST DO (FULL AUDIT CHECKLIST)
+================================================================================
+
+STEP 1: LOAD ALL CODE
+  - Read EVERY .ts, .tsx, .js, .jsx, .py, .sh, .sql, .json file in this archive
+  - Do not skip any file. If a file is large, read all of it.
+  - Map out the complete architecture before forming any opinions
+
+STEP 2: SANDBOX EXECUTION
+  - Run all backend TypeScript/JavaScript in a Node.js sandbox
+  - Run all Python scripts (tun_daemon.py, etc.) in a Python sandbox
+  - Run all shell scripts in a bash sandbox
+  - Test every API route handler for runtime errors
+  - Run all Zod schema validations
+  - Check all database migrations
+  - Report: what runs, what crashes, what throws warnings
+
+STEP 3: SECURITY AUDIT
+  Evaluate ALL of the following:
+  a) Authentication & Authorization
+     - Clerk integration correctness
+     - RBAC implementation (lib/rbac.ts) — are all 6 roles enforced everywhere?
+     - Are all /api/* routes properly protected?
+     - Break-glass token security
+     - Daemon PSK authentication
+  b) Input Validation & Injection
+     - SQL injection vulnerabilities
+     - Command injection in shell exec routes
+     - XSS vulnerabilities
+     - CSRF protection
+     - Zod schema coverage — are ALL inputs validated?
+  c) Cryptography
+     - AES-256-GCM WireGuard key encryption (lib/encrypted-secret-store.ts)
+     - SHA3-256 + HMAC-SHA512 audit chain (lib/audit-chain.ts)
+     - RAM-only key architecture — any memory leaks to disk?
+     - Key rotation security
+  d) Network Security
+     - WireGuard configuration correctness
+     - Kill switch implementation
+     - DNS leak prevention
+     - mTLS implementation
+     - Rate limiting coverage
+     - CORS configuration
+     - CSP headers
+  e) API Security
+     - All route files in artifacts/api-server/src/routes/
+     - Error handling — do errors expose internal info?
+     - Rate limits — are they correct for each endpoint?
+  f) Frontend Security
+     - Sensitive data in client-side state
+     - API keys/secrets in frontend code
+     - localStorage/sessionStorage security
+  g) Firewall Engine (GhostOS™)
+     - SymScript™ parser security
+     - Rule evaluation correctness
+     - IPS/DPI engine integrity
+     - Bypass vulnerabilities
+
+STEP 4: CODE QUALITY & BUG AUDIT
+  a) TypeScript Issues
+     - Type safety gaps (any types, unsafe casts)
+     - Missing null/undefined checks (crash-prone patterns)
+     - Unused imports, dead code
+  b) React/Frontend Bugs
+     - Unguarded data access before API returns (crashes)
+     - Missing error boundaries
+     - Memory leaks (uncleared timers/listeners)
+     - Performance issues (unnecessary re-renders)
+  c) Backend Bugs
+     - Unhandled promise rejections
+     - Missing error handling in routes
+     - Database query safety
+     - Race conditions
+  d) Architecture Issues
+     - God components that should be split
+     - Circular dependencies
+     - Missing indexes on database queries
+
+STEP 5: PERFORMANCE AUDIT
+  - Identify N+1 database query patterns
+  - Large component files that slow down bundling
+  - Missing code splitting / lazy loading opportunities
+  - WebSocket vs polling decisions
+  - API response sizes
+
+STEP 6: COMPETITIVE ANALYSIS
+  Grade ProxhqVPN against these direct competitors on a 1-100 scale:
+  
+  VPN COMPETITORS:
+  - NordVPN (WireGuard + NordLynx)
+  - ExpressVPN (Lightway protocol)
+  - Mullvad VPN (RAM-only, WireGuard)
+  - ProtonVPN (Secure Core, open source)
+  - Surfshark (multi-hop, CleanWeb)
+  - Private Internet Access (MACE, multi-hop)
+  - Windscribe (firewall, split tunnel)
+  
+  NGFW/SECURITY PLATFORM COMPETITORS:
+  - Palo Alto Networks NGFW (PAN-OS)
+  - Fortinet FortiGate (FortiOS)
+  - Check Point SandBlast / Quantum
+  - Cisco Firepower (FTD)
+  - Sophos XG Firewall
+  - pfSense / OPNsense (open source)
+  - Suricata + Snort (open source IDS/IPS)
+
+  FOR EACH COMPETITOR, COMPARE:
+  - Feature completeness (0-100)
+  - Security architecture (0-100)
+  - Code quality (0-100)
+  - User experience (0-100)
+  - Performance (0-100)
+  - Overall score (0-100)
+
+  GRADE PROXHQVPN CURRENT STATE:
+  - Overall letter grade (A+ through F)
+  - Score breakdown by category
+  - Top 10 strengths
+  - Top 10 weaknesses
+  - Market positioning
+
+STEP 7: UPGRADE RECOMMENDATIONS
+  For EVERY issue found, provide:
+  a) Issue description
+  b) Severity: CRITICAL / HIGH / MEDIUM / LOW / INFO
+  c) File path and line number
+  d) COMPLETE REPLACEMENT CODE (no "..." truncation, full working code)
+  e) Explanation of why the upgrade is needed
+  f) Projected impact on overall grade
+
+  REQUIRED UPGRADE CATEGORIES:
+  1. Security fixes (critical/high priority first)
+  2. Crash fixes and null-safety improvements
+  3. Performance optimizations
+  4. New features that would elevate the product
+  5. Architectural improvements
+  6. UI/UX improvements
+
+STEP 8: POST-UPGRADE PROJECTION
+  After applying all recommended upgrades:
+  - New projected grade
+  - New competitive comparison scores
+  - Market positioning after upgrades
+  - What tier/category would ProxhqVPN reach?
+  - Revenue/pricing impact estimate
+
+================================================================================
+SECTION 3 — FILE STRUCTURE GUIDE
+================================================================================
+
+FRONTEND (artifacts/ghost-vpn/src/):
+  pages/                    — 120+ page components (React + TypeScript)
+    Firewall.tsx             — Main firewall (6700+ lines, 60+ engines)
+    Dashboard.tsx, Nodes.tsx, etc.
+  components/
+    layout/Layout.tsx        — Main navigation shell
+    ui/                      — Shared UI components
+
+BACKEND (artifacts/api-server/src/):
+  routes/                   — 100+ Express route files
+    firewall.ts, nodes.ts, beacons.ts, etc.
+  lib/                      — Core security libraries
+    rbac.ts                  — Role-based access control
+    audit-chain.ts           — SHA3-256 + HMAC-SHA512 chain
+    device-trust.ts          — ZTNA posture scoring
+    siem.ts                  — SIEM fanout
+    encrypted-secret-store.ts — AES-256-GCM key storage
+    daemon-auth.ts           — Daemon PSK authentication
+    firewall-policy-engine.ts — Policy compilation
+    firewall-simulator.ts    — Rule simulation
+    drift-detector.ts        — Config drift detection
+
+SHARED LIBRARIES (lib/):
+  api-spec/                  — OpenAPI specification
+  api-zod/                   — Generated Zod schemas
+  api-client-react/          — Generated React Query hooks
+  db/                        — Drizzle ORM schema + migrations
+
+STANDALONE (standalone/):
+  src/server.ts              — Embedded Node.js server
+  tun_daemon.py              — Python TUN/TAP daemon
+  docker-compose.yml         — Docker deployment
+  build.mjs                  — Multi-platform build
+  *.sh, *.ps1                — Installer scripts
+
+MOBILE (artifacts/mobile/):
+  — Expo / React Native app
+
+QUANTUM AUDIT (artifacts/quantum-audit/):
+  — Blockchain security scanning frontend
+
+DESKTOP (artifacts/desktop/):
+  — Electron desktop app
+
+================================================================================
+SECTION 4 — SPECIFIC AREAS FLAGGED FOR DEEPER AUDIT
+================================================================================
+
+1. Firewall.tsx (6700+ lines) — check for:
+   - All null/undefined crashes before API data returns
+   - Tab navigation reactivity bugs
+   - Any missing error boundaries
+   - Performance: should large tabs be lazy-loaded?
+
+2. Shell execution (routes/terminal.ts) — check:
+   - Is the command allowlist truly comprehensive?
+   - Are HARD_BLOCKED patterns sufficient?
+   - Can ProxhqVPN Mode be bypassed?
+
+3. SQL interface (routes/sqlquery.ts) — check:
+   - Is SELECT-only mode truly enforced?
+   - Parameterized queries everywhere?
+   - External connection credential security
+
+4. WireGuard key management:
+   - RAM-only guarantee: can keys ever land on disk?
+   - Key rotation race conditions
+   - AES-256-GCM envelope implementation
+
+5. Clerk authentication bypass:
+   - Are there any routes that bypass requireAuth incorrectly?
+   - JWT token validation edge cases
+
+6. QuantumAudit / Sig Mining Engine:
+   - ECDSA weak-k detection correctness
+   - Web spider sandboxing (SSRF risks)
+   - OSINT engine scope creep
+
+================================================================================
+SECTION 5 — EXPECTED OUTPUT FORMAT
+================================================================================
+
+Your audit response should be structured as:
+
+## EXECUTIVE SUMMARY
+[Overall grade, key findings, critical issues]
+
+## CURRENT STATE GRADE CARD
+[Scores by category, overall grade]
+
+## COMPETITIVE COMPARISON TABLE
+[Side-by-side comparison with competitors]
+
+## CRITICAL ISSUES (fix immediately)
+[List with full replacement code]
+
+## HIGH SEVERITY ISSUES
+[List with full replacement code]
+
+## MEDIUM SEVERITY ISSUES
+[List with full replacement code]
+
+## LOW SEVERITY / IMPROVEMENTS
+[List with full replacement code]
+
+## ARCHITECTURAL RECOMMENDATIONS
+[Full redesign suggestions with code]
+
+## NEW FEATURE RECOMMENDATIONS
+[Features that would elevate ProxhqVPN]
+
+## POST-UPGRADE GRADE CARD
+[Projected scores after all fixes applied]
+
+## POST-UPGRADE COMPETITIVE POSITION
+[Where ProxhqVPN stands after upgrades]
+
+================================================================================
+NOTE: DO NOT TRUNCATE ANY CODE. Every code block must be COMPLETE and RUNNABLE.
+If a file needs to be completely rewritten, provide the complete file.
+================================================================================
