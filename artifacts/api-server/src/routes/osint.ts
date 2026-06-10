@@ -2172,6 +2172,102 @@ router.post("/phone-lookup", async (req: Request, res: Response) => {
   });
 });
 
+// ── POST /api/osint/address ───────────────────────────────────────────────────
+router.post("/address", async (req: Request, res: Response) => {
+  const schema = z.object({ address: z.string().min(3).max(500) });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "address is required" });
+
+  const rawAddress = parsed.data.address.trim();
+
+  // Geocode via Nominatim (OpenStreetMap, free, no key required)
+  let geocode: any = null;
+  let nominatimError: string | null = null;
+  try {
+    const q = encodeURIComponent(rawAddress);
+    const url = `https://nominatim.openstreetmap.org/search?q=${q}&format=json&addressdetails=1&limit=5&countrycodes=`;
+    const r = await fetch(url, {
+      headers: { "User-Agent": "ProxhqVPN-OSINT/1.0 (security research tool; authorized use only)" },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (r.ok) {
+      const data = await r.json() as any[];
+      geocode = data.map(item => ({
+        displayName:   item.display_name,
+        lat:           parseFloat(item.lat),
+        lon:           parseFloat(item.lon),
+        type:          item.type,
+        class:         item.class,
+        importance:    item.importance,
+        addressDetail: {
+          houseNumber:  item.address?.house_number ?? null,
+          road:         item.address?.road ?? null,
+          suburb:       item.address?.suburb ?? null,
+          city:         item.address?.city ?? item.address?.town ?? item.address?.village ?? null,
+          county:       item.address?.county ?? null,
+          state:        item.address?.state ?? null,
+          postcode:     item.address?.postcode ?? null,
+          country:      item.address?.country ?? null,
+          countryCode:  item.address?.country_code?.toUpperCase() ?? null,
+        },
+        osmId:   item.osm_id,
+        osmType: item.osm_type,
+        boundingBox: item.boundingbox,
+      }));
+    } else {
+      nominatimError = `Geocoding API returned ${r.status}`;
+    }
+  } catch (e: any) {
+    nominatimError = e.message;
+  }
+
+  // Reverse geocode nearest data if we have coordinates
+  let timezone: string | null = null;
+  if (geocode && geocode.length > 0) {
+    const { lat, lon } = geocode[0];
+    try {
+      const tzRes = await fetch(
+        `https://timezonefinder.michelfe.it/api/0?lat=${lat}&lng=${lon}`,
+        { signal: AbortSignal.timeout(4000) }
+      );
+      if (tzRes.ok) {
+        const tzData = await tzRes.json() as any;
+        timezone = tzData.tz_name ?? null;
+      }
+    } catch { /* non-fatal */ }
+  }
+
+  const top = geocode?.[0] ?? null;
+  const dorkQueries = top ? [
+    `"${rawAddress}" site:whitepages.com OR site:spokeo.com OR site:truepeoplesearch.com`,
+    `"${top.addressDetail?.city ?? ""}" "${top.addressDetail?.postcode ?? ""}" inurl:property OR inurl:parcel`,
+    `"${rawAddress}" filetype:pdf`,
+    `"${rawAddress}" site:linkedin.com`,
+  ].filter(q => q.trim().length > 10) : [];
+
+  const openSearchLinks = top ? [
+    { label: "Google Maps",   url: `https://www.google.com/maps/search/${encodeURIComponent(rawAddress)}` },
+    { label: "OpenStreetMap", url: `https://www.openstreetmap.org/search?query=${encodeURIComponent(rawAddress)}` },
+    { label: "Street View",   url: `https://www.google.com/maps?q=${top.lat},${top.lon}&layer=c` },
+    { label: "Satellite",     url: `https://www.google.com/maps?q=${top.lat},${top.lon}&t=k` },
+    { label: "Property Tax",  url: `https://www.google.com/search?q=${encodeURIComponent(`"${rawAddress}" property records`)}` },
+    { label: "Whitepages",    url: `https://www.whitepages.com/address/${encodeURIComponent(rawAddress.replace(/ /g, "-"))}` },
+  ] : [];
+
+  return res.json({
+    input:        rawAddress,
+    timestamp:    new Date().toISOString(),
+    geocodeCount: geocode?.length ?? 0,
+    results:      geocode ?? [],
+    primaryMatch: top,
+    timezone,
+    openSearchLinks,
+    dorkQueries,
+    error:        nominatimError,
+    disclaimer:   "Address data sourced from OpenStreetMap Nominatim. This tool is for authorized OSINT investigations only. Ensure compliance with applicable privacy laws (GDPR, CCPA, etc.) before using results.",
+  });
+});
+
 export default router;
 
 
