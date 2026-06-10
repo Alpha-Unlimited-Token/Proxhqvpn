@@ -340,7 +340,25 @@ function NavItem({ href, label, icon: Icon, onClick, locked, tier }: {
 }) {
   const [location] = useLocation();
   const basePath = href.split("?")[0];
-  const isActive = location === basePath;
+  const hrefTab = href.includes("?tab=") ? new URLSearchParams(href.split("?")[1]).get("tab") : null;
+
+  // Track window.location.search reactively — replaceState/pushState don't re-render wouter
+  const [search, setSearch] = useState(() => (typeof window !== "undefined" ? window.location.search : ""));
+  useEffect(() => {
+    const update = () => setSearch(window.location.search);
+    window.addEventListener("popstate", update);
+    window.addEventListener("fw-tab-change", update);
+    return () => {
+      window.removeEventListener("popstate", update);
+      window.removeEventListener("fw-tab-change", update);
+    };
+  }, []);
+
+  const currentTab = new URLSearchParams(search).get("tab");
+  const isActive = location === basePath &&
+    (hrefTab === null
+      ? currentTab === null || currentTab === "overview" || currentTab === ""
+      : currentTab === hrefTab);
 
   if (locked) {
     const tierNum = tier ?? 3;
@@ -391,7 +409,24 @@ function NavSection({ label, items, onNav, isOpen, onToggle, userDevTier }: {
   userDevTier?: number | null;
 }) {
   const [location] = useLocation();
-  const hasActive = items.some((i) => i.href === location);
+  const [search, setSearch] = useState(() => (typeof window !== "undefined" ? window.location.search : ""));
+  useEffect(() => {
+    const update = () => setSearch(window.location.search);
+    window.addEventListener("popstate", update);
+    window.addEventListener("fw-tab-change", update);
+    return () => {
+      window.removeEventListener("popstate", update);
+      window.removeEventListener("fw-tab-change", update);
+    };
+  }, []);
+  const currentTab = new URLSearchParams(search).get("tab");
+  const hasActive = items.some((i) => {
+    const iBase = i.href.split("?")[0];
+    const iTab = i.href.includes("?tab=") ? new URLSearchParams(i.href.split("?")[1]).get("tab") : null;
+    if (location !== iBase) return false;
+    if (iTab === null) return currentTab === null || currentTab === "overview" || currentTab === "";
+    return currentTab === iTab;
+  });
 
   return (
     <div>

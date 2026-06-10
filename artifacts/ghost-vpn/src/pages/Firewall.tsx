@@ -1,6 +1,7 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 // GhostOS™ Firewall — ProxhqVPN Next-Generation Firewall System
-import { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
+import { useLocation } from "wouter";
 import {
   Shield, Terminal, AlertTriangle, Globe2, Rss, Layers, Link2,
   Ban, BarChart3, Download, Trash2, RefreshCw, Zap, Eye,
@@ -168,6 +169,175 @@ const TABS = [
 ];
 const SEV_COLOR: Record<string,string> = { critical:"#ff2244", high:"#ff6600", medium:"#ffaa00", low:"#aaccff", info:"#888" };
 const TRUST_COLOR: Record<string,string> = { trusted:"#00ff88", untrusted:"#ff4444", dmz:"#ff9900", management:"#4488ff" };
+
+// ── Tab Error Boundary — prevents one broken tab from crashing the whole page ──
+class TabErrorBoundary extends React.Component<
+  { children: React.ReactNode; tabName: string },
+  { error: Error | null }
+> {
+  constructor(props: { children: React.ReactNode; tabName: string }) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(error: Error) { return { error }; }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{ padding:40, background:"#0a0a0a", border:"1px solid #ff444433", borderRadius:10, textAlign:"center", marginTop:24 }}>
+          <div style={{ fontSize:36, marginBottom:16 }}>⚠️</div>
+          <div style={{ color:"#ff4444", fontFamily:"monospace", fontSize:15, fontWeight:700, marginBottom:10 }}>
+            This section hit an error
+          </div>
+          <div style={{ color:"#555", fontSize:11, fontFamily:"monospace", marginBottom:20, maxWidth:480, margin:"0 auto 20px", wordBreak:"break-word" }}>
+            {this.state.error.message}
+          </div>
+          <div style={{ color:"#333", fontSize:10, marginBottom:20 }}>
+            The rest of the firewall is still working. Use the left menu to navigate elsewhere.
+          </div>
+          <button
+            onClick={() => this.setState({ error: null })}
+            style={{ background:"#00ff8822", border:"1px solid #00ff8844", color:"#00ff88", borderRadius:6, padding:"9px 22px", cursor:"pointer", fontSize:12, fontFamily:"monospace" }}
+          >
+            ↺ Try Again
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+// ── Tab Groups — organises 60+ tabs into 10 logical categories ──
+const TAB_GROUPS: Record<string, {
+  icon: string;
+  label: string;
+  tabs: Array<{ id: string; label: string; desc: string }>;
+}> = {
+  core: {
+    icon: "🛡",
+    label: "Core Protection",
+    tabs: [
+      { id:"overview",     label:"Overview",             desc:"Status dashboard & threat level" },
+      { id:"ghostos",      label:"GhostOS™ Terminal",    desc:"Proprietary SymScript™ rule editor" },
+      { id:"rules",        label:"Firewall Rules",       desc:"Allow, deny, drop & reject policies" },
+      { id:"blacklist",    label:"Blocked IPs",          desc:"Manual & auto-blocked IP addresses" },
+      { id:"atr",          label:"Auto-Response",        desc:"Automated threat counter-action" },
+      { id:"ddos",         label:"DDoS Shield",          desc:"Volumetric attack mitigation" },
+    ],
+  },
+  traffic: {
+    icon: "🔍",
+    label: "Traffic Inspection",
+    tabs: [
+      { id:"ips",          label:"IPS Engine",           desc:"Intrusion prevention signatures (Snort/Suricata)" },
+      { id:"dpi",          label:"DPI Engine",           desc:"Deep packet inspection rules" },
+      { id:"analyzer",     label:"Payload Analyzer",     desc:"Manually scan & test payloads" },
+      { id:"threat",       label:"Threat Intel",         desc:"IP reputation & external threat feeds" },
+      { id:"airules",      label:"AI Rule Builder",      desc:"Describe a rule in plain English" },
+      { id:"riskscore",    label:"Risk Score",           desc:"Per-source threat scoring" },
+    ],
+  },
+  network: {
+    icon: "🌐",
+    label: "Network Config",
+    tabs: [
+      { id:"nat",          label:"NAT / Forwarding",     desc:"Port forwarding & address masquerade" },
+      { id:"zones",        label:"Network Zones",        desc:"Trusted, DMZ & untrusted segments" },
+      { id:"qos",          label:"QoS / Shaping",        desc:"Bandwidth limits & traffic prioritisation" },
+      { id:"wan",          label:"WAN Groups",           desc:"Multi-WAN load balancing" },
+      { id:"geoip",        label:"Geo-IP Blocking",      desc:"Block or allow entire countries" },
+      { id:"rpki",         label:"RPKI / BGP",           desc:"Route origin validation" },
+      { id:"aliases",      label:"Aliases",              desc:"Named IP/network/port groups" },
+      { id:"schedules",    label:"Schedules",            desc:"Time-activated rule windows" },
+    ],
+  },
+  monitoring: {
+    icon: "📊",
+    label: "Monitoring",
+    tabs: [
+      { id:"analytics",    label:"Analytics",            desc:"Traffic charts & top threat stats" },
+      { id:"stateTable",   label:"Connection Table",     desc:"Live connection & state view" },
+      { id:"portscans",    label:"Portscan Detect",      desc:"Automated port scan detection" },
+      { id:"tls",          label:"JA3 / TLS Intel",      desc:"TLS fingerprint matching (C2 detection)" },
+      { id:"dnsMonitor",   label:"DNS Monitor",          desc:"DGA malware & DNS tunneling detection" },
+      { id:"netflow",      label:"NetFlow",              desc:"Traffic flow export" },
+      { id:"eveExport",    label:"EVE Export",           desc:"Suricata-format event export" },
+      { id:"export",       label:"Export / Import",      desc:"Backup & restore all rules" },
+    ],
+  },
+  intelligence: {
+    icon: "🦠",
+    label: "Threat Intelligence",
+    tabs: [
+      { id:"avengine",     label:"ProxhqAV Engine",      desc:"Real-time antivirus scanning" },
+      { id:"iocdb",        label:"IOC Database",         desc:"Indicators of compromise library" },
+      { id:"yaraengine",   label:"YARA Engine",          desc:"Custom pattern-matching rules" },
+      { id:"supplychain",  label:"Supply Chain Guard",   desc:"Software updater monitoring" },
+    ],
+  },
+  protocol: {
+    icon: "🔌",
+    label: "Protocol Analysis",
+    tabs: [
+      { id:"quic",         label:"QUIC / HTTP3",         desc:"QUIC protocol analysis & blocking" },
+      { id:"ech",          label:"ECH Policy",           desc:"Encrypted Client Hello handling" },
+      { id:"doh",          label:"DoH / DoT",            desc:"DNS-over-HTTPS/TLS control" },
+      { id:"ebpf",         label:"eBPF / XDP",           desc:"Kernel-level packet filtering" },
+      { id:"eta",          label:"Traffic ETA",          desc:"Encrypted traffic analysis" },
+      { id:"proxy",        label:"Web Proxy Rules",      desc:"HTTP proxy & content filtering" },
+      { id:"suppressions", label:"Suppressions",         desc:"Silence specific alert rules" },
+    ],
+  },
+  hardening: {
+    icon: "🔒",
+    label: "System Hardening",
+    tabs: [
+      { id:"selinux",      label:"SELinux MAC",          desc:"NSA mandatory access control (enforcing)" },
+      { id:"apparmor",     label:"AppArmor",             desc:"Application confinement profiles" },
+      { id:"nftables",     label:"nftables",             desc:"Linux kernel packet filtering tables" },
+      { id:"kernelharden", label:"Kernel Hardening",     desc:"Sysctl parameters & kernel lockdown" },
+      { id:"mls",          label:"MLS / Bell-LaPadula",  desc:"Military multi-level security model" },
+      { id:"zerotrust",    label:"Zero Trust Seg.",      desc:"Micro-segmentation access policies" },
+      { id:"sbom",         label:"SBOM / CVE",           desc:"Software bill of materials & CVE scan" },
+      { id:"auditd",       label:"auditd",               desc:"Linux kernel audit daemon" },
+    ],
+  },
+  endpoint: {
+    icon: "🖥️",
+    label: "Endpoint Security",
+    tabs: [
+      { id:"quarantine",   label:"File Quarantine",      desc:"Isolated threat containment vault" },
+      { id:"hostsimm",     label:"Hosts Immunizer",      desc:"System hosts-file malware blocking" },
+      { id:"tracking",     label:"Tracking Blocker",     desc:"Ad network & tracker blocking" },
+      { id:"telemetry",    label:"Anti-Telemetry",       desc:"Block spyware phone-home calls" },
+      { id:"startup",      label:"Startup Auditor",      desc:"Autorun & persistence entry audit" },
+      { id:"rootkit",      label:"Rootkit Scanner",      desc:"Hidden process & kernel rootkit scan" },
+      { id:"shredder",     label:"Secure Shredder",      desc:"Forensic-grade file deletion" },
+      { id:"pup",          label:"PUP Database",         desc:"Potentially unwanted programs list" },
+      { id:"registry",     label:"Registry Monitor",     desc:"Windows registry change protection" },
+    ],
+  },
+  deception: {
+    icon: "🎭",
+    label: "Deception Engines",
+    tabs: [
+      { id:"looptrap",     label:"Endless Loop Engine™", desc:"Exhaust attacker CPU with infinite loops" },
+      { id:"labyrinth",    label:"Labyrinth Engine™",    desc:"Trap attackers in redirect mazes" },
+      { id:"tarpit",       label:"Tar Pit Drain™",       desc:"Slow-drip attackers to drain bandwidth" },
+      { id:"deception",    label:"Deception Layer",      desc:"Fake services & honeypot traps" },
+      { id:"lateral",      label:"Lateral Movement",     desc:"East-west attack path detection" },
+    ],
+  },
+  access: {
+    icon: "🔑",
+    label: "Access & Control",
+    tabs: [
+      { id:"peerrules",    label:"Peer Rules",           desc:"WireGuard peer-level firewall rules" },
+      { id:"optimizer",    label:"AI Optimizer",         desc:"Automated rule de-duplication & cleanup" },
+      { id:"nodesync",     label:"Node Sync",            desc:"Push rules to all 60 mesh nodes" },
+    ],
+  },
+};
 
 function Bdg({ label, color, sm }: { label: string; color?: string; sm?: boolean }) {
   const c = color ?? "#00ff88";
@@ -3081,7 +3251,7 @@ function SupplyChainTab() {
           <table style={{width:"100%",borderCollapse:"collapse",fontSize:11,fontFamily:"monospace"}}>
             <thead><tr>{["Process","Destination","Port","Alert Type","Severity","Action","Details","Time"].map(h=><TH key={h}>{h}</TH>)}</tr></thead>
             <tbody>
-              {data.alerts.map(a=>(
+              {(data.alerts??[]).map(a=>(
                 <tr key={a.id} style={{borderBottom:"1px solid #111"}}>
                   <TD style={{color:"#fff",fontFamily:"monospace"}}>{a.monitoredProcess}</TD>
                   <TD style={{color:"#aaa"}}>{a.dstDomain ?? a.dstIp ?? "—"}</TD>
@@ -6591,107 +6761,232 @@ export default function Firewall() {
     try { return new URLSearchParams(window.location.search).get("tab") ?? "overview"; } catch { return "overview"; }
   };
   const [tab, setTab] = useState(getInitialTab);
+  const [location] = useLocation();
+
+  // Auto-detect which group contains the current tab
+  const findGroup = (t: string) => {
+    for (const [gid, g] of Object.entries(TAB_GROUPS)) {
+      if (g.tabs.some(tb => tb.id === t)) return gid;
+    }
+    return "core";
+  };
+
+  const [openGroups, setOpenGroups] = useState<Record<string,boolean>>(() => {
+    const initial: Record<string,boolean> = {};
+    const activeGroup = findGroup(getInitialTab());
+    for (const gid of Object.keys(TAB_GROUPS)) {
+      initial[gid] = gid === activeGroup;
+    }
+    return initial;
+  });
+
+  // Sync tab state when user navigates via the left nav (wouter location change)
+  useEffect(() => {
+    const t = new URLSearchParams(window.location.search).get("tab") ?? "overview";
+    setTab(t);
+    const gid = findGroup(t);
+    setOpenGroups(prev => ({ ...prev, [gid]: true }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location]);
 
   const switchTab = (t: string) => {
     setTab(t);
+    const gid = findGroup(t);
+    setOpenGroups(prev => ({ ...prev, [gid]: true }));
     try {
       const u = new URL(window.location.href);
       u.searchParams.set("tab", t);
       window.history.replaceState({}, "", u.toString());
+      window.dispatchEvent(new CustomEvent("fw-tab-change"));
     } catch { /* noop */ }
   };
 
+  const toggleGroup = (gid: string) =>
+    setOpenGroups(prev => ({ ...prev, [gid]: !prev[gid] }));
+
+  const activeGroupId = findGroup(tab);
+
   return (
     <div style={{ padding:"20px 24px", minHeight:"100vh", background:"#050505", color:"#ccc" }}>
-      <div style={{ marginBottom:18 }}>
+      {/* ── Header ────────────────────────────────────────────────── */}
+      <div style={{ marginBottom:20 }}>
         <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:4 }}>
           <Shield size={20} color="#00ff88"/>
           <h1 style={{ margin:0, fontSize:19, fontWeight:800, color:"#fff", fontFamily:"monospace" }}>GhostOS™ Firewall</h1>
           <span style={{ fontSize:10, color:"#333", fontFamily:"monospace" }}>ProxhqVPN NGFW v1.0 · © 2026 Alpha Unlimited Technologies LLC</span>
         </div>
         <p style={{ margin:0, fontSize:11, color:"#444" }}>
-          Surpassing Palo Alto NGFW · Fortinet FortiGate · Check Point SandBlast — GhostOS™ ProxhqOS with SymScript™ proprietary symbolic command language
+          Next-generation firewall with SymScript™ proprietary symbolic command language — 60+ security engines
         </p>
       </div>
-      <div style={{ display:"flex", gap:2, marginBottom:18, background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:8, padding:3, flexWrap:"wrap" }}>
-        {TABS.map(t=>(
-          <button key={t.id} onClick={()=>switchTab(t.id)} style={{ display:"flex", alignItems:"center", gap:4, background:tab===t.id?"#181818":"transparent", border:tab===t.id?"1px solid #2a2a2a":"1px solid transparent", color:tab===t.id?(t.id==="ghostos"?"#cc44ff":"#fff"):"#555", borderRadius:6, padding:"6px 11px", cursor:"pointer", fontSize:11, fontFamily:"monospace", transition:"all 0.15s" }}>
-            {TAB_ICONS[t.id]}{t.label}{t.id==="ghostos"&&<span style={{fontSize:7,color:"#cc44ff",marginLeft:1}}>™</span>}
-          </button>
-        ))}
+
+      {/* ── Two-column layout ─────────────────────────────────────── */}
+      <div style={{ display:"flex", gap:16, alignItems:"flex-start" }}>
+
+        {/* Left sidebar — grouped navigation */}
+        <div style={{
+          width: 230, flexShrink: 0, position: "sticky", top: 20,
+          maxHeight: "calc(100vh - 120px)", overflowY: "auto",
+          background: "#0a0a0a", border: "1px solid #1a1a1a", borderRadius: 10,
+          scrollbarWidth: "none",
+        }}>
+          {Object.entries(TAB_GROUPS).map(([gid, group]) => {
+            const isOpen = openGroups[gid] ?? false;
+            const groupActive = gid === activeGroupId;
+            return (
+              <div key={gid} style={{ borderBottom:"1px solid #0f0f0f" }}>
+                {/* Group header */}
+                <button
+                  onClick={() => toggleGroup(gid)}
+                  style={{
+                    width:"100%", display:"flex", alignItems:"center",
+                    justifyContent:"space-between",
+                    padding:"10px 14px", background: groupActive ? "#00ff8808" : "none",
+                    border:"none", cursor:"pointer", textAlign:"left",
+                  }}
+                >
+                  <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                    <span style={{ fontSize:13 }}>{group.icon}</span>
+                    <span style={{
+                      fontSize:10, fontWeight:700,
+                      color: groupActive ? "#00ff88" : "#666",
+                      fontFamily:"monospace", textTransform:"uppercase", letterSpacing:"0.08em",
+                    }}>
+                      {group.label}
+                    </span>
+                  </div>
+                  <div style={{ display:"flex", alignItems:"center", gap:5 }}>
+                    <span style={{ fontSize:9, color:"#2a2a2a", background:"#141414", borderRadius:8, padding:"1px 5px", fontFamily:"monospace" }}>
+                      {group.tabs.length}
+                    </span>
+                    {isOpen
+                      ? <ChevronDown size={10} color={groupActive?"#00ff8866":"#333"}/>
+                      : <ChevronRight size={10} color="#2a2a2a"/>
+                    }
+                  </div>
+                </button>
+
+                {/* Tab list */}
+                {isOpen && (
+                  <div style={{ paddingBottom:4 }}>
+                    {group.tabs.map(tb => {
+                      const active = tab === tb.id;
+                      return (
+                        <button
+                          key={tb.id}
+                          onClick={() => switchTab(tb.id)}
+                          title={tb.desc}
+                          style={{
+                            width:"100%", display:"flex", alignItems:"center", gap:9,
+                            padding:"7px 14px 7px 20px",
+                            background: active ? "#00ff8811" : "none",
+                            border:"none",
+                            borderLeft: active ? "3px solid #00ff88" : "3px solid transparent",
+                            cursor:"pointer", textAlign:"left",
+                          }}
+                        >
+                          <span style={{ color: active ? "#00ff88" : "#333", flexShrink:0, lineHeight:1 }}>
+                            {TAB_ICONS[tb.id]}
+                          </span>
+                          <div style={{ minWidth:0 }}>
+                            <div style={{ fontSize:11, color: active ? "#fff" : "#888", fontFamily:"monospace", lineHeight:1.3, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+                              {tb.label}
+                            </div>
+                            <div style={{ fontSize:9, color:"#333", lineHeight:1.2, marginTop:1, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+                              {tb.desc}
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Right content area */}
+        <div style={{ flex:1, minWidth:0 }}>
+          {/* Breadcrumb */}
+          <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:14, fontSize:10, color:"#333", fontFamily:"monospace" }}>
+            <span style={{ color:"#444" }}>🛡 Firewall</span>
+            <span>›</span>
+            <span style={{ color:"#555" }}>{TAB_GROUPS[activeGroupId]?.label ?? "—"}</span>
+            <span>›</span>
+            <span style={{ color:"#00ff88" }}>
+              {TAB_GROUPS[activeGroupId]?.tabs.find(tb => tb.id === tab)?.label ?? tab}
+            </span>
+          </div>
+
+          <TabErrorBoundary key={tab} tabName={tab}>
+            {tab==="overview"    && <OverviewTab/>}
+            {tab==="ghostos"     && <GhostOsTab/>}
+            {tab==="ips"         && <IpsTab/>}
+            {tab==="dpi"         && <DpiTab/>}
+            {tab==="threat"      && <ThreatTab/>}
+            {tab==="zones"       && <ZonesTab/>}
+            {tab==="rules"       && <RulesTab/>}
+            {tab==="blacklist"   && <BlacklistTab/>}
+            {tab==="analytics"   && <AnalyticsTab/>}
+            {tab==="export"      && <ExportTab/>}
+            {tab==="analyzer"    && <PayloadAnalyzerTab/>}
+            {tab==="aliases"     && <AliasesTab/>}
+            {tab==="schedules"   && <SchedulesTab/>}
+            {tab==="nat"         && <NatTab/>}
+            {tab==="qos"         && <QosTab/>}
+            {tab==="wan"         && <WanGroupsTab/>}
+            {tab==="stateTable"  && <StateTableTab/>}
+            {tab==="portscans"   && <PortscansTab/>}
+            {tab==="tls"         && <TlsTab/>}
+            {tab==="dnsMonitor"  && <DnsMonitorTab/>}
+            {tab==="suppressions"&& <SuppressionsTab/>}
+            {tab==="eveExport"   && <EveExportTab/>}
+            {tab==="proxy"       && <ProxyRulesTab/>}
+            {tab==="ebpf"        && <EbpfTab/>}
+            {tab==="quic"        && <QuicTab/>}
+            {tab==="eta"         && <EtaTab/>}
+            {tab==="ech"         && <EchTab/>}
+            {tab==="doh"         && <DohTab/>}
+            {tab==="lateral"     && <LateralTab/>}
+            {tab==="netflow"     && <NetflowTab/>}
+            {tab==="supplychain" && <SupplyChainTab/>}
+            {tab==="airules"     && <AiRulesTab/>}
+            {tab==="rpki"        && <RpkiTab/>}
+            {tab==="deception"   && <DeceptionTab/>}
+            {tab==="geoip"       && <GeoipTab/>}
+            {tab==="quarantine"  && <QuarantineTab/>}
+            {tab==="selinux"     && <SelinuxTab/>}
+            {tab==="apparmor"    && <ApparmorTab/>}
+            {tab==="sbom"        && <SbomTab/>}
+            {tab==="auditd"      && <AuditdTab/>}
+            {tab==="nftables"    && <NftablesTab/>}
+            {tab==="kernelharden"&& <KernelHardenTab/>}
+            {tab==="mls"         && <MlsTab/>}
+            {tab==="zerotrust"   && <ZeroTrustTab/>}
+            {tab==="hostsimm"    && <HostsImmTab/>}
+            {tab==="tracking"    && <TrackingTab/>}
+            {tab==="telemetry"   && <TelemetryTab/>}
+            {tab==="startup"     && <StartupTab/>}
+            {tab==="rootkit"     && <RootkitTab/>}
+            {tab==="shredder"    && <ShredderTab/>}
+            {tab==="pup"         && <PupTab/>}
+            {tab==="registry"    && <RegistryTab/>}
+            {tab==="avengine"    && <ProxhqAvTab/>}
+            {tab==="iocdb"       && <IocDbTab/>}
+            {tab==="yaraengine"  && <YaraEngineTab/>}
+            {tab==="looptrap"    && <LoopTrapTab/>}
+            {tab==="labyrinth"   && <LabyrinthTab/>}
+            {tab==="tarpit"      && <TarPitTab/>}
+            {tab==="nodesync"    && <NodeSyncTab/>}
+            {tab==="atr"         && <AtrTab/>}
+            {tab==="peerrules"   && <PeerRulesTab/>}
+            {tab==="ddos"        && <DdosTab/>}
+            {tab==="optimizer"   && <OptimizerTab/>}
+            {tab==="riskscore"   && <RiskScoreTab/>}
+          </TabErrorBoundary>
+        </div>
       </div>
-      {tab==="overview"&&<OverviewTab/>}
-      {tab==="ghostos"&&<GhostOsTab/>}
-      {tab==="ips"&&<IpsTab/>}
-      {tab==="dpi"&&<DpiTab/>}
-      {tab==="threat"&&<ThreatTab/>}
-      {tab==="zones"&&<ZonesTab/>}
-      {tab==="rules"&&<RulesTab/>}
-      {tab==="blacklist"&&<BlacklistTab/>}
-      {tab==="analytics"&&<AnalyticsTab/>}
-      {tab==="export"&&<ExportTab/>}
-      {tab==="analyzer"&&<PayloadAnalyzerTab/>}
-      {/* ── Gap-filling features from top 5 open source firewalls ── */}
-      {tab==="aliases"     &&<AliasesTab/>}
-      {tab==="schedules"   &&<SchedulesTab/>}
-      {tab==="nat"         &&<NatTab/>}
-      {tab==="qos"         &&<QosTab/>}
-      {tab==="wan"         &&<WanGroupsTab/>}
-      {tab==="stateTable"  &&<StateTableTab/>}
-      {tab==="portscans"   &&<PortscansTab/>}
-      {tab==="tls"         &&<TlsTab/>}
-      {tab==="dnsMonitor"  &&<DnsMonitorTab/>}
-      {tab==="suppressions"&&<SuppressionsTab/>}
-      {tab==="eveExport"   &&<EveExportTab/>}
-      {tab==="proxy"       &&<ProxyRulesTab/>}
-      {/* ── 2024-2025 Next-Gen Research Features ── */}
-      {tab==="ebpf"        &&<EbpfTab/>}
-      {tab==="quic"        &&<QuicTab/>}
-      {tab==="eta"         &&<EtaTab/>}
-      {tab==="ech"         &&<EchTab/>}
-      {tab==="doh"         &&<DohTab/>}
-      {tab==="lateral"     &&<LateralTab/>}
-      {tab==="netflow"     &&<NetflowTab/>}
-      {tab==="supplychain" &&<SupplyChainTab/>}
-      {tab==="airules"     &&<AiRulesTab/>}
-      {tab==="rpki"        &&<RpkiTab/>}
-      {tab==="deception"   &&<DeceptionTab/>}
-      {tab==="geoip"       &&<GeoipTab/>}
-      {tab==="quarantine"  &&<QuarantineTab/>}
-      {/* ── Military-Grade (NSA/DARPA research) ── */}
-      {tab==="selinux"     &&<SelinuxTab/>}
-      {tab==="apparmor"    &&<ApparmorTab/>}
-      {tab==="sbom"        &&<SbomTab/>}
-      {tab==="auditd"      &&<AuditdTab/>}
-      {tab==="nftables"    &&<NftablesTab/>}
-      {tab==="kernelharden"&&<KernelHardenTab/>}
-      {tab==="mls"         &&<MlsTab/>}
-      {tab==="zerotrust"   &&<ZeroTrustTab/>}
-      {/* ── Spybot Search & Destroy inspired ── */}
-      {tab==="hostsimm"    &&<HostsImmTab/>}
-      {tab==="tracking"    &&<TrackingTab/>}
-      {tab==="telemetry"   &&<TelemetryTab/>}
-      {tab==="startup"     &&<StartupTab/>}
-      {tab==="rootkit"     &&<RootkitTab/>}
-      {tab==="shredder"    &&<ShredderTab/>}
-      {tab==="pup"         &&<PupTab/>}
-      {tab==="registry"    &&<RegistryTab/>}
-      {/* ── ProxhqAV Antivirus Engine ── */}
-      {tab==="avengine"    &&<ProxhqAvTab/>}
-      {tab==="iocdb"       &&<IocDbTab/>}
-      {tab==="yaraengine"  &&<YaraEngineTab/>}
-      {/* ── Three-Layer Honeypot Loop ── */}
-      {tab==="looptrap"    &&<LoopTrapTab/>}
-      {tab==="labyrinth"   &&<LabyrinthTab/>}
-      {tab==="tarpit"      &&<TarPitTab/>}
-      {/* ── Enforcement Plane ── */}
-      {tab==="nodesync"    &&<NodeSyncTab/>}
-      {/* ── New Firewall Enhancements ── */}
-      {tab==="atr"         &&<AtrTab/>}
-      {tab==="peerrules"   &&<PeerRulesTab/>}
-      {tab==="ddos"        &&<DdosTab/>}
-      {tab==="optimizer"   &&<OptimizerTab/>}
-      {tab==="riskscore"   &&<RiskScoreTab/>}
     </div>
   );
 }
