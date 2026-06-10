@@ -259,6 +259,7 @@ const ADVANCED_NAV = [
   { href: "/node-trust",          label: "Node Trust Engine",       icon: ShieldCheck },
   { href: "/firewall-compiler",   label: "Firewall Policy Compiler",icon: ShieldAlert },
   { href: "/drift-monitor",       label: "Drift Monitor",           icon: GitCompare },
+  { href: "/event-graph",         label: "Global Event Graph",      icon: Activity },
   { href: "/security-score",      label: "Security Score",          icon: Shield },
   { href: "/config-lifecycle",    label: "VPN Config Lifecycle",    icon: FileText },
   { href: "/ghost-pentest",      label: "GhostPentest",           icon: Target },

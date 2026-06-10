@@ -61,6 +61,7 @@ import NodeTrustEngine from "@/pages/NodeTrustEngine";
 import CustomerSecurityDashboard from "@/pages/CustomerSecurityDashboard";
 import FirewallPolicyCompiler from "@/pages/FirewallPolicyCompiler";
 import DriftMonitor from "@/pages/DriftMonitor";
+import EventGraph from "@/pages/EventGraph";
 import ConfigLifecycle from "@/pages/ConfigLifecycle";
 const VpnCoexist = lazy(() => import("@/pages/VpnCoexist"));
 import VpnGate from "@/pages/VpnGate";
@@ -803,6 +804,9 @@ function AppRoutes() {
           </Route>
           <Route path="/drift-monitor">
             <CcLayout><DriftMonitor /></CcLayout>
+          </Route>
+          <Route path="/event-graph">
+            <CcLayout><EventGraph /></CcLayout>
           </Route>
           <Route path="/config-lifecycle">
             <ProtectedLayout><ConfigLifecycle /></ProtectedLayout>

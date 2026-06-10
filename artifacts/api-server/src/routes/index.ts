@@ -112,6 +112,8 @@ import firewallPolicyV2Router from "./firewall-policy-v2";
 import nodeTrustRouter from "./node-trust";
 import securityScoreRouter from "./security-score";
 import driftMonitorRouter from "./drift-monitor";
+import governanceRouter from "./governance";
+import eventGraphRouter from "./event-graph";
 
 const router: IRouter = Router();
 
@@ -492,6 +494,8 @@ router.use("/firewall-v2",             requireCommandCenter, firewallPolicyV2Rou
 router.use("/node-trust",              _requireAdmin,        nodeTrustRouter);
 router.use("/security-score",          requireAccess,        securityScoreRouter);
 router.use("/drift-monitor",           requireCommandCenter, driftMonitorRouter);
+router.use("/governance",              requireCommandCenter, governanceRouter);
+router.use("/events",                  requireCommandCenter, eventGraphRouter);
 router.get("/config-lifecycle-events", requireAccess, async (req: Request, res: Response) => {
   const userId = (req as any).auth?.userId ?? "unknown";
   const { getConfigLifecycleHistory } = await import("../lib/config-lifecycle");

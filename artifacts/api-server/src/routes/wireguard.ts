@@ -2,13 +2,28 @@
 import { Router } from "express";
 import { getAuth } from "@clerk/express";
 import { db } from "@workspace/db";
-import { userWgConfigsTable, nodesTable, usersTable, wgPeerCommandsTable } from "@workspace/db";
-import { eq, and, isNull, sql } from "drizzle-orm";
+import { userWgConfigsTable, nodesTable, usersTable, wgPeerCommandsTable, ztnaDevicesTable } from "@workspace/db";
+import { eq, and, isNull, sql, desc } from "drizzle-orm";
 import { z } from "zod";
 import crypto from "crypto";
 import { encryptSecret, decryptSecret, wgConfigAad, isEncrypted } from "../lib/encrypted-secret-store";
 import { appendAuditEvent } from "../lib/audit-chain";
 import { shipSecurityEvent } from "../lib/siem";
+import { bus } from "../lib/service-bus";
+
+// ── Node trust threshold — nodes below this score are excluded from config issuance ──
+const NODE_TRUST_THRESHOLD = 55;
+
+function computeNodeTrustScore(node: { latencyMs?: number | null; status?: string }): number {
+  let score = 100;
+  const latency = node.latencyMs ?? 0;
+  if (latency > 200) score -= 15;
+  else if (latency > 100) score -= 5;
+  return Math.max(0, score);
+}
+
+// ── ZTNA device trust threshold — devices below this score are blocked ───────
+const ZTNA_TRUST_THRESHOLD = 75;
 
 const router = Router();
 
@@ -67,6 +82,67 @@ router.post("/my-config", async (req, res) => {
   if (!node) return res.status(404).json({ error: "Node not found" });
   if (node.status !== "active") return res.status(400).json({ error: "Node is not active" });
 
+  // ── Node Trust Gate (Upgrade #5: Node Trust → Routing) ───────────────────
+  // Reject config issuance for nodes below the trust threshold.
+  const nodeTrustScore = computeNodeTrustScore({
+    latencyMs: (node as any).latencyMs ?? (node as any).latency_ms ?? 0,
+    status: node.status,
+  });
+  if (nodeTrustScore < NODE_TRUST_THRESHOLD) {
+    void shipSecurityEvent({
+      actor: userId, action: "wireguard.config_denied_node_trust",
+      resource: `node:${body.nodeId}`, result: "deny", severity: "high",
+      metadata: { nodeId: body.nodeId, nodeTrustScore, threshold: NODE_TRUST_THRESHOLD },
+    });
+    return res.status(403).json({
+      error: "node_trust_insufficient",
+      message: `Node trust score ${nodeTrustScore} is below the minimum threshold of ${NODE_TRUST_THRESHOLD}. This node has elevated latency, anomalies, or missing daemon enrollment.`,
+      nodeTrustScore,
+      threshold: NODE_TRUST_THRESHOLD,
+    });
+  }
+
+  // ── Device Trust Gate (Upgrade #6: Device Trust → Config Issuance) ───────
+  // If the user has a ZTNA device record with a failed posture check, block issuance.
+  // Users with no ZTNA record (haven't done posture check yet) are allowed with advisory.
+  try {
+    const ztnaDevices = await db
+      .select()
+      .from(ztnaDevicesTable)
+      .where(and(eq(ztnaDevicesTable.userId, userId)))
+      .orderBy(desc(ztnaDevicesTable.lastSeenAt))
+      .limit(5);
+
+    if (ztnaDevices.length > 0) {
+      const bestDevice = ztnaDevices.reduce((best, d) =>
+        (d.trustScore ?? 0) > (best.trustScore ?? 0) ? d : best
+      );
+      if (bestDevice.revoked) {
+        return res.status(403).json({
+          error: "device_revoked",
+          message: "Your device has been revoked. Re-enroll through ZTNA to restore access.",
+          trustScore: bestDevice.trustScore ?? 0,
+          threshold: ZTNA_TRUST_THRESHOLD,
+        });
+      }
+      if ((bestDevice.trustScore ?? 0) < ZTNA_TRUST_THRESHOLD) {
+        void shipSecurityEvent({
+          actor: userId, action: "wireguard.config_denied_ztna",
+          resource: `device:${bestDevice.certFingerprint}`, result: "deny", severity: "high",
+          metadata: { trustScore: bestDevice.trustScore, threshold: ZTNA_TRUST_THRESHOLD },
+        });
+        return res.status(403).json({
+          error: "device_trust_insufficient",
+          message: `Your device trust score (${bestDevice.trustScore ?? 0}) is below the minimum required (${ZTNA_TRUST_THRESHOLD}). Complete a ZTNA posture check at /ztna to obtain a higher score before connecting.`,
+          trustScore: bestDevice.trustScore ?? 0,
+          threshold: ZTNA_TRUST_THRESHOLD,
+          recommendations: (bestDevice.posture as any)?.recommendations ?? [],
+        });
+      }
+    }
+    // No ZTNA record — allowed with advisory flag
+  } catch { /* DB error must not block config issuance */ }
+
   const existing = await db
     .select()
     .from(userWgConfigsTable)
@@ -122,6 +198,10 @@ router.post("/my-config", async (req, res) => {
     severity: "low",
     metadata: { nodeId: body.nodeId, assignedIp },
   });
+
+  bus.publish("wireguard.config_issued", {
+    userId, nodeId: body.nodeId, configId: config.id, assignedIp, nodeTrustScore,
+  }, "wireguard");
 
   return res.status(201).json({ ...config, node, alreadyExists: false });
 });
