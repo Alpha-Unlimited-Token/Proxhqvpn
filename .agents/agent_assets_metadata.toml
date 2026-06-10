@@ -467,3 +467,9 @@ id = "Clo69iElC8hs985TV-qEA"
 uri = "file://proxhq_ai_audit_prompts.zip"
 type = "unspecified"
 title = "ProxhqVPN AI Audit Prompts — Private Download"
+
+[[outputs]]
+id = "GgFcu_kCvz7kAEUe4I8Kb"
+uri = "file://proxhqvpn_source_code.zip"
+type = "unspecified"
+title = "ProxhqVPN — Full Source Code (1,419 files, 8.1 MB)"
