@@ -54,6 +54,9 @@ import SplitTunnel from "@/pages/SplitTunnel";
 import Obfuscation from "@/pages/Obfuscation";
 import SecurityAudit from "@/pages/SecurityAudit";
 import AiAudit from "@/pages/AiAudit";
+import AccountSecurityCenter from "@/pages/AccountSecurityCenter";
+import CommandGovernance from "@/pages/CommandGovernance";
+import DependencyMap from "@/pages/DependencyMap";
 const VpnCoexist = lazy(() => import("@/pages/VpnCoexist"));
 import VpnGate from "@/pages/VpnGate";
 import Platforms from "@/pages/Platforms";
@@ -774,6 +777,15 @@ function AppRoutes() {
           </Route>
           <Route path="/ai-audit">
             <CcLayout><AiAudit /></CcLayout>
+          </Route>
+          <Route path="/account-security">
+            <ProtectedLayout><AccountSecurityCenter /></ProtectedLayout>
+          </Route>
+          <Route path="/command-governance">
+            <CcLayout><CommandGovernance /></CcLayout>
+          </Route>
+          <Route path="/dependency-map">
+            <CcLayout><DependencyMap /></CcLayout>
           </Route>
           <Route path="/threat-intel">
             <CcLayout><ThreatIntel /></CcLayout>

@@ -21,6 +21,7 @@ import walletTxRouter from "./routes/wallet-tx";
 import walletIntelRouter from "./routes/wallet-intel";
 import nodeCrackerRouter from "./routes/node-cracker";
 import devAuditRouter from "./routes/dev-audit";
+import { blockTemporaryProductionRoutes } from "./lib/route-governance";
 import { logger } from "./lib/logger";
 import { WebhookHandlers } from "./webhookHandlers";
 
@@ -337,6 +338,9 @@ app.use("/api/ambassadors/me/videos", (req: Request, res: Response, next: NextFu
   if (["POST", "DELETE"].includes(req.method)) return ambassadorLimiter(req, res, next);
   next();
 });
+
+// Block temporary/dev download routes in production unless opt-in env var is set
+app.use(blockTemporaryProductionRoutes);
 
 // wallet-tx is mounted BEFORE the main /api router so it bypasses requireAuth
 app.use("/api/wallet", walletTxRouter);

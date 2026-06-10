@@ -3,11 +3,12 @@ import { Router, type IRouter, type Request, type Response, type NextFunction } 
 import { getAuth } from "@clerk/express";
 import { db } from "@workspace/db";
 import { usersTable } from "@workspace/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { requireAdmin as _requireAdmin } from "../middlewares/requireAdmin";
 import { requireAccess } from "../middlewares/requireAccess";
 import { requireCommandCenter } from "../middlewares/requireCommandCenter";
 import { requireDeviceTrust } from "../middlewares/requireDeviceTrust";
+import { createEnrollmentToken } from "../lib/node-enrollment";
 import { daemonIpBanMiddleware } from "../app";
 import fs from "fs";
 import path from "path";
@@ -38,6 +39,9 @@ import dnsShieldRouter from "./dnsshield";
 import smartDnsRouter from "./smartdns";
 import routerConfigRouter from "./routerconfig";
 import stripeRouter from "./stripe";
+import commandGovernanceRouter from "./command-governance";
+import accountSecurityCenterRouter from "./account-security-center";
+import dependencyMapRouter from "./dependency-map";
 import ambassadorsRouter from "./ambassadors";
 import wireguardRouter from "./wireguard";
 import daemonInboundRouter from "./daemon-inbound";
@@ -372,7 +376,8 @@ router.use(requireAuth);
 // Admin guard — checks is_admin flag in DB (re-exported from shared middleware)
 export const requireAdmin = _requireAdmin;
 
-router.use("/me",             meRouter);
+router.use("/me",               meRouter);
+router.use("/account-security", requireAccess, accountSecurityCenterRouter);
 
 // ── Admin-only routes ──────────────────────────────────────────────────────
 // Every route below requires an authenticated admin account.
@@ -452,7 +457,9 @@ router.use("/dep-scanner",     requireCommandCenter, depScannerRouter);
 router.use("/token-seq",       requireCommandCenter, tokenSequencerRouter);
 router.use("/ws-tester",       requireCommandCenter, wsTesterRouter);
 router.use("/sast",            requireCommandCenter, sastRouter);
-router.use("/quantum-audit",   requireCommandCenter, quantumAuditRouter);
+router.use("/quantum-audit",       requireCommandCenter, quantumAuditRouter);
+router.use("/command-governance",  requireCommandCenter, commandGovernanceRouter);
+router.use("/dependency-map",      requireCommandCenter, dependencyMapRouter);
 router.use("/ai-security",     requireCommandCenter, aiSecurityRouter);
 router.use("/sqli-scanner",    requireCommandCenter, sqliScannerRouter);
 router.use("/im-auto",         requireCommandCenter, imAutomationRouter);
@@ -470,6 +477,16 @@ router.use("/fwm",             requireAccess, firewallMilitaryRouter);
 router.use("/ztna",           requireAccess, ztnaRouter);
 
 // ── Admin-only routes ─────────────────────────────────────────────────────
+router.post("/node-enrollment-token", _requireAdmin, async (req: Request, res: Response) => {
+  const { token, tokenHash, expiresAt } = createEnrollmentToken();
+  const region = (req.body?.region as string) ?? null;
+  await db.execute(
+    sql`INSERT INTO node_enrollment_tokens (token_hash, created_by, region, expires_at)
+        VALUES (${tokenHash}, ${(req as any).auth?.userId ?? "admin"}, ${region}, ${expiresAt.toISOString()})`
+  );
+  res.json({ token, expiresAt, region });
+});
+
 router.use("/admin/users",    requireAdmin, adminUsersRouter);
 router.use("/employees",      requireAdmin, employeesRouter);
 router.use("/setup",          requireAdmin, setupRouter);
