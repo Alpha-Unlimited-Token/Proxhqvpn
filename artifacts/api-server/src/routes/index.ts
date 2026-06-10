@@ -12,7 +12,8 @@ import { createEnrollmentToken } from "../lib/node-enrollment";
 import { daemonIpBanMiddleware } from "../app";
 import fs from "fs";
 import path from "path";
-import crypto from "crypto";
+// crypto was used by the old inline requireAuth — now handled by lib/internal-auth.ts via app.ts
+// keeping the import removed to avoid unused-import warnings
 import healthRouter from "./health";
 import anonRouter from "./anon";
 import meRouter from "./me";
@@ -106,6 +107,11 @@ import omegaAgentRouter from "./omega/agent";
 import ghostTrapRouter from "./ghosttrap";
 import firewallAdvancedRouter from "./firewall-advanced";
 import ztnaRouter from "./ztna";
+import nodeEnrollV2Router from "./node-enroll-v2";
+import firewallPolicyV2Router from "./firewall-policy-v2";
+import nodeTrustRouter from "./node-trust";
+import securityScoreRouter from "./security-score";
+import driftMonitorRouter from "./drift-monitor";
 
 const router: IRouter = Router();
 
@@ -202,10 +208,9 @@ router.get("/daemon-download", _requireAdmin, (_req: Request, res: Response) => 
 });
 
 // Node setup script — returns a bash installer for new VPN servers
-// MUST be admin-only: it embeds the DAEMON_PSK secret in the output
+// Admin-only. Uses one-time enrollment tokens instead of long-lived PSK.
+// Get a token first: POST /api/node-enrollment/tokens → then set ENROLL_TOKEN env var.
 router.get("/setup-script", _requireAdmin, (req: Request, res: Response) => {
-  const psk = process.env.DAEMON_PSK || "";
-  // Always use the stable Replit dev domain so external servers can reach us
   const replitDomain = process.env.REPLIT_DEV_DOMAIN || process.env.REPLIT_DOMAINS?.split(",")[0] || "";
   const apiBase = replitDomain ? `https://${replitDomain}/api` : `https://${req.headers.host}/api`;
   const region = (req.query.region as string) || "Unknown";
@@ -213,9 +218,14 @@ router.get("/setup-script", _requireAdmin, (req: Request, res: Response) => {
   const script = `#!/bin/bash
 # ProxhqVPN Node Setup Script
 # Installs WireGuard + daemon on a fresh Ubuntu/Debian VPS
+#
+# REQUIRED: set ENROLL_TOKEN before running:
+#   1. In admin panel → Nodes → Node Enrollment → Generate Token
+#   2. ENROLL_TOKEN=<token> bash setup.sh
+#
+# Tokens are single-use and expire in 15 minutes.
 
 API="${apiBase}"
-PSK="${psk}"
 REGION="${region}"
 
 die() { echo ""; echo "ERROR: \$1"; echo "Setup failed. Fix the error above and re-run."; exit 1; }
@@ -260,12 +270,12 @@ ok
 
 # 4. Register with ProxhqVPN
 echo "[4/7] Registering node with ProxhqVPN..."
-PAYLOAD='{"publicKey":"'"\$SERVER_PUBKEY"'","publicIp":"'"\$PUBLIC_IP"'","region":"'"\$REGION"'"}'
-RESPONSE=\$(curl -sf --max-time 15 -X POST "\$API/node-provision" \\
+[ -z "\$ENROLL_TOKEN" ] && die "ENROLL_TOKEN is required. Generate one in the admin panel → Nodes → Node Enrollment."
+PAYLOAD='{"token":"'"\$ENROLL_TOKEN"'","nodeId":"'"\$HOSTNAME"'","publicKey":"'"\$SERVER_PUBKEY"'","region":"'"\$REGION"'","publicIp":"'"\$PUBLIC_IP"'"}'
+RESPONSE=\$(curl -sf --max-time 15 -X POST "\$API/node-enrollment/claim" \\
   -H "Content-Type: application/json" \\
-  -H "X-Daemon-PSK: \$PSK" \\
-  -d "\$PAYLOAD") || die "Could not reach ProxhqVPN API at \$API"
-[ -z "\$RESPONSE" ] && die "Empty response from API — check DAEMON_PSK"
+  -d "\$PAYLOAD") || die "Could not reach ProxhqVPN API at \$API/node-enrollment/claim"
+[ -z "\$RESPONSE" ] && die "Empty response from API — enrollment token may be expired or already used"
 NODE_ID=\$(echo "\$RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['nodeId'])") || die "Bad API response: \$RESPONSE"
 SERVER_VPN_IP=\$(echo "\$RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['serverVpnIp'])")
 echo "  Node ID: \$NODE_ID | VPN IP: \$SERVER_VPN_IP"
@@ -304,7 +314,7 @@ After=network.target wg-quick@wg0.service
 Wants=wg-quick@wg0.service
 
 [Service]
-ExecStart=/usr/bin/python3 /usr/local/bin/proxhqd.py --api \${API} --node-id \${NODE_ID} --psk \${PSK}
+ExecStart=/usr/bin/python3 /usr/local/bin/proxhqd.py --api \${API} --node-id \${NODE_ID}
 Restart=always
 RestartSec=30
 StandardOutput=journal
@@ -350,23 +360,11 @@ router.use("/stripe",         stripeRouter);
 router.use("/payments/crypto", cryptoPaymentsRouter);
 router.use("/notifications",  notificationsRouter);
 
-// Auth guard — all routes below require a valid Clerk session
-// Exception: localhost requests with correct X-Internal-Secret bypass Clerk auth
-// Uses timing-safe comparison to prevent timing-based secret oracle attacks.
-
+// Auth guard — all routes below require a valid Clerk session.
+// The internalBypass flag is set by internalSecretBypass middleware in app.ts
+// (loopback-only in production, Origin-blocked for browser requests).
 const requireAuth = (req: Request, res: Response, next: NextFunction) => {
-  const internalSecret = req.headers["x-internal-secret"];
-  const sessionSecret = process.env.SESSION_SECRET ?? "";
-  if (
-    internalSecret &&
-    typeof internalSecret === "string" &&
-    sessionSecret.length >= 32 &&
-    internalSecret.length === sessionSecret.length &&
-    crypto.timingSafeEqual(Buffer.from(internalSecret), Buffer.from(sessionSecret))
-  ) {
-    (req as any).internalBypass = true;
-    return next();
-  }
+  if ((req as any).internalBypass) return next();
   const { userId } = getAuth(req);
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
   next();
@@ -477,6 +475,7 @@ router.use("/fwm",             requireAccess, firewallMilitaryRouter);
 router.use("/ztna",           requireAccess, ztnaRouter);
 
 // ── Admin-only routes ─────────────────────────────────────────────────────
+// Legacy enrollment token endpoint — new callers should use /api/node-enrollment/tokens
 router.post("/node-enrollment-token", _requireAdmin, async (req: Request, res: Response) => {
   const { token, tokenHash, expiresAt } = createEnrollmentToken();
   const region = (req.body?.region as string) ?? null;
@@ -485,6 +484,19 @@ router.post("/node-enrollment-token", _requireAdmin, async (req: Request, res: R
         VALUES (${tokenHash}, ${(req as any).auth?.userId ?? "admin"}, ${region}, ${expiresAt.toISOString()})`
   );
   res.json({ token, expiresAt, region });
+});
+
+// ── Deep Audit A+ Routes ─────────────────────────────────────────────────────
+router.use("/node-enrollment",         _requireAdmin,       nodeEnrollV2Router);
+router.use("/firewall-v2",             requireCommandCenter, firewallPolicyV2Router);
+router.use("/node-trust",              _requireAdmin,        nodeTrustRouter);
+router.use("/security-score",          requireAccess,        securityScoreRouter);
+router.use("/drift-monitor",           requireCommandCenter, driftMonitorRouter);
+router.get("/config-lifecycle-events", requireAccess, async (req: Request, res: Response) => {
+  const userId = (req as any).auth?.userId ?? "unknown";
+  const { getConfigLifecycleHistory } = await import("../lib/config-lifecycle");
+  const events = await getConfigLifecycleHistory(userId, 100);
+  res.json({ events });
 });
 
 router.use("/admin/users",    requireAdmin, adminUsersRouter);

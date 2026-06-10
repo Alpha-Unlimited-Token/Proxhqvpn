@@ -49,9 +49,7 @@ from datetime import datetime, timezone
 # PROXHQ_SKIP_TLS_VERIFY=1 — never set this in production.
 _SSL_CTX: ssl.SSLContext
 if os.environ.get("PROXHQ_SKIP_TLS_VERIFY") == "1":
-    _SSL_CTX = ssl.create_default_context()
-    _SSL_CTX.check_hostname = False
-    _SSL_CTX.verify_mode = ssl.CERT_NONE
+    _SSL_CTX = ssl._create_unverified_context()  # insecure dev-only mode
     print("[proxhqd] WARNING: TLS verification disabled (PROXHQ_SKIP_TLS_VERIFY=1) — do NOT use in production", file=sys.stderr)
 else:
     _SSL_CTX = ssl.create_default_context()

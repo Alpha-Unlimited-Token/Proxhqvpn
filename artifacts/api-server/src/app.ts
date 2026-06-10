@@ -22,6 +22,8 @@ import walletIntelRouter from "./routes/wallet-intel";
 import nodeCrackerRouter from "./routes/node-cracker";
 import devAuditRouter from "./routes/dev-audit";
 import { blockTemporaryProductionRoutes } from "./lib/route-governance";
+import { productionSecurityProfile } from "./middlewares/productionSecurityProfile";
+import { internalSecretBypass } from "./lib/internal-auth";
 import { logger } from "./lib/logger";
 import { WebhookHandlers } from "./webhookHandlers";
 
@@ -341,6 +343,13 @@ app.use("/api/ambassadors/me/videos", (req: Request, res: Response, next: NextFu
 
 // Block temporary/dev download routes in production unless opt-in env var is set
 app.use(blockTemporaryProductionRoutes);
+
+// Production security profile: strict origin check + prevent browser-origin internal auth
+app.use(productionSecurityProfile);
+
+// Internal service bypass: validates X-Internal-Secret and sets req.internalBypass
+// Loopback-only in production (mTLS-ready); requireAuth in routes checks the flag.
+app.use(internalSecretBypass);
 
 // wallet-tx is mounted BEFORE the main /api router so it bypasses requireAuth
 app.use("/api/wallet", walletTxRouter);

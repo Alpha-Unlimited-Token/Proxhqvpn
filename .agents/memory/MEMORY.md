@@ -1,3 +1,4 @@
 - [Omega lib composite build](omega-lib-build.md) — lib/omega-api-client-react and lib/omega-api-zod must be in root tsconfig.json references or tsc --build won't emit their .d.ts files, breaking omega-dashboard typecheck.
 - [Workspace lib @types/node pattern](lib-types-node.md) — any lib tsconfig with "types": ["node"] must also declare "@types/node": "catalog:" in its package.json devDependencies (pnpm strict isolation).
 - [Mockup-sandbox vite config](mockup-sandbox-vite.md) — PORT and BASE_PATH must have fallback defaults (not hard throws) so vite build works without runtime env vars during deploy.
+- [appendAuditEvent call signature](audit-chain-call-sig.md) — appendAuditEvent takes ONE AuditEvent object (not a string + object); returns ChainEntry synchronously, not a Promise — no .catch() needed.

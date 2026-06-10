@@ -57,6 +57,11 @@ import AiAudit from "@/pages/AiAudit";
 import AccountSecurityCenter from "@/pages/AccountSecurityCenter";
 import CommandGovernance from "@/pages/CommandGovernance";
 import DependencyMap from "@/pages/DependencyMap";
+import NodeTrustEngine from "@/pages/NodeTrustEngine";
+import CustomerSecurityDashboard from "@/pages/CustomerSecurityDashboard";
+import FirewallPolicyCompiler from "@/pages/FirewallPolicyCompiler";
+import DriftMonitor from "@/pages/DriftMonitor";
+import ConfigLifecycle from "@/pages/ConfigLifecycle";
 const VpnCoexist = lazy(() => import("@/pages/VpnCoexist"));
 import VpnGate from "@/pages/VpnGate";
 import Platforms from "@/pages/Platforms";
@@ -786,6 +791,21 @@ function AppRoutes() {
           </Route>
           <Route path="/dependency-map">
             <CcLayout><DependencyMap /></CcLayout>
+          </Route>
+          <Route path="/node-trust">
+            <AdminLayout><NodeTrustEngine /></AdminLayout>
+          </Route>
+          <Route path="/security-score">
+            <ProtectedLayout><CustomerSecurityDashboard /></ProtectedLayout>
+          </Route>
+          <Route path="/firewall-compiler">
+            <CcLayout><FirewallPolicyCompiler /></CcLayout>
+          </Route>
+          <Route path="/drift-monitor">
+            <CcLayout><DriftMonitor /></CcLayout>
+          </Route>
+          <Route path="/config-lifecycle">
+            <ProtectedLayout><ConfigLifecycle /></ProtectedLayout>
           </Route>
           <Route path="/threat-intel">
             <CcLayout><ThreatIntel /></CcLayout>
