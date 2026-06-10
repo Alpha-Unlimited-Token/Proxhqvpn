@@ -50,9 +50,16 @@ from datetime import datetime, timezone
 
 HONEYPOT_PORT = 8880
 
-_SSL_CTX = ssl.create_default_context()
-_SSL_CTX.check_hostname = False
-_SSL_CTX.verify_mode = ssl.CERT_NONE
+# Use a verified TLS context. For self-signed certs in a private lab only,
+# set PROXHQ_SKIP_TLS_VERIFY=1 — never set this in production.
+import os as _os
+if _os.environ.get("PROXHQ_SKIP_TLS_VERIFY") == "1":
+    _SSL_CTX = ssl.create_default_context()
+    _SSL_CTX.check_hostname = False
+    _SSL_CTX.verify_mode = ssl.CERT_NONE
+    print("[trap] WARNING: TLS verification disabled — do NOT use in production", file=sys.stderr)
+else:
+    _SSL_CTX = ssl.create_default_context()
 
 _BANNERS = {
     "http": (

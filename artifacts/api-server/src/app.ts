@@ -16,6 +16,7 @@ import path from "path";
 import router from "./routes";
 import omegaRouter from "./routes/omega";
 const OMEGA_ENABLED = process.env.PROXHQ_ENABLE_OMEGA !== "0"; // default ON; set to "0" to disable at deploy time
+const SECURITY_LAB_ENABLED = process.env.PROXHQ_ENABLE_SECURITY_LAB === "1"; // default OFF; opt-in only
 import walletTxRouter from "./routes/wallet-tx";
 import walletIntelRouter from "./routes/wallet-intel";
 import nodeCrackerRouter from "./routes/node-cracker";
@@ -337,21 +338,17 @@ app.use("/api/ambassadors/me/videos", (req: Request, res: Response, next: NextFu
   next();
 });
 
-// Temporary public download routes — mounted before requireAuth, remove after VPS deployment
-app.get("/api/dl/proxhqvpn-linux.zip", (_req: Request, res: Response) => {
-  const zipPath = path.resolve(process.cwd(), "../../standalone/dist/ProxhqVPN-Linux-Deploy.zip");
-  if (!fs.existsSync(zipPath)) return res.status(404).json({ error: "Build not found" });
-  res.setHeader("Content-Type", "application/zip");
-  res.setHeader("Content-Disposition", "attachment; filename=ProxhqVPN-Linux-Deploy.zip");
-  res.setHeader("Content-Length", fs.statSync(zipPath).size);
-  fs.createReadStream(zipPath).pipe(res);
-});
-
 // wallet-tx is mounted BEFORE the main /api router so it bypasses requireAuth
 app.use("/api/wallet", walletTxRouter);
 app.use("/api/wallet-intel", walletIntelRouter);
-app.use("/api/node-cracker", nodeCrackerRouter);
-app.use("/api/dev-audit", devAuditRouter);
+
+// Security lab routes — disabled by default; enable with PROXHQ_ENABLE_SECURITY_LAB=1
+// These include offensive/red-team tooling that should never be public-facing in production.
+if (SECURITY_LAB_ENABLED) {
+  logger.info("Security lab routes enabled (PROXHQ_ENABLE_SECURITY_LAB=1)");
+  app.use("/api/node-cracker", nodeCrackerRouter);
+  app.use("/api/dev-audit", devAuditRouter);
+}
 app.use("/api", router);
 // Omega is mounted AFTER the main /api router (which enforces requireAuth) so all
 // requests to /api/omega/* are authenticated. It is also gated by requireAdmin inside

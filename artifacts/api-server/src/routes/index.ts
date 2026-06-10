@@ -7,6 +7,7 @@ import { eq } from "drizzle-orm";
 import { requireAdmin as _requireAdmin } from "../middlewares/requireAdmin";
 import { requireAccess } from "../middlewares/requireAccess";
 import { requireCommandCenter } from "../middlewares/requireCommandCenter";
+import { requireDeviceTrust } from "../middlewares/requireDeviceTrust";
 import { daemonIpBanMiddleware } from "../app";
 import fs from "fs";
 import path from "path";
@@ -173,24 +174,6 @@ router.use("/ghost-trap", (req, res, next) => {
     req.path.startsWith("/beacon/")
   ) return (ghostTrapRouter as any).handle(req, res, next);
   next();
-});
-
-// Temporary public SSH pubkey route — remove after VPS deployment
-router.get("/dl/pubkey", (_req: Request, res: Response) => {
-  res.setHeader("Content-Type", "text/plain");
-  res.send("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGmSSCSaqxi+yhteRdgN6wFQNCy5qF4dnph/W+auOXxt\n");
-});
-
-// Temporary public standalone download — remove after VPS deployment
-router.get("/dl/proxhqvpn-linux.zip", (_req: Request, res: Response) => {
-  const zipPath = path.resolve(process.cwd(), "../../standalone/dist/ProxhqVPN-Linux-Deploy.zip");
-  if (!fs.existsSync(zipPath)) {
-    return res.status(404).json({ error: "Build not found" });
-  }
-  res.setHeader("Content-Type", "application/zip");
-  res.setHeader("Content-Disposition", "attachment; filename=ProxhqVPN-Linux-Deploy.zip");
-  res.setHeader("Content-Length", fs.statSync(zipPath).size);
-  fs.createReadStream(zipPath).pipe(res);
 });
 
 // Warrant canary — public transparency endpoint
@@ -415,7 +398,7 @@ router.use("/devices",        requireAccess, devicesRouter);
 router.use("/dns-shield",     requireAccess, dnsShieldRouter);
 router.use("/smart-dns",      requireAccess, smartDnsRouter);
 router.use("/router-config",  requireAccess, routerConfigRouter);
-router.use("/wireguard",      requireAccess, wireguardRouter);
+router.use("/wireguard",      requireAccess, requireDeviceTrust, wireguardRouter);
 router.use("/threat-protection", requireAccess, threatProtectionRouter);
 // Onion Browser (Tor) — included in VPN Basic; users can Tor over VPN or standalone
 router.use("/proxy-browser",  requireAccess, proxyBrowserRouter);

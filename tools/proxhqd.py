@@ -43,11 +43,18 @@ import urllib.request
 import urllib.error
 from datetime import datetime, timezone
 
-# Replit dev domains use a wildcard cert that Python's default SSL context rejects.
-# Create one unverified context and reuse it for all daemon→API requests.
-_SSL_CTX = ssl.create_default_context()
-_SSL_CTX.check_hostname = False
-_SSL_CTX.verify_mode = ssl.CERT_NONE
+# Use a verified TLS context for all daemon→API requests.
+# If the API is served over a domain with a valid certificate (Replit, Cloudflare, etc.)
+# this works out of the box. For self-signed certs in a private lab only, set
+# PROXHQ_SKIP_TLS_VERIFY=1 — never set this in production.
+_SSL_CTX: ssl.SSLContext
+if os.environ.get("PROXHQ_SKIP_TLS_VERIFY") == "1":
+    _SSL_CTX = ssl.create_default_context()
+    _SSL_CTX.check_hostname = False
+    _SSL_CTX.verify_mode = ssl.CERT_NONE
+    print("[proxhqd] WARNING: TLS verification disabled (PROXHQ_SKIP_TLS_VERIFY=1) — do NOT use in production", file=sys.stderr)
+else:
+    _SSL_CTX = ssl.create_default_context()
 
 
 def run(cmd: list[str]) -> str:
