@@ -473,3 +473,9 @@ id = "GgFcu_kCvz7kAEUe4I8Kb"
 uri = "file://proxhqvpn_source_code.zip"
 type = "unspecified"
 title = "ProxhqVPN — Full Source Code (1,419 files, 8.1 MB)"
+
+[[outputs]]
+id = "oLLeAn3_m_UPCWiGGeZUG"
+uri = "file://proxhqvpn_full_source_audit.zip"
+type = "unspecified"
+title = "ProxhqVPN Full Source Code — AI Audit Package"
