@@ -139,6 +139,8 @@ export default function OnionBrowser() {
   const [isShuffle, setIsShuffle] = useState(false);
   const [customProxyUrl, setCustomProxyUrl] = useState("");
   const [customProxyType, setCustomProxyType] = useState<CustomProxyType>("socks5");
+  const [elapsedMs, setElapsedMs] = useState(0);
+  const [proxyWarning, setProxyWarning] = useState<string | null>(null);
 
   const { data: config } = useGetProxyBrowserConfig({ query: { refetchInterval: 30000 } as any });
   const saveConfig = useSaveProxyBrowserConfig();
@@ -153,6 +155,14 @@ export default function OnionBrowser() {
       if ((config as any).customProxyType !== undefined) setCustomProxyType((config as any).customProxyType);
     }
   }, [config]);
+
+  // Elapsed timer — ticks every 500ms while loading
+  useEffect(() => {
+    if (!isLoading) { setElapsedMs(0); return; }
+    const t0 = Date.now();
+    const id = setInterval(() => setElapsedMs(Date.now() - t0), 500);
+    return () => clearInterval(id);
+  }, [isLoading]);
 
   useEffect(() => {
     const handler = (e: MessageEvent) => {
@@ -218,6 +228,7 @@ export default function OnionBrowser() {
         setCurrentTitle(result.title ?? targetUrl);
         setUrl(result.finalUrl ?? targetUrl);
         setInputUrl(result.finalUrl ?? targetUrl);
+        setProxyWarning((result as any).warning ?? null);
 
         if (!fromHistory) {
           const newEntry: HistoryEntry = {
@@ -630,8 +641,30 @@ export default function OnionBrowser() {
                 ))}
                 <Layers className="w-8 h-8 text-primary relative z-10" />
               </div>
-              <p className="text-primary font-mono text-sm tracking-widest">ROUTING THROUGH {MODE_LABELS[mode].toUpperCase()}...</p>
-              <p className="text-primary/40 font-mono text-xs mt-2">Encrypting and tunneling request</p>
+              <p className="text-primary font-mono text-sm tracking-widest">
+                ROUTING THROUGH {MODE_LABELS[mode].toUpperCase()}...
+              </p>
+              <p className="text-primary/60 font-mono text-base mt-3 tabular-nums">
+                {(elapsedMs / 1000).toFixed(1)}s
+              </p>
+              <p className="text-primary/30 font-mono text-xs mt-1">
+                {url.includes(".onion")
+                  ? "Establishing Tor circuit… .onion sites can take up to 25s"
+                  : elapsedMs > 8000
+                  ? "Taking longer than usual — site may be slow or blocking"
+                  : "Encrypting and tunneling request"}
+              </p>
+              {elapsedMs > 10000 && mode !== "direct" && (
+                <p className="text-yellow-400/60 font-mono text-[11px] mt-3 text-center max-w-xs">
+                  💡 Tip: Switch to <strong className="text-yellow-400">Direct</strong> mode if this keeps timing out
+                </p>
+              )}
+              <button
+                onClick={handleStop}
+                className="mt-5 px-4 py-1.5 text-xs font-mono border border-red-500/40 text-red-400/70 hover:text-red-400 hover:border-red-500/70 rounded transition-colors"
+              >
+                ✕ Cancel
+              </button>
             </div>
           )}
 
@@ -646,6 +679,13 @@ export default function OnionBrowser() {
           )}
         </CardContent>
 
+        {proxyWarning && (
+          <div className="flex items-center gap-2 px-3 py-1.5 border-t border-yellow-500/20 bg-yellow-500/5 text-[11px] font-mono text-yellow-400/80">
+            <span className="shrink-0">⚠</span>
+            <span>{proxyWarning}</span>
+            <button onClick={() => setProxyWarning(null)} className="ml-auto text-yellow-400/40 hover:text-yellow-400/80">✕</button>
+          </div>
+        )}
         <div className="flex items-center justify-between px-3 py-1 border-t border-primary/10 bg-black/60 text-xs font-mono">
           <div className="flex items-center gap-3">
             {mode === "direct" ? (
@@ -660,10 +700,10 @@ export default function OnionBrowser() {
             ) : (
               <span className="flex items-center gap-1 text-purple-400">
                 <Wifi className="w-3 h-3" />
-                {torActive ? `Tor SOCKS5 · ${socks5Host}:${socks5Port}` : "Tor SOCKS5 Active · Server-side"}
+                {torActive ? `Tor SOCKS5 · ${socks5Host}:${socks5Port}` : "Tor SOCKS5 · Server-side (auto-fallback enabled)"}
               </span>
             )}
-            {statusCode !== null && (
+            {statusCode !== null && statusCode > 0 && (
               <span className={statusCode < 400 ? "text-green-500" : "text-red-500"}>
                 HTTP {statusCode}
               </span>
