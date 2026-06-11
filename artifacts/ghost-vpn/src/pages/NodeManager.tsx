@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Network, Plus, RefreshCw, Radio, Activity, Globe, Layers, KeyRound, ShieldCheck, ShieldAlert, ShieldOff } from "lucide-react";
+import { Network, Plus, RefreshCw, Radio, Activity, Globe, Layers, KeyRound, ShieldCheck, ShieldAlert, ShieldOff, Cpu, CheckCircle2, Clock, AlertTriangle, Play } from "lucide-react";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -590,6 +590,8 @@ export default function NodeManager() {
 
           <RamKeyAuditPanel />
 
+          <LifecycleEnginePanel />
+
           <div className="border border-primary/20 bg-black p-3">
             <div className="text-[10px] font-mono uppercase tracking-widest text-primary/50 mb-2">
               Indicator Legend
@@ -615,6 +617,159 @@ export default function NodeManager() {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── Lifecycle Engine Status Panel ─────────────────────────────────────────────
+interface LifecycleStat {
+  engine: { running: boolean; startedAt: string | null; lastDeliveryAt: string | null; lastDecayAt: string | null; lastRotationAt: string | null; lastReaperAt: string | null };
+  stats: { deliveredCommands: number; rotatedNodes: number; purgedSessions: number; honeypotFires: number; errors: number; decayedNodes: number };
+  pendingCommandCount: number;
+  inactiveNodeCount: number;
+  recentPeerCommands: { id: number; nodeId: number; status: string; createdAt: string; appliedAt: string | null }[];
+  recentRotations: { id: number; nodeName: string; rawData: string | null; detectedAt: string }[];
+}
+
+function LifecycleEnginePanel() {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [running, setRunning] = useState(false);
+
+  const { data, isLoading, refetch } = useQuery<LifecycleStat>({
+    queryKey: ["node-lifecycle"],
+    queryFn: () => fetch(`${BASE}/api/nodes/lifecycle`, { credentials: "include" }).then(r => r.json()),
+    refetchInterval: 30000,
+  });
+
+  const handleRunPass = async () => {
+    setRunning(true);
+    try {
+      await fetch(`${BASE}/api/nodes/lifecycle/run`, { method: "POST", credentials: "include" });
+      toast({ title: "Lifecycle Pass Complete", description: "Delivery, decay, and rotation checks executed." });
+      refetch();
+    } catch {
+      toast({ title: "Error", description: "Failed to run lifecycle pass", variant: "destructive" });
+    }
+    setRunning(false);
+  };
+
+  const fmtRelative = (dt: string | null) => {
+    if (!dt) return "—";
+    const diff = Date.now() - new Date(dt).getTime();
+    if (diff < 60000) return `${Math.floor(diff / 1000)}s ago`;
+    if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+    return `${Math.floor(diff / 3600000)}h ago`;
+  };
+
+  return (
+    <div className="border border-primary/20 bg-black p-3 space-y-2">
+      <div className="text-[10px] font-mono uppercase tracking-widest text-primary/50 flex items-center gap-2">
+        <Cpu className="w-3 h-3" />
+        Lifecycle Engine
+        <span className={`ml-auto text-[8px] border px-1.5 py-0.5 rounded ${data?.engine.running ? "border-primary/30 text-primary/70" : "border-red-500/30 text-red-400/70"}`}>
+          {data?.engine.running ? "● RUNNING" : "● STOPPED"}
+        </span>
+      </div>
+
+      {isLoading && <div className="text-[9px] text-primary/30 font-mono">Loading…</div>}
+
+      {data && (
+        <>
+          {/* Engine run timestamps */}
+          <div className="space-y-1 border-t border-primary/10 pt-2">
+            {([
+              ["DELIVERY", data.engine.lastDeliveryAt, data.stats.deliveredCommands, "cmds applied"],
+              ["DECAY",    data.engine.lastDecayAt,    data.stats.decayedNodes,      "nodes decayed"],
+              ["ROTATION", data.engine.lastRotationAt, data.stats.rotatedNodes,      "nodes rotated"],
+              ["REAPER",   data.engine.lastReaperAt,   data.stats.purgedSessions,    "sessions purged"],
+            ] as [string, string | null, number, string][]).map(([label, ts, count, unit]) => (
+              <div key={label} className="flex items-center justify-between text-[9px] font-mono">
+                <span className="text-primary/30 w-20">{label}</span>
+                <span className="text-primary/50 flex-1">{fmtRelative(ts)}</span>
+                <span className="text-primary/60 font-bold">{count}</span>
+                <span className="text-primary/25 ml-1">{unit}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Live counts */}
+          <div className="flex gap-3 border-t border-primary/10 pt-2">
+            <div className="flex-1 border border-yellow-500/20 rounded px-2 py-1.5 text-center">
+              <div className={`text-sm font-bold font-mono ${data.pendingCommandCount > 0 ? "text-yellow-400" : "text-primary/40"}`}>
+                {data.pendingCommandCount}
+              </div>
+              <div className="text-[8px] text-primary/30 uppercase">Pending Cmds</div>
+            </div>
+            <div className="flex-1 border border-orange-500/20 rounded px-2 py-1.5 text-center">
+              <div className={`text-sm font-bold font-mono ${data.inactiveNodeCount > 0 ? "text-orange-400" : "text-primary/40"}`}>
+                {data.inactiveNodeCount}
+              </div>
+              <div className="text-[8px] text-primary/30 uppercase">Inactive Nodes</div>
+            </div>
+            <div className="flex-1 border border-red-500/20 rounded px-2 py-1.5 text-center">
+              <div className={`text-sm font-bold font-mono ${data.stats.honeypotFires > 0 ? "text-red-400" : "text-primary/40"}`}>
+                {data.stats.honeypotFires}
+              </div>
+              <div className="text-[8px] text-primary/30 uppercase">Honeypot Fires</div>
+            </div>
+          </div>
+
+          {/* Activity log — peer commands */}
+          {data.recentPeerCommands.length > 0 && (
+            <div className="border-t border-primary/10 pt-2">
+              <div className="text-[9px] text-primary/30 uppercase font-mono mb-1.5 flex items-center gap-1">
+                <Clock className="w-2.5 h-2.5" /> Peer Command Log
+              </div>
+              <div className="space-y-1 max-h-36 overflow-y-auto">
+                {data.recentPeerCommands.slice(0, 10).map(cmd => (
+                  <div key={cmd.id} className="flex items-center gap-2 text-[8px] font-mono">
+                    {cmd.status === "applied" && <CheckCircle2 className="w-2.5 h-2.5 text-primary/70 shrink-0" />}
+                    {cmd.status === "pending" && <Clock className="w-2.5 h-2.5 text-yellow-400/70 shrink-0" />}
+                    {cmd.status === "failed"  && <AlertTriangle className="w-2.5 h-2.5 text-red-400/70 shrink-0" />}
+                    <span className={`w-12 shrink-0 uppercase ${cmd.status === "applied" ? "text-primary/70" : cmd.status === "pending" ? "text-yellow-400" : "text-red-400"}`}>
+                      {cmd.status}
+                    </span>
+                    <span className="text-primary/30">node:{cmd.nodeId}</span>
+                    <span className="text-primary/20 ml-auto">{fmtRelative(cmd.appliedAt ?? cmd.createdAt)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Recent auto-rotations */}
+          {data.recentRotations.length > 0 && (
+            <div className="border-t border-primary/10 pt-2">
+              <div className="text-[9px] text-primary/30 uppercase font-mono mb-1.5 flex items-center gap-1">
+                <RefreshCw className="w-2.5 h-2.5" /> Auto-Rotations
+              </div>
+              <div className="space-y-1 max-h-24 overflow-y-auto">
+                {data.recentRotations.slice(0, 5).map(r => {
+                  let parsed: any = {};
+                  try { parsed = JSON.parse(r.rawData ?? "{}"); } catch {}
+                  return (
+                    <div key={r.id} className="text-[8px] font-mono text-primary/40">
+                      <span className="text-red-400/60 line-through">{r.nodeName}</span>
+                      {parsed.newName && <> → <span className="text-primary/70">{parsed.newName}</span></>}
+                      <span className="text-primary/20 ml-1">· {fmtRelative(r.detectedAt)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Manual trigger */}
+          <div className="border-t border-primary/10 pt-2">
+            <button onClick={handleRunPass} disabled={running}
+              className="w-full flex items-center justify-center gap-1.5 text-[9px] font-mono uppercase border border-primary/20 py-1.5 text-primary/50 hover:text-primary hover:border-primary/40 transition-colors disabled:opacity-40">
+              {running ? <RefreshCw className="w-2.5 h-2.5 animate-spin" /> : <Play className="w-2.5 h-2.5" />}
+              {running ? "Running…" : "Run Lifecycle Pass"}
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

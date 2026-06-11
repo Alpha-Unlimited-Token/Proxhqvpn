@@ -9,7 +9,7 @@ import { join } from "path";
 import { z } from "zod";
 import { db } from "@workspace/db";
 import { vpngateNodeSessionsTable, nodesTable } from "@workspace/db";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and, lt } from "drizzle-orm";
 
 const router = Router();
 
@@ -461,6 +461,35 @@ router.post("/connect", async (req, res) => {
 });
 
 // ── Node-level double-hop management ──────────────────────────────────────────
+
+// DELETE /api/vpngate/sessions/cleanup — purge stale error/disconnected sessions
+// Optional ?olderThanMin=N (default 30). Returns count of rows deleted.
+router.delete("/sessions/cleanup", async (req, res) => {
+  const olderThanMin = Math.max(1, Math.min(1440, parseInt(String(req.query.olderThanMin ?? "30")) || 30));
+  const cutoff = new Date(Date.now() - olderThanMin * 60_000);
+
+  const purged = await db
+    .delete(vpngateNodeSessionsTable)
+    .where(
+      and(
+        eq(vpngateNodeSessionsTable.status, "error"),
+        lt(vpngateNodeSessionsTable.updatedAt, cutoff),
+      ),
+    )
+    .returning({ id: vpngateNodeSessionsTable.id });
+
+  return res.json({ ok: true, purgedCount: purged.length, olderThanMin, cutoff });
+});
+
+// DELETE /api/vpngate/sessions/all-errors — immediately clear ALL error sessions (no TTL)
+router.delete("/sessions/all-errors", async (_req, res) => {
+  const purged = await db
+    .delete(vpngateNodeSessionsTable)
+    .where(eq(vpngateNodeSessionsTable.status, "error"))
+    .returning({ id: vpngateNodeSessionsTable.id });
+
+  return res.json({ ok: true, purgedCount: purged.length });
+});
 
 // GET /api/vpngate/node-sessions — list all active VPN Gate sessions across nodes
 router.get("/node-sessions", async (_req, res) => {

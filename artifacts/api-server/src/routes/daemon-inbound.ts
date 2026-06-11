@@ -301,6 +301,39 @@ router.post("/beacon", async (req, res) => {
     detectedAt: new Date(),
   }).returning();
 
+  // ── Honeypot auto-trigger ──────────────────────────────────────────────────
+  // When the targeted node has hasBeacon=true AND the probe is high/critical severity,
+  // automatically fire the full honeypot trap sequence — same treatment as a direct
+  // honeypot-hit, so the attacker gets the email alert + trapped in the silkweb.
+  if (node.hasBeacon && (severity === "high" || severity === "critical")) {
+    const honeypotFp = `HONEYPOT:beacon-probe|NODE:${node.name}|IP:${body.attackerIp}|PROBE:${body.probeType}|TS:${Date.now()}`;
+    const alreadyTrapped = await db
+      .select({ id: trappedAttackersTable.id })
+      .from(trappedAttackersTable)
+      .where(sql`ip = ${body.attackerIp}`)
+      .limit(1);
+
+    if (alreadyTrapped.length === 0) {
+      await db.insert(trappedAttackersTable).values({
+        ip:           body.attackerIp,
+        fingerprint:  honeypotFp,
+        entryNodeId:  body.nodeId,
+        loopCount:    0,
+        dataCollected: JSON.stringify({
+          honeypotTrigger:  "beacon_probe",
+          probeType:        body.probeType,
+          severity,
+          nodeRegion:       node.region,
+          raw:              body.raw?.substring(0, 500),
+        }),
+        honeypotPort:   node.listenPort,
+        probeType:      "honeypot_connect",
+        sqlmapStatus:   "idle",
+      }).catch(() => {});
+      logger.info({ ip: body.attackerIp, node: node.name, probe: body.probeType }, "[Honeypot] Auto-trapped via beacon probe on hasBeacon node");
+    }
+  }
+
   // Email alert for high/critical probes (rate-limited to 1 per IP per hour)
   if ((severity === "high" || severity === "critical") && shouldSendAlert(body.attackerIp)) {
     const to = adminEmails();

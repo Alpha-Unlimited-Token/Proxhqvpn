@@ -13,6 +13,7 @@ import { db } from "@workspace/db";
 import { vpngateNodeSessionsTable, batchScanJobsTable } from "@workspace/db";
 import { eq, and, lt, sql, inArray, notInArray } from "drizzle-orm";
 import { startBatchWorker, createBatchJob } from "./lib/scheme-auditor/batch-worker";
+import { startNodeLifecycleEngine } from "./lib/node-lifecycle-engine";
 
 /** Normalize DATABASE_URL sslmode to suppress pg-connection-string deprecation warnings.
  *  Only applied in the deployed environment where the managed Postgres supports TLS.
@@ -187,6 +188,9 @@ seedStripeProducts().catch((err) => logger.warn({ err }, "Stripe product seed fa
 
 // ── Autonomous Batch Worker ───────────────────────────────────────────────────
 startBatchWorker();
+
+// ── Node Lifecycle Engine — delivery scheduler + decay + rotation + VPNGate reaper
+startNodeLifecycleEngine();
 
 // ── Pre-load sillytuna attacker files (idempotent — skips if already active) ──
 async function preloadAttackerFiles() {

@@ -951,6 +951,20 @@ function NodeDoubleHopPanel() {
           <Layers className="w-3 h-3 text-cyan-400" />
           Node Double-Hop
           {sessionsFetching && <Loader className="w-2.5 h-2.5 animate-spin ml-auto text-primary/30" />}
+          {/* Clear all error sessions button */}
+          {sessions.some(s => s.status === "error") && (
+            <button
+              onClick={async () => {
+                await fetch(`${BASE}/api/vpngate/sessions/all-errors`, { method: "DELETE", credentials: "include" });
+                qc.invalidateQueries({ queryKey: ["node-vpngate-sessions"] });
+                toast({ title: "Error Sessions Cleared", description: "All stale error sessions removed." });
+              }}
+              className="ml-auto text-[8px] border border-red-500/30 text-red-400/60 px-2 py-0.5 hover:border-red-500/60 hover:text-red-400 transition-colors font-mono uppercase rounded"
+              title="Clear all error sessions immediately"
+            >
+              Clear Errors ({sessions.filter(s => s.status === "error").length})
+            </button>
+          )}
         </div>
 
         <div className="text-[9px] font-mono text-primary/30 leading-relaxed">

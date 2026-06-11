@@ -2,7 +2,16 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { nodesTable, beaconAlertsTable } from "@workspace/db";
-import { eq, gte, sql } from "drizzle-orm";
+import { eq, gte, sql, lt, and } from "drizzle-orm";
+import { wgPeerCommandsTable } from "@workspace/db";
+import {
+  getLifecycleStats,
+  getPendingCommandCount,
+  getInactiveNodeCount,
+  runDeliveryScheduler,
+  runNodeDecayDetector,
+  runNodeRotationEngine,
+} from "../lib/node-lifecycle-engine";
 import { z } from "zod";
 import crypto from "crypto";
 import { exec } from "child_process";
@@ -338,6 +347,85 @@ router.post("/:id/rotate-wg-key", async (req, res) => {
     nodeName: updated.name,
     newPublicKey: updated.publicKey,
     note: "New key stored. Run `systemctl restart proxhq-wg-init` on the node to activate.",
+  });
+});
+
+// ── Node Lifecycle Status ────────────────────────────────────────────────────
+// GET /api/nodes/lifecycle — engine stats + pending/inactive counts + recent rotations
+
+router.get("/lifecycle", async (_req, res) => {
+  const [
+    lifecycleStats,
+    pendingCount,
+    inactiveCount,
+    pendingCmds,
+    recentRotations,
+  ] = await Promise.all([
+    Promise.resolve(getLifecycleStats()),
+    getPendingCommandCount(),
+    getInactiveNodeCount(),
+    db.select({
+      id:             wgPeerCommandsTable.id,
+      configId:       wgPeerCommandsTable.configId,
+      nodeId:         wgPeerCommandsTable.nodeId,
+      userId:         wgPeerCommandsTable.userId,
+      status:         wgPeerCommandsTable.status,
+      createdAt:      wgPeerCommandsTable.createdAt,
+      appliedAt:      wgPeerCommandsTable.appliedAt,
+      errorMessage:   wgPeerCommandsTable.errorMessage,
+    })
+      .from(wgPeerCommandsTable)
+      .orderBy(sql`created_at DESC`)
+      .limit(50),
+    db.select({
+      id:        beaconAlertsTable.id,
+      nodeName:  beaconAlertsTable.nodeName,
+      rawData:   beaconAlertsTable.rawData,
+      detectedAt:beaconAlertsTable.detectedAt,
+    })
+      .from(beaconAlertsTable)
+      .where(
+        and(
+          sql`attacker_ip = '0.0.0.0'`,
+          sql`probe_type = 'ping'`,
+          sql`raw_data LIKE '%lifecycle_rotation%'`,
+        ),
+      )
+      .orderBy(sql`detected_at DESC`)
+      .limit(20),
+  ]);
+
+  return res.json({
+    engine: {
+      running:       true,
+      startedAt:     lifecycleStats.engineStartedAt,
+      lastDeliveryAt:lifecycleStats.lastDeliveryAt,
+      lastDecayAt:   lifecycleStats.lastDecayAt,
+      lastRotationAt:lifecycleStats.lastRotationAt,
+      lastReaperAt:  lifecycleStats.lastReaperAt,
+    },
+    stats:        lifecycleStats,
+    pendingCommandCount:  pendingCount,
+    inactiveNodeCount:    inactiveCount,
+    recentPeerCommands:   pendingCmds,
+    recentRotations,
+  });
+});
+
+// POST /api/nodes/lifecycle/run — manually trigger a lifecycle pass (admin)
+router.post("/lifecycle/run", async (_req, res) => {
+  const [decay, delivery, rotation] = await Promise.allSettled([
+    runDeliveryScheduler(),
+    runNodeDecayDetector(),
+    runNodeRotationEngine(),
+  ]);
+
+  return res.json({
+    ok: true,
+    delivery: decay.status,
+    decay:    delivery.status,
+    rotation: rotation.status,
+    stats:    getLifecycleStats(),
   });
 });
 
