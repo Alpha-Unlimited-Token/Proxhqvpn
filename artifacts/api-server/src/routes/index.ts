@@ -115,6 +115,7 @@ import securityScoreRouter from "./security-score";
 import driftMonitorRouter from "./drift-monitor";
 import governanceRouter from "./governance";
 import eventGraphRouter from "./event-graph";
+import attackIntelRouter from "./attackintel";
 
 const router: IRouter = Router();
 
@@ -505,6 +506,9 @@ router.get("/config-lifecycle-events", requireAccess, async (req: Request, res: 
   const events = await getConfigLifecycleHistory(userId, 100);
   res.json({ events });
 });
+
+// ── Attack Intelligence — available to all authenticated users ────────────
+router.use("/attack-intel",   requireAccess, attackIntelRouter);
 
 router.use("/admin/users",    requireAdmin, adminUsersRouter);
 router.use("/employees",      requireAdmin, employeesRouter);

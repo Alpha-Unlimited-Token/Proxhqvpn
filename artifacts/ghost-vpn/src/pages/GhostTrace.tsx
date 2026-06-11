@@ -8,8 +8,9 @@ import {
   Activity, AlertTriangle, Shield, ShieldOff, Wifi, WifiOff,
   Eye, Clock, TrendingUp, TrendingDown, Ban, CheckCircle,
   ChevronRight, Cpu, Smartphone, Monitor, RefreshCw,
-  Radio, Radar, ZapOff, Database, Globe,
+  Radio, Radar, ZapOff, Database, Globe, TerminalSquare,
 } from "lucide-react";
+import { AttackerIntelDrawer } from "@/components/AttackerIntelPanel";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -145,7 +146,7 @@ function TrafficHeatmap({ data }: { data: TimelinePoint[] }) {
   );
 }
 
-function AnomalyCard({ anomaly, onResolve, onBlock }: { anomaly: Anomaly; onResolve: (id: number) => void; onBlock: (ip: string) => void }) {
+function AnomalyCard({ anomaly, onResolve, onBlock, onIntel }: { anomaly: Anomaly; onResolve: (id: number) => void; onBlock: (ip: string) => void; onIntel: (ip: string) => void }) {
   const [expanded, setExpanded] = useState(false);
   const details = anomaly.anomalyDetails ? (() => { try { return JSON.parse(anomaly.anomalyDetails!); } catch { return null; } })() : null;
 
@@ -216,14 +217,22 @@ function AnomalyCard({ anomaly, onResolve, onBlock }: { anomaly: Anomaly; onReso
         </div>
       )}
 
-      <div className="flex gap-2 pt-1">
+      <div className="flex gap-2 pt-1 flex-wrap">
         {details?.destinationIp && (
-          <button
-            onClick={() => onBlock(details.destinationIp)}
-            className="flex items-center gap-1 text-[10px] border border-current/30 px-2 py-1 rounded hover:bg-current/10 transition-colors"
-          >
-            <Ban className="w-3 h-3" />Block Destination
-          </button>
+          <>
+            <button
+              onClick={() => onIntel(details.destinationIp)}
+              className="flex items-center gap-1 text-[10px] border border-red-500/30 text-red-400/80 px-2 py-1 rounded hover:bg-red-500/10 hover:border-red-500 transition-colors"
+            >
+              <TerminalSquare className="w-3 h-3" />Attacker Intel
+            </button>
+            <button
+              onClick={() => onBlock(details.destinationIp)}
+              className="flex items-center gap-1 text-[10px] border border-current/30 px-2 py-1 rounded hover:bg-current/10 transition-colors"
+            >
+              <Ban className="w-3 h-3" />Block Destination
+            </button>
+          </>
         )}
         <button
           onClick={() => onResolve(anomaly.id)}
@@ -240,6 +249,7 @@ export default function GhostTrace() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [intelIp, setIntelIp] = useState<string | null>(null);
 
   const { data: devices = [], isLoading: loadingDevices, refetch: refetchDevices } = useQuery<Device[]>({
     queryKey: ["ghost-trace-devices"],
@@ -512,6 +522,7 @@ export default function GhostTrace() {
                           anomaly={anomaly}
                           onResolve={id => resolveMut.mutate(id)}
                           onBlock={ip => blockMut.mutate({ ip, key: selectedDevice.peerPublicKey })}
+                          onIntel={ip => setIntelIp(ip)}
                         />
                       ))
                     }
@@ -571,6 +582,9 @@ export default function GhostTrace() {
           ))}
         </div>
       </div>
+
+      {/* Attacker Intel Drawer */}
+      <AttackerIntelDrawer ip={intelIp} onClose={() => setIntelIp(null)} />
     </div>
   );
 }

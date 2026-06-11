@@ -5,8 +5,9 @@ import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import {
   Database, AlertTriangle, Shield, Activity, Clock,
-  RefreshCw, Search, ChevronRight, Atom,
+  RefreshCw, Search, ChevronRight, Atom, TerminalSquare,
 } from "lucide-react";
+import { AttackerIntelDrawer } from "@/components/AttackerIntelPanel";
 
 const QA_BASE = import.meta.env.BASE_URL?.replace(/\/ghost-vpn\/?$/, "") ?? "";
 
@@ -63,11 +64,22 @@ function timeAgo(ts: string) {
   return "just now";
 }
 
+function extractIpFromMetadata(metadata?: Record<string, unknown>): string | null {
+  if (!metadata) return null;
+  const ipRe = /^(\d{1,3}\.){3}\d{1,3}$/;
+  for (const key of ["ip","attackerIp","srcIp","sourceIp","address","destIp","destinationIp","clientIp"]) {
+    const v = metadata[key];
+    if (typeof v === "string" && ipRe.test(v)) return v;
+  }
+  return null;
+}
+
 export default function Siem() {
   const [sevFilter, setSevFilter] = usePersistedState<string>("siem-sev", "all");
   const [sourceFilter, setSourceFilter] = usePersistedState<string>("siem-source", "all");
   const [search, setSearch] = usePersistedState<string>("siem-search", "");
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [intelIp, setIntelIp] = useState<string | null>(null);
   const [qaEvents, setQaEvents] = useState<SiemEvent[]>([]);
 
   useEffect(() => {
@@ -276,11 +288,22 @@ export default function Siem() {
                 </div>
               </div>
               {expanded === event.id && event.metadata && (
-                <div className="border-t border-current/20 px-3 py-2 bg-black/20">
+                <div className="border-t border-current/20 px-3 py-2 bg-black/20 space-y-2">
                   <pre className="text-[10px] text-current/50 whitespace-pre-wrap">{JSON.stringify(event.metadata, null, 2)}</pre>
-                  <div className="text-[10px] text-current/30 mt-1">
-                    <Clock className="w-3 h-3 inline mr-1" />
-                    {new Date(event.timestamp).toLocaleString()}
+                  <div className="flex items-center gap-3">
+                    <div className="text-[10px] text-current/30">
+                      <Clock className="w-3 h-3 inline mr-1" />
+                      {new Date(event.timestamp).toLocaleString()}
+                    </div>
+                    {extractIpFromMetadata(event.metadata) && (
+                      <button
+                        onClick={() => setIntelIp(extractIpFromMetadata(event.metadata!))}
+                        className="flex items-center gap-1 text-[10px] border border-red-500/30 text-red-400/70 px-2 py-0.5 rounded hover:border-red-500 hover:text-red-400 transition-colors"
+                      >
+                        <TerminalSquare className="w-3 h-3" />
+                        Attacker Intel — {extractIpFromMetadata(event.metadata)}
+                      </button>
+                    )}
                   </div>
                 </div>
               )}
@@ -288,6 +311,9 @@ export default function Siem() {
           ))
         )}
       </div>
+
+      {/* Attacker Intel Drawer */}
+      <AttackerIntelDrawer ip={intelIp} onClose={() => setIntelIp(null)} />
     </div>
   );
 }

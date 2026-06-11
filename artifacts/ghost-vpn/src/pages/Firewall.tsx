@@ -1,6 +1,7 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 // GhostOS™ Firewall — ProxhqVPN Next-Generation Firewall System
 import React, { useState, useRef, useEffect, useCallback } from "react";
+import { AttackerIntelPanel as AttackerIntelPanelFw } from "@/components/AttackerIntelPanel";
 import { useLocation } from "wouter";
 import {
   Shield, Terminal, AlertTriangle, Globe2, Rss, Layers, Link2,
@@ -993,6 +994,7 @@ function BlacklistTab() {
   const { data, refetch } = useListBlockedIps();
   const block = useBlockIp(); const unblock = useUnblockIp();
   const [form, setForm] = useState({ ip:"", reason:"", exp:"" });
+  const [intelIp, setIntelIp] = useState<string|null>(null);
   return (
     <div style={{ display:"grid", gridTemplateColumns:"1fr 260px", gap:16 }}>
       <div style={{ background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:8, overflow:"auto", maxHeight:560 }}>
@@ -1001,7 +1003,12 @@ function BlacklistTab() {
           <thead><tr style={{ borderBottom:"1px solid #111" }}>{["IP","Reason","Auto","Hits","Blocked At",""].map(h=><th key={h} style={{ padding:"8px 12px", textAlign:"left", color:"#444", fontSize:10, textTransform:"uppercase" }}>{h}</th>)}</tr></thead>
           <tbody>{(data?.blockedIps??[]).map(b=>(
             <tr key={b.id} style={{ borderBottom:"1px solid #0d0d0d" }}>
-              <td style={{ padding:"7px 12px", fontFamily:"monospace", color:"#ff4444" }}>{b.ip}</td>
+              <td style={{ padding:"7px 12px", fontFamily:"monospace" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                  <span style={{ color:"#ff4444" }}>{b.ip}</span>
+                  <button onClick={()=>setIntelIp(b.ip)} title="Attacker Intel — CVEs, exploits, port scan, SQLmap" style={{ background:"#ff222211", border:"1px solid #ff222233", color:"#ff4444", borderRadius:3, padding:"1px 6px", cursor:"pointer", fontSize:8, fontFamily:"monospace", letterSpacing:1 }}>INTEL</button>
+                </div>
+              </td>
               <td style={{ padding:"7px 12px", color:"#666", maxWidth:220, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{b.reason}</td>
               <td style={{ padding:"7px 12px" }}>{b.autoBlocked?<Bdg label="Auto" color="#ffaa00" sm/>:<Bdg label="Manual" color="#555" sm/>}</td>
               <td style={{ padding:"7px 12px", fontFamily:"monospace", color:"#ff9900" }}>{b.hitCount}</td>
@@ -1010,6 +1017,14 @@ function BlacklistTab() {
             </tr>
           ))}</tbody>
         </table>
+        {intelIp && (
+          <div style={{ position:"fixed", inset:0, zIndex:9999, display:"flex" }}>
+            <div style={{ flex:1 }} onClick={()=>setIntelIp(null)} />
+            <div style={{ width:540, borderLeft:"1px solid #ff222244", background:"#000", display:"flex", flexDirection:"column", boxShadow:"-8px 0 40px rgba(255,34,68,0.1)" }}>
+              <AttackerIntelPanelFw ip={intelIp} onClose={()=>setIntelIp(null)} />
+            </div>
+          </div>
+        )}
       </div>
       <div style={{ background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:8, padding:14, display:"flex", flexDirection:"column", gap:10, alignSelf:"start" }}>
         <div style={{ fontSize:10, color:"#444", textTransform:"uppercase" }}>Block IP</div>

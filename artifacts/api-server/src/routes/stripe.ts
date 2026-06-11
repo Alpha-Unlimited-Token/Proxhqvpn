@@ -4,6 +4,7 @@ import { getAuth, clerkClient } from "@clerk/express";
 import { getUncachableStripeClient, getStripePublishableKey, getStripeSync } from "../stripeClient";
 import { stripeStorage } from "../stripeStorage";
 import { isEmployeeEmail } from "./employees";
+import { requireAdmin } from "../middlewares/requireAdmin";
 import { z } from "zod";
 
 const router = Router();
@@ -171,6 +172,101 @@ router.post("/portal", async (req, res) => {
   });
 
   res.json({ url: portal.url });
+});
+
+// ── ADMIN: List & cancel used/active trial subscriptions ────────────────────
+// "Used" = subscription exists in Stripe with status=trialing that has a
+// trial_start date (meaning it was actually started, not just created).
+// Security: only ADMIN_EMAILS can call this.
+router.get("/admin/trials", requireAdmin, async (_req, res) => {
+  try {
+    const stripe = await getUncachableStripeClient();
+    const subscriptions: any[] = [];
+    let startingAfter: string | undefined;
+    // Page through all trialing subscriptions
+    while (true) {
+      const page = await stripe.subscriptions.list({
+        status: "trialing",
+        limit: 100,
+        ...(startingAfter ? { starting_after: startingAfter } : {}),
+      });
+      subscriptions.push(...page.data);
+      if (!page.has_more) break;
+      startingAfter = page.data[page.data.length - 1].id;
+    }
+    const used = subscriptions.filter(s => s.trial_start !== null);
+    res.json({
+      total: subscriptions.length,
+      used: used.length,
+      unused: subscriptions.length - used.length,
+      subscriptions: used.map(s => ({
+        id: s.id,
+        customerId: s.customer,
+        status: s.status,
+        trialStart: s.trial_start ? new Date(s.trial_start * 1000).toISOString() : null,
+        trialEnd:   s.trial_end   ? new Date(s.trial_end   * 1000).toISOString() : null,
+        createdAt:  new Date(s.created * 1000).toISOString(),
+      })),
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post("/admin/cancel-trials", requireAdmin, async (req, res) => {
+  const body = z.object({
+    dryRun: z.boolean().default(false),
+    reason: z.string().default("Security: trial abuse detected — cancelled by admin"),
+  }).safeParse(req.body);
+  if (!body.success) return res.status(400).json({ error: body.error.flatten() });
+
+  try {
+    const stripe = await getUncachableStripeClient();
+    const subscriptions: any[] = [];
+    let startingAfter: string | undefined;
+    while (true) {
+      const page = await stripe.subscriptions.list({
+        status: "trialing",
+        limit: 100,
+        ...(startingAfter ? { starting_after: startingAfter } : {}),
+      });
+      subscriptions.push(...page.data);
+      if (!page.has_more) break;
+      startingAfter = page.data[page.data.length - 1].id;
+    }
+
+    // Only cancel subscriptions that have ACTUALLY STARTED (trial_start is set)
+    // This protects subscriptions that were created but never activated
+    const toCancel = subscriptions.filter(s => s.trial_start !== null);
+
+    if (body.data.dryRun) {
+      return res.json({
+        dryRun: true,
+        wouldCancel: toCancel.length,
+        subscriptions: toCancel.map(s => ({ id: s.id, customerId: s.customer, trialStart: s.trial_start })),
+      });
+    }
+
+    const results: { id: string; cancelled: boolean; error?: string }[] = [];
+    for (const sub of toCancel) {
+      try {
+        await stripe.subscriptions.cancel(sub.id, { cancellation_details: { comment: body.data.reason } });
+        results.push({ id: sub.id, cancelled: true });
+      } catch (e: any) {
+        results.push({ id: sub.id, cancelled: false, error: e.message });
+      }
+    }
+
+    const succeeded = results.filter(r => r.cancelled).length;
+    res.json({
+      cancelled: succeeded,
+      failed: results.length - succeeded,
+      total: results.length,
+      results,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 export default router;

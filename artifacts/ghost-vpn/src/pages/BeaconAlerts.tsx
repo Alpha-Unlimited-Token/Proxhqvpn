@@ -1,5 +1,6 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { useState, useRef, useEffect } from "react";
+import { AttackerIntelPanel as AttackerIntelPanelShared } from "@/components/AttackerIntelPanel";
 import { useListBeaconAlerts, useDismissBeaconAlert, useTriggerBeacon, useListNodes, getListBeaconAlertsQueryKey } from "@workspace/api-client-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -137,7 +138,7 @@ type AlertRow = {
   rawParsed?: Record<string, unknown>;
 };
 
-type PanelTab = "portscan" | "sqlmap";
+type PanelTab = "portscan" | "sqlmap" | "exploit";
 
 // ── IP action dropdown ────────────────────────────────────────────────────────
 function IpActionDropdown({
@@ -171,6 +172,13 @@ function IpActionDropdown({
   };
 
   const actions = [
+    {
+      icon: <Atom className="w-3.5 h-3.5" />,
+      label: "Exploit Intel (CVEs + Hacktricks)",
+      sub: "Port probe → open services → CVEs → exploit links",
+      color: "text-red-400",
+      onClick: () => { onOpenPanel(alert.attackerIp, "exploit"); setOpen(false); },
+    },
     {
       icon: <Search className="w-3.5 h-3.5" />,
       label: "Port Scan (nmap)",
@@ -990,12 +998,12 @@ export default function BeaconAlerts() {
           </div>
         </div>
 
-        {/* Slide-in command panel */}
+        {/* Slide-in command panel — uses shared AttackerIntelPanel (Port Scan + SQLmap + Exploit Intel) */}
         {panelIp && (
           <div className="lg:flex-1 border border-yellow-500/30 rounded bg-black flex flex-col min-h-0 overflow-hidden">
-            <IpCommandPanel
+            <AttackerIntelPanelShared
               ip={panelIp}
-              initialTab={panelTab}
+              initialTab={panelTab === "exploit" ? "exploit" : panelTab === "sqlmap" ? "sqlmap" : "portscan"}
               onClose={() => setPanelIp(null)}
             />
           </div>
