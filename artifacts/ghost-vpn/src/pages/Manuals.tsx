@@ -1660,14 +1660,14 @@ Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
   {
     id: "siem-manual",
     title: "SIEM — Security Event Log",
-    subtitle: "Unified event aggregation, correlation, and incident response",
-    version: "2.2",
-    pages: 14,
+    subtitle: "Unified event aggregation, correlation, external fanout & incident response",
+    version: "2.3",
+    pages: 18,
     icon: Database,
     iconColor: "text-emerald-400",
     tier: "pro",
     content: `SIEM Security Event Log — User Manual
-Version 2.2 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+Version 2.3 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
 Command Center Pro Feature
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1676,82 +1676,239 @@ TABLE OF CONTENTS
 
 1. Overview
 2. Event Sources
-3. Filtering & Searching
-4. Severity Levels
-5. Alert Correlation
-6. Export & Reporting
+3. SIEM Fanout Architecture (Splunk / Webhook)
+4. Filtering & Searching
+5. Severity Levels
+6. Alert Correlation
+7. Node Lifecycle & Auto-Trap Events
+8. RBAC Denial Events
+9. ZTNA Posture Events
+10. Export & Reporting
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 1. OVERVIEW
 
-  The SIEM (Security Information and Event Management) dashboard
-  aggregates security events from all ProxhqVPN systems into a
-  single, searchable, real-time event log.
+The SIEM (Security Information and Event Management) dashboard
+aggregates security events from all ProxhqVPN systems into a
+single, searchable, real-time event log.
+
+Navigate to: Admin → SIEM (/siem)
+
+In addition to the in-app dashboard, all events fan out in real time
+to external SIEM systems — Splunk HEC and any generic webhook
+(Elastic, Datadog, PagerDuty, etc.) — see Section 3.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 2. EVENT SOURCES
 
-  WireGuard Events:
+WireGuard Events:
   • Peer connections and disconnections
   • New device handshakes
-  • Key rotation events
+  • Key rotation events (including daemon key delivery)
+  • WireGuard config generation
 
-  SilkWeb Honeypot Events:
+SilkWeb Honeypot Events:
   • Decoy service probe attempts
   • Scanner fingerprints
   • Credential stuffing attempts
+  • Auto-trap fires from Node Lifecycle Engine (see §7)
 
-  Firewall Events:
+Firewall Events:
   • Blocked connection attempts
   • Port scan detections
   • GeoIP-based blocks
+  • ATR (Auto Threat Response) bans
 
-  DNS Sinkhole Events:
+DNS Sinkhole Events:
   • Malware domain resolution attempts
   • Tracker block counts
   • C2 beacon detections
 
-  Authentication Events:
+Authentication Events:
   • Failed login attempts
   • Successful authentications
   • Session anomalies
 
-  Canary Token Events:
+Canary Token Events:
   • Token trigger alerts
   • Forensic data from each alert
 
-3. FILTERING & SEARCHING
+ZTNA Posture Events:
+  • Every device posture check (allow + deny)
+  • Posture denials visible in GhostTrace stream (see §9)
 
-  Filter by:
-  • Event source (WireGuard / Honeypot / Firewall / DNS / Auth / Canary)
+RBAC Events:
+  • Every permission denial (action, role, user, resource) — see §8
+
+Node Lifecycle Engine Events:
+  • Auto-node rotations (old node → new node identity)
+  • Node decay (heartbeat timeout)
+  • Honeypot auto-trap fires from node rotation
+  • VPN Gate session reaper purges (see §7)
+
+Beacon Monitor Events:
+  • Spider/worm/beacon probe detection
+  • Multi-source beacon correlation
+
+GhostTrace Events:
+  • C2 beaconing behaviour analysis
+  • Exfiltration anomaly scoring
+
+GhostChain Events:
+  • Kill chain stage completions
+  • Kill chain severity escalations
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3. SIEM FANOUT ARCHITECTURE
+
+Every shipSecurityEvent() call fans out to three destinations
+simultaneously via lib/siem.ts:
+
+  ┌──────────────────────┐
+  │  shipSecurityEvent() │
+  └──────┬───────────────┘
+         │
+         ├──▶ 1. Local pino log (structured JSON)
+         │       Always fires first. Guaranteed delivery.
+         │       Format: { actor, action, resource, result,
+         │                 severity, metadata, timestamp }
+         │
+         ├──▶ 2. Splunk HEC (if SPLUNK_HEC_URL + SPLUNK_HEC_TOKEN set)
+         │       sourcetype="proxhqvpn:security"
+         │       Searchable in Splunk immediately.
+         │
+         └──▶ 3. Generic webhook (if SIEM_WEBHOOK_URL set)
+                 Auth: SIEM_WEBHOOK_SECRET → X-ProxhqVPN-Signature header
+                 Format: standard JSON — compatible with Elastic,
+                 Datadog, PagerDuty, Grafana Oncall, etc.
+
+Configuration (environment variables):
+  SPLUNK_HEC_URL       Splunk HEC endpoint (http://splunk:8088/services/...)
+  SPLUNK_HEC_TOKEN     Splunk HEC authentication token
+  SIEM_WEBHOOK_URL     Generic SIEM webhook URL
+  SIEM_WEBHOOK_SECRET  Optional HMAC secret for X-ProxhqVPN-Signature
+
+If neither Splunk nor webhook is configured, events are only logged
+locally (pino). No events are lost — the local log always captures all.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4. FILTERING & SEARCHING
+
+Filter by:
+  • Event source (WireGuard / Honeypot / Firewall / DNS / Auth / Canary
+                   / ZTNA / RBAC / Lifecycle / Beacon / GhostTrace)
   • Severity (Critical / High / Medium / Low / Info)
   • Time range (Last hour / 24h / 7d / 30d / Custom)
   • IP address or hostname
+  • Actor (user, lifecycle_engine, daemon, system)
   • Free text search
 
-4. SEVERITY LEVELS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  Critical: Active breach, RCE attempt, data exfiltration detected
-  High: Successful credential attack, honeypot compromise
-  Medium: Repeated scan attempts, brute force (stopped by rate limit)
-  Low: Port scans, DNS block, probe attempts
-  Info: Normal authentication events, connection logs
+5. SEVERITY LEVELS
 
-5. ALERT CORRELATION
+  Critical: Active breach, RCE attempt, data exfiltration detected,
+            ZTNA score = 0 (all signals failed)
+  High:     Successful credential attack, honeypot compromise,
+            ZTNA score < 50 (high-risk device blocked)
+  Medium:   Repeated scan attempts, brute force (stopped by rate limit),
+            ZTNA posture deny (score 50-74), node auto-rotation,
+            RBAC denial, auto-trap fire
+  Low:      Port scans, DNS block, probe attempts, node decay detection
+  Info:     Normal auth events, connection logs, posture pass events
 
-  The SIEM automatically correlates related events:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+6. ALERT CORRELATION
+
+The SIEM automatically correlates related events:
   • IP seen in multiple event sources within 60 minutes → Linked
   • Same IP in firewall block + honeypot hit → Coordinated attack flag
   • Auth failure spike → Brute force alert
+  • ZTNA deny from IP also in firewall block → Cross-source escalation
+  • RBAC denial on same userId 3+ times in 1 hour → Privilege escalation alert
 
-6. EXPORT & REPORTING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  Export events as:
+7. NODE LIFECYCLE & AUTO-TRAP EVENTS
+
+The Node Lifecycle Engine emits SIEM events for every significant action:
+
+  node.auto_rotated (severity: medium):
+    When a node is automatically replaced after decay (heartbeat timeout).
+    metadata: { oldName, newName, region, oldNodeId }
+
+  node.decayed (severity: low):
+    When a node is marked inactive after 4+ hours without heartbeat.
+    metadata: { nodeName, lastSeen, ttlHours }
+
+  beacon.auto_trap (severity: medium):
+    When a rotated beacon-node's old IP is auto-converted to honeypot.
+    metadata: { oldNodeName, ip, port, recycledAt }
+    These events also appear in the SilkWeb Trapped Entities list (/silkweb).
+
+  vpngate.sessions_purged (severity: info):
+    VPN Gate session reaper run. metadata: { deleted, olderThanMin }
+
+To see only lifecycle events, filter by actor = "lifecycle_engine".
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+8. RBAC DENIAL EVENTS
+
+Every requirePermission() call that results in a denial is logged:
+
+  action:   "rbac.denied"
+  result:   "deny"
+  severity: "medium"
+  metadata: { attemptedAction, role, userId, resource }
+
+This means unauthorized access attempts are visible in:
+  ▸ Local pino log
+  ▸ Splunk HEC (if configured)
+  ▸ Generic SIEM webhook (if configured)
+  ▸ /siem SIEM page
+
+For compliance: export RBAC denial logs monthly for SOC 2 Type II
+or ISO 27001 access control evidence packages.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+9. ZTNA POSTURE EVENTS
+
+Every ZTNA posture check (POST /api/ztna/posture) emits:
+  • appendAuditEvent("ztna.posture_checked") to the SHA3-256 audit chain
+  • shipSecurityEvent() to SIEM fanout
+
+Severity mapping:
+  score = 0              → critical
+  score 1–49             → high
+  score 50–74 (deny)     → medium
+  score ≥ 75 (allow)     → info
+
+Posture denials also appear in the GhostTrace event stream at /ghost-trace
+for behavioral correlation — a device that fails posture AND shows anomalous
+WireGuard traffic patterns is a high-confidence compromised endpoint.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+10. EXPORT & REPORTING
+
+Export events as:
   • JSON (machine-readable for SIEM integrations)
   • CSV (for spreadsheet analysis)
   • PDF (for incident reports)
 
-  Automated daily and weekly reports can be configured in Settings.
+Automated daily and weekly reports can be configured in Settings.
+
+For Splunk users: all events are already streaming to Splunk HEC when
+configured. Build Splunk dashboards using:
+  sourcetype="proxhqvpn:security"
+  | stats count by severity, action
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
@@ -11859,14 +12016,14 @@ All rights reserved. Unauthorized distribution prohibited.`,
   {
     id: "attacker-console-manual",
     title: "Attacker Intelligence Console",
-    subtitle: "Port Scan, OS Shell, File Manager, Worm Callbacks & HTML Intelligence Reports",
+    subtitle: "Banner Grab, Port Scan, OS Shell, File Manager, Worm Callbacks & HTML Reports",
     tier: "pro",
-    pages: 18,
+    pages: 22,
     icon: Eye,
-    version: "1.0",
+    version: "1.1",
     iconColor: "text-violet-400",
     content: `ATTACKER INTELLIGENCE CONSOLE — USER MANUAL
-Version 1.0 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+Version 1.1 — Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
 Command Center Pro Feature
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -11874,8 +12031,9 @@ Command Center Pro Feature
 IMPORTANT: This console operates against trapped attacker IPs that
 have actively probed your ProxhqVPN infrastructure. All operations
 are defensive and intelligence-gathering in nature. Only use Port
-Scan and OS Shell features against IPs that have first attacked
-your systems. ALPHA UNLIMITED TECHNOLOGIES LLC assumes no liability.
+Scan, Banner Grab, and OS Shell features against IPs that have first
+attacked your systems. ALPHA UNLIMITED TECHNOLOGIES LLC assumes no
+liability.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -11883,13 +12041,14 @@ TABLE OF CONTENTS
 
 1. Overview
 2. Opening the Console
-3. Port Scan Tab
-4. OS Shell Tab
-5. File Manager Tab
-6. Control Panel Tab
-7. Worm Callback Intelligence
-8. HTML Intelligence Report Export
-9. API Reference
+3. Banner Grab Tab (NEW v1.1)
+4. Port Scan Tab
+5. OS Shell Tab
+6. File Manager Tab
+7. Control Panel Tab
+8. Worm Callback Intelligence
+9. HTML Intelligence Report Export
+10. API Reference
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -11911,20 +12070,88 @@ response banner. The Intelligence Console gives you tools to:
 Navigate to: Dashboard → Decoy Network (/silkweb)
   → Click any row in the Trapped Entities list to expand the console.
 
+The Attacker Intel Panel is also accessible from the Beacon Monitor
+(/beacons) via the "Intel" button on any alert row.
+
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 2. OPENING THE CONSOLE
 
-1. Go to /silkweb.
+1. Go to /silkweb (SilkWeb Honeypot page).
 2. In the Trapped Entities panel (right side), click any attacker row.
-3. The 6-tab console expands inline below the row.
-4. Tabs: Port Scan · OS Shell · File Manager · Control Panel
-   (Plus: Inject tab for injection-based investigation)
+3. The console expands inline below the row.
+4. Tabs: Banner Grab · Port Scan · OS Shell · File Manager · Control Panel
 5. The entity's source IP, trap type, and timestamp are shown at the top.
+
+Alternatively, access from Beacon Monitor (/beacons):
+  Click the "Intel" link on any beacon alert row → panel opens pre-loaded
+  with the alert IP and Banner Grab results auto-populated.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-3. PORT SCAN TAB
+3. BANNER GRAB TAB
+
+Purpose: Identify what services and software versions the attacker is
+running by reading their TCP service banners — without performing a
+full port scan.
+
+Banner grabbing is faster and stealthier than a port scan. It reads the
+first bytes sent by an open TCP port and any HTTP response headers.
+This reveals the exact software, version, and configuration the attacker
+is running.
+
+Port presets (one-click grab):
+
+  Port   Service   What you learn
+  ─────────────────────────────────────────────────────────────────────
+  80     HTTP      Server: header (Apache 2.4.41, nginx/1.22, IIS/10)
+  443    HTTPS     Same as 80, plus TLS certificate fingerprint
+  22     SSH       OpenSSH version, protocol, and supported key types
+  21     FTP       FTP daemon version, OS hint, anonymous login allowed
+  25     SMTP      Mail server version, hostname, relay policy
+  3306   MySQL     MySQL server version (leaks DB vendor/version)
+  5900   VNC       VNC banner — often unprotected admin screens
+  6379   Redis     Redis server version — often no auth by default
+  5432   PostgreSQL PG welcome message + version
+  27017  MongoDB   MongoDB version — often no auth by default
+
+You can also enter any custom port (1–65535).
+
+What you get:
+  ▸ HTTP services:  full response headers, Server:, X-Powered-By:,
+                    X-Generator:, Via:, cookies, CORS policy
+  ▸ SSH/FTP/SMTP:   raw ASCII banner from first TCP bytes
+  ▸ Raw bytes:      hex dump of the first 512 bytes received
+
+Quick-action buttons (appear after grab):
+  [Open in Terminal]  → Pre-fills terminal tab with curl / nmap -sV commands
+  [Copy Raw Headers]  → Copies all headers to clipboard
+  [SQLmap Probe]      → Opens OmniStrike SQLmap with the target IP + port pre-set
+
+Reading the results:
+  ▸ "Server: Apache/2.4.41 (Ubuntu)" → Look up CVEs for Apache 2.4.41.
+  ▸ "OpenSSH_7.4p1" → This version has known vulnerabilities (CVE-2018-15473).
+  ▸ "X-Powered-By: PHP/5.6.40" → PHP 5.x is end-of-life — high exploit surface.
+  ▸ No banner → Port is filtered or uses custom software; try a full scan.
+
+API:
+  POST /api/attack-intel/banner
+    Body: { "ip": "1.2.3.4", "port": 80 }
+    Response: {
+      "ip": "1.2.3.4",
+      "port": 80,
+      "banner": "...",
+      "headers": { "Server": "Apache/2.4.41", ... },
+      "raw": "<hex-dump>",
+      "protocol": "http",
+      "timestamp": "..."
+    }
+
+Timeout: 8 seconds per port. If no response, banner is null.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4. PORT SCAN TAB
 
 Purpose: Enumerate open ports and running services on the attacker's IP.
 
@@ -12134,14 +12361,27 @@ All rights reserved. Unauthorized distribution prohibited.`,
   {
     id: "nodes-manual",
     title: "VPN Server Management",
-    subtitle: "Node Lifecycle, IP Rotation & Health Monitoring",
+    subtitle: "Node Lifecycle, IP Rotation, Health Monitoring & Automated Lifecycle Engine",
     tier: "both",
-    pages: 5,
+    pages: 10,
     icon: Server,
-    version: "1.0",
+    version: "2.0",
     iconColor: "text-blue-400",
     content: `VPN SERVER MANAGEMENT — COMPLETE MANUAL
-ProxhqVPN v1.0 · © 2026 Alpha Unlimited Technologies LLC
+ProxhqVPN v2.0 · © 2026 Alpha Unlimited Technologies LLC
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TABLE OF CONTENTS
+
+1. Overview
+2. Node Grid View
+3. IP Rotation
+4. Node Provisioning & Decommission
+5. Health Monitoring
+6. Automated Node Lifecycle Engine
+7. VPN Gate Session Management
+8. API Reference
+
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 1. OVERVIEW
@@ -12152,7 +12392,7 @@ services, and monitor health across all nodes in the 60-node mesh.
 
 Navigate to: Admin → VPN Servers (/nodes)
 
-Current nodes:
+Current active nodes:
   Node 61 — Chicago, IL, USA
   Node 62 — London, UK
   Node 63 — Los Angeles, CA, USA
@@ -12164,11 +12404,17 @@ Current nodes:
 
 The Node Manager displays nodes in a swarm grid that auto-rotates
 every 3 seconds showing different views:
-  • Status (online/offline/degraded)
+  • Status (active/inactive/rotating/trapped)
   • Active peers (connected WireGuard clients)
   • Bandwidth (real-time RX/TX)
   • CPU/RAM utilization
   • Last key rotation timestamp
+
+Node status indicators:
+  active    — node is online and serving traffic
+  inactive  — node has not sent a heartbeat in 4+ hours
+  rotating  — node is being replaced (Lifecycle Engine cycle)
+  trapped   — node's old IP is now a honeypot trap
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -12181,9 +12427,12 @@ profiling by ISPs or websites:
   3. WireGuard endpoint updates automatically
   4. Connected clients reconnect within 30 seconds
 
+The Lifecycle Engine also auto-rotates inactive nodes every 15 minutes
+— see Section 6.
+
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-4. NODE LIFECYCLE
+4. NODE PROVISIONING & DECOMMISSION
 
 Adding a node:
   1. Provision a Linux VPS (Ubuntu 22.04+ recommended)
@@ -12206,11 +12455,543 @@ Node health is checked every 30 seconds:
   • Latency from dashboard to node
   • Outbound connectivity (curl api.ipify.org)
 
-Degraded nodes trigger a Beacon Monitor alert.
+Nodes that stop reporting are marked "inactive" by the Lifecycle Engine's
+decay detector (see §6). Degraded nodes also trigger a Beacon Monitor alert.
 
-API: GET /api/nodes · POST /api/nodes · PATCH /api/nodes/:id/rotate-ip
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+6. AUTOMATED NODE LIFECYCLE ENGINE
+
+The Lifecycle Engine runs in the API server background and manages four
+automated maintenance tasks. View its status at:
+  Node Manager sidebar → "Lifecycle Engine" panel
+  API: GET /api/nodes/lifecycle
+
+You can also trigger a manual pass: POST /api/nodes/lifecycle/run
+
+── 6.1 Delivery Scheduler (every 60 seconds) ──
+
+Finds WireGuard peer commands (wgPeerCommandsTable) stuck in "pending"
+status for more than 5 minutes and marks them "applied." This prevents
+the activity log filling with stale rows when no real daemon is polling.
+
+On startup: runs immediately to process any backlog.
+
+── 6.2 Decay Detector (every 5 minutes) ──
+
+Marks "active" nodes where lastSeen is older than 4 hours as "inactive."
+The TTL is 4 hours by default. Nodes must send heartbeats to stay active.
+
+How nodes maintain active status:
+  → Real nodes: the WireGuard daemon sends periodic heartbeats
+  → RAM-key nodes: re-fetch key from POST /api/daemon-inbound/wg-key
+     (which updates lastSeen)
+
+When a node decays to "inactive," it appears in the Node Manager with
+an orange "INACTIVE" badge. The rotation engine picks it up in the next
+15-minute cycle.
+
+── 6.3 Node Rotation Engine (every 15 minutes) ──
+
+Replaces inactive nodes with fresh identities, up to 5 nodes per pass.
+
+For each inactive node, the engine:
+  1. Generates a new node identity:
+     • Fresh name (ProxhqVPN-[City]-[Random]-Node format)
+     • New WireGuard keypair
+     • New endpoint IP (from available pool or dummy rotation IP)
+     • Fresh region assignment
+  2. Marks the old node as "rotating" then removes it from active pool
+  3. Creates the new node record with "active" status
+  4. Logs the rotation to auditEvents (action: "node.auto_rotated")
+  5. Records the event in beaconsTable as a beacon alert for SIEM
+
+Honeypot Auto-Trap:
+  If the rotated node had hasBeacon=true (beacon monitoring enabled),
+  the Lifecycle Engine automatically deploys a honeypot trap to the
+  old node's former IP:position. Any scanner probing the old IP gets
+  caught and entered into the trappedAttackersTable with:
+    probeType: "honeypot_connect"
+    reason:    "Auto-trap: beacon node IP recycled by Lifecycle Engine"
+
+  This turns every node rotation into an automatic attacker detection
+  opportunity.
+
+── 6.4 VPN Gate Session Reaper (every 5 minutes) ──
+
+Purges VPN Gate double-hop sessions in "error" status that are older
+than 30 minutes. Error sessions that linger indicate failed connection
+attempts that will never recover on their own.
+
+Manual cleanup is also available:
+  • DELETE /api/vpngate/sessions/cleanup?olderThanMin=N — purge errors
+    older than N minutes
+  • DELETE /api/vpngate/sessions/all-errors — immediately purge ALL
+    error sessions (also accessible via "Clear Errors" button in the
+    Node Double-Hop panel of the VPN Gate page)
+
+── 6.5 Lifecycle Status Panel ──
+
+The Node Manager sidebar shows a "Lifecycle Engine" status panel with:
+  ▸ RUNNING / STOPPED indicator
+  ▸ Last run timestamps for each of the 4 schedulers
+  ▸ Cumulative counters: delivered commands, decayed nodes,
+    rotated nodes, purged sessions, honeypot fires
+  ▸ Pending command count (yellow if > 0)
+  ▸ Inactive node count (orange if > 0)
+  ▸ Honeypot fires count (red if > 0)
+  ▸ Recent peer command log (applied/pending/failed)
+  ▸ Auto-rotation history (old → new node names)
+  ▸ "Run Lifecycle Pass" manual trigger button
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+7. VPN GATE SESSION MANAGEMENT
+
+The VPN Gate integration assigns each ProxhqVPN node an optional
+double-hop relay through VPN Gate (6,000+ servers).
+
+Session states:
+  connected          — double-hop is live, traffic is routing
+  pending_connect    — connecting (auto-refreshes every 2s)
+  pending_disconnect — disconnecting
+  error              — connection failed (auto-reaped after 30min)
+  disconnected       — not active
+
+The "Clear Errors (N)" button appears in the Node Double-Hop panel
+when error sessions exist — one click calls DELETE /api/vpngate/sessions/all-errors.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+8. API REFERENCE
+
+  GET    /api/nodes                        List all nodes
+  POST   /api/nodes                        Create node
+  PATCH  /api/nodes/:id                    Update node
+  DELETE /api/nodes/:id                    Delete node
+  POST   /api/nodes/:id/rotate-ip          Manual IP rotation
+  GET    /api/nodes/lifecycle              Lifecycle Engine status + stats
+  POST   /api/nodes/lifecycle/run          Trigger manual lifecycle pass
+  DELETE /api/vpngate/sessions/cleanup     Purge old error sessions (?olderThanMin=N)
+  DELETE /api/vpngate/sessions/all-errors  Immediate purge all error sessions
 
 Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
+  },
+  {
+    id: "node-lifecycle-engine-manual",
+    title: "Node Lifecycle Engine",
+    subtitle: "Automated delivery, decay detection, node rotation & VPN Gate session reaping",
+    tier: "both",
+    pages: 14,
+    icon: Cpu,
+    version: "1.0",
+    iconColor: "text-green-400",
+    content: `NODE LIFECYCLE ENGINE — COMPLETE MANUAL
+ProxhqVPN v1.0 · © 2026 Alpha Unlimited Technologies LLC
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TABLE OF CONTENTS
+
+1.  What Is the Lifecycle Engine?
+2.  Starting & Stopping
+3.  Delivery Scheduler (60s)
+4.  Decay Detector (5min)
+5.  Node Rotation Engine (15min)
+6.  Honeypot Auto-Trigger
+7.  VPN Gate Session Reaper (5min)
+8.  Lifecycle Status Panel (UI)
+9.  Manual Lifecycle Pass
+10. Configuration Reference
+11. API Reference
+12. Troubleshooting
+13. Security Notes
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. WHAT IS THE LIFECYCLE ENGINE?
+
+The Node Lifecycle Engine is a background service that runs inside the
+ProxhqVPN API server. It performs four automated maintenance tasks on
+a recurring schedule:
+
+  ┌─────────────────────────────────────────────────────────────────┐
+  │ Scheduler          │ Interval │ What it does                    │
+  ├─────────────────────────────────────────────────────────────────┤
+  │ Delivery Scheduler │ 60s      │ Flush stale pending WG commands │
+  │ Decay Detector     │ 5 min    │ Mark heartbeat-absent nodes     │
+  │ Rotation Engine    │ 15 min   │ Replace inactive nodes          │
+  │ VPNGate Reaper     │ 5 min    │ Purge stale error sessions      │
+  └─────────────────────────────────────────────────────────────────┘
+
+The engine starts automatically when the API server boots and logs every
+action to both the structured log and the audit event chain.
+
+Why is this needed?
+  Without the engine, stale state accumulates:
+  ▸ Pending WireGuard peer commands that were never delivered build up
+    and crowd the audit trail with ghost entries.
+  ▸ Nodes that lose their WireGuard daemon silently stay "active" in the
+    DB even though they're not serving traffic.
+  ▸ VPN Gate double-hop error sessions accumulate and cause the Node
+    Double-Hop panel to show ghost error rows indefinitely.
+  ▸ There's no automated security response when a node's IP changes —
+    the old IP becomes available to anyone who scans it.
+
+The engine solves all four problems automatically.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2. STARTING & STOPPING
+
+Starting:
+  The engine starts automatically via startNodeLifecycleEngine() which
+  is called in index.ts immediately after the Stripe batch worker starts.
+
+  Log output on startup:
+    [LifecycleEngine] Starting Node Lifecycle Engine
+    [LifecycleEngine] Engine running
+      deliveryIntervalSec: 60
+      decayIntervalSec: 300
+      rotationIntervalSec: 900
+      vpngateIntervalSec: 300
+      nodeDecayTtlHr: 4
+      deliveryTimeoutMin: 5
+      vpngateErrorTtlMin: 30
+
+Checking status:
+  GET /api/nodes/lifecycle → engine.running = true/false
+
+Manual trigger (all schedulers at once):
+  POST /api/nodes/lifecycle/run
+
+Stopping:
+  The engine stops when the API server process exits. There is no
+  runtime stop command — restart the API server to clear the engine.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3. DELIVERY SCHEDULER (every 60 seconds)
+
+Purpose:
+  Processes WireGuard peer commands (wgPeerCommandsTable) that are stuck
+  in "pending" status and have exceeded the delivery timeout.
+
+Trigger condition:
+  status = "pending" AND createdAt < now - 5 minutes
+
+Action:
+  Marks the command "applied" and sets appliedAt = now.
+  Updates the lifecycle engine stats: deliveredCommands += N.
+
+On startup:
+  The delivery scheduler runs once immediately at engine start (before
+  the first 60-second interval). This ensures any backlog from a previous
+  server crash is cleared on boot.
+
+What are WireGuard peer commands?
+  wgPeerCommandsTable records every intended WireGuard configuration
+  change (add/remove peer, update allowed IPs). Real daemon nodes pick
+  these up via GET /api/daemon-inbound/peer-rules and mark them applied.
+  When no real daemon is connected (e.g., in development or testing),
+  commands accumulate in pending state indefinitely. The delivery
+  scheduler prevents this from bloating the audit trail.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4. DECAY DETECTOR (every 5 minutes)
+
+Purpose:
+  Identifies nodes that have stopped sending heartbeats and marks them
+  "inactive" — distinguishing live nodes from unreachable ones.
+
+Trigger condition:
+  status = "active" AND lastSeen < now - 4 hours
+
+Action:
+  UPDATE nodes SET status = 'inactive' WHERE <condition>
+
+Log output:
+  [LifecycleEngine] Nodes decayed (no heartbeat within TTL)
+    count: 2
+    nodes: ["ProxhqVPN-Chicago-Node", "ProxhqVPN-Tokyo-Node"]
+
+Stats updated: decayedNodes += N
+
+How nodes maintain "active" status:
+  ▸ Real WireGuard nodes: the daemon sends periodic heartbeats to the
+    API. As long as heartbeats arrive within 4 hours, the node stays active.
+  ▸ RAM-key nodes: each time a node fetches its key via
+    POST /api/daemon-inbound/wg-key, the lastSeen field is updated.
+  ▸ Manual operations: any PATCH /api/nodes/:id call also updates lastSeen.
+
+Configurable TTL:
+  The 4-hour TTL is the default. To change it:
+  NODE_DECAY_TTL_HR=<hours>  (in your environment)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+5. NODE ROTATION ENGINE (every 15 minutes)
+
+Purpose:
+  Replaces nodes that have been marked "inactive" with fresh identities.
+  This keeps the active node pool healthy without manual intervention.
+
+Trigger condition:
+  status = "inactive"
+
+Processing:
+  Up to 5 nodes are processed per rotation pass (rate-limited to prevent
+  thundering herd effects when many nodes decay simultaneously).
+
+For each inactive node, the engine:
+  1. Creates a new node record:
+     name:    ProxhqVPN-[RegionCity]-[2-word adj+noun]-Node
+     status:  "active"
+     region:  same as original
+     ipAddr:  rotated to a new IP from available pool
+     keys:    fresh WireGuard keypair generated
+     hasBeacon: inherited from original (if original had beacon = true,
+                new node also gets beacon monitoring enabled)
+
+  2. Records the rotation in auditEvents:
+     action:   "node.auto_rotated"
+     actor:    "lifecycle_engine"
+     resource: "node:" + oldNodeId
+     metadata: { oldName, newName, region }
+
+  3. Creates a beacon alert entry so the rotation appears in SIEM:
+     type:     "node"
+     severity: "medium"
+     message:  "Auto-rotated: [oldName] → [newName]"
+
+  4. Marks the old node "rotating" and then deletes it from the pool
+
+Stats updated: rotatedNodes += N
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+6. HONEYPOT AUTO-TRIGGER
+
+The Rotation Engine automatically deploys a honeypot at the old node's
+former IP whenever it rotates a node that had hasBeacon=true.
+
+Why this matters:
+  When a node is replaced, its old IP address becomes available. If an
+  attacker was port-scanning that IP range, they will find the new
+  "empty" address and probe it. By deploying a honeypot trap, you catch
+  them automatically.
+
+Honeypot record created:
+  trappedAttackersTable INSERT:
+    ip:         old node's ipAddr
+    port:       51820  (WireGuard standard port)
+    probeType:  "honeypot_connect"
+    severity:   "medium"
+    reason:     "Auto-trap: beacon node IP recycled by Lifecycle Engine"
+    rawData:    JSON { oldNodeName, oldNodeId, region, recycledAt }
+
+The trap appears immediately in:
+  ▸ SilkWeb page (/silkweb) — Trapped Entities list
+  ▸ SIEM (/siem) — security event stream
+  ▸ Beacon Monitor (/beacons) — alert feed
+
+Honeypot auto-trigger is ALSO active from beacon events:
+  When POST /api/daemon-inbound/beacon receives a probe hit with
+  severity "high" or "critical" against a beacon-enabled node, the
+  attacker's source IP is auto-inserted into trappedAttackersTable
+  with probeType: "honeypot_connect".
+
+  This means: high-severity beacon hits ARE honeypot catches, not just
+  alerts. They show in SilkWeb alongside normal honeypot traps.
+
+Stats updated: honeypotFires += N
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+7. VPN GATE SESSION REAPER (every 5 minutes)
+
+Purpose:
+  Cleans up VPN Gate double-hop sessions in "error" status that have
+  sat uncleaned for more than 30 minutes.
+
+Trigger condition:
+  status = "error" AND updatedAt < now - 30 minutes
+
+Action:
+  DELETE FROM vpnGateNodeSessions WHERE <condition>
+  Returns count of deleted rows.
+
+Stats updated: purgedSessions += N
+
+Manual cleanup endpoints:
+  DELETE /api/vpngate/sessions/cleanup?olderThanMin=N
+    → Purges error sessions older than N minutes (default 30 if omitted)
+
+  DELETE /api/vpngate/sessions/all-errors
+    → Immediately purges ALL error sessions regardless of age
+
+UI: The "Clear Errors (N)" button in the Node Double-Hop panel on
+the VPN Gate page (/vpngate) is wired to /api/vpngate/sessions/all-errors.
+It appears automatically when any error sessions exist, showing the count.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+8. LIFECYCLE STATUS PANEL (UI)
+
+Location: Node Manager (/nodes) → right-hand sidebar → "Lifecycle Engine" panel
+Access: GET /api/nodes/lifecycle (JSON response, also consumed by panel)
+
+The panel shows:
+
+  Status badge: ● RUNNING (green) or ● STOPPED (red)
+
+  Scheduler timestamps (last run for each):
+    DELIVERY   [time ago]   [N cmds applied]
+    DECAY      [time ago]   [N nodes decayed]
+    ROTATION   [time ago]   [N nodes rotated]
+    REAPER     [time ago]   [N sessions purged]
+
+  Live counters (color-coded):
+    Pending Commands  → yellow if > 0
+    Inactive Nodes    → orange if > 0
+    Honeypot Fires    → red if > 0
+
+  Recent Peer Command Log:
+    Shows last 10 wgPeerCommands with status (applied/pending/failed),
+    nodeId, and time since applied.
+
+  Auto-Rotation History:
+    Shows last 5 automatic rotations with old→new name and time since.
+
+  Manual trigger button:
+    [Run Lifecycle Pass] — calls POST /api/nodes/lifecycle/run
+    Shows a spinner while running. Toasts on completion.
+    Panel auto-refreshes after the pass completes.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+9. MANUAL LIFECYCLE PASS
+
+To trigger all four schedulers immediately:
+
+  Dashboard: Node Manager → Lifecycle Engine panel → "Run Lifecycle Pass"
+
+  API: POST /api/nodes/lifecycle/run
+    Auth: requireAuth (any authenticated user)
+    Body: none
+    Response: {
+      "ok": true,
+      "deliveredCommands": 3,
+      "decayedNodes": 0,
+      "rotatedNodes": 1,
+      "purgedSessions": 2,
+      "honeypotFires": 1
+    }
+
+The response shows exactly what each scheduler did in the triggered pass.
+Use this to verify the engine is working as expected after configuration
+changes or to immediately process a known backlog.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+10. CONFIGURATION REFERENCE
+
+Environment variables that control the engine:
+
+  NODE_DECAY_TTL_HR           Default: 4
+    Hours of missed heartbeats before a node is marked inactive.
+    Lower = faster detection. Higher = more tolerance for transient outages.
+
+  LIFECYCLE_DELIVERY_TIMEOUT_MIN  Default: 5
+    Minutes a peer command stays in "pending" before delivery scheduler
+    forces it to "applied".
+
+  LIFECYCLE_VPNGATE_ERROR_TTL_MIN  Default: 30
+    Minutes a VPN Gate error session survives before reaper deletes it.
+
+  LIFECYCLE_MAX_ROTATIONS_PER_PASS  Default: 5
+    Maximum nodes rotated in a single 15-minute rotation pass.
+    Prevents thundering herd on mass decay events.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+11. API REFERENCE
+
+  GET  /api/nodes/lifecycle
+    Returns:
+      engine: {
+        running, startedAt, lastDeliveryAt, lastDecayAt,
+        lastRotationAt, lastReaperAt
+      }
+      stats: {
+        deliveredCommands, rotatedNodes, purgedSessions,
+        honeypotFires, errors, decayedNodes
+      }
+      pendingCommandCount: number
+      inactiveNodeCount: number
+      recentPeerCommands: [{ id, nodeId, status, createdAt, appliedAt }]
+      recentRotations: [{ id, nodeName, rawData, detectedAt }]
+
+  POST /api/nodes/lifecycle/run
+    Triggers all 4 schedulers immediately.
+    Returns per-scheduler result counts.
+
+  DELETE /api/vpngate/sessions/cleanup?olderThanMin=N
+    Purge error sessions older than N minutes.
+    Returns: { deleted: N }
+
+  DELETE /api/vpngate/sessions/all-errors
+    Purge ALL error sessions immediately.
+    Returns: { deleted: N }
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+12. TROUBLESHOOTING
+
+  "Engine shows STOPPED"
+    → API server may have restarted without the engine re-initializing.
+    → Check: GET /api/healthz — if healthy, POST /api/nodes/lifecycle/run
+      should work and will restart the schedulers.
+    → If the engine is stuck: restart the API server workflow.
+
+  "Nodes decaying even though they seem online"
+    → lastSeen is not being updated. Check daemon heartbeat configuration.
+    → For RAM-key nodes: ensure the node daemon is calling
+      POST /api/daemon-inbound/wg-key on schedule (at least every 3 hours).
+    → Increase TTL: NODE_DECAY_TTL_HR=8 in environment for more tolerance.
+
+  "Node rotation creating wrong IP addresses"
+    → The rotation engine generates a dummy IP when no real pool is
+      configured. Configure the node IP pool via the nodes API.
+
+  "Honeypot fires count not incrementing"
+    → Rotation only fires honeypot when the original node had hasBeacon=true.
+    → Check: SELECT has_beacon FROM nodes WHERE status = 'inactive'.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+13. SECURITY NOTES
+
+  ▸ All lifecycle engine operations are logged to auditEvents with
+    actor="lifecycle_engine". This makes engine activity distinguishable
+    from human admin actions in the audit chain.
+
+  ▸ Node rotations emit SIEM events via shipSecurityEvent() — visible
+    in Splunk HEC and generic SIEM webhook if configured.
+
+  ▸ The honeypot auto-trigger is a defensive deception measure, not an
+    active attack. It creates a trap record in trappedAttackersTable —
+    it does NOT initiate any outbound connection to the attacker.
+
+  ▸ The manual /run endpoint requires Clerk authentication but does not
+    require a specific RBAC permission beyond standard user authentication.
+    If your deployment requires tighter controls, wrap it with
+    requirePermission("vpn:write") in nodes.ts.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC
+All rights reserved. Unauthorized distribution prohibited.`,
   },
   {
     id: "performance-monitor-manual",
@@ -13061,11 +13842,21 @@ Instrumented events (as of v3.0):
   ▸ wireguard.config_created — every WireGuard config generation
   ▸ wireguard.key_downloaded — every WireGuard config text download
   ▸ daemon.wg_key_served — every daemon key delivery
+  ▸ node.auto_rotated — Lifecycle Engine rotates an inactive node
+  ▸ node.decayed — Lifecycle Engine marks node inactive (heartbeat timeout)
+  ▸ beacon.auto_trap — Lifecycle Engine converts old node IP to honeypot
+
+Actor values in chain:
+  "lifecycle_engine" — any entry from the Node Lifecycle Engine
+  "system"           — background workers, webhook receivers
+  "daemon"           — WireGuard daemon callbacks
+  userId (Clerk)     — any human user action
 
 Planned instrumentation:
   ▸ rbac.denied — every permission denial
   ▸ firewall.rule_changed — every firewall rule modification
   ▸ admin.user_role_changed — every role assignment
+  ▸ banner_grab.performed — each Attacker Intel banner grab
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 

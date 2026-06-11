@@ -152,6 +152,23 @@ const SECTIONS: Section[] = [
           <div>• <strong>Quarterly</strong>: Update WireGuard and system packages on each node via the Terminal page. Re-run the hardening script after major OS updates.</div>
           <div>• <strong>On compromise</strong>: Immediately disable the node, rotate all keys, provision a replacement. The RAM-only architecture means rebooting the compromised node immediately destroys the WireGuard private key.</div>
         </div>
+        <h4 className="font-bold text-primary text-[11px] mt-3">Automated Node Lifecycle Engine</h4>
+        <p className="text-[10px] font-mono text-primary/83">The <strong>Lifecycle Engine</strong> runs automatically in the API server background and handles four maintenance tasks without admin intervention:</p>
+        <div className="space-y-1.5 text-[10px] font-mono text-primary/83 mt-2">
+          {[
+            { t: "Delivery Scheduler (every 60s)", d: "Flushes WireGuard peer commands stuck in pending > 5 min. Prevents audit trail bloat when no live daemon is connected. Runs once on startup to clear backlogs." },
+            { t: "Decay Detector (every 5min)", d: "Marks active nodes as inactive when they haven't sent a heartbeat in 4 hours. Decayed nodes appear with an orange INACTIVE badge in the Node Manager grid." },
+            { t: "Node Rotation Engine (every 15min)", d: "Replaces inactive nodes with fresh identities — new name, IP, WireGuard keys. Up to 5 nodes per pass. If the original node had beacon monitoring, the old IP is auto-converted to a honeypot trap." },
+            { t: "VPN Gate Session Reaper (every 5min)", d: "Purges double-hop error sessions older than 30 minutes. Prevents VPN Gate panel from accumulating ghost error rows." },
+          ].map(({ t, d }) => (
+            <div key={t} className="border border-primary/10 rounded px-2.5 py-2">
+              <div className="text-[9px] font-mono font-bold text-primary">{t}</div>
+              <div className="text-[9px] font-mono text-primary/70 mt-0.5">{d}</div>
+            </div>
+          ))}
+        </div>
+        <p className="text-[10px] font-mono text-primary/83 mt-2">Monitor the engine from <strong>Node Manager → Lifecycle Engine panel</strong> (sidebar). Use "Run Lifecycle Pass" to trigger all schedulers immediately. API: <code>GET /api/nodes/lifecycle</code> · <code>POST /api/nodes/lifecycle/run</code></p>
+        <Note type="info">The Lifecycle Engine logs every action to auditEvents with actor="lifecycle_engine" — distinguishable from human admin actions in the audit chain and SIEM.</Note>
       </div>
     ),
   },
@@ -449,6 +466,8 @@ ss -tupn | grep LISTEN          # Listening ports`}</CB>
             { title: "RAM-Only WireGuard Keys", tier: "All Plans", desc: "Boot sequence, /dev/shm architecture, API endpoint, threat model, troubleshooting." },
             { title: "Node Security Hardening Script", tier: "All Plans", desc: "9 systemd services, pre-run checklist, WireGuard safety guarantee, verification commands." },
             { title: "Advanced Firewall Suite", tier: "All Plans", desc: "ATR auto-response, composite risk score, per-peer rules, DDoS shield, AI optimizer — config & API reference." },
+            { title: "Node Lifecycle Engine", tier: "All Plans", desc: "Automated delivery scheduler, decay detector, node rotation, honeypot auto-trigger, and VPN Gate session reaper — full config & API reference." },
+            { title: "Attacker Intelligence Console v1.1", tier: "Pro", desc: "Banner Grab tab (NEW) — reads TCP service banners and HTTP headers from attacker IPs. Port presets, quick-action curl/nmap buttons, raw header expansion." },
           ].map(({ title, tier, desc }) => (
             <div key={title} className="border border-primary/10 rounded px-2.5 py-2">
               <div className="flex items-center justify-between mb-0.5">
