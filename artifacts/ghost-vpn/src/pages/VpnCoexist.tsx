@@ -74,6 +74,7 @@ export default function VpnCoexist() {
   const [scriptNotes, setScriptNotes] = useState<string[]>([]);
   const [showScript, setShowScript] = useState(false);
   const [showDisable, setShowDisable] = useState(false);
+  const [selectedNode, setSelectedNode] = useState<number | "all">("all");
   const [activeTab, setActiveTab] = usePersistedState<"overview" | "exceptions" | "mtu" | "scripts" | "security-tools">("vpncoexist-tab", "overview");
 
   // exception form
@@ -99,6 +100,14 @@ export default function VpnCoexist() {
   const [hopCount, setHopCount] = useState(1);
   const [mtuProtocol, setMtuProtocol] = useState<"wireguard" | "openvpn" | "custom">("wireguard");
   const [mtuResult, setMtuResult] = useState<any>(null);
+
+  const { data: nodesData } = useQuery<{
+    nodes: { id: number; name: string; ipAddress: string; publicIp: string | null; region: string | null; listenPort: number | null; status: string; ramKeyLoaded: boolean | null }[];
+  }>({
+    queryKey: ["vpn-coexist-nodes"],
+    queryFn: () => apiFetch("/nodes"),
+  });
+  const activeNodes = nodesData?.nodes?.filter(n => n.status === "active") ?? [];
 
   const { data: profiles } = useQuery<{ profiles: VpnProfile[] }>({
     queryKey: ["vpn-coexist-profiles"],
@@ -196,6 +205,7 @@ export default function VpnCoexist() {
       body: JSON.stringify({
         vpnProfileId: selectedProfile, mode: selectedMode,
         detectedIface, proxhqIface, proxhqFwmark: fwmark, targetOs,
+        ...(selectedNode !== "all" ? { nodeId: selectedNode } : {}),
       }),
     }),
     onSuccess: (d) => {
@@ -432,6 +442,46 @@ export default function VpnCoexist() {
                 </select>
               </div>
             </div>
+
+            {/* Vultr Node Selector */}
+            <div className="mt-3 border border-primary/10 bg-primary/3 p-3">
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-[9px] text-primary/50 tracking-widest">
+                  VULTR NODE — KILL SWITCH EXCEPTION TARGET
+                </label>
+                <span className={`text-[9px] px-1.5 py-0.5 border ${
+                  activeNodes.length > 0
+                    ? "border-primary/30 text-primary/50"
+                    : "border-yellow-400/30 text-yellow-400/70"
+                }`}>
+                  {activeNodes.length} ACTIVE NODE{activeNodes.length !== 1 ? "S" : ""}
+                </span>
+              </div>
+              <select
+                value={selectedNode === "all" ? "all" : String(selectedNode)}
+                onChange={e => setSelectedNode(e.target.value === "all" ? "all" : parseInt(e.target.value))}
+                className="w-full bg-black border border-primary/30 text-primary text-xs px-2 py-1.5 font-mono focus:outline-none focus:border-primary"
+              >
+                <option value="all">All active nodes ({activeNodes.length}) — add all as kill switch exceptions</option>
+                {activeNodes.map(n => (
+                  <option key={n.id} value={n.id}>
+                    {n.name} — {n.publicIp ?? n.ipAddress} ({n.region ?? "unknown"}) port {n.listenPort ?? 51820}
+                    {n.ramKeyLoaded ? " [RAM]" : ""}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[9px] text-primary/40 mt-1.5 leading-relaxed">
+                The selected node's real Vultr IP is added as a kill-switch exception so WireGuard UDP can
+                reach the server even when the kill switch is armed. Without this, the kill switch blocks
+                the tunnel itself.
+              </p>
+              {activeNodes.length === 0 && (
+                <p className="text-[9px] text-yellow-400/70 mt-1">
+                  ⚠ No active nodes in DB. Register nodes in Node Manager first, or kill-switch exceptions will not be generated.
+                </p>
+              )}
+            </div>
+
             <button
               onClick={() => generateRules.mutate()}
               disabled={generateRules.isPending}
