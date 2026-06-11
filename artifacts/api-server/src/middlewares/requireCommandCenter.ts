@@ -28,7 +28,10 @@ export const requireCommandCenter = async (req: Request, res: Response, next: Ne
 
   // 1 — Admin always gets everything
   const [dbUser] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
-  if (dbUser?.isAdmin) return next();
+  if (dbUser?.isAdmin) {
+    (req as any).__isAdmin = true;
+    return next();
+  }
 
   // 2 — Employees get full access (no subscription required)
   let email: string | null = null;

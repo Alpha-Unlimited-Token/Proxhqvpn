@@ -15,6 +15,7 @@ export const requireAdmin = async (req: Request, res: Response, next: NextFuncti
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
   if (!user?.isAdmin) return res.status(403).json({ error: "Forbidden: owner admin only" });
   (req as any).adminEmail = user.email;
+  (req as any).__isAdmin = true;
   next();
 };
 

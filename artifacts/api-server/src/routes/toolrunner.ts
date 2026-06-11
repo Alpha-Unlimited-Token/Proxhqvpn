@@ -49,10 +49,31 @@ const BLOCKED_CIDR_PATTERNS = [
 ];
 const BLOCKED_EXACT = new Set(["169.254.169.254", "100.100.100.200"]);
 
+/**
+ * Normalize a target string to its bare host/IP so that URL-form inputs like
+ * "http://127.0.0.1/path" are reduced to "127.0.0.1" before blocklist checks.
+ * Without this step, BLOCKED_CIDR_PATTERNS (which all start with ^) would never
+ * match a URL-prefixed string, allowing trivial SSRF bypasses.
+ */
+function normalizeTargetHost(raw: string): string {
+  return raw
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, "")   // strip scheme
+    .split("?")[0]                  // strip query
+    .split("#")[0]                  // strip fragment
+    .split("/")[0]                  // strip path
+    .split(":")[0];                 // strip port
+}
+
 function isBlockedTarget(target: string): boolean {
   const t = target.trim().toLowerCase();
-  if (BLOCKED_EXACT.has(t)) return true;
-  for (const p of BLOCKED_CIDR_PATTERNS) if (p.test(t)) return true;
+  const host = normalizeTargetHost(t);
+  // Check both raw form and normalized host so neither can bypass the list
+  if (BLOCKED_EXACT.has(t) || BLOCKED_EXACT.has(host)) return true;
+  for (const p of BLOCKED_CIDR_PATTERNS) {
+    if (p.test(t) || p.test(host)) return true;
+  }
   return false;
 }
 
@@ -1684,6 +1705,16 @@ router.post("/evidence/:jobId", async (req: Request, res: Response) => {
       .where(and(eq(toolJobsTable.id, String(req.params.jobId)), eq(toolJobsTable.userId, userId)));
     if (!job) return res.status(404).json({ error: "Job not found" });
 
+    // Audit the export before streaming — ensures the event is recorded even if
+    // the client disconnects before the ZIP finishes flushing.
+    appendAuditEvent({
+      actor: userId,
+      action: "tool_runner.evidence_export",
+      resource: job.toolId,
+      result: "allow",
+      metadata: { jobId: job.id, target: job.target },
+    });
+
     res.setHeader("Content-Type",        "application/zip");
     res.setHeader("Content-Disposition", `attachment; filename="evidence-${job.id.substring(0,8)}.zip"`);
 
@@ -1712,6 +1743,35 @@ router.post("/evidence/:jobId", async (req: Request, res: Response) => {
       job.geoJson ? `\nGeoIP: ${JSON.stringify(job.geoJson)}` : "",
     ].join("\n");
     archive.append(threatSummary, { name: "threat-summary.txt" });
+
+    // threat-intel.json — structured machine-readable threat artifact required
+    // by evidence packaging spec. Includes all available intelligence data for
+    // the target: GeoIP, tool verdict, execution metadata, and audit reference.
+    const threatIntel = {
+      schemaVersion: "1.0",
+      exportedAt: new Date().toISOString(),
+      exportedBy: userId,
+      job: {
+        id: job.id,
+        toolId: job.toolId,
+        toolName: job.toolName,
+        category: job.category,
+        target: job.target,
+        status: job.status,
+        exitCode: job.exitCode,
+        startedAt: job.startedAt,
+        completedAt: job.completedAt,
+      },
+      geoip: job.geoJson ?? null,
+      indicators: {
+        target: job.target ?? null,
+        toolVerdict: job.exitCode === 0 ? "clean" : job.exitCode != null ? "findings" : "unknown",
+        hasGeoData: !!job.geoJson,
+        hasOutput: !!job.outputText,
+      },
+      auditAction: "tool_runner.evidence_export",
+    };
+    archive.append(JSON.stringify(threatIntel, null, 2), { name: "threat-intel.json" });
 
     archive.finalize();
   } catch (e: any) { res.status(500).json({ error: e.message }); }

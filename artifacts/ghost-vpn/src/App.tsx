@@ -793,6 +793,9 @@ function AppRoutes() {
           <Route path="/scan-scheduler">
             <CcLayout><ScanScheduler /></CcLayout>
           </Route>
+          <Route path="/tool-scheduler">
+            <CcLayout><ScanScheduler /></CcLayout>
+          </Route>
           <Route path="/tool-approvals">
             <AdminLayout><ToolApprovals /></AdminLayout>
           </Route>
