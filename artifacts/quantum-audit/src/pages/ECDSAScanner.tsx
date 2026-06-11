@@ -172,7 +172,7 @@ export default function ECDSAScanner() {
 
   const pollAdvStatus = async () => {
     try {
-      const r = await fetch(`${BASE()}/api/quantum/advanced-attack-status`);
+      const r = await fetch(`${BASE()}/api/quantum-audit/advanced-attack-status`);
       if (r.ok) setAdvState(await r.json());
     } catch {}
   };
@@ -187,7 +187,7 @@ export default function ECDSAScanner() {
   const startAdvScan = async () => {
     setAdvPolling(true);
     try {
-      const r = await fetch(`${BASE()}/api/quantum/advanced-attack-scan`, {
+      const r = await fetch(`${BASE()}/api/quantum-audit/advanced-attack-scan`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ limit: parseInt(advLimit) || 500, targeted: true }),
       });
@@ -201,7 +201,7 @@ export default function ECDSAScanner() {
   const loadAdvReport = async (filePath: string) => {
     const filename = filePath.split("/").pop();
     try {
-      const r = await fetch(`${BASE()}/api/quantum/advanced-attack-report/${filename}`);
+      const r = await fetch(`${BASE()}/api/quantum-audit/advanced-attack-report/${filename}`);
       if (r.ok) setAdvReport(await r.json());
     } catch {}
   };

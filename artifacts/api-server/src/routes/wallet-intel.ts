@@ -16,7 +16,8 @@
  *   Other: solana
  */
 
-import { Router, type Request, type Response } from "express";
+import { Router, type Request, type Response, type NextFunction } from "express";
+import { getAuth } from "@clerk/express";
 import { detectAddress, isEvmChain, isUtxoChain } from "../lib/wallet-intel/chain-detect";
 
 // EVM scanners (existing)
@@ -43,6 +44,15 @@ import { runWalletWebSpider } from "../lib/signature-miner/wallet-web-spider";
 import { logger } from "../lib/logger";
 
 const router = Router();
+
+const requireAuth = (req: Request, res: Response, next: NextFunction) => {
+  if ((req as any).internalBypass) return next();
+  const { userId } = getAuth(req);
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+  next();
+};
+
+router.use(requireAuth);
 
 const EVM_CHAINS = ["ethereum", "polygon", "bsc", "arbitrum", "optimism", "base", "avalanche", "fantom"];
 
