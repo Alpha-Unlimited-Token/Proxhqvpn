@@ -6,7 +6,7 @@ import { Router, type Request, type Response } from "express";
 import { spawn, type ChildProcess } from "child_process";
 import { z } from "zod";
 import { randomUUID } from "crypto";
-import { existsSync } from "fs";
+import { existsSync, writeFileSync } from "fs";
 import { Writable } from "stream";
 import geoip from "geoip-lite";
 import archiver from "archiver";
@@ -105,6 +105,25 @@ interface ToolDef {
   buildArgs: (opts: Record<string, string>) => string[];
   timeoutMs: number;
   warning?: string;
+  /** Overall risk classification surfaced to the UI and audit log. */
+  riskLevel: "low" | "medium" | "high" | "critical";
+  /**
+   * When true the tool ALWAYS requires an admin-issued approval token,
+   * regardless of options.  Enforced centrally in POST /run before the
+   * conditional requiresApprovalConditional() check.
+   */
+  alwaysRequiresApproval: boolean;
+  /**
+   * When false, isInstalled() always returns true — used for tools that are
+   * shell built-ins or guaranteed to be present (echo, tail, ss, etc.).
+   */
+  requiresInstalledCheck: boolean;
+  /**
+   * When false, the target scope allowlist check is skipped.  Set false for
+   * purely offline tools (john, volatility3, binwalk, file forensics, etc.)
+   * that operate on local files and have no remote target.
+   */
+  scopeRequired: boolean;
 }
 
 function toolBin(name: string): string {
@@ -114,28 +133,30 @@ function toolBin(name: string): string {
 }
 
 function isInstalled(tool: ToolDef): boolean {
+  if (!tool.requiresInstalledCheck) return true;
   if (tool.binary === "sqlmap")  return existsSync(SQLMAP_BIN);
   if (tool.binary === "nmap")    return true;
   if (["curl","dig","whois","openssl","ping","traceroute","gpg","john"].includes(tool.binary)) return true;
   return existsSync(`${LOCAL_BIN}/${tool.binary}`);
 }
 
-// ── HIGH-RISK approval checker ──────────────────────────────────────────────
-function requiresApproval(toolId: string, opts: Record<string, string>): string | null {
-  if (toolId === "sqlmap" && parseInt(opts.level ?? "1", 10) >= 2) {
+// ── Conditional approval checker (non-always-require tools only) ────────────
+// Tools with alwaysRequiresApproval=true are handled directly in POST /run
+// using the ToolDef field.  This function covers dynamic, option-dependent
+// approval requirements for tools that have conditional escalation.
+function requiresApprovalConditional(tool: ToolDef, opts: Record<string, string>): string | null {
+  // Per-tool conditional checks
+  if (tool.id === "sqlmap" && parseInt(opts.level ?? "1", 10) >= 2) {
     return `SQLMap level ${opts.level} (≥2) requires admin approval`;
   }
-  if (toolId === "nuclei" && ["cves", "vulnerabilities"].includes(opts.templates ?? "")) {
+  if (tool.id === "nuclei" && ["cves", "vulnerabilities"].includes(opts.templates ?? "")) {
     return `Nuclei template '${opts.templates}' category requires admin approval`;
   }
-  if (toolId === "nmap" && ["vuln", "full"].includes(opts.mode ?? "")) {
+  if (tool.id === "nmap" && ["vuln", "full"].includes(opts.mode ?? "")) {
     return `Nmap scan mode '${opts.mode}' requires admin approval`;
   }
-  if (toolId === "feroxbuster" && parseInt(opts.depth ?? "2", 10) >= 3) {
+  if (tool.id === "feroxbuster" && parseInt(opts.depth ?? "2", 10) >= 3) {
     return `Feroxbuster depth ${opts.depth} (≥3) requires admin approval`;
-  }
-  if (["hydra", "slowhttptest", "medusa", "aircrack-ng", "wash", "kismet-capture"].includes(toolId)) {
-    return `Tool '${toolId}' always requires admin approval`;
   }
   return null;
 }
@@ -147,6 +168,7 @@ const TOOLS: ToolDef[] = [
     category: "Network Scanning",
     description: "Network discovery, port scanning, service/version detection and script-based vulnerability detection.",
     timeoutMs: 120_000,
+    riskLevel: "medium", alwaysRequiresApproval: false, requiresInstalledCheck: true, scopeRequired: true,
     fields: [
       { id: "target", label: "Target (IP, hostname or CIDR)", type: "text", placeholder: "192.168.1.1 or example.com", required: true },
       { id: "ports",  label: "Ports", type: "text", placeholder: "80,443,8080 or 1-1000 (blank = top 1000)", defaultValue: "" },
@@ -183,6 +205,7 @@ const TOOLS: ToolDef[] = [
     category: "Vulnerability Scanning",
     description: "Fast, template-based vulnerability scanner covering CVEs, misconfigs, exposures, and OWASP Top 10.",
     timeoutMs: 180_000,
+    riskLevel: "medium", alwaysRequiresApproval: false, requiresInstalledCheck: true, scopeRequired: true,
     fields: [
       { id: "target",    label: "Target URL", type: "text", placeholder: "https://example.com", required: true },
       { id: "templates", label: "Template Category", type: "select", defaultValue: "exposures", options: [
@@ -217,6 +240,7 @@ const TOOLS: ToolDef[] = [
     description: "Automatic SQL injection detection — tests GET/POST parameters, cookies, headers.",
     timeoutMs: 180_000,
     warning: "Only use against systems you own or have written permission to test.",
+    riskLevel: "high", alwaysRequiresApproval: false, requiresInstalledCheck: true, scopeRequired: true,
     fields: [
       { id: "url",       label: "Target URL", type: "text", placeholder: "https://example.com/page?id=1", required: true },
       { id: "level",     label: "Test Level (1-5)", type: "select", defaultValue: "1", options: [
@@ -268,6 +292,7 @@ const TOOLS: ToolDef[] = [
     category: "Fuzzing",
     description: "Fast web fuzzer — directory discovery, parameter fuzzing, vhost enumeration.",
     timeoutMs: 120_000,
+    riskLevel: "low", alwaysRequiresApproval: false, requiresInstalledCheck: true, scopeRequired: true,
     fields: [
       { id: "url",        label: "URL (use FUZZ as placeholder)", type: "text", placeholder: "https://example.com/FUZZ", required: true },
       { id: "mode",       label: "Fuzzing Mode", type: "select", defaultValue: "dir", options: [
@@ -302,6 +327,7 @@ const TOOLS: ToolDef[] = [
     category: "Fuzzing",
     description: "Directory, DNS, and vhost brute-forcer using Go concurrency.",
     timeoutMs: 120_000,
+    riskLevel: "low", alwaysRequiresApproval: false, requiresInstalledCheck: true, scopeRequired: true,
     fields: [
       { id: "mode",       label: "Mode", type: "select", defaultValue: "dir", options: [
         { value: "dir",   label: "Directory / File Brute-force" },
@@ -332,6 +358,7 @@ const TOOLS: ToolDef[] = [
     category: "Fuzzing",
     description: "Recursive content discovery — auto-recurses into discovered directories.",
     timeoutMs: 180_000,
+    riskLevel: "low", alwaysRequiresApproval: false, requiresInstalledCheck: true, scopeRequired: true,
     fields: [
       { id: "url",          label: "Target URL", type: "text", placeholder: "https://example.com", required: true },
       { id: "depth",        label: "Recursion Depth", type: "select", defaultValue: "2", options: [
@@ -362,6 +389,7 @@ const TOOLS: ToolDef[] = [
     category: "Subdomain Enumeration",
     description: "Passive subdomain enumeration using 40+ OSINT sources (crt.sh, AlienVault, etc.).",
     timeoutMs: 120_000,
+    riskLevel: "low", alwaysRequiresApproval: false, requiresInstalledCheck: true, scopeRequired: true,
     fields: [
       { id: "domain",     label: "Domain", type: "text", placeholder: "example.com", required: true },
       { id: "timeout",    label: "Timeout (s, max 120)", type: "number", defaultValue: "30" },
@@ -381,6 +409,7 @@ const TOOLS: ToolDef[] = [
     category: "HTTP Probing",
     description: "HTTP probe — status codes, titles, technologies, TLS, headers, web server fingerprints.",
     timeoutMs: 60_000,
+    riskLevel: "low", alwaysRequiresApproval: false, requiresInstalledCheck: true, scopeRequired: true,
     fields: [
       { id: "target",         label: "Target URL(s) — comma separated", type: "text", placeholder: "https://example.com,https://api.example.com", required: true },
       { id: "probes",         label: "Probe Options", type: "select", defaultValue: "standard", options: [
@@ -414,6 +443,7 @@ const TOOLS: ToolDef[] = [
     category: "DNS",
     description: "DNS lookup tool — A, AAAA, MX, TXT, NS, CNAME, PTR and zone transfer attempts.",
     timeoutMs: 30_000,
+    riskLevel: "low", alwaysRequiresApproval: false, requiresInstalledCheck: true, scopeRequired: true,
     fields: [
       { id: "domain",   label: "Domain", type: "text", placeholder: "example.com", required: true },
       { id: "type",     label: "Record Type", type: "select", defaultValue: "ANY", options: [
@@ -441,6 +471,7 @@ const TOOLS: ToolDef[] = [
     category: "SSL / TLS",
     description: "TLS handshake analysis, certificate inspection, cipher enumeration, protocol downgrade tests.",
     timeoutMs: 30_000,
+    riskLevel: "low", alwaysRequiresApproval: false, requiresInstalledCheck: true, scopeRequired: true,
     fields: [
       { id: "host", label: "Host", type: "text", placeholder: "example.com", required: true },
       { id: "port", label: "Port", type: "number", defaultValue: "443" },
@@ -474,6 +505,7 @@ const TOOLS: ToolDef[] = [
     category: "HTTP Client",
     description: "Full-featured HTTP client — headers, redirects, cookies, auth, custom methods, TLS inspection.",
     timeoutMs: 30_000,
+    riskLevel: "low", alwaysRequiresApproval: false, requiresInstalledCheck: true, scopeRequired: true,
     fields: [
       { id: "url",       label: "URL", type: "text", placeholder: "https://example.com", required: true },
       { id: "method",    label: "Method", type: "select", defaultValue: "GET", options: [
@@ -506,6 +538,7 @@ const TOOLS: ToolDef[] = [
     category: "OSINT",
     description: "Domain and IP registration info — registrar, name servers, creation date, ASN, abuse contact.",
     timeoutMs: 20_000,
+    riskLevel: "low", alwaysRequiresApproval: false, requiresInstalledCheck: true, scopeRequired: true,
     fields: [
       { id: "target", label: "Domain or IP", type: "text", placeholder: "example.com or 1.2.3.4", required: true },
       { id: "server", label: "WHOIS Server (optional)", type: "text", placeholder: "whois.verisign-grs.com", defaultValue: "" },
@@ -524,6 +557,7 @@ const TOOLS: ToolDef[] = [
     category: "Network",
     description: "ICMP echo test — latency, packet loss, host reachability.",
     timeoutMs: 30_000,
+    riskLevel: "low", alwaysRequiresApproval: false, requiresInstalledCheck: true, scopeRequired: true,
     fields: [
       { id: "target", label: "Host / IP", type: "text", placeholder: "example.com or 1.2.3.4", required: true },
       { id: "count",  label: "Ping Count", type: "select", defaultValue: "5", options: [
@@ -542,6 +576,7 @@ const TOOLS: ToolDef[] = [
     category: "Network",
     description: "Trace the route to a host — hop-by-hop latency and path discovery.",
     timeoutMs: 60_000,
+    riskLevel: "low", alwaysRequiresApproval: false, requiresInstalledCheck: true, scopeRequired: true,
     fields: [
       { id: "target",  label: "Host / IP", type: "text", placeholder: "example.com", required: true },
       { id: "maxHops", label: "Max Hops", type: "select", defaultValue: "20", options: [
@@ -561,6 +596,7 @@ const TOOLS: ToolDef[] = [
     description: "Online password brute-force — SSH, FTP, HTTP-POST, RDP and 50+ protocols. Requires admin approval.",
     timeoutMs: 120_000,
     warning: "Requires admin approval. Only use against systems you own or have written permission to test.",
+    riskLevel: "critical", alwaysRequiresApproval: true, requiresInstalledCheck: true, scopeRequired: true,
     fields: [
       { id: "target",    label: "Target Host / IP", type: "text", placeholder: "192.168.1.100", required: true },
       { id: "protocol",  label: "Protocol", type: "select", defaultValue: "ssh", options: [
@@ -576,9 +612,11 @@ const TOOLS: ToolDef[] = [
       { id: "tasks",     label: "Parallel tasks (max 16)", type: "number", defaultValue: "4" },
     ],
     buildArgs(o) {
-      const tasks = Math.min(Math.max(parseInt(o.tasks||"4",10)||4, 1), 16).toString();
-      const passwords = (o.passFile||"password,admin").split(",").map((s: string) => s.trim()).filter(Boolean).join(" ");
-      return ["-l", o.userFile||"admin", "-P", `/tmp/hydra_pass_${Date.now()}.txt`,
+      const tasks     = Math.min(Math.max(parseInt(o.tasks||"4",10)||4, 1), 16).toString();
+      const passwords = (o.passFile||"password,admin").split(",").map((s: string) => s.trim()).filter(Boolean);
+      const passFile  = `/tmp/hydra_pass_${Date.now()}.txt`;
+      writeFileSync(passFile, passwords.join("\n"), "utf8");
+      return ["-l", o.userFile||"admin", "-P", passFile,
         "-t", tasks, o.target.trim(), o.protocol];
     },
   },
@@ -588,6 +626,7 @@ const TOOLS: ToolDef[] = [
     category: "Password Attacks",
     description: "Offline password hash cracking — wordlist, incremental, and rule-based attacks.",
     timeoutMs: 120_000,
+    riskLevel: "medium", alwaysRequiresApproval: false, requiresInstalledCheck: true, scopeRequired: false,
     fields: [
       { id: "hash",   label: "Hash (paste hash string)", type: "text", placeholder: "5f4dcc3b5aa765d61d8327deb882cf99", required: true },
       { id: "format", label: "Hash Format", type: "select", defaultValue: "auto", options: [
@@ -606,7 +645,10 @@ const TOOLS: ToolDef[] = [
     ],
     buildArgs(o) {
       const args: string[] = [];
+      // Write the hash to a temp file before spawning — the file must exist on
+      // disk before john is invoked or it will exit with "no password hashes loaded"
       const hashFile = `/tmp/john_hash_${Date.now()}.txt`;
+      writeFileSync(hashFile, (o.hash ?? "").trim() + "\n", "utf8");
       if (o.format !== "auto") args.push(`--format=${o.format}`);
       if (o.mode === "wordlist")    args.push(`--wordlist=${WORDLIST}`);
       if (o.mode === "incremental") args.push("--incremental");
@@ -622,6 +664,7 @@ const TOOLS: ToolDef[] = [
     category: "Forensics & DFIR",
     description: "Memory forensics framework — process list, network connections, command history from memory dumps.",
     timeoutMs: 120_000,
+    riskLevel: "low", alwaysRequiresApproval: false, requiresInstalledCheck: true, scopeRequired: false,
     fields: [
       { id: "memFile", label: "Memory Dump File Path (server-side)", type: "text", placeholder: "/tmp/memory.dmp", required: true },
       { id: "plugin",  label: "Plugin", type: "select", defaultValue: "windows.info", options: [
@@ -643,6 +686,7 @@ const TOOLS: ToolDef[] = [
     category: "Forensics & DFIR",
     description: "Firmware analysis — embedded file extraction, entropy analysis, signature scanning.",
     timeoutMs: 60_000,
+    riskLevel: "low", alwaysRequiresApproval: false, requiresInstalledCheck: true, scopeRequired: false,
     fields: [
       { id: "file",    label: "File Path (server-side)", type: "text", placeholder: "/tmp/firmware.bin", required: true },
       { id: "mode",    label: "Mode", type: "select", defaultValue: "scan", options: [
@@ -666,6 +710,7 @@ const TOOLS: ToolDef[] = [
     category: "Cryptography",
     description: "GNU Privacy Guard — key management, encryption, signing, and verification.",
     timeoutMs: 30_000,
+    riskLevel: "low", alwaysRequiresApproval: false, requiresInstalledCheck: true, scopeRequired: false,
     fields: [
       { id: "mode",  label: "Mode", type: "select", defaultValue: "keyinfo", options: [
         { value: "keyinfo",   label: "List keys" },
@@ -690,6 +735,7 @@ const TOOLS: ToolDef[] = [
     category: "Cryptography",
     description: "World's fastest password recovery utility — GPU-accelerated hash cracking with rules and masks.",
     timeoutMs: 60_000,
+    riskLevel: "medium", alwaysRequiresApproval: false, requiresInstalledCheck: true, scopeRequired: false,
     fields: [
       { id: "mode", label: "Mode", type: "select", defaultValue: "benchmark", options: [
         { value: "benchmark",      label: "Benchmark — test GPU/CPU speed" },
@@ -710,6 +756,7 @@ const TOOLS: ToolDef[] = [
     description: "Network stress testing — TCP/UDP/ICMP packet generation, flood testing, firewall probing. Requires approval.",
     timeoutMs: 60_000,
     warning: "Requires admin approval. Use only against test infrastructure you control.",
+    riskLevel: "high", alwaysRequiresApproval: false, requiresInstalledCheck: true, scopeRequired: true,
     fields: [
       { id: "target",   label: "Target Host / IP", type: "text", placeholder: "192.168.1.100", required: true },
       { id: "mode",     label: "Mode", type: "select", defaultValue: "ping", options: [
@@ -735,6 +782,7 @@ const TOOLS: ToolDef[] = [
     description: "SlowHTTP DoS simulation — Slowloris, slow body, slow read. Requires admin approval.",
     timeoutMs: 60_000,
     warning: "Requires admin approval. Use only against test infrastructure you control.",
+    riskLevel: "critical", alwaysRequiresApproval: true, requiresInstalledCheck: true, scopeRequired: true,
     fields: [
       { id: "target",      label: "Target URL", type: "text", placeholder: "https://example.com", required: true },
       { id: "mode",        label: "Attack Vector", type: "select", defaultValue: "slowloris", options: [
@@ -759,6 +807,7 @@ const TOOLS: ToolDef[] = [
     description: "Parallel, modular brute-force login tool — SSH, FTP, HTTP, SMB, RDP and 30+ protocols.",
     timeoutMs: 60_000,
     warning: "Always requires admin approval. Use only against systems you own or have written authorization for.",
+    riskLevel: "critical", alwaysRequiresApproval: true, requiresInstalledCheck: true, scopeRequired: true,
     fields: [
       { id: "target",    label: "Target Host / IP", type: "text", placeholder: "203.0.113.5", required: true },
       { id: "username",  label: "Username", type: "text", placeholder: "admin", required: true },
@@ -785,6 +834,7 @@ const TOOLS: ToolDef[] = [
     category: "Forensics & DFIR",
     description: "Extract printable strings from binary files — malware analysis, firmware inspection.",
     timeoutMs: 30_000,
+    riskLevel: "low", alwaysRequiresApproval: false, requiresInstalledCheck: true, scopeRequired: false,
     fields: [
       { id: "file",    label: "File Path", type: "text", placeholder: "/tmp/sample.bin", required: true },
       { id: "minLen",  label: "Minimum String Length", type: "number", defaultValue: "8", hint: "Ignore strings shorter than N chars" },
@@ -806,6 +856,7 @@ const TOOLS: ToolDef[] = [
     category: "Forensics & DFIR",
     description: "Identify file type by magic bytes — reliable classification without relying on file extension.",
     timeoutMs: 10_000,
+    riskLevel: "low", alwaysRequiresApproval: false, requiresInstalledCheck: true, scopeRequired: false,
     fields: [
       { id: "path",      label: "File / Directory Path", type: "text", placeholder: "/tmp/suspicious", required: true },
       { id: "recursive", label: "Recursive (-r)", type: "checkbox", defaultValue: "false" },
@@ -825,6 +876,7 @@ const TOOLS: ToolDef[] = [
     category: "Forensics & DFIR",
     description: "Context-triggered piecewise hashing (fuzzy hashing) — detect similar malware variants.",
     timeoutMs: 60_000,
+    riskLevel: "low", alwaysRequiresApproval: false, requiresInstalledCheck: true, scopeRequired: false,
     fields: [
       { id: "path",      label: "File / Directory to Hash", type: "text", placeholder: "/tmp/samples", required: true },
       { id: "recursive", label: "Recursive (-r)", type: "checkbox", defaultValue: "true" },
@@ -847,6 +899,7 @@ const TOOLS: ToolDef[] = [
     description: "WPA/WPA2-PSK cracking from pcap capture file against a wordlist.",
     timeoutMs: 120_000,
     warning: "Authorized testing only. Requires admin approval.",
+    riskLevel: "critical", alwaysRequiresApproval: true, requiresInstalledCheck: true, scopeRequired: false,
     fields: [
       { id: "capFile",   label: "Capture File (.cap/.pcap)", type: "text", placeholder: "/tmp/capture.cap", required: true },
       { id: "bssid",     label: "Target BSSID", type: "text", placeholder: "AA:BB:CC:DD:EE:FF", required: true },
@@ -862,6 +915,7 @@ const TOOLS: ToolDef[] = [
     description: "Passive 802.11 frame capture — lists APs and associated clients in range.",
     timeoutMs: 30_000,
     warning: "Requires a monitor-mode wireless interface. Admin approval required.",
+    riskLevel: "high", alwaysRequiresApproval: false, requiresInstalledCheck: true, scopeRequired: false,
     fields: [
       { id: "iface",    label: "Interface (monitor mode)", type: "text", placeholder: "wlan0mon", required: true },
       { id: "duration", label: "Capture Duration (s, max 30)", type: "number", defaultValue: "15" },
@@ -877,6 +931,7 @@ const TOOLS: ToolDef[] = [
     description: "Scan for WPS-enabled access points — identify targets vulnerable to Pixie Dust / PIN attacks.",
     timeoutMs: 30_000,
     warning: "Requires a monitor-mode wireless interface. Admin approval required.",
+    riskLevel: "critical", alwaysRequiresApproval: true, requiresInstalledCheck: true, scopeRequired: false,
     fields: [
       { id: "iface",    label: "Interface (monitor mode)", type: "text", placeholder: "wlan0mon", required: true },
       { id: "duration", label: "Scan Duration (s, max 30)", type: "number", defaultValue: "15" },
@@ -891,6 +946,7 @@ const TOOLS: ToolDef[] = [
     description: "Kismet passive wireless frame capture — detects WEP, WPA, hidden SSIDs, and probe requests.",
     timeoutMs: 30_000,
     warning: "Requires a monitor-mode wireless interface and Kismet suite installed. Admin approval required.",
+    riskLevel: "critical", alwaysRequiresApproval: true, requiresInstalledCheck: true, scopeRequired: false,
     fields: [
       { id: "iface",  label: "Interface", type: "text", placeholder: "wlan0mon", required: true },
       { id: "source", label: "Source Descriptor", type: "text", placeholder: "linuxwifi", defaultValue: "linuxwifi" },
@@ -906,6 +962,7 @@ const TOOLS: ToolDef[] = [
     category: "Malware Analysis",
     description: "ClamAV antivirus scan of a file or directory for known malware signatures.",
     timeoutMs: 120_000,
+    riskLevel: "low", alwaysRequiresApproval: false, requiresInstalledCheck: true, scopeRequired: false,
     fields: [
       { id: "path",      label: "File / Directory Path", type: "text", placeholder: "/tmp/upload", required: true },
       { id: "recursive", label: "Recursive (-r)", type: "checkbox", defaultValue: "false" },
@@ -923,6 +980,7 @@ const TOOLS: ToolDef[] = [
     category: "Malware Analysis",
     description: "YARA rule-based pattern matching for malware identification and classification.",
     timeoutMs: 60_000,
+    riskLevel: "low", alwaysRequiresApproval: false, requiresInstalledCheck: true, scopeRequired: false,
     fields: [
       { id: "rulesFile", label: "YARA Rules File", type: "text", placeholder: "/etc/yara/rules.yar", required: true },
       { id: "target",    label: "Target File / Directory", type: "text", placeholder: "/tmp/sample", required: true },
@@ -942,6 +1000,7 @@ const TOOLS: ToolDef[] = [
     category: "Log Analysis",
     description: "System log analysis and summary report — services, security events, disk usage.",
     timeoutMs: 60_000,
+    riskLevel: "low", alwaysRequiresApproval: false, requiresInstalledCheck: true, scopeRequired: false,
     fields: [
       { id: "detail",  label: "Detail Level", type: "select", defaultValue: "Med", options: [
         { value: "Low",  label: "Low" },
@@ -966,6 +1025,7 @@ const TOOLS: ToolDef[] = [
     category: "Log Analysis",
     description: "Query systemd journal for audit and security-relevant log entries.",
     timeoutMs: 30_000,
+    riskLevel: "low", alwaysRequiresApproval: false, requiresInstalledCheck: true, scopeRequired: false,
     fields: [
       { id: "unit",  label: "Unit Filter (e.g. sshd)", type: "text", placeholder: "sshd" },
       { id: "since", label: "Since (e.g. '1 hour ago')", type: "text", placeholder: "1 hour ago", defaultValue: "1 hour ago" },
@@ -986,6 +1046,7 @@ const TOOLS: ToolDef[] = [
     description: "Snort IDS/IPS — validate rule syntax and run offline analysis against a pcap file.",
     timeoutMs: 60_000,
     warning: "Read-only offline analysis. Does not modify firewall rules.",
+    riskLevel: "low", alwaysRequiresApproval: false, requiresInstalledCheck: true, scopeRequired: false,
     fields: [
       { id: "pcap",      label: "PCAP File to Analyse", type: "text", placeholder: "/tmp/traffic.pcap", required: true },
       { id: "rulesFile", label: "Snort Rules File", type: "text", placeholder: "/etc/snort/snort.conf" },
@@ -1002,6 +1063,7 @@ const TOOLS: ToolDef[] = [
     description: "Suricata — offline PCAP analysis with EVE JSON output for IDS event extraction.",
     timeoutMs: 60_000,
     warning: "Offline analysis mode only. Requires Suricata to be installed.",
+    riskLevel: "low", alwaysRequiresApproval: false, requiresInstalledCheck: true, scopeRequired: false,
     fields: [
       { id: "pcap",    label: "PCAP File", type: "text", placeholder: "/tmp/capture.pcap", required: true },
       { id: "logDir",  label: "Log Output Directory", type: "text", placeholder: "/tmp/suricata-out", defaultValue: "/tmp/suricata-out" },
@@ -1017,6 +1079,7 @@ const TOOLS: ToolDef[] = [
     category: "Honeypot Monitoring",
     description: "Tail the Cowrie SSH/Telnet honeypot JSON log for recent attacker activity.",
     timeoutMs: 10_000,
+    riskLevel: "low", alwaysRequiresApproval: false, requiresInstalledCheck: false, scopeRequired: false,
     fields: [
       { id: "logFile", label: "Cowrie JSON Log Path", type: "text", placeholder: "/home/cowrie/cowrie/var/log/cowrie/cowrie.json", defaultValue: "/home/cowrie/cowrie/var/log/cowrie/cowrie.json" },
       { id: "lines",   label: "Last N Lines (max 500)", type: "number", defaultValue: "100" },
@@ -1031,6 +1094,7 @@ const TOOLS: ToolDef[] = [
     category: "Honeypot Monitoring",
     description: "Check active connections on honeypot ports — detect live attacker connections.",
     timeoutMs: 10_000,
+    riskLevel: "low", alwaysRequiresApproval: false, requiresInstalledCheck: false, scopeRequired: false,
     fields: [
       { id: "ports", label: "Port Filter (e.g. 22,23,80)", type: "text", placeholder: "22,23,80,443", defaultValue: "22,23,80,443" },
     ],
@@ -1045,6 +1109,7 @@ const TOOLS: ToolDef[] = [
     category: "Reporting/Export",
     description: "Export tool job data as structured JSON for reporting and evidence packaging.",
     timeoutMs: 5_000,
+    riskLevel: "low", alwaysRequiresApproval: false, requiresInstalledCheck: false, scopeRequired: false,
     fields: [
       { id: "jobId",  label: "DB Job ID (UUID)", type: "text", placeholder: "uuid-of-completed-job", required: true },
       { id: "format", label: "Output Format", type: "select", defaultValue: "json", options: [
@@ -1063,6 +1128,7 @@ const TOOLS: ToolDef[] = [
     description: "Capture live network traffic for offline analysis and reporting evidence.",
     timeoutMs: 30_000,
     warning: "Requires elevated privileges. Capture limited to 30 seconds.",
+    riskLevel: "medium", alwaysRequiresApproval: false, requiresInstalledCheck: true, scopeRequired: false,
     fields: [
       { id: "iface",   label: "Interface", type: "text", placeholder: "eth0", defaultValue: "eth0", required: true },
       { id: "filter",  label: "BPF Filter Expression", type: "text", placeholder: "port 80 or port 443" },
@@ -1097,6 +1163,8 @@ router.get("/tools", (_req, res) => {
     id: t.id, name: t.name, binary: t.binary, category: t.category,
     description: t.description, fields: t.fields, installed: isInstalled(t),
     warning: t.warning ?? null, timeoutMs: t.timeoutMs,
+    riskLevel: t.riskLevel, alwaysRequiresApproval: t.alwaysRequiresApproval,
+    requiresInstalledCheck: t.requiresInstalledCheck, scopeRequired: t.scopeRequired,
   })));
 });
 
@@ -1136,12 +1204,15 @@ router.post("/run", async (req: Request, res: Response) => {
     return res.status(400).json({ error: "Target is in a restricted address range." });
   }
 
-  // Target scope allowlist enforcement — validates against user's declared scope entries
-  const scopeCheck = await checkTargetAllowlist(targetField, userId);
-  if (!scopeCheck.allowed) {
-    appendAuditEvent({ actor: userId, action: "tool_runner.out_of_scope", resource: toolId,
-      result: "deny", metadata: { target: targetField } });
-    return res.status(422).json({ error: scopeCheck.reason, code: "target_out_of_scope" });
+  // Target scope allowlist enforcement — skipped for tools that operate on
+  // local files only (scopeRequired=false: john, volatility3, binwalk, etc.)
+  if (tool.scopeRequired) {
+    const scopeCheck = await checkTargetAllowlist(targetField, userId);
+    if (!scopeCheck.allowed) {
+      appendAuditEvent({ actor: userId, action: "tool_runner.out_of_scope", resource: toolId,
+        result: "deny", metadata: { target: targetField } });
+      return res.status(422).json({ error: scopeCheck.reason, code: "target_out_of_scope" });
+    }
   }
 
   // Check per-user concurrency
@@ -1153,8 +1224,19 @@ router.post("/run", async (req: Request, res: Response) => {
     return res.status(429).json({ error: `Max ${MAX_CONCURRENT_JOBS} concurrent jobs per user.` });
   }
 
-  // ── Approval-token path (single-use token from approved tool_approvals) ──
-  // If approvedToken is provided, validate and atomically consume it.
+  // ── Approval gate ──────────────────────────────────────────────────────────
+  // Priority order:
+  //   1. alwaysRequiresApproval=true  → always block unless a valid token supplied
+  //   2. requiresApprovalConditional() → dynamic option-based escalation
+  // If an approvedToken is supplied we validate and consume it first.
+  const alwaysNeedsApproval     = tool.alwaysRequiresApproval;
+  const conditionalApprovalReason = !alwaysNeedsApproval
+    ? requiresApprovalConditional(tool, opts)
+    : null;
+  const needsApproval = alwaysNeedsApproval
+    ? `'${tool.name}' always requires an admin-issued approval token (riskLevel: ${tool.riskLevel})`
+    : conditionalApprovalReason;
+
   if (approvedToken) {
     // DB errors propagate to outer handler → HTTP 500 (no silent swallow)
     const [approval] = await db.select().from(toolApprovalsTable)
@@ -1185,23 +1267,20 @@ router.post("/run", async (req: Request, res: Response) => {
     appendAuditEvent({ actor: userId, action: "tool_runner.approval_token_consumed", resource: toolId,
       result: "allow", metadata: { approvalId: approvedToken } });
     // Fall through to actual execution
-  } else {
-    // Check if high-risk approval needed (no token supplied)
-    const approvalReason = requiresApproval(toolId, opts);
-    if (approvalReason) {
-      const approvalId = randomUUID();
-      // DB errors propagate → HTTP 500; never return 202 if approval record not persisted
-      await db.insert(toolApprovalsTable).values({
-        id: approvalId, userId, toolId, toolName: tool.name,
-        target: targetField, optsJson: opts, riskReason: approvalReason, status: "pending",
-      });
-      appendAuditEvent({ actor: userId, action: "tool_runner.approval_requested", resource: toolId,
-        result: "deny", metadata: { approvalId, reason: approvalReason } });
-      return res.status(202).json({
-        status: "pending_approval", approvalId,
-        message: `This scan requires admin approval: ${approvalReason}. Re-submit with approvedToken once approved.`,
-      });
-    }
+  } else if (needsApproval) {
+    // No token supplied but approval is required — insert pending record and halt
+    const approvalId = randomUUID();
+    // DB errors propagate → HTTP 500; never return 202 if approval record not persisted
+    await db.insert(toolApprovalsTable).values({
+      id: approvalId, userId, toolId, toolName: tool.name,
+      target: targetField, optsJson: opts, riskReason: needsApproval, status: "pending",
+    });
+    appendAuditEvent({ actor: userId, action: "tool_runner.approval_requested", resource: toolId,
+      result: "deny", metadata: { approvalId, reason: needsApproval } });
+    return res.status(202).json({
+      status: "pending_approval", approvalId,
+      message: `This scan requires admin approval: ${needsApproval}. Re-submit with approvedToken once approved.`,
+    });
   }
 
   // GeoIP enrichment
@@ -1557,7 +1636,10 @@ router.post("/approvals/request", async (req: Request, res: Response) => {
   }
   const tool = TOOLS.find(t => t.id === body.toolId);
   if (!tool) return res.status(404).json({ error: "Unknown tool: " + body.toolId });
-  const approvalReason = requiresApproval(body.toolId, body.opts);
+  // alwaysRequiresApproval takes priority; otherwise check conditional logic
+  const approvalReason = tool.alwaysRequiresApproval
+    ? `'${tool.name}' always requires an admin-issued approval token (riskLevel: ${tool.riskLevel})`
+    : requiresApprovalConditional(tool, body.opts);
   if (!approvalReason) return res.status(400).json({ error: "This tool does not require admin approval." });
   const approvalId = randomUUID();
   try {

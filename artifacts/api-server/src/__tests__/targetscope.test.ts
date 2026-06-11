@@ -84,3 +84,49 @@ describe("targetMatchesScope — unknown type", () => {
     expect(targetMatchesScope("anything", "wildcard", "anything")).toBe(false);
   });
 });
+
+// ── URL origin-confusion bypass tests (round-6 fix) ────────────────────────
+// Regression tests for the startsWith-based URL matching that allowed
+// "https://example.com.evil.com/path" to pass a scope of "https://example.com"
+describe("targetMatchesScope — URL origin-confusion bypass prevention", () => {
+  it("rejects URL where scope origin is a prefix of a longer hostname (startsWith bypass)", () => {
+    // Attacker submits https://example.com.evil.com — shares example.com prefix but
+    // different origin. A startsWith check would wrongly allow this.
+    expect(
+      targetMatchesScope("https://example.com.evil.com/path", "url", "https://example.com"),
+    ).toBe(false);
+  });
+
+  it("rejects URL where scope domain appears as a subdirectory path component", () => {
+    // Attacker submits https://evil.com/example.com/anything — scope origin check
+    // must compare origins (scheme+host+port), not raw string prefixes.
+    expect(
+      targetMatchesScope("https://evil.com/example.com/anything", "url", "https://example.com"),
+    ).toBe(false);
+  });
+
+  it("allows legitimate subdirectory paths on the same origin", () => {
+    expect(
+      targetMatchesScope("https://example.com/api/v2/endpoint", "url", "https://example.com"),
+    ).toBe(true);
+  });
+
+  it("rejects mismatched scheme even with same host", () => {
+    // http:// vs https:// — different origins
+    expect(
+      targetMatchesScope("http://example.com/path", "url", "https://example.com"),
+    ).toBe(false);
+  });
+
+  it("rejects mismatched port even with same host", () => {
+    expect(
+      targetMatchesScope("https://example.com:8443/path", "url", "https://example.com"),
+    ).toBe(false);
+  });
+
+  it("allows exact origin with trailing slash path", () => {
+    expect(
+      targetMatchesScope("https://example.com/", "url", "https://example.com"),
+    ).toBe(true);
+  });
+});
