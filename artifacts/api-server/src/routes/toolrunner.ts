@@ -169,7 +169,7 @@ function requiresApproval(toolId: string, opts: Record<string, string>): string 
   if (toolId === "feroxbuster" && parseInt(opts.depth ?? "2", 10) >= 3) {
     return `Feroxbuster depth ${opts.depth} (≥3) requires admin approval`;
   }
-  if (["hydra", "slowhttptest"].includes(toolId)) {
+  if (["hydra", "slowhttptest", "medusa", "aircrack-ng", "wash", "kismet-capture"].includes(toolId)) {
     return `Tool '${toolId}' always requires admin approval`;
   }
   return null;
@@ -787,6 +787,94 @@ const TOOLS: ToolDef[] = [
     },
   },
 
+  // ── Additional Password Attacks ───────────────────────────────────────────
+  {
+    id: "medusa", name: "Medusa", binary: "medusa",
+    category: "Password Attacks",
+    description: "Parallel, modular brute-force login tool — SSH, FTP, HTTP, SMB, RDP and 30+ protocols.",
+    timeoutMs: 60_000,
+    warning: "Always requires admin approval. Use only against systems you own or have written authorization for.",
+    fields: [
+      { id: "target",    label: "Target Host / IP", type: "text", placeholder: "203.0.113.5", required: true },
+      { id: "username",  label: "Username", type: "text", placeholder: "admin", required: true },
+      { id: "wordlist",  label: "Password Wordlist", type: "text", placeholder: "/usr/share/wordlists/rockyou.txt", defaultValue: WORDLIST },
+      { id: "module",    label: "Module (protocol)", type: "select", defaultValue: "ssh", options: [
+        { value: "ssh",   label: "SSH" },
+        { value: "ftp",   label: "FTP" },
+        { value: "http",  label: "HTTP" },
+        { value: "smb",   label: "SMB" },
+        { value: "rdp",   label: "RDP" },
+        { value: "telnet",label: "Telnet" },
+      ]},
+      { id: "tasks",    label: "Parallel Tasks (max 8)", type: "number", defaultValue: "4" },
+    ],
+    buildArgs(o) {
+      const t = Math.min(Math.max(parseInt(o.tasks||"4",10)||4, 1), 8).toString();
+      return ["-h", o.target.trim(), "-u", o.username.trim(), "-P", (o.wordlist || WORDLIST).trim(), "-M", (o.module || "ssh"), "-t", t];
+    },
+  },
+
+  // ── Additional Forensics & DFIR ───────────────────────────────────────────
+  {
+    id: "strings-extract", name: "Strings", binary: "strings",
+    category: "Forensics & DFIR",
+    description: "Extract printable strings from binary files — malware analysis, firmware inspection.",
+    timeoutMs: 30_000,
+    fields: [
+      { id: "file",    label: "File Path", type: "text", placeholder: "/tmp/sample.bin", required: true },
+      { id: "minLen",  label: "Minimum String Length", type: "number", defaultValue: "8", hint: "Ignore strings shorter than N chars" },
+      { id: "encoding",label: "Encoding", type: "select", defaultValue: "a", options: [
+        { value: "a", label: "7-bit ASCII" },
+        { value: "b", label: "8-bit" },
+        { value: "l", label: "16-bit little-endian" },
+        { value: "B", label: "16-bit big-endian" },
+      ]},
+    ],
+    buildArgs(o) {
+      const n = Math.min(Math.max(parseInt(o.minLen||"8",10)||8, 2), 32).toString();
+      const safePath = o.file.trim().replace(/[;&|`$]/g, "");
+      return [`-n`, n, `-e`, o.encoding || "a", safePath];
+    },
+  },
+  {
+    id: "file-identify", name: "File Identify", binary: "file",
+    category: "Forensics & DFIR",
+    description: "Identify file type by magic bytes — reliable classification without relying on file extension.",
+    timeoutMs: 10_000,
+    fields: [
+      { id: "path",      label: "File / Directory Path", type: "text", placeholder: "/tmp/suspicious", required: true },
+      { id: "recursive", label: "Recursive (-r)", type: "checkbox", defaultValue: "false" },
+      { id: "mime",      label: "Show MIME types (--mime)", type: "checkbox", defaultValue: "false" },
+    ],
+    buildArgs(o) {
+      const args: string[] = [];
+      if (o.mime === "true") args.push("--mime");
+      if (o.recursive === "true") args.push("-r");
+      const safePath = o.path.trim().replace(/[;&|`$]/g, "");
+      args.push(safePath);
+      return args;
+    },
+  },
+  {
+    id: "ssdeep", name: "ssdeep", binary: "ssdeep",
+    category: "Forensics & DFIR",
+    description: "Context-triggered piecewise hashing (fuzzy hashing) — detect similar malware variants.",
+    timeoutMs: 60_000,
+    fields: [
+      { id: "path",      label: "File / Directory to Hash", type: "text", placeholder: "/tmp/samples", required: true },
+      { id: "recursive", label: "Recursive (-r)", type: "checkbox", defaultValue: "true" },
+      { id: "compare",   label: "Compare File (optional)", type: "text", placeholder: "/tmp/known-hashes.txt" },
+    ],
+    buildArgs(o) {
+      const args: string[] = [];
+      if (o.recursive === "true") args.push("-r");
+      if (o.compare?.trim()) args.push("-m", o.compare.trim());
+      const safePath = o.path.trim().replace(/[;&|`$]/g, "");
+      args.push(safePath);
+      return args;
+    },
+  },
+
   // ── Wireless ──────────────────────────────────────────────────────────────
   {
     id: "aircrack-ng", name: "Aircrack-ng", binary: "aircrack-ng",
@@ -816,6 +904,34 @@ const TOOLS: ToolDef[] = [
     buildArgs(o) {
       const dur = Math.min(Math.max(parseInt(o.duration||"15",10)||15, 5), 30);
       return ["--band", "abg", "--output-format", "csv", "--write", "/tmp/airodump", `--timer=${dur}`, o.iface.trim()];
+    },
+  },
+  {
+    id: "wash", name: "Wash (WPS Scanner)", binary: "wash",
+    category: "Wireless",
+    description: "Scan for WPS-enabled access points — identify targets vulnerable to Pixie Dust / PIN attacks.",
+    timeoutMs: 30_000,
+    warning: "Requires a monitor-mode wireless interface. Admin approval required.",
+    fields: [
+      { id: "iface",    label: "Interface (monitor mode)", type: "text", placeholder: "wlan0mon", required: true },
+      { id: "duration", label: "Scan Duration (s, max 30)", type: "number", defaultValue: "15" },
+    ],
+    buildArgs(o) {
+      return ["-i", o.iface.trim(), "-s"];
+    },
+  },
+  {
+    id: "kismet-capture", name: "Kismet Capture", binary: "kismet_cap_linux_wifi",
+    category: "Wireless",
+    description: "Kismet passive wireless frame capture — detects WEP, WPA, hidden SSIDs, and probe requests.",
+    timeoutMs: 30_000,
+    warning: "Requires a monitor-mode wireless interface and Kismet suite installed. Admin approval required.",
+    fields: [
+      { id: "iface",  label: "Interface", type: "text", placeholder: "wlan0mon", required: true },
+      { id: "source", label: "Source Descriptor", type: "text", placeholder: "linuxwifi", defaultValue: "linuxwifi" },
+    ],
+    buildArgs(o) {
+      return [`--connect`, `127.0.0.1:3501`, `--source`, `${(o.source || "linuxwifi")}:interface=${o.iface.trim()}`];
     },
   },
 
@@ -1177,6 +1293,10 @@ router.post("/run", async (req: Request, res: Response) => {
         .set({ status: code === 0 ? "completed" : "failed", exitCode: code ?? undefined,
           outputText: fullOutput.substring(0, 1_000_000), completedAt: new Date() })
         .where(eq(toolJobsTable.id, dbJobId));
+      // Auto-persist chunked output to tool_outputs (always, per run lifecycle)
+      await db.insert(toolOutputsTable)
+        .values({ jobId: dbJobId, chunkIndex: 0, text: fullOutput.substring(0, 1_000_000) })
+        .onConflictDoNothing();
     } catch {}
     setTimeout(() => jobs.delete(jobId), 300_000);
   });
@@ -1270,9 +1390,10 @@ router.get("/history", async (req: Request, res: Response) => {
   const limit  = Math.min(parseInt((req.query.limit  as string) || "20", 10), 100);
   const offset = Math.max(parseInt((req.query.offset as string) || "0",  10), 0);
   try {
-    const q = db.select().from(toolJobsTable);
-    if (!isAdmin) q.where(eq(toolJobsTable.userId, userId));
-    const rows = await q.orderBy(desc(toolJobsTable.createdAt)).limit(limit).offset(offset);
+    const rows = await (isAdmin
+      ? db.select().from(toolJobsTable)
+      : db.select().from(toolJobsTable).where(eq(toolJobsTable.userId, userId))
+    ).orderBy(desc(toolJobsTable.createdAt)).limit(limit).offset(offset);
     res.json(rows);
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });

@@ -1,6 +1,6 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import {
-  pgTable, text, integer, boolean, timestamp, jsonb, uuid, index
+  pgTable, text, integer, boolean, timestamp, jsonb, uuid, index, real
 } from "drizzle-orm/pg-core";
 
 // ── tool_jobs ──────────────────────────────────────────────────────────────────
@@ -80,6 +80,9 @@ export const nodeAgentHealthTable = pgTable("node_agent_health", {
   os:          text("os"),
   arch:        text("arch"),
   toolsJson:   jsonb("tools_json").$type<string[]>(),
+  cpuPct:      real("cpu_pct"),
+  memPct:      real("mem_pct"),
+  diskMb:      integer("disk_mb"),
   status:      text("status").notNull().default("active"),
   lastSeenAt:  timestamp("last_seen_at").notNull().defaultNow(),
   createdAt:   timestamp("created_at").notNull().defaultNow(),

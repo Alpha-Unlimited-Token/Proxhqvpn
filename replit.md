@@ -123,6 +123,25 @@ Clerk (`app_3CcwHo66ohArVtaIa0XTcv88i4Y`). Env vars: `VITE_CLERK_PUBLISHABLE_KEY
 | /api/ambassadors | ambassadors.ts | Ambassador CRUD, referral tracking, 10% commission calc |
 | /api/stripe | stripe.ts | Checkout, webhooks, subscription management |
 
+## Node Agent PSK Configuration
+
+| Secret | Purpose | Used By |
+|--------|---------|---------|
+| `NODE_AGENT_PSK` | Shared key for remote Parrot OS agent check-ins | All `/api/node-agent/*` POST routes (`/checkin`, `/health`, `/events`). Agents send `x-node-agent-psk: <value>` header. Without this env var, all agent check-in requests return 401. |
+| `HONEYPOT_PSK` | Shared key for honeypot sensor callbacks | Honeypot network callbacks posting trap events; same PSK-validation pattern as NODE_AGENT_PSK. |
+
+**Node agent endpoints (PSK-authenticated, no Clerk):**
+- `POST /api/node-agent/checkin` — full registration + optional event (runs every 30s on node)
+- `POST /api/node-agent/health` — lightweight telemetry-only update (cpuPct, memPct, diskMb)
+- `POST /api/node-agent/events` — batch event reporting (up to 100 events per call)
+
+**Admin-only node endpoints (Clerk auth):**
+- `GET  /api/node-agent/health` — list all nodes with telemetry
+- `GET  /api/node-agent/nodes` — paginated node list with status filter
+- `GET  /api/node-agent/events` — all events paginated (nodeId/eventType filters)
+- `GET  /api/node-agent/events/:nodeId` — events for a specific node
+- `DELETE /api/node-agent/:nodeId` — deregister a node
+
 ## Security Architecture
 
 - **RBAC** — 6 roles: `owner / security_admin / network_admin / auditor / support / user`. 10 actions. `lib/rbac.ts`.
