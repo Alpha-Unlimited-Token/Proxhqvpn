@@ -1,5 +1,6 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
-import { Router } from "express";
+import { Router, type Request, type Response, type NextFunction } from "express";
+import { getAuth } from "@clerk/express";
 import {
   fetchWalletOutgoing,
   fetchNonceAndBalance,
@@ -20,6 +21,13 @@ import {
 } from "../lib/scheme-auditor/batch-worker";
 
 const router = Router();
+
+const requireAuth = (req: Request, res: Response, next: NextFunction) => {
+  const { userId } = getAuth(req);
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+  return next();
+};
+router.use(requireAuth);
 
 // ── Background Scan Job Store ─────────────────────────────────────────────────
 // Lives inside the API server process (a persistent Replit workflow).

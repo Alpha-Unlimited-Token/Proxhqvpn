@@ -12,16 +12,18 @@ import { format } from "date-fns";
 import { MessageSquare, Send, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
+const BASE = "/api/omega";
+
 type ChatMessage = { id: number; hostId: number; direction: string; message: string; createdAt: string };
 
 async function fetchMessages(hostId: number): Promise<ChatMessage[]> {
-  const r = await fetch(`/api/chat/${hostId}/messages`);
+  const r = await fetch(`${BASE}/chat/${hostId}/messages`);
   if (!r.ok) throw new Error("Failed");
   return r.json();
 }
 
 async function sendMessage(hostId: number, message: string) {
-  const r = await fetch(`/api/chat/${hostId}/messages`, {
+  const r = await fetch(`${BASE}/chat/${hostId}/messages`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ message, direction: "out" }),
@@ -31,7 +33,7 @@ async function sendMessage(hostId: number, message: string) {
 }
 
 async function clearMessages(hostId: number) {
-  await fetch(`/api/chat/${hostId}/messages`, { method: "DELETE" });
+  await fetch(`${BASE}/chat/${hostId}/messages`, { method: "DELETE" });
 }
 
 export default function Chat() {

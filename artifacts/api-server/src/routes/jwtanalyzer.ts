@@ -1,6 +1,19 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { Router } from "express";
 import * as crypto from "crypto";
+import { z } from "zod";
+
+const TokenBody       = z.object({ token: z.string().min(1, "token required") });
+const CrackBody       = TokenBody.extend({ customSecrets: z.array(z.string()).optional() });
+const JwksInjectBody  = TokenBody.extend({ jwksUrl: z.string().url("jwksUrl must be a valid URL") });
+const ClaimEscBody    = TokenBody.extend({ targetClaims: z.record(z.unknown()).optional() });
+const X5uInjectBody   = TokenBody.extend({ x5uUrl: z.string().url("x5uUrl must be a valid URL") });
+const KeyConfBody     = TokenBody.extend({ publicKey: z.string().min(1, "publicKey required") });
+const SignBody        = z.object({
+  payload: z.record(z.unknown()),
+  secret:  z.string().min(1, "secret required"),
+  alg:     z.enum(["HS256", "HS384", "HS512"]).optional(),
+});
 
 const router = Router();
 
@@ -62,8 +75,9 @@ function hmacSign(data: string, secret: string, alg: string): string {
 
 // Decode
 router.post("/decode", (req, res) => {
-  const { token } = req.body as { token?: string };
-  if (!token) return res.status(400).json({ error: "token required" });
+  const parsed = TokenBody.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.errors[0]?.message ?? "token required" });
+  const { token } = parsed.data;
   try {
     const { header, payload, signature, parts } = decodeJwt(token);
     const now = Math.floor(Date.now() / 1000);
@@ -109,8 +123,9 @@ router.post("/decode", (req, res) => {
 
 // alg=none attack
 router.post("/alg-none", (req, res) => {
-  const { token } = req.body as { token?: string };
-  if (!token) return res.status(400).json({ error: "token required" });
+  const parsed = TokenBody.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.errors[0]?.message ?? "token required" });
+  const { token } = parsed.data;
   try {
     const { header, payload } = decodeJwt(token);
     header.alg = "none";
@@ -129,8 +144,9 @@ router.post("/alg-none", (req, res) => {
 
 // HMAC secret brute-force
 router.post("/crack", (req, res) => {
-  const { token, customSecrets } = req.body as { token?: string; customSecrets?: string[] };
-  if (!token) return res.status(400).json({ error: "token required" });
+  const parsed = CrackBody.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.errors[0]?.message ?? "token required" });
+  const { token, customSecrets } = parsed.data;
   try {
     const { header, parts } = decodeJwt(token);
     if (!["HS256", "HS384", "HS512"].includes(header.alg)) {
@@ -153,8 +169,9 @@ router.post("/crack", (req, res) => {
 
 // ── JWKS injection — forge a token with jku/x5u pointing to an attacker-controlled JWKS ──
 router.post("/jwks-inject", (req, res) => {
-  const { token, jwksUrl } = req.body as { token?: string; jwksUrl?: string };
-  if (!token || !jwksUrl) return res.status(400).json({ error: "token and jwksUrl required" });
+  const parsed = JwksInjectBody.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.errors[0]?.message ?? "token and jwksUrl required" });
+  const { token, jwksUrl } = parsed.data;
   try {
     const { header, payload, parts } = decodeJwt(token);
     const forgedHeader = { ...header, jku: jwksUrl };
@@ -188,8 +205,9 @@ router.post("/jwks-inject", (req, res) => {
 
 // ── Embedded JWK attack — put attacker's public key directly in the header ──
 router.post("/embedded-jwk", (req, res) => {
-  const { token } = req.body as { token?: string };
-  if (!token) return res.status(400).json({ error: "token required" });
+  const parsed = TokenBody.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.errors[0]?.message ?? "token required" });
+  const { token } = parsed.data;
   try {
     const { header, parts } = decodeJwt(token);
     const { privateKey, publicKey } = crypto.generateKeyPairSync("rsa", { modulusLength: 2048 });
@@ -222,8 +240,9 @@ router.post("/embedded-jwk", (req, res) => {
 
 // ── kid SQL injection ──
 router.post("/kid-injection", (req, res) => {
-  const { token } = req.body as { token?: string };
-  if (!token) return res.status(400).json({ error: "token required" });
+  const parsed = TokenBody.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.errors[0]?.message ?? "token required" });
+  const { token } = parsed.data;
   try {
     const { header, payload } = decodeJwt(token);
     const payloads = [
@@ -259,8 +278,9 @@ router.post("/kid-injection", (req, res) => {
 
 // ── Claim escalation — modify role/admin claims ──
 router.post("/claim-escalate", (req, res) => {
-  const { token, targetClaims } = req.body as { token?: string; targetClaims?: Record<string, any> };
-  if (!token) return res.status(400).json({ error: "token required" });
+  const parsed = ClaimEscBody.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.errors[0]?.message ?? "token required" });
+  const { token, targetClaims } = parsed.data;
   try {
     const { header, payload, parts } = decodeJwt(token);
     const defaultEscalations: Record<string, any> = {
@@ -299,8 +319,9 @@ router.post("/claim-escalate", (req, res) => {
 
 // ── X5U header injection — point x5u to attacker certificate ──
 router.post("/x5u-inject", (req, res) => {
-  const { token, x5uUrl } = req.body as { token?: string; x5uUrl?: string };
-  if (!token || !x5uUrl) return res.status(400).json({ error: "token and x5uUrl required" });
+  const parsed = X5uInjectBody.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.errors[0]?.message ?? "token and x5uUrl required" });
+  const { token, x5uUrl } = parsed.data;
   try {
     const { header, parts } = decodeJwt(token);
     const forgedHeader = { ...header, x5u: x5uUrl };
@@ -322,8 +343,9 @@ router.post("/x5u-inject", (req, res) => {
 
 // RS256→HS256 key confusion attack (educational — just shows the forged structure)
 router.post("/key-confusion", (req, res) => {
-  const { token, publicKey } = req.body as { token?: string; publicKey?: string };
-  if (!token || !publicKey) return res.status(400).json({ error: "token and publicKey required" });
+  const parsed = KeyConfBody.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.errors[0]?.message ?? "token and publicKey required" });
+  const { token, publicKey } = parsed.data;
   try {
     const { header, payload } = decodeJwt(token);
     const newHeader = { ...header, alg: "HS256" };
@@ -346,12 +368,10 @@ router.post("/key-confusion", (req, res) => {
 
 // Sign a new token
 router.post("/sign", (req, res) => {
-  const { payload, secret, alg } = req.body as { payload?: object; secret?: string; alg?: string };
-  if (!payload || !secret) return res.status(400).json({ error: "payload and secret required" });
+  const parsed = SignBody.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.errors[0]?.message ?? "payload and secret required" });
+  const { payload, secret, alg } = parsed.data;
   const algorithm = alg || "HS256";
-  if (!["HS256", "HS384", "HS512"].includes(algorithm)) {
-    return res.status(400).json({ error: "Supported: HS256, HS384, HS512" });
-  }
   try {
     const header  = Buffer.from(JSON.stringify({ alg: algorithm, typ: "JWT" })).toString("base64url");
     const pl = Buffer.from(JSON.stringify(payload)).toString("base64url");

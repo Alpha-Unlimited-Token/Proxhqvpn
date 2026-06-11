@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-const BASE = "/api";
+const BASE = "/api/omega";
 
 type RCmd = { id: number; hostId: number; commandType: string; params: string; status: string; result: string; executedAt: string };
 

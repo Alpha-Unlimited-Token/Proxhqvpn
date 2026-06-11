@@ -9,13 +9,13 @@ import { Separator } from "@/components/ui/separator";
 import { useMutation } from "@tanstack/react-query";
 import { Network, Wifi, WifiOff, Search, RefreshCw } from "lucide-react";
 
-const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+const BASE = "/api/omega";
 
 type PingResult = { ip: string; reachable: boolean; latencyMs: number | null; ttl: number | null };
 type ResolveResult = { input: string; resolved: string; type: string };
 
 async function doPing(ip: string): Promise<PingResult> {
-  const r = await fetch(`${BASE}/api/tools/ping`, {
+  const r = await fetch(`${BASE}/tools/ping`, {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ip }),
   });
   if (!r.ok) throw new Error("Failed");
@@ -23,7 +23,7 @@ async function doPing(ip: string): Promise<PingResult> {
 }
 
 async function doResolve(host: string): Promise<ResolveResult> {
-  const r = await fetch(`${BASE}/api/tools/resolve`, {
+  const r = await fetch(`${BASE}/tools/resolve`, {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ host }),
   });
   if (!r.ok) throw new Error("Failed");

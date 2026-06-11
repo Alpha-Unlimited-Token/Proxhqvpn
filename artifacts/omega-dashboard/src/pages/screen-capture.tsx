@@ -12,7 +12,7 @@ import { format } from "date-fns";
 import { Camera, RefreshCw, Monitor, ImageOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-const BASE = "/api";
+const BASE = "/api/omega";
 
 type Screenshot = { id: number; hostId: number; label: string; widthPx: number; heightPx: number; sizeKb: number; createdAt: string; hasData?: boolean };
 

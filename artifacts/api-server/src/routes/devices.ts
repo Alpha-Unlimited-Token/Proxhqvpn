@@ -1,8 +1,9 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { Router } from "express";
+import { getAuth } from "@clerk/express";
 import { db } from "@workspace/db";
 import { devicesTable, nodesTable } from "@workspace/db/schema";
-import { eq, isNotNull } from "drizzle-orm";
+import { eq, isNotNull, and } from "drizzle-orm";
 import { z } from "zod";
 
 const router = Router();
@@ -29,11 +30,13 @@ router.post("/", async (req, res) => {
 
   if (!body.success) return res.status(400).json({ error: body.error.flatten() });
 
+  const { userId } = getAuth(req);
   const existing = await db.select({ ip: devicesTable.assignedIp }).from(devicesTable);
   const usedIps = existing.map(r => r.ip);
   const assignedIp = allocateIp(usedIps);
 
   const [device] = await db.insert(devicesTable).values({
+    userId: userId ?? null,
     name: body.data.name,
     type: body.data.type,
     publicKey: body.data.publicKey ?? null,
@@ -47,8 +50,10 @@ router.get("/:id/config", async (req, res) => {
   const id = parseInt(req.params.id);
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
 
+  const { userId } = getAuth(req);
   const [device] = await db.select().from(devicesTable).where(eq(devicesTable.id, id));
   if (!device) return res.status(404).json({ error: "Device not found" });
+  if (device.userId && device.userId !== userId) return res.status(403).json({ error: "Forbidden" });
 
   // Pull a real active node with a valid public IP and WireGuard key
   const activeNodes = await db
@@ -91,6 +96,11 @@ router.put("/:id", async (req, res) => {
   const id = parseInt(req.params.id);
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
 
+  const { userId } = getAuth(req);
+  const [existing] = await db.select().from(devicesTable).where(eq(devicesTable.id, id));
+  if (!existing) return res.status(404).json({ error: "Device not found" });
+  if (existing.userId && existing.userId !== userId) return res.status(403).json({ error: "Forbidden" });
+
   const body = z.object({
     name: z.string().min(1).max(64).optional(),
     publicKey: z.string().optional(),
@@ -112,7 +122,12 @@ router.delete("/:id", async (req, res) => {
   const id = parseInt(req.params.id);
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
 
-  const [deleted] = await db.delete(devicesTable).where(eq(devicesTable.id, id)).returning();
+  const { userId } = getAuth(req);
+  const [existing] = await db.select().from(devicesTable).where(eq(devicesTable.id, id));
+  if (!existing) return res.status(404).json({ error: "Device not found" });
+  if (existing.userId && existing.userId !== userId) return res.status(403).json({ error: "Forbidden" });
+
+  const [deleted] = await db.delete(devicesTable).where(and(eq(devicesTable.id, id), eq(devicesTable.userId, userId!))).returning();
   if (!deleted) return res.status(404).json({ error: "Device not found" });
   res.json({ ok: true });
 });

@@ -88,7 +88,7 @@ function doRequest(opts: {
   });
 }
 
-router.post("/api/intruder/run", async (req: Request, res: Response) => {
+router.post("/run", async (req: Request, res: Response) => {
   const parsed = IntruderSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid request", details: parsed.error.flatten() });

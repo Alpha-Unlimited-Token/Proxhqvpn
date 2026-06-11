@@ -27,14 +27,16 @@ const DRIVES = [
 
 type DriveId = typeof DRIVES[number]["id"];
 
+const BASE = "/api/omega";
+
 async function getCommands(hostId: number): Promise<RCmd[]> {
-  const r = await fetch(`/api/remote-commands/${hostId}`);
+  const r = await fetch(`${BASE}/remote-commands/${hostId}`);
   if (!r.ok) throw new Error("Failed");
   return r.json();
 }
 
 async function queueCommand(hostId: number, commandType: string): Promise<RCmd> {
-  const r = await fetch(`/api/remote-commands/${hostId}/execute`, {
+  const r = await fetch(`${BASE}/remote-commands/${hostId}/execute`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ commandType }),

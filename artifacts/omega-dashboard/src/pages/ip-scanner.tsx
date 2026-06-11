@@ -14,8 +14,10 @@ import { Link } from "wouter";
 type ScanResult = { ip: string; port: number; open: boolean; latencyMs: number; known: boolean };
 type ScanResponse = { results: ScanResult[]; scanned: number; found: number };
 
+const BASE = "/api/omega";
+
 async function runScan(startIp: string, endIp: string, port: number): Promise<ScanResponse> {
-  const r = await fetch(`/api/tools/scan`, {
+  const r = await fetch(`${BASE}/tools/scan`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ startIp, endIp, port }),

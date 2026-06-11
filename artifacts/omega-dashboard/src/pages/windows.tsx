@@ -12,7 +12,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AppWindow, RefreshCw, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-const BASE = "/api";
+const BASE = "/api/omega";
 
 type WinEntry = { id: number; hostId: number; windowHandle: string; title: string; processName: string; isActive: boolean; isClosed: boolean; createdAt: string };
 

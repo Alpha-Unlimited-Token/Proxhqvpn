@@ -83,6 +83,7 @@ router.post("/session", (req: Request, res: Response) => {
 router.get("/poll/:sessionId", (req: Request, res: Response) => {
   const session = sessions.get(String(String(req.params.sessionId)));
   if (!session) return res.status(404).json({ error: "Session not found" });
+  if (session.userId !== uid(req)) return res.status(403).json({ error: "Forbidden" });
 
   if (session.callbacks.length > 0) {
     return res.json({ sessionId: session.sessionId, callbacks: session.callbacks, count: session.callbacks.length });
@@ -109,6 +110,7 @@ router.get("/poll/:sessionId", (req: Request, res: Response) => {
 router.get("/session/:sessionId", (req: Request, res: Response) => {
   const session = sessions.get(String(String(req.params.sessionId)));
   if (!session) return res.status(404).json({ error: "Session not found" });
+  if (session.userId !== uid(req)) return res.status(403).json({ error: "Forbidden" });
   const { waiters, ...safe } = session;
   res.json(safe);
 });
@@ -128,6 +130,7 @@ router.get("/sessions", (req: Request, res: Response) => {
 router.delete("/session/:sessionId", (req: Request, res: Response) => {
   const session = sessions.get(String(String(req.params.sessionId)));
   if (!session) return res.status(404).json({ error: "Session not found" });
+  if (session.userId !== uid(req)) return res.status(403).json({ error: "Forbidden" });
   tokenToSession.delete(session.token);
   sessions.delete(String(String(req.params.sessionId)));
   res.json({ deleted: true });

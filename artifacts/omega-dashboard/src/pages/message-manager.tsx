@@ -23,14 +23,16 @@ const ICONS = [
 
 const BUTTONS = ["ok", "ok-cancel", "yes-no", "yes-no-cancel", "abort-retry-ignore", "retry-cancel"];
 
+const BASE = "/api/omega";
+
 async function fetchMessages(hostId: number): Promise<SentMsg[]> {
-  const r = await fetch(`/api/messages/${hostId}`);
+  const r = await fetch(`${BASE}/messages/${hostId}`);
   if (!r.ok) throw new Error("Failed");
   return r.json();
 }
 
 async function sendMessage(hostId: number, title: string, body: string, iconType: string, buttonType: string) {
-  const r = await fetch(`/api/messages/${hostId}/send`, {
+  const r = await fetch(`${BASE}/messages/${hostId}/send`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ title, body, iconType, buttonType }),

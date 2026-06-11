@@ -12,14 +12,16 @@ import { format } from "date-fns";
 import { Trash2, RefreshCw, KeyRound } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
+const BASE = "/api/omega";
+
 async function fetchKeystrokes(hostId: number) {
-  const r = await fetch(`/api/keylogger/${hostId}/entries`);
+  const r = await fetch(`${BASE}/keylogger/${hostId}/entries`);
   if (!r.ok) throw new Error("Failed to fetch");
   return r.json() as Promise<Array<{ id: number; hostId: number; windowTitle: string; text: string; createdAt: string }>>;
 }
 
 async function clearKeystrokes(hostId: number) {
-  await fetch(`/api/keylogger/${hostId}/entries`, { method: "DELETE" });
+  await fetch(`${BASE}/keylogger/${hostId}/entries`, { method: "DELETE" });
 }
 
 export default function Keylogger() {

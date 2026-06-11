@@ -10,6 +10,7 @@ export const deviceStatusEnum = pgEnum("device_status", ["active", "inactive", "
 
 export const devicesTable = pgTable("devices", {
   id: serial("id").primaryKey(),
+  userId: text("user_id"),
   name: text("name").notNull(),
   type: deviceTypeEnum("type").notNull().default("other"),
   publicKey: text("public_key"),

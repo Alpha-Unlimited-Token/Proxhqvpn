@@ -9,7 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { RefreshCw, Monitor, HardDrive, Cpu, MemoryStick, User, Clock, Globe } from "lucide-react";
 
-const BASE = "/api";
+const BASE = "/api/omega";
 
 type SysInfo = {
   id: number; hostId: number; osName: string; osVersion: string; cpu: string;

@@ -13,7 +13,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { RefreshCw, Skull, Search, Cpu } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-const BASE = "/api";
+const BASE = "/api/omega";
 
 type Process = { id: number; hostId: number; pid: number; name: string; cpuPct: number; memMb: number; status: string; createdAt: string };
 

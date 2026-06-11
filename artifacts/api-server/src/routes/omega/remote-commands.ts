@@ -44,7 +44,11 @@ router.post("/remote-commands/:hostId/execute", async (req, res): Promise<void> 
   if (!commandType || !VALID_COMMANDS.includes(commandType)) {
     res.status(400).json({ error: "Invalid commandType" }); return;
   }
-  const paramsStr = typeof params === "string" ? params : JSON.stringify(params);
+  const rawParams = typeof params === "string" ? params : JSON.stringify(params);
+  if (rawParams.length > 8192) {
+    res.status(400).json({ error: "params too large (max 8192 bytes)" }); return;
+  }
+  const paramsStr = rawParams;
 
   // Queue as pending — the agent will pick it up on next checkin
   const [cmd] = await db.insert(remoteCommandsTable).values({

@@ -18,7 +18,9 @@ router.get("/windows/:hostId", async (req, res): Promise<void> => {
 router.delete("/windows/:hostId/:handle", async (req, res): Promise<void> => {
   const hostId = parseInt(req.params.hostId, 10);
   const handle = req.params.handle;
-  if (isNaN(hostId)) { res.status(400).json({ error: "Invalid params" }); return; }
+  if (isNaN(hostId) || !handle || handle.length > 256 || !/^[\w\-.:]+$/.test(handle)) {
+    res.status(400).json({ error: "Invalid params" }); return;
+  }
   const [win] = await db.select().from(windowsListTable)
     .where(and(eq(windowsListTable.hostId, hostId), eq(windowsListTable.windowHandle, handle)));
   if (!win) { res.status(404).json({ error: "Window not found" }); return; }
