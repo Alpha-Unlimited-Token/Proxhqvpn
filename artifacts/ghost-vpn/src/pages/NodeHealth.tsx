@@ -3,12 +3,21 @@ import { useState, useEffect } from "react";
 import {
   Server, Wifi, WifiOff, RefreshCw, AlertTriangle, Loader2,
   Terminal, Package, Cpu, HardDrive, Trash2, ChevronDown, ChevronUp,
+  Activity,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 const API_TOOL = "/api/tool-runner";
 const API_NODE  = "/api/node-agent";
 const STALE_THRESHOLD_MS = 5 * 60 * 1000;
+
+interface NodeEvent {
+  id: number;
+  nodeId: string;
+  eventType: string;
+  payload: Record<string, unknown> | null;
+  createdAt: string;
+}
 
 interface NodeAgent {
   nodeId:    string;
@@ -63,6 +72,8 @@ export default function NodeHealth() {
   const [error, setError]       = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [deregistering, setDeregistering] = useState<string | null>(null);
+  const [nodeEvents, setNodeEvents] = useState<Record<string, NodeEvent[]>>({});
+  const [eventsLoading, setEventsLoading] = useState<string | null>(null);
 
   async function loadNodes() {
     setLoading(true);
@@ -77,6 +88,32 @@ export default function NodeHealth() {
       setError(e.message);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadNodeEvents(nodeId: string) {
+    if (nodeEvents[nodeId]) return; // already loaded
+    setEventsLoading(nodeId);
+    try {
+      const r = await fetch(`${API_NODE}/events/${encodeURIComponent(nodeId)}?limit=20`, {
+        credentials: "include",
+      });
+      if (!r.ok) { const d = await r.json(); throw new Error(d.error ?? "Failed to load events"); }
+      const data = await r.json();
+      setNodeEvents(prev => ({ ...prev, [nodeId]: data.events ?? [] }));
+    } catch {
+      setNodeEvents(prev => ({ ...prev, [nodeId]: [] }));
+    } finally {
+      setEventsLoading(null);
+    }
+  }
+
+  function toggleExpand(nodeId: string) {
+    if (expanded === nodeId) {
+      setExpanded(null);
+    } else {
+      setExpanded(nodeId);
+      loadNodeEvents(nodeId);
     }
   }
 
@@ -171,7 +208,7 @@ export default function NodeHealth() {
                 className={`border rounded-sm overflow-hidden ${stale ? "border-yellow-500/20" : "border-primary/10"}`}>
                 {/* Collapsed row */}
                 <div className="flex items-center gap-3 p-3 cursor-pointer hover:bg-primary/3 transition-colors"
-                  onClick={() => setExpanded(isExp ? null : node.nodeId)}>
+                  onClick={() => toggleExpand(node.nodeId)}>
                   {stale
                     ? <WifiOff className="w-4 h-4 text-yellow-400 shrink-0" />
                     : <Wifi className="w-4 h-4 text-[#00ff88] shrink-0" />}
@@ -245,6 +282,32 @@ export default function NodeHealth() {
                         </div>
                       </div>
                     )}
+
+                    {/* Event drilldown feed */}
+                    <div className="border-t border-primary/10 pt-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Activity className="w-3 h-3 text-primary/30" />
+                        <span className="text-[9px] text-primary/25 uppercase tracking-widest font-mono">Recent Events</span>
+                        {eventsLoading === node.nodeId && <Loader2 className="w-2.5 h-2.5 animate-spin text-primary/30" />}
+                      </div>
+                      {eventsLoading === node.nodeId ? (
+                        <div className="text-[10px] text-primary/25 font-mono py-2">Loading events…</div>
+                      ) : (nodeEvents[node.nodeId]?.length ?? 0) === 0 ? (
+                        <div className="text-[10px] text-primary/20 font-mono py-2">No events recorded for this node.</div>
+                      ) : (
+                        <div className="space-y-1 max-h-48 overflow-y-auto">
+                          {nodeEvents[node.nodeId].map(ev => (
+                            <div key={ev.id} className="flex items-start gap-2 border border-primary/8 rounded-sm px-2 py-1.5 text-[10px] font-mono">
+                              <span className="text-[#00ff88]/60 border border-[#00ff88]/20 px-1.5 py-px shrink-0">{ev.eventType}</span>
+                              <span className="text-primary/25 whitespace-nowrap shrink-0">{new Date(ev.createdAt).toLocaleTimeString()}</span>
+                              {ev.payload && Object.keys(ev.payload).length > 0 && (
+                                <span className="text-primary/35 truncate">{JSON.stringify(ev.payload)}</span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
 
                     {/* Deregister */}
                     <div className="pt-2 border-t border-primary/10">

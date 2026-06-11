@@ -19,6 +19,7 @@ import {
 import { eq, and, desc, isNull, gte, lte } from "drizzle-orm";
 import { appendAuditEvent } from "../lib/audit-chain";
 import { requireAdmin } from "../middlewares/requireAdmin";
+import { checkTargetAllowlist } from "../middlewares/targetAllowlist";
 
 const router = Router();
 
@@ -59,63 +60,6 @@ function extractTargetIp(target: string): string | null {
   const clean = target.trim().replace(/^https?:\/\//, "").split("/")[0].split(":")[0];
   if (/^\d{1,3}(\.\d{1,3}){3}$/.test(clean)) return clean;
   return null;
-}
-
-// ── Target allowlist check ────────────────────────────────────────────────────
-// If the user has ANY scope entries defined, the target MUST match one.
-// If no scopes are defined, warn-only (return { allowed: true }).
-function targetMatchesScope(target: string, scopeType: string, scopeValue: string): boolean {
-  const t = target.trim().toLowerCase();
-  const v = scopeValue.trim().toLowerCase();
-  if (scopeType === "ip")     return t === v || t.startsWith(`${v}/`);
-  if (scopeType === "url")    return t.startsWith(v);
-  if (scopeType === "domain") {
-    const tClean = t.replace(/^https?:\/\//, "").split("/")[0].split(":")[0];
-    return tClean === v || tClean.endsWith(`.${v}`);
-  }
-  if (scopeType === "cidr") {
-    // Simple CIDR prefix check: extract network prefix (e.g. "10.0.0" from "10.0.0.0/24")
-    const [net] = v.split("/");
-    const parts  = net.split(".");
-    const prefix = v.includes("/") ? parseInt(v.split("/")[1] ?? "32", 10) : 32;
-    const octets = Math.ceil(prefix / 8);
-    const targetClean = t.replace(/^https?:\/\//, "").split("/")[0].split(":")[0];
-    const tParts = targetClean.split(".");
-    if (tParts.length < octets) return false;
-    for (let i = 0; i < octets; i++) {
-      if ((tParts[i] ?? "") !== (parts[i] ?? "")) return false;
-    }
-    return true;
-  }
-  return false;
-}
-
-// Fail-closed: throws on DB error, denies when no scopes defined
-async function checkTargetAllowlist(
-  target: string,
-  userId: string,
-): Promise<{ allowed: boolean; reason: string | null }> {
-  if (!target) return { allowed: true, reason: null };
-  // DB errors propagate to caller → HTTP 500
-  const scopes = await db
-    .select()
-    .from(toolTargetScopesTable)
-    .where(eq(toolTargetScopesTable.userId, userId));
-  // Fail-closed: no scopes = user must define authorized targets first
-  if (scopes.length === 0) {
-    return {
-      allowed: false,
-      reason: "No authorized scope entries found. Add your target to your scope list at /tool-scope before running any scan.",
-    };
-  }
-  const inScope = scopes.some(s => targetMatchesScope(target, s.scopeType, s.scopeValue));
-  if (!inScope) {
-    return {
-      allowed: false,
-      reason: `Target '${target}' is not in your authorized scope list. Add it at /tool-scope first.`,
-    };
-  }
-  return { allowed: true, reason: null };
 }
 
 // ── Tool registry ─────────────────────────────────────────────────────────────
@@ -1189,14 +1133,11 @@ router.post("/run", async (req: Request, res: Response) => {
   }
 
   // ── Approval-token path (single-use token from approved tool_approvals) ──
-  // If approvedToken is provided, validate and consume it — skip requiresApproval check.
+  // If approvedToken is provided, validate and atomically consume it.
   if (approvedToken) {
-    let approval: typeof toolApprovalsTable.$inferSelect | undefined;
-    try {
-      const [row] = await db.select().from(toolApprovalsTable)
-        .where(eq(toolApprovalsTable.id, approvedToken));
-      approval = row;
-    } catch {}
+    // DB errors propagate to outer handler → HTTP 500 (no silent swallow)
+    const [approval] = await db.select().from(toolApprovalsTable)
+      .where(eq(toolApprovalsTable.id, approvedToken));
     if (!approval)                       return res.status(404).json({ error: "Approval token not found." });
     if (approval.userId !== userId)      return res.status(403).json({ error: "Approval token belongs to a different user." });
     if (approval.toolId !== toolId)      return res.status(400).json({ error: "Approval token is for a different tool." });
@@ -1208,12 +1149,18 @@ router.post("/run", async (req: Request, res: Response) => {
         return res.status(400).json({ error: "Approval token has expired (1-hour window). Request a new approval." });
       }
     }
-    // Consume the token — prevent reuse
-    try {
-      await db.update(toolApprovalsTable)
-        .set({ status: "consumed" })
-        .where(eq(toolApprovalsTable.id, approvedToken));
-    } catch {}
+    // Atomically consume the token — CAS: only updates if still 'approved'
+    // Prevents double-use in concurrent requests without a separate row lock
+    const [consumed] = await db.update(toolApprovalsTable)
+      .set({ status: "consumed" })
+      .where(and(
+        eq(toolApprovalsTable.id, approvedToken),
+        eq(toolApprovalsTable.status, "approved"),
+      ))
+      .returning();
+    if (!consumed) {
+      return res.status(409).json({ error: "Approval token was already consumed or invalidated by a concurrent request." });
+    }
     appendAuditEvent({ actor: userId, action: "tool_runner.approval_token_consumed", resource: toolId,
       result: "allow", metadata: { approvalId: approvedToken } });
     // Fall through to actual execution
@@ -1222,12 +1169,11 @@ router.post("/run", async (req: Request, res: Response) => {
     const approvalReason = requiresApproval(toolId, opts);
     if (approvalReason) {
       const approvalId = randomUUID();
-      try {
-        await db.insert(toolApprovalsTable).values({
-          id: approvalId, userId, toolId, toolName: tool.name,
-          target: targetField, optsJson: opts, riskReason: approvalReason, status: "pending",
-        });
-      } catch {}
+      // DB errors propagate → HTTP 500; never return 202 if approval record not persisted
+      await db.insert(toolApprovalsTable).values({
+        id: approvalId, userId, toolId, toolName: tool.name,
+        target: targetField, optsJson: opts, riskReason: approvalReason, status: "pending",
+      });
       appendAuditEvent({ actor: userId, action: "tool_runner.approval_requested", resource: toolId,
         result: "deny", metadata: { approvalId, reason: approvalReason } });
       return res.status(202).json({
@@ -1245,15 +1191,13 @@ router.post("/run", async (req: Request, res: Response) => {
     if (geo) geoData = { country: geo.country, region: geo.region, city: geo.city, ll: geo.ll };
   }
 
-  // Create DB job record
+  // Create DB job record — must succeed before spawning; fail closed on DB error
   const dbJobId = randomUUID();
-  try {
-    await db.insert(toolJobsTable).values({
-      id: dbJobId, userId, toolId, toolName: tool.name, category: tool.category,
-      target: targetField || null, optsJson: opts, status: "running",
-      geoJson: geoData ?? undefined, startedAt: new Date(),
-    });
-  } catch {}
+  await db.insert(toolJobsTable).values({
+    id: dbJobId, userId, toolId, toolName: tool.name, category: tool.category,
+    target: targetField || null, optsJson: opts, status: "running",
+    geoJson: geoData ?? undefined, startedAt: new Date(),
+  });
 
   // Build and spawn
   const jobId  = randomUUID();
