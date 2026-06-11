@@ -65,10 +65,11 @@ export function appendAuditEvent(event: AuditEvent): ChainEntry {
  */
 export function verifyChain(
   entries: ChainEntry[],
-  genesisHash: string = process.env.AUDIT_GENESIS_HASH ?? "GENESIS"
+  genesisHash: string = process.env.AUDIT_GENESIS_HASH ?? "GENESIS",
+  signingKey?: string | Buffer,
 ): { valid: true } | { valid: false; firstBadIndex: number; reason: string } {
   let expectedPrev = genesisHash;
-  const key = auditHmacKey();
+  const key = signingKey !== undefined ? signingKey : auditHmacKey();
 
   for (let i = 0; i < entries.length; i++) {
     const e = entries[i];

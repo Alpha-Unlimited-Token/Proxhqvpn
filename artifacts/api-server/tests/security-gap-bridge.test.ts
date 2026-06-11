@@ -2,9 +2,9 @@
 // Security gap bridge tests — RBAC, device trust, audit ledger, request signing.
 // Port of gap bridge test suite (proxhq_top3_bridge/tests/security.test.ts).
 import { describe, expect, it } from "vitest";
-import { can, requirePermission, parseRole, rolesWithPermission } from "../lib/rbac";
-import { evaluateDeviceTrust } from "../lib/device-trust";
-import { AuditLedger, appendAuditEvent, verifyChain } from "../lib/audit-chain";
+import { can, requirePermission, parseRole, rolesWithPermission } from "../src/lib/rbac";
+import { evaluateDeviceTrust } from "../src/lib/device-trust";
+import { AuditLedger, appendAuditEvent, verifyChain } from "../src/lib/audit-chain";
 
 // ── RBAC ─────────────────────────────────────────────────────────────────────
 
@@ -179,7 +179,7 @@ describe("audit ledger — chain verification", () => {
       ledger.append({ actor: "u1", action: "b", resource: "r", result: "allow" }),
       ledger.append({ actor: "u2", action: "c", resource: "r", result: "deny" }),
     ];
-    const result = verifyChain(entries, "GENESIS");
+    const result = verifyChain(entries, "GENESIS", "verify-secret");
     expect(result.valid).toBe(true);
   });
 

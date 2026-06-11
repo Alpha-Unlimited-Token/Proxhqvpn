@@ -7,6 +7,7 @@ import { db } from "@workspace/db";
 import { nodeAgentHealthTable, nodeAgentEventsTable } from "@workspace/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { appendAuditEvent } from "../lib/audit-chain";
+import { requireAdmin } from "../middlewares/requireAdmin";
 
 const router = Router();
 
@@ -97,8 +98,8 @@ router.post("/checkin", async (req: Request, res: Response) => {
   }
 });
 
-// ── GET /api/node-agent/list — admin / CC Pro ─────────────────────────────
-router.get("/list", async (_req: Request, res: Response) => {
+// ── GET /api/node-agent/list — admin only ─────────────────────────────────
+router.get("/list", requireAdmin, async (_req: Request, res: Response) => {
   try {
     const rows = await db.select()
       .from(nodeAgentHealthTable)
@@ -109,8 +110,8 @@ router.get("/list", async (_req: Request, res: Response) => {
   }
 });
 
-// ── GET /api/node-agent/events/:nodeId ────────────────────────────────────
-router.get("/events/:nodeId", async (req: Request, res: Response) => {
+// ── GET /api/node-agent/events/:nodeId — admin only ────────────────────────
+router.get("/events/:nodeId", requireAdmin, async (req: Request, res: Response) => {
   try {
     const rows = await db.select()
       .from(nodeAgentEventsTable)

@@ -61,6 +61,57 @@ function extractTargetIp(target: string): string | null {
   return null;
 }
 
+// ── Target allowlist check ────────────────────────────────────────────────────
+// If the user has ANY scope entries defined, the target MUST match one.
+// If no scopes are defined, warn-only (return { allowed: true }).
+function targetMatchesScope(target: string, scopeType: string, scopeValue: string): boolean {
+  const t = target.trim().toLowerCase();
+  const v = scopeValue.trim().toLowerCase();
+  if (scopeType === "ip")     return t === v || t.startsWith(`${v}/`);
+  if (scopeType === "url")    return t.startsWith(v);
+  if (scopeType === "domain") {
+    const tClean = t.replace(/^https?:\/\//, "").split("/")[0].split(":")[0];
+    return tClean === v || tClean.endsWith(`.${v}`);
+  }
+  if (scopeType === "cidr") {
+    // Simple CIDR prefix check: extract network prefix (e.g. "10.0.0" from "10.0.0.0/24")
+    const [net] = v.split("/");
+    const parts  = net.split(".");
+    const prefix = v.includes("/") ? parseInt(v.split("/")[1] ?? "32", 10) : 32;
+    const octets = Math.ceil(prefix / 8);
+    const targetClean = t.replace(/^https?:\/\//, "").split("/")[0].split(":")[0];
+    const tParts = targetClean.split(".");
+    if (tParts.length < octets) return false;
+    for (let i = 0; i < octets; i++) {
+      if ((tParts[i] ?? "") !== (parts[i] ?? "")) return false;
+    }
+    return true;
+  }
+  return false;
+}
+
+async function checkTargetAllowlist(
+  target: string,
+  userId: string,
+): Promise<{ allowed: boolean; reason: string | null }> {
+  if (!target) return { allowed: true, reason: null };
+  try {
+    const scopes = await db
+      .select()
+      .from(toolTargetScopesTable)
+      .where(eq(toolTargetScopesTable.userId, userId));
+    if (scopes.length === 0) return { allowed: true, reason: null }; // no scopes defined — warn-only
+    const inScope = scopes.some(s => targetMatchesScope(target, s.scopeType, s.scopeValue));
+    if (!inScope) {
+      return { allowed: false, reason: `Target '${target}' is not in your authorized scope list. Add it at /tool-scope first.` };
+    }
+    return { allowed: true, reason: null };
+  } catch {
+    // On DB error, fail open (don't block the user's work)
+    return { allowed: true, reason: null };
+  }
+}
+
 // ── Tool registry ─────────────────────────────────────────────────────────────
 interface FieldDef {
   id: string;
@@ -757,19 +808,20 @@ router.get("/tools", (_req, res) => {
 
 // ── POST /run ──────────────────────────────────────────────────────────────
 const RunSchema = z.object({
-  toolId: z.string(),
-  opts:   z.record(z.string()),
+  toolId:        z.string(),
+  opts:          z.record(z.string()),
+  approvedToken: z.string().uuid().optional(), // single-use token from approved tool_approvals.id
 });
 
 router.post("/run", async (req: Request, res: Response) => {
   const { userId } = getAuth(req);
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-  let body: { toolId: string; opts: Record<string, string> };
+  let body: z.infer<typeof RunSchema>;
   try { body = RunSchema.parse(req.body); } catch (e: any) {
     return res.status(400).json({ error: e.message });
   }
-  const { toolId, opts } = body;
+  const { toolId, opts, approvedToken } = body;
 
   const tool = TOOLS.find(t => t.id === toolId);
   if (!tool) return res.status(404).json({ error: "Unknown tool: " + toolId });
@@ -790,6 +842,14 @@ router.post("/run", async (req: Request, res: Response) => {
     return res.status(400).json({ error: "Target is in a restricted address range." });
   }
 
+  // Target scope allowlist enforcement — validates against user's declared scope entries
+  const scopeCheck = await checkTargetAllowlist(targetField, userId);
+  if (!scopeCheck.allowed) {
+    appendAuditEvent({ actor: userId, action: "tool_runner.out_of_scope", resource: toolId,
+      result: "deny", metadata: { target: targetField } });
+    return res.status(422).json({ error: scopeCheck.reason, code: "target_out_of_scope" });
+  }
+
   // Check per-user concurrency
   let activeCount = 0;
   for (const j of jobs.values()) {
@@ -799,22 +859,53 @@ router.post("/run", async (req: Request, res: Response) => {
     return res.status(429).json({ error: `Max ${MAX_CONCURRENT_JOBS} concurrent jobs per user.` });
   }
 
-  // Check if high-risk approval needed
-  const approvalReason = requiresApproval(toolId, opts);
-  if (approvalReason) {
-    const approvalId = randomUUID();
+  // ── Approval-token path (single-use token from approved tool_approvals) ──
+  // If approvedToken is provided, validate and consume it — skip requiresApproval check.
+  if (approvedToken) {
+    let approval: typeof toolApprovalsTable.$inferSelect | undefined;
     try {
-      await db.insert(toolApprovalsTable).values({
-        id: approvalId, userId, toolId, toolName: tool.name,
-        target: targetField, optsJson: opts, riskReason: approvalReason, status: "pending",
-      });
+      const [row] = await db.select().from(toolApprovalsTable)
+        .where(eq(toolApprovalsTable.id, approvedToken));
+      approval = row;
     } catch {}
-    appendAuditEvent({ actor: userId, action: "tool_runner.approval_requested", resource: toolId,
-      result: "deny", metadata: { approvalId, reason: approvalReason } });
-    return res.status(202).json({
-      status: "pending_approval", approvalId,
-      message: `This scan requires admin approval: ${approvalReason}`,
-    });
+    if (!approval)                       return res.status(404).json({ error: "Approval token not found." });
+    if (approval.userId !== userId)      return res.status(403).json({ error: "Approval token belongs to a different user." });
+    if (approval.toolId !== toolId)      return res.status(400).json({ error: "Approval token is for a different tool." });
+    if (approval.status !== "approved")  return res.status(400).json({ error: `Approval is not in 'approved' state (current: ${approval.status}).` });
+    // Enforce 1-hour expiry from reviewedAt
+    if (approval.reviewedAt) {
+      const expiresAt = new Date(approval.reviewedAt.getTime() + 60 * 60 * 1000);
+      if (new Date() > expiresAt) {
+        return res.status(400).json({ error: "Approval token has expired (1-hour window). Request a new approval." });
+      }
+    }
+    // Consume the token — prevent reuse
+    try {
+      await db.update(toolApprovalsTable)
+        .set({ status: "consumed" })
+        .where(eq(toolApprovalsTable.id, approvedToken));
+    } catch {}
+    appendAuditEvent({ actor: userId, action: "tool_runner.approval_token_consumed", resource: toolId,
+      result: "allow", metadata: { approvalId: approvedToken } });
+    // Fall through to actual execution
+  } else {
+    // Check if high-risk approval needed (no token supplied)
+    const approvalReason = requiresApproval(toolId, opts);
+    if (approvalReason) {
+      const approvalId = randomUUID();
+      try {
+        await db.insert(toolApprovalsTable).values({
+          id: approvalId, userId, toolId, toolName: tool.name,
+          target: targetField, optsJson: opts, riskReason: approvalReason, status: "pending",
+        });
+      } catch {}
+      appendAuditEvent({ actor: userId, action: "tool_runner.approval_requested", resource: toolId,
+        result: "deny", metadata: { approvalId, reason: approvalReason } });
+      return res.status(202).json({
+        status: "pending_approval", approvalId,
+        message: `This scan requires admin approval: ${approvalReason}. Re-submit with approvedToken once approved.`,
+      });
+    }
   }
 
   // GeoIP enrichment
@@ -892,8 +983,13 @@ router.post("/run", async (req: Request, res: Response) => {
 
 // ── GET /stream/:jobId ─────────────────────────────────────────────────────
 router.get("/stream/:jobId", (req: Request, res: Response) => {
+  const { userId } = getAuth(req);
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
   const job = jobs.get(String(req.params.jobId));
   if (!job) return res.status(404).json({ error: "Job not found or expired" });
+  // Ownership check: only the job owner can stream; admins bypass
+  const isAdmin = (req as any).__isAdmin === true;
+  if (job.userId !== userId && !isAdmin) return res.status(403).json({ error: "Access denied" });
 
   res.setHeader("Content-Type",     "text/event-stream");
   res.setHeader("Cache-Control",    "no-cache");
@@ -924,23 +1020,31 @@ router.get("/stream/:jobId", (req: Request, res: Response) => {
 // ── DELETE /kill/:jobId ────────────────────────────────────────────────────
 router.delete("/kill/:jobId", (req: Request, res: Response) => {
   const { userId } = getAuth(req);
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
   const job = jobs.get(String(req.params.jobId));
   if (!job) return res.status(404).json({ error: "Job not found" });
+  // Ownership check: only the job owner can kill; admins bypass
+  const isAdmin = (req as any).__isAdmin === true;
+  if (job.userId !== userId && !isAdmin) return res.status(403).json({ error: "Access denied" });
   if (job.done) return res.json({ ok: true, message: "Already completed" });
   try {
     job.proc.kill("SIGTERM");
     setTimeout(() => { if (!job.done) job.proc.kill("SIGKILL"); }, 3000);
-    if (userId) appendAuditEvent({ actor: userId, action: "tool_runner.kill", resource: job.toolId,
-      result: "allow", metadata: { jobId: req.params.jobId } });
+    appendAuditEvent({ actor: userId, action: "tool_runner.kill", resource: job.toolId,
+      result: "allow", metadata: { jobId: String(req.params.jobId) } });
     res.json({ ok: true });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
-// ── GET /jobs — active in-process jobs ────────────────────────────────────
-router.get("/jobs", (_req, res) => {
+// ── GET /jobs — active in-process jobs (user-scoped; admin sees all) ──────
+router.get("/jobs", (req: Request, res: Response) => {
+  const { userId } = getAuth(req);
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+  const isAdmin = (req as any).__isAdmin === true;
   const list = [];
   for (const [id, j] of jobs.entries()) {
-    list.push({ jobId: id, toolId: j.toolId, startedAt: j.startedAt, done: j.done, exitCode: j.exitCode });
+    if (!isAdmin && j.userId !== userId) continue; // non-admin sees only their jobs
+    list.push({ jobId: id, toolId: j.toolId, userId: j.userId, startedAt: j.startedAt, done: j.done, exitCode: j.exitCode });
   }
   res.json(list);
 });
