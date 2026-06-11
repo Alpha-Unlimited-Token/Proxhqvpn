@@ -120,8 +120,9 @@ export default function ToolRunner() {
   const [geoData, setGeoData]                 = useState<GeoData | null>(null);
   const [pendingApproval, setPendingApproval] = useState<PendingApproval | null>(null);
   const [checkingApproval, setCheckingApproval] = useState(false);
-  const esRef   = useRef<EventSource | null>(null);
-  const termRef = useRef<HTMLDivElement | null>(null);
+  const esRef    = useRef<EventSource | null>(null);
+  const termRef  = useRef<HTMLDivElement | null>(null);
+  const formRef  = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     fetch(`${API}/tools`, { credentials: "include" })
@@ -157,6 +158,10 @@ export default function ToolRunner() {
     setScopeError(null);
     setGeoData(null);
     setPendingApproval(null);
+    // On mobile the form renders below the tool list — scroll it into view
+    requestAnimationFrame(() => {
+      formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
   }
 
   async function runTool(approvedToken?: string) {
@@ -502,7 +507,7 @@ export default function ToolRunner() {
         </div>
 
         {/* ── Right panel: form + output ─────────────────────────────────────── */}
-        <div className="lg:col-span-8 space-y-3">
+        <div ref={formRef} className="lg:col-span-8 space-y-3">
 
           {!selectedTool ? (
             <div className="border border-primary/10 rounded-sm p-12 text-center">
@@ -584,6 +589,11 @@ export default function ToolRunner() {
                           value={opts[f.id] ?? ""}
                           onChange={e => setOpts(prev => ({ ...prev, [f.id]: e.target.value }))}
                           placeholder={f.placeholder}
+                          autoComplete="off"
+                          autoCapitalize="none"
+                          autoCorrect="off"
+                          spellCheck={false}
+                          inputMode={f.id === "url" || f.id === "host" || f.id === "domain" ? "url" : "text"}
                           className="w-full bg-black/60 border border-primary/20 text-primary text-xs font-mono px-2 py-1.5 focus:outline-none focus:border-[#00ff88]/40 placeholder:text-primary/20 rounded-sm"
                         />
                       )}

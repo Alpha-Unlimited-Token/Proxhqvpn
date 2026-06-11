@@ -111,10 +111,13 @@ function Section({ title, icon: Icon, children, defaultOpen = true }: { title: s
 }
 
 function KV({ k, v, highlight }: { k: string; v: React.ReactNode; highlight?: string }) {
+  const isEmpty = v === null || v === undefined || v === "";
   return (
     <div className="flex items-start justify-between gap-3 py-1 border-b border-primary/5 last:border-0">
       <span className="text-primary/40 shrink-0">{k}</span>
-      <span className={`text-right break-all ${highlight || "text-primary/80"}`}>{v}</span>
+      <span className={`text-right break-all ${isEmpty ? "text-primary/20 italic" : (highlight || "text-primary/80")}`}>
+        {isEmpty ? "—" : v}
+      </span>
     </div>
   );
 }
