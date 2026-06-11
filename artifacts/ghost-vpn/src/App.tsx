@@ -78,6 +78,11 @@ import Pricing from "@/pages/Pricing";
 import SqlmapScanner from "@/pages/SqlmapScanner";
 import AlphaTools from "@/pages/AlphaTools";
 import ToolRunner from "@/pages/ToolRunner";
+import ToolHistory from "@/pages/ToolHistory";
+import ToolScope from "@/pages/ToolScope";
+import ScanScheduler from "@/pages/ScanScheduler";
+import ToolApprovals from "@/pages/ToolApprovals";
+import NodeHealth from "@/pages/NodeHealth";
 import HttpProbe from "@/pages/HttpProbe";
 import DirectoryFuzzer from "@/pages/DirectoryFuzzer";
 import SubdomainScan from "@/pages/SubdomainScan";
@@ -778,6 +783,21 @@ function AppRoutes() {
           </Route>
           <Route path="/tool-runner">
             <CcLayout><ToolRunner /></CcLayout>
+          </Route>
+          <Route path="/tool-history">
+            <CcLayout><ToolHistory /></CcLayout>
+          </Route>
+          <Route path="/tool-scope">
+            <CcLayout><ToolScope /></CcLayout>
+          </Route>
+          <Route path="/scan-scheduler">
+            <CcLayout><ScanScheduler /></CcLayout>
+          </Route>
+          <Route path="/tool-approvals">
+            <AdminLayout><ToolApprovals /></AdminLayout>
+          </Route>
+          <Route path="/node-health">
+            <CcLayout><NodeHealth /></CcLayout>
           </Route>
           <Route path="/security-audit">
             <CcLayout><SecurityAudit /></CcLayout>

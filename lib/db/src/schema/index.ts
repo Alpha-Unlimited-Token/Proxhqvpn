@@ -38,3 +38,4 @@ export * from "./proxhq-security-upgrade";
 export * from "./deception";
 export * from "./audit-log-append-only";
 export * from "./honeypot";
+export * from "./tool-library";

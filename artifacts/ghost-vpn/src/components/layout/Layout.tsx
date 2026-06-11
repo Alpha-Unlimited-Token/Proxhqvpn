@@ -18,7 +18,7 @@ import {
   MapPin, ArrowLeftRight, Share2, Crosshair, Package, Plug, FileSearch,
   CheckCircle2, X,
   Camera, Clipboard, MessageSquare, FolderOpen, AppWindow, Puzzle,
-  Bot,
+  Bot, Calendar,
 } from "lucide-react";
 import { useAccess } from "@/hooks/useAccess";
 import { useNotifications } from "@/hooks/useNotifications";
@@ -219,6 +219,11 @@ const ADVANCED_NAV = [
   { href: "/sqlmap",        label: "Vulnerability Scanner", icon: ScanSearch },
   { href: "/alpha-tools",   label: "Alpha Toolkit",         icon: Layers },
   { href: "/tool-runner",   label: "Parrot Tool Runner",    icon: Terminal },
+  { href: "/tool-history",  label: "Scan History",          icon: FileSearch },
+  { href: "/tool-scope",    label: "Scan Target Scope",     icon: Target },
+  { href: "/scan-scheduler",label: "Scan Scheduler",        icon: Calendar },
+  { href: "/tool-approvals",label: "Tool Approvals",        icon: ShieldCheck },
+  { href: "/node-health",   label: "Node Agent Health",     icon: Server },
   { href: "/parrot-tools",  label: "Parrot OS Arsenal",     icon: Package },
   { href: "/hackanon",      label: "HackAnon — Exploits",   icon: Bug },
   { href: "/im-auto",       label: "Platform Automation",   icon: MessageSquare },

@@ -117,6 +117,7 @@ import governanceRouter from "./governance";
 import eventGraphRouter from "./event-graph";
 import attackIntelRouter from "./attackintel";
 import honeypotRouter from "./honeypot";
+import nodeAgentRouter from "./node-agent";
 
 const router: IRouter = Router();
 
@@ -199,6 +200,9 @@ router.get("/warrant-canary", (req, res, next) => {
 
 // Node auto-provision — PSK protected, public (no Clerk)
 router.use("/node-provision", nodeProvisionRouter);
+
+// Node agent check-in — PSK protected, no Clerk (remote Parrot OS nodes post health here)
+router.use("/node-agent", nodeAgentRouter);
 
 // Honeypot ingest — PSK-authenticated, no Clerk (relay agents call this)
 router.post("/honeypot/ingest", (req, res, next) => {
