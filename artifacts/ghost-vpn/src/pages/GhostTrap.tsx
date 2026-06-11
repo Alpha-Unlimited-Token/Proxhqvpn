@@ -8,6 +8,7 @@ import {
   Copy, Check, Link2, Laptop,
   Crosshair, Swords, ExternalLink, Play, Database, Key, Eye,
   Radar, FlaskConical, ShieldAlert, Target, Flame, Lock,
+  Activity, Cpu,
 } from "lucide-react";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -156,6 +157,44 @@ function HopChainViz({ chain, targetIp }: { chain: HopNode[]; targetIp: string }
 
 interface WhoisData { ip?: string; isp?: string; org?: string; country?: string; city?: string; timezone?: string; asn?: string; error?: string; }
 
+interface LoopSession {
+  sessionId: string;
+  attackerIp: string;
+  stage: number;
+  stageLabel: string | null;
+  loopCount: number;
+  interactionCount: number;
+  totalTarpitMs: number;
+  triggerType: string | null;
+  fakeUsername: string | null;
+  fakeSessionToken: string | null;
+  isActive: boolean;
+  silkTrapped: boolean;
+  autoBlockScheduled: boolean;
+  lastSeenAt: string | null;
+  intelligenceJson: string | null;
+  lastStageResponse: string | null;
+}
+
+interface LoopStats {
+  total: number;
+  active: number;
+  loops: number;
+  blocked: number;
+  silkTrapped: number;
+  avgInteractions: number;
+}
+
+const STAGE_LABELS: Record<number, { label: string; color: string }> = {
+  0: { label: "Login Challenge",  color: "text-blue-400" },
+  1: { label: "Login Success",    color: "text-green-400" },
+  2: { label: "Dashboard",        color: "text-primary" },
+  3: { label: "Data Download",    color: "text-orange-400" },
+  4: { label: "API Key Exposed",  color: "text-red-400" },
+  5: { label: "Admin Panel",      color: "text-purple-400" },
+  6: { label: "Logout / Reset",   color: "text-yellow-400" },
+};
+
 export default function GhostTrap() {
   const [probes, setProbes]   = useState<Probe[]>([]);
   const [stats, setStats]     = useState<Stats | null>(null);
@@ -169,7 +208,18 @@ export default function GhostTrap() {
   const [reportLoading, setReportLoading] = useState<Record<string, boolean>>({});
   const [backtraceCache, setBacktraceCache] = useState<Record<string, BacktraceResult>>({});
   const [backtraceLoading, setBacktraceLoading] = useState<Record<string, boolean>>({});
-  const [activeTab, setActiveTab] = useState<"probes" | "info" | "how" | "counter">("probes");
+  const [activeTab, setActiveTab] = useState<"probes" | "info" | "how" | "counter" | "loops">("probes");
+
+  // ── Tarpit Loop state ──────────────────────────────────────────────────────
+  const [loopSessions,   setLoopSessions]   = useState<LoopSession[]>([]);
+  const [loopStats,      setLoopStats]      = useState<LoopStats | null>(null);
+  const [loopLoading,    setLoopLoading]    = useState(false);
+  const [engageIp,       setEngageIp]       = useState("");
+  const [engageTrigger,  setEngageTrigger]  = useState("manual");
+  const [engaging,       setEngaging]       = useState(false);
+  const [engageResult,   setEngageResult]   = useState<any>(null);
+  const [terminatingId,  setTerminatingId]  = useState<string | null>(null);
+  const [expandedSession, setExpandedSession] = useState<string | null>(null);
 
   // ── Counter-Attack tool state ──────────────────────────────────────────────
   const [counterIp,       setCounterIp]       = useState<string | null>(null);
@@ -305,6 +355,50 @@ export default function GhostTrap() {
     setClearing(true);
     await fetch(`${BASE}/api/ghost-trap/probes`, { method: "DELETE", credentials: "include" });
     setWhoisCache({}); setBacktraceCache({}); await load(); setClearing(false);
+  };
+
+  // ── Tarpit Loop helpers ───────────────────────────────────────────────────
+  const loadLoopSessions = useCallback(async () => {
+    setLoopLoading(true);
+    try {
+      const r = await fetch(`${BASE}/api/ghost-trap/sessions?limit=100`, { credentials: "include" });
+      if (r.ok) { const d = await r.json(); setLoopSessions(d.sessions ?? []); setLoopStats(d.stats ?? null); }
+    } catch { /* ignore */ }
+    setLoopLoading(false);
+  }, []);
+
+  useEffect(() => {
+    if (activeTab !== "loops") return;
+    loadLoopSessions();
+    const t = setInterval(loadLoopSessions, 6000);
+    return () => clearInterval(t);
+  }, [activeTab, loadLoopSessions]);
+
+  const engageLoop = async () => {
+    const ip = engageIp.trim();
+    if (!ip) return;
+    setEngaging(true); setEngageResult(null);
+    try {
+      const r = await fetch(`${BASE}/api/ghost-trap/engage`, {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ip, triggerType: engageTrigger }),
+      });
+      setEngageResult(await r.json());
+      await loadLoopSessions();
+    } catch { setEngageResult({ error: "Engage failed" }); }
+    setEngaging(false);
+  };
+
+  const terminateSession = async (sessionId: string, action: "block" | "release" = "block") => {
+    setTerminatingId(sessionId);
+    try {
+      await fetch(`${BASE}/api/ghost-trap/sessions/${sessionId}?action=${action}`, {
+        method: "DELETE", credentials: "include",
+      });
+      await loadLoopSessions();
+    } catch { /* ignore */ }
+    setTerminatingId(null);
   };
 
   const [copied, setCopied] = useState<string | null>(null);
@@ -610,8 +704,8 @@ export default function GhostTrap() {
       )}
 
       {/* Tabs */}
-      <div className="flex gap-1 border-b border-white/[0.06]">
-        {([["probes", "Probe Feed"], ["info", "Attacker Intel"], ["how", "How It Works"], ["counter", "⚔ Counter Attack"]] as const).map(([key, label]) => (
+      <div className="flex gap-1 border-b border-white/[0.06] flex-wrap">
+        {([["probes", "Probe Feed"], ["info", "Attacker Intel"], ["how", "How It Works"], ["counter", "⚔ Counter Attack"], ["loops", "♾ Tarpit Loops"]] as const).map(([key, label]) => (
           <button key={key} onClick={() => setActiveTab(key)}
             className={`px-4 py-2 text-sm rounded-t-lg transition-all ${
               activeTab === key ? "text-white bg-[#0d1610] border border-b-0 border-white/[0.07]" : "text-white/40 hover:text-white/60"
@@ -1555,6 +1649,315 @@ export default function GhostTrap() {
                       </div>
                     ))}
                   </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+        </div>
+      )}
+
+      {/* ── TARPIT LOOPS ──────────────────────────────────────────────────────── */}
+      {activeTab === "loops" && (
+        <div className="space-y-5">
+
+          {/* Stats bar */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            {[
+              { label: "Total Sessions",  value: loopStats?.total ?? 0,                          color: "text-white" },
+              { label: "Active",          value: loopStats?.active ?? 0,                         color: "text-primary" },
+              { label: "Total Loops",     value: loopStats?.loops ?? 0,                          color: "text-blue-400" },
+              { label: "Silk-Trapped",    value: loopStats?.silkTrapped ?? 0,                    color: "text-purple-400" },
+              { label: "Blocked",         value: loopStats?.blocked ?? 0,                        color: "text-red-400" },
+              { label: "Avg Interactions",value: loopStats ? loopStats.avgInteractions.toFixed(1) : "—", color: "text-orange-400" },
+            ].map(s => (
+              <div key={s.label} className="bg-[#0d1610] border border-white/[0.07] rounded-xl p-3 text-center">
+                <div className={`text-xl font-bold font-mono ${s.color}`}>{s.value}</div>
+                <div className="text-[10px] text-white/40 mt-0.5">{s.label}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Engage panel */}
+          <div className="bg-[#0d1610] border border-white/[0.07] rounded-xl overflow-hidden">
+            <div className="flex items-center gap-2 px-4 py-3 border-b border-white/[0.06]">
+              <Activity className="w-4 h-4 text-orange-400" />
+              <span className="text-sm font-semibold text-white">Engage Tarpit Loop</span>
+              <span className="text-[10px] text-white/30 ml-1">— lock attacker in an infinite authentication cycle</span>
+            </div>
+            <div className="p-4 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="sm:col-span-2">
+                  <label className="text-[10px] text-white/40 uppercase tracking-widest mb-1.5 block">Attacker IP</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. 45.33.32.156"
+                    value={engageIp}
+                    onChange={e => setEngageIp(e.target.value)}
+                    onKeyDown={e => e.key === "Enter" && engageLoop()}
+                    className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder:text-white/20 focus:outline-none focus:border-primary/40"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] text-white/40 uppercase tracking-widest mb-1.5 block">Trigger Type</label>
+                  <select
+                    value={engageTrigger}
+                    onChange={e => setEngageTrigger(e.target.value)}
+                    className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary/40">
+                    <option value="manual">Manual</option>
+                    <option value="auth_brute_force">Auth Brute-Force</option>
+                    <option value="sql_injection">SQL Injection</option>
+                    <option value="xss_attempt">XSS Attempt</option>
+                    <option value="path_traversal">Path Traversal</option>
+                    <option value="recon_scanner">Recon Scanner</option>
+                    <option value="credential_stuffing">Credential Stuffing</option>
+                    <option value="api_abuse">API Abuse</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Quick-fill from probe IPs */}
+              {uniqueIps.length > 0 && (
+                <div>
+                  <div className="text-[10px] text-white/30 uppercase tracking-widest mb-2">Quick-fill from probe feed:</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {uniqueIps.slice(0, 10).map(ip => (
+                      <button key={ip} onClick={() => setEngageIp(ip)}
+                        className={`px-2.5 py-0.5 rounded text-xs font-mono border transition-all ${
+                          engageIp === ip ? "bg-primary/20 border-primary/50 text-primary" : "bg-white/5 border-white/10 text-white/50 hover:text-white/80 hover:border-white/20"
+                        }`}>
+                        {ip}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <button onClick={engageLoop} disabled={engaging || !engageIp.trim()}
+                className="flex items-center gap-2 px-5 py-2 bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/30 text-orange-300 text-sm font-semibold rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed">
+                <Activity className={`w-4 h-4 ${engaging ? "animate-pulse" : ""}`} />
+                {engaging ? "Engaging…" : "Engage Tarpit Loop"}
+              </button>
+
+              {engageResult && (
+                <div className={`rounded-lg border p-4 space-y-2 ${
+                  engageResult.error ? "bg-red-500/5 border-red-500/20" : "bg-primary/5 border-primary/20"
+                }`}>
+                  {engageResult.error ? (
+                    <div className="text-sm text-red-400">{engageResult.error}</div>
+                  ) : (
+                    <>
+                      <div className="text-xs text-primary font-semibold">✓ Tarpit loop engaged</div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                        <div><span className="text-white/40">Session ID: </span><span className="font-mono text-white/70">{engageResult.sessionId}</span></div>
+                        <div><span className="text-white/40">Fake user: </span><span className="font-mono text-white/70">{engageResult.fakeUser ?? "—"}</span></div>
+                        <div><span className="text-white/40">Stage: </span><span className="text-white/70">{engageResult.stage ?? "—"}</span></div>
+                        <div><span className="text-white/40">Message: </span><span className="text-white/70">{engageResult.message ?? "—"}</span></div>
+                      </div>
+                      {engageResult.loopUrl && (
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-[10px] text-white/30">Loop URL:</span>
+                          <code className="text-[10px] font-mono text-orange-300/70 truncate flex-1">{engageResult.loopUrl}</code>
+                          <button onClick={() => { navigator.clipboard.writeText(engageResult.loopUrl).catch(() => {}); }}
+                            className="text-[10px] text-white/30 hover:text-white/60 shrink-0">Copy</button>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Sessions list */}
+          <div className="bg-[#0d1610] border border-white/[0.07] rounded-xl overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]">
+              <div className="flex items-center gap-2 text-sm font-semibold text-white">
+                <Shield className="w-4 h-4 text-orange-400" />
+                Active Tarpit Sessions
+                <span className="text-xs text-white/30 font-normal">({loopSessions.length})</span>
+              </div>
+              <button onClick={loadLoopSessions} disabled={loopLoading}
+                className="text-xs text-white/30 hover:text-white/60 transition-colors flex items-center gap-1">
+                <RefreshCw className={`w-3 h-3 ${loopLoading ? "animate-spin" : ""}`} /> Refresh
+              </button>
+            </div>
+
+            {loopLoading && loopSessions.length === 0 && (
+              <div className="p-8 text-center text-white/30 text-sm">Loading sessions…</div>
+            )}
+            {!loopLoading && loopSessions.length === 0 && (
+              <div className="p-10 text-center">
+                <Activity className="w-10 h-10 text-white/10 mx-auto mb-3" />
+                <div className="text-sm text-white/30">No tarpit sessions yet.</div>
+                <div className="text-xs text-white/20 mt-1">Engage a loop above or wait for Ghost Trap to auto-engage attackers.</div>
+              </div>
+            )}
+
+            <div className="divide-y divide-white/[0.04]">
+              {loopSessions.map(sess => {
+                const stageInfo = STAGE_LABELS[sess.stage] ?? { label: sess.stageLabel ?? `Stage ${sess.stage}`, color: "text-white/60" };
+                const tarpitSec = Math.round((sess.totalTarpitMs ?? 0) / 1000);
+                const tarpitDisplay = tarpitSec >= 60 ? `${Math.round(tarpitSec / 60)}m ${tarpitSec % 60}s` : `${tarpitSec}s`;
+                const isExpanded = expandedSession === sess.sessionId;
+                let intel: Record<string, unknown> | null = null;
+                try { intel = sess.intelligenceJson ? JSON.parse(sess.intelligenceJson) : null; } catch { /* ignore */ }
+
+                return (
+                  <div key={sess.sessionId}>
+                    {/* Row */}
+                    <div
+                      className="flex items-center gap-3 px-4 py-3 hover:bg-white/[0.02] cursor-pointer"
+                      onClick={() => setExpandedSession(isExpanded ? null : sess.sessionId)}>
+                      {/* Status badge */}
+                      <div className="shrink-0">
+                        {sess.silkTrapped ? (
+                          <span className="px-2 py-0.5 text-[10px] font-bold rounded bg-purple-500/10 border border-purple-500/20 text-purple-400">SILK-TRAPPED</span>
+                        ) : !sess.isActive ? (
+                          <span className="px-2 py-0.5 text-[10px] font-bold rounded bg-red-500/10 border border-red-500/20 text-red-400">TERMINATED</span>
+                        ) : (
+                          <span className="px-2 py-0.5 text-[10px] font-bold rounded bg-primary/10 border border-primary/20 text-primary animate-pulse">ACTIVE</span>
+                        )}
+                      </div>
+                      {/* IP */}
+                      <code className="text-sm font-mono text-white/80 w-32 shrink-0">{sess.attackerIp}</code>
+                      {/* Stage */}
+                      <div className="shrink-0 hidden sm:block">
+                        <span className={`text-xs font-semibold ${stageInfo.color}`}>{stageInfo.label}</span>
+                      </div>
+                      {/* Stats */}
+                      <div className="flex gap-4 text-xs text-white/40 ml-auto shrink-0">
+                        <span><span className="text-white/20">Loops: </span><span className="text-blue-400 font-mono">{sess.loopCount}</span></span>
+                        <span className="hidden sm:inline"><span className="text-white/20">Interactions: </span><span className="font-mono">{sess.interactionCount}</span></span>
+                        <span className="hidden md:inline"><span className="text-white/20">Tarpit: </span><span className="text-orange-400 font-mono">{tarpitDisplay}</span></span>
+                      </div>
+                      {/* Chevron */}
+                      <div className={`text-white/20 ml-2 transition-transform ${isExpanded ? "rotate-180" : ""}`}>▾</div>
+                    </div>
+
+                    {/* Expanded detail */}
+                    {isExpanded && (
+                      <div className="px-4 pb-4 pt-1 space-y-4 bg-black/20 border-t border-white/[0.04]">
+                        {/* Metadata grid */}
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                          {[
+                            { label: "Session ID",    value: sess.sessionId.slice(0, 8) + "…", mono: true },
+                            { label: "Trigger",       value: sess.triggerType ?? "manual" },
+                            { label: "Fake Username", value: sess.fakeUsername ?? "—", mono: true },
+                            { label: "Auto-Block",    value: sess.autoBlockScheduled ? "Scheduled" : "No", color: sess.autoBlockScheduled ? "text-red-400" : "text-white/50" },
+                            { label: "Loop Count",    value: String(sess.loopCount),    color: "text-blue-400", mono: true },
+                            { label: "Interactions",  value: String(sess.interactionCount), mono: true },
+                            { label: "Total Tarpit",  value: tarpitDisplay, color: "text-orange-400", mono: true },
+                            { label: "Last Seen",     value: sess.lastSeenAt ? new Date(sess.lastSeenAt).toLocaleString() : "—" },
+                          ].map(item => (
+                            <div key={item.label} className="bg-[#0d1610] rounded-lg px-3 py-2 border border-white/[0.05]">
+                              <div className="text-[10px] text-white/30 mb-0.5">{item.label}</div>
+                              <div className={`font-semibold ${item.mono ? "font-mono text-xs" : "text-xs"} ${item.color ?? "text-white/70"} truncate`}>{item.value}</div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Stage progress bar */}
+                        <div>
+                          <div className="text-[10px] text-white/30 uppercase tracking-widest mb-2">Loop Stage Progress</div>
+                          <div className="flex gap-1">
+                            {Object.entries(STAGE_LABELS).map(([stageNum, info]) => {
+                              const n = Number(stageNum);
+                              const isCurrent = n === sess.stage;
+                              const isPast = n < sess.stage;
+                              return (
+                                <div key={stageNum} className="flex-1 text-center">
+                                  <div className={`h-1.5 rounded-full mb-1 ${isCurrent ? "bg-orange-400" : isPast ? "bg-primary/50" : "bg-white/10"}`} />
+                                  <div className={`text-[9px] leading-tight ${isCurrent ? info.color : "text-white/20"}`}>{info.label.split(" ")[0]}</div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Last stage response */}
+                        {sess.lastStageResponse && (
+                          <div>
+                            <div className="text-[10px] text-white/30 uppercase tracking-widest mb-1.5">Last Stage Response (sent to attacker)</div>
+                            <pre className="text-[11px] font-mono text-primary/70 bg-black/40 rounded-lg p-3 overflow-x-auto border border-white/[0.04] whitespace-pre-wrap max-h-32">
+                              {(() => { try { return JSON.stringify(JSON.parse(sess.lastStageResponse), null, 2); } catch { return sess.lastStageResponse; } })()}
+                            </pre>
+                          </div>
+                        )}
+
+                        {/* Intelligence dump */}
+                        {intel && Object.keys(intel).length > 0 && (
+                          <div>
+                            <div className="text-[10px] text-white/30 uppercase tracking-widest mb-1.5">Collected Intelligence</div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                              {Object.entries(intel).map(([k, v]) => (
+                                <div key={k} className="flex gap-2 bg-black/30 rounded px-2.5 py-1.5 border border-white/[0.04]">
+                                  <span className="text-[10px] text-white/30 w-28 shrink-0 truncate">{k}</span>
+                                  <span className="text-[10px] font-mono text-white/60 truncate">{String(v)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Actions */}
+                        <div className="flex gap-2 flex-wrap">
+                          {sess.isActive && (
+                            <>
+                              <button
+                                onClick={() => terminateSession(sess.sessionId, "block")}
+                                disabled={terminatingId === sess.sessionId}
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500/20 rounded-lg transition-all disabled:opacity-40">
+                                <Shield className="w-3.5 h-3.5" />
+                                {terminatingId === sess.sessionId ? "Terminating…" : "Terminate + Block IP"}
+                              </button>
+                              <button
+                                onClick={() => terminateSession(sess.sessionId, "release")}
+                                disabled={terminatingId === sess.sessionId}
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-white/5 border border-white/10 text-white/50 hover:text-white/70 rounded-lg transition-all disabled:opacity-40">
+                                Release (no block)
+                              </button>
+                            </>
+                          )}
+                          <button
+                            onClick={() => { setActiveTab("counter"); setCounterIp(sess.attackerIp); }}
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-orange-500/10 border border-orange-500/30 text-orange-400 hover:bg-orange-500/20 rounded-lg transition-all">
+                            <Zap className="w-3.5 h-3.5" /> Counter-Attack
+                          </button>
+                          <button
+                            onClick={() => { setActiveTab("info"); setExpandedId(probes.find(p => p.attackerIp === sess.attackerIp)?.id ?? null); }}
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-blue-500/10 border border-blue-500/30 text-blue-400 hover:bg-blue-500/20 rounded-lg transition-all">
+                            View Attacker Intel
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* How the loop works */}
+          <div className="bg-[#0d1610] border border-white/[0.07] rounded-xl overflow-hidden">
+            <div className="flex items-center gap-2 px-4 py-3 border-b border-white/[0.06]">
+              <Cpu className="w-4 h-4 text-blue-400" />
+              <span className="text-sm font-semibold text-white">How the Tarpit Loop Works</span>
+            </div>
+            <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {[
+                { stage: "1. Engage", color: "text-blue-400", border: "border-blue-500/20 bg-blue-500/5",
+                  desc: "Ghost Trap detects a hostile probe and assigns the attacker a unique session. It returns a convincing fake login challenge — the attacker believes they found a real service." },
+                { stage: "2. False Success", color: "text-green-400", border: "border-green-500/20 bg-green-500/5",
+                  desc: "After credentials are submitted, the loop returns a successful login with a fake dashboard. The session token is poisoned — it will re-authenticate to the loop on every subsequent request." },
+                { stage: "3. Data Mirage", color: "text-orange-400", border: "border-orange-500/20 bg-orange-500/5",
+                  desc: "The loop serves fake sensitive data: API keys, database exports, admin panels. Each piece is uniquely watermarked. Downloading or using any of it triggers a beacon and logs their real IP." },
+                { stage: "4. Infinite Cycle", color: "text-purple-400", border: "border-purple-500/20 bg-purple-500/5",
+                  desc: "After Stage 6 (logout), the session silently resets to Stage 0. The attacker is recycled back to the login challenge, trapped indefinitely. Every loop increments the intelligence profile." },
+              ].map(s => (
+                <div key={s.stage} className={`rounded-lg border p-3 ${s.border}`}>
+                  <div className={`text-xs font-bold ${s.color} mb-2`}>{s.stage}</div>
+                  <div className="text-[11px] text-white/50 leading-relaxed">{s.desc}</div>
                 </div>
               ))}
             </div>
