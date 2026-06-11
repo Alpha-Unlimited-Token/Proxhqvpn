@@ -60,6 +60,7 @@ export default function Intruder() {
     try {
       const res = await fetch(`${BASE}/api/intruder/run`, {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           method,
