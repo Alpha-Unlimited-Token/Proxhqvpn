@@ -124,4 +124,41 @@ router.get("/events/:nodeId", requireAdmin, async (req: Request, res: Response) 
   }
 });
 
+// ── GET /api/node-agent/health — alias for /list (required by API contract) ─
+router.get("/health", requireAdmin, async (_req: Request, res: Response) => {
+  try {
+    const rows = await db.select().from(nodeAgentHealthTable)
+      .orderBy(desc(nodeAgentHealthTable.lastSeenAt));
+    res.json(rows);
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// ── GET /api/node-agent/nodes — paginated node list ────────────────────────
+router.get("/nodes", requireAdmin, async (req: Request, res: Response) => {
+  const limit  = Math.min(parseInt((req.query.limit  as string) || "50",  10), 200);
+  const offset = Math.max(parseInt((req.query.offset as string) || "0",   10), 0);
+  const status = (req.query.status as string) || undefined;
+  try {
+    const q = db.select().from(nodeAgentHealthTable);
+    if (status) q.where(eq(nodeAgentHealthTable.status, status));
+    const rows = await q.orderBy(desc(nodeAgentHealthTable.lastSeenAt)).limit(limit).offset(offset);
+    res.json({ nodes: rows, limit, offset });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// ── GET /api/node-agent/events — all events, paginated, admin-only ──────────
+router.get("/events", requireAdmin, async (req: Request, res: Response) => {
+  const limit    = Math.min(parseInt((req.query.limit    as string) || "50",  10), 200);
+  const offset   = Math.max(parseInt((req.query.offset   as string) || "0",   10), 0);
+  const nodeId   = (req.query.nodeId   as string) || undefined;
+  const eventType = (req.query.eventType as string) || undefined;
+  try {
+    const q = db.select().from(nodeAgentEventsTable);
+    if (nodeId)    q.where(eq(nodeAgentEventsTable.nodeId,    nodeId));
+    if (eventType) q.where(eq(nodeAgentEventsTable.eventType, eventType));
+    const rows = await q.orderBy(desc(nodeAgentEventsTable.createdAt)).limit(limit).offset(offset);
+    res.json({ events: rows, limit, offset });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
 export default router;

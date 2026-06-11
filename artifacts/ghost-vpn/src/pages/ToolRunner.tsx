@@ -4,6 +4,7 @@ import {
   Terminal, Play, Square, Copy, Check, ChevronRight, Loader2,
   Wifi, Globe, Key, Shield, Search, Network, Lock, Server,
   AlertTriangle, CheckCircle2, Clock, Trash2, Download,
+  MapPin, History, CalendarDays, Bug, Radio, FileText, RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -33,32 +34,67 @@ interface ToolDef {
   timeoutMs: number;
 }
 
+interface GeoData {
+  country: string;
+  region: string;
+  city: string;
+  ll: [number, number];
+  timezone?: string;
+}
+
+interface PendingApproval {
+  approvalId: string;
+  message: string;
+  toolId: string;
+  opts: Record<string, string>;
+}
+
 const CATEGORY_ICONS: Record<string, React.ElementType> = {
-  "Network Scanning":         Wifi,
-  "Vulnerability Scanning":   Shield,
-  "Injection Testing":        Key,
-  "Fuzzing":                  Globe,
-  "Subdomain Enumeration":    Search,
-  "HTTP Probing":             Server,
-  "DNS":                      Network,
-  "SSL / TLS":                Lock,
-  "HTTP Client":              Globe,
-  "OSINT":                    Search,
-  "Network":                  Network,
+  "Network Scanning":    Wifi,
+  "Vulnerability Scanning": Shield,
+  "Injection Testing":   Key,
+  "Fuzzing":             Globe,
+  "Subdomain Enumeration": Search,
+  "HTTP Probing":        Server,
+  "DNS":                 Network,
+  "SSL / TLS":           Lock,
+  "HTTP Client":         Globe,
+  "OSINT":               Search,
+  "Network":             Network,
+  "Password Attacks":    Key,
+  "Forensics & DFIR":    FileText,
+  "Cryptography":        Lock,
+  "Stress Testing":      Shield,
+  "Wireless":            Radio,
+  "Malware Analysis":    Bug,
+  "Log Analysis":        FileText,
+  "IDS/IPS Monitoring":  Shield,
+  "Honeypot Monitoring": Shield,
+  "Reporting/Export":    FileText,
 };
 
 const CATEGORY_COLORS: Record<string, string> = {
-  "Network Scanning":         "text-blue-400   border-blue-500/30   bg-blue-900/10",
-  "Vulnerability Scanning":   "text-red-400    border-red-500/30    bg-red-900/10",
-  "Injection Testing":        "text-orange-400 border-orange-500/30 bg-orange-900/10",
-  "Fuzzing":                  "text-yellow-400 border-yellow-500/30 bg-yellow-900/10",
-  "Subdomain Enumeration":    "text-cyan-400   border-cyan-500/30   bg-cyan-900/10",
-  "HTTP Probing":             "text-[#00ff88]  border-[#00ff88]/30  bg-[#00ff88]/5",
-  "DNS":                      "text-purple-400 border-purple-500/30 bg-purple-900/10",
-  "SSL / TLS":                "text-pink-400   border-pink-500/30   bg-pink-900/10",
-  "HTTP Client":              "text-sky-400    border-sky-500/30    bg-sky-900/10",
-  "OSINT":                    "text-amber-400  border-amber-500/30  bg-amber-900/10",
-  "Network":                  "text-teal-400   border-teal-500/30   bg-teal-900/10",
+  "Network Scanning":       "text-blue-400   border-blue-500/30   bg-blue-900/10",
+  "Vulnerability Scanning": "text-red-400    border-red-500/30    bg-red-900/10",
+  "Injection Testing":      "text-orange-400 border-orange-500/30 bg-orange-900/10",
+  "Fuzzing":                "text-yellow-400 border-yellow-500/30 bg-yellow-900/10",
+  "Subdomain Enumeration":  "text-cyan-400   border-cyan-500/30   bg-cyan-900/10",
+  "HTTP Probing":           "text-[#00ff88]  border-[#00ff88]/30  bg-[#00ff88]/5",
+  "DNS":                    "text-purple-400 border-purple-500/30 bg-purple-900/10",
+  "SSL / TLS":              "text-pink-400   border-pink-500/30   bg-pink-900/10",
+  "HTTP Client":            "text-sky-400    border-sky-500/30    bg-sky-900/10",
+  "OSINT":                  "text-amber-400  border-amber-500/30  bg-amber-900/10",
+  "Network":                "text-teal-400   border-teal-500/30   bg-teal-900/10",
+  "Password Attacks":       "text-red-400    border-red-500/30    bg-red-900/10",
+  "Forensics & DFIR":       "text-violet-400 border-violet-500/30 bg-violet-900/10",
+  "Cryptography":           "text-emerald-400 border-emerald-500/30 bg-emerald-900/10",
+  "Stress Testing":         "text-orange-400 border-orange-500/30 bg-orange-900/10",
+  "Wireless":               "text-sky-400    border-sky-500/30    bg-sky-900/10",
+  "Malware Analysis":       "text-red-400    border-red-500/30    bg-red-900/10",
+  "Log Analysis":           "text-lime-400   border-lime-500/30   bg-lime-900/10",
+  "IDS/IPS Monitoring":     "text-orange-400 border-orange-500/30 bg-orange-900/10",
+  "Honeypot Monitoring":    "text-amber-400  border-amber-500/30  bg-amber-900/10",
+  "Reporting/Export":       "text-slate-400  border-slate-500/30  bg-slate-900/10",
 };
 
 function defaultOpts(fields: FieldDef[]): Record<string, string> {
@@ -68,17 +104,22 @@ function defaultOpts(fields: FieldDef[]): Record<string, string> {
 }
 
 export default function ToolRunner() {
-  const [tools, setTools]               = useState<ToolDef[]>([]);
-  const [selectedTool, setSelectedTool] = useState<ToolDef | null>(null);
-  const [opts, setOpts]                 = useState<Record<string, string>>({});
-  const [running, setRunning]           = useState(false);
-  const [output, setOutput]             = useState<string[]>([]);
-  const [jobId, setJobId]               = useState<string | null>(null);
-  const [exitCode, setExitCode]         = useState<number | null>(null);
-  const [copied, setCopied]             = useState(false);
-  const [activeCategory, setActiveCategory] = useState<string | null>(null);
-  const [searchQ, setSearchQ]           = useState("");
-  const [error, setError]               = useState<string | null>(null);
+  const [tools, setTools]                     = useState<ToolDef[]>([]);
+  const [selectedTool, setSelectedTool]       = useState<ToolDef | null>(null);
+  const [opts, setOpts]                       = useState<Record<string, string>>({});
+  const [running, setRunning]                 = useState(false);
+  const [output, setOutput]                   = useState<string[]>([]);
+  const [jobId, setJobId]                     = useState<string | null>(null);
+  const [dbJobId, setDbJobId]                 = useState<string | null>(null);
+  const [exitCode, setExitCode]               = useState<number | null>(null);
+  const [copied, setCopied]                   = useState(false);
+  const [activeCategory, setActiveCategory]   = useState<string | null>(null);
+  const [searchQ, setSearchQ]                 = useState("");
+  const [error, setError]                     = useState<string | null>(null);
+  const [scopeError, setScopeError]           = useState<string | null>(null);
+  const [geoData, setGeoData]                 = useState<GeoData | null>(null);
+  const [pendingApproval, setPendingApproval] = useState<PendingApproval | null>(null);
+  const [checkingApproval, setCheckingApproval] = useState(false);
   const esRef   = useRef<EventSource | null>(null);
   const termRef = useRef<HTMLDivElement | null>(null);
 
@@ -110,34 +151,78 @@ export default function ToolRunner() {
     setOpts(defaultOpts(t.fields));
     setOutput([]);
     setJobId(null);
+    setDbJobId(null);
     setExitCode(null);
     setError(null);
+    setScopeError(null);
+    setGeoData(null);
+    setPendingApproval(null);
   }
 
-  async function runTool() {
+  async function runTool(approvedToken?: string) {
     if (!selectedTool) return;
     setRunning(true);
     setOutput([`[proxhqvpn] Launching ${selectedTool.name}...\n`]);
     setJobId(null);
+    setDbJobId(null);
     setExitCode(null);
     setError(null);
+    setScopeError(null);
+    setGeoData(null);
+    if (!approvedToken) setPendingApproval(null);
 
     try {
+      const body: Record<string, unknown> = { toolId: selectedTool.id, opts };
+      if (approvedToken) body.approvedToken = approvedToken;
+
       const res = await fetch(`${API}/run`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ toolId: selectedTool.id, opts }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
+
+      // Pending approval (202)
+      if (res.status === 202 && data.status === "pending_approval") {
+        setPendingApproval({
+          approvalId: data.approvalId,
+          message: data.message ?? "This scan requires admin approval.",
+          toolId: selectedTool.id,
+          opts,
+        });
+        setRunning(false);
+        return;
+      }
+
+      // Out-of-scope target (422)
+      if (res.status === 422 && data.code === "target_out_of_scope") {
+        setScopeError(data.error ?? "Target is not in your authorized scope list.");
+        setRunning(false);
+        return;
+      }
+
       if (!res.ok) {
         setError(data.error ?? "Failed to start tool.");
         setRunning(false);
         return;
       }
+
       const id = data.jobId as string;
       setJobId(id);
-      setOutput(prev => [...prev, `[proxhqvpn] Command: ${data.command}\n`, `[proxhqvpn] Job ID: ${id}\n\n`]);
+      if (data.dbJobId) setDbJobId(data.dbJobId as string);
+      setOutput(prev => [...prev,
+        `[proxhqvpn] Command: ${data.command}\n`,
+        `[proxhqvpn] Job ID: ${id}\n\n`,
+      ]);
+
+      // Show GeoIP if available
+      if (data.geoData && typeof data.geoData === "object") {
+        setGeoData(data.geoData as GeoData);
+      }
+
+      // Clear pending approval once we successfully ran
+      setPendingApproval(null);
 
       // Open SSE stream
       if (esRef.current) esRef.current.close();
@@ -165,6 +250,42 @@ export default function ToolRunner() {
     }
   }
 
+  async function checkApprovalStatus() {
+    if (!pendingApproval) return;
+    setCheckingApproval(true);
+    try {
+      const res = await fetch(`${API}/approvals/${pendingApproval.approvalId}`, { credentials: "include" });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error ?? "Failed to check approval status."); return; }
+      if (data.status === "approved") {
+        // Re-submit with the approval token
+        await runTool(pendingApproval.approvalId);
+      } else if (data.status === "rejected") {
+        setPendingApproval(null);
+        setError("Your approval request was rejected by admin.");
+      } else {
+        setError(`Approval is still ${data.status}. Try again after admin reviews it.`);
+      }
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setCheckingApproval(false);
+    }
+  }
+
+  async function saveOutput() {
+    if (!dbJobId || output.length === 0) return;
+    const text = output.join("");
+    try {
+      await fetch(`${API}/output/save/${dbJobId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ text, chunkIndex: 0 }),
+      });
+    } catch { /* non-critical */ }
+  }
+
   const killJob = useCallback(async () => {
     if (!jobId) return;
     esRef.current?.close();
@@ -188,11 +309,13 @@ export default function ToolRunner() {
     a.download = `${selectedTool?.id ?? "tool"}-output-${Date.now()}.txt`;
     a.click();
     URL.revokeObjectURL(url);
+    saveOutput();
   }
 
   function clearOutput() {
     setOutput([]);
     setJobId(null);
+    setDbJobId(null);
     setExitCode(null);
   }
 
@@ -213,16 +336,92 @@ export default function ToolRunner() {
             Run real security tool binaries directly from the server — live streaming output, structured forms, no CLI required.
           </p>
         </div>
-        <div className="flex items-center gap-2 text-[10px] text-primary/30 border border-primary/10 px-3 py-1.5 rounded-sm">
-          <AlertTriangle className="w-3 h-3 text-orange-400" />
-          Authorized testing only
+        <div className="flex items-center gap-2 flex-wrap">
+          <a href="/tool-history" className="flex items-center gap-1.5 text-[10px] text-primary/40 border border-primary/10 px-2.5 py-1.5 rounded-sm hover:border-primary/30 hover:text-primary/70 transition-colors">
+            <History className="w-3 h-3" />Scan History
+          </a>
+          <a href="/scan-scheduler" className="flex items-center gap-1.5 text-[10px] text-primary/40 border border-primary/10 px-2.5 py-1.5 rounded-sm hover:border-primary/30 hover:text-primary/70 transition-colors">
+            <CalendarDays className="w-3 h-3" />Scheduler
+          </a>
+          <div className="flex items-center gap-1.5 text-[10px] text-primary/30 border border-primary/10 px-3 py-1.5 rounded-sm">
+            <AlertTriangle className="w-3 h-3 text-orange-400" />
+            Authorized testing only
+          </div>
         </div>
       </div>
 
+      {/* Scope error banner */}
+      {scopeError && (
+        <div className="border border-orange-500/40 bg-orange-900/10 text-orange-400 text-xs p-3 rounded-sm space-y-2">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+            <div>
+              <div className="font-bold mb-0.5">Target Out of Scope</div>
+              <div className="text-orange-300/80">{scopeError}</div>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <a href="/tool-scope" className="text-[10px] border border-orange-500/30 px-2 py-1 rounded-sm hover:bg-orange-900/20 transition-colors">
+              → Manage Scope List
+            </a>
+            <button onClick={() => setScopeError(null)} className="text-[10px] border border-primary/20 px-2 py-1 rounded-sm hover:bg-primary/5 transition-colors text-primary/40">
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* General error banner */}
       {error && (
         <div className="border border-red-500/30 bg-red-900/10 text-red-400 text-xs p-3 rounded-sm flex items-center gap-2">
           <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
           {error}
+        </div>
+      )}
+
+      {/* Pending approval banner */}
+      {pendingApproval && (
+        <div className="border border-yellow-500/40 bg-yellow-900/10 text-yellow-300 text-xs p-4 rounded-sm space-y-3">
+          <div className="flex items-start gap-2">
+            <Clock className="w-4 h-4 shrink-0 mt-0.5 text-yellow-400" />
+            <div>
+              <div className="font-bold text-yellow-400 mb-1">Pending Admin Approval</div>
+              <div className="text-yellow-300/80 leading-relaxed">{pendingApproval.message}</div>
+              <div className="mt-1 text-[10px] text-yellow-300/50 font-mono">
+                Approval ID: {pendingApproval.approvalId}
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button
+              onClick={checkApprovalStatus}
+              disabled={checkingApproval}
+              variant="outline"
+              className="border-yellow-500/40 text-yellow-400 hover:bg-yellow-900/20 font-mono text-[10px] px-3 py-1.5 h-auto flex items-center gap-1.5"
+            >
+              {checkingApproval ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+              {checkingApproval ? "Checking..." : "Check Status & Run if Approved"}
+            </Button>
+            <a href="/tool-approvals" className="text-[10px] border border-yellow-500/30 px-3 py-1.5 rounded-sm hover:bg-yellow-900/20 transition-colors text-yellow-400">
+              View Approval Queue
+            </a>
+            <button onClick={() => setPendingApproval(null)} className="text-[10px] border border-primary/15 px-3 py-1.5 rounded-sm hover:bg-primary/5 transition-colors text-primary/30">
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* GeoIP banner */}
+      {geoData && (
+        <div className="border border-[#00ff88]/20 bg-[#00ff88]/5 text-[#00ff88]/80 text-xs p-3 rounded-sm flex items-start gap-2">
+          <MapPin className="w-3.5 h-3.5 shrink-0 mt-0.5 text-[#00ff88]" />
+          <div>
+            <span className="font-bold text-[#00ff88]">GeoIP — </span>
+            {[geoData.city, geoData.region, geoData.country].filter(Boolean).join(", ")}
+            {geoData.ll && <span className="text-[#00ff88]/50 ml-2 text-[10px]">({geoData.ll[0].toFixed(4)}, {geoData.ll[1].toFixed(4)})</span>}
+            {geoData.timezone && <span className="text-[#00ff88]/50 ml-2 text-[10px]">· {geoData.timezone}</span>}
+          </div>
         </div>
       )}
 
@@ -310,6 +509,14 @@ export default function ToolRunner() {
               <Terminal className="w-10 h-10 text-primary/10 mx-auto mb-3" />
               <div className="text-sm text-primary/25">Select a tool to configure and run</div>
               <div className="text-xs text-primary/15 mt-1">{installedCount} tools ready on this server</div>
+              <div className="mt-4 flex items-center justify-center gap-3">
+                <a href="/tool-scope" className="text-[10px] border border-primary/15 text-primary/30 px-3 py-1.5 rounded-sm hover:border-[#00ff88]/30 hover:text-[#00ff88]/60 transition-colors">
+                  Configure Scope List
+                </a>
+                <a href="/scan-scheduler" className="text-[10px] border border-primary/15 text-primary/30 px-3 py-1.5 rounded-sm hover:border-[#00ff88]/30 hover:text-[#00ff88]/60 transition-colors">
+                  Schedule a Scan
+                </a>
+              </div>
             </div>
           ) : (
             <>
@@ -388,10 +595,10 @@ export default function ToolRunner() {
                 </div>
 
                 {/* Run / Kill */}
-                <div className="flex items-center gap-2 pt-1">
+                <div className="flex items-center gap-2 pt-1 flex-wrap">
                   {!running ? (
                     <Button
-                      onClick={runTool}
+                      onClick={() => runTool()}
                       disabled={!selectedTool.installed}
                       className="bg-[#00ff88] text-black hover:bg-[#00ff88]/80 font-mono text-xs px-4 py-2 h-auto font-bold flex items-center gap-1.5"
                     >
@@ -420,6 +627,14 @@ export default function ToolRunner() {
                       Exit code: {exitCode}
                     </span>
                   )}
+                  {dbJobId && !running && exitCode !== null && (
+                    <a
+                      href={`/tool-history`}
+                      className="text-[10px] text-primary/30 border border-primary/10 px-2 py-1.5 rounded-sm hover:border-primary/30 hover:text-primary/60 transition-colors flex items-center gap-1"
+                    >
+                      <History className="w-3 h-3" />View in History
+                    </a>
+                  )}
                 </div>
               </div>
 
@@ -445,7 +660,7 @@ export default function ToolRunner() {
                       <button
                         onClick={downloadOutput}
                         className="p-1.5 border border-primary/15 text-primary/40 hover:text-primary/70 hover:border-primary/30 rounded-sm transition-colors"
-                        title="Download output"
+                        title="Download & save output"
                       >
                         <Download className="w-3 h-3" />
                       </button>

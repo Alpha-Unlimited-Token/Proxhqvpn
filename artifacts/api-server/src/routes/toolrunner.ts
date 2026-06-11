@@ -13,8 +13,8 @@ import archiver from "archiver";
 import { getAuth } from "@clerk/express";
 import { db } from "@workspace/db";
 import {
-  toolJobsTable, toolTargetScopesTable, toolApprovalsTable,
-  nodeAgentHealthTable, nodeAgentEventsTable,
+  toolJobsTable, toolOutputsTable, toolTargetScopesTable, toolApprovalsTable,
+  toolSchedulesTable, nodeAgentHealthTable, nodeAgentEventsTable,
 } from "@workspace/db/schema";
 import { eq, and, desc, isNull, gte, lte } from "drizzle-orm";
 import { appendAuditEvent } from "../lib/audit-chain";
@@ -90,26 +90,32 @@ function targetMatchesScope(target: string, scopeType: string, scopeValue: strin
   return false;
 }
 
+// Fail-closed: throws on DB error, denies when no scopes defined
 async function checkTargetAllowlist(
   target: string,
   userId: string,
 ): Promise<{ allowed: boolean; reason: string | null }> {
   if (!target) return { allowed: true, reason: null };
-  try {
-    const scopes = await db
-      .select()
-      .from(toolTargetScopesTable)
-      .where(eq(toolTargetScopesTable.userId, userId));
-    if (scopes.length === 0) return { allowed: true, reason: null }; // no scopes defined — warn-only
-    const inScope = scopes.some(s => targetMatchesScope(target, s.scopeType, s.scopeValue));
-    if (!inScope) {
-      return { allowed: false, reason: `Target '${target}' is not in your authorized scope list. Add it at /tool-scope first.` };
-    }
-    return { allowed: true, reason: null };
-  } catch {
-    // On DB error, fail open (don't block the user's work)
-    return { allowed: true, reason: null };
+  // DB errors propagate to caller → HTTP 500
+  const scopes = await db
+    .select()
+    .from(toolTargetScopesTable)
+    .where(eq(toolTargetScopesTable.userId, userId));
+  // Fail-closed: no scopes = user must define authorized targets first
+  if (scopes.length === 0) {
+    return {
+      allowed: false,
+      reason: "No authorized scope entries found. Add your target to your scope list at /tool-scope before running any scan.",
+    };
   }
+  const inScope = scopes.some(s => targetMatchesScope(target, s.scopeType, s.scopeValue));
+  if (!inScope) {
+    return {
+      allowed: false,
+      reason: `Target '${target}' is not in your authorized scope list. Add it at /tool-scope first.`,
+    };
+  }
+  return { allowed: true, reason: null };
 }
 
 // ── Tool registry ─────────────────────────────────────────────────────────────
@@ -777,8 +783,215 @@ const TOOLS: ToolDef[] = [
     buildArgs(o) {
       const conns    = Math.min(Math.max(parseInt(o.connections||"20",10)||20, 1), 100).toString();
       const duration = Math.min(Math.max(parseInt(o.duration||"20",10)||20, 5), 60).toString();
-      const modeFlag: Record<string, string> = { slowloris: "H", slowbody: "B", slowread: "R" };
       return ["-c", conns, "-H", "-t", duration, "-u", o.target.trim()];
+    },
+  },
+
+  // ── Wireless ──────────────────────────────────────────────────────────────
+  {
+    id: "aircrack-ng", name: "Aircrack-ng", binary: "aircrack-ng",
+    category: "Wireless",
+    description: "WPA/WPA2-PSK cracking from pcap capture file against a wordlist.",
+    timeoutMs: 120_000,
+    warning: "Authorized testing only. Requires admin approval.",
+    fields: [
+      { id: "capFile",   label: "Capture File (.cap/.pcap)", type: "text", placeholder: "/tmp/capture.cap", required: true },
+      { id: "bssid",     label: "Target BSSID", type: "text", placeholder: "AA:BB:CC:DD:EE:FF", required: true },
+      { id: "wordlist",  label: "Wordlist Path", type: "text", placeholder: "/usr/share/wordlists/rockyou.txt", defaultValue: WORDLIST },
+    ],
+    buildArgs(o) {
+      return ["-b", o.bssid.trim(), "-w", (o.wordlist || WORDLIST).trim(), o.capFile.trim()];
+    },
+  },
+  {
+    id: "airodump-ng", name: "Airodump-ng", binary: "airodump-ng",
+    category: "Wireless",
+    description: "Passive 802.11 frame capture — lists APs and associated clients in range.",
+    timeoutMs: 30_000,
+    warning: "Requires a monitor-mode wireless interface. Admin approval required.",
+    fields: [
+      { id: "iface",    label: "Interface (monitor mode)", type: "text", placeholder: "wlan0mon", required: true },
+      { id: "duration", label: "Capture Duration (s, max 30)", type: "number", defaultValue: "15" },
+    ],
+    buildArgs(o) {
+      const dur = Math.min(Math.max(parseInt(o.duration||"15",10)||15, 5), 30);
+      return ["--band", "abg", "--output-format", "csv", "--write", "/tmp/airodump", `--timer=${dur}`, o.iface.trim()];
+    },
+  },
+
+  // ── Malware Analysis ──────────────────────────────────────────────────────
+  {
+    id: "clamscan", name: "ClamAV Scan", binary: "clamscan",
+    category: "Malware Analysis",
+    description: "ClamAV antivirus scan of a file or directory for known malware signatures.",
+    timeoutMs: 120_000,
+    fields: [
+      { id: "path",      label: "File / Directory Path", type: "text", placeholder: "/tmp/upload", required: true },
+      { id: "recursive", label: "Recursive (-r)", type: "checkbox", defaultValue: "false" },
+    ],
+    buildArgs(o) {
+      const args = ["--no-summary", "--stdout"];
+      if (o.recursive === "true") args.push("-r");
+      const safePath = o.path.trim().replace(/[;&|`$]/g, "");
+      args.push(safePath);
+      return args;
+    },
+  },
+  {
+    id: "yara", name: "YARA", binary: "yara",
+    category: "Malware Analysis",
+    description: "YARA rule-based pattern matching for malware identification and classification.",
+    timeoutMs: 60_000,
+    fields: [
+      { id: "rulesFile", label: "YARA Rules File", type: "text", placeholder: "/etc/yara/rules.yar", required: true },
+      { id: "target",    label: "Target File / Directory", type: "text", placeholder: "/tmp/sample", required: true },
+      { id: "recursive", label: "Recursive (-r)", type: "checkbox", defaultValue: "false" },
+    ],
+    buildArgs(o) {
+      const args: string[] = [];
+      if (o.recursive === "true") args.push("-r");
+      args.push(o.rulesFile.trim(), o.target.trim());
+      return args;
+    },
+  },
+
+  // ── Log Analysis ──────────────────────────────────────────────────────────
+  {
+    id: "logwatch", name: "Logwatch", binary: "logwatch",
+    category: "Log Analysis",
+    description: "System log analysis and summary report — services, security events, disk usage.",
+    timeoutMs: 60_000,
+    fields: [
+      { id: "detail",  label: "Detail Level", type: "select", defaultValue: "Med", options: [
+        { value: "Low",  label: "Low" },
+        { value: "Med",  label: "Medium (default)" },
+        { value: "High", label: "High" },
+      ]},
+      { id: "range",   label: "Time Range", type: "select", defaultValue: "yesterday", options: [
+        { value: "today",     label: "Today" },
+        { value: "yesterday", label: "Yesterday" },
+        { value: "All",       label: "All" },
+      ]},
+      { id: "service", label: "Service Filter (blank = all)", type: "text", placeholder: "sshd", defaultValue: "" },
+    ],
+    buildArgs(o) {
+      const args = ["--detail", o.detail || "Med", "--range", o.range || "yesterday", "--output", "stdout"];
+      if (o.service?.trim()) args.push("--service", o.service.trim());
+      return args;
+    },
+  },
+  {
+    id: "journalctl-audit", name: "Journalctl Audit", binary: "journalctl",
+    category: "Log Analysis",
+    description: "Query systemd journal for audit and security-relevant log entries.",
+    timeoutMs: 30_000,
+    fields: [
+      { id: "unit",  label: "Unit Filter (e.g. sshd)", type: "text", placeholder: "sshd" },
+      { id: "since", label: "Since (e.g. '1 hour ago')", type: "text", placeholder: "1 hour ago", defaultValue: "1 hour ago" },
+      { id: "lines", label: "Max Lines (max 500)", type: "number", defaultValue: "200" },
+    ],
+    buildArgs(o) {
+      const n = Math.min(Math.max(parseInt(o.lines||"200",10)||200, 10), 500).toString();
+      const args = ["--no-pager", "-n", n, "--since", o.since || "1 hour ago"];
+      if (o.unit?.trim()) args.push("-u", o.unit.trim());
+      return args;
+    },
+  },
+
+  // ── IDS / IPS Monitoring ──────────────────────────────────────────────────
+  {
+    id: "snort-test", name: "Snort Rule Test", binary: "snort",
+    category: "IDS/IPS Monitoring",
+    description: "Snort IDS/IPS — validate rule syntax and run offline analysis against a pcap file.",
+    timeoutMs: 60_000,
+    warning: "Read-only offline analysis. Does not modify firewall rules.",
+    fields: [
+      { id: "pcap",      label: "PCAP File to Analyse", type: "text", placeholder: "/tmp/traffic.pcap", required: true },
+      { id: "rulesFile", label: "Snort Rules File", type: "text", placeholder: "/etc/snort/snort.conf" },
+    ],
+    buildArgs(o) {
+      const args = ["-q", "-r", o.pcap.trim(), "--daq", "pcap"];
+      if (o.rulesFile?.trim()) args.push("-c", o.rulesFile.trim());
+      return args;
+    },
+  },
+  {
+    id: "suricata-pcap", name: "Suricata PCAP Replay", binary: "suricata",
+    category: "IDS/IPS Monitoring",
+    description: "Suricata — offline PCAP analysis with EVE JSON output for IDS event extraction.",
+    timeoutMs: 60_000,
+    warning: "Offline analysis mode only. Requires Suricata to be installed.",
+    fields: [
+      { id: "pcap",    label: "PCAP File", type: "text", placeholder: "/tmp/capture.pcap", required: true },
+      { id: "logDir",  label: "Log Output Directory", type: "text", placeholder: "/tmp/suricata-out", defaultValue: "/tmp/suricata-out" },
+    ],
+    buildArgs(o) {
+      return ["-r", o.pcap.trim(), "-l", (o.logDir || "/tmp/suricata-out").trim(), "--set", "outputs.1.eve-log.enabled=yes"];
+    },
+  },
+
+  // ── Honeypot Monitoring ───────────────────────────────────────────────────
+  {
+    id: "cowrie-tail", name: "Cowrie Log Tail", binary: "tail",
+    category: "Honeypot Monitoring",
+    description: "Tail the Cowrie SSH/Telnet honeypot JSON log for recent attacker activity.",
+    timeoutMs: 10_000,
+    fields: [
+      { id: "logFile", label: "Cowrie JSON Log Path", type: "text", placeholder: "/home/cowrie/cowrie/var/log/cowrie/cowrie.json", defaultValue: "/home/cowrie/cowrie/var/log/cowrie/cowrie.json" },
+      { id: "lines",   label: "Last N Lines (max 500)", type: "number", defaultValue: "100" },
+    ],
+    buildArgs(o) {
+      const n = Math.min(Math.max(parseInt(o.lines||"100",10)||100, 10), 500).toString();
+      return ["-n", n, (o.logFile || "/home/cowrie/cowrie/var/log/cowrie/cowrie.json").trim()];
+    },
+  },
+  {
+    id: "honeypot-netstat", name: "Honeypot Netstat", binary: "ss",
+    category: "Honeypot Monitoring",
+    description: "Check active connections on honeypot ports — detect live attacker connections.",
+    timeoutMs: 10_000,
+    fields: [
+      { id: "ports", label: "Port Filter (e.g. 22,23,80)", type: "text", placeholder: "22,23,80,443", defaultValue: "22,23,80,443" },
+    ],
+    buildArgs(o) {
+      return ["-tulnp"];
+    },
+  },
+
+  // ── Reporting / Export ────────────────────────────────────────────────────
+  {
+    id: "report-json-export", name: "Job Export (JSON)", binary: "echo",
+    category: "Reporting/Export",
+    description: "Export tool job data as structured JSON for reporting and evidence packaging.",
+    timeoutMs: 5_000,
+    fields: [
+      { id: "jobId",  label: "DB Job ID (UUID)", type: "text", placeholder: "uuid-of-completed-job", required: true },
+      { id: "format", label: "Output Format", type: "select", defaultValue: "json", options: [
+        { value: "json", label: "JSON" },
+        { value: "summary", label: "Plain-text Summary" },
+      ]},
+    ],
+    buildArgs(o) {
+      const safeId = o.jobId.trim().replace(/[^a-z0-9-]/gi, "");
+      return [`{"export":"tool_job","jobId":"${safeId}","format":"${o.format || "json"}","ts":"${new Date().toISOString()}"}`];
+    },
+  },
+  {
+    id: "tcpdump-capture", name: "TCPDump Capture", binary: "tcpdump",
+    category: "Reporting/Export",
+    description: "Capture live network traffic for offline analysis and reporting evidence.",
+    timeoutMs: 30_000,
+    warning: "Requires elevated privileges. Capture limited to 30 seconds.",
+    fields: [
+      { id: "iface",   label: "Interface", type: "text", placeholder: "eth0", defaultValue: "eth0", required: true },
+      { id: "filter",  label: "BPF Filter Expression", type: "text", placeholder: "port 80 or port 443" },
+      { id: "packets", label: "Max Packets (max 1000)", type: "number", defaultValue: "200" },
+    ],
+    buildArgs(o) {
+      const n = Math.min(Math.max(parseInt(o.packets||"200",10)||200, 10), 1000).toString();
+      const args = ["-i", (o.iface || "eth0").trim(), "-c", n, "-A"];
+      if (o.filter?.trim()) args.push(o.filter.trim());
+      return args;
     },
   },
 ];
@@ -1049,19 +1262,17 @@ router.get("/jobs", (req: Request, res: Response) => {
   res.json(list);
 });
 
-// ── GET /history — paginated DB history ───────────────────────────────────
+// ── GET /history — paginated DB history (admin sees all users; others see own) ──
 router.get("/history", async (req: Request, res: Response) => {
   const { userId } = getAuth(req);
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
+  const isAdmin = (req as any).__isAdmin === true;
   const limit  = Math.min(parseInt((req.query.limit  as string) || "20", 10), 100);
   const offset = Math.max(parseInt((req.query.offset as string) || "0",  10), 0);
   try {
-    const rows = await db.select()
-      .from(toolJobsTable)
-      .where(eq(toolJobsTable.userId, userId))
-      .orderBy(desc(toolJobsTable.createdAt))
-      .limit(limit)
-      .offset(offset);
+    const q = db.select().from(toolJobsTable);
+    if (!isAdmin) q.where(eq(toolJobsTable.userId, userId));
+    const rows = await q.orderBy(desc(toolJobsTable.createdAt)).limit(limit).offset(offset);
     res.json(rows);
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
@@ -1174,11 +1385,228 @@ router.post("/approvals/:id/reject", requireAdmin, async (req: Request, res: Res
 });
 
 // ── GET /node-agents ───────────────────────────────────────────────────────
-router.get("/node-agents", async (_req: Request, res: Response) => {
+router.get("/node-agents", requireAdmin, async (_req: Request, res: Response) => {
   try {
     const rows = await db.select().from(nodeAgentHealthTable)
       .orderBy(desc(nodeAgentHealthTable.lastSeenAt));
     res.json(rows);
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// ── GET /geoip/:target — GeoIP lookup for a given IP or hostname ───────────
+router.get("/geoip/:target", (req: Request, res: Response) => {
+  const { userId } = getAuth(req);
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+  const raw   = String(req.params.target).trim();
+  const clean = raw.replace(/^https?:\/\//, "").split("/")[0].split(":")[0];
+  if (!clean) return res.status(400).json({ error: "Invalid target" });
+  const geo = geoip.lookup(clean);
+  if (!geo) return res.json({ target: clean, found: false, geo: null });
+  res.json({ target: clean, found: true, geo: { country: geo.country, region: geo.region, city: geo.city, ll: geo.ll, timezone: geo.timezone } });
+});
+
+// ── POST /output/save/:jobId — persist output chunk to tool_outputs table ──
+router.post("/output/save/:jobId", async (req: Request, res: Response) => {
+  const { userId } = getAuth(req);
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+  const jobId = String(req.params.jobId);
+  try {
+    const [job] = await db.select({ id: toolJobsTable.id, userId: toolJobsTable.userId })
+      .from(toolJobsTable)
+      .where(eq(toolJobsTable.id, jobId));
+    if (!job) return res.status(404).json({ error: "Job not found" });
+    if (job.userId !== userId && !((req as any).__isAdmin)) return res.status(403).json({ error: "Access denied" });
+    const text  = typeof req.body?.text === "string" ? req.body.text.substring(0, 1_000_000) : "";
+    const chunk = typeof req.body?.chunkIndex === "number" ? req.body.chunkIndex : 0;
+    const [row] = await db.insert(toolOutputsTable)
+      .values({ jobId, chunkIndex: chunk, text })
+      .returning();
+    res.json(row);
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// ── GET /output/:jobId — retrieve saved output chunks ─────────────────────
+router.get("/output/:jobId", async (req: Request, res: Response) => {
+  const { userId } = getAuth(req);
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+  const jobId = String(req.params.jobId);
+  try {
+    const [job] = await db.select({ id: toolJobsTable.id, userId: toolJobsTable.userId })
+      .from(toolJobsTable).where(eq(toolJobsTable.id, jobId));
+    if (!job) return res.status(404).json({ error: "Job not found" });
+    if (job.userId !== userId && !((req as any).__isAdmin)) return res.status(403).json({ error: "Access denied" });
+    const chunks = await db.select().from(toolOutputsTable)
+      .where(eq(toolOutputsTable.jobId, jobId))
+      .orderBy(toolOutputsTable.chunkIndex);
+    res.json(chunks);
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// ── GET /approvals/:id — check status of a single approval ─────────────────
+router.get("/approvals/:id", async (req: Request, res: Response) => {
+  const { userId } = getAuth(req);
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+  try {
+    const [row] = await db.select().from(toolApprovalsTable)
+      .where(eq(toolApprovalsTable.id, String(req.params.id)));
+    if (!row) return res.status(404).json({ error: "Approval not found" });
+    if (row.userId !== userId && !((req as any).__isAdmin)) return res.status(403).json({ error: "Access denied" });
+    res.json(row);
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// ── POST /approvals/request — explicit high-risk scan approval request ────────
+// Alternative to submitting via /run — create an approval without attempting to run.
+const ApprovalRequestSchema = z.object({
+  toolId: z.string().min(1),
+  opts:   z.record(z.string()),
+  target: z.string().max(500).optional(),
+});
+router.post("/approvals/request", async (req: Request, res: Response) => {
+  const { userId } = getAuth(req);
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+  let body: z.infer<typeof ApprovalRequestSchema>;
+  try { body = ApprovalRequestSchema.parse(req.body); } catch (e: any) {
+    return res.status(400).json({ error: e.message });
+  }
+  const tool = TOOLS.find(t => t.id === body.toolId);
+  if (!tool) return res.status(404).json({ error: "Unknown tool: " + body.toolId });
+  const approvalReason = requiresApproval(body.toolId, body.opts);
+  if (!approvalReason) return res.status(400).json({ error: "This tool does not require admin approval." });
+  const approvalId = randomUUID();
+  try {
+    const [row] = await db.insert(toolApprovalsTable).values({
+      id: approvalId, userId, toolId: body.toolId, toolName: tool.name,
+      target: body.target ?? body.opts.target ?? body.opts.url ?? body.opts.domain ?? "",
+      optsJson: body.opts, riskReason: approvalReason, status: "pending",
+    }).returning();
+    appendAuditEvent({ actor: userId, action: "tool_runner.approval_requested", resource: body.toolId,
+      result: "deny", metadata: { approvalId, reason: approvalReason } });
+    res.status(202).json(row);
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// ── POST /approvals/:id/decide — admin unified approve/deny ─────────────────
+const DecideSchema = z.object({
+  decision: z.enum(["approved", "rejected"]),
+  notes:    z.string().max(1000).optional(),
+});
+router.post("/approvals/:id/decide", requireAdmin, async (req: Request, res: Response) => {
+  const { userId } = getAuth(req);
+  let body: z.infer<typeof DecideSchema>;
+  try { body = DecideSchema.parse(req.body); } catch (e: any) {
+    return res.status(400).json({ error: e.message });
+  }
+  try {
+    const [row] = await db.update(toolApprovalsTable)
+      .set({ status: body.decision, reviewedBy: userId ?? "admin", reviewedAt: new Date(), notes: body.notes })
+      .where(and(
+        eq(toolApprovalsTable.id, String(req.params.id)),
+        eq(toolApprovalsTable.status, "pending"),  // only pending approvals can be decided
+      ))
+      .returning();
+    if (!row) return res.status(404).json({ error: "Approval not found or already decided" });
+    appendAuditEvent({ actor: userId ?? "admin", action: `tool_runner.approval_${body.decision}`,
+      resource: row.toolId, result: body.decision === "approved" ? "allow" : "deny",
+      metadata: { approvalId: String(req.params.id) } });
+    res.json(row);
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Scheduler helpers ─────────────────────────────────────────────────────
+function computeNextRunAt(cronExpr: string): Date {
+  const now = new Date();
+  const e = cronExpr.trim().toLowerCase();
+  if (e === "@hourly"  || e === "0 * * * *")   return new Date(now.getTime() + 60 * 60_000);
+  if (e === "@daily"   || e === "0 0 * * *")   return new Date(now.getTime() + 24 * 60 * 60_000);
+  if (e === "@weekly"  || e === "0 0 * * 0")   return new Date(now.getTime() + 7  * 24 * 60 * 60_000);
+  if (e === "@monthly" || e === "0 0 1 * *")   return new Date(now.getTime() + 30 * 24 * 60 * 60_000);
+  // Default: assume hourly for unrecognized patterns
+  return new Date(now.getTime() + 60 * 60_000);
+}
+
+const ScheduleSchema = z.object({
+  toolId:   z.string().min(1),
+  opts:     z.record(z.string()),
+  cronExpr: z.string().min(1).max(50),
+  enabled:  z.boolean().optional().default(true),
+});
+
+// ── GET /schedules — list user's recurring schedules ──────────────────────
+router.get("/schedules", async (req: Request, res: Response) => {
+  const { userId } = getAuth(req);
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+  try {
+    const rows = await db.select().from(toolSchedulesTable)
+      .where(eq(toolSchedulesTable.userId, userId))
+      .orderBy(desc(toolSchedulesTable.createdAt));
+    res.json(rows);
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// ── POST /schedules — create a new recurring schedule ────────────────────
+router.post("/schedules", async (req: Request, res: Response) => {
+  const { userId } = getAuth(req);
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+  let body: z.infer<typeof ScheduleSchema>;
+  try { body = ScheduleSchema.parse(req.body); } catch (e: any) {
+    return res.status(400).json({ error: e.message });
+  }
+  const tool = TOOLS.find(t => t.id === body.toolId);
+  if (!tool) return res.status(404).json({ error: "Unknown tool: " + body.toolId });
+  const target = body.opts.target ?? body.opts.url ?? body.opts.domain ?? "";
+  const nextRunAt = computeNextRunAt(body.cronExpr);
+  try {
+    const [row] = await db.insert(toolSchedulesTable).values({
+      userId, toolId: body.toolId, toolName: tool.name,
+      target: target || null, optsJson: body.opts,
+      cronExpr: body.cronExpr, enabled: body.enabled ?? true, nextRunAt,
+    }).returning();
+    appendAuditEvent({ actor: userId, action: "tool_runner.schedule_create", resource: body.toolId,
+      result: "allow", metadata: { scheduleId: row.id, cronExpr: body.cronExpr } });
+    res.json(row);
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// ── PUT /schedules/:id — update schedule (enable/disable, change opts) ────
+const ScheduleUpdateSchema = z.object({
+  enabled:  z.boolean().optional(),
+  opts:     z.record(z.string()).optional(),
+  cronExpr: z.string().min(1).max(50).optional(),
+});
+router.put("/schedules/:id", async (req: Request, res: Response) => {
+  const { userId } = getAuth(req);
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+  let body: z.infer<typeof ScheduleUpdateSchema>;
+  try { body = ScheduleUpdateSchema.parse(req.body); } catch (e: any) {
+    return res.status(400).json({ error: e.message });
+  }
+  try {
+    const updates: Partial<typeof toolSchedulesTable.$inferInsert> = { updatedAt: new Date() };
+    if (body.enabled !== undefined) updates.enabled = body.enabled;
+    if (body.opts)     updates.optsJson  = body.opts;
+    if (body.cronExpr) { updates.cronExpr = body.cronExpr; updates.nextRunAt = computeNextRunAt(body.cronExpr); }
+    const [row] = await db.update(toolSchedulesTable)
+      .set(updates)
+      .where(and(eq(toolSchedulesTable.id, String(req.params.id)), eq(toolSchedulesTable.userId, userId)))
+      .returning();
+    if (!row) return res.status(404).json({ error: "Schedule not found" });
+    res.json(row);
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// ── DELETE /schedules/:id ──────────────────────────────────────────────────
+router.delete("/schedules/:id", async (req: Request, res: Response) => {
+  const { userId } = getAuth(req);
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+  try {
+    const [row] = await db.delete(toolSchedulesTable)
+      .where(and(eq(toolSchedulesTable.id, String(req.params.id)), eq(toolSchedulesTable.userId, userId)))
+      .returning();
+    if (!row) return res.status(404).json({ error: "Schedule not found" });
+    appendAuditEvent({ actor: userId, action: "tool_runner.schedule_delete", resource: row.toolId,
+      result: "allow", metadata: { scheduleId: row.id } });
+    res.json({ ok: true });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 

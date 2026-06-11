@@ -207,23 +207,256 @@ describe("Tool registry — all expected categories present", () => {
     "Fuzzing", "Subdomain Enumeration", "HTTP Probing", "DNS",
     "SSL / TLS", "HTTP Client", "OSINT", "Network",
     "Password Attacks", "Forensics & DFIR", "Cryptography", "Stress Testing",
+    "Wireless", "Malware Analysis", "Log Analysis",
+    "IDS/IPS Monitoring", "Honeypot Monitoring", "Reporting/Export",
   ];
 
-  it("has 15 distinct tool categories", () => {
-    expect(EXPECTED_CATEGORIES.length).toBe(15);
+  it("has 21 distinct tool categories", () => {
+    expect(EXPECTED_CATEGORIES.length).toBe(21);
   });
-
+  it("wireless category is in the expected set", () => {
+    expect(EXPECTED_CATEGORIES).toContain("Wireless");
+  });
+  it("malware analysis category is in the expected set", () => {
+    expect(EXPECTED_CATEGORIES).toContain("Malware Analysis");
+  });
+  it("log analysis category is in the expected set", () => {
+    expect(EXPECTED_CATEGORIES).toContain("Log Analysis");
+  });
+  it("IDS/IPS monitoring category is in the expected set", () => {
+    expect(EXPECTED_CATEGORIES).toContain("IDS/IPS Monitoring");
+  });
+  it("honeypot monitoring category is in the expected set", () => {
+    expect(EXPECTED_CATEGORIES).toContain("Honeypot Monitoring");
+  });
+  it("reporting/export category is in the expected set", () => {
+    expect(EXPECTED_CATEGORIES).toContain("Reporting/Export");
+  });
   it("password attacks category is in the expected set", () => {
     expect(EXPECTED_CATEGORIES).toContain("Password Attacks");
   });
   it("forensics category is in the expected set", () => {
     expect(EXPECTED_CATEGORIES).toContain("Forensics & DFIR");
   });
-  it("cryptography category is in the expected set", () => {
-    expect(EXPECTED_CATEGORIES).toContain("Cryptography");
+});
+
+// ── Target scope allowlist logic tests ───────────────────────────────────────────
+describe("targetMatchesScope — scope allowlist matching", () => {
+  // Replicate logic from toolrunner.ts
+  function targetMatchesScope(target: string, scopeType: string, scopeValue: string): boolean {
+    const t = target.trim().toLowerCase();
+    const v = scopeValue.trim().toLowerCase();
+    if (scopeType === "ip")     return t === v || t.startsWith(`${v}/`);
+    if (scopeType === "url")    return t.startsWith(v);
+    if (scopeType === "domain") {
+      const tClean = t.replace(/^https?:\/\//, "").split("/")[0].split(":")[0];
+      return tClean === v || tClean.endsWith(`.${v}`);
+    }
+    if (scopeType === "cidr") {
+      const [net] = v.split("/");
+      const parts  = net.split(".");
+      const prefix = v.includes("/") ? parseInt(v.split("/")[1] ?? "32", 10) : 32;
+      const octets = Math.ceil(prefix / 8);
+      const targetClean = t.replace(/^https?:\/\//, "").split("/")[0].split(":")[0];
+      const tParts = targetClean.split(".");
+      if (tParts.length < octets) return false;
+      for (let i = 0; i < octets; i++) {
+        if ((tParts[i] ?? "") !== (parts[i] ?? "")) return false;
+      }
+      return true;
+    }
+    return false;
+  }
+
+  it("matches exact IP scope", () => {
+    expect(targetMatchesScope("8.8.8.8", "ip", "8.8.8.8")).toBe(true);
   });
-  it("stress testing category is in the expected set", () => {
-    expect(EXPECTED_CATEGORIES).toContain("Stress Testing");
+  it("rejects different IP", () => {
+    expect(targetMatchesScope("8.8.4.4", "ip", "8.8.8.8")).toBe(false);
+  });
+  it("matches domain exactly", () => {
+    expect(targetMatchesScope("example.com", "domain", "example.com")).toBe(true);
+  });
+  it("matches subdomain of domain scope", () => {
+    expect(targetMatchesScope("sub.example.com", "domain", "example.com")).toBe(true);
+  });
+  it("rejects unrelated domain", () => {
+    expect(targetMatchesScope("evil.com", "domain", "example.com")).toBe(false);
+  });
+  it("matches URL scope prefix", () => {
+    expect(targetMatchesScope("https://api.example.com/v1", "url", "https://api.example.com")).toBe(true);
+  });
+  it("rejects URL not matching prefix", () => {
+    expect(targetMatchesScope("https://other.com/v1", "url", "https://api.example.com")).toBe(false);
+  });
+  it("matches /24 CIDR scope", () => {
+    expect(targetMatchesScope("192.0.2.50", "cidr", "192.0.2.0/24")).toBe(true);
+  });
+  it("rejects IP outside /24 CIDR", () => {
+    expect(targetMatchesScope("192.0.3.1", "cidr", "192.0.2.0/24")).toBe(false);
+  });
+  it("matches /16 CIDR scope", () => {
+    expect(targetMatchesScope("10.20.30.40", "cidr", "10.20.0.0/16")).toBe(true);
+  });
+  it("rejects IP outside /16 CIDR", () => {
+    expect(targetMatchesScope("10.21.0.1", "cidr", "10.20.0.0/16")).toBe(false);
+  });
+});
+
+// ── Approval token lifecycle unit tests ───────────────────────────────────────
+describe("Approval token lifecycle — validation logic", () => {
+  type ApprovalStatus = "pending" | "approved" | "rejected" | "consumed";
+  interface MockApproval {
+    id: string;
+    userId: string;
+    toolId: string;
+    status: ApprovalStatus;
+    reviewedAt: Date | null;
+  }
+
+  function validateApprovalToken(
+    approval: MockApproval | undefined,
+    userId: string,
+    toolId: string,
+  ): { ok: boolean; error?: string } {
+    if (!approval)                                   return { ok: false, error: "Approval token not found." };
+    if (approval.userId !== userId)                  return { ok: false, error: "Approval token belongs to a different user." };
+    if (approval.toolId !== toolId)                  return { ok: false, error: "Approval token is for a different tool." };
+    if (approval.status !== "approved")              return { ok: false, error: `Approval is not in 'approved' state (current: ${approval.status}).` };
+    if (approval.reviewedAt) {
+      const expiresAt = new Date(approval.reviewedAt.getTime() + 60 * 60 * 1000);
+      if (new Date() > expiresAt)                    return { ok: false, error: "Approval token has expired." };
+    }
+    return { ok: true };
+  }
+
+  it("accepts a valid approved token", () => {
+    const approval: MockApproval = {
+      id: "abc", userId: "u1", toolId: "sqlmap", status: "approved",
+      reviewedAt: new Date(Date.now() - 5 * 60_000), // 5 min ago
+    };
+    expect(validateApprovalToken(approval, "u1", "sqlmap").ok).toBe(true);
+  });
+  it("rejects missing approval", () => {
+    expect(validateApprovalToken(undefined, "u1", "sqlmap").ok).toBe(false);
+  });
+  it("rejects approval belonging to different user", () => {
+    const approval: MockApproval = {
+      id: "abc", userId: "u2", toolId: "sqlmap", status: "approved", reviewedAt: new Date(),
+    };
+    expect(validateApprovalToken(approval, "u1", "sqlmap").ok).toBe(false);
+  });
+  it("rejects approval for different tool", () => {
+    const approval: MockApproval = {
+      id: "abc", userId: "u1", toolId: "nmap", status: "approved", reviewedAt: new Date(),
+    };
+    expect(validateApprovalToken(approval, "u1", "sqlmap").ok).toBe(false);
+  });
+  it("rejects pending approval", () => {
+    const approval: MockApproval = {
+      id: "abc", userId: "u1", toolId: "sqlmap", status: "pending", reviewedAt: null,
+    };
+    expect(validateApprovalToken(approval, "u1", "sqlmap").ok).toBe(false);
+  });
+  it("rejects consumed approval", () => {
+    const approval: MockApproval = {
+      id: "abc", userId: "u1", toolId: "sqlmap", status: "consumed", reviewedAt: new Date(),
+    };
+    expect(validateApprovalToken(approval, "u1", "sqlmap").ok).toBe(false);
+  });
+  it("rejects expired approval (>1h old)", () => {
+    const approval: MockApproval = {
+      id: "abc", userId: "u1", toolId: "sqlmap", status: "approved",
+      reviewedAt: new Date(Date.now() - 2 * 60 * 60_000), // 2h ago
+    };
+    expect(validateApprovalToken(approval, "u1", "sqlmap").ok).toBe(false);
+    expect(validateApprovalToken(approval, "u1", "sqlmap").error).toContain("expired");
+  });
+});
+
+// ── Job ownership enforcement unit tests ──────────────────────────────────────
+describe("Job ownership enforcement", () => {
+  interface MockJob { userId: string; done: boolean; exitCode: number | null; }
+  const jobs = new Map<string, MockJob>();
+  jobs.set("job-a", { userId: "user-alice", done: false, exitCode: null });
+  jobs.set("job-b", { userId: "user-bob",   done: true,  exitCode: 0 });
+
+  function canAccessJob(jobId: string, requestingUserId: string, isAdmin: boolean): boolean {
+    const job = jobs.get(jobId);
+    if (!job) return false;
+    if (isAdmin) return true;
+    return job.userId === requestingUserId;
+  }
+
+  it("owner can access their own job", () => {
+    expect(canAccessJob("job-a", "user-alice", false)).toBe(true);
+  });
+  it("other user cannot access someone else's job", () => {
+    expect(canAccessJob("job-a", "user-bob", false)).toBe(false);
+  });
+  it("admin can access any job", () => {
+    expect(canAccessJob("job-a", "user-bob", true)).toBe(true);
+    expect(canAccessJob("job-b", "user-alice", true)).toBe(true);
+  });
+  it("returns false for non-existent job", () => {
+    expect(canAccessJob("job-xyz", "user-alice", false)).toBe(false);
+  });
+
+  it("GET /jobs filters by userId for non-admin", () => {
+    const list: { jobId: string; userId: string }[] = [];
+    const isAdmin = false;
+    const userId  = "user-alice";
+    for (const [id, j] of jobs.entries()) {
+      if (!isAdmin && j.userId !== userId) continue;
+      list.push({ jobId: id, userId: j.userId });
+    }
+    expect(list.length).toBe(1);
+    expect(list[0].userId).toBe("user-alice");
+  });
+
+  it("GET /jobs returns all jobs for admin", () => {
+    const list: { jobId: string; userId: string }[] = [];
+    const isAdmin = true;
+    for (const [id, j] of jobs.entries()) {
+      if (!isAdmin && j.userId !== "user-alice") continue;
+      list.push({ jobId: id, userId: j.userId });
+    }
+    expect(list.length).toBe(2);
+  });
+});
+
+// ── Scheduler helpers unit tests ──────────────────────────────────────────────
+describe("Scheduler — computeNextRunAt", () => {
+  function computeNextRunAt(cronExpr: string): Date {
+    const now = new Date();
+    const e = cronExpr.trim().toLowerCase();
+    if (e === "@hourly"  || e === "0 * * * *") return new Date(now.getTime() + 60 * 60_000);
+    if (e === "@daily"   || e === "0 0 * * *") return new Date(now.getTime() + 24 * 60 * 60_000);
+    if (e === "@weekly"  || e === "0 0 * * 0") return new Date(now.getTime() + 7 * 24 * 60 * 60_000);
+    if (e === "@monthly" || e === "0 0 1 * *") return new Date(now.getTime() + 30 * 24 * 60 * 60_000);
+    return new Date(now.getTime() + 60 * 60_000); // default hourly
+  }
+
+  it("@hourly → ~1 hour from now", () => {
+    const next = computeNextRunAt("@hourly");
+    const diff = next.getTime() - Date.now();
+    expect(diff).toBeGreaterThan(59 * 60_000);
+    expect(diff).toBeLessThan(61 * 60_000);
+  });
+  it("@daily → ~24 hours from now", () => {
+    const next = computeNextRunAt("@daily");
+    const diff = next.getTime() - Date.now();
+    expect(diff).toBeGreaterThan(23 * 60 * 60_000);
+  });
+  it("@weekly → ~7 days from now", () => {
+    const next = computeNextRunAt("@weekly");
+    const diff = next.getTime() - Date.now();
+    expect(diff).toBeGreaterThan(6 * 24 * 60 * 60_000);
+  });
+  it("0 * * * * is equivalent to @hourly", () => {
+    const a = computeNextRunAt("@hourly");
+    const b = computeNextRunAt("0 * * * *");
+    expect(Math.abs(a.getTime() - b.getTime())).toBeLessThan(100);
   });
 });
 

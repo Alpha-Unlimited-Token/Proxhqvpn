@@ -85,6 +85,25 @@ export const nodeAgentHealthTable = pgTable("node_agent_health", {
   createdAt:   timestamp("created_at").notNull().defaultNow(),
 });
 
+// ── tool_schedules — recurring scheduled scan jobs ─────────────────────────
+export const toolSchedulesTable = pgTable("tool_schedules", {
+  id:          uuid("id").primaryKey().defaultRandom(),
+  userId:      text("user_id").notNull(),
+  toolId:      text("tool_id").notNull(),
+  toolName:    text("tool_name").notNull(),
+  target:      text("target"),
+  optsJson:    jsonb("opts_json").$type<Record<string, string>>(),
+  cronExpr:    text("cron_expr").notNull(),
+  enabled:     boolean("enabled").notNull().default(true),
+  lastRunAt:   timestamp("last_run_at"),
+  nextRunAt:   timestamp("next_run_at"),
+  createdAt:   timestamp("created_at").notNull().defaultNow(),
+  updatedAt:   timestamp("updated_at").notNull().defaultNow(),
+}, (t) => [
+  index("tool_schedules_user_idx").on(t.userId),
+  index("tool_schedules_enabled_idx").on(t.enabled),
+]);
+
 // ── node_agent_events — events reported by remote nodes ───────────────────────
 export const nodeAgentEventsTable = pgTable("node_agent_events", {
   id:          integer("id").generatedAlwaysAsIdentity().primaryKey(),
