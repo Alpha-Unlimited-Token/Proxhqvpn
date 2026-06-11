@@ -1,5 +1,5 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
-// Attack Intelligence Engine — real-time attacker IP probe + exploit mapping
+// Attack Intelligence Engine — real-time attacker IP probe + banner grab + exploit mapping
 import { Router } from "express";
 import net from "net";
 import { z } from "zod";
@@ -45,7 +45,11 @@ const PORT_INTEL: Record<number, PortIntel> = {
   6379:  { service:"Redis",              severity:"critical", cves:["CVE-2022-0543","CVE-2021-32761"],                   description:"Redis — unauthenticated access, Lua RCE, master-slave replication abuse, SSRF",                         exploitDbUrl:"https://www.exploit-db.com/search?q=redis&type=remote",                   hacktricksUrl:"https://book.hacktricks.xyz/network-services-pentesting/6379-pentesting-redis",                          nistUrl:"https://nvd.nist.gov/vuln/search/results?query=redis",                                          mitre:["T1190","T1552"] },
   8080:  { service:"HTTP-ALT",           severity:"high",     cves:["CVE-2022-22947","CVE-2021-44228"],                  description:"Alternate HTTP — admin panels, Tomcat/Jetty, Apache proxy, Log4Shell (8080 Solr/Logstash)",             exploitDbUrl:"https://www.exploit-db.com/search?q=tomcat+jetty&type=webapps",           hacktricksUrl:"https://book.hacktricks.xyz/network-services-pentesting/pentesting-web",                                 nistUrl:"https://nvd.nist.gov/vuln/search/results?query=web+server+8080",                                mitre:["T1190"] },
   8443:  { service:"HTTPS-ALT",          severity:"medium",   cves:["CVE-2021-44228","CVE-2021-42013"],                  description:"Alternate HTTPS — management consoles, self-signed certificates, Kubernetes API",                       exploitDbUrl:"https://www.exploit-db.com/search?q=https+8443&type=webapps",             hacktricksUrl:"https://book.hacktricks.xyz/network-services-pentesting/pentesting-web",                                 nistUrl:"https://nvd.nist.gov/vuln/search/results?query=https+8443",                                     mitre:["T1190"] },
+  8880:  { service:"HTTP-Proxy/Custom",  severity:"high",     cves:["CVE-2021-41773","CVE-2022-22947","CVE-2021-44228"], description:"Custom HTTP port 8880 — honeypot bait port, web proxies, alternative web servers, scanner infrastructure. Apache/nginx misconfig common.", exploitDbUrl:"https://www.exploit-db.com/search?q=http+8880&type=webapps", hacktricksUrl:"https://book.hacktricks.xyz/network-services-pentesting/pentesting-web", nistUrl:"https://nvd.nist.gov/vuln/search/results?query=http+8880", mitre:["T1190","T1102"] },
   8888:  { service:"HTTP-Dev",           severity:"medium",   cves:["CVE-2021-44228"],                                   description:"Development server — Jupyter notebook (often unauth), custom dev APIs",                                 exploitDbUrl:"https://www.exploit-db.com/search?q=jupyter+notebook&type=webapps",      hacktricksUrl:"https://book.hacktricks.xyz/network-services-pentesting/pentesting-web",                                 nistUrl:"https://nvd.nist.gov/vuln/search/results?query=jupyter",                                        mitre:["T1190"] },
+  7070:  { service:"RealServer/AnyConnect", severity:"medium",cves:["CVE-2020-3556","CVE-2021-1551"],                    description:"Cisco AnyConnect / RealNetworks — VPN infrastructure port, IKE/SSL VPN scanning target",                  exploitDbUrl:"https://www.exploit-db.com/search?q=cisco+anyconnect&type=remote",       hacktricksUrl:"https://book.hacktricks.xyz/network-services-pentesting/pentesting-web",                                 nistUrl:"https://nvd.nist.gov/vuln/search/results?query=cisco+anyconnect",               mitre:["T1190","T1133"] },
+  2222:  { service:"SSH-ALT",            severity:"medium",   cves:["CVE-2023-38408","CVE-2018-15473"],                  description:"SSH on alternate port — brute force target, misconfigured servers, IoT devices",                          exploitDbUrl:"https://www.exploit-db.com/search?q=openssh&type=remote",                hacktricksUrl:"https://book.hacktricks.xyz/network-services-pentesting/pentesting-ssh",                                 nistUrl:"https://nvd.nist.gov/vuln/search/results?query=openssh",                        mitre:["T1110","T1021.004"] },
+  10000: { service:"Webmin",             severity:"critical", cves:["CVE-2019-15107","CVE-2022-36446"],                  description:"Webmin admin panel — RCE without auth (CVE-2019-15107), arbitrary file read, command injection",           exploitDbUrl:"https://www.exploit-db.com/search?q=webmin&type=remote",                 hacktricksUrl:"https://book.hacktricks.xyz/network-services-pentesting/10000-network-data-management-protocol-ndmp",    nistUrl:"https://nvd.nist.gov/vuln/search/results?query=webmin",                         mitre:["T1190","T1059"] },
   9200:  { service:"Elasticsearch",      severity:"critical", cves:["CVE-2015-1427","CVE-2021-22147"],                   description:"Elasticsearch — unauthenticated data access, Groovy sandbox escape RCE, SSRF pivot",                  exploitDbUrl:"https://www.exploit-db.com/search?q=elasticsearch&type=remote",           hacktricksUrl:"https://book.hacktricks.xyz/network-services-pentesting/9200-pentesting-elasticsearch",                  nistUrl:"https://nvd.nist.gov/vuln/search/results?query=elasticsearch",                                  mitre:["T1190","T1552"] },
   27017: { service:"MongoDB",            severity:"critical", cves:["CVE-2019-2386","CVE-2021-20327"],                   description:"MongoDB — unauthenticated access, collection dump, auth bypass on older versions",                      exploitDbUrl:"https://www.exploit-db.com/search?q=mongodb&type=remote",                 hacktricksUrl:"https://book.hacktricks.xyz/network-services-pentesting/27017-27018-mongodb",                            nistUrl:"https://nvd.nist.gov/vuln/search/results?query=mongodb",                                        mitre:["T1190","T1078"] },
   50000: { service:"SAP Dispatcher",     severity:"critical", cves:["CVE-2020-6207","CVE-2022-22536"],                   description:"SAP Application Server — unauthenticated RCE, ICMAD memory corruption",                                  exploitDbUrl:"https://www.exploit-db.com/search?q=sap+icm&type=remote",                 hacktricksUrl:"https://book.hacktricks.xyz/network-services-pentesting/pentesting-sap",                                 nistUrl:"https://nvd.nist.gov/vuln/search/results?query=sap",                                            mitre:["T1190"] },
@@ -53,13 +57,102 @@ const PORT_INTEL: Record<number, PortIntel> = {
 
 const PROBE_PORTS = Object.keys(PORT_INTEL).map(Number);
 
-function probePort(ip: string, port: number, timeoutMs = 2500): Promise<boolean> {
+// ── HTTP ports that get a real HTTP GET banner grab ───────────────────────────
+const HTTP_PORTS = new Set([80, 443, 8080, 8443, 8880, 8888, 3000, 7070, 10000, 2080, 8008, 9090]);
+const HTTPS_PORTS = new Set([443, 8443]);
+
+interface BannerResult {
+  open: boolean;
+  banner: string | null;
+  httpStatus?: number;
+  httpServer?: string;
+  httpPoweredBy?: string;
+  rawHeaders?: string;
+}
+
+// Grab raw service banner — reads first 1024 bytes after connect.
+// For HTTP ports: sends a HEAD / request and returns response headers.
+function grabBanner(ip: string, port: number, timeoutMs = 3000): Promise<BannerResult> {
   return new Promise(resolve => {
+    const isHttp = HTTP_PORTS.has(port);
     const sock = net.createConnection({ host: ip, port });
-    const timer = setTimeout(() => { sock.destroy(); resolve(false); }, timeoutMs);
-    sock.on("connect", () => { clearTimeout(timer); sock.destroy(); resolve(true); });
-    sock.on("error", () => { clearTimeout(timer); resolve(false); });
-    sock.on("timeout", () => { clearTimeout(timer); sock.destroy(); resolve(false); });
+    let raw = Buffer.alloc(0);
+    const timer = setTimeout(() => {
+      sock.destroy();
+      // If we have some data already, still return it as a partial banner
+      if (raw.length > 0) {
+        resolve({ open: true, banner: raw.toString("utf8", 0, Math.min(raw.length, 1024)).trim() });
+      } else {
+        resolve({ open: false, banner: null });
+      }
+    }, timeoutMs);
+
+    sock.on("connect", () => {
+      if (isHttp) {
+        // Send HTTP HEAD request to get Server header
+        const req = `HEAD / HTTP/1.0\r\nHost: ${ip}:${port}\r\nUser-Agent: Mozilla/5.0 (compatible; Infrawatch/1.0)\r\nAccept: */*\r\nConnection: close\r\n\r\n`;
+        sock.write(req);
+      }
+      // For non-HTTP: just wait for banner (SSH/FTP/SMTP send on connect)
+    });
+
+    sock.on("data", (chunk: Buffer) => {
+      raw = Buffer.concat([raw, chunk]);
+      if (raw.length >= 2048) {
+        clearTimeout(timer);
+        sock.destroy();
+        parseAndResolve();
+      }
+    });
+
+    sock.on("end", () => {
+      clearTimeout(timer);
+      parseAndResolve();
+    });
+
+    sock.on("error", () => {
+      clearTimeout(timer);
+      if (raw.length > 0) {
+        parseAndResolve();
+      } else {
+        resolve({ open: false, banner: null });
+      }
+    });
+
+    function parseAndResolve() {
+      if (raw.length === 0) { resolve({ open: false, banner: null }); return; }
+      const text = raw.toString("utf8", 0, Math.min(raw.length, 2048));
+      if (isHttp && text.startsWith("HTTP/")) {
+        // Parse HTTP response
+        const lines = text.split(/\r?\n/);
+        const statusLine = lines[0] ?? "";
+        const statusMatch = statusLine.match(/HTTP\/[\d.]+\s+(\d+)/);
+        const httpStatus = statusMatch ? parseInt(statusMatch[1]) : undefined;
+        const headers: Record<string, string> = {};
+        for (let i = 1; i < lines.length; i++) {
+          if (!lines[i]?.trim()) break;
+          const colonIdx = lines[i].indexOf(":");
+          if (colonIdx > 0) {
+            const key = lines[i].substring(0, colonIdx).trim().toLowerCase();
+            const val = lines[i].substring(colonIdx + 1).trim();
+            headers[key] = val;
+          }
+        }
+        const rawHeaders = lines.slice(0, 20).filter(Boolean).join("\n");
+        resolve({
+          open: true,
+          banner: `${statusLine}\n${rawHeaders}`,
+          httpStatus,
+          httpServer: headers["server"],
+          httpPoweredBy: headers["x-powered-by"],
+          rawHeaders,
+        });
+      } else {
+        // Raw banner (SSH: "SSH-2.0-OpenSSH_8.9p1\r\n", FTP: "220 ProFTPd ...", etc.)
+        const banner = text.split(/\r?\n/)[0]?.trim() || text.substring(0, 256).trim();
+        resolve({ open: true, banner, rawHeaders: text.substring(0, 512) });
+      }
+    }
   });
 }
 
@@ -83,14 +176,19 @@ router.post("/probe", async (req, res) => {
     if (geoRes.ok) geo = await geoRes.json() as Record<string, unknown>;
   } catch { /* graceful degradation */ }
 
-  // Parallel port probe — all ports simultaneously (up to 30 probes)
+  // Parallel port probe — all ports simultaneously, with banner grab
   const probeResults = await Promise.all(
     portsToProbe.map(async port => {
-      const open = await probePort(ip, port, timeout);
+      const br = await grabBanner(ip, port, timeout);
       const intel = PORT_INTEL[port];
       return {
         port,
-        open,
+        open: br.open,
+        banner:         br.banner         ?? null,
+        httpStatus:     br.httpStatus     ?? null,
+        httpServer:     br.httpServer     ?? null,
+        httpPoweredBy:  br.httpPoweredBy  ?? null,
+        rawHeaders:     br.rawHeaders     ?? null,
         service:        intel?.service        ?? `port-${port}`,
         description:    intel?.description    ?? "Unknown service",
         severity:       (intel?.severity      ?? "low") as PortIntel["severity"],
@@ -120,6 +218,52 @@ router.post("/probe", async (req, res) => {
              : openPorts.some(p => p.severity === "medium")   ? "medium"
              : openPorts.length > 0                           ? "low"
              : "clean",
+  });
+});
+
+// POST /api/attack-intel/banner — dedicated banner grab for specific ports
+// Returns raw banners from a list of ports (or all common ports if none specified)
+router.post("/banner", async (req, res) => {
+  const body = z.object({
+    ip: z.string().ip({ message: "Must be a valid IPv4 or IPv6 address" }),
+    ports: z.array(z.number().int().min(1).max(65535)).optional(),
+    timeout: z.number().int().min(500).max(8000).default(4000),
+  }).safeParse(req.body);
+  if (!body.success) return res.status(400).json({ error: body.error.flatten() });
+
+  const { ip, timeout } = body.data;
+  // Default banner grab covers the most informative ports
+  const bannerPorts = body.data.ports?.length
+    ? body.data.ports
+    : [21, 22, 23, 25, 80, 110, 143, 443, 445, 993, 3306, 3389, 5432, 6379, 8080, 8443, 8880, 8888, 9200, 27017];
+
+  const start = Date.now();
+  const results = await Promise.all(
+    bannerPorts.map(async port => {
+      const br = await grabBanner(ip, port, timeout);
+      const intel = PORT_INTEL[port];
+      return {
+        port,
+        service:      intel?.service ?? `port-${port}`,
+        open:         br.open,
+        banner:       br.banner,
+        httpStatus:   br.httpStatus ?? null,
+        httpServer:   br.httpServer ?? null,
+        httpPoweredBy:br.httpPoweredBy ?? null,
+        rawHeaders:   br.rawHeaders ?? null,
+        severity:     intel?.severity ?? "low",
+      };
+    })
+  );
+
+  const openBanners = results.filter(r => r.open);
+  res.json({
+    ip,
+    durationMs: Date.now() - start,
+    scannedAt: new Date().toISOString(),
+    bannerCount: openBanners.length,
+    results,
+    openBanners,
   });
 });
 
