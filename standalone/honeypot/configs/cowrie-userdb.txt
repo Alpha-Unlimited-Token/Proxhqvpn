@@ -1,0 +1,28 @@
+# Cowrie user database — intentionally weak credentials to attract attackers
+# Format: username:uid:password
+# Use * to match any password, ! prefix to deny
+root:0:*
+admin:1000:*
+administrator:1000:*
+user:1001:*
+ubuntu:1000:*
+pi:1000:*
+oracle:1000:*
+postgres:1000:*
+mysql:1000:*
+www-data:33:*
+git:1000:*
+ftpuser:1000:*
+test:1000:*
+guest:1000:*
+deploy:1000:*
+support:1000:*
+backup:1000:*
+nagios:1000:*
+zabbix:1000:*
+jenkins:1000:*
+ansible:1000:*
+vagrant:1000:*
+ec2-user:1000:*
+centos:1000:*
+debian:1000:*

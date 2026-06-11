@@ -1197,6 +1197,263 @@ export interface ProxyFetchResult {
   title?: string;
 }
 
+export type HoneypotStatsTopCountriesItem = {
+  country: string;
+  count: number;
+};
+
+export type HoneypotStatsSessionsByDayItem = {
+  date: string;
+  count: number;
+};
+
+export interface HoneypotAttacker {
+  id: number;
+  ipAddress: string;
+  /** @nullable */
+  asn?: string | null;
+  /** @nullable */
+  asnOrg?: string | null;
+  /** @nullable */
+  country?: string | null;
+  /** @nullable */
+  countryCode?: string | null;
+  /** @nullable */
+  city?: string | null;
+  /** @nullable */
+  lat?: number | null;
+  /** @nullable */
+  lon?: number | null;
+  isTorExit: boolean;
+  isKnownBad: boolean;
+  threatScore: number;
+  sessionCount: number;
+  commandCount: number;
+  fileCount: number;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  tags: string[];
+  usernames: string[];
+  passwords: string[];
+}
+
+export interface HoneypotNode {
+  id: number;
+  name: string;
+  host: string;
+  port: number;
+  protocol: string;
+  /** @nullable */
+  location?: string | null;
+  /** @nullable */
+  country?: string | null;
+  /** @nullable */
+  lat?: number | null;
+  /** @nullable */
+  lon?: number | null;
+  status: string;
+  /** @nullable */
+  lastSeenAt?: string | null;
+  totalSessions: number;
+  totalAttackers: number;
+  createdAt: string;
+}
+
+export interface HoneypotSession {
+  id: number;
+  /** @nullable */
+  nodeId?: number | null;
+  /** @nullable */
+  attackerId?: number | null;
+  protocol: string;
+  /** @nullable */
+  srcPort?: number | null;
+  destPort: number;
+  /** @nullable */
+  username?: string | null;
+  /** @nullable */
+  password?: string | null;
+  /** @nullable */
+  clientVersion?: string | null;
+  /** @nullable */
+  duration?: number | null;
+  commandCount: number;
+  fileCount: number;
+  outcome: string;
+  startedAt: string;
+  /** @nullable */
+  endedAt?: string | null;
+  attacker?: HoneypotAttacker;
+  node?: HoneypotNode;
+}
+
+export interface HoneypotStats {
+  totalNodes: number;
+  activeNodes: number;
+  totalAttackers: number;
+  totalSessions: number;
+  totalCommands: number;
+  totalFiles: number;
+  unacknowledgedAlerts: number;
+  topCountries: HoneypotStatsTopCountriesItem[];
+  recentSessions: HoneypotSession[];
+  sessionsByDay: HoneypotStatsSessionsByDayItem[];
+}
+
+export interface HoneypotNodeInput {
+  name: string;
+  host: string;
+  port?: number;
+  protocol?: string;
+  location?: string;
+  country?: string;
+  lat?: number;
+  lon?: number;
+  psk?: string;
+}
+
+export interface HoneypotNodeUpdate {
+  name?: string;
+  status?: string;
+  location?: string;
+}
+
+export interface HoneypotCommand {
+  id: number;
+  /** @nullable */
+  sessionId?: number | null;
+  /** @nullable */
+  attackerId?: number | null;
+  command: string;
+  /** @nullable */
+  output?: string | null;
+  /** @nullable */
+  exitCode?: number | null;
+  isMalicious: boolean;
+  /** @nullable */
+  malwareFamily?: string | null;
+  /** @nullable */
+  mitreTactic?: string | null;
+  /** @nullable */
+  mitreTechnique?: string | null;
+  capturedAt: string;
+}
+
+export interface HoneypotFile {
+  id: number;
+  /** @nullable */
+  sessionId?: number | null;
+  /** @nullable */
+  attackerId?: number | null;
+  filename: string;
+  /** @nullable */
+  url?: string | null;
+  /** @nullable */
+  sha256?: string | null;
+  /** @nullable */
+  md5?: string | null;
+  /** @nullable */
+  size?: number | null;
+  /** @nullable */
+  mimeType?: string | null;
+  isMalware: boolean;
+  /** @nullable */
+  malwareFamily?: string | null;
+  /** @nullable */
+  virusTotalScore?: number | null;
+  capturedAt: string;
+}
+
+export interface HoneypotIoc {
+  id: number;
+  type: string;
+  value: string;
+  /** @nullable */
+  description?: string | null;
+  confidence: number;
+  source: string;
+  tags: string[];
+  firstSeenAt: string;
+  lastSeenAt: string;
+}
+
+export interface HoneypotIocInput {
+  type: string;
+  value: string;
+  description?: string;
+  confidence?: number;
+  tags?: string[];
+}
+
+export interface HoneypotAlert {
+  id: number;
+  /** @nullable */
+  nodeId?: number | null;
+  /** @nullable */
+  attackerId?: number | null;
+  /** @nullable */
+  sessionId?: number | null;
+  severity: string;
+  title: string;
+  /** @nullable */
+  description?: string | null;
+  alertType: string;
+  acknowledged: boolean;
+  /** @nullable */
+  acknowledgedAt?: string | null;
+  /** @nullable */
+  acknowledgedBy?: string | null;
+  createdAt: string;
+}
+
+export type HoneypotIngestEventRaw = { [key: string]: unknown };
+
+export interface HoneypotIngestEvent {
+  source: string;
+  nodeName: string;
+  eventType: string;
+  protocol?: string;
+  timestamp?: string;
+  srcIp: string;
+  /** @nullable */
+  srcPort?: number | null;
+  /** @nullable */
+  destPort?: number | null;
+  /** @nullable */
+  username?: string | null;
+  /** @nullable */
+  password?: string | null;
+  /** @nullable */
+  sessionId?: string | null;
+  /** @nullable */
+  command?: string | null;
+  /** @nullable */
+  fileUrl?: string | null;
+  /** @nullable */
+  fileSha256?: string | null;
+  /** @nullable */
+  filename?: string | null;
+  /** @nullable */
+  clientVersion?: string | null;
+  /** @nullable */
+  duration?: number | null;
+  /** @nullable */
+  success?: boolean | null;
+  /** @nullable */
+  alertSignature?: string | null;
+  /** @nullable */
+  alertCategory?: string | null;
+  /** @nullable */
+  alertSeverity?: number | null;
+  /** @nullable */
+  mitreTechnique?: string | null;
+  raw?: HoneypotIngestEventRaw;
+}
+
+export interface HoneypotIngestPayload {
+  events: HoneypotIngestEvent[];
+}
+
 export type ListNodesParams = {
   /**
    * Filter by layer (outer=50 ghost nodes, inner=10 core nodes)
@@ -1315,3 +1572,58 @@ export const ListVulnerabilitiesSeverity = {
   informational: "informational",
   all: "all",
 } as const;
+
+export type ListHoneypotAttackersParams = {
+  limit?: number;
+  offset?: number;
+};
+
+export type ListHoneypotAttackers200 = {
+  attackers: HoneypotAttacker[];
+  total: number;
+};
+
+export type ListHoneypotSessionsParams = {
+  limit?: number;
+  offset?: number;
+  attackerId?: number;
+  nodeId?: number;
+};
+
+export type ListHoneypotSessions200 = {
+  sessions: HoneypotSession[];
+  total: number;
+};
+
+export type ListHoneypotCommandsParams = {
+  limit?: number;
+  offset?: number;
+  sessionId?: number;
+};
+
+export type ListHoneypotCommands200 = {
+  commands: HoneypotCommand[];
+  total: number;
+};
+
+export type ListHoneypotFilesParams = {
+  limit?: number;
+  offset?: number;
+};
+
+export type ListHoneypotFiles200 = {
+  files: HoneypotFile[];
+  total: number;
+};
+
+export type ListHoneypotIocsParams = {
+  type?: string;
+};
+
+export type ListHoneypotAlertsParams = {
+  acknowledged?: boolean;
+};
+
+export type IngestHoneypotEvent200 = {
+  accepted: number;
+};

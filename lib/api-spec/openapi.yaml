@@ -25,6 +25,8 @@ tags:
     description: System monitoring
   - name: firewall
     description: Built-in firewall management
+  - name: honeypot
+    description: Multi-node honeypot defense infrastructure
 
 paths:
   /healthz:
@@ -1354,6 +1356,373 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ProxyFetchResult"
+
+  /honeypot/stats:
+    get:
+      operationId: getHoneypotStats
+      tags: [honeypot]
+      summary: Honeypot dashboard summary stats
+      responses:
+        "200":
+          description: Stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HoneypotStats"
+
+  /honeypot/nodes:
+    get:
+      operationId: listHoneypotNodes
+      tags: [honeypot]
+      summary: List honeypot nodes
+      responses:
+        "200":
+          description: Nodes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/HoneypotNode"
+    post:
+      operationId: createHoneypotNode
+      tags: [honeypot]
+      summary: Register a honeypot node
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HoneypotNodeInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HoneypotNode"
+
+  /honeypot/nodes/{id}:
+    patch:
+      operationId: updateHoneypotNode
+      tags: [honeypot]
+      summary: Update a honeypot node
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HoneypotNodeUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HoneypotNode"
+    delete:
+      operationId: deleteHoneypotNode
+      tags: [honeypot]
+      summary: Remove a honeypot node
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /honeypot/attackers:
+    get:
+      operationId: listHoneypotAttackers
+      tags: [honeypot]
+      summary: List unique attacker profiles
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: offset
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Attackers
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  attackers:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/HoneypotAttacker"
+                  total:
+                    type: integer
+                required: [attackers, total]
+
+  /honeypot/attackers/{id}:
+    get:
+      operationId: getHoneypotAttacker
+      tags: [honeypot]
+      summary: Get attacker profile with session history
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Attacker detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HoneypotAttacker"
+
+  /honeypot/sessions:
+    get:
+      operationId: listHoneypotSessions
+      tags: [honeypot]
+      summary: List attack sessions
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: offset
+          in: query
+          schema:
+            type: integer
+        - name: attackerId
+          in: query
+          schema:
+            type: integer
+        - name: nodeId
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Sessions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sessions:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/HoneypotSession"
+                  total:
+                    type: integer
+                required: [sessions, total]
+
+  /honeypot/sessions/{id}:
+    get:
+      operationId: getHoneypotSession
+      tags: [honeypot]
+      summary: Get session detail
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Session detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HoneypotSession"
+
+  /honeypot/commands:
+    get:
+      operationId: listHoneypotCommands
+      tags: [honeypot]
+      summary: List captured commands
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: offset
+          in: query
+          schema:
+            type: integer
+        - name: sessionId
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Commands
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  commands:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/HoneypotCommand"
+                  total:
+                    type: integer
+                required: [commands, total]
+
+  /honeypot/files:
+    get:
+      operationId: listHoneypotFiles
+      tags: [honeypot]
+      summary: List captured files/payloads
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: offset
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Files
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  files:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/HoneypotFile"
+                  total:
+                    type: integer
+                required: [files, total]
+
+  /honeypot/iocs:
+    get:
+      operationId: listHoneypotIocs
+      tags: [honeypot]
+      summary: List indicators of compromise
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: IOCs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/HoneypotIoc"
+    post:
+      operationId: createHoneypotIoc
+      tags: [honeypot]
+      summary: Add an IOC
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HoneypotIocInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HoneypotIoc"
+
+  /honeypot/iocs/{id}:
+    delete:
+      operationId: deleteHoneypotIoc
+      tags: [honeypot]
+      summary: Remove an IOC
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /honeypot/alerts:
+    get:
+      operationId: listHoneypotAlerts
+      tags: [honeypot]
+      summary: List honeypot alerts
+      parameters:
+        - name: acknowledged
+          in: query
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: Alerts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/HoneypotAlert"
+
+  /honeypot/alerts/{id}/acknowledge:
+    post:
+      operationId: acknowledgeHoneypotAlert
+      tags: [honeypot]
+      summary: Acknowledge a honeypot alert
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Alert acknowledged
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HoneypotAlert"
+
+  /honeypot/ingest:
+    post:
+      operationId: ingestHoneypotEvent
+      tags: [honeypot]
+      summary: Ingest events from a honeypot node (Cowrie/HoneyD callback)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HoneypotIngestPayload"
+      responses:
+        "200":
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accepted:
+                    type: integer
+                required: [accepted]
 
 components:
   schemas:
@@ -2865,3 +3234,391 @@ components:
         title:
           type: string
       required: [finalUrl, layers, timing]
+
+    HoneypotStats:
+      type: object
+      properties:
+        totalNodes:
+          type: integer
+        activeNodes:
+          type: integer
+        totalAttackers:
+          type: integer
+        totalSessions:
+          type: integer
+        totalCommands:
+          type: integer
+        totalFiles:
+          type: integer
+        unacknowledgedAlerts:
+          type: integer
+        topCountries:
+          type: array
+          items:
+            type: object
+            properties:
+              country:
+                type: string
+              count:
+                type: integer
+            required: [country, count]
+        recentSessions:
+          type: array
+          items:
+            $ref: "#/components/schemas/HoneypotSession"
+        sessionsByDay:
+          type: array
+          items:
+            type: object
+            properties:
+              date:
+                type: string
+              count:
+                type: integer
+            required: [date, count]
+      required: [totalNodes, activeNodes, totalAttackers, totalSessions, totalCommands, totalFiles, unacknowledgedAlerts, topCountries, recentSessions, sessionsByDay]
+
+    HoneypotNode:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        host:
+          type: string
+        port:
+          type: integer
+        protocol:
+          type: string
+        location:
+          type: ["string", "null"]
+        country:
+          type: ["string", "null"]
+        lat:
+          type: ["number", "null"]
+        lon:
+          type: ["number", "null"]
+        status:
+          type: string
+        lastSeenAt:
+          type: ["string", "null"]
+        totalSessions:
+          type: integer
+        totalAttackers:
+          type: integer
+        createdAt:
+          type: string
+      required: [id, name, host, port, protocol, status, totalSessions, totalAttackers, createdAt]
+
+    HoneypotNodeInput:
+      type: object
+      properties:
+        name:
+          type: string
+        host:
+          type: string
+        port:
+          type: integer
+        protocol:
+          type: string
+        location:
+          type: string
+        country:
+          type: string
+        lat:
+          type: number
+        lon:
+          type: number
+        psk:
+          type: string
+      required: [name, host]
+
+    HoneypotNodeUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        status:
+          type: string
+        location:
+          type: string
+
+    HoneypotAttacker:
+      type: object
+      properties:
+        id:
+          type: integer
+        ipAddress:
+          type: string
+        asn:
+          type: ["string", "null"]
+        asnOrg:
+          type: ["string", "null"]
+        country:
+          type: ["string", "null"]
+        countryCode:
+          type: ["string", "null"]
+        city:
+          type: ["string", "null"]
+        lat:
+          type: ["number", "null"]
+        lon:
+          type: ["number", "null"]
+        isTorExit:
+          type: boolean
+        isKnownBad:
+          type: boolean
+        threatScore:
+          type: integer
+        sessionCount:
+          type: integer
+        commandCount:
+          type: integer
+        fileCount:
+          type: integer
+        firstSeenAt:
+          type: string
+        lastSeenAt:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        usernames:
+          type: array
+          items:
+            type: string
+        passwords:
+          type: array
+          items:
+            type: string
+      required: [id, ipAddress, isTorExit, isKnownBad, threatScore, sessionCount, commandCount, fileCount, firstSeenAt, lastSeenAt, tags, usernames, passwords]
+
+    HoneypotSession:
+      type: object
+      properties:
+        id:
+          type: integer
+        nodeId:
+          type: ["integer", "null"]
+        attackerId:
+          type: ["integer", "null"]
+        protocol:
+          type: string
+        srcPort:
+          type: ["integer", "null"]
+        destPort:
+          type: integer
+        username:
+          type: ["string", "null"]
+        password:
+          type: ["string", "null"]
+        clientVersion:
+          type: ["string", "null"]
+        duration:
+          type: ["integer", "null"]
+        commandCount:
+          type: integer
+        fileCount:
+          type: integer
+        outcome:
+          type: string
+        startedAt:
+          type: string
+        endedAt:
+          type: ["string", "null"]
+        attacker:
+          $ref: "#/components/schemas/HoneypotAttacker"
+        node:
+          $ref: "#/components/schemas/HoneypotNode"
+      required: [id, protocol, destPort, commandCount, fileCount, outcome, startedAt]
+
+    HoneypotCommand:
+      type: object
+      properties:
+        id:
+          type: integer
+        sessionId:
+          type: ["integer", "null"]
+        attackerId:
+          type: ["integer", "null"]
+        command:
+          type: string
+        output:
+          type: ["string", "null"]
+        exitCode:
+          type: ["integer", "null"]
+        isMalicious:
+          type: boolean
+        malwareFamily:
+          type: ["string", "null"]
+        mitreTactic:
+          type: ["string", "null"]
+        mitreTechnique:
+          type: ["string", "null"]
+        capturedAt:
+          type: string
+      required: [id, command, isMalicious, capturedAt]
+
+    HoneypotFile:
+      type: object
+      properties:
+        id:
+          type: integer
+        sessionId:
+          type: ["integer", "null"]
+        attackerId:
+          type: ["integer", "null"]
+        filename:
+          type: string
+        url:
+          type: ["string", "null"]
+        sha256:
+          type: ["string", "null"]
+        md5:
+          type: ["string", "null"]
+        size:
+          type: ["integer", "null"]
+        mimeType:
+          type: ["string", "null"]
+        isMalware:
+          type: boolean
+        malwareFamily:
+          type: ["string", "null"]
+        virusTotalScore:
+          type: ["integer", "null"]
+        capturedAt:
+          type: string
+      required: [id, filename, isMalware, capturedAt]
+
+    HoneypotIoc:
+      type: object
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+        value:
+          type: string
+        description:
+          type: ["string", "null"]
+        confidence:
+          type: integer
+        source:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        firstSeenAt:
+          type: string
+        lastSeenAt:
+          type: string
+      required: [id, type, value, confidence, source, tags, firstSeenAt, lastSeenAt]
+
+    HoneypotIocInput:
+      type: object
+      properties:
+        type:
+          type: string
+        value:
+          type: string
+        description:
+          type: string
+        confidence:
+          type: integer
+        tags:
+          type: array
+          items:
+            type: string
+      required: [type, value]
+
+    HoneypotAlert:
+      type: object
+      properties:
+        id:
+          type: integer
+        nodeId:
+          type: ["integer", "null"]
+        attackerId:
+          type: ["integer", "null"]
+        sessionId:
+          type: ["integer", "null"]
+        severity:
+          type: string
+        title:
+          type: string
+        description:
+          type: ["string", "null"]
+        alertType:
+          type: string
+        acknowledged:
+          type: boolean
+        acknowledgedAt:
+          type: ["string", "null"]
+        acknowledgedBy:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+      required: [id, severity, title, alertType, acknowledged, createdAt]
+
+    HoneypotIngestEvent:
+      type: object
+      properties:
+        source:
+          type: string
+        nodeName:
+          type: string
+        eventType:
+          type: string
+        protocol:
+          type: string
+        timestamp:
+          type: string
+        srcIp:
+          type: string
+        srcPort:
+          type: ["integer", "null"]
+        destPort:
+          type: ["integer", "null"]
+        username:
+          type: ["string", "null"]
+        password:
+          type: ["string", "null"]
+        sessionId:
+          type: ["string", "null"]
+        command:
+          type: ["string", "null"]
+        fileUrl:
+          type: ["string", "null"]
+        fileSha256:
+          type: ["string", "null"]
+        filename:
+          type: ["string", "null"]
+        clientVersion:
+          type: ["string", "null"]
+        duration:
+          type: ["integer", "null"]
+        success:
+          type: ["boolean", "null"]
+        alertSignature:
+          type: ["string", "null"]
+        alertCategory:
+          type: ["string", "null"]
+        alertSeverity:
+          type: ["integer", "null"]
+        mitreTechnique:
+          type: ["string", "null"]
+        raw:
+          type: object
+      required: [source, nodeName, eventType, srcIp]
+
+    HoneypotIngestPayload:
+      type: object
+      properties:
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/HoneypotIngestEvent"
+      required: [events]

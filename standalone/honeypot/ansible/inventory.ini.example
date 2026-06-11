@@ -1,0 +1,21 @@
+# ProxhqVPN Honeypot Ansible Inventory Example
+# Copyright © 2026 Alpha Unlimited Technologies LLC
+#
+# Copy this file to inventory.ini and fill in your actual hosts.
+# Usage: ansible-playbook -i inventory.ini deploy-honeypot.yml \
+#          -e "node_name=hpnode-us-east-01 proxhq_api_url=https://your.app proxhq_psk=<32-byte-hex>"
+
+[honeypot_nodes]
+# US East node
+hpnode-us-east-01 ansible_host=203.0.113.10 ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/hp-nodes.pem
+
+# EU Frankfurt node
+hpnode-eu-de-01   ansible_host=203.0.113.20 ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/hp-nodes.pem
+
+# AP Singapore node
+hpnode-ap-sg-01   ansible_host=203.0.113.30 ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/hp-nodes.pem
+
+[honeypot_nodes:vars]
+# Default SSH port for management (before honeypot redirect is active)
+ansible_port=22
+ansible_python_interpreter=/usr/bin/python3

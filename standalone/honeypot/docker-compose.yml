@@ -1,0 +1,174 @@
+---
+# ProxhqVPN Multi-Node Honeypot Infrastructure
+# © Alpha Unlimited Technologies LLC
+#
+# Usage:
+#   export PROXHQ_API_URL=https://your-app.replit.app
+#   export HONEYPOT_PSK=<generate with: openssl rand -hex 32>
+#   export HONEYPOT_NODE_NAME=hpnode-us-east-01
+#   docker compose up -d
+
+version: "3.9"
+
+networks:
+  honeypot-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
+
+volumes:
+  cowrie-data:
+  cowrie-downloads:
+  suricata-logs:
+  p0f-logs:
+  elastichoney-data:
+  dionaea-data:
+
+services:
+
+  # ── Cowrie SSH/Telnet Honeypot ─────────────────────────────────────────
+  cowrie:
+    image: cowrie/cowrie:latest
+    container_name: hp-cowrie
+    restart: unless-stopped
+    environment:
+      - COWRIE_HOSTNAME=${HONEYPOT_HOSTNAME:-honeypot}
+      - COWRIE_SENSOR_NAME=${HONEYPOT_NODE_NAME:-hpnode-01}
+    volumes:
+      - cowrie-data:/cowrie/var
+      - cowrie-downloads:/cowrie/dl
+      - ./configs/cowrie.cfg:/cowrie/etc/cowrie.cfg:ro
+      - ./configs/cowrie-userdb.txt:/cowrie/etc/userdb.txt:ro
+      - ./scripts/cowrie-output.py:/cowrie/cowrie/output/proxhq.py:ro
+    ports:
+      - "2222:2222"   # SSH honeypot (forward from :22 via iptables)
+      - "2223:2223"   # Telnet honeypot
+    networks:
+      honeypot-net:
+        ipv4_address: 172.30.0.10
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+  # ── Suricata IDS ────────────────────────────────────────────────────────
+  suricata:
+    image: jasonish/suricata:latest
+    container_name: hp-suricata
+    restart: unless-stopped
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_NICE
+    environment:
+      - SURICATA_OPTIONS=-i ${HOST_IFACE:-eth0}
+    volumes:
+      - suricata-logs:/var/log/suricata
+      - ./configs/suricata.yaml:/etc/suricata/suricata.yaml:ro
+      - ./configs/proxhq.rules:/etc/suricata/rules/proxhq.rules:ro
+    logging:
+      driver: json-file
+      options:
+        max-size: "100m"
+        max-file: "5"
+
+  # ── p0f Passive OS Fingerprinting ──────────────────────────────────────
+  p0f:
+    image: nginx:alpine
+    container_name: hp-p0f
+    restart: unless-stopped
+    entrypoint: sh
+    command: >
+      -c "apk add --no-cache p0f &&
+          p0f -i ${HOST_IFACE:-eth0} -o /logs/p0f.log -d &&
+          tail -f /logs/p0f.log"
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    volumes:
+      - p0f-logs:/logs
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+
+  # ── Dionaea Multi-Protocol Honeypot ────────────────────────────────────
+  dionaea:
+    image: dinotools/dionaea:latest
+    container_name: hp-dionaea
+    restart: unless-stopped
+    ports:
+      - "21:21"     # FTP
+      - "80:80"     # HTTP
+      - "443:443"   # HTTPS
+      - "445:445"   # SMB
+      - "3306:3306" # MySQL
+      - "5060:5060" # SIP
+    volumes:
+      - dionaea-data:/opt/dionaea/var
+      - ./configs/dionaea.cfg:/opt/dionaea/etc/dionaea/dionaea.cfg:ro
+    networks:
+      honeypot-net:
+        ipv4_address: 172.30.0.11
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+  # ── Event Relay Agent ─────────────────────────────────────────────────
+  # Reads cowrie/suricata logs and ships them to the ProxhqVPN API
+  relay-agent:
+    image: python:3.11-slim
+    container_name: hp-relay
+    restart: unless-stopped
+    depends_on:
+      - cowrie
+    environment:
+      - PROXHQ_API_URL=${PROXHQ_API_URL:?set PROXHQ_API_URL}
+      - HONEYPOT_PSK=${HONEYPOT_PSK:?set HONEYPOT_PSK}
+      - HONEYPOT_NODE_NAME=${HONEYPOT_NODE_NAME:-hpnode-01}
+      - RELAY_INTERVAL=${RELAY_INTERVAL:-15}
+      - COWRIE_LOG=/cowrie-logs/ttylog
+      - SURICATA_LOG=/suricata-logs/eve.json
+    volumes:
+      - cowrie-data:/cowrie-logs:ro
+      - suricata-logs:/suricata-logs:ro
+      - ./scripts/relay_agent.py:/app/relay_agent.py:ro
+    working_dir: /app
+    command: >
+      sh -c "pip install -q requests watchdog &&
+             python relay_agent.py"
+    networks:
+      - honeypot-net
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+
+  # ── WireGuard Tunnel (back to ProxhqVPN mesh) ─────────────────────────
+  wireguard:
+    image: linuxserver/wireguard:latest
+    container_name: hp-wireguard
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=UTC
+    volumes:
+      - ./configs/wg0-honeypot.conf:/config/wg0.conf:ro
+    sysctls:
+      - net.ipv4.conf.all.src_valid_mark=1
+    networks:
+      - honeypot-net
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"

@@ -1,0 +1,193 @@
+---
+# ProxhqVPN Honeypot Node Ansible Playbook
+# Copyright © 2026 Alpha Unlimited Technologies LLC
+# Usage: ansible-playbook -i inventory.ini deploy-honeypot.yml -e "node_name=hpnode-us-east-01 proxhq_api_url=https://your.replit.app proxhq_psk=<hex>"
+
+- name: Deploy ProxhqVPN Honeypot Stack
+  hosts: honeypot_nodes
+  become: true
+  vars:
+    proxhq_api_url: "{{ proxhq_api_url | mandatory }}"
+    proxhq_psk: "{{ proxhq_psk | mandatory }}"
+    node_name: "{{ node_name | mandatory }}"
+    cowrie_port_ssh: 2222
+    cowrie_port_telnet: 2323
+    suricata_iface: "{{ ansible_default_ipv4.interface }}"
+    relay_dir: /opt/proxhq-relay
+    compose_dir: /opt/proxhq-honeypot
+
+  tasks:
+    - name: Update package index
+      apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Install system dependencies
+      apt:
+        name:
+          - docker.io
+          - docker-compose-plugin
+          - python3
+          - python3-pip
+          - python3-requests
+          - git
+          - curl
+          - ufw
+          - fail2ban
+          - iptables-persistent
+        state: present
+
+    - name: Enable and start Docker
+      systemd:
+        name: docker
+        enabled: true
+        state: started
+
+    - name: Create honeypot directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0750"
+        owner: root
+        group: root
+      loop:
+        - "{{ compose_dir }}"
+        - "{{ compose_dir }}/cowrie-data"
+        - "{{ compose_dir }}/cowrie-data/log"
+        - "{{ compose_dir }}/cowrie-data/dl"
+        - "{{ compose_dir }}/cowrie-data/keys"
+        - "{{ relay_dir }}"
+
+    - name: Copy docker-compose.yml
+      copy:
+        src: ../docker-compose.yml
+        dest: "{{ compose_dir }}/docker-compose.yml"
+        mode: "0640"
+
+    - name: Copy Cowrie config
+      copy:
+        src: ../configs/cowrie.cfg
+        dest: "{{ compose_dir }}/cowrie.cfg"
+        mode: "0640"
+
+    - name: Copy Cowrie userdb
+      copy:
+        src: ../configs/cowrie-userdb.txt
+        dest: "{{ compose_dir }}/cowrie-userdb.txt"
+        mode: "0640"
+
+    - name: Copy relay agent
+      copy:
+        src: ../scripts/relay_agent.py
+        dest: "{{ relay_dir }}/relay_agent.py"
+        mode: "0750"
+
+    - name: Write .env file for docker-compose
+      copy:
+        dest: "{{ compose_dir }}/.env"
+        mode: "0600"
+        content: |
+          PROXHQ_API_URL={{ proxhq_api_url }}
+          HONEYPOT_PSK={{ proxhq_psk }}
+          HONEYPOT_NODE_NAME={{ node_name }}
+          COWRIE_SSH_PORT={{ cowrie_port_ssh }}
+          COWRIE_TELNET_PORT={{ cowrie_port_telnet }}
+
+    - name: Write relay agent systemd service
+      copy:
+        dest: /etc/systemd/system/proxhq-relay.service
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=ProxhqVPN Honeypot Relay Agent
+          After=docker.service network-online.target
+          Requires=docker.service
+
+          [Service]
+          Type=simple
+          User=root
+          WorkingDirectory={{ relay_dir }}
+          Environment=PROXHQ_API_URL={{ proxhq_api_url }}
+          Environment=HONEYPOT_PSK={{ proxhq_psk }}
+          Environment=HONEYPOT_NODE_NAME={{ node_name }}
+          ExecStart=/usr/bin/python3 {{ relay_dir }}/relay_agent.py
+          Restart=always
+          RestartSec=10
+          StandardOutput=journal
+          StandardError=journal
+
+          [Install]
+          WantedBy=multi-user.target
+
+    - name: Configure UFW — allow SSH (real)
+      ufw:
+        rule: allow
+        port: "22"
+        proto: tcp
+
+    - name: Configure UFW — allow Cowrie SSH honeypot
+      ufw:
+        rule: allow
+        port: "{{ cowrie_port_ssh }}"
+        proto: tcp
+
+    - name: Configure UFW — allow Cowrie Telnet honeypot
+      ufw:
+        rule: allow
+        port: "{{ cowrie_port_telnet }}"
+        proto: tcp
+
+    - name: Enable UFW
+      ufw:
+        state: enabled
+        policy: deny
+
+    - name: Redirect port 22 → Cowrie port (iptables PREROUTING)
+      iptables:
+        table: nat
+        chain: PREROUTING
+        protocol: tcp
+        destination_port: "22"
+        jump: REDIRECT
+        to_ports: "{{ cowrie_port_ssh }}"
+        comment: "Redirect SSH to Cowrie honeypot"
+
+    - name: Save iptables rules
+      command: netfilter-persistent save
+
+    - name: Pull Docker images
+      community.docker.docker_compose_v2:
+        project_src: "{{ compose_dir }}"
+        pull: always
+        state: present
+
+    - name: Start honeypot stack
+      community.docker.docker_compose_v2:
+        project_src: "{{ compose_dir }}"
+        state: present
+        recreate: auto
+
+    - name: Enable and start relay agent
+      systemd:
+        name: proxhq-relay
+        enabled: true
+        daemon_reload: true
+        state: started
+
+    - name: Verify relay agent is running
+      systemd:
+        name: proxhq-relay
+      register: relay_status
+
+    - name: Print deployment summary
+      debug:
+        msg: |
+          ✅ ProxhqVPN Honeypot Node Deployed
+          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+          Node Name  : {{ node_name }}
+          API URL    : {{ proxhq_api_url }}
+          SSH Trap   : {{ ansible_host }}:{{ cowrie_port_ssh }} (port 22 redirected)
+          Telnet Trap: {{ ansible_host }}:{{ cowrie_port_telnet }}
+          Relay Agent: {{ relay_status.status.ActiveState }}
+          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+          Register this node in the Honeypot Command Center UI.

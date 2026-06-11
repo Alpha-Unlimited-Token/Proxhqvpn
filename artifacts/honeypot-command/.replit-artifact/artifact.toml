@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/honeypot-command/"
+title = "HoneypotCommand"
+version = "1.0.0"
+id = "artifacts/honeypot-command"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/honeypot-command/" ]
+localPort = 18818
+
+[services.development]
+run = "pnpm --filter @workspace/honeypot-command run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/honeypot-command", "run", "build" ]
+publicDir = "artifacts/honeypot-command/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "18818"
+BASE_PATH = "/honeypot-command/"

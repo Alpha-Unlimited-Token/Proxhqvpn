@@ -1,0 +1,152 @@
+// Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
+import { pgTable, serial, text, integer, boolean, timestamp, jsonb, real, index } from "drizzle-orm/pg-core";
+
+export const honeypotNodesTable = pgTable("honeypot_nodes", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  host: text("host").notNull(),
+  port: integer("port").notNull().default(22),
+  protocol: text("protocol").notNull().default("ssh"),
+  location: text("location"),
+  country: text("country"),
+  lat: real("lat"),
+  lon: real("lon"),
+  status: text("status").notNull().default("active"),
+  pskHash: text("psk_hash"),
+  lastSeenAt: timestamp("last_seen_at"),
+  totalSessions: integer("total_sessions").notNull().default(0),
+  totalAttackers: integer("total_attackers").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const honeypotAttackersTable = pgTable("honeypot_attackers", {
+  id: serial("id").primaryKey(),
+  ipAddress: text("ip_address").notNull().unique(),
+  asn: text("asn"),
+  asnOrg: text("asn_org"),
+  country: text("country"),
+  countryCode: text("country_code"),
+  city: text("city"),
+  lat: real("lat"),
+  lon: real("lon"),
+  isTorExit: boolean("is_tor_exit").notNull().default(false),
+  isKnownBad: boolean("is_known_bad").notNull().default(false),
+  threatScore: integer("threat_score").notNull().default(0),
+  sessionCount: integer("session_count").notNull().default(0),
+  commandCount: integer("command_count").notNull().default(0),
+  fileCount: integer("file_count").notNull().default(0),
+  firstSeenAt: timestamp("first_seen_at").notNull().defaultNow(),
+  lastSeenAt: timestamp("last_seen_at").notNull().defaultNow(),
+  tags: jsonb("tags").$type<string[]>().default([]),
+  usernames: jsonb("usernames").$type<string[]>().default([]),
+  passwords: jsonb("passwords").$type<string[]>().default([]),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (t) => [
+  index("hp_attackers_ip_idx").on(t.ipAddress),
+  index("hp_attackers_score_idx").on(t.threatScore),
+]);
+
+export const honeypotSessionsTable = pgTable("honeypot_sessions", {
+  id: serial("id").primaryKey(),
+  nodeId: integer("node_id").references(() => honeypotNodesTable.id, { onDelete: "cascade" }),
+  attackerId: integer("attacker_id").references(() => honeypotAttackersTable.id, { onDelete: "cascade" }),
+  protocol: text("protocol").notNull().default("ssh"),
+  srcPort: integer("src_port"),
+  destPort: integer("dest_port").notNull().default(22),
+  username: text("username"),
+  password: text("password"),
+  authMethod: text("auth_method"),
+  clientVersion: text("client_version"),
+  duration: integer("duration"),
+  commandCount: integer("command_count").notNull().default(0),
+  fileCount: integer("file_count").notNull().default(0),
+  outcome: text("outcome").notNull().default("captured"),
+  startedAt: timestamp("started_at").notNull().defaultNow(),
+  endedAt: timestamp("ended_at"),
+  rawLog: text("raw_log"),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (t) => [
+  index("hp_sessions_attacker_idx").on(t.attackerId),
+  index("hp_sessions_node_idx").on(t.nodeId),
+  index("hp_sessions_started_idx").on(t.startedAt),
+]);
+
+export const honeypotCommandsTable = pgTable("honeypot_commands", {
+  id: serial("id").primaryKey(),
+  sessionId: integer("session_id").references(() => honeypotSessionsTable.id, { onDelete: "cascade" }),
+  attackerId: integer("attacker_id").references(() => honeypotAttackersTable.id, { onDelete: "cascade" }),
+  command: text("command").notNull(),
+  output: text("output"),
+  exitCode: integer("exit_code"),
+  isMalicious: boolean("is_malicious").notNull().default(false),
+  malwareFamily: text("malware_family"),
+  mitreTactic: text("mitre_tactic"),
+  mitreTechnique: text("mitre_technique"),
+  capturedAt: timestamp("captured_at").notNull().defaultNow(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (t) => [
+  index("hp_commands_session_idx").on(t.sessionId),
+  index("hp_commands_attacker_idx").on(t.attackerId),
+  index("hp_commands_captured_idx").on(t.capturedAt),
+]);
+
+export const honeypotFilesTable = pgTable("honeypot_files", {
+  id: serial("id").primaryKey(),
+  sessionId: integer("session_id").references(() => honeypotSessionsTable.id, { onDelete: "cascade" }),
+  attackerId: integer("attacker_id").references(() => honeypotAttackersTable.id, { onDelete: "cascade" }),
+  filename: text("filename").notNull(),
+  url: text("url"),
+  sha256: text("sha256"),
+  md5: text("md5"),
+  size: integer("size"),
+  mimeType: text("mime_type"),
+  isMalware: boolean("is_malware").notNull().default(false),
+  malwareFamily: text("malware_family"),
+  virusTotalScore: integer("virustotal_score"),
+  content: text("content"),
+  capturedAt: timestamp("captured_at").notNull().defaultNow(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (t) => [
+  index("hp_files_session_idx").on(t.sessionId),
+  index("hp_files_sha256_idx").on(t.sha256),
+]);
+
+export const honeypotIocsTable = pgTable("honeypot_iocs", {
+  id: serial("id").primaryKey(),
+  type: text("type").notNull(),
+  value: text("value").notNull(),
+  description: text("description"),
+  confidence: integer("confidence").notNull().default(80),
+  source: text("source").notNull().default("honeypot"),
+  attackerId: integer("attacker_id").references(() => honeypotAttackersTable.id, { onDelete: "set null" }),
+  sessionId: integer("session_id").references(() => honeypotSessionsTable.id, { onDelete: "set null" }),
+  tags: jsonb("tags").$type<string[]>().default([]),
+  firstSeenAt: timestamp("first_seen_at").notNull().defaultNow(),
+  lastSeenAt: timestamp("last_seen_at").notNull().defaultNow(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (t) => [
+  index("hp_iocs_type_idx").on(t.type),
+  index("hp_iocs_value_idx").on(t.value),
+]);
+
+export const honeypotAlertsTable = pgTable("honeypot_alerts", {
+  id: serial("id").primaryKey(),
+  nodeId: integer("node_id").references(() => honeypotNodesTable.id, { onDelete: "set null" }),
+  attackerId: integer("attacker_id").references(() => honeypotAttackersTable.id, { onDelete: "set null" }),
+  sessionId: integer("session_id").references(() => honeypotSessionsTable.id, { onDelete: "set null" }),
+  severity: text("severity").notNull().default("medium"),
+  title: text("title").notNull(),
+  description: text("description"),
+  alertType: text("alert_type").notNull(),
+  acknowledged: boolean("acknowledged").notNull().default(false),
+  acknowledgedAt: timestamp("acknowledged_at"),
+  acknowledgedBy: text("acknowledged_by"),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (t) => [
+  index("hp_alerts_severity_idx").on(t.severity),
+  index("hp_alerts_ack_idx").on(t.acknowledged),
+  index("hp_alerts_created_idx").on(t.createdAt),
+]);

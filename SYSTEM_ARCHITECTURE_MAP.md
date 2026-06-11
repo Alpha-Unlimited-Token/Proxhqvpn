@@ -14,6 +14,7 @@ workspace/
 │   ├── ghost-vpn/           @workspace/ghost-vpn    — React+Vite main app (PORT env)
 │   ├── quantum-audit/       @workspace/quantum-audit — React+Vite blockchain scanner (PORT env)
 │   ├── omega-dashboard/     @workspace/omega-dashboard — React+Vite C2 dashboard (PORT env)
+│   ├── honeypot-command/    @workspace/honeypot-command — React+Vite honeypot command center (PORT 18818)
 │   ├── mobile/              @workspace/mobile       — Expo React Native app
 │   ├── desktop/             @workspace/desktop      — Electron desktop app
 │   └── mockup-sandbox/      @workspace/mockup-sandbox — Vite component preview server
@@ -39,6 +40,7 @@ User Browser / Mobile App
         ├──/                → ghost-vpn (Vite dev server, PORT)
         ├──/quantum-audit   → quantum-audit (Vite dev server, PORT)
         ├──/omega           → omega-dashboard (Vite dev server, PORT)
+        ├──/honeypot-command → honeypot-command (Vite dev server, PORT 18818)
         └──/api             → api-server (Express 5, PORT)
                 │
                 ├── Public routes
@@ -49,7 +51,8 @@ User Browser / Mobile App
                 │     ├── /api/wallet      (wallet-tx: crypto invoice flow)
                 │     ├── /api/wallet-intel (⚠ now fixed: requireAuth added)
                 │     ├── /api/node-cracker (security-lab flag gated)
-                │     └── /api/dev-audit   (security-lab flag gated)
+                │     ├── /api/dev-audit   (security-lab flag gated)
+                │     └── /api/honeypot/ingest (PSK-only; relay agents call this without Clerk)
                 │
                 ├── Auth Tier 1: requireAuth (any signed-in user)
                 │     ├── /api/nodes, /api/beacons, /api/silkweb
@@ -60,6 +63,7 @@ User Browser / Mobile App
                 │     ├── /api/security-audit, /api/proxy-browser
                 │     ├── /api/router-config, /api/siem, /api/osint
                 │     ├── /api/canary, /api/ghost-trace, /api/attack-chain
+                │     ├── /api/honeypot/* (except /ingest — see PSK below)
                 │     └── /api/ambassadors, /api/stripe
                 │
                 ├── Auth Tier 2: requireAccess (VPN Basic+ subscription)
@@ -92,6 +96,7 @@ Clerk (app_3CcwHo66ohArVtaIa0XTcv88i4Y)
 
 RBAC (lib/rbac.ts) — 6 roles, 10 actions — IMPLEMENTED BUT NOT ENFORCED ON ROUTES
 Daemon Auth (lib/daemon-auth.ts) — shared DAEMON_PSK header for daemon-inbound routes
+Honeypot Relay Auth — HONEYPOT_PSK header required for POST /api/honeypot/ingest (relay agents)
 ```
 
 ---
@@ -186,10 +191,11 @@ All started in `artifacts/api-server/src/index.ts`:
 ```
 Production (Replit Deployment)
     │
-    ├── api-server  — Express, PORT assigned by Replit, /api prefix
-    ├── ghost-vpn   — Vite preview/build, / prefix
-    ├── quantum-audit — Vite preview/build, /quantum-audit prefix
-    └── omega-dashboard — Vite preview/build, /omega prefix
+    ├── api-server       — Express, PORT assigned by Replit, /api prefix
+    ├── ghost-vpn        — Vite preview/build, / prefix
+    ├── quantum-audit    — Vite preview/build, /quantum-audit prefix
+    ├── omega-dashboard  — Vite preview/build, /omega prefix
+    └── honeypot-command — Vite preview/build, /honeypot-command prefix (PORT 18818)
 
 Environment Variables Required for Production:
     DATABASE_URL, SESSION_SECRET (min 32 chars)

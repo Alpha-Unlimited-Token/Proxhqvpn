@@ -1639,3 +1639,551 @@ export const ProxyFetchResponse = zod.object({
   error: zod.string().optional(),
   title: zod.string().optional(),
 });
+
+/**
+ * @summary Honeypot dashboard summary stats
+ */
+export const GetHoneypotStatsResponse = zod.object({
+  totalNodes: zod.number(),
+  activeNodes: zod.number(),
+  totalAttackers: zod.number(),
+  totalSessions: zod.number(),
+  totalCommands: zod.number(),
+  totalFiles: zod.number(),
+  unacknowledgedAlerts: zod.number(),
+  topCountries: zod.array(
+    zod.object({
+      country: zod.string(),
+      count: zod.number(),
+    }),
+  ),
+  recentSessions: zod.array(
+    zod.object({
+      id: zod.number(),
+      nodeId: zod.number().nullish(),
+      attackerId: zod.number().nullish(),
+      protocol: zod.string(),
+      srcPort: zod.number().nullish(),
+      destPort: zod.number(),
+      username: zod.string().nullish(),
+      password: zod.string().nullish(),
+      clientVersion: zod.string().nullish(),
+      duration: zod.number().nullish(),
+      commandCount: zod.number(),
+      fileCount: zod.number(),
+      outcome: zod.string(),
+      startedAt: zod.string(),
+      endedAt: zod.string().nullish(),
+      attacker: zod
+        .object({
+          id: zod.number(),
+          ipAddress: zod.string(),
+          asn: zod.string().nullish(),
+          asnOrg: zod.string().nullish(),
+          country: zod.string().nullish(),
+          countryCode: zod.string().nullish(),
+          city: zod.string().nullish(),
+          lat: zod.number().nullish(),
+          lon: zod.number().nullish(),
+          isTorExit: zod.boolean(),
+          isKnownBad: zod.boolean(),
+          threatScore: zod.number(),
+          sessionCount: zod.number(),
+          commandCount: zod.number(),
+          fileCount: zod.number(),
+          firstSeenAt: zod.string(),
+          lastSeenAt: zod.string(),
+          tags: zod.array(zod.string()),
+          usernames: zod.array(zod.string()),
+          passwords: zod.array(zod.string()),
+        })
+        .optional(),
+      node: zod
+        .object({
+          id: zod.number(),
+          name: zod.string(),
+          host: zod.string(),
+          port: zod.number(),
+          protocol: zod.string(),
+          location: zod.string().nullish(),
+          country: zod.string().nullish(),
+          lat: zod.number().nullish(),
+          lon: zod.number().nullish(),
+          status: zod.string(),
+          lastSeenAt: zod.string().nullish(),
+          totalSessions: zod.number(),
+          totalAttackers: zod.number(),
+          createdAt: zod.string(),
+        })
+        .optional(),
+    }),
+  ),
+  sessionsByDay: zod.array(
+    zod.object({
+      date: zod.string(),
+      count: zod.number(),
+    }),
+  ),
+});
+
+/**
+ * @summary List honeypot nodes
+ */
+export const ListHoneypotNodesResponseItem = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  host: zod.string(),
+  port: zod.number(),
+  protocol: zod.string(),
+  location: zod.string().nullish(),
+  country: zod.string().nullish(),
+  lat: zod.number().nullish(),
+  lon: zod.number().nullish(),
+  status: zod.string(),
+  lastSeenAt: zod.string().nullish(),
+  totalSessions: zod.number(),
+  totalAttackers: zod.number(),
+  createdAt: zod.string(),
+});
+export const ListHoneypotNodesResponse = zod.array(
+  ListHoneypotNodesResponseItem,
+);
+
+/**
+ * @summary Register a honeypot node
+ */
+export const CreateHoneypotNodeBody = zod.object({
+  name: zod.string(),
+  host: zod.string(),
+  port: zod.number().optional(),
+  protocol: zod.string().optional(),
+  location: zod.string().optional(),
+  country: zod.string().optional(),
+  lat: zod.number().optional(),
+  lon: zod.number().optional(),
+  psk: zod.string().optional(),
+});
+
+/**
+ * @summary Update a honeypot node
+ */
+export const UpdateHoneypotNodeParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateHoneypotNodeBody = zod.object({
+  name: zod.string().optional(),
+  status: zod.string().optional(),
+  location: zod.string().optional(),
+});
+
+export const UpdateHoneypotNodeResponse = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  host: zod.string(),
+  port: zod.number(),
+  protocol: zod.string(),
+  location: zod.string().nullish(),
+  country: zod.string().nullish(),
+  lat: zod.number().nullish(),
+  lon: zod.number().nullish(),
+  status: zod.string(),
+  lastSeenAt: zod.string().nullish(),
+  totalSessions: zod.number(),
+  totalAttackers: zod.number(),
+  createdAt: zod.string(),
+});
+
+/**
+ * @summary Remove a honeypot node
+ */
+export const DeleteHoneypotNodeParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
+ * @summary List unique attacker profiles
+ */
+export const ListHoneypotAttackersQueryParams = zod.object({
+  limit: zod.coerce.number().optional(),
+  offset: zod.coerce.number().optional(),
+});
+
+export const ListHoneypotAttackersResponse = zod.object({
+  attackers: zod.array(
+    zod.object({
+      id: zod.number(),
+      ipAddress: zod.string(),
+      asn: zod.string().nullish(),
+      asnOrg: zod.string().nullish(),
+      country: zod.string().nullish(),
+      countryCode: zod.string().nullish(),
+      city: zod.string().nullish(),
+      lat: zod.number().nullish(),
+      lon: zod.number().nullish(),
+      isTorExit: zod.boolean(),
+      isKnownBad: zod.boolean(),
+      threatScore: zod.number(),
+      sessionCount: zod.number(),
+      commandCount: zod.number(),
+      fileCount: zod.number(),
+      firstSeenAt: zod.string(),
+      lastSeenAt: zod.string(),
+      tags: zod.array(zod.string()),
+      usernames: zod.array(zod.string()),
+      passwords: zod.array(zod.string()),
+    }),
+  ),
+  total: zod.number(),
+});
+
+/**
+ * @summary Get attacker profile with session history
+ */
+export const GetHoneypotAttackerParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetHoneypotAttackerResponse = zod.object({
+  id: zod.number(),
+  ipAddress: zod.string(),
+  asn: zod.string().nullish(),
+  asnOrg: zod.string().nullish(),
+  country: zod.string().nullish(),
+  countryCode: zod.string().nullish(),
+  city: zod.string().nullish(),
+  lat: zod.number().nullish(),
+  lon: zod.number().nullish(),
+  isTorExit: zod.boolean(),
+  isKnownBad: zod.boolean(),
+  threatScore: zod.number(),
+  sessionCount: zod.number(),
+  commandCount: zod.number(),
+  fileCount: zod.number(),
+  firstSeenAt: zod.string(),
+  lastSeenAt: zod.string(),
+  tags: zod.array(zod.string()),
+  usernames: zod.array(zod.string()),
+  passwords: zod.array(zod.string()),
+});
+
+/**
+ * @summary List attack sessions
+ */
+export const ListHoneypotSessionsQueryParams = zod.object({
+  limit: zod.coerce.number().optional(),
+  offset: zod.coerce.number().optional(),
+  attackerId: zod.coerce.number().optional(),
+  nodeId: zod.coerce.number().optional(),
+});
+
+export const ListHoneypotSessionsResponse = zod.object({
+  sessions: zod.array(
+    zod.object({
+      id: zod.number(),
+      nodeId: zod.number().nullish(),
+      attackerId: zod.number().nullish(),
+      protocol: zod.string(),
+      srcPort: zod.number().nullish(),
+      destPort: zod.number(),
+      username: zod.string().nullish(),
+      password: zod.string().nullish(),
+      clientVersion: zod.string().nullish(),
+      duration: zod.number().nullish(),
+      commandCount: zod.number(),
+      fileCount: zod.number(),
+      outcome: zod.string(),
+      startedAt: zod.string(),
+      endedAt: zod.string().nullish(),
+      attacker: zod
+        .object({
+          id: zod.number(),
+          ipAddress: zod.string(),
+          asn: zod.string().nullish(),
+          asnOrg: zod.string().nullish(),
+          country: zod.string().nullish(),
+          countryCode: zod.string().nullish(),
+          city: zod.string().nullish(),
+          lat: zod.number().nullish(),
+          lon: zod.number().nullish(),
+          isTorExit: zod.boolean(),
+          isKnownBad: zod.boolean(),
+          threatScore: zod.number(),
+          sessionCount: zod.number(),
+          commandCount: zod.number(),
+          fileCount: zod.number(),
+          firstSeenAt: zod.string(),
+          lastSeenAt: zod.string(),
+          tags: zod.array(zod.string()),
+          usernames: zod.array(zod.string()),
+          passwords: zod.array(zod.string()),
+        })
+        .optional(),
+      node: zod
+        .object({
+          id: zod.number(),
+          name: zod.string(),
+          host: zod.string(),
+          port: zod.number(),
+          protocol: zod.string(),
+          location: zod.string().nullish(),
+          country: zod.string().nullish(),
+          lat: zod.number().nullish(),
+          lon: zod.number().nullish(),
+          status: zod.string(),
+          lastSeenAt: zod.string().nullish(),
+          totalSessions: zod.number(),
+          totalAttackers: zod.number(),
+          createdAt: zod.string(),
+        })
+        .optional(),
+    }),
+  ),
+  total: zod.number(),
+});
+
+/**
+ * @summary Get session detail
+ */
+export const GetHoneypotSessionParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetHoneypotSessionResponse = zod.object({
+  id: zod.number(),
+  nodeId: zod.number().nullish(),
+  attackerId: zod.number().nullish(),
+  protocol: zod.string(),
+  srcPort: zod.number().nullish(),
+  destPort: zod.number(),
+  username: zod.string().nullish(),
+  password: zod.string().nullish(),
+  clientVersion: zod.string().nullish(),
+  duration: zod.number().nullish(),
+  commandCount: zod.number(),
+  fileCount: zod.number(),
+  outcome: zod.string(),
+  startedAt: zod.string(),
+  endedAt: zod.string().nullish(),
+  attacker: zod
+    .object({
+      id: zod.number(),
+      ipAddress: zod.string(),
+      asn: zod.string().nullish(),
+      asnOrg: zod.string().nullish(),
+      country: zod.string().nullish(),
+      countryCode: zod.string().nullish(),
+      city: zod.string().nullish(),
+      lat: zod.number().nullish(),
+      lon: zod.number().nullish(),
+      isTorExit: zod.boolean(),
+      isKnownBad: zod.boolean(),
+      threatScore: zod.number(),
+      sessionCount: zod.number(),
+      commandCount: zod.number(),
+      fileCount: zod.number(),
+      firstSeenAt: zod.string(),
+      lastSeenAt: zod.string(),
+      tags: zod.array(zod.string()),
+      usernames: zod.array(zod.string()),
+      passwords: zod.array(zod.string()),
+    })
+    .optional(),
+  node: zod
+    .object({
+      id: zod.number(),
+      name: zod.string(),
+      host: zod.string(),
+      port: zod.number(),
+      protocol: zod.string(),
+      location: zod.string().nullish(),
+      country: zod.string().nullish(),
+      lat: zod.number().nullish(),
+      lon: zod.number().nullish(),
+      status: zod.string(),
+      lastSeenAt: zod.string().nullish(),
+      totalSessions: zod.number(),
+      totalAttackers: zod.number(),
+      createdAt: zod.string(),
+    })
+    .optional(),
+});
+
+/**
+ * @summary List captured commands
+ */
+export const ListHoneypotCommandsQueryParams = zod.object({
+  limit: zod.coerce.number().optional(),
+  offset: zod.coerce.number().optional(),
+  sessionId: zod.coerce.number().optional(),
+});
+
+export const ListHoneypotCommandsResponse = zod.object({
+  commands: zod.array(
+    zod.object({
+      id: zod.number(),
+      sessionId: zod.number().nullish(),
+      attackerId: zod.number().nullish(),
+      command: zod.string(),
+      output: zod.string().nullish(),
+      exitCode: zod.number().nullish(),
+      isMalicious: zod.boolean(),
+      malwareFamily: zod.string().nullish(),
+      mitreTactic: zod.string().nullish(),
+      mitreTechnique: zod.string().nullish(),
+      capturedAt: zod.string(),
+    }),
+  ),
+  total: zod.number(),
+});
+
+/**
+ * @summary List captured files/payloads
+ */
+export const ListHoneypotFilesQueryParams = zod.object({
+  limit: zod.coerce.number().optional(),
+  offset: zod.coerce.number().optional(),
+});
+
+export const ListHoneypotFilesResponse = zod.object({
+  files: zod.array(
+    zod.object({
+      id: zod.number(),
+      sessionId: zod.number().nullish(),
+      attackerId: zod.number().nullish(),
+      filename: zod.string(),
+      url: zod.string().nullish(),
+      sha256: zod.string().nullish(),
+      md5: zod.string().nullish(),
+      size: zod.number().nullish(),
+      mimeType: zod.string().nullish(),
+      isMalware: zod.boolean(),
+      malwareFamily: zod.string().nullish(),
+      virusTotalScore: zod.number().nullish(),
+      capturedAt: zod.string(),
+    }),
+  ),
+  total: zod.number(),
+});
+
+/**
+ * @summary List indicators of compromise
+ */
+export const ListHoneypotIocsQueryParams = zod.object({
+  type: zod.coerce.string().optional(),
+});
+
+export const ListHoneypotIocsResponseItem = zod.object({
+  id: zod.number(),
+  type: zod.string(),
+  value: zod.string(),
+  description: zod.string().nullish(),
+  confidence: zod.number(),
+  source: zod.string(),
+  tags: zod.array(zod.string()),
+  firstSeenAt: zod.string(),
+  lastSeenAt: zod.string(),
+});
+export const ListHoneypotIocsResponse = zod.array(ListHoneypotIocsResponseItem);
+
+/**
+ * @summary Add an IOC
+ */
+export const CreateHoneypotIocBody = zod.object({
+  type: zod.string(),
+  value: zod.string(),
+  description: zod.string().optional(),
+  confidence: zod.number().optional(),
+  tags: zod.array(zod.string()).optional(),
+});
+
+/**
+ * @summary Remove an IOC
+ */
+export const DeleteHoneypotIocParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
+ * @summary List honeypot alerts
+ */
+export const ListHoneypotAlertsQueryParams = zod.object({
+  acknowledged: zod.coerce.boolean().optional(),
+});
+
+export const ListHoneypotAlertsResponseItem = zod.object({
+  id: zod.number(),
+  nodeId: zod.number().nullish(),
+  attackerId: zod.number().nullish(),
+  sessionId: zod.number().nullish(),
+  severity: zod.string(),
+  title: zod.string(),
+  description: zod.string().nullish(),
+  alertType: zod.string(),
+  acknowledged: zod.boolean(),
+  acknowledgedAt: zod.string().nullish(),
+  acknowledgedBy: zod.string().nullish(),
+  createdAt: zod.string(),
+});
+export const ListHoneypotAlertsResponse = zod.array(
+  ListHoneypotAlertsResponseItem,
+);
+
+/**
+ * @summary Acknowledge a honeypot alert
+ */
+export const AcknowledgeHoneypotAlertParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const AcknowledgeHoneypotAlertResponse = zod.object({
+  id: zod.number(),
+  nodeId: zod.number().nullish(),
+  attackerId: zod.number().nullish(),
+  sessionId: zod.number().nullish(),
+  severity: zod.string(),
+  title: zod.string(),
+  description: zod.string().nullish(),
+  alertType: zod.string(),
+  acknowledged: zod.boolean(),
+  acknowledgedAt: zod.string().nullish(),
+  acknowledgedBy: zod.string().nullish(),
+  createdAt: zod.string(),
+});
+
+/**
+ * @summary Ingest events from a honeypot node (Cowrie/HoneyD callback)
+ */
+export const IngestHoneypotEventBody = zod.object({
+  events: zod.array(
+    zod.object({
+      source: zod.string(),
+      nodeName: zod.string(),
+      eventType: zod.string(),
+      protocol: zod.string().optional(),
+      timestamp: zod.string().optional(),
+      srcIp: zod.string(),
+      srcPort: zod.number().nullish(),
+      destPort: zod.number().nullish(),
+      username: zod.string().nullish(),
+      password: zod.string().nullish(),
+      sessionId: zod.string().nullish(),
+      command: zod.string().nullish(),
+      fileUrl: zod.string().nullish(),
+      fileSha256: zod.string().nullish(),
+      filename: zod.string().nullish(),
+      clientVersion: zod.string().nullish(),
+      duration: zod.number().nullish(),
+      success: zod.boolean().nullish(),
+      alertSignature: zod.string().nullish(),
+      alertCategory: zod.string().nullish(),
+      alertSeverity: zod.number().nullish(),
+      mitreTechnique: zod.string().nullish(),
+      raw: zod.object({}).passthrough().optional(),
+    }),
+  ),
+});
+
+export const IngestHoneypotEventResponse = zod.object({
+  accepted: zod.number(),
+});

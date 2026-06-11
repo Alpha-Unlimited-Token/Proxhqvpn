@@ -53,10 +53,31 @@ import type {
   GhostOsRule,
   GhostOsRuleList,
   HealthStatus,
+  HoneypotAlert,
+  HoneypotAttacker,
+  HoneypotIngestPayload,
+  HoneypotIoc,
+  HoneypotIocInput,
+  HoneypotNode,
+  HoneypotNodeInput,
+  HoneypotNodeUpdate,
+  HoneypotSession,
+  HoneypotStats,
+  IngestHoneypotEvent200,
   IpsSignature,
   IpsSignatureList,
   IptablesExport,
   ListBeaconAlertsParams,
+  ListHoneypotAlertsParams,
+  ListHoneypotAttackers200,
+  ListHoneypotAttackersParams,
+  ListHoneypotCommands200,
+  ListHoneypotCommandsParams,
+  ListHoneypotFiles200,
+  ListHoneypotFilesParams,
+  ListHoneypotIocsParams,
+  ListHoneypotSessions200,
+  ListHoneypotSessionsParams,
   ListNodesParams,
   ListScansParams,
   ListTranscriberLog200,
@@ -6380,4 +6401,1525 @@ export const useProxyFetch = <
   TContext
 > => {
   return useMutation(getProxyFetchMutationOptions(options));
+};
+
+/**
+ * @summary Honeypot dashboard summary stats
+ */
+export const getGetHoneypotStatsUrl = () => {
+  return `/api/honeypot/stats`;
+};
+
+export const getHoneypotStats = async (
+  options?: RequestInit,
+): Promise<HoneypotStats> => {
+  return customFetch<HoneypotStats>(getGetHoneypotStatsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetHoneypotStatsQueryKey = () => {
+  return [`/api/honeypot/stats`] as const;
+};
+
+export const getGetHoneypotStatsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getHoneypotStats>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getHoneypotStats>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetHoneypotStatsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getHoneypotStats>>
+  > = ({ signal }) => getHoneypotStats({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getHoneypotStats>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetHoneypotStatsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getHoneypotStats>>
+>;
+export type GetHoneypotStatsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Honeypot dashboard summary stats
+ */
+
+export function useGetHoneypotStats<
+  TData = Awaited<ReturnType<typeof getHoneypotStats>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getHoneypotStats>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetHoneypotStatsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary List honeypot nodes
+ */
+export const getListHoneypotNodesUrl = () => {
+  return `/api/honeypot/nodes`;
+};
+
+export const listHoneypotNodes = async (
+  options?: RequestInit,
+): Promise<HoneypotNode[]> => {
+  return customFetch<HoneypotNode[]>(getListHoneypotNodesUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListHoneypotNodesQueryKey = () => {
+  return [`/api/honeypot/nodes`] as const;
+};
+
+export const getListHoneypotNodesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listHoneypotNodes>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listHoneypotNodes>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListHoneypotNodesQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listHoneypotNodes>>
+  > = ({ signal }) => listHoneypotNodes({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listHoneypotNodes>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListHoneypotNodesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listHoneypotNodes>>
+>;
+export type ListHoneypotNodesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List honeypot nodes
+ */
+
+export function useListHoneypotNodes<
+  TData = Awaited<ReturnType<typeof listHoneypotNodes>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listHoneypotNodes>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListHoneypotNodesQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Register a honeypot node
+ */
+export const getCreateHoneypotNodeUrl = () => {
+  return `/api/honeypot/nodes`;
+};
+
+export const createHoneypotNode = async (
+  honeypotNodeInput: HoneypotNodeInput,
+  options?: RequestInit,
+): Promise<HoneypotNode> => {
+  return customFetch<HoneypotNode>(getCreateHoneypotNodeUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(honeypotNodeInput),
+  });
+};
+
+export const getCreateHoneypotNodeMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createHoneypotNode>>,
+    TError,
+    { data: BodyType<HoneypotNodeInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createHoneypotNode>>,
+  TError,
+  { data: BodyType<HoneypotNodeInput> },
+  TContext
+> => {
+  const mutationKey = ["createHoneypotNode"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createHoneypotNode>>,
+    { data: BodyType<HoneypotNodeInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createHoneypotNode(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateHoneypotNodeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createHoneypotNode>>
+>;
+export type CreateHoneypotNodeMutationBody = BodyType<HoneypotNodeInput>;
+export type CreateHoneypotNodeMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Register a honeypot node
+ */
+export const useCreateHoneypotNode = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createHoneypotNode>>,
+    TError,
+    { data: BodyType<HoneypotNodeInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createHoneypotNode>>,
+  TError,
+  { data: BodyType<HoneypotNodeInput> },
+  TContext
+> => {
+  return useMutation(getCreateHoneypotNodeMutationOptions(options));
+};
+
+/**
+ * @summary Update a honeypot node
+ */
+export const getUpdateHoneypotNodeUrl = (id: number) => {
+  return `/api/honeypot/nodes/${id}`;
+};
+
+export const updateHoneypotNode = async (
+  id: number,
+  honeypotNodeUpdate: HoneypotNodeUpdate,
+  options?: RequestInit,
+): Promise<HoneypotNode> => {
+  return customFetch<HoneypotNode>(getUpdateHoneypotNodeUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(honeypotNodeUpdate),
+  });
+};
+
+export const getUpdateHoneypotNodeMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateHoneypotNode>>,
+    TError,
+    { id: number; data: BodyType<HoneypotNodeUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateHoneypotNode>>,
+  TError,
+  { id: number; data: BodyType<HoneypotNodeUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updateHoneypotNode"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateHoneypotNode>>,
+    { id: number; data: BodyType<HoneypotNodeUpdate> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateHoneypotNode(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateHoneypotNodeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateHoneypotNode>>
+>;
+export type UpdateHoneypotNodeMutationBody = BodyType<HoneypotNodeUpdate>;
+export type UpdateHoneypotNodeMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update a honeypot node
+ */
+export const useUpdateHoneypotNode = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateHoneypotNode>>,
+    TError,
+    { id: number; data: BodyType<HoneypotNodeUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateHoneypotNode>>,
+  TError,
+  { id: number; data: BodyType<HoneypotNodeUpdate> },
+  TContext
+> => {
+  return useMutation(getUpdateHoneypotNodeMutationOptions(options));
+};
+
+/**
+ * @summary Remove a honeypot node
+ */
+export const getDeleteHoneypotNodeUrl = (id: number) => {
+  return `/api/honeypot/nodes/${id}`;
+};
+
+export const deleteHoneypotNode = async (
+  id: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteHoneypotNodeUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteHoneypotNodeMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteHoneypotNode>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteHoneypotNode>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteHoneypotNode"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteHoneypotNode>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteHoneypotNode(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteHoneypotNodeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteHoneypotNode>>
+>;
+
+export type DeleteHoneypotNodeMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Remove a honeypot node
+ */
+export const useDeleteHoneypotNode = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteHoneypotNode>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteHoneypotNode>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteHoneypotNodeMutationOptions(options));
+};
+
+/**
+ * @summary List unique attacker profiles
+ */
+export const getListHoneypotAttackersUrl = (
+  params?: ListHoneypotAttackersParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/honeypot/attackers?${stringifiedParams}`
+    : `/api/honeypot/attackers`;
+};
+
+export const listHoneypotAttackers = async (
+  params?: ListHoneypotAttackersParams,
+  options?: RequestInit,
+): Promise<ListHoneypotAttackers200> => {
+  return customFetch<ListHoneypotAttackers200>(
+    getListHoneypotAttackersUrl(params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListHoneypotAttackersQueryKey = (
+  params?: ListHoneypotAttackersParams,
+) => {
+  return [`/api/honeypot/attackers`, ...(params ? [params] : [])] as const;
+};
+
+export const getListHoneypotAttackersQueryOptions = <
+  TData = Awaited<ReturnType<typeof listHoneypotAttackers>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListHoneypotAttackersParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listHoneypotAttackers>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListHoneypotAttackersQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listHoneypotAttackers>>
+  > = ({ signal }) =>
+    listHoneypotAttackers(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listHoneypotAttackers>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListHoneypotAttackersQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listHoneypotAttackers>>
+>;
+export type ListHoneypotAttackersQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List unique attacker profiles
+ */
+
+export function useListHoneypotAttackers<
+  TData = Awaited<ReturnType<typeof listHoneypotAttackers>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListHoneypotAttackersParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listHoneypotAttackers>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListHoneypotAttackersQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get attacker profile with session history
+ */
+export const getGetHoneypotAttackerUrl = (id: number) => {
+  return `/api/honeypot/attackers/${id}`;
+};
+
+export const getHoneypotAttacker = async (
+  id: number,
+  options?: RequestInit,
+): Promise<HoneypotAttacker> => {
+  return customFetch<HoneypotAttacker>(getGetHoneypotAttackerUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetHoneypotAttackerQueryKey = (id: number) => {
+  return [`/api/honeypot/attackers/${id}`] as const;
+};
+
+export const getGetHoneypotAttackerQueryOptions = <
+  TData = Awaited<ReturnType<typeof getHoneypotAttacker>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getHoneypotAttacker>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetHoneypotAttackerQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getHoneypotAttacker>>
+  > = ({ signal }) => getHoneypotAttacker(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getHoneypotAttacker>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetHoneypotAttackerQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getHoneypotAttacker>>
+>;
+export type GetHoneypotAttackerQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get attacker profile with session history
+ */
+
+export function useGetHoneypotAttacker<
+  TData = Awaited<ReturnType<typeof getHoneypotAttacker>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getHoneypotAttacker>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetHoneypotAttackerQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary List attack sessions
+ */
+export const getListHoneypotSessionsUrl = (
+  params?: ListHoneypotSessionsParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/honeypot/sessions?${stringifiedParams}`
+    : `/api/honeypot/sessions`;
+};
+
+export const listHoneypotSessions = async (
+  params?: ListHoneypotSessionsParams,
+  options?: RequestInit,
+): Promise<ListHoneypotSessions200> => {
+  return customFetch<ListHoneypotSessions200>(
+    getListHoneypotSessionsUrl(params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListHoneypotSessionsQueryKey = (
+  params?: ListHoneypotSessionsParams,
+) => {
+  return [`/api/honeypot/sessions`, ...(params ? [params] : [])] as const;
+};
+
+export const getListHoneypotSessionsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listHoneypotSessions>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListHoneypotSessionsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listHoneypotSessions>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListHoneypotSessionsQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listHoneypotSessions>>
+  > = ({ signal }) =>
+    listHoneypotSessions(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listHoneypotSessions>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListHoneypotSessionsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listHoneypotSessions>>
+>;
+export type ListHoneypotSessionsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List attack sessions
+ */
+
+export function useListHoneypotSessions<
+  TData = Awaited<ReturnType<typeof listHoneypotSessions>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListHoneypotSessionsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listHoneypotSessions>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListHoneypotSessionsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get session detail
+ */
+export const getGetHoneypotSessionUrl = (id: number) => {
+  return `/api/honeypot/sessions/${id}`;
+};
+
+export const getHoneypotSession = async (
+  id: number,
+  options?: RequestInit,
+): Promise<HoneypotSession> => {
+  return customFetch<HoneypotSession>(getGetHoneypotSessionUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetHoneypotSessionQueryKey = (id: number) => {
+  return [`/api/honeypot/sessions/${id}`] as const;
+};
+
+export const getGetHoneypotSessionQueryOptions = <
+  TData = Awaited<ReturnType<typeof getHoneypotSession>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getHoneypotSession>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetHoneypotSessionQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getHoneypotSession>>
+  > = ({ signal }) => getHoneypotSession(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getHoneypotSession>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetHoneypotSessionQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getHoneypotSession>>
+>;
+export type GetHoneypotSessionQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get session detail
+ */
+
+export function useGetHoneypotSession<
+  TData = Awaited<ReturnType<typeof getHoneypotSession>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getHoneypotSession>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetHoneypotSessionQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary List captured commands
+ */
+export const getListHoneypotCommandsUrl = (
+  params?: ListHoneypotCommandsParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/honeypot/commands?${stringifiedParams}`
+    : `/api/honeypot/commands`;
+};
+
+export const listHoneypotCommands = async (
+  params?: ListHoneypotCommandsParams,
+  options?: RequestInit,
+): Promise<ListHoneypotCommands200> => {
+  return customFetch<ListHoneypotCommands200>(
+    getListHoneypotCommandsUrl(params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListHoneypotCommandsQueryKey = (
+  params?: ListHoneypotCommandsParams,
+) => {
+  return [`/api/honeypot/commands`, ...(params ? [params] : [])] as const;
+};
+
+export const getListHoneypotCommandsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listHoneypotCommands>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListHoneypotCommandsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listHoneypotCommands>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListHoneypotCommandsQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listHoneypotCommands>>
+  > = ({ signal }) =>
+    listHoneypotCommands(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listHoneypotCommands>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListHoneypotCommandsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listHoneypotCommands>>
+>;
+export type ListHoneypotCommandsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List captured commands
+ */
+
+export function useListHoneypotCommands<
+  TData = Awaited<ReturnType<typeof listHoneypotCommands>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListHoneypotCommandsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listHoneypotCommands>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListHoneypotCommandsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary List captured files/payloads
+ */
+export const getListHoneypotFilesUrl = (params?: ListHoneypotFilesParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/honeypot/files?${stringifiedParams}`
+    : `/api/honeypot/files`;
+};
+
+export const listHoneypotFiles = async (
+  params?: ListHoneypotFilesParams,
+  options?: RequestInit,
+): Promise<ListHoneypotFiles200> => {
+  return customFetch<ListHoneypotFiles200>(getListHoneypotFilesUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListHoneypotFilesQueryKey = (
+  params?: ListHoneypotFilesParams,
+) => {
+  return [`/api/honeypot/files`, ...(params ? [params] : [])] as const;
+};
+
+export const getListHoneypotFilesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listHoneypotFiles>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListHoneypotFilesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listHoneypotFiles>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListHoneypotFilesQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listHoneypotFiles>>
+  > = ({ signal }) => listHoneypotFiles(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listHoneypotFiles>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListHoneypotFilesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listHoneypotFiles>>
+>;
+export type ListHoneypotFilesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List captured files/payloads
+ */
+
+export function useListHoneypotFiles<
+  TData = Awaited<ReturnType<typeof listHoneypotFiles>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListHoneypotFilesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listHoneypotFiles>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListHoneypotFilesQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary List indicators of compromise
+ */
+export const getListHoneypotIocsUrl = (params?: ListHoneypotIocsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/honeypot/iocs?${stringifiedParams}`
+    : `/api/honeypot/iocs`;
+};
+
+export const listHoneypotIocs = async (
+  params?: ListHoneypotIocsParams,
+  options?: RequestInit,
+): Promise<HoneypotIoc[]> => {
+  return customFetch<HoneypotIoc[]>(getListHoneypotIocsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListHoneypotIocsQueryKey = (
+  params?: ListHoneypotIocsParams,
+) => {
+  return [`/api/honeypot/iocs`, ...(params ? [params] : [])] as const;
+};
+
+export const getListHoneypotIocsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listHoneypotIocs>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListHoneypotIocsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listHoneypotIocs>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListHoneypotIocsQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listHoneypotIocs>>
+  > = ({ signal }) => listHoneypotIocs(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listHoneypotIocs>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListHoneypotIocsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listHoneypotIocs>>
+>;
+export type ListHoneypotIocsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List indicators of compromise
+ */
+
+export function useListHoneypotIocs<
+  TData = Awaited<ReturnType<typeof listHoneypotIocs>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListHoneypotIocsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listHoneypotIocs>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListHoneypotIocsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Add an IOC
+ */
+export const getCreateHoneypotIocUrl = () => {
+  return `/api/honeypot/iocs`;
+};
+
+export const createHoneypotIoc = async (
+  honeypotIocInput: HoneypotIocInput,
+  options?: RequestInit,
+): Promise<HoneypotIoc> => {
+  return customFetch<HoneypotIoc>(getCreateHoneypotIocUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(honeypotIocInput),
+  });
+};
+
+export const getCreateHoneypotIocMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createHoneypotIoc>>,
+    TError,
+    { data: BodyType<HoneypotIocInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createHoneypotIoc>>,
+  TError,
+  { data: BodyType<HoneypotIocInput> },
+  TContext
+> => {
+  const mutationKey = ["createHoneypotIoc"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createHoneypotIoc>>,
+    { data: BodyType<HoneypotIocInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createHoneypotIoc(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateHoneypotIocMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createHoneypotIoc>>
+>;
+export type CreateHoneypotIocMutationBody = BodyType<HoneypotIocInput>;
+export type CreateHoneypotIocMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Add an IOC
+ */
+export const useCreateHoneypotIoc = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createHoneypotIoc>>,
+    TError,
+    { data: BodyType<HoneypotIocInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createHoneypotIoc>>,
+  TError,
+  { data: BodyType<HoneypotIocInput> },
+  TContext
+> => {
+  return useMutation(getCreateHoneypotIocMutationOptions(options));
+};
+
+/**
+ * @summary Remove an IOC
+ */
+export const getDeleteHoneypotIocUrl = (id: number) => {
+  return `/api/honeypot/iocs/${id}`;
+};
+
+export const deleteHoneypotIoc = async (
+  id: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteHoneypotIocUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteHoneypotIocMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteHoneypotIoc>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteHoneypotIoc>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteHoneypotIoc"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteHoneypotIoc>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteHoneypotIoc(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteHoneypotIocMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteHoneypotIoc>>
+>;
+
+export type DeleteHoneypotIocMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Remove an IOC
+ */
+export const useDeleteHoneypotIoc = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteHoneypotIoc>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteHoneypotIoc>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteHoneypotIocMutationOptions(options));
+};
+
+/**
+ * @summary List honeypot alerts
+ */
+export const getListHoneypotAlertsUrl = (params?: ListHoneypotAlertsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/honeypot/alerts?${stringifiedParams}`
+    : `/api/honeypot/alerts`;
+};
+
+export const listHoneypotAlerts = async (
+  params?: ListHoneypotAlertsParams,
+  options?: RequestInit,
+): Promise<HoneypotAlert[]> => {
+  return customFetch<HoneypotAlert[]>(getListHoneypotAlertsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListHoneypotAlertsQueryKey = (
+  params?: ListHoneypotAlertsParams,
+) => {
+  return [`/api/honeypot/alerts`, ...(params ? [params] : [])] as const;
+};
+
+export const getListHoneypotAlertsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listHoneypotAlerts>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListHoneypotAlertsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listHoneypotAlerts>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListHoneypotAlertsQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listHoneypotAlerts>>
+  > = ({ signal }) => listHoneypotAlerts(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listHoneypotAlerts>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListHoneypotAlertsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listHoneypotAlerts>>
+>;
+export type ListHoneypotAlertsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List honeypot alerts
+ */
+
+export function useListHoneypotAlerts<
+  TData = Awaited<ReturnType<typeof listHoneypotAlerts>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListHoneypotAlertsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listHoneypotAlerts>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListHoneypotAlertsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Acknowledge a honeypot alert
+ */
+export const getAcknowledgeHoneypotAlertUrl = (id: number) => {
+  return `/api/honeypot/alerts/${id}/acknowledge`;
+};
+
+export const acknowledgeHoneypotAlert = async (
+  id: number,
+  options?: RequestInit,
+): Promise<HoneypotAlert> => {
+  return customFetch<HoneypotAlert>(getAcknowledgeHoneypotAlertUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getAcknowledgeHoneypotAlertMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof acknowledgeHoneypotAlert>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof acknowledgeHoneypotAlert>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["acknowledgeHoneypotAlert"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof acknowledgeHoneypotAlert>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return acknowledgeHoneypotAlert(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AcknowledgeHoneypotAlertMutationResult = NonNullable<
+  Awaited<ReturnType<typeof acknowledgeHoneypotAlert>>
+>;
+
+export type AcknowledgeHoneypotAlertMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Acknowledge a honeypot alert
+ */
+export const useAcknowledgeHoneypotAlert = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof acknowledgeHoneypotAlert>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof acknowledgeHoneypotAlert>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getAcknowledgeHoneypotAlertMutationOptions(options));
+};
+
+/**
+ * @summary Ingest events from a honeypot node (Cowrie/HoneyD callback)
+ */
+export const getIngestHoneypotEventUrl = () => {
+  return `/api/honeypot/ingest`;
+};
+
+export const ingestHoneypotEvent = async (
+  honeypotIngestPayload: HoneypotIngestPayload,
+  options?: RequestInit,
+): Promise<IngestHoneypotEvent200> => {
+  return customFetch<IngestHoneypotEvent200>(getIngestHoneypotEventUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(honeypotIngestPayload),
+  });
+};
+
+export const getIngestHoneypotEventMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof ingestHoneypotEvent>>,
+    TError,
+    { data: BodyType<HoneypotIngestPayload> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof ingestHoneypotEvent>>,
+  TError,
+  { data: BodyType<HoneypotIngestPayload> },
+  TContext
+> => {
+  const mutationKey = ["ingestHoneypotEvent"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof ingestHoneypotEvent>>,
+    { data: BodyType<HoneypotIngestPayload> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return ingestHoneypotEvent(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type IngestHoneypotEventMutationResult = NonNullable<
+  Awaited<ReturnType<typeof ingestHoneypotEvent>>
+>;
+export type IngestHoneypotEventMutationBody = BodyType<HoneypotIngestPayload>;
+export type IngestHoneypotEventMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Ingest events from a honeypot node (Cowrie/HoneyD callback)
+ */
+export const useIngestHoneypotEvent = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof ingestHoneypotEvent>>,
+    TError,
+    { data: BodyType<HoneypotIngestPayload> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof ingestHoneypotEvent>>,
+  TError,
+  { data: BodyType<HoneypotIngestPayload> },
+  TContext
+> => {
+  return useMutation(getIngestHoneypotEventMutationOptions(options));
 };

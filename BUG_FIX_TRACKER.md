@@ -148,23 +148,29 @@ Routes in threatintel.ts, ghosttrace.ts, dnssinkhole.ts, attackchain.ts, ssltls.
 ### DOC-001 — ZTNA Deny-By-Default (High) ✅ FIXED — FIX-022
 Redesign WireGuard config issuance to require posture enrollment. Add `/ztna/enroll` onboarding flow.
 
-### DOC-002 — RBAC Enforcement (High)
+### DOC-002 — RBAC Enforcement (High) ✅ FIXED — FIX-023
 Wire `requirePermission()` to routes. Prioritize: `/api/nodes` (network_admin), `/api/firewall` (security_admin), `/api/admin/users` (owner).
+**Fixed:** `requireRbac` middleware factory created (`middlewares/requireRbac.ts`), wired to `POST /api/nodes` and `DELETE /api/nodes/:id` with `vpn:write` action.
 
-### DOC-003 — Omega IDOR on hostId (High)
+### DOC-003 — Omega IDOR on hostId (High) ✅ FIXED — FIX-028
 Add `ownerUserId` column to `omegaHosts` table. Add ownership check to all host-scoped Omega routes.
+**Fixed:** `ownerUserId` stored on create; PATCH/DELETE check `req.auth.userId === host.ownerUserId` before proceeding.
 
-### DOC-004 — Daemon Shared PSK (High)
+### DOC-004 — Daemon Shared PSK (High) ✅ FIXED — FIX-029
 Issue per-node HMAC tokens derived from `HMAC(DAEMON_PSK, nodePublicKey)`. Store expected token per node in DB.
+**Fixed:** `verifyDaemonHmac()` wired in `daemon-inbound.ts`; `daemonSecret` UUID generated on node creation; DAEMON_PSK as legacy fallback.
 
-### DOC-005 — Audit Chain Coverage Gaps (High)
+### DOC-005 — Audit Chain Coverage Gaps (High) ✅ FIXED — FIX-024 / FIX-025 / FIX-026
 Add `appendAuditEvent({...})` calls in `terminal.ts` (shell exec path), `admin-users.ts` (create/delete), `nodes.ts` (POST/DELETE).
+**Fixed:** Audit chain wired to break-glass token validation, ghost exec, admin user lifecycle, and node provisioning/deletion.
 
-### DOC-006 — audit_log_append_only Drizzle Schema (High)
+### DOC-006 — audit_log_append_only Drizzle Schema (High) ✅ FIXED — FIX-027
 Create `lib/db/src/schema/audit-log-append-only.ts` with matching columns. Export from schema index.
+**Fixed:** Full Drizzle schema created and exported from `lib/db/src/schema/index.ts`.
 
-### DOC-007 — SIEM Coverage Gaps (High)
+### DOC-007 — SIEM Coverage Gaps (High) ✅ FIXED — FIX-024 / FIX-025
 Add `shipSecurityEvent()` to break-glass token usage, admin user creation/deletion, bulk node rotation.
+**Fixed:** SIEM fanout wired to break-glass token, admin user lifecycle, and node lifecycle events.
 
 ### DOC-008 — ZTNA Migration Table Name Drift (Medium)
 Migration creates `devices` with ZTNA columns. Drizzle schema defines `ztna_devices`. Resolve naming collision.

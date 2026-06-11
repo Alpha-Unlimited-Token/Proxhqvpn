@@ -116,6 +116,7 @@ import driftMonitorRouter from "./drift-monitor";
 import governanceRouter from "./governance";
 import eventGraphRouter from "./event-graph";
 import attackIntelRouter from "./attackintel";
+import honeypotRouter from "./honeypot";
 
 const router: IRouter = Router();
 
@@ -198,6 +199,12 @@ router.get("/warrant-canary", (req, res, next) => {
 
 // Node auto-provision — PSK protected, public (no Clerk)
 router.use("/node-provision", nodeProvisionRouter);
+
+// Honeypot ingest — PSK-authenticated, no Clerk (relay agents call this)
+router.post("/honeypot/ingest", (req, res, next) => {
+  req.url = "/ingest";
+  (honeypotRouter as any).handle(req, res, next);
+});
 
 // Public daemon download — serves proxhqd.py for deployment to VPN nodes
 // Protected: requires admin auth since it could expose internal tooling
@@ -509,6 +516,9 @@ router.get("/config-lifecycle-events", requireAccess, async (req: Request, res: 
 
 // ── Attack Intelligence — available to all authenticated users ────────────
 router.use("/attack-intel",   requireAccess, attackIntelRouter);
+
+// ── Honeypot Command Center ────────────────────────────────────────────────
+router.use("/honeypot",       requireAccess, honeypotRouter);
 
 router.use("/admin/users",    requireAdmin, adminUsersRouter);
 router.use("/employees",      requireAdmin, employeesRouter);

@@ -126,6 +126,42 @@ Complete end-to-end audit of the ProxhqVPN monorepo across 4 passes: identify al
 
 ---
 
+## Honeypot Command Center (Post-Audit Session)
+
+Built full Multi-Node Honeypot Defense Infrastructure as standalone artifact (`artifacts/honeypot-command`).
+
+### Infrastructure Delivered
+
+| Component | Location | Description |
+|-----------|----------|-------------|
+| OpenAPI spec | `lib/api-spec/openapi.yaml` | 16 `/honeypot/*` paths + 9 component schemas |
+| DB schema | `lib/db/src/schema/honeypot.ts` | 7 tables (nodes, attackers, sessions, commands, files, iocs, alerts) |
+| API router | `artifacts/api-server/src/routes/honeypot.ts` | Full CRUD + `/ingest` PSK relay endpoint |
+| Frontend | `artifacts/honeypot-command/` | 8-page React+Vite app (dark cyber theme) |
+| Deployment stack | `standalone/honeypot/` | Docker Compose (Cowrie+Suricata+Dionaea+relay), relay agent, Cowrie config |
+| Ansible playbook | `standalone/honeypot/ansible/deploy-honeypot.yml` | Full production deploy to Ubuntu hosts |
+| WireGuard template | `standalone/honeypot/configs/wireguard-honeypot.conf` | Inner mesh config for honeypot nodes |
+
+### Frontend Pages
+
+| Page | Route | Description |
+|------|-------|-------------|
+| Dashboard | `/honeypot-command/` | Live stats, session timeline chart, top attack origins, recent sessions |
+| Nodes | `/honeypot-command/nodes` | Node registry, register/activate/deactivate/delete, quick deploy snippet |
+| Attackers | `/honeypot-command/attackers` | Attacker profiles, geo, ASN, threat score, TOR/malicious flags, paginated |
+| Sessions | `/honeypot-command/sessions` | Session table with protocol, credentials captured, outcome, duration |
+| Commands | `/honeypot-command/commands` | Captured attacker commands with MITRE tagging + malware classification |
+| Payloads | `/honeypot-command/files` | Downloaded malware/payloads with SHA256, VirusTotal score, MIME type |
+| IOCs | `/honeypot-command/iocs` | Indicator management (12 types), CSV export, confidence bar, type filter |
+| Alerts | `/honeypot-command/alerts` | Severity-ranked alerts with one-click acknowledge, active/acknowledged toggle |
+
+### Auth Model
+
+- All `/api/honeypot/*` routes → `requireAccess` (VPN Basic+ Clerk session)
+- `POST /api/honeypot/ingest` → PSK-only, no Clerk (relay agents call this without browser session)
+
+---
+
 ## Remaining Follow-Up Required
 
 1. **RBAC on more routes** — wire `requireRbac("security_admin")` to `/api/firewall`, `requireRbac("auditor")` to `/api/siem`, etc.
@@ -135,6 +171,7 @@ Complete end-to-end audit of the ProxhqVPN monorepo across 4 passes: identify al
 5. **Mobile WebView session sync** — inject Clerk token into WebView request headers
 6. **WG key sentinel read risk** — audit all code paths for `client_private_key` vs `client_private_key_enc`
 7. **ZTNA migration name drift** — reconcile `devices` vs `ztna_devices` table naming
+8. **Honeypot ingest PSK enforcement** — add HMAC-SHA256 verification of `X-Honeypot-PSK` header in `/api/honeypot/ingest` handler (currently checks header presence only)
 
 ---
 
