@@ -249,12 +249,13 @@ export default function GhostTrap() {
   useEffect(() => { load(); const t = setInterval(load, 8000); return () => clearInterval(t); }, [load]);
 
   const saveConfig = async (patch: Partial<Config>) => {
+    setConfig(c => c ? { ...c, ...patch } : c);   // optimistic — instant UI switch
     const r = await fetch(`${BASE}/api/ghost-trap/config`, {
       method: "POST", credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(patch),
     });
-    if (r.ok) setConfig(await r.json());
+    if (r.ok) setConfig(await r.json());           // confirm with server truth
   };
 
   const lookupWhois = async (ip: string) => {
