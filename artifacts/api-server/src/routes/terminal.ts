@@ -1,5 +1,6 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { Router } from "express";
+import { getAuth } from "@clerk/express";
 import { checkSsrf } from "../lib/ssrfGuard";
 import { exec, spawn } from "child_process";
 import { promisify } from "util";
@@ -7,6 +8,8 @@ import { z } from "zod";
 import { Client as SshClient } from "ssh2";
 import type { ConnectConfig, SFTPWrapper } from "ssh2";
 import { randomUUID, timingSafeEqual } from "crypto";
+import { appendAuditEvent } from "../lib/audit-chain";
+import { shipSecurityEvent } from "../lib/siem";
 
 const execAsync = promisify(exec);
 
@@ -207,10 +210,38 @@ router.post("/exec", async (req, res) => {
       bgToken.length !== bgExpected.length ||
       !timingSafeEqual(Buffer.from(bgToken), Buffer.from(bgExpected))
     ) {
+      void shipSecurityEvent({
+        actor: getAuth(req).userId ?? "anonymous",
+        action: "terminal.break_glass_failed",
+        resource: "terminal:ghost_mode",
+        result: "deny",
+        severity: "critical",
+        ip: clientIp,
+        metadata: { cmd },
+      });
       return res.status(403).json({
         error: "Ghost mode requires a valid break-glass token (X-Break-Glass-Token header)",
       });
     }
+    // Break-glass token verified — emit high-severity audit + SIEM event
+    const { userId: bgUid } = getAuth(req);
+    appendAuditEvent({
+      actor: bgUid ?? "unknown",
+      action: "terminal.break_glass_authorized",
+      resource: "terminal:ghost_mode",
+      result: "allow",
+      ip: clientIp,
+      metadata: { cmd },
+    });
+    void shipSecurityEvent({
+      actor: bgUid ?? "unknown",
+      action: "terminal.break_glass_authorized",
+      resource: "terminal:ghost_mode",
+      result: "allow",
+      severity: "critical",
+      ip: clientIp,
+      metadata: { cmd },
+    });
   }
   if (body.ghostMode) {
     try {
@@ -221,6 +252,14 @@ router.post("/exec", async (req, res) => {
         env: { ...process.env, HOME: process.env.HOME ?? "/tmp" },
       });
       auditLog.push({ ts: executedAt, cmd, exitCode: 0, ip: clientIp });
+      appendAuditEvent({
+        actor: getAuth(req).userId ?? "unknown",
+        action: "terminal.ghost_exec",
+        resource: "terminal:shell",
+        result: "allow",
+        ip: clientIp,
+        metadata: { cmd, exitCode: 0 },
+      });
       res.json({ command: cmd, stdout: stdout || "", stderr: stderr || "", exitCode: 0, executedAt, ghostMode: true });
     } catch (err: any) {
       auditLog.push({ ts: executedAt, cmd, exitCode: err.code ?? 1, ip: clientIp });

@@ -1,12 +1,14 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { Router } from "express";
-import { clerkClient } from "@clerk/express";
+import { clerkClient, getAuth } from "@clerk/express";
 import { db } from "@workspace/db";
 import { usersTable, employeesTable } from "@workspace/db/schema";
 import { ambassadorsTable } from "@workspace/db/schema";
 import { requireAdmin } from "../middlewares/requireAdmin";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
+import { appendAuditEvent } from "../lib/audit-chain";
+import { shipSecurityEvent } from "../lib/siem";
 
 const router = Router();
 
@@ -98,6 +100,22 @@ router.post("/:clerkId/make-employee", requireAdmin, async (req, res) => {
         },
       })
       .returning();
+    const { userId: actorId } = getAuth(req);
+    appendAuditEvent({
+      actor: actorId ?? "admin",
+      action: "admin.make_employee",
+      resource: `user:${req.params.clerkId}`,
+      result: "allow",
+      metadata: { email, displayName: body.data.displayName },
+    });
+    void shipSecurityEvent({
+      actor: actorId ?? "admin",
+      action: "admin.make_employee",
+      resource: `user:${req.params.clerkId}`,
+      result: "allow",
+      severity: "high",
+      metadata: { email },
+    });
     res.status(201).json(row);
   } catch (err: any) {
     throw err;
@@ -135,6 +153,22 @@ router.post("/:clerkId/make-ambassador", requireAdmin, async (req, res) => {
             bio        = EXCLUDED.bio,
             promo_code = EXCLUDED.promo_code
     `);
+    const { userId: actorId } = getAuth(req);
+    appendAuditEvent({
+      actor: actorId ?? "admin",
+      action: "admin.make_ambassador",
+      resource: `user:${req.params.clerkId}`,
+      result: "allow",
+      metadata: { promoCode: body.data.promoCode.toUpperCase() },
+    });
+    void shipSecurityEvent({
+      actor: actorId ?? "admin",
+      action: "admin.make_ambassador",
+      resource: `user:${req.params.clerkId}`,
+      result: "allow",
+      severity: "medium",
+      metadata: { promoCode: body.data.promoCode.toUpperCase() },
+    });
     res.status(201).json({ ok: true, promoCode: body.data.promoCode.toUpperCase() });
   } catch (err: any) {
     if (err.code === "23505") return res.status(409).json({ error: "Promo code already taken — choose a different one" });
@@ -158,6 +192,22 @@ router.delete("/:clerkId/remove-employee", requireAdmin, async (req, res) => {
     .where(ilike(employeesTable.email, email))
     .returning();
   if (!row) return res.status(404).json({ error: "Not an employee" });
+  const { userId: actorId } = getAuth(req);
+  appendAuditEvent({
+    actor: actorId ?? "admin",
+    action: "admin.remove_employee",
+    resource: `user:${req.params.clerkId}`,
+    result: "allow",
+    metadata: { email },
+  });
+  void shipSecurityEvent({
+    actor: actorId ?? "admin",
+    action: "admin.remove_employee",
+    resource: `user:${req.params.clerkId}`,
+    result: "allow",
+    severity: "high",
+    metadata: { email },
+  });
   res.json({ ok: true });
 });
 

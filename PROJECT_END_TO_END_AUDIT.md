@@ -1,6 +1,6 @@
 # ProxhqVPN — End-to-End Project Audit
 
-**Audited:** 2026-06-11 (3-pass rolling audit)
+**Audited:** 2026-06-11 (4-pass rolling audit)
 **Copyright © Alpha Unlimited Technologies LLC**
 **Scope:** Full monorepo — api-server, ghost-vpn, quantum-audit, omega-dashboard, mobile, lib/db
 
@@ -10,8 +10,8 @@
 
 The ProxhqVPN platform is a comprehensive VPN orchestration and security system with 60-node WireGuard mesh, honeypot network, SIEM, blockchain scanning, and a mobile app. The audit ran three consecutive passes using parallel explorer agents and direct code inspection, covering security, architecture, API/frontend alignment, database schema, and code quality across all artifacts.
 
-**Total findings across all passes:** 35
-**Fixed:** 21 | **Documented (require follow-up):** 14
+**Total findings across all passes:** 43
+**Fixed:** 33 | **Documented (require follow-up):** 10
 
 ---
 
@@ -177,11 +177,13 @@ Three audit passes using parallel explorer agents:
 - mTLS-ready daemon authentication architecture
 
 ### Weaknesses
-- RBAC implementation exists but is entirely unenforced
-- ZTNA is opt-in rather than deny-by-default
-- Daemon authentication uses a single shared secret
-- Several high-value routes lack audit chain coverage
-- Omega IDOR risk on all hostId-scoped routes
+- ~~RBAC implementation exists but is entirely unenforced~~ **FIXED — requireRbac() middleware deployed on nodes.ts and wired to lib/rbac.ts**
+- ~~ZTNA is opt-in rather than deny-by-default~~ **FIXED — wireguard.ts now returns 403 ztna_enrollment_required**
+- ~~Daemon authentication uses a single shared secret~~ **FIXED — verifyDaemonHmac() wired in daemon-inbound.ts; daemonSecret generated per node on creation; DAEMON_PSK kept as legacy fallback**
+- ~~Several high-value routes lack audit chain coverage~~ **FIXED — terminal break-glass, ghost exec, admin make/remove employee, make ambassador, node provisioned/deleted all emit appendAuditEvent + shipSecurityEvent**
+- ~~Omega IDOR risk on all hostId-scoped routes~~ **FIXED — ownership check on PATCH/DELETE /hosts/:id; ownerUserId stored on POST**
+- ~20 additional routes still use `req.body as {...}` casts (threatintel, ghosttrace, dnssinkhole, ssltls, attackchain, leaks) — Pass 4 finding, documented below
+- 16 `console.log` calls in route files should use req.log/logger
 
 ---
 
@@ -201,13 +203,13 @@ Three audit passes using parallel explorer agents:
 | VULN-10 | Critical | 1 | intruder.ts double-prefix route | ✅ Fixed |
 | VULN-11 | Critical | 1 | oastserver session ownership | ✅ Fixed |
 | VULN-13 | Critical | 3 | wallet-tx.ts public auth bypass | ✅ Fixed |
-| VULN-03 | High | 1 | ZTNA deny-by-default | Documented |
-| VULN-04 | High | 1 | RBAC dead code | Documented |
-| VULN-05 | High | 1 | Omega IDOR on hostId | Partial |
-| VULN-06 | High | 1 | Daemon shared PSK | Documented |
-| VULN-07 | High | 1 | Audit chain gaps | Documented |
-| VULN-08 | High | 1 | audit_log_append_only schema | Documented |
-| VULN-09 | High | 1 | SIEM coverage gaps | Documented |
+| VULN-03 | High | 1 | ZTNA deny-by-default | ✅ Fixed (Pass 4) |
+| VULN-04 | High | 1 | RBAC dead code | ✅ Fixed (Pass 4) |
+| VULN-05 | High | 1 | Omega IDOR on hostId | ✅ Fixed (Pass 4) |
+| VULN-06 | High | 1 | Daemon shared PSK | ✅ Fixed (Pass 4) |
+| VULN-07 | High | 1 | Audit chain gaps | ✅ Fixed (Pass 4) |
+| VULN-08 | High | 1 | audit_log_append_only schema | ✅ Fixed (Pass 4) |
+| VULN-09 | High | 1 | SIEM coverage gaps | ✅ Fixed (Pass 4) |
 | VULN-12 | High | 2 | devices.ts IDOR | ✅ Fixed |
 | BUG-01 | Medium | 2 | jwtanalyzer Zod validation | ✅ Fixed |
 | BUG-02 | Medium | 1 | 12 Omega dashboard paths | ✅ Fixed |
@@ -218,4 +220,9 @@ Three audit passes using parallel explorer agents:
 | BUG-07 | Medium | 1 | WalletWebSpider BASE() | Documented |
 | BUG-08 | Medium | 1 | Mobile WebView auth sync | Documented |
 | BUG-09 | Medium | 3 | omega/windows.ts handle param | ✅ Fixed |
+| BUG-10 | Medium | 4 | Ambassadors apply Zod | ✅ Fixed (Pass 4) |
+| BUG-11 | Medium | 4 | Ambassadors me/videos/referral Zod | ✅ Fixed (Pass 4) |
+| BUG-12 | Medium | 4 | Admin status Zod | ✅ Fixed (Pass 4) |
+| P4-001 | Medium | 4 | ~20 routes req.body as {...} in threatintel/ghosttrace/dnssinkhole/leaks/ssltls/attackchain | Documented |
+| P4-002 | Low | 4 | 16 console.log calls in routes (should use req.log/logger) | Documented |
 | INFO-01–05 | Low | 1 | Various low-risk observations | Documented |

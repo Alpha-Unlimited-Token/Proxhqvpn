@@ -1,9 +1,13 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { Router } from "express";
+import { getAuth } from "@clerk/express";
 import { db } from "@workspace/db";
 import { nodesTable, beaconAlertsTable } from "@workspace/db";
 import { eq, gte, sql, lt, and } from "drizzle-orm";
 import { wgPeerCommandsTable } from "@workspace/db";
+import { appendAuditEvent } from "../lib/audit-chain";
+import { shipSecurityEvent } from "../lib/siem";
+import { requireRbac } from "../middlewares/requireRbac";
 import {
   getLifecycleStats,
   getPendingCommandCount,
@@ -68,7 +72,7 @@ router.get("/", async (req, res) => {
   });
 });
 
-router.post("/", async (req, res) => {
+router.post("/", requireRbac("vpn:write"), async (req, res) => {
   const body = z.object({
     name: z.string(),
     layer: z.enum(["outer", "inner"]),
@@ -101,7 +105,25 @@ router.post("/", async (req, res) => {
     listenPort: 51820 + hopIndex,
     latencyMs,
     lastSeen: new Date(),
+    daemonSecret: crypto.randomBytes(32).toString("hex"),
   }).returning();
+
+  const { userId: actorId } = getAuth(req);
+  appendAuditEvent({
+    actor: actorId ?? "admin",
+    action: "node.provisioned",
+    resource: `node:${node.id}`,
+    result: "allow",
+    metadata: { name: body.name, layer: body.layer, region: body.region, ip: internalIp },
+  });
+  void shipSecurityEvent({
+    actor: actorId ?? "admin",
+    action: "node.provisioned",
+    resource: `node:${node.id}`,
+    result: "allow",
+    severity: "medium",
+    metadata: { name: body.name, layer: body.layer, region: body.region },
+  });
 
   res.status(201).json(node);
 });
@@ -154,9 +176,26 @@ router.put("/:id", async (req, res) => {
   res.json(node);
 });
 
-router.delete("/:id", async (req, res) => {
-  const id = parseInt(req.params.id);
+router.delete("/:id", requireRbac("vpn:write"), async (req, res) => {
+  const id = parseInt(String(req.params.id));
+  if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
   await db.delete(nodesTable).where(eq(nodesTable.id, id));
+  const { userId: actorId } = getAuth(req);
+  appendAuditEvent({
+    actor: actorId ?? "admin",
+    action: "node.deleted",
+    resource: `node:${id}`,
+    result: "allow",
+    metadata: { nodeId: id },
+  });
+  void shipSecurityEvent({
+    actor: actorId ?? "admin",
+    action: "node.deleted",
+    resource: `node:${id}`,
+    result: "allow",
+    severity: "high",
+    metadata: { nodeId: id },
+  });
   res.status(204).send();
 });
 

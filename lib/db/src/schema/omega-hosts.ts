@@ -1,7 +1,5 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { pgTable, serial, text, integer, timestamp } from "drizzle-orm/pg-core";
-import { createInsertSchema } from "drizzle-zod";
-import { z } from "zod/v4";
 
 export const hostsTable = pgTable("omega_hosts", {
   id: serial("id").primaryKey(),
@@ -13,10 +11,10 @@ export const hostsTable = pgTable("omega_hosts", {
   os: text("os"),
   lastSeen: text("last_seen"),
   latencyMs: integer("latency_ms"),
+  ownerUserId: text("owner_user_id"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-export const insertHostSchema = createInsertSchema(hostsTable).omit({ id: true, createdAt: true, updatedAt: true });
 export type OmegaHost = typeof hostsTable.$inferSelect;
-export type InsertOmegaHost = z.infer<typeof insertHostSchema>;
+export type InsertOmegaHost = typeof hostsTable.$inferInsert;

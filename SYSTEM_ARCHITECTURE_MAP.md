@@ -219,6 +219,10 @@ External Attacker
     └── Route-specific controls:
           ├── Shell exec: allowlist + HARD_BLOCKED patterns
           ├── SQL: SELECT-only local mode; external CRUD only
-          ├── Daemon-inbound: DAEMON_PSK header required
-          └── WireGuard config: ZTNA posture check (advisory)
+          ├── Daemon-inbound: per-node HMAC-SHA256 (verifyDaemonHmac); DAEMON_PSK legacy fallback
+          ├── WireGuard config: ZTNA posture check (deny-by-default — 403 if no record)
+          ├── RBAC: requireRbac(action) middleware enforcing lib/rbac.ts roles on nodes routes
+          ├── Audit chain: appendAuditEvent on terminal, admin, node lifecycle events
+          ├── SIEM fanout: shipSecurityEvent to Splunk HEC + webhook on high-severity events
+          └── Omega host ownership: ownerUserId stored on create; PATCH/DELETE check caller
 ```

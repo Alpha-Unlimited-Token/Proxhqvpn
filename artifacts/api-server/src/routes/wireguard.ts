@@ -140,7 +140,13 @@ router.post("/my-config", async (req, res) => {
         });
       }
     }
-    // No ZTNA record — allowed with advisory flag
+    // ZTNA deny-by-default: no posture record = denied
+    return res.status(403).json({
+      error: "ztna_enrollment_required",
+      message: "Your device has no posture record on file. Complete a ZTNA posture check at /ztna before requesting a WireGuard config.",
+      enrollmentUrl: "/ztna",
+      threshold: ZTNA_TRUST_THRESHOLD,
+    });
   } catch { /* DB error must not block config issuance */ }
 
   const existing = await db

@@ -36,3 +36,4 @@ export * from "./anon-payments";
 export * from "./ztna-devices";
 export * from "./proxhq-security-upgrade";
 export * from "./deception";
+export * from "./audit-log-append-only";

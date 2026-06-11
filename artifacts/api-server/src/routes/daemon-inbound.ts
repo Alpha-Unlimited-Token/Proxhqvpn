@@ -5,6 +5,7 @@ import { shipSecurityEvent } from "../lib/siem";
 import { exec } from "child_process";
 import { Router } from "express";
 import { db } from "@workspace/db";
+import { verifyDaemonHmac } from "../lib/daemon-auth";
 import {
   nodesTable, beaconAlertsTable, wgPeerCommandsTable, vpngateNodeSessionsTable,
   trappedAttackersTable, silkWebTable,
@@ -44,22 +45,35 @@ const router = Router();
 
 const DAEMON_PSK = process.env.DAEMON_PSK ?? "";
 
+// ── Per-node HMAC auth (preferred) — requires X-Node-ID + X-Daemon-Sig + X-Daemon-TS + X-Daemon-Nonce ──
+// Falls back to DAEMON_PSK if X-Node-ID header is absent (legacy nodes not yet enrolled).
+const perNodeHmacMiddleware = verifyDaemonHmac(async (nodeId: string) => {
+  // Look up the per-node daemon secret from the database
+  const { nodesTable } = await import("@workspace/db");
+  const { eq } = await import("drizzle-orm");
+  const [node] = await db.select({ daemonSecret: nodesTable.daemonSecret })
+    .from(nodesTable)
+    .where(eq(nodesTable.name, nodeId))
+    .limit(1);
+  return node?.daemonSecret ?? null;
+});
+
 function requirePsk(req: any, res: any, next: any) {
+  // If X-Node-ID header is present, use the stronger per-node HMAC auth
+  if (req.headers["x-node-id"]) {
+    return perNodeHmacMiddleware(req, res, next);
+  }
+
+  // Legacy: fall back to shared DAEMON_PSK
   const psk = req.headers["x-daemon-psk"];
   if (!DAEMON_PSK) {
     return res.status(503).json({ error: "DAEMON_PSK not configured. Set the DAEMON_PSK environment variable." });
   }
-  // Use crypto.timingSafeEqual to prevent timing oracle attacks.
-  // Pad both buffers to the same length before comparison so the
-  // function never throws (it requires equal-length inputs).
   if (!psk) return res.status(401).json({ error: "Invalid daemon PSK" });
   const provided = Buffer.alloc(256);
   const expected = Buffer.alloc(256);
   Buffer.from(String(psk),    "utf8").copy(provided);
   Buffer.from(DAEMON_PSK,     "utf8").copy(expected);
-  // Also constant-time check that actual string lengths match, to
-  // prevent an attacker from submitting a shorter prefix that padded
-  // zeros still accept.
   const lenMatch = Buffer.alloc(4);
   const lenExpected = Buffer.alloc(4);
   lenMatch.writeUInt32BE(String(psk).length, 0);

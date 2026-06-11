@@ -5,6 +5,7 @@ import { db } from "@workspace/db";
 import { usersTable } from "@workspace/db/schema";
 import { eq, sql } from "drizzle-orm";
 import crypto from "crypto";
+import { z } from "zod";
 import { sendMail, adminEmails } from "../lib/mailer";
 
 /** Normalize db.execute() result — returns plain array for simple queries, {rows} for complex aggregates */
@@ -160,12 +161,17 @@ router.post("/apply", async (req, res) => {
   const { userId } = getAuth(req);
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-  const { name, bio, promoCode, avatarUrl, socialUrls, contactEmail } = req.body as {
-    name: string; bio?: string; promoCode: string; avatarUrl?: string; socialUrls?: Record<string, string>; contactEmail?: string;
-  };
-  if (!name?.trim()) return res.status(400).json({ error: "name is required" });
-  if (!promoCode?.trim()) return res.status(400).json({ error: "promoCode is required" });
+  const applyBody = z.object({
+    name: z.string().min(1).max(80),
+    bio: z.string().max(500).optional(),
+    promoCode: z.string().min(3).max(30),
+    avatarUrl: z.string().url().optional(),
+    socialUrls: z.record(z.string().url()).optional(),
+    contactEmail: z.string().email().optional(),
+  }).safeParse(req.body);
+  if (!applyBody.success) return res.status(400).json({ error: applyBody.error.flatten() });
 
+  const { name, bio, promoCode, avatarUrl, socialUrls, contactEmail } = applyBody.data;
   const code = sanitizePromoCode(promoCode);
   if (code.length < 3) return res.status(400).json({ error: "promoCode must be at least 3 characters" });
 
@@ -290,9 +296,13 @@ router.patch("/me", async (req, res) => {
   const { userId } = getAuth(req);
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-  const { bio, avatarUrl, socialUrls } = req.body as {
-    bio?: string; avatarUrl?: string; socialUrls?: Record<string, string>;
-  };
+  const meBody = z.object({
+    bio: z.string().max(500).optional(),
+    avatarUrl: z.string().url().optional(),
+    socialUrls: z.record(z.string().url()).optional(),
+  }).safeParse(req.body);
+  if (!meBody.success) return res.status(400).json({ error: meBody.error.flatten() });
+  const { bio, avatarUrl, socialUrls } = meBody.data;
 
   try {
     const rows = toRows(await db.execute(sql`SELECT id FROM ambassadors WHERE user_id = ${userId} LIMIT 1`));
@@ -317,11 +327,13 @@ router.post("/me/videos", async (req, res) => {
   const { userId } = getAuth(req);
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-  const { title, description, videoUrl } = req.body as {
-    title?: string; description?: string; videoUrl?: string;
-  };
-  if (!title?.trim()) return res.status(400).json({ error: "title is required" });
-  if (!videoUrl?.trim()) return res.status(400).json({ error: "videoUrl is required" });
+  const videoBody = z.object({
+    title: z.string().min(1).max(120),
+    description: z.string().max(500).optional(),
+    videoUrl: z.string().url(),
+  }).safeParse(req.body);
+  if (!videoBody.success) return res.status(400).json({ error: videoBody.error.flatten() });
+  const { title, description, videoUrl } = videoBody.data;
 
   try {
     const rows = toRows(await db.execute(sql`SELECT id FROM ambassadors WHERE user_id = ${userId} LIMIT 1`));
@@ -372,9 +384,15 @@ router.post("/record-referral", async (req, res) => {
   const { userId } = getAuth(req);
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-  const { sessionId, promoCode, subscriptionId, plan, amountCents } = req.body as {
-    sessionId?: string; promoCode?: string; subscriptionId?: string; plan?: string; amountCents?: number;
-  };
+  const referralBody = z.object({
+    sessionId: z.string().optional(),
+    promoCode: z.string().optional(),
+    subscriptionId: z.string().optional(),
+    plan: z.string().max(40).optional(),
+    amountCents: z.number().int().min(0).optional(),
+  }).safeParse(req.body);
+  if (!referralBody.success) return res.status(400).json({ error: referralBody.error.flatten() });
+  const { sessionId, promoCode, subscriptionId, plan, amountCents } = referralBody.data;
   if (!promoCode) return res.json({ ok: true, skipped: "no promo code" });
 
   try {
@@ -441,10 +459,12 @@ router.patch("/admin/:id/status", async (req, res) => {
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
   if (!await isAdminUser(userId)) return res.status(403).json({ error: "Forbidden: admin only" });
 
-  const { status, notifyEmail } = req.body as { status: string; notifyEmail?: string };
-  if (!["approved", "rejected", "pending"].includes(status)) {
-    return res.status(400).json({ error: "Invalid status" });
-  }
+  const statusBody = z.object({
+    status: z.enum(["approved", "rejected", "pending"]),
+    notifyEmail: z.string().email().optional(),
+  }).safeParse(req.body);
+  if (!statusBody.success) return res.status(400).json({ error: statusBody.error.flatten() });
+  const { status, notifyEmail } = statusBody.data;
   try {
     // Ensure contact_email column exists
     await db.execute(sql`ALTER TABLE ambassadors ADD COLUMN IF NOT EXISTS contact_email TEXT`);

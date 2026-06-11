@@ -1,6 +1,6 @@
 # ProxhqVPN — Bug Fix Tracker
 
-**Session:** 2026-06-11 (3-pass rolling audit)
+**Session:** 2026-06-11 (4-pass rolling audit)
 **Copyright © Alpha Unlimited Technologies LLC**
 
 ---
@@ -129,7 +129,23 @@
 
 ## False Positives Cleared (Pass 3)
 
-### DOC-001 — ZTNA Deny-By-Default (High)
+---
+
+## Pass 4 New Findings
+
+### P4-001 — ~20 Routes Still Use req.body as {...} Casts (Medium)
+Routes in threatintel.ts, ghosttrace.ts, dnssinkhole.ts, attackchain.ts, ssltls.ts, iacscan.ts, leaks.ts, exploitimport.ts, interceptor.ts, apitester.ts, imautomation.ts, alpha.ts still use `req.body as {...}`. Runtime validation missing; invalid payloads may cause unhandled exceptions.
+**Recommendation:** Systematic Zod migration for these remaining route files.
+
+### P4-002 — 16 console.log Calls in Route Files (Low)
+`console.log/error/warn` found in routes/ — should use `req.log` (in handlers) or the `logger` singleton (outside handlers) per project convention.
+**Files:** ambassadors.ts, daemon-inbound.ts, and ~14 others.
+
+---
+
+## Still Documented (Require Future Work)
+
+### DOC-001 — ZTNA Deny-By-Default (High) ✅ FIXED — FIX-022
 Redesign WireGuard config issuance to require posture enrollment. Add `/ztna/enroll` onboarding flow.
 
 ### DOC-002 — RBAC Enforcement (High)

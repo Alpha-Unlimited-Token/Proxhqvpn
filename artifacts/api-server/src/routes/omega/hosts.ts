@@ -1,5 +1,6 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { Router, type IRouter } from "express";
+import { getAuth } from "@clerk/express";
 import { eq } from "drizzle-orm";
 import net from "net";
 import { db, hostsTable, eventsTable } from "@workspace/db";
@@ -28,7 +29,13 @@ router.get("/hosts", async (_req, res): Promise<void> => {
 router.post("/hosts", async (req, res): Promise<void> => {
   const parsed = CreateHostBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
-  const [host] = await db.insert(hostsTable).values({ ...parsed.data, status: "unknown", updatedAt: new Date() }).returning();
+  const { userId } = getAuth(req);
+  const [host] = await db.insert(hostsTable).values({
+    ...parsed.data,
+    ownerUserId: userId ?? null,
+    status: "unknown",
+    updatedAt: new Date(),
+  }).returning();
   res.status(201).json(GetHostResponse.parse(serializeDates(host)));
 });
 
@@ -45,6 +52,12 @@ router.patch("/hosts/:id", async (req, res): Promise<void> => {
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
   const parsed = UpdateHostBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+
+  const [existing] = await db.select({ ownerUserId: hostsTable.ownerUserId }).from(hostsTable).where(eq(hostsTable.id, params.data.id));
+  if (!existing) { res.status(404).json({ error: "Host not found" }); return; }
+  const { userId } = getAuth(req);
+  if (existing.ownerUserId && existing.ownerUserId !== userId) { res.status(403).json({ error: "Forbidden" }); return; }
+
   const [host] = await db.update(hostsTable).set({ ...parsed.data, updatedAt: new Date() }).where(eq(hostsTable.id, params.data.id)).returning();
   if (!host) { res.status(404).json({ error: "Host not found" }); return; }
   res.json(UpdateHostResponse.parse(serializeDates(host)));
@@ -53,6 +66,12 @@ router.patch("/hosts/:id", async (req, res): Promise<void> => {
 router.delete("/hosts/:id", async (req, res): Promise<void> => {
   const params = DeleteHostParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+
+  const [existing] = await db.select({ ownerUserId: hostsTable.ownerUserId }).from(hostsTable).where(eq(hostsTable.id, params.data.id));
+  if (!existing) { res.status(404).json({ error: "Host not found" }); return; }
+  const { userId } = getAuth(req);
+  if (existing.ownerUserId && existing.ownerUserId !== userId) { res.status(403).json({ error: "Forbidden" }); return; }
+
   const [host] = await db.delete(hostsTable).where(eq(hostsTable.id, params.data.id)).returning();
   if (!host) { res.status(404).json({ error: "Host not found" }); return; }
   res.sendStatus(204);

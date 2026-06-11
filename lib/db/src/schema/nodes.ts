@@ -26,6 +26,7 @@ export const nodesTable = pgTable("nodes", {
   ramKeyLoaded: boolean("ram_key_loaded").default(false),
   ramKeyCheckedAt: timestamp("ram_key_checked_at"),
   wgBaseConfClean: boolean("wg_base_conf_clean"),
+  daemonSecret: text("daemon_secret"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
