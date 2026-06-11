@@ -145,6 +145,7 @@ import WsTester from "@/pages/WsTester";
 import SastAnalyzer from "@/pages/SastAnalyzer";
 import QuantumAuditPage from "@/pages/QuantumAudit";
 import GhostPentest from "@/pages/GhostPentest";
+import DeceptionEngine from "@/pages/DeceptionEngine";
 import RequestMind from "@/pages/RequestMind";
 import SocCopilot from "@/pages/SocCopilot";
 import CodeSentinel from "@/pages/CodeSentinel";
@@ -971,6 +972,10 @@ function AppRoutes() {
           {/* ── AI Security Suite ── */}
           <Route path="/ghost-pentest">
             <CcLayout><GhostPentest /></CcLayout>
+          </Route>
+          {/* ── Deception Engine — ADMIN / EMPLOYEE ONLY ── */}
+          <Route path="/deception-engine">
+            <CcLayout><DeceptionEngine /></CcLayout>
           </Route>
           <Route path="/request-mind">
             <CcLayout><RequestMind /></CcLayout>

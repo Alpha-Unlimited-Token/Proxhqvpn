@@ -35,3 +35,4 @@ export * from "./anon-accounts";
 export * from "./anon-payments";
 export * from "./ztna-devices";
 export * from "./proxhq-security-upgrade";
+export * from "./deception";

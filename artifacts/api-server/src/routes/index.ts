@@ -105,6 +105,7 @@ import imAutomationRouter from "./imautomation";
 import redteamScanRouter from "./redteamscan";
 import omegaAgentRouter from "./omega/agent";
 import ghostTrapRouter from "./ghosttrap";
+import deceptionRouter from "./deception";
 import firewallAdvancedRouter from "./firewall-advanced";
 import ztnaRouter from "./ztna";
 import nodeEnrollV2Router from "./node-enroll-v2";
@@ -442,6 +443,8 @@ router.use("/exploit-import",  requireCommandCenter, exploitImportRouter);
 router.use("/waf",             requireCommandCenter, wafRouter);
 router.use("/waf-bypass",      requireCommandCenter, wafBypassRouter);
 router.use("/omnistrike",      requireCommandCenter, omnistrikeRouter);
+// ── Deception Engine — OWNER / ADMIN ONLY — regular users never see this ───
+router.use("/deception",       requireAdmin,         deceptionRouter);
 router.use("/social-account",  requireCommandCenter, socialAccountRouter);
 router.use("/ssl-tls",         requireCommandCenter, sslTlsRouter);
 router.use("/jwt-analyzer",    requireCommandCenter, jwtAnalyzerRouter);
