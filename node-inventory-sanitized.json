@@ -1,0 +1,165 @@
+{
+  "_meta": {
+    "generated": "2026-06-13",
+    "generator": "ProxhqVPN Audit Suite — code-derived only",
+    "warning": "This file is derived from repository code and DB schema. It does NOT reflect live server state. Private keys, PSKs, tokens, and credentials are redacted.",
+    "copyright": "© 2026 ALPHA UNLIMITED TECHNOLOGIES LLC",
+    "note": "Run 'SELECT id, name, layer, region, status, public_ip, ram_key_loaded, last_seen FROM nodes ORDER BY layer, hop_index' via /sql to get live node inventory."
+  },
+  "platform": {
+    "name": "ProxhqVPN",
+    "company": "Alpha Unlimited Technologies LLC",
+    "node_architecture": "60-node WireGuard mesh (50 outer + 10 inner)",
+    "api_server": "Express 5 / Node.js 24 / TypeScript 5.9",
+    "database": "PostgreSQL (Drizzle ORM)",
+    "auth": "Clerk (app_3CcwHo66ohArVtaIa0XTcv88i4Y)"
+  },
+  "node_schema": {
+    "table": "nodes",
+    "columns": [
+      "id", "name", "layer", "hop_index", "region", "ip_address",
+      "public_key", "private_key [ENCRYPTED]", "listen_port", "status",
+      "has_beacon", "has_spider", "has_worm", "public_ip", "latency_ms",
+      "last_seen", "fw_synced_at", "fw_sync_hash", "ram_key_loaded",
+      "ram_key_checked_at", "wg_base_conf_clean", "daemon_secret [REDACTED]"
+    ],
+    "layers": ["outer", "inner"],
+    "statuses": ["active", "inactive", "rotating", "trapped"],
+    "planned_count": { "outer": 50, "inner": 10, "total": 60 }
+  },
+  "ram_key_nodes": [
+    {
+      "region": "Los Angeles, CA",
+      "layer": "outer",
+      "ram_key_loaded": true,
+      "public_ip": "[PARTIALLY_REDACTED: LA-region Vultr IP]",
+      "listen_port": "[REDACTED]",
+      "public_key": "[PUBLIC_KEY_PRESENT_NOT_SENSITIVE]",
+      "private_key": "[PRIVATE_KEY_PRESENT_REDACTED]"
+    },
+    {
+      "region": "London, UK",
+      "layer": "outer",
+      "ram_key_loaded": true,
+      "public_ip": "[PARTIALLY_REDACTED: London-region Vultr IP]",
+      "listen_port": "[REDACTED]",
+      "public_key": "[PUBLIC_KEY_PRESENT_NOT_SENSITIVE]",
+      "private_key": "[PRIVATE_KEY_PRESENT_REDACTED]"
+    },
+    {
+      "region": "Chicago, IL",
+      "layer": "outer",
+      "ram_key_loaded": true,
+      "public_ip": "[PARTIALLY_REDACTED: Chicago-region Vultr IP]",
+      "listen_port": "[REDACTED]",
+      "public_key": "[PUBLIC_KEY_PRESENT_NOT_SENSITIVE]",
+      "private_key": "[PRIVATE_KEY_PRESENT_REDACTED]"
+    },
+    {
+      "region": "Tokyo, Japan",
+      "layer": "outer",
+      "ram_key_loaded": true,
+      "public_ip": "[PARTIALLY_REDACTED: Tokyo-region Vultr IP]",
+      "listen_port": "[REDACTED]",
+      "public_key": "[PUBLIC_KEY_PRESENT_NOT_SENSITIVE]",
+      "private_key": "[PRIVATE_KEY_PRESENT_REDACTED]"
+    }
+  ],
+  "daemon": {
+    "name": "ghostd.py",
+    "version": "2.0.0",
+    "protocol": "GHNT v0x02 (custom UDP, not WireGuard protocol)",
+    "local_rest_api": "http://127.0.0.1:7475",
+    "tun_interface": "ghost0",
+    "tun_cidr": "10.99.0.0/24",
+    "encryption": "AES-256-GCM",
+    "key_exchange": "X25519 ECDH + HKDF-SHA256",
+    "psk": "[REDACTED]",
+    "modes": ["server", "client", "local (Tor SOCKS5)"]
+  },
+  "node_agent": {
+    "endpoint": "POST /api/node-agent/checkin",
+    "auth_header": "X-Node-Agent-PSK",
+    "psk": "[TOKEN_REDACTED]",
+    "db_tables": ["node_agent_health", "node_agent_events"],
+    "reported_fields": ["nodeId", "nodeName", "version", "ip", "os", "arch", "tools", "cpuPct", "memPct", "diskMb"]
+  },
+  "honeypot": {
+    "standalone_stack": {
+      "ssh_honeypot": "Cowrie",
+      "ids": "Suricata",
+      "relay": "relay_agent.py",
+      "deployment": "Ansible (deploy-honeypot.yml)"
+    },
+    "api_endpoint": "POST /api/honeypot/ingest",
+    "auth_header": "X-Honeypot-PSK",
+    "psk": "[TOKEN_REDACTED]",
+    "db_tables": [
+      "honeypot_nodes", "honeypot_attackers", "honeypot_sessions",
+      "honeypot_commands", "honeypot_files", "honeypot_iocs", "honeypot_alerts"
+    ]
+  },
+  "ghost_trap": {
+    "db_tables": [
+      "ghost_trap_probes", "ghost_trap_beacons",
+      "ghost_trap_config", "ghost_trap_loop_sessions"
+    ],
+    "lure_endpoints_public": [
+      "/api/ghost-trap/lure/*",
+      "/api/ghost-trap/beacon/:beaconId"
+    ],
+    "counter_attack_endpoints": [
+      "POST /api/ghost-trap/counter/manual-scan",
+      "POST /api/ghost-trap/counter/port-scan",
+      "POST /api/ghost-trap/counter/manual-osint",
+      "POST /api/ghost-trap/counter/osint"
+    ],
+    "safety_status": "UNSAFE — counter-attack endpoints scan external IPs without authorized_lab_target gate"
+  },
+  "ghost_node": {
+    "status": "NOT_IMPLEMENTED",
+    "frontend_page": null,
+    "backend_route": null,
+    "db_table": null,
+    "note": "Ghost Node (fake/decoy node deception layer) does not exist in the codebase"
+  },
+  "deception_engine": {
+    "status": "IMPLEMENTED",
+    "frontend": "/deception-engine (CommandCenter)",
+    "backend": "/api/deception/*",
+    "db_tables": ["deception_events", "deception_banners"],
+    "safety": "SAFE — purely passive, no outbound connections"
+  },
+  "silkweb": {
+    "status": "IMPLEMENTED_WITH_SAFETY_GAPS",
+    "frontend": "/silkweb",
+    "backend": "/api/silkweb/*",
+    "db_tables": ["silk_web", "silk_routes", "trapped_attackers"],
+    "offensive_endpoints": [
+      "POST /api/silkweb/trapped/:id/sqlmap",
+      "POST /api/silkweb/scan/sqlmap",
+      "POST /api/silkweb/trapped/:id/sqlmap-custom",
+      "POST /api/silkweb/trapped/:id/os-cmd",
+      "POST /api/silkweb/trapped/:id/file-read"
+    ],
+    "safety_status": "UNSAFE — sqlmap and os-cmd run against external attacker IPs without authorized_lab_target gate"
+  },
+  "environment_variables": {
+    "NODE_AGENT_PSK": "[TOKEN_REDACTED]",
+    "HONEYPOT_PSK": "[TOKEN_REDACTED]",
+    "DAEMON_PSK": "[TOKEN_REDACTED]",
+    "PROXHQ_MASTER_KEY_B64": "[TOKEN_REDACTED]",
+    "SESSION_SECRET": "[TOKEN_REDACTED]",
+    "CLERK_SECRET_KEY": "[TOKEN_REDACTED]",
+    "DATABASE_URL": "[TOKEN_REDACTED]",
+    "APP_URL": "https://proxhqvpn.com",
+    "API_URL": "https://proxhqvpn.com/api"
+  },
+  "scripts": {
+    "harden_ubuntu_stig": "standalone/scripts/harden-ubuntu-stig.sh",
+    "generate_ca_mtls": "standalone/scripts/generate-ca-and-mtls.sh",
+    "rotate_wireguard_keys": "standalone/scripts/rotate-wireguard-keys.sh",
+    "backup_postgres": "standalone/scripts/backup-postgres.sh",
+    "openscap_scan": "standalone/scripts/openscap-scan.sh"
+  }
+}
