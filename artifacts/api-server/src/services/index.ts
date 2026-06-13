@@ -39,3 +39,8 @@ export * from "./deviceTrustScoringService";
 export * from "./identityRiskService";
 export * from "./sessionAnomalyService";
 export * from "./zeroTrustPolicyService";
+export * from "./policySimulationService";
+export * from "./policyVersioningService";
+export * from "./investigationTimelineService";
+export * from "./securityCaseService";
+export * from "./evidenceStorageService";
