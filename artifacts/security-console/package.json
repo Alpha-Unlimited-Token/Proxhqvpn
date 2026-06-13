@@ -1,0 +1,26 @@
+{
+  "name": "@workspace/security-console",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "catalog:",
+    "vite": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "@clerk/react": "^6.4.2",
+    "@tanstack/react-query": "catalog:",
+    "wouter": "^3.3.5"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.2",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:"
+  }
+}

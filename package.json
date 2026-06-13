@@ -13,7 +13,9 @@
     "audit:frontend-routes": "pnpm --filter @workspace/scripts exec tsx ./audit-frontend-routes.ts",
     "audit:production-env": "pnpm --filter @workspace/scripts exec tsx ./audit-production-env.ts",
     "audit:release": "pnpm run audit:all-capabilities && pnpm run audit:api-routes && pnpm run audit:frontend-routes && pnpm run audit:production-env",
-    "ci": "pnpm run audit:all-capabilities && pnpm run audit:api-routes && pnpm run audit:frontend-routes && pnpm run typecheck && pnpm -r --if-present run build"
+    "ci": "pnpm run audit:all-capabilities && pnpm run audit:api-routes && pnpm run audit:frontend-routes && pnpm run typecheck && pnpm -r --if-present run build",
+    "dev:security-console": "pnpm --filter @workspace/security-console dev",
+    "build:security-console": "pnpm --filter @workspace/security-console build"
   },
   "private": true,
   "devDependencies": {

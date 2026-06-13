@@ -9,7 +9,6 @@ import { PublicRoutes } from "./publicRoutes";
 import { VpnRoutes } from "./vpnRoutes";
 import { CommandCenterRoutes } from "./commandCenterRoutes";
 import { AdminRoutes } from "./adminRoutes";
-import { OmegaRoutes } from "./omegaRoutes";
 import { NotFoundRoute } from "./NotFoundRoute";
 
 export function AppRoutes() {
@@ -20,7 +19,6 @@ export function AppRoutes() {
           {PublicRoutes()}
           {VpnRoutes()}
           {CommandCenterRoutes()}
-          {OmegaRoutes()}
           {AdminRoutes()}
           <NotFoundRoute />
         </Switch>

@@ -77,6 +77,8 @@ export const routeRegistry: AppRouteMeta[] = [
   { path: "/employees", label: "Employees", access: "admin", group: "admin", capability: "admin.write", nav: true, navSection: "Admin" },
   { path: "/setup", label: "Setup", access: "admin", group: "admin", capability: "admin.write", nav: true, navSection: "Admin" },
 
+  // Omega routes moved to artifacts/security-console.
+  // Do not expose in customer SPA route registry.
   { path: "/omega-dashboard", label: "Omega Dashboard", access: "admin", group: "omega", capability: "omega.admin", nav: false, risk: "critical" },
   { path: "/omega-hosts", label: "Omega Hosts", access: "admin", group: "omega", capability: "omega.admin", nav: false, risk: "critical" },
   { path: "/omega-keylogger", label: "Omega Keylogger", access: "admin", group: "omega", capability: "omega.admin", nav: false, risk: "critical" },

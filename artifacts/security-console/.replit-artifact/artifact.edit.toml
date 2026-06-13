@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/security-console"
+title = "Security Console"
+version = "1.0.0"
+id = "artifacts/security-console"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/security-console" ]
+localPort = 5174
+
+[services.development]
+run = "pnpm --filter @workspace/security-console run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/security-console", "run", "build" ]
+publicDir = "artifacts/security-console/dist"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "5174"
+BASE_PATH = "/security-console"
