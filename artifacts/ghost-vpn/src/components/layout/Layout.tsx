@@ -409,13 +409,15 @@ function NavItem({ href, label, icon: Icon, onClick, locked, tier }: {
   );
 }
 
-function NavSection({ label, items, onNav, isOpen, onToggle, userDevTier }: {
+function NavSection({ label, items, onNav, isOpen, onToggle, userDevTier, tierLabel, tierColor }: {
   label: string;
   items: { href: string; label: string; icon: any }[];
   onNav?: () => void;
   isOpen: boolean;
   onToggle: () => void;
   userDevTier?: number | null;
+  tierLabel?: string;
+  tierColor?: string;
 }) {
   const [location] = useLocation();
   const [search, setSearch] = useState(() => (typeof window !== "undefined" ? window.location.search : ""));
@@ -443,12 +445,19 @@ function NavSection({ label, items, onNav, isOpen, onToggle, userDevTier }: {
         onClick={onToggle}
         className={`w-full flex items-center justify-between px-3 pt-4 pb-1.5 group select-none`}
       >
-        <span className={`text-[10px] font-semibold uppercase tracking-[0.12em] transition-colors ${
-          hasActive ? "text-primary/80" : "text-white/50 group-hover:text-white/70"
-        }`}>
-          {label}
-        </span>
-        <ChevronDown className={`w-3 h-3 transition-all duration-200 ${
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className={`text-[10px] font-semibold uppercase tracking-[0.12em] transition-colors ${
+            hasActive ? "text-primary/80" : "text-white/50 group-hover:text-white/70"
+          }`}>
+            {label}
+          </span>
+          {tierLabel && (
+            <span className={`text-[7px] font-bold uppercase tracking-widest border px-1 py-0.5 rounded leading-none shrink-0 ${tierColor ?? "text-white/40 border-white/20"}`}>
+              {tierLabel}
+            </span>
+          )}
+        </div>
+        <ChevronDown className={`w-3 h-3 transition-all duration-200 shrink-0 ${
           hasActive ? "text-primary/60" : "text-white/30 group-hover:text-white/50"
         } ${isOpen ? "rotate-180" : "rotate-0"}`} />
       </button>
@@ -605,21 +614,46 @@ export function Layout({ children }: LayoutProps) {
         className="flex-1 overflow-y-auto px-2 pt-1 pb-4 scrollbar-green min-h-0"
         style={{ WebkitOverflowScrolling: "touch", overscrollBehavior: "contain" }}
       >
-        <NavSection label="My VPN" items={USER_NAV} onNav={closeSidebar} isOpen={openSection === "myvpn"} onToggle={() => toggle("myvpn")} />
+        <NavSection
+          label="My VPN" items={USER_NAV} onNav={closeSidebar}
+          isOpen={openSection === "myvpn"} onToggle={() => toggle("myvpn")}
+          tierLabel="CORE" tierColor="text-green-400/70 border-green-500/30"
+        />
         {/* Ambassadors — only shown to subscribers and staff; free accounts are not eligible */}
         {(hasAccess || isAdmin || isEmployee) && (
           <NavSection label="Ambassadors" items={AMBASSADOR_NAV} onNav={closeSidebar} isOpen={openSection === "ambassadors"} onToggle={() => toggle("ambassadors")} />
         )}
         {hasAccess && (
           <>
-            <NavSection label="Protection"    items={PROTECTION_NAV}    onNav={closeSidebar} isOpen={openSection === "protection"}    onToggle={() => toggle("protection")} />
-            <NavSection label="Privacy Suite" items={PRIVACY_SUITE_NAV} onNav={closeSidebar} isOpen={openSection === "privacysuite"} onToggle={() => toggle("privacysuite")} />
-            <NavSection label="Network"       items={NETWORK_NAV}       onNav={closeSidebar} isOpen={openSection === "network"}       onToggle={() => toggle("network")} />
-            <NavSection label="🔥 Firewall"  items={FIREWALL_NAV}      onNav={closeSidebar} isOpen={openSection === "firewall"}      onToggle={() => toggle("firewall")} />
+            <NavSection
+              label="Protection" items={PROTECTION_NAV} onNav={closeSidebar}
+              isOpen={openSection === "protection"} onToggle={() => toggle("protection")}
+              tierLabel="ENTERPRISE" tierColor="text-blue-400/70 border-blue-500/30"
+            />
+            <NavSection
+              label="Privacy Suite" items={PRIVACY_SUITE_NAV} onNav={closeSidebar}
+              isOpen={openSection === "privacysuite"} onToggle={() => toggle("privacysuite")}
+              tierLabel="ENTERPRISE" tierColor="text-blue-400/70 border-blue-500/30"
+            />
+            <NavSection
+              label="Network" items={NETWORK_NAV} onNav={closeSidebar}
+              isOpen={openSection === "network"} onToggle={() => toggle("network")}
+              tierLabel="ENTERPRISE" tierColor="text-blue-400/70 border-blue-500/30"
+            />
+            <NavSection
+              label="🔥 Firewall" items={FIREWALL_NAV} onNav={closeSidebar}
+              isOpen={openSection === "firewall"} onToggle={() => toggle("firewall")}
+              tierLabel="ENTERPRISE" tierColor="text-blue-400/70 border-blue-500/30"
+            />
           </>
         )}
         {hasCommandCenter && (
-          <NavSection label="Command Center" items={ADVANCED_NAV} onNav={closeSidebar} isOpen={openSection === "commandcenter"} onToggle={() => toggle("commandcenter")} userDevTier={devTier} />
+          <NavSection
+            label="Command Center" items={ADVANCED_NAV} onNav={closeSidebar}
+            isOpen={openSection === "commandcenter"} onToggle={() => toggle("commandcenter")}
+            userDevTier={devTier}
+            tierLabel="LABS" tierColor="text-purple-400/70 border-purple-500/30"
+          />
         )}
         {/* Admin section — visible to owners and employees only */}
         {(isAdmin || isEmployee) && (

@@ -569,6 +569,99 @@ export default function Pricing() {
         <div className="text-center text-[10px] text-white/70 mt-3">* Annual plan equivalent · $299.99/yr</div>
       </div>
 
+      {/* ── Platform Tier Comparison ─────────────────────────────────────── */}
+      <div className="bg-[#0d1610] border border-white/[0.06] rounded-2xl overflow-hidden">
+        <div className="px-6 py-5 border-b border-white/[0.06]">
+          <div className="text-[11px] font-bold uppercase tracking-widest text-white/50 mb-1 text-center">Platform Architecture</div>
+          <div className="text-base font-bold text-white text-center">Core · Enterprise · Labs</div>
+          <div className="text-[12px] text-white/50 text-center mt-1">Every plan is built on the same platform — your tier determines which layers you can access.</div>
+        </div>
+
+        {/* Tier header row */}
+        <div className="grid grid-cols-4 border-b border-white/[0.05]">
+          <div className="px-4 py-3" />
+          {[
+            { label: "CORE", sub: "VPN Basic", color: "text-green-400", bg: "bg-green-500/8 border-green-500/20", badge: "text-green-400/80 border-green-500/30 bg-green-500/10" },
+            { label: "ENTERPRISE", sub: "Included in Pro", color: "text-blue-400", bg: "bg-blue-500/8 border-blue-500/20", badge: "text-blue-400/80 border-blue-500/30 bg-blue-500/10" },
+            { label: "LABS", sub: "Included in Pro", color: "text-purple-400", bg: "bg-purple-500/8 border-purple-500/20", badge: "text-purple-400/80 border-purple-500/30 bg-purple-500/10" },
+          ].map((t) => (
+            <div key={t.label} className={`px-3 py-3 border-l border-white/[0.05] text-center ${t.bg} border`}>
+              <div className={`text-[9px] font-bold uppercase tracking-widest ${t.color} mb-0.5`}>{t.label}</div>
+              <div className="text-[10px] text-white/50">{t.sub}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Feature rows */}
+        {[
+          { category: "🔒 VPN & Privacy", rows: [
+            { feature: "WireGuard AES-256-GCM", core: true, ent: true, labs: true },
+            { feature: "Kill Switch & auto-reconnect", core: true, ent: true, labs: true },
+            { feature: "DNS Leak Protection", core: true, ent: true, labs: true },
+            { feature: "Split Tunneling", core: true, ent: true, labs: true },
+            { feature: "Stealth / Obfuscation (obfs4, V2Ray)", core: true, ent: true, labs: true },
+            { feature: "VPN Gate (6,000+ nodes)", core: true, ent: true, labs: true },
+            { feature: "Smart DNS & Router Config", core: true, ent: true, labs: true },
+            { feature: "Post-Quantum Encryption (PQC)", core: true, ent: true, labs: true },
+          ]},
+          { category: "🛡️ Enterprise Security", rows: [
+            { feature: "Firewall Suite (IPS, DPI, ATR, GeoIP)", core: false, ent: true, labs: true },
+            { feature: "SIEM — Unified Event Log", core: false, ent: true, labs: true },
+            { feature: "ZTNA Device Posture Scoring", core: false, ent: true, labs: true },
+            { feature: "Ghost Trace — Behavioral Analysis", core: false, ent: true, labs: true },
+            { feature: "Ghost Trap — Honeypot Counter-Intel", core: false, ent: true, labs: true },
+            { feature: "Canary Tokens (12 types)", core: false, ent: true, labs: true },
+            { feature: "Threat Intelligence Feeds", core: false, ent: true, labs: true },
+            { feature: "DNS Sinkhole", core: false, ent: true, labs: true },
+            { feature: "OSINT Recon Engine", core: false, ent: true, labs: true },
+            { feature: "Node Trust Engine", core: false, ent: true, labs: true },
+            { feature: "Security Score Dashboard", core: false, ent: true, labs: true },
+            { feature: "Drift Monitor", core: false, ent: true, labs: true },
+          ]},
+          { category: "🔬 Labs — Research & Offensive", rows: [
+            { feature: "OmniStrike — Full Attack Chain Scanner", core: false, ent: false, labs: true },
+            { feature: "QuantumAudit — Blockchain Security", core: false, ent: false, labs: true },
+            { feature: "Signature Mining Engine (ECDSA, Peel Chain)", core: false, ent: false, labs: true },
+            { feature: "SQLMap / Intruder / Directory Fuzzer", core: false, ent: false, labs: true },
+            { feature: "WAF Analyzer & Bypass Generator", core: false, ent: false, labs: true },
+            { feature: "SAST / IaC / Dependency Scanner", core: false, ent: false, labs: true },
+            { feature: "Deception Engine", core: false, ent: false, labs: true },
+            { feature: "Ghost Chain — Kill Chain Discovery", core: false, ent: false, labs: true },
+            { feature: "Parrot OS Tool Library", core: false, ent: false, labs: true },
+            { feature: "Terminal + SQL Interface", core: false, ent: false, labs: true },
+          ]},
+        ].map(({ category, rows }) => (
+          <div key={category}>
+            <div className="px-4 py-2 bg-white/[0.02] border-y border-white/[0.04]">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-white/40">{category}</span>
+            </div>
+            {rows.map(({ feature, core, ent, labs }, ri) => (
+              <div key={feature} className={`grid grid-cols-4 ${ri < rows.length - 1 ? "border-b border-white/[0.03]" : ""}`}>
+                <div className="px-4 py-2.5">
+                  <span className="text-[12px] text-white/70">{feature}</span>
+                </div>
+                {[
+                  { val: core,  color: "text-green-400",  bg: "bg-green-500/8"  },
+                  { val: ent,   color: "text-blue-400",   bg: "bg-blue-500/8"   },
+                  { val: labs,  color: "text-purple-400", bg: "bg-purple-500/8" },
+                ].map(({ val, color, bg }, ci) => (
+                  <div key={ci} className={`border-l border-white/[0.05] flex items-center justify-center py-2.5 ${val ? bg : ""}`}>
+                    {val
+                      ? <Check className={`w-3.5 h-3.5 ${color}`} />
+                      : <span className="w-3.5 h-3.5 flex items-center justify-center text-white/15 text-lg leading-none">—</span>
+                    }
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        ))}
+
+        <div className="px-6 py-4 border-t border-white/[0.05] text-center">
+          <span className="text-[10px] text-white/30">Enterprise + Labs are both included in Command Center Pro · $39.99/mo or $299.99/yr</span>
+        </div>
+      </div>
+
       {/* Guarantees */}
       <div className="grid grid-cols-3 gap-3">
         {[
