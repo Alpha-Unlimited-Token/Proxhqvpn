@@ -83,3 +83,8 @@ export * from "./featureFlagService";
 export * from "./runtimePolicyService";
 export * from "./digitalSigningService";
 export * from "./secretsService";
+export * from "./certificateLifecycleService";
+export * from "./hardwareKeyService";
+export * from "./supplyChainVerificationService";
+export * from "./buildAttestationService";
+export * from "./complianceEngineService";
