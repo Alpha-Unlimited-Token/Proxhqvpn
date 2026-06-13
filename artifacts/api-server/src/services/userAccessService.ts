@@ -1,5 +1,6 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { getAuthzProfile } from "./authzService";
+import { getBillingAccessState, type BillingTier } from "../repositories/billingRepository";
 
 export type UserRole =
   | "owner"
@@ -8,7 +9,7 @@ export type UserRole =
   | "subscriber"
   | null;
 
-export type UserTier = "vpn" | "command_center" | null;
+export type UserTier = BillingTier;
 
 export type UserAccessProfile = {
   userId: string;
@@ -23,74 +24,12 @@ export type UserAccessProfile = {
   devTier: 1 | 2 | 3 | null;
   hasArsenal: boolean;
   tier: UserTier;
+  billingStatus: string | null;
 };
-
-/**
- * Conservative tier resolver.
- *
- * This intentionally supports multiple possible user table shapes because the
- * project has evolved over time. It reads common fields if present and falls
- * back safely when fields are absent.
- */
-function resolveTier(user: any): UserTier {
-  const rawTier =
-    user?.tier ??
-    user?.subscriptionTier ??
-    user?.plan ??
-    user?.planTier ??
-    null;
-
-  if (rawTier === "command_center" || rawTier === "pro" || rawTier === "command-center") {
-    return "command_center";
-  }
-
-  if (rawTier === "vpn" || rawTier === "basic" || rawTier === "vpn_basic") {
-    return "vpn";
-  }
-
-  if (user?.hasCommandCenter || user?.commandCenterEnabled) {
-    return "command_center";
-  }
-
-  if (user?.hasSubscription || user?.subscriptionActive || user?.stripeSubscriptionId) {
-    return "vpn";
-  }
-
-  return null;
-}
 
 function resolveDevTier(user: any): 1 | 2 | 3 | null {
   const raw = Number(user?.devTier ?? user?.developerTier ?? 0);
-
-  if (raw === 1 || raw === 2 || raw === 3) return raw;
-
-  return null;
-}
-
-function hasActiveSubscription(user: any): boolean {
-  if (!user) return false;
-
-  if (user.isAdmin) return true;
-
-  if (
-    user.hasSubscription === true ||
-    user.subscriptionActive === true ||
-    user.activeSubscription === true
-  ) {
-    return true;
-  }
-
-  const status =
-    user.subscriptionStatus ??
-    user.stripeSubscriptionStatus ??
-    user.billingStatus ??
-    null;
-
-  if (typeof status === "string") {
-    return ["active", "trialing", "paid"].includes(status.toLowerCase());
-  }
-
-  return !!user.stripeSubscriptionId;
+  return raw === 1 || raw === 2 || raw === 3 ? raw : null;
 }
 
 export async function getUserAccessProfile(
@@ -99,25 +38,31 @@ export async function getUserAccessProfile(
   const profile = await getAuthzProfile(userId);
   const user: any = profile.user;
 
-  const tier = resolveTier(user);
-  const hasSubscription = hasActiveSubscription(user);
+  const billing = await getBillingAccessState(userId);
+
   const isAdmin = profile.isOwner;
   const isEmployee = profile.isEmployee;
   const isAdminEmployee = profile.isAdminEmployee;
+
   const hasCommandCenter =
     isAdmin ||
     isAdminEmployee ||
-    tier === "command_center" ||
+    billing.hasCommandCenter ||
     user?.hasCommandCenter === true ||
     user?.commandCenterEnabled === true;
+
+  const hasSubscription =
+    isAdmin ||
+    isEmployee ||
+    billing.hasSubscription ||
+    user?.hasSubscription === true ||
+    user?.subscriptionActive === true;
 
   const hasAccess =
     isAdmin ||
     isEmployee ||
     hasSubscription ||
-    hasCommandCenter ||
-    tier === "vpn" ||
-    tier === "command_center";
+    hasCommandCenter;
 
   const role: UserRole = isAdmin
     ? "owner"
@@ -145,6 +90,9 @@ export async function getUserAccessProfile(
       isAdminEmployee ||
       user?.hasArsenal === true ||
       user?.arsenalEnabled === true,
-    tier,
+    tier: hasCommandCenter
+      ? "command_center"
+      : billing.tier,
+    billingStatus: billing.status,
   };
 }

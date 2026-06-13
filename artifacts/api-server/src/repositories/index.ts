@@ -4,3 +4,4 @@ export * from "./auditRepository";
 export * from "./nodeSessionsRepository";
 export * from "./batchJobsRepository";
 export * from "./nodeEnrollmentRepository";
+export * from "./billingRepository";
