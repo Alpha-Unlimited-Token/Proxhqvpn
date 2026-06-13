@@ -29,3 +29,8 @@ export * from "./multiHopRoutingService";
 export * from "./smartRouteOptimizationService";
 export * from "./tunnelRecoveryService";
 export * from "./globalVpnControlPlaneService";
+export * from "./detectionRuleService";
+export * from "./securityEventNormalizationService";
+export * from "./threatIntelIngestionService";
+export * from "./iocCorrelationService";
+export * from "./alertPrioritizationService";
