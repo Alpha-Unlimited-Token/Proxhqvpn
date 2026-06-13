@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "hello": "tsx ./src/hello.ts",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "audit:capabilities": "pnpm --filter @workspace/api-server exec esbuild ../scripts/audit-route-capabilities.ts --bundle --platform=node --format=esm --alias:@workspace/capabilities=../lib/capabilities/src/index.ts --outfile=/tmp/proxhq-audit-cap.mjs --log-level=silent && node /tmp/proxhq-audit-cap.mjs"
   },
   "devDependencies": {
     "@types/node": "catalog:",
