@@ -16,6 +16,7 @@ import {
 } from "@/routes/clerkConfig";
 import { ThemeProvider } from "@/theme/ThemeProvider";
 import { AppStateProvider } from "@/state/appState";
+import { I18nProvider } from "@/i18n/I18nProvider";
 
 const queryClient = new QueryClient();
 
@@ -35,11 +36,13 @@ function ClerkProviderWithRoutes() {
     >
       <QueryClientProvider client={queryClient}>
         <ThemeProvider>
+          <I18nProvider>
           <AppStateProvider>
             <ClerkQueryClientCacheInvalidator />
             <ScrollToTop />
             <AppRoutes />
           </AppStateProvider>
+          </I18nProvider>
         </ThemeProvider>
       </QueryClientProvider>
     </ClerkProvider>

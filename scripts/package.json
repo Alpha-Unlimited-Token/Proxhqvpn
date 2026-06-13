@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "hello": "tsx ./src/hello.ts",
+    "audit:brand": "tsx ./src/audit-brand-consistency.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "audit:capabilities": "pnpm --filter @workspace/api-server exec esbuild ../scripts/audit-route-capabilities.ts --bundle --platform=node --format=esm --alias:@workspace/capabilities=../lib/capabilities/src/index.ts --outfile=/tmp/proxhq-audit-cap.mjs --log-level=silent && node /tmp/proxhq-audit-cap.mjs"
   },
