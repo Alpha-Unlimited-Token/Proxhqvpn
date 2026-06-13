@@ -1,0 +1,18 @@
+-- Patch 165: Risk-based access middleware
+CREATE TABLE IF NOT EXISTS patch_165_risk_based_access_middleware (
+  id UUID PRIMARY KEY,
+  tenant_id UUID,
+  user_id TEXT,
+  subject TEXT,
+  status TEXT NOT NULL DEFAULT 'active',
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_by TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_patch_165_risk_based_access_middleware_tenant_status
+  ON patch_165_risk_based_access_middleware(tenant_id, status);
+
+CREATE INDEX IF NOT EXISTS idx_patch_165_risk_based_access_middleware_user_created
+  ON patch_165_risk_based_access_middleware(user_id, created_at DESC);

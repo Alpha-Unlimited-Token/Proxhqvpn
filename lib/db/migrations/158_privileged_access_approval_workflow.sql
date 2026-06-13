@@ -1,0 +1,18 @@
+-- Patch 158: Privileged access approval workflow
+CREATE TABLE IF NOT EXISTS patch_158_privileged_access_approval_workflow (
+  id UUID PRIMARY KEY,
+  tenant_id UUID,
+  user_id TEXT,
+  subject TEXT,
+  status TEXT NOT NULL DEFAULT 'active',
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_by TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_patch_158_privileged_access_approval_workflow_tenant_status
+  ON patch_158_privileged_access_approval_workflow(tenant_id, status);
+
+CREATE INDEX IF NOT EXISTS idx_patch_158_privileged_access_approval_workflow_user_created
+  ON patch_158_privileged_access_approval_workflow(user_id, created_at DESC);
