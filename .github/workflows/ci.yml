@@ -42,6 +42,9 @@ jobs:
       - name: Capability audits
         run: pnpm run audit:all-capabilities
 
+      - name: API route inventory audit
+        run: pnpm run audit:api-routes
+
       - name: Frontend route audit
         run: pnpm run audit:frontend-routes
 

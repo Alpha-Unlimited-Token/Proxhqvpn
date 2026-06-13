@@ -17,6 +17,9 @@ export const apiRouteCapabilities: ApiRouteCapability[] = [
   { mountPath: "/stripe", capability: "public.read" },
   { mountPath: "/payments/crypto", capability: "public.read" },
   { mountPath: "/notifications", capability: "public.read" },
+  { mountPath: "/wallet", capability: "public.read" },
+  { mountPath: "/wallet-intel", capability: "public.read" },
+  { mountPath: "/warrant-canary", capability: "public.read" },
 
   { mountPath: "/me", capability: "auth.read" },
   { mountPath: "/config-lifecycle-events", capability: "vpn.read" },
