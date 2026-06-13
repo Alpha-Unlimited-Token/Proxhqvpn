@@ -22,6 +22,7 @@ import { errorHandler, notFoundHandler } from "./middlewares/errorHandler";
 import { internalSecretBypass } from "./lib/internal-auth";
 import { logger } from "./lib/logger";
 import { WebhookHandlers } from "./webhookHandlers";
+import { tenantContext } from "./middlewares/tenantContext";
 
 const app: Express = express();
 
@@ -165,6 +166,7 @@ app.use(globalLimiter);
 app.use(express.json({ limit: "64kb", strict: true }));
 app.use(express.urlencoded({ extended: false, limit: "16kb" }));
 app.use(clerkMiddleware());
+app.use(tenantContext);
 
 app.use((_req: Request, res: Response, next: NextFunction) => {
   res.removeHeader("X-Powered-By");

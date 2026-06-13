@@ -54,3 +54,6 @@ export * from "./responsePlaybookService";
 export * from "./automatedContainmentService";
 export * from "./securityReportingService";
 export * from "./executiveReportingService";
+export * from "./tenantService";
+export * from "./rbacService";
+export * from "./scimProvisioningService";
