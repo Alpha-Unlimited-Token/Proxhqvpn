@@ -3,6 +3,16 @@ import { Router } from "express";
 import { getAuth } from "@clerk/express";
 import { checkSsrf } from "../lib/ssrfGuard";
 import { z } from "zod";
+import { asyncHandler } from "../middlewares/asyncHandler";
+import {
+  validateRequest,
+  getValidatedBody,
+  getValidatedParams,
+} from "../middlewares/validateRequest";
+import {
+  terminalExecBodySchema,
+  terminalJobParamsSchema,
+} from "../schemas/terminalSchemas";
 import { Client as SshClient } from "ssh2";
 import type { ConnectConfig, SFTPWrapper } from "ssh2";
 import { randomUUID } from "crypto";
@@ -34,13 +44,11 @@ router.get("/audit-log", (_req, res) => {
 });
 
 // ─── POST exec — enqueues a terminal job, returns 202 + jobId ────────────────
-router.post("/exec", async (req, res) => {
-  const body = z.object({
-    command: z.string().max(1000),
-    shell: z.enum(["bash", "sh", "cmd", "powershell"]).optional().default("bash"),
-    ghostMode: z.boolean().optional().default(false),
-    timeout: z.number().min(1000).max(60000).optional().default(15000),
-  }).parse(req.body);
+router.post(
+  "/exec",
+  validateRequest({ body: terminalExecBodySchema }),
+  asyncHandler(async (req, res) => {
+    const body = getValidatedBody<typeof terminalExecBodySchema>(req);
 
   const cmd = body.command.trim();
   const clientIp = req.ip ?? "unknown";
@@ -120,7 +128,8 @@ router.post("/exec", async (req, res) => {
     createdAt: job.createdAt,
     pollUrl: `/api/terminal/jobs/${job.id}`,
   });
-});
+  }),
+);
 
 // ─── GET /jobs — list caller's jobs (latest 100) ──────────────────────────────
 router.get("/jobs", (req, res) => {
@@ -129,12 +138,17 @@ router.get("/jobs", (req, res) => {
 });
 
 // ─── GET /jobs/:jobId — poll a specific job ───────────────────────────────────
-router.get("/jobs/:jobId", (req, res) => {
-  const actor = getActor(req);
-  const job = getTerminalJob(actor, req.params.jobId);
-  if (!job) return res.status(404).json({ error: "Job not found" });
-  res.json({ job });
-});
+router.get(
+  "/jobs/:jobId",
+  validateRequest({ params: terminalJobParamsSchema }),
+  (req, res) => {
+    const actor = getActor(req);
+    const params = getValidatedParams<typeof terminalJobParamsSchema>(req);
+    const job = getTerminalJob(actor, params.jobId);
+    if (!job) return res.status(404).json({ error: "Job not found" });
+    res.json({ job });
+  },
+);
 
 // ─── POST http-request (direct outbound HTTP from server) ────────────────────
 router.post("/http-request", async (req, res) => {
