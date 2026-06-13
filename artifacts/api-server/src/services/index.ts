@@ -88,3 +88,8 @@ export * from "./hardwareKeyService";
 export * from "./supplyChainVerificationService";
 export * from "./buildAttestationService";
 export * from "./complianceEngineService";
+export * from "./soc2ReadinessService";
+export * from "./iso27001ReadinessService";
+export * from "./gdprService";
+export * from "./ccpaService";
+export * from "./trustCenterService";
