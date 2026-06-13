@@ -78,3 +78,8 @@ export * from "./canaryDeploymentService";
 export * from "./productionReadinessScorecardService";
 export * from "./onboardingService";
 export * from "./controlPlaneClusterService";
+export * from "./configManagementService";
+export * from "./featureFlagService";
+export * from "./runtimePolicyService";
+export * from "./digitalSigningService";
+export * from "./secretsService";
