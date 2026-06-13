@@ -3,6 +3,7 @@ import { Router } from "express";
 import { getAuth } from "@clerk/express";
 import { db } from "@workspace/db";
 import { usersTable } from "@workspace/db/schema";
+import { logger } from "../lib/logger";
 import { eq, sql } from "drizzle-orm";
 import crypto from "crypto";
 import { z } from "zod";
@@ -70,7 +71,7 @@ async function ensureAmbassadorTables() {
 }
 
 // Run table init on startup
-ensureAmbassadorTables().catch(console.error);
+ensureAmbassadorTables().catch(err => logger.error({ err }, "ambassadors table init failed"));
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function extractEmbedUrl(url: string): string | null {
@@ -137,7 +138,7 @@ router.get("/", async (_req, res) => {
     }));
     return res.json(ambassadors);
   } catch (err: any) {
-    console.error("ambassadors GET /", err);
+    req.log.error({ err }, "ambassadors GET /");
     return res.status(500).json({ error: "Failed to list ambassadors" });
   }
 });
@@ -225,7 +226,7 @@ router.post("/apply", async (req, res) => {
     return res.status(201).json({ ok: true, ambassador: { id: r.id, name: r.name, promoCode: r.promo_code, status: r.status } });
   } catch (err: any) {
     if (err.message?.includes("unique")) return res.status(400).json({ error: "Promo code already taken" });
-    console.error("ambassadors POST /apply", err);
+    req.log.error({ err }, "ambassadors POST /apply");
     return res.status(500).json({ error: "Application failed" });
   }
 });
@@ -287,7 +288,7 @@ router.get("/me", async (req, res) => {
       })),
     });
   } catch (err: any) {
-    console.error("ambassadors GET /me", err);
+    req.log.error({ err }, "ambassadors GET /me");
     return res.status(500).json({ error: "Failed to load profile" });
   }
 });
@@ -430,7 +431,7 @@ router.post("/record-referral", async (req, res) => {
 
     return res.json({ ok: true, ambassadorId: amb.id, commission });
   } catch (err: any) {
-    console.error("record-referral error", err);
+    req.log.error({ err }, "record-referral error");
     return res.status(500).json({ error: "Failed to record referral" });
   }
 });

@@ -91,6 +91,29 @@ function parseHopChain(req: Request): string[] {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const tarpit = (ms: number) => new Promise(r => setTimeout(r, ms));
 
+// ── P6-C: Per-IP lure rate limiting ──────────────────────────────────────────
+// Prevents a single IP from flooding the lure DB with thousands of probe rows.
+// Limit: GHOST_LURE_IP_RATE hits per IP per 60 s (default 60).
+// Exceeded IPs receive a silent fast-path fake response (no DB write, no tarpit).
+const LURE_WINDOW_MS  = 60_000;
+const LURE_MAX_HITS   = Number(process.env.GHOST_LURE_IP_RATE ?? "60");
+const lureIpMap       = new Map<string, { count: number; resetAt: number }>();
+
+function checkLureRateLimit(ip: string): boolean {
+  const now = Date.now();
+  let entry = lureIpMap.get(ip);
+  if (!entry || entry.resetAt <= now) {
+    entry = { count: 0, resetAt: now + LURE_WINDOW_MS };
+    lureIpMap.set(ip, entry);
+  }
+  entry.count++;
+  if (lureIpMap.size > 50_000) {
+    // Prune expired entries to prevent unbounded memory growth
+    for (const [k, v] of lureIpMap) if (v.resetAt <= now) lureIpMap.delete(k);
+  }
+  return entry.count <= LURE_MAX_HITS;
+}
+
 async function getConfig(userId: string, detectedIp?: string) {
   const rows = await db.select().from(ghostTrapConfigTable)
     .where(eq(ghostTrapConfigTable.userId, userId)).limit(1);
@@ -292,6 +315,17 @@ async function handleProbe(req: Request, res: Response, endpointName: string, us
   if (!cfg.enabled) { res.status(503).end(); return; }
 
   const ip         = getIp(req);
+
+  // P6-C: Per-IP lure rate limit — serve fast cached fake, skip DB on flood
+  if (!checkLureRateLimit(ip)) {
+    const quickFake = buildFakeResponse(endpointName, "recon", crypto.randomUUID(), "");
+    res.setHeader("Content-Type",  quickFake.contentType);
+    res.setHeader("X-Powered-By", "Apache/2.4.54");
+    res.setHeader("Server",       "Apache/2.4.54 (Ubuntu)");
+    if (typeof quickFake.body === "string") { res.status(200).send(quickFake.body); return; }
+    res.status(200).json(quickFake.body); return;
+  }
+
   const sourcePort = getSourcePort(req);
   const ua         = (req.headers["user-agent"] ?? "").substring(0, 512);
   const hopChain   = parseHopChain(req);

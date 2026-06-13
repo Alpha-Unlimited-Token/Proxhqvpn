@@ -262,14 +262,23 @@ router.post("/payment/create", requireAnonAuth, async (req, res) => {
   const address = body.currency === "BTC" ? btcAddress : ethAddress;
   if (!address) return res.status(503).json({ error: `${body.currency} address not configured` });
 
-  // Placeholder exchange rates — in production integrate a price API
-  // Using conservative fixed rates so amounts are deterministic per month
-  const now = new Date();
-  const monthKey = `${now.getUTCFullYear()}${now.getUTCMonth()}`;
-  const btcSeed = parseInt(monthKey, 10) % 10000;
-  const exchangeRate = body.currency === "BTC"
-    ? 65000 + btcSeed    // BTC ~$65k range
-    : 3500 + (btcSeed % 500);  // ETH ~$3.5k range
+  // Live exchange rate from CoinGecko free public API (no key required)
+  let exchangeRate: number;
+  try {
+    const cgId = body.currency === "BTC" ? "bitcoin" : "ethereum";
+    const cgResp = await fetch(
+      `https://api.coingecko.com/api/v3/simple/price?ids=${cgId}&vs_currencies=usd`,
+      { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(6000) }
+    );
+    if (cgResp.ok) {
+      const cgData = await cgResp.json() as Record<string, { usd: number }>;
+      exchangeRate = cgData[cgId]?.usd ?? (body.currency === "BTC" ? 65000 : 3500);
+    } else {
+      exchangeRate = body.currency === "BTC" ? 65000 : 3500;
+    }
+  } catch {
+    exchangeRate = body.currency === "BTC" ? 65000 : 3500;
+  }
 
   const usdAmount = planDef.amountUsdCents / 100;
   const baseAmount = usdAmount / exchangeRate;

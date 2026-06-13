@@ -711,7 +711,7 @@ export async function universalWalletScan(rawAddress: string): Promise<Universal
     base.chainsProbed = ["cardano-mainnet"];
     try {
       const resp = await fetch(`https://cardano-mainnet.blockfrost.io/api/v0/addresses/${detection.normalized}`, {
-        headers: { project_id: "mainnetplaceholderkey" },
+        headers: { project_id: process.env.BLOCKFROST_PROJECT_ID ?? "" },
         signal: AbortSignal.timeout(8000),
       });
       const cardanoActivity: ChainActivity = {

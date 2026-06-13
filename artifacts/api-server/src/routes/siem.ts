@@ -113,7 +113,7 @@ router.get("/events", async (req: Request, res: Response) => {
 
     res.json(filtered.slice(0, limit));
   } catch (err) {
-    console.error("[siem] events error:", err);
+    req.log.error({ err }, "[siem] events error");
     res.status(500).json({ error: "Failed to load events" });
   }
 });

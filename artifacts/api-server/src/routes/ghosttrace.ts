@@ -35,7 +35,7 @@ router.get("/devices", async (req: Request, res: Response) => {
 
     res.json(devices);
   } catch (err) {
-    console.error("[ghost-trace] devices error:", err);
+    req.log.error({ err }, "[ghost-trace] devices error");
     res.status(500).json({ error: "Failed to load devices" });
   }
 });
@@ -77,7 +77,7 @@ router.get("/anomalies", async (req: Request, res: Response) => {
       anomalyDetails: a.anomalyDetails || null,
     })));
   } catch (err) {
-    console.error("[ghost-trace] anomalies error:", err);
+    req.log.error({ err }, "[ghost-trace] anomalies error");
     res.status(500).json({ error: "Failed to load anomalies" });
   }
 });
@@ -230,7 +230,7 @@ router.post("/ingest", async (req: Request, res: Response) => {
 
     res.json({ ok: true, anomalyDetected: !!anomalyType, anomalyType, anomalyScore });
   } catch (err) {
-    console.error("[ghost-trace] ingest error:", err);
+    req.log.error({ err }, "[ghost-trace] ingest error");
     res.status(500).json({ error: "Ingest failed" });
   }
 });

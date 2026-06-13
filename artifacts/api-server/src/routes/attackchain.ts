@@ -5,6 +5,7 @@ import { attackChainScansTable, attackChainFindingsTable } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
 import { getAuth } from "@clerk/express";
 import { requireRbac } from "../middlewares/requireRbac";
+import { logger } from "../lib/logger";
 import https from "https";
 import http from "http";
 import dns from "dns/promises";
@@ -545,7 +546,7 @@ async function runScan(scanId: number, target: string) {
     }).where(eq(attackChainScansTable.id, scanId));
 
   } catch (err) {
-    console.error("[attack-chain] scan error:", err);
+    logger.error({ err }, "[attack-chain] scan error");
     await db.update(attackChainScansTable).set({
       scanStatus: "error",
       summary: `Scan failed: ${err instanceof Error ? err.message : "Unknown error"}`,
@@ -589,7 +590,7 @@ router.post("/scan", requireRbac("counter_attack"), async (req: Request, res: Re
     currentStage: "Initializing",
   }).returning();
 
-  runScan(scan.id, target).catch(err => console.error("[attack-chain] background scan error:", err));
+  runScan(scan.id, target).catch(err => logger.error({ err }, "[attack-chain] background scan error"));
 
   res.json({ scanId: scan.id, target: hostname, status: "running" });
 });

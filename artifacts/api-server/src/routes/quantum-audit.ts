@@ -289,7 +289,7 @@ async function runAnalysis(
     }).where(eq(scanJobsTable.id, scanId));
 
   } catch (err) {
-    console.error("[quantum-audit] scan error:", err);
+    logger.error({ err }, "[quantum-audit] scan error");
     await db.update(scanJobsTable).set({ status: "failed" }).where(eq(scanJobsTable.id, scanId));
   }
 }
@@ -1137,9 +1137,9 @@ router.post("/bigquery-scan", requireAdmin, async (req: Request, res: Response) 
           } as any);
         }
 
-        console.log(`BigQuery scan complete: ${results.length} addresses, ${vulnerable.length} vulnerable, ${keysFound.length} keys recovered`);
+        logger.info({ addresses: results.length, vulnerable: vulnerable.length, keysFound: keysFound.length }, "BigQuery scan complete");
       } catch (err) {
-        console.error("BigQuery scan failed:", err);
+        logger.error({ err }, "BigQuery scan failed");
       }
     });
   } catch (err) {

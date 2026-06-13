@@ -37,7 +37,6 @@ const UNLIMITED_THRESHOLD = MAX_UINT256 - BigInt("0xffffffffffffffffffffffffffff
 // Known exploited/compromised contracts (Ethereum mainnet)
 const KNOWN_BAD_SPENDERS = new Set([
   "0x00000000219ab540356cbb839cbe05303d7705fa", // Beacon deposit (not bad but common mis-approval)
-  "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045", // example placeholder
 ]);
 
 let _lastReq = 0;
