@@ -7,3 +7,4 @@ export * from "./nodeEnrollmentRepository";
 export * from "./billingRepository";
 export * from "./nodesRepository";
 export * from "./wireguardConfigRepository";
+export * from "./deviceLifecycleRepository";

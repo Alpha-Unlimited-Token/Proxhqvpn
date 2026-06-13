@@ -4,3 +4,5 @@ export * from "./userAccessService";
 export * from "./nodeService";
 export * from "./wireguardConfigService";
 export * from "./vpnProvisioningService";
+export * from "./nodeLifecycleService";
+export * from "./deviceLifecycleService";
