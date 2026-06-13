@@ -9,6 +9,8 @@ import OmegaOverview from "../../ghost-vpn/src/pages/omega/dashboard";
 import OmegaHosts from "../../ghost-vpn/src/pages/omega/hosts";
 import OmegaHostDetails from "../../ghost-vpn/src/pages/omega/host-details";
 import OmegaEvents from "../../ghost-vpn/src/pages/omega/events";
+import { SecurityApiProvider } from "./lib/SecurityApiContext";
+import { assertSecurityConsoleIsolation } from "./lib/securityConsoleGuard";
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 const securityApiBase = import.meta.env.VITE_SECURITY_API_BASE;
@@ -20,6 +22,8 @@ if (!clerkPubKey) {
 if (!securityApiBase) {
   throw new Error("Missing VITE_SECURITY_API_BASE");
 }
+
+assertSecurityConsoleIsolation();
 
 const queryClient = new QueryClient();
 
@@ -39,35 +43,37 @@ function App() {
     <ClerkProvider publishableKey={clerkPubKey}>
       <QueryClientProvider client={queryClient}>
         <Router>
-          <Guard>
-            <Switch>
-              <Route path="/">
-                <Redirect to="/omega-dashboard" />
-              </Route>
+          <SecurityApiProvider>
+            <Guard>
+              <Switch>
+                <Route path="/">
+                  <Redirect to="/omega-dashboard" />
+                </Route>
 
-              <Route path="/omega-dashboard">
-                <OmegaOverview />
-              </Route>
+                <Route path="/omega-dashboard">
+                  <OmegaOverview />
+                </Route>
 
-              <Route path="/omega-hosts">
-                <OmegaHosts />
-              </Route>
+                <Route path="/omega-hosts">
+                  <OmegaHosts />
+                </Route>
 
-              <Route path="/omega-hosts/:id">
-                <OmegaHostDetails />
-              </Route>
+                <Route path="/omega-hosts/:id">
+                  <OmegaHostDetails />
+                </Route>
 
-              <Route path="/omega-events">
-                <OmegaEvents />
-              </Route>
+                <Route path="/omega-events">
+                  <OmegaEvents />
+                </Route>
 
-              <Route>
-                <div className="p-8 font-mono text-sm text-red-300">
-                  404 — Security console route not found
-                </div>
-              </Route>
-            </Switch>
-          </Guard>
+                <Route>
+                  <div className="p-8 font-mono text-sm text-red-300">
+                    404 — Security console route not found
+                  </div>
+                </Route>
+              </Switch>
+            </Guard>
+          </SecurityApiProvider>
         </Router>
       </QueryClientProvider>
     </ClerkProvider>
