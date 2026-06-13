@@ -1,8 +1,11 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { Router, type Request, type Response } from "express";
 import { requireCapability } from "../../middlewares/requireCapability";
+import frontendEventsRouter from "../frontend-events";
 
 const router = Router();
+
+router.use("/frontend-events", frontendEventsRouter);
 
 router.get("/config-lifecycle-events", requireCapability("vpn.read"), async (req: Request, res: Response) => {
   const userId = (req as any).auth?.userId ?? "unknown";

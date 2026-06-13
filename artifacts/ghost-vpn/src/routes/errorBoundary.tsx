@@ -1,5 +1,6 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { Component, type ReactNode } from "react";
+import { captureFrontendError } from "@/lib/frontendTelemetry";
 
 export class ErrorBoundary extends Component<
   { children: ReactNode },
@@ -16,6 +17,7 @@ export class ErrorBoundary extends Component<
 
   componentDidCatch(error: Error, info: unknown) {
     console.error("[ProxhqVPN] Crash:", error, info);
+    captureFrontendError(error, { info });
   }
 
   render() {
@@ -24,13 +26,10 @@ export class ErrorBoundary extends Component<
         <div className="min-h-screen bg-black flex items-center justify-center p-8">
           <div className="border border-red-500/30 bg-red-900/10 p-6 max-w-lg w-full font-mono">
             <div className="text-red-400 text-sm font-bold uppercase tracking-widest mb-3">
-              ⚠ App Crash — Caught
+              App Crash Caught
             </div>
             <div className="text-red-300/80 text-xs mb-2">
               {this.state.error.message}
-            </div>
-            <div className="text-primary/30 text-[10px] whitespace-pre-wrap break-all">
-              {this.state.error.stack?.split("\n").slice(0, 6).join("\n")}
             </div>
             <button
               onClick={() => this.setState({ error: null })}

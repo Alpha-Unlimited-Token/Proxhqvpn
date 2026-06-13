@@ -10,10 +10,12 @@ import { VpnRoutes } from "./vpnRoutes";
 import { CommandCenterRoutes } from "./commandCenterRoutes";
 import { AdminRoutes } from "./adminRoutes";
 import { NotFoundRoute } from "./NotFoundRoute";
+import { OfflineBanner } from "@/components/system/OfflineBanner";
 
 export function AppRoutes() {
   return (
     <TooltipProvider>
+      <OfflineBanner />
       <Suspense fallback={<LazyFallback />}>
         <Switch>
           {PublicRoutes()}
