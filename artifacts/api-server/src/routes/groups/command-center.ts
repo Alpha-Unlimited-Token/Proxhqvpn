@@ -48,6 +48,7 @@ import deviceTrustRouter from "../device-trust";
 import firewallCoreRouter from "../firewall-core";
 import securityGraphRouter from "../security-graph";
 import securityDashboardV2Router from "../security-dashboard-v2";
+import securityReportsRouter from "../security-reports";
 
 const router = Router();
 
@@ -97,5 +98,6 @@ router.use("/device-trust", requireCapability("command_center.write"), deviceTru
 router.use("/firewall-core", requireCapability("command_center.write"), firewallCoreRouter);
 registerCommandCenterRoute(router, "/security-graph", "command_center.read", securityGraphRouter);
 registerCommandCenterRoute(router, "/security-dashboard-v2", "command_center.read", securityDashboardV2Router);
+registerCommandCenterRoute(router, "/security-reports", "command_center.read", securityReportsRouter);
 
 export default router;

@@ -25,6 +25,7 @@ import employeesRouter from "../employees";
 import setupRouter from "../setup";
 import controlPlaneRouter from "../control-plane";
 import policySimulationRouter from "../policy-simulation";
+import executiveReportsRouter from "../executive-reports";
 
 const router = Router();
 
@@ -208,5 +209,6 @@ registerAdminRoute(router, "/capability-audit", "admin.read", highRiskRateLimit,
 registerAdminRoute(router, "/audit-chain", "admin.read", highRiskRateLimit, auditChainRouter);
 registerAdminRoute(router, "/control-plane", "admin.read", highRiskRateLimit, controlPlaneRouter);
 registerAdminRoute(router, "/policy-simulation", "admin.read", highRiskRateLimit, policySimulationRouter);
+registerAdminRoute(router, "/executive-reports", "admin.read", highRiskRateLimit, executiveReportsRouter);
 
 export default router;

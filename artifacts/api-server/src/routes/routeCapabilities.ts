@@ -107,6 +107,7 @@ export const apiRouteCapabilities: ApiRouteCapability[] = [
   { mountPath: "/firewall-core", capability: "command_center.write" },
   { mountPath: "/security-graph", capability: "command_center.read" },
   { mountPath: "/security-dashboard-v2", capability: "command_center.read" },
+  { mountPath: "/security-reports", capability: "command_center.read" },
 
   { mountPath: "/beacons", capability: "admin.read" },
   { mountPath: "/silkweb", capability: "admin.read" },
@@ -115,6 +116,7 @@ export const apiRouteCapabilities: ApiRouteCapability[] = [
   { mountPath: "/audit-chain", capability: "admin.read" },
   { mountPath: "/control-plane", capability: "admin.read" },
   { mountPath: "/policy-simulation", capability: "admin.read" },
+  { mountPath: "/executive-reports", capability: "admin.read" },
 
   { mountPath: "/nodes", capability: "admin.write" },
   { mountPath: "/firewall", capability: "admin.write" },

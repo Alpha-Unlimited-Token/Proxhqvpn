@@ -49,3 +49,8 @@ export * from "./entityCorrelationService";
 export * from "./attackPathService";
 export * from "./securityDashboardService";
 export * from "./detectionTestingService";
+export * from "./soarWorkflowService";
+export * from "./responsePlaybookService";
+export * from "./automatedContainmentService";
+export * from "./securityReportingService";
+export * from "./executiveReportingService";
