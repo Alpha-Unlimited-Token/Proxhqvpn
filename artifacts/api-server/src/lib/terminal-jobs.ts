@@ -69,6 +69,44 @@ function runSpawn(command: string, timeoutMs: number) {
   });
 }
 
+export type SshExecRunner = (
+  command: string,
+  timeout: number,
+) => Promise<{ stdout: string; stderr: string; exitCode: number }>;
+
+export function createSshTerminalJob(input: {
+  ownerUserId: string;
+  command: string;
+  timeout: number;
+  sessionId: string;
+  host: string;
+  username: string;
+  run: SshExecRunner;
+}): TerminalJob {
+  const job: TerminalJob = {
+    id: randomUUID(),
+    ownerUserId: input.ownerUserId,
+    command: input.command,
+    ghostMode: false,
+    timeout: input.timeout,
+    status: "queued",
+    createdAt: new Date().toISOString(),
+    stdout: "",
+    stderr: "",
+  };
+
+  jobs.set(job.id, job);
+
+  void runSshTerminalJob(job.id, {
+    sessionId: input.sessionId,
+    host: input.host,
+    username: input.username,
+    run: input.run,
+  });
+
+  return job;
+}
+
 export function createTerminalJob(input: {
   ownerUserId: string;
   command: string;
@@ -162,6 +200,64 @@ async function runTerminalJob(jobId: string): Promise<void> {
       command: job.command,
       metadata: {
         jobId: job.id,
+        error: job.error,
+      },
+    });
+  }
+}
+
+async function runSshTerminalJob(
+  jobId: string,
+  input: {
+    sessionId: string;
+    host: string;
+    username: string;
+    run: SshExecRunner;
+  },
+): Promise<void> {
+  const job = jobs.get(jobId);
+  if (!job) return;
+
+  job.status = "running";
+  job.startedAt = new Date().toISOString();
+
+  try {
+    const result = await input.run(job.command, job.timeout);
+
+    job.stdout = truncateTerminalOutput(result.stdout, TERMINAL_OUTPUT_LIMIT);
+    job.stderr = truncateTerminalOutput(result.stderr, TERMINAL_STDERR_LIMIT);
+    job.exitCode = result.exitCode;
+    job.status = result.exitCode === 0 ? "completed" : "failed";
+    job.completedAt = new Date().toISOString();
+
+    await auditTerminalEvent({
+      actor: job.ownerUserId,
+      action: "terminal.ssh_job_completed",
+      result: result.exitCode === 0 ? "allow" : "error",
+      command: job.command,
+      metadata: {
+        jobId: job.id,
+        sessionId: input.sessionId,
+        host: input.host,
+        username: input.username,
+        exitCode: result.exitCode,
+      },
+    });
+  } catch (err: any) {
+    job.status = "failed";
+    job.error = err?.message ?? "SSH terminal job failed";
+    job.completedAt = new Date().toISOString();
+
+    await auditTerminalEvent({
+      actor: job.ownerUserId,
+      action: "terminal.ssh_job_failed",
+      result: "error",
+      command: job.command,
+      metadata: {
+        jobId: job.id,
+        sessionId: input.sessionId,
+        host: input.host,
+        username: input.username,
         error: job.error,
       },
     });

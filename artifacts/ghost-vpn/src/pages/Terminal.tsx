@@ -48,6 +48,15 @@ export default function Terminal() {
     enabled: !!activeJobId,
     intervalMs: 1000,
   });
+
+  const [activeSshJobId, setActiveSshJobId] = useState<string | null>(null);
+  const [activeSshJob, setActiveSshJob]     = useState<TerminalJob | null>(null);
+
+  const polledSshJob = useTerminalJobPolling({
+    jobId: activeSshJobId,
+    enabled: !!activeSshJobId,
+    intervalMs: 1000,
+  });
   const bottomRef = useRef<HTMLDivElement>(null);
 
   // HTTP request state
@@ -155,6 +164,35 @@ export default function Terminal() {
     }
   }, [polledJob.job]);
   useEffect(() => { sshBottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [sshHistory]);
+
+  useEffect(() => {
+    if (!polledSshJob.job) return;
+    const job = polledSshJob.job;
+    setActiveSshJob(job);
+
+    const out =
+      job.stdout || job.stderr ||
+      (job.status === "queued" || job.status === "running" ? "running…" : "[no output]");
+
+    setSshHistory(h => {
+      if (h.length === 0) return h;
+      const n = [...h];
+      n[n.length - 1] = {
+        ...n[n.length - 1],
+        out,
+        isError: job.status === "failed" || (typeof job.exitCode === "number" && job.exitCode !== 0),
+      };
+      return n;
+    });
+
+    if (job.status === "completed" || job.status === "failed") {
+      setSshRunning(false);
+      setActiveSshJobId(null);
+      if (job.status === "failed" && (job.error?.includes("not found") || job.error?.includes("disconnected"))) {
+        void loadSessions();
+      }
+    }
+  }, [polledSshJob.job, loadSessions]);
 
   // Exec local shell command — enqueues a job and polls until done
   const execCmd = useCallback(async (cmd: string) => {
@@ -295,12 +333,30 @@ export default function Terminal() {
   const sshExec = useCallback(async (cmd: string) => {
     if (!activeSession) return;
     setSshRunning(true);
+    setActiveSshJobId(null);
+    setActiveSshJob(null);
     const ts = new Date().toLocaleTimeString();
-    setSshHistory(h => [...h, { cmd, out: "executing...", isError: false, ts }]);
+    setSshHistory(h => [...h, { cmd, out: "running…", isError: false, ts }]);
+
+    let jobQueued = false;
+
     try {
-      const r = await fetch(`${BASE}/api/terminal/ssh/exec`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sessionId: activeSession.id, command: cmd }) });
+      const r = await fetch(`${BASE}/api/terminal/ssh/exec`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId: activeSession.id, command: cmd }),
+      });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error ?? "Exec failed");
+
+      if (d.jobId) {
+        // 202 queued — polling hook will update sshHistory as job progresses
+        setActiveSshJobId(d.jobId);
+        jobQueued = true;
+        return;
+      }
+
+      // Backward-compat: immediate response
       const out = d.stdout || d.stderr || "[no output]";
       setSshHistory(h => { const n = [...h]; n[n.length - 1] = { cmd, out, isError: d.exitCode !== 0, ts }; return n; });
     } catch (e: any) {
@@ -308,7 +364,9 @@ export default function Terminal() {
       if (e.message?.includes("not found") || e.message?.includes("disconnected")) {
         await loadSessions();
       }
-    } finally { setSshRunning(false); }
+    } finally {
+      if (!jobQueued) setSshRunning(false);
+    }
   }, [activeSession, loadSessions]);
 
   const sshKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {

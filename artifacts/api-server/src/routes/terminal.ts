@@ -17,6 +17,7 @@ import {
 import { auditTerminalEvent } from "../lib/terminal-audit";
 import {
   createTerminalJob,
+  createSshTerminalJob,
   getTerminalJob,
   listTerminalJobs,
 } from "../lib/terminal-jobs";
@@ -299,6 +300,46 @@ function getOwnedSession(req: any, sessionId: string): SshSession | null {
   return session;
 }
 
+function runSshCommand(
+  session: SshSession,
+  command: string,
+  timeout: number,
+): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      resolve({ stdout: "", stderr: "Command timed out", exitCode: 124 });
+    }, timeout);
+
+    session.client.exec(command, (err, stream) => {
+      if (err) {
+        clearTimeout(timer);
+        return resolve({ stdout: "", stderr: err.message, exitCode: 1 });
+      }
+
+      let stdout = "";
+      let stderr = "";
+
+      stream.on("data", (chunk: Buffer) => {
+        stdout += chunk.toString();
+      });
+
+      stream.stderr.on("data", (chunk: Buffer) => {
+        stderr += chunk.toString();
+      });
+
+      stream.on("close", (code: number) => {
+        clearTimeout(timer);
+        resolve({ stdout, stderr, exitCode: code ?? 0 });
+      });
+
+      stream.on("error", (streamError: Error) => {
+        clearTimeout(timer);
+        resolve({ stdout, stderr: streamError.message, exitCode: 1 });
+      });
+    });
+  });
+}
+
 setInterval(() => {
   const cutoff = Date.now() - 30 * 60 * 1000;
 
@@ -415,7 +456,7 @@ router.delete("/ssh/sessions/:id", (req, res) => {
   res.json({ ok: true });
 });
 
-// POST /api/terminal/ssh/exec  — run a command in a session
+// POST /api/terminal/ssh/exec  — enqueue a job and return 202
 router.post("/ssh/exec", async (req, res) => {
   const body = z.object({
     sessionId: z.string().uuid(),
@@ -424,56 +465,66 @@ router.post("/ssh/exec", async (req, res) => {
   }).parse(req.body);
 
   const session = getOwnedSession(req, body.sessionId);
-  if (!session) return res.status(404).json({ error: "Session not found or not owned by current user" });
 
-  // Enforce same hard-block patterns even on remote sessions
-  const blockReason = getHardBlockReason(body.command);
-  if (blockReason) return res.status(403).json({ error: blockReason });
-
-  const executedAt = new Date().toISOString();
-
-  const result = await new Promise<{ stdout: string; stderr: string; exitCode: number }>((resolve) => {
-    const timer = setTimeout(() => {
-      resolve({ stdout: "", stderr: "Command timed out", exitCode: 124 });
-    }, body.timeout);
-
-    session.client.exec(body.command, (err, stream) => {
-      if (err) {
-        clearTimeout(timer);
-        return resolve({ stdout: "", stderr: err.message, exitCode: 1 });
-      }
-      let stdout = "";
-      let stderr = "";
-      stream.on("data", (d: Buffer) => { stdout += d; if (stdout.length > TERMINAL_OUTPUT_LIMIT) stdout = stdout.slice(-TERMINAL_OUTPUT_LIMIT); });
-      stream.stderr.on("data", (d: Buffer) => { stderr += d; if (stderr.length > TERMINAL_STDERR_LIMIT) stderr = stderr.slice(-TERMINAL_STDERR_LIMIT); });
-      stream.on("close", (code: number) => {
-        clearTimeout(timer);
-        resolve({ stdout, stderr, exitCode: code ?? 0 });
-      });
-      stream.on("error", (e: Error) => {
-        clearTimeout(timer);
-        resolve({ stdout, stderr: e.message, exitCode: 1 });
-      });
+  if (!session) {
+    return res.status(404).json({
+      error: "Session not found or not owned by current user",
     });
-  });
+  }
 
-  auditLog.push({ ts: executedAt, cmd: `[SSH:${session.label}] ${body.command}`, exitCode: result.exitCode, ip: req.ip ?? "unknown" });
+  const blockReason = getHardBlockReason(body.command);
+
+  if (blockReason) {
+    await auditTerminalEvent({
+      actor: getActor(req),
+      action: "terminal.ssh_job_blocked",
+      result: "deny",
+      ip: req.ip ?? "unknown",
+      command: body.command,
+      metadata: {
+        sessionId: body.sessionId,
+        host: session.host,
+        username: session.username,
+        reason: blockReason,
+      },
+    });
+
+    return res.status(403).json({
+      error: blockReason,
+      blocked: true,
+    });
+  }
+
+  const job = createSshTerminalJob({
+    ownerUserId: getActor(req),
+    command: body.command,
+    timeout: body.timeout,
+    sessionId: body.sessionId,
+    host: session.host,
+    username: session.username,
+    run: (command, timeout) => runSshCommand(session, command, timeout),
+  });
 
   await auditTerminalEvent({
     actor: getActor(req),
-    action: "terminal.ssh_exec",
-    result: result.exitCode === 0 ? "allow" : "error",
+    action: "terminal.ssh_job_created",
+    result: "allow",
     ip: req.ip ?? "unknown",
     command: body.command,
     metadata: {
+      jobId: job.id,
       sessionId: body.sessionId,
       host: session.host,
       username: session.username,
-      exitCode: result.exitCode,
     },
   });
 
-  res.json({ ...result, command: body.command, executedAt });
+  res.status(202).json({
+    jobId: job.id,
+    status: job.status,
+    createdAt: job.createdAt,
+    pollUrl: `/api/terminal/jobs/${job.id}`,
+  });
 });
 
 // POST /api/terminal/ssh/sftp/ls  — list directory
