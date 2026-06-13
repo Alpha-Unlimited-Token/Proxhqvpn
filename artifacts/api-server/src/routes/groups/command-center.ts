@@ -1,6 +1,7 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { Router } from "express";
 import { requireCommandCenter } from "../../middlewares/requireCommandCenter";
+import { requireCapability } from "../../middlewares/requireCapability";
 
 import threatintelRouter from "../threatintel";
 import securityauditRouter from "../securityaudit";
@@ -48,13 +49,13 @@ import firewallCoreRouter from "../firewall-core";
 const router = Router();
 
 router.use("/threatintel", requireCommandCenter, threatintelRouter);
-router.use("/security-audit", requireCommandCenter, securityauditRouter);
-router.use("/tool-runner", requireCommandCenter, toolRunnerRouter);
+router.use("/security-audit", requireCapability("command_center.write"), securityauditRouter);
+router.use("/tool-runner", requireCapability("command_center.write"), toolRunnerRouter);
 router.use("/alpha", requireCommandCenter, alphaRouter);
-router.use("/http-probe", requireCommandCenter, httpProbeRouter);
-router.use("/dir-fuzzer", requireCommandCenter, dirFuzzerRouter);
-router.use("/subdomain-scan", requireCommandCenter, subdomainScanRouter);
-router.use("/intruder", requireCommandCenter, intruderRouter);
+router.use("/http-probe", requireCapability("command_center.write"), httpProbeRouter);
+router.use("/dir-fuzzer", requireCapability("command_center.write"), dirFuzzerRouter);
+router.use("/subdomain-scan", requireCapability("command_center.write"), subdomainScanRouter);
+router.use("/intruder", requireCapability("command_center.write"), intruderRouter);
 router.use("/ghost-trace", requireCommandCenter, ghostTraceRouter);
 router.use("/attack-chain", requireCommandCenter, attackChainRouter);
 router.use("/vpn-tracker", requireCommandCenter, vpnTrackerRouter);
@@ -62,8 +63,8 @@ router.use("/siem", requireCommandCenter, siemRouter);
 router.use("/osint", requireCommandCenter, osintRouter);
 router.use("/username-intel", requireCommandCenter, usernameIntelRouter);
 router.use("/canary", requireCommandCenter, canaryRouter);
-router.use("/waf", requireCommandCenter, wafRouter);
-router.use("/waf-bypass", requireCommandCenter, wafBypassRouter);
+router.use("/waf", requireCapability("command_center.write"), wafRouter);
+router.use("/waf-bypass", requireCapability("command_center.write"), wafBypassRouter);
 router.use("/social-account", requireCommandCenter, socialAccountRouter);
 router.use("/ssl-tls", requireCommandCenter, sslTlsRouter);
 router.use("/jwt-analyzer", requireCommandCenter, jwtAnalyzerRouter);
@@ -76,12 +77,12 @@ router.use("/oast", requireCommandCenter, oastServerRouter);
 router.use("/dep-scanner", requireCommandCenter, depScannerRouter);
 router.use("/token-seq", requireCommandCenter, tokenSequencerRouter);
 router.use("/ws-tester", requireCommandCenter, wsTesterRouter);
-router.use("/sast", requireCommandCenter, sastRouter);
+router.use("/sast", requireCapability("command_center.write"), sastRouter);
 router.use("/quantum-audit", requireCommandCenter, quantumAuditRouter);
 router.use("/command-governance", requireCommandCenter, commandGovernanceRouter);
 router.use("/dependency-map", requireCommandCenter, dependencyMapRouter);
 router.use("/ai-security", requireCommandCenter, aiSecurityRouter);
-router.use("/sqli-scanner", requireCommandCenter, sqliScannerRouter);
+router.use("/sqli-scanner", requireCapability("command_center.write"), sqliScannerRouter);
 router.use("/im-auto", requireCommandCenter, imAutomationRouter);
 
 router.use("/firewall-v2", requireCommandCenter, firewallPolicyV2Router);

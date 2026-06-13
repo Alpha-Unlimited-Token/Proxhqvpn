@@ -2,6 +2,7 @@
 import { Router } from "express";
 import { requireAccess } from "../../middlewares/requireAccess";
 import { requireDeviceTrust } from "../../middlewares/requireDeviceTrust";
+import { requireCapability } from "../../middlewares/requireCapability";
 
 import meRouter from "../me";
 import accountSecurityCenterRouter from "../account-security-center";
@@ -46,18 +47,23 @@ const router = Router();
 router.use("/me", meRouter);
 router.use("/account-security", requireAccess, accountSecurityCenterRouter);
 
-router.use("/killswitch", requireAccess, killswitchRouter);
+router.use("/killswitch", requireCapability("vpn.write"), killswitchRouter);
 router.use("/leaks", requireAccess, leaksRouter);
-router.use("/split-tunnel", requireAccess, splittunnelRouter);
-router.use("/obfuscation", requireAccess, obfuscationRouter);
-router.use("/daemon", requireAccess, daemonRouter);
-router.use("/vpn-coexist", requireAccess, vpnCoexistRouter);
-router.use("/vpngate", requireAccess, vpnGateRouter);
-router.use("/devices", requireAccess, devicesRouter);
-router.use("/dns-shield", requireAccess, dnsShieldRouter);
-router.use("/smart-dns", requireAccess, smartDnsRouter);
-router.use("/router-config", requireAccess, routerConfigRouter);
-router.use("/wireguard", requireAccess, requireDeviceTrust, wireguardRouter);
+router.use("/split-tunnel", requireCapability("vpn.write"), splittunnelRouter);
+router.use("/obfuscation", requireCapability("vpn.write"), obfuscationRouter);
+router.use("/daemon", requireCapability("vpn.write"), daemonRouter);
+router.use("/vpn-coexist", requireCapability("vpn.write"), vpnCoexistRouter);
+router.use("/vpngate", requireCapability("vpn.write"), vpnGateRouter);
+router.use("/devices", requireCapability("vpn.write"), devicesRouter);
+router.use("/dns-shield", requireCapability("vpn.write"), dnsShieldRouter);
+router.use("/smart-dns", requireCapability("vpn.write"), smartDnsRouter);
+router.use("/router-config", requireCapability("vpn.write"), routerConfigRouter);
+router.use(
+  "/wireguard",
+  requireCapability("vpn.write"),
+  requireDeviceTrust,
+  wireguardRouter,
+);
 router.use("/threat-protection", requireAccess, threatProtectionRouter);
 router.use("/proxy-browser", requireAccess, proxyBrowserRouter);
 

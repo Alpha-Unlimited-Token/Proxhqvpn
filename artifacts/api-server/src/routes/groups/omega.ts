@@ -1,6 +1,6 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { Router } from "express";
-import { requireAdmin } from "../_auth";
+import { requireCapability } from "../../middlewares/requireCapability";
 import { featureGate } from "../../middlewares/featureGate";
 import { isOmegaEnabled } from "../../lib/feature-flags";
 
@@ -24,7 +24,7 @@ router.use(
   }),
 );
 
-router.use(requireAdmin);
+router.use(requireCapability("omega.admin"));
 router.use("/omega", omegaRouter);
 
 export default router;

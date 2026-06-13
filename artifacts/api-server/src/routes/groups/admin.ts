@@ -6,6 +6,8 @@ import { sql } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { createEnrollmentToken } from "../../lib/node-enrollment";
 import { requireAdmin } from "../_auth";
+import { requireCapability } from "../../middlewares/requireCapability";
+import capabilityAuditRouter from "../capability-audit";
 
 import nodesRouter from "../nodes";
 import beaconsRouter from "../beacons";
@@ -171,14 +173,14 @@ echo ""
   res.send(script);
 });
 
-router.use("/nodes", requireAdmin, nodesRouter);
-router.use("/beacons", requireAdmin, beaconsRouter);
-router.use("/silkweb", requireAdmin, silkwebRouter);
-router.use("/firewall", requireAdmin, firewallRouter);
-router.use("/monitor", requireAdmin, monitorRouter);
-router.use("/terminal", requireAdmin, terminalRouter);
-router.use("/sql", requireAdmin, sqlRouter);
-router.use("/deception", requireAdmin, deceptionRouter);
+router.use("/nodes", requireCapability("admin.write"), nodesRouter);
+router.use("/beacons", requireCapability("admin.read"), beaconsRouter);
+router.use("/silkweb", requireCapability("admin.read"), silkwebRouter);
+router.use("/firewall", requireCapability("admin.write"), firewallRouter);
+router.use("/monitor", requireCapability("admin.read"), monitorRouter);
+router.use("/terminal", requireCapability("terminal.exec"), terminalRouter);
+router.use("/sql", requireCapability("sql.exec"), sqlRouter);
+router.use("/deception", requireCapability("admin.write"), deceptionRouter);
 
 router.post("/node-enrollment-token", requireAdmin, async (req: Request, res: Response) => {
   const { token, tokenHash, expiresAt } = createEnrollmentToken();
@@ -192,10 +194,11 @@ router.post("/node-enrollment-token", requireAdmin, async (req: Request, res: Re
   res.json({ token, expiresAt, region });
 });
 
-router.use("/node-enrollment", requireAdmin, nodeEnrollV2Router);
-router.use("/node-trust", requireAdmin, nodeTrustRouter);
-router.use("/admin/users", requireAdmin, adminUsersRouter);
-router.use("/employees", requireAdmin, employeesRouter);
-router.use("/setup", requireAdmin, setupRouter);
+router.use("/node-enrollment", requireCapability("admin.write"), nodeEnrollV2Router);
+router.use("/node-trust", requireCapability("admin.write"), nodeTrustRouter);
+router.use("/admin/users", requireCapability("admin.write"), adminUsersRouter);
+router.use("/employees", requireCapability("admin.write"), employeesRouter);
+router.use("/setup", requireCapability("admin.write"), setupRouter);
+router.use("/capability-audit", requireCapability("admin.read"), capabilityAuditRouter);
 
 export default router;

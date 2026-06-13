@@ -1,6 +1,6 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { Router } from "express";
-import { requireAdmin } from "../_auth";
+import { requireCapability } from "../../middlewares/requireCapability";
 import { featureGate } from "../../middlewares/featureGate";
 import { isSecurityLabEnabled } from "../../lib/feature-flags";
 
@@ -25,7 +25,7 @@ router.use(
   }),
 );
 
-router.use(requireAdmin);
+router.use(requireCapability("security_lab.admin"));
 
 router.use("/node-cracker", nodeCrackerRouter);
 router.use("/dev-audit", devAuditRouter);
