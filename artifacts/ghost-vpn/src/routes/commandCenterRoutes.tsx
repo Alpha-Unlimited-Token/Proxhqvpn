@@ -4,6 +4,10 @@ import { Route } from "wouter";
 import { CcLayout, ToolLayout, AdminLayout } from "./routeGuards";
 
 import Dashboard from "@/pages/Dashboard";
+import ConsumerDashboard from "@/pages/ConsumerDashboard";
+import BusinessDashboard from "@/pages/BusinessDashboard";
+import SecurityOperationsDashboard from "@/pages/SecurityOperationsDashboard";
+import OnboardingV2 from "@/pages/OnboardingV2";
 import ProxyConfig from "@/pages/ProxyConfig";
 import SqlmapScanner from "@/pages/SqlmapScanner";
 import AlphaTools from "@/pages/AlphaTools";
@@ -78,6 +82,10 @@ export function CommandCenterRoutes() {
   return (
     <>
       <Route path="/dashboard"><CcLayout><Dashboard /></CcLayout></Route>
+      <Route path="/consumer-dashboard"><CcLayout><ConsumerDashboard /></CcLayout></Route>
+      <Route path="/business"><CcLayout><BusinessDashboard /></CcLayout></Route>
+      <Route path="/command-center"><CcLayout><SecurityOperationsDashboard /></CcLayout></Route>
+      <Route path="/onboarding"><CcLayout><OnboardingV2 /></CcLayout></Route>
       <Route path="/proxy"><CcLayout><ProxyConfig /></CcLayout></Route>
       <Route path="/sqlmap"><CcLayout><SqlmapScanner /></CcLayout></Route>
       <Route path="/alpha-tools"><CcLayout><AlphaTools /></CcLayout></Route>

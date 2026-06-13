@@ -593,6 +593,46 @@ export default function Home() {
         </div>
       </section>
 
+      {/* ── USE-CASE CARDS (P309) ── */}
+      <section className="py-16 px-6 border-t border-white/[0.05] bg-[#080d09]">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-10">
+            <div className="text-xs font-semibold text-primary/60 uppercase tracking-widest mb-3">Who it's for</div>
+            <h2 className="text-3xl font-bold tracking-tight text-white">Built for every use case</h2>
+          </div>
+          <div className="grid gap-6 md:grid-cols-3">
+            {[
+              {
+                title: "Personal VPN Users",
+                description: "Connect privately, hide your IP, and protect your devices with a simple VPN experience.",
+                href: "/sign-up",
+                cta: "Get started free",
+              },
+              {
+                title: "Businesses",
+                description: "Manage users, devices, policies, reports, and secure remote access for your team.",
+                href: "/pricing",
+                cta: "View business plans",
+              },
+              {
+                title: "Security Teams",
+                description: "Use Command Center for monitoring, deception, threat intelligence, and response workflows.",
+                href: "/pricing",
+                cta: "View security plans",
+              },
+            ].map(({ title, description, href, cta }) => (
+              <div key={title} className="rounded-2xl border border-white/[0.07] bg-[#0d1610] p-6 hover:border-primary/20 transition-all">
+                <h3 className="text-base font-bold text-white mb-2">{title}</h3>
+                <p className="text-sm text-white/60 leading-relaxed mb-5">{description}</p>
+                <Link href={href} className="inline-block rounded-xl border border-white/10 px-4 py-2 text-xs font-semibold text-white/80 hover:border-primary/30 hover:text-white transition-all">
+                  {cta} →
+                </Link>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* ── FEATURES ── */}
       <section id="features" className="py-24 px-6 border-t border-white/[0.05]">
         <div className="max-w-6xl mx-auto">

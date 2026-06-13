@@ -24,6 +24,7 @@ import { useAccess } from "@/hooks/useAccess";
 import { useNotifications } from "@/hooks/useNotifications";
 import FirewallPromptOverlay from "@/components/FirewallPromptOverlay";
 import { SkipToContent } from "@/components/a11y/SkipToContent";
+import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
 
 interface LayoutProps {
   children: ReactNode;
@@ -1054,6 +1055,9 @@ export function Layout({ children }: LayoutProps) {
           <a href="/security"     className="text-[9px] text-gray-600 hover:text-primary/60 transition-colors">Security</a>
           <a href="/status"       className="text-[9px] text-gray-600 hover:text-primary/60 transition-colors">Status</a>
           <a href="/trust-center#disclosure" className="text-[9px] text-gray-600 hover:text-primary/60 transition-colors">Vuln. Disclosure</a>
+          <a href="/privacy"      className="text-[9px] text-gray-600 hover:text-primary/60 transition-colors">Privacy</a>
+          <a href="/terms"        className="text-[9px] text-gray-600 hover:text-primary/60 transition-colors">Terms</a>
+          <a href="/contact"      className="text-[9px] text-gray-600 hover:text-primary/60 transition-colors">Contact</a>
         </div>
         <p className="text-[9px] text-gray-600 leading-tight">
           © 2024–2026 ALPHA UNLIMITED TECHNOLOGIES LLC
@@ -1062,6 +1066,9 @@ export function Layout({ children }: LayoutProps) {
           All rights reserved. Patent pending.
         </p>
       </div>
+
+      {/* Mobile bottom navigation — mode-aware, 4 items */}
+      <MobileBottomNav />
 
       {/* Firewall Connection Approval Overlay — per-user persistent allow/block decisions */}
       <FirewallPromptOverlay />
