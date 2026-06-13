@@ -108,6 +108,7 @@ export const apiRouteCapabilities: ApiRouteCapability[] = [
   { mountPath: "/security-graph", capability: "command_center.read" },
   { mountPath: "/security-dashboard-v2", capability: "command_center.read" },
   { mountPath: "/security-reports", capability: "command_center.read" },
+  { mountPath: "/realtime", capability: "command_center.read" },
 
   { mountPath: "/beacons", capability: "admin.read" },
   { mountPath: "/silkweb", capability: "admin.read" },

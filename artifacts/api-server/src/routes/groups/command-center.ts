@@ -3,6 +3,7 @@ import { Router } from "express";
 import { requireCapability } from "../../middlewares/requireCapability";
 import { registerCommandCenterRoute } from "../registerCommandCenterRoute";
 import { highRiskRateLimit } from "../../middlewares/riskRateLimit";
+import realtimeRouter from "../realtime";
 
 import threatintelRouter from "../threatintel";
 import securityauditRouter from "../securityaudit";
@@ -99,5 +100,6 @@ router.use("/firewall-core", requireCapability("command_center.write"), firewall
 registerCommandCenterRoute(router, "/security-graph", "command_center.read", securityGraphRouter);
 registerCommandCenterRoute(router, "/security-dashboard-v2", "command_center.read", securityDashboardV2Router);
 registerCommandCenterRoute(router, "/security-reports", "command_center.read", securityReportsRouter);
+registerCommandCenterRoute(router, "/realtime", "command_center.read", realtimeRouter);
 
 export default router;
