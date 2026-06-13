@@ -66,3 +66,8 @@ export * from "./billingService";
 export * from "./usageMeteringService";
 export * from "./licenseService";
 export * from "./customerProvisioningService";
+export * from "./predictiveNodeHealthService";
+export * from "./networkAnomalyDetectionService";
+export * from "./selfHealingService";
+export * from "./capacityForecastingService";
+export * from "./routeRecommendationService";
