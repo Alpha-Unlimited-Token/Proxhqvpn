@@ -10,6 +10,7 @@ import { encryptSecret, decryptSecret, wgConfigAad, isEncrypted } from "../lib/e
 import { appendAuditEvent } from "../lib/audit-chain";
 import { shipSecurityEvent } from "../lib/siem";
 import { bus } from "../lib/service-bus";
+import { provisionVpnConfig } from "../services/vpnProvisioningService";
 
 // ── Node trust threshold — nodes below this score are excluded from config issuance ──
 const NODE_TRUST_THRESHOLD = 55;
@@ -550,6 +551,37 @@ router.get("/peer-list/:nodeId", async (req, res) => {
     peers,
     wgPeerBlock,
   });
+});
+
+// ── Config V2 — provisioning service layer ───────────────────────────────────
+// New endpoint using vpnProvisioningService. Existing /config handler is
+// unchanged. Migrate frontend calls here after testing.
+
+const configV2BodySchema = z.object({
+  deviceId: z.string().min(1),
+  privateKey: z.string().min(40),
+  address: z.array(z.string()).min(1),
+  dns: z.array(z.string()).optional(),
+});
+
+router.post("/config-v2", async (req, res) => {
+  const { userId } = getAuth(req);
+
+  if (!userId) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  const body = configV2BodySchema.parse(req.body);
+
+  const result = await provisionVpnConfig({
+    userId,
+    deviceId: body.deviceId,
+    privateKey: body.privateKey,
+    address: body.address,
+    dns: body.dns,
+  });
+
+  return res.json(result);
 });
 
 export default router;
