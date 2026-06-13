@@ -16,6 +16,9 @@
 import { Router, type Request, type Response } from "express";
 import { z } from "zod";
 import { db } from "@workspace/db";
+import { appendAuditEvent } from "../lib/audit-chain";
+import { shipSecurityEvent } from "../lib/siem";
+import { requireRbac } from "../middlewares/requireRbac";
 import { deceptionEventsTable, deceptionBannersTable } from "@workspace/db/schema";
 import { desc, eq, and, gte, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
@@ -455,7 +458,7 @@ router.get("/banners", async (_req: Request, res: Response) => {
 });
 
 // POST /api/deception/banners — create custom banner
-router.post("/banners", async (req: Request, res: Response) => {
+router.post("/banners", requireRbac("deception_admin"), async (req: Request, res: Response) => {
   const schema = z.object({
     name:          z.string().min(1).max(100),
     serviceType:   z.enum(["http", "ssh", "ftp", "smtp", "telnet", "rdp", "generic"]),
@@ -474,11 +477,14 @@ router.post("/banners", async (req: Request, res: Response) => {
     isActive:      true,
   }).returning();
   bannerCacheTs = 0; // bust cache
+  const _actorDec = (req as any).auth?.userId ?? "system";
+  appendAuditEvent({ actor: _actorDec, action: "deception_banner.create", resource: `deception_banner:${banner.id}`, metadata: { name: banner.name, serviceType: banner.serviceType } });
+  void shipSecurityEvent({ actor: _actorDec, action: "deception_banner.create", resource: `deception_banner:${banner.id}`, result: "allow", metadata: { name: banner.name } });
   res.json(banner);
 });
 
 // PATCH /api/deception/banners/:id — toggle active / update delay
-router.patch("/banners/:id", async (req: Request, res: Response) => {
+router.patch("/banners/:id", requireRbac("deception_admin"), async (req: Request, res: Response) => {
   const id = Number(req.params.id);
   if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
   const schema = z.object({
@@ -499,7 +505,7 @@ router.patch("/banners/:id", async (req: Request, res: Response) => {
 });
 
 // DELETE /api/deception/events/:id — purge a single event
-router.delete("/events/:id", async (req: Request, res: Response) => {
+router.delete("/events/:id", requireRbac("deception_admin"), async (req: Request, res: Response) => {
   const id = Number(req.params.id);
   if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
   await db.delete(deceptionEventsTable).where(eq(deceptionEventsTable.id, id));
@@ -507,7 +513,7 @@ router.delete("/events/:id", async (req: Request, res: Response) => {
 });
 
 // POST /api/deception/events/purge — bulk purge by IP or all
-router.post("/events/purge", async (req: Request, res: Response) => {
+router.post("/events/purge", requireRbac("deception_admin"), async (req: Request, res: Response) => {
   const schema = z.object({
     ip:  z.string().optional(),
     all: z.boolean().optional(),

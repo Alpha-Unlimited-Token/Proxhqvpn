@@ -158,6 +158,7 @@ const PROTECTION_NAV = [
   { href: "/obfuscation",        label: "Stealth Protocol",    icon: EyeOff },
   { href: "/ip-exposure",        label: "IP Exposure Scan",    icon: Eye },
   { href: "/ghost-trap",         label: "Ghost Trap",          icon: Skull },
+  { href: "/ghost-nodes",        label: "Ghost Nodes",         icon: Network },
   { href: "/ghost-trace",        label: "Ghost Trace",         icon: Radar },
 ];
 
@@ -217,6 +218,8 @@ const TIER_COLOR: Record<1 | 2 | 3, string> = {
 
 const ADVANCED_NAV = [
   { href: "/ghost-trap",    label: "Ghost Trap — Counter Intel", icon: Skull },
+  { href: "/ghost-nodes",  label: "Ghost Nodes",                icon: Network },
+  { href: "/deception-engine", label: "Deception Engine",       icon: Shield },
   { href: "/sqlmap",        label: "Vulnerability Scanner", icon: ScanSearch },
   { href: "/alpha-tools",   label: "Alpha Toolkit",         icon: Layers },
   { href: "/tool-runner",   label: "Parrot Tool Runner",    icon: Terminal },
@@ -272,7 +275,6 @@ const ADVANCED_NAV = [
   { href: "/device-trust",        label: "Device Trust Engine",     icon: Fingerprint },
   { href: "/security-score",      label: "Security Score",          icon: Shield },
   { href: "/config-lifecycle",    label: "VPN Config Lifecycle",    icon: FileText },
-  { href: "/deception-engine",   label: "Deception Engine",       icon: Lock },
   { href: "/ghost-pentest",      label: "GhostPentest",           icon: Target },
   { href: "/request-mind",       label: "RequestMind",            icon: Globe2 },
   { href: "/soc-copilot",        label: "SOC Copilot",            icon: MessageSquare },

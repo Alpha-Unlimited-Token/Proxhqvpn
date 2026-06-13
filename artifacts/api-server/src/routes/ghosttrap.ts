@@ -14,6 +14,9 @@ import { eq, desc, sql, inArray, and, isNull } from "drizzle-orm";
 import crypto from "crypto";
 import dns from "dns/promises";
 import net from "net";
+import { requireRbac } from "../middlewares/requireRbac";
+import { appendAuditEvent } from "../lib/audit-chain";
+import { shipSecurityEvent } from "../lib/siem";
 
 const router = Router();
 
@@ -936,7 +939,7 @@ const COUNTER_PORTS = [
 ];
 
 // POST /counter/manual-scan — port scan on any public IP (manual investigation, no probe-log gate)
-router.post("/counter/manual-scan", async (req, res) => {
+router.post("/counter/manual-scan", requireRbac("counter_attack"), async (req, res) => {
   const userId = ((req as any).auth)?.userId as string | undefined;
   if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
 
@@ -981,7 +984,7 @@ router.post("/counter/manual-scan", async (req, res) => {
 });
 
 // POST /counter/manual-osint — OSINT on any public IP (no probe-log gate)
-router.post("/counter/manual-osint", async (req, res) => {
+router.post("/counter/manual-osint", requireRbac("counter_attack"), async (req, res) => {
   const userId = ((req as any).auth)?.userId as string | undefined;
   if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
 
@@ -1024,7 +1027,7 @@ router.post("/counter/manual-osint", async (req, res) => {
 });
 
 // POST /counter/port-scan — TCP connect scan on a captured attacker IP
-router.post("/counter/port-scan", async (req, res) => {
+router.post("/counter/port-scan", requireRbac("counter_attack"), async (req, res) => {
   const userId = ((req as any).auth)?.userId as string | undefined;
   if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
 
@@ -1067,7 +1070,7 @@ router.post("/counter/port-scan", async (req, res) => {
 });
 
 // POST /counter/osint — reverse DNS + geo enrichment on a captured attacker IP
-router.post("/counter/osint", async (req, res) => {
+router.post("/counter/osint", requireRbac("counter_attack"), async (req, res) => {
   const userId = ((req as any).auth)?.userId as string | undefined;
   if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
 
@@ -1124,7 +1127,7 @@ router.post("/counter/osint", async (req, res) => {
 });
 
 // POST /counter/canary-inject — create a tracking beacon URL to plant in future fake responses
-router.post("/counter/canary-inject", async (req, res) => {
+router.post("/counter/canary-inject", requireRbac("counter_attack"), async (req, res) => {
   const userId = ((req as any).auth)?.userId as string | undefined;
   if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
 

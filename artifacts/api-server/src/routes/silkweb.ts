@@ -5,6 +5,8 @@ import { silkWebTable, silkRoutesTable, trappedAttackersTable, nodesTable, beaco
 import { eq, sql, desc } from "drizzle-orm";
 import crypto from "crypto";
 import { exec } from "child_process";
+import { requireRbac } from "../middlewares/requireRbac";
+import { requireLabTarget } from "../lib/lab-targets";
 
 const router = Router();
 
@@ -186,7 +188,7 @@ router.get("/trapped/:id/portscan/:jobId", (req, res) => {
 });
 
 // Launch SQLmap against a trapped attacker
-router.post("/trapped/:id/sqlmap", async (req, res) => {
+router.post("/trapped/:id/sqlmap", requireRbac("silkweb_exploit"), async (req, res) => {
   const id = parseInt(req.params.id);
   const [attacker] = await db.select().from(trappedAttackersTable).where(eq(trappedAttackersTable.id, id));
   if (!attacker) return res.status(404).json({ error: "Trapped attacker not found" });
@@ -392,7 +394,7 @@ router.get("/scan/portscan/:jobId", (req, res) => {
   return res.json(job);
 });
 
-router.post("/scan/sqlmap", async (req, res) => {
+router.post("/scan/sqlmap", requireRbac("silkweb_exploit"), async (req, res) => {
   const { ip, targetUrl, extraFlags = "", useTor = false } = req.body as {
     ip?: string; targetUrl?: string; extraFlags?: string; useTor?: boolean;
   };
@@ -432,7 +434,7 @@ const fileReadJobs     = new Map<string, { status: string; results: string | nul
 const osCmdJobs        = new Map<string, { status: string; results: string | null; cmd: string }>();
 
 // Run a fully custom sqlmap command against a trapped attacker
-router.post("/trapped/:id/sqlmap-custom", async (req, res) => {
+router.post("/trapped/:id/sqlmap-custom", requireRbac("silkweb_exploit"), async (req, res) => {
   const id = parseInt(req.params.id);
   const [attacker] = await db.select().from(trappedAttackersTable).where(eq(trappedAttackersTable.id, id));
   if (!attacker) return res.status(404).json({ error: "Trapped attacker not found" });
@@ -478,7 +480,7 @@ router.get("/trapped/:id/sqlmap-custom/:jobId", (req, res) => {
 });
 
 // Read a remote file via SQLmap --file-read
-router.post("/trapped/:id/file-read", async (req, res) => {
+router.post("/trapped/:id/file-read", requireRbac("silkweb_exploit"), async (req, res) => {
   const id = parseInt(req.params.id);
   const [attacker] = await db.select().from(trappedAttackersTable).where(eq(trappedAttackersTable.id, id));
   if (!attacker) return res.status(404).json({ error: "Trapped attacker not found" });
@@ -527,7 +529,7 @@ router.get("/trapped/:id/file-read/:jobId", (req, res) => {
 });
 
 // Execute OS command via SQLmap --os-cmd
-router.post("/trapped/:id/os-cmd", async (req, res) => {
+router.post("/trapped/:id/os-cmd", requireRbac("silkweb_exploit"), async (req, res) => {
   const id = parseInt(req.params.id);
   const [attacker] = await db.select().from(trappedAttackersTable).where(eq(trappedAttackersTable.id, id));
   if (!attacker) return res.status(404).json({ error: "Trapped attacker not found" });

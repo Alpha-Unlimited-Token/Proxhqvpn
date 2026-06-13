@@ -14,6 +14,7 @@ import {
   firewallAtrPoliciesTable, firewallAtrEventsTable,
   firewallDdosConfigTable, firewallDdosEventsTable,
   firewallTrafficDecisionsTable, firewallPeerRulesTable,
+  ghostNodesTable, ghostNodeRoutesTable, ghostTrapRulesTable,
 } from "@workspace/db";
 import { eq, and, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -443,40 +444,15 @@ router.post("/honeypot-hit", async (req, res) => {
     }).returning();
     trappedId = trapped.id;
 
-    // Auto-launch SQLmap when an HTTP banner was captured (HTTP service confirmed on port)
+    // HTTP banner recorded as intelligence only — auto-SQLmap removed (P1-A safety fix).
+    // Running sqlmap against an unknown external IP is unauthorized computer access
+    // under CFAA / Computer Misuse Act / EU Directive 2013/40/EU.
+    // To scan a target, add it to lab_targets first and use the SilkWeb console.
     if (body.banner && body.banner.includes("HTTP")) {
-      const jobId = randomUUID().substring(0, 8).toUpperCase();
-      const safeIp = body.attackerIp.replace(/[^0-9a-fA-F.:]/g, "");
-      const targetUrl = `http://${safeIp}:${body.port}/`;
-      const cmd = [
-        "sqlmap",
-        `-u "${targetUrl}"`,
-        "--batch",
-        "--level=2",
-        "--risk=2",
-        "--timeout=20",
-        "--retries=1",
-        `--output-dir=/tmp/sqlmap-${jobId}`,
-        "--forms",
-        "--dbs",
-      ].join(" ");
-
-      await db.update(trappedAttackersTable).set({
-        sqlmapStatus: "running",
-        sqlmapJobId: jobId,
-        sqlmapStartedAt: new Date(),
-      }).where(eq(trappedAttackersTable.id, trapped.id));
-
-      exec(cmd, { timeout: 120000 }, async (err, stdout, stderr) => {
-        const output = [stdout, stderr].filter(Boolean).join("\n").substring(0, 8000);
-        await db.update(trappedAttackersTable).set({
-          sqlmapStatus: err ? "error" : "complete",
-          sqlmapResults: output || (err ? err.message : "No output"),
-          sqlmapFinishedAt: new Date(),
-        }).where(eq(trappedAttackersTable.id, trapped.id)).catch(() => { /* ignore */ });
-      });
-
-      logger.info({ ip: body.attackerIp, jobId, targetUrl }, "Auto-SQLmap launched via honeypot banner detection");
+      logger.info(
+        { ip: body.attackerIp, port: body.port, banner: body.banner.substring(0, 120) },
+        "HTTP banner captured on honeypot port — stored as intelligence (no auto-scan)",
+      );
     }
   } else {
     trappedId = existing[0].id;
@@ -1026,6 +1002,70 @@ router.post("/traffic-flag", async (req, res) => {
 
   logger.info({ nodeId: body.nodeId, peerIp: body.peerIp, destIp: body.destIp, reason: body.flagReason }, "security event logged (traffic flows freely)");
   return res.json({ ok: true, id: rows[0]!.id });
+});
+
+// ── Ghost Node policy delivery ───────────────────────────────────────────────
+// Called by node daemons to retrieve the current ghost-node decoy policy.
+// Returns active ghost nodes so the daemon can bring up wg-ghost0 interfaces.
+// Auth: same PSK pattern as all daemon-inbound routes (verifyDaemonHmac).
+router.get("/ghost-node-policy", async (req, res) => {
+  const nodeId = parseInt(req.query.nodeId as string);
+  if (isNaN(nodeId)) return res.status(400).json({ error: "nodeId required" });
+
+  const activeGhostNodes = await db.select().from(ghostNodesTable)
+    .where(eq(ghostNodesTable.status, "active"))
+    .limit(20);
+
+  const routes = await db.select().from(ghostNodeRoutesTable)
+    .where(and(
+      eq(ghostNodeRoutesTable.realNodeId, nodeId),
+      eq(ghostNodeRoutesTable.active, true),
+    ));
+
+  return res.json({
+    ok:         true,
+    policyTs:   new Date().toISOString(),
+    ghostNodes: activeGhostNodes.map((n) => ({
+      id:             n.id,
+      name:           n.name,
+      publicIp:       n.publicIp,
+      decoyIp:        n.decoyIp,
+      listenPort:     n.listenPort,
+      decoyPublicKey: n.decoyPublicKey,
+      isolationLevel: n.isolationLevel,
+    })),
+    routes: routes.map(r => ({
+      decoyInterface: r.decoyInterface,
+      allowedIpRange: r.allowedIpRange,
+      iptablesMarkId: r.iptablesMarkId,
+      routingTable:   r.routingTable,
+      policyHash:     r.policyHash,
+    })),
+  });
+});
+
+// ── Ghost Trap policy delivery — per-user rule push ───────────────────────────
+// Called by node daemons to pull the latest Ghost Trap detection rules.
+// The daemon uses these to match probes before they reach the main platform.
+router.get("/ghost-trap-policy", async (req, res) => {
+  const nodeId = parseInt(req.query.nodeId as string);
+  if (isNaN(nodeId)) return res.status(400).json({ error: "nodeId required" });
+
+  const allRules = await db.select({
+    id:       ghostTrapRulesTable.id,
+    ruleType: ghostTrapRulesTable.ruleType,
+    pattern:  ghostTrapRulesTable.pattern,
+    action:   ghostTrapRulesTable.action,
+    priority: ghostTrapRulesTable.priority,
+  }).from(ghostTrapRulesTable)
+    .where(eq(ghostTrapRulesTable.enabled, true))
+    .limit(200);
+
+  return res.json({
+    ok:      true,
+    policyTs: new Date().toISOString(),
+    rules:   allRules,
+  });
 });
 
 // ── Peer rules export for node daemon ───────────────────────────────────────

@@ -6,6 +6,7 @@ import { registerRoute } from "./registerRoute";
 const ADMIN_CAPABILITIES: Capability[] = [
   "admin.read",
   "admin.write",
+  "command_center.write",
   "terminal.exec",
   "sql.exec",
   "security_lab.admin",

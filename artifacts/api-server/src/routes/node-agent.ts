@@ -13,6 +13,10 @@ const router = Router();
 
 const NODE_AGENT_PSK = process.env.NODE_AGENT_PSK ?? "";
 
+// Minimum required agent version — agents below this version are rejected with 426.
+// Override with MIN_AGENT_VERSION env var (semver: "MAJOR.MINOR.PATCH").
+const MIN_AGENT_VERSION = process.env.MIN_AGENT_VERSION ?? "1.2.0";
+
 function validatePsk(req: Request): boolean {
   if (!NODE_AGENT_PSK) return false;
   const header = req.headers["x-node-agent-psk"] as string | undefined;
@@ -21,6 +25,21 @@ function validatePsk(req: Request): boolean {
   let diff = 0;
   for (let i = 0; i < header.length; i++) diff |= header.charCodeAt(i) ^ NODE_AGENT_PSK.charCodeAt(i);
   return diff === 0;
+}
+
+/**
+ * Compare two semver strings (MAJOR.MINOR.PATCH).
+ * Returns negative if a < b, zero if equal, positive if a > b.
+ */
+function compareSemver(a: string, b: string): number {
+  const parse = (v: string) => v.replace(/[^0-9.]/g, "").split(".").map(n => parseInt(n, 10) || 0);
+  const pa = parse(a);
+  const pb = parse(b);
+  for (let i = 0; i < 3; i++) {
+    const diff = (pa[i] ?? 0) - (pb[i] ?? 0);
+    if (diff !== 0) return diff;
+  }
+  return 0;
 }
 
 const CheckinSchema = z.object({
@@ -49,6 +68,23 @@ router.post("/checkin", async (req: Request, res: Response) => {
   let body: z.infer<typeof CheckinSchema>;
   try { body = CheckinSchema.parse(req.body); } catch (e: any) {
     return res.status(400).json({ error: e.message });
+  }
+
+  // P4-D: Reject agents running below the minimum enforced version.
+  if (compareSemver(body.version, MIN_AGENT_VERSION) < 0) {
+    appendAuditEvent({
+      actor:    `node-agent:${body.nodeId}`,
+      action:   "node_agent.checkin_rejected_version",
+      resource: body.nodeId,
+      result:   "deny",
+      metadata: { version: body.version, minimum: MIN_AGENT_VERSION },
+    });
+    return res.status(426).json({
+      error:          "Agent version below minimum required",
+      minimumVersion: MIN_AGENT_VERSION,
+      currentVersion: body.version,
+      upgradeUrl:     "https://proxhqvpn.com/downloads",
+    });
   }
 
   try {

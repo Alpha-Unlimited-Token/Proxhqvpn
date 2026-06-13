@@ -2,6 +2,9 @@
 import { Router } from "express";
 import { getAuth } from "@clerk/express";
 import { db } from "@workspace/db";
+import { appendAuditEvent } from "../lib/audit-chain";
+import { shipSecurityEvent } from "../lib/siem";
+import { requireRbac } from "../middlewares/requireRbac";
 import {
   honeypotNodesTable,
   honeypotAttackersTable,
@@ -83,7 +86,7 @@ router.get("/nodes", async (_req, res) => {
   res.json(nodes);
 });
 
-router.post("/nodes", async (req, res) => {
+router.post("/nodes", requireRbac("honeypot_admin"), async (req, res) => {
   const schema = z.object({
     name: z.string().min(1),
     host: z.string().min(1),
@@ -111,10 +114,13 @@ router.post("/nodes", async (req, res) => {
       pskHash,
     })
     .returning();
+  const _actorHp = getAuth(req as any).userId ?? "system";
+  appendAuditEvent({ actor: _actorHp, action: "honeypot_node.create", resource: `honeypot_node:${node.id}`, metadata: { name: node.name, host: node.host } });
+  void shipSecurityEvent({ actor: _actorHp, action: "honeypot_node.create", resource: `honeypot_node:${node.id}`, result: "allow", metadata: { name: node.name } });
   res.status(201).json(node);
 });
 
-router.patch("/nodes/:id", async (req, res) => {
+router.patch("/nodes/:id", requireRbac("honeypot_admin"), async (req, res) => {
   const id = Number(req.params.id);
   const schema = z.object({
     name: z.string().optional(),
@@ -131,7 +137,7 @@ router.patch("/nodes/:id", async (req, res) => {
   res.json(node);
 });
 
-router.delete("/nodes/:id", async (req, res) => {
+router.delete("/nodes/:id", requireRbac("honeypot_admin"), async (req, res) => {
   const id = Number(req.params.id);
   await db.delete(honeypotNodesTable).where(eq(honeypotNodesTable.id, id));
   res.status(204).end();
@@ -251,7 +257,7 @@ router.get("/iocs", async (req, res) => {
   res.json(iocs);
 });
 
-router.post("/iocs", async (req, res) => {
+router.post("/iocs", requireRbac("honeypot_admin"), async (req, res) => {
   const schema = z.object({
     type: z.string().min(1),
     value: z.string().min(1),
@@ -264,7 +270,7 @@ router.post("/iocs", async (req, res) => {
   res.status(201).json(ioc);
 });
 
-router.delete("/iocs/:id", async (req, res) => {
+router.delete("/iocs/:id", requireRbac("honeypot_admin"), async (req, res) => {
   const id = Number(req.params.id);
   await db.delete(honeypotIocsTable).where(eq(honeypotIocsTable.id, id));
   res.status(204).end();
@@ -282,7 +288,7 @@ router.get("/alerts", async (req, res) => {
   res.json(alerts);
 });
 
-router.post("/alerts/:id/acknowledge", async (req, res) => {
+router.post("/alerts/:id/acknowledge", requireRbac("honeypot_admin"), async (req, res) => {
   const id = Number(req.params.id);
   const { userId } = getAuth(req);
   const [alert] = await db

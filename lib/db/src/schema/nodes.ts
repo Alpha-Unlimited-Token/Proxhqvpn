@@ -27,6 +27,7 @@ export const nodesTable = pgTable("nodes", {
   ramKeyCheckedAt: timestamp("ram_key_checked_at"),
   wgBaseConfClean: boolean("wg_base_conf_clean"),
   daemonSecret: text("daemon_secret"),
+  vultrInstanceId: text("vultr_instance_id"),  // Vultr VPS instance ID for API sync
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

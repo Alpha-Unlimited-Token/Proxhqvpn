@@ -1,4 +1,6 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
+export * from "./lab-targets";
+export * from "./ghost-nodes";
 export * from "./nodes";
 export * from "./beacons";
 export * from "./silkweb";
