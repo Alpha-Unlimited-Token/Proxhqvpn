@@ -1,155 +1,259 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
-// Trust Center — public-facing security posture summary.
-// Does NOT expose raw findings, internal IPs, or private node details.
+// Public Trust Center — customer-facing security posture page.
+// DOES NOT expose: raw vulnerabilities, internal IPs, private node details, WireGuard configs.
 import { useState, useEffect } from "react";
-import { Shield, CheckCircle2, AlertTriangle, XCircle, RefreshCw, Clock, Lock } from "lucide-react";
+import { Shield, RefreshCw, Mail, Lock, AlertTriangle } from "lucide-react";
+import TrustScoreCard from "@/components/trust/TrustScoreCard";
+import ValidationSummaryCard from "@/components/trust/ValidationSummaryCard";
+import UptimeMetricsCard from "@/components/trust/UptimeMetricsCard";
+import ComplianceRoadmapCard from "@/components/trust/ComplianceRoadmapCard";
+import TrustDocumentList from "@/components/trust/TrustDocumentList";
+import SecurityProgramCard from "@/components/trust/SecurityProgramCard";
+import IncidentHistoryCard from "@/components/trust/IncidentHistoryCard";
 
 interface TrustSummary {
-  status: "trusted" | "warning" | "failed" | "unknown";
-  score: number;
+  trustScore: number;
   maxScore: number;
-  uptimePct: number;
+  validationStatus: "trusted" | "monitoring" | "incident" | "initializing";
+  lastValidationRun: string | null;
+  uptime30d: number;
+  uptime90d: number;
+  uptime365d: number;
+  complianceStatus: { name: string; status: "active" | "in_progress" | "planned" }[];
+  openPublicIncidents: number;
+  resolvedIncidentsCount: number;
+  securityProgramSummary: string;
+  lastUpdated: string;
+}
+
+interface ValidationSummary {
+  latestScore: number;
+  maxScore: number;
   lastValidationAt: string | null;
-  lastTlsCheckAt: string | null;
-  environment: "production";
-  generatedAt: string;
+  checksPerformed: number;
+  passed: number;
+  failed: number;
+  warning: number;
+  checksTypes: string[];
 }
 
-const STATUS_CONFIG = {
-  trusted: { color: "text-green-400", bg: "border-green-700/40 bg-green-900/10", icon: CheckCircle2, label: "Trusted" },
-  warning: { color: "text-yellow-400", bg: "border-yellow-700/40 bg-yellow-900/10", icon: AlertTriangle, label: "Monitoring" },
-  failed:  { color: "text-red-400",    bg: "border-red-700/40 bg-red-900/10",       icon: XCircle,       label: "Incident" },
-  unknown: { color: "text-gray-400",   bg: "border-gray-700/40 bg-gray-900/10",    icon: Shield,        label: "Initializing" },
-};
-
-function ScoreMeter({ score, max }: { score: number; max: number }) {
-  const pct   = max > 0 ? score / max : 0;
-  const color = pct >= 0.9 ? "bg-green-500" : pct >= 0.7 ? "bg-yellow-500" : "bg-red-500";
-  return (
-    <div className="space-y-1">
-      <div className="flex justify-between text-sm text-gray-300">
-        <span>Security Posture</span>
-        <span className="font-mono">{score}/{max}</span>
-      </div>
-      <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
-        <div className={`h-full ${color} rounded-full transition-all duration-1000`} style={{ width: `${pct * 100}%` }} />
-      </div>
-    </div>
-  );
+interface TrustDocument {
+  id: string;
+  title: string;
+  type: string;
+  summary: string;
+  publishedAt: string;
+  publicDownloadUrl: string | null;
 }
+
+const CONTACT_EMAIL = import.meta.env.VITE_SECURITY_CONTACT_EMAIL ?? "security@proxhqvpn.com";
 
 export default function TrustCenter() {
-  const [data, setData]       = useState<TrustSummary | null>(null);
+  const [summary, setSummary] = useState<TrustSummary | null>(null);
+  const [validation, setValidation] = useState<ValidationSummary | null>(null);
+  const [documents, setDocuments] = useState<TrustDocument[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError]     = useState<string | null>(null);
+  const [refreshedAt, setRefreshedAt] = useState<Date>(new Date());
 
-  const load = () => {
+  async function load() {
     setLoading(true);
-    fetch("/api/trust-center/validation-summary")
-      .then(r => r.ok ? r.json() : Promise.reject(r.status))
-      .then(d => { setData(d); setError(null); })
-      .catch(e => setError(`Unable to fetch trust status (${e})`))
-      .finally(() => setLoading(false));
-  };
+    try {
+      const [s, v, d] = await Promise.all([
+        fetch("/api/trust-center/summary").then(r => r.json()),
+        fetch("/api/trust-center/validation-summary").then(r => r.json()),
+        fetch("/api/trust-center/documents").then(r => r.json()),
+      ]);
+      setSummary(s as TrustSummary);
+      setValidation(v as ValidationSummary);
+      setDocuments((d as { documents: TrustDocument[] }).documents ?? []);
+      setRefreshedAt(new Date());
+    } catch {
+      // silent — default cards handle missing data gracefully
+    } finally {
+      setLoading(false);
+    }
+  }
 
-  useEffect(() => { load(); const t = setInterval(load, 5 * 60_000); return () => clearInterval(t); }, []);
-
-  const cfg = data ? STATUS_CONFIG[data.status] ?? STATUS_CONFIG.unknown : STATUS_CONFIG.unknown;
-  const Icon = cfg.icon;
+  useEffect(() => { void load(); }, []);
 
   return (
-    <div className="min-h-screen bg-[#080d09] py-16 px-4">
-      <div className="max-w-3xl mx-auto space-y-8">
-        {/* Header */}
-        <div className="text-center space-y-3">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-green-700/40 bg-green-900/10 text-green-400 text-xs font-medium">
-            <Lock className="w-3 h-3" />ProxhqVPN Trust Center
+    <div className="min-h-screen bg-[#070c08] text-white">
+      {/* Hero */}
+      <div className="bg-gradient-to-b from-[#0a120b] to-[#070c08] border-b border-white/[0.06]">
+        <div className="max-w-5xl mx-auto px-6 py-14 flex flex-col items-center text-center gap-5">
+          <div className="w-14 h-14 rounded-2xl bg-primary/10 border border-primary/25 flex items-center justify-center">
+            <Shield className="w-7 h-7 text-primary" />
           </div>
-          <h1 className="text-4xl font-bold text-white">Security Status</h1>
-          <p className="text-gray-400 max-w-xl mx-auto">
-            Real-time security posture of ProxhqVPN infrastructure. Continuously validated with
-            hash-chained audit records. No raw findings or internal system details are exposed.
+          <div>
+            <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-white">
+              ProxhqVPN Trust Center
+            </h1>
+            <p className="mt-3 text-base text-white/50 max-w-xl leading-relaxed">
+              ProxhqVPN is continuously monitored, validated, and hardened through automated security
+              checks, infrastructure health monitoring, VPN node validation, and audit-chain-backed reporting.
+            </p>
+          </div>
+          <div className="flex items-center gap-3 flex-wrap justify-center">
+            <span className="text-xs text-white/30">
+              Last updated: {refreshedAt.toLocaleString()}
+            </span>
+            <button
+              onClick={() => void load()}
+              disabled={loading}
+              className="flex items-center gap-1.5 text-xs text-primary/70 hover:text-primary transition-colors disabled:opacity-40"
+            >
+              <RefreshCw className={`w-3 h-3 ${loading ? "animate-spin" : ""}`} />
+              Refresh
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-5xl mx-auto px-6 py-10 space-y-8">
+
+        {/* Row 1 — Score + Uptime */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <TrustScoreCard
+            score={summary?.trustScore ?? 0}
+            maxScore={summary?.maxScore ?? 100}
+            status={summary?.validationStatus ?? "initializing"}
+            lastUpdated={summary?.lastValidationRun ?? null}
+          />
+          <UptimeMetricsCard
+            uptime30d={summary?.uptime30d ?? 0}
+            uptime90d={summary?.uptime90d ?? 0}
+            uptime365d={summary?.uptime365d ?? 0}
+          />
+        </div>
+
+        {/* Row 2 — Validation + Incidents */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <ValidationSummaryCard
+            checksPerformed={validation?.checksPerformed ?? 0}
+            passed={validation?.passed ?? 0}
+            failed={validation?.failed ?? 0}
+            warning={validation?.warning ?? 0}
+            lastValidationAt={validation?.lastValidationAt ?? null}
+            checksTypes={validation?.checksTypes ?? []}
+          />
+          <IncidentHistoryCard
+            openCount={summary?.openPublicIncidents ?? 0}
+            resolvedCount={summary?.resolvedIncidentsCount ?? 0}
+            activeIncidents={[]}
+          />
+        </div>
+
+        {/* Security Program */}
+        <SecurityProgramCard
+          summary={
+            summary?.securityProgramSummary ??
+            "ProxhqVPN is continuously monitored, validated, and hardened through automated security checks, " +
+            "infrastructure health monitoring, VPN node validation, and audit-chain-backed reporting."
+          }
+        />
+
+        {/* Compliance Roadmap */}
+        <ComplianceRoadmapCard items={summary?.complianceStatus ?? []} />
+
+        {/* Trust Documents */}
+        <TrustDocumentList documents={documents} />
+
+        {/* Pentest Summary */}
+        <div className="rounded-xl border border-white/10 bg-white/[0.03] p-6 space-y-3">
+          <div className="flex items-center gap-2.5">
+            <AlertTriangle className="w-5 h-5 text-primary" />
+            <span className="text-sm font-semibold text-white/90">Penetration Testing</span>
+          </div>
+          <p className="text-sm text-white/55 leading-relaxed">
+            ProxhqVPN undergoes regular penetration testing of its API endpoints, authentication
+            flows, WireGuard configuration generation, and VPN node infrastructure. Findings are
+            tracked, remediated, and verified before each testing cycle is closed. Detailed reports
+            are available under NDA to enterprise customers.
           </p>
         </div>
 
-        {/* Status card */}
-        <div className={`border ${cfg.bg} rounded-2xl p-8`}>
-          {loading && !data ? (
-            <div className="flex items-center justify-center gap-3 text-gray-400 py-8">
-              <RefreshCw className="animate-spin w-5 h-5" />Loading security status…
-            </div>
-          ) : error ? (
-            <div className="text-center text-gray-400 py-8">{error}</div>
-          ) : data ? (
-            <div className="space-y-6">
-              {/* Status badge */}
-              <div className="flex items-center gap-4">
-                <div className={`p-3 rounded-xl border ${cfg.bg}`}>
-                  <Icon className={`w-8 h-8 ${cfg.color}`} />
-                </div>
-                <div>
-                  <div className={`text-2xl font-bold ${cfg.color}`}>{cfg.label}</div>
-                  <div className="text-gray-400 text-sm">ProxhqVPN Infrastructure</div>
-                </div>
-              </div>
-
-              {/* Score meter */}
-              <ScoreMeter score={data.score} max={data.maxScore} />
-
-              {/* Metrics grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                <div className="bg-gray-800/40 rounded-xl p-4">
-                  <div className="text-xs text-gray-500 mb-1">Uptime (24h)</div>
-                  <div className={`text-2xl font-bold font-mono ${data.uptimePct >= 99 ? "text-green-400" : data.uptimePct >= 95 ? "text-yellow-400" : "text-red-400"}`}>
-                    {data.uptimePct.toFixed(2)}%
-                  </div>
-                </div>
-                <div className="bg-gray-800/40 rounded-xl p-4">
-                  <div className="text-xs text-gray-500 mb-1">Last Check</div>
-                  <div className="text-sm font-medium text-gray-200 flex items-center gap-1">
-                    <Clock className="w-3.5 h-3.5 text-gray-400" />
-                    {data.lastValidationAt ? new Date(data.lastValidationAt).toLocaleTimeString() : "—"}
-                  </div>
-                </div>
-                <div className="bg-gray-800/40 rounded-xl p-4">
-                  <div className="text-xs text-gray-500 mb-1">TLS Valid</div>
-                  <div className="text-sm font-medium text-gray-200">
-                    {data.lastTlsCheckAt ? <span className="text-green-400">✓ Verified</span> : "Pending"}
-                  </div>
-                </div>
-              </div>
-
-              {/* Compliance */}
-              <div className="border-t border-gray-700/40 pt-4 space-y-2">
-                <h3 className="text-sm font-semibold text-gray-300">Security Practices</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
-                  {[
-                    "Hash-chained immutable audit records",
-                    "Automated TLS certificate monitoring",
-                    "WireGuard mesh node health checks",
-                    "Continuous uptime monitoring",
-                    "Security header validation",
-                    "Synthetic endpoint journey tests",
-                  ].map(p => (
-                    <div key={p} className="flex items-center gap-2 text-gray-400">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-green-400 shrink-0" />{p}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="text-xs text-gray-600 text-center pt-2">
-                Generated {new Date(data.generatedAt).toLocaleString()} · Refreshes every 5 minutes
-              </div>
-            </div>
-          ) : null}
+        {/* Privacy Program */}
+        <div className="rounded-xl border border-white/10 bg-white/[0.03] p-6 space-y-3">
+          <div className="flex items-center gap-2.5">
+            <Lock className="w-5 h-5 text-primary" />
+            <span className="text-sm font-semibold text-white/90">Privacy Program</span>
+          </div>
+          <ul className="text-sm text-white/55 space-y-1.5">
+            {[
+              "Strict no-log policy — no VPN activity or connection logs stored",
+              "RAM-only WireGuard keys — private keys never written to disk",
+              "Data minimization — only necessary data collected for service operation",
+              "GDPR-compliant data processing and deletion workflows",
+              "User data export and deletion available from account settings",
+            ].map(item => (
+              <li key={item} className="flex items-start gap-2">
+                <span className="text-primary mt-0.5 shrink-0">›</span>
+                {item}
+              </li>
+            ))}
+          </ul>
         </div>
 
-        {/* Footer note */}
-        <p className="text-center text-xs text-gray-600">
-          © {new Date().getFullYear()} Alpha Unlimited Technologies LLC — All validation is performed
-          against ProxhqVPN-owned systems only. No third-party or customer systems are scanned.
-        </p>
+        {/* Vulnerability Disclosure Policy */}
+        <div id="disclosure" className="rounded-xl border border-primary/20 bg-primary/[0.04] p-6 space-y-4">
+          <div className="flex items-center gap-2.5">
+            <Mail className="w-5 h-5 text-primary" />
+            <span className="text-sm font-semibold text-white/90">Vulnerability Disclosure Policy</span>
+          </div>
+          <div className="text-sm text-white/60 space-y-3 leading-relaxed">
+            <p>
+              We welcome responsible disclosure of security vulnerabilities in ProxhqVPN-owned systems.
+              If you discover a security issue, please report it to us before public disclosure.
+            </p>
+            <div>
+              <p className="text-white/80 font-medium mb-1">How to report</p>
+              <p>
+                Email{" "}
+                <a href={`mailto:${CONTACT_EMAIL}`} className="text-primary hover:underline">
+                  {CONTACT_EMAIL}
+                </a>{" "}
+                with a clear description, steps to reproduce, and potential impact.
+                We aim to acknowledge reports within 72 hours.
+              </p>
+            </div>
+            <div>
+              <p className="text-white/80 font-medium mb-1">Safe Harbor</p>
+              <p>
+                Security researchers acting in good faith under this policy will not face legal action
+                from Alpha Unlimited Technologies LLC. We commit to working with you to understand and
+                remediate valid findings promptly.
+              </p>
+            </div>
+            <div>
+              <p className="text-white/80 font-medium mb-1">Rules of Engagement</p>
+              <ul className="space-y-1">
+                {[
+                  "Testing must be limited to ProxhqVPN-owned assets only",
+                  "No unauthorized testing against third parties or customers",
+                  "No destructive testing, DoS attacks, or data exfiltration",
+                  "No social engineering of ProxhqVPN employees or customers",
+                  "Do not access, modify, or delete user data",
+                ].map(rule => (
+                  <li key={rule} className="flex items-start gap-2">
+                    <span className="text-primary shrink-0 mt-0.5">›</span>
+                    {rule}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="text-center pb-6 space-y-1">
+          <p className="text-xs text-white/25">© 2024–2026 Alpha Unlimited Technologies LLC. All rights reserved.</p>
+          <p className="text-[11px] text-white/15">
+            Questions?{" "}
+            <a href={`mailto:${CONTACT_EMAIL}`} className="hover:text-white/30">
+              {CONTACT_EMAIL}
+            </a>
+          </p>
+        </div>
       </div>
     </div>
   );

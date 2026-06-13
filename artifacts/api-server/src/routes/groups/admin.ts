@@ -454,6 +454,7 @@ import productionreadinessv2Router from "../production-readiness-v2";
 import enterprisematurityscorev2Router from "../enterprise-maturity-score-v2";
 import finalplatformselfauditandzippackagingRouter from "../final-platform-self-audit-and-zip-packaging";
 import validationRouter from "../validation";
+import trustCenterAdminRouter from "../trust-center-admin";
 
 registerAdminRoute(router, "/safe-remediation-approval-gate", "admin.write", highRiskRateLimit, saferemediationapprovalgateRouter);
 registerAdminRoute(router, "/automated-remediation-executor", "admin.read", highRiskRateLimit, automatedremediationexecutorRouter);
@@ -521,5 +522,6 @@ registerAdminRoute(router, "/production-readiness-v2", "admin.read", highRiskRat
 registerAdminRoute(router, "/enterprise-maturity-score-v2", "admin.read", highRiskRateLimit, enterprisematurityscorev2Router);
 registerAdminRoute(router, "/final-platform-self-audit-and-zip-packaging", "admin.read", highRiskRateLimit, finalplatformselfauditandzippackagingRouter);
 registerAdminRoute(router, "/validation", "admin.read", highRiskRateLimit, validationRouter);
+registerAdminRoute(router, "/trust-center", "admin.write", highRiskRateLimit, trustCenterAdminRouter);
 
 export default router;

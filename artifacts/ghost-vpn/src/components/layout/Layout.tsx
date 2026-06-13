@@ -1048,7 +1048,13 @@ export function Layout({ children }: LayoutProps) {
       )}
 
       {/* Copyright footer — always visible at bottom of sidebar */}
-      <div className="fixed bottom-0 left-0 w-[260px] bg-gray-950/95 border-t border-white/5 px-3 py-2 z-50 hidden md:block">
+      <div className="fixed bottom-0 left-0 w-[260px] bg-gray-950/95 border-t border-white/5 px-3 py-2 z-50 hidden md:block space-y-1.5">
+        <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+          <a href="/trust-center" className="text-[9px] text-gray-600 hover:text-primary/60 transition-colors">Trust Center</a>
+          <a href="/security"     className="text-[9px] text-gray-600 hover:text-primary/60 transition-colors">Security</a>
+          <a href="/status"       className="text-[9px] text-gray-600 hover:text-primary/60 transition-colors">Status</a>
+          <a href="/trust-center#disclosure" className="text-[9px] text-gray-600 hover:text-primary/60 transition-colors">Vuln. Disclosure</a>
+        </div>
         <p className="text-[9px] text-gray-600 leading-tight">
           © 2024–2026 ALPHA UNLIMITED TECHNOLOGIES LLC
         </p>

@@ -35,6 +35,8 @@ import ConfigLifecycle from "@/pages/ConfigLifecycle";
 import CustomerSecurityDashboard from "@/pages/CustomerSecurityDashboard";
 import Manuals from "@/pages/Manuals";
 import TrustCenter from "@/pages/TrustCenter";
+import SecurityOverview from "@/pages/SecurityOverview";
+import PublicStatus from "@/pages/PublicStatus";
 
 const VpnCoexist = lazy(() => import("@/pages/VpnCoexist"));
 
@@ -83,9 +85,11 @@ export function VpnRoutes() {
         <ProtectedLayout><ConfigLifecycle /></ProtectedLayout>
       </Route>
 
-      <Route path="/trust-center">
-        <TrustCenter />
-      </Route>
+      {/* Public trust + status pages — no auth required */}
+      <Route path="/trust-center"><TrustCenter /></Route>
+      <Route path="/trust"><TrustCenter /></Route>
+      <Route path="/security"><SecurityOverview /></Route>
+      <Route path="/status"><PublicStatus /></Route>
     </>
   );
 }
