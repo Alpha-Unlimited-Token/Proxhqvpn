@@ -4,6 +4,7 @@ import { db } from "@workspace/db";
 import { beaconAlertsTable, nodesTable } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
+import { bus } from "../lib/service-bus";
 
 const router = Router();
 
@@ -131,6 +132,17 @@ router.post("/trigger", async (req, res) => {
     }),
     detectedAt: new Date(),
   }).returning();
+
+  bus.publish("beacon.alert", {
+    alertId: alert.id,
+    attackerIp: body.attackerIp,
+    probeType: body.probeType,
+    severity,
+    classification: isAudit ? "audit" : "attack",
+    nodeId: body.nodeId,
+    nodeName: node.name,
+    fingerprint: alert.attackerFingerprint,
+  }, "beacons");
 
   res.status(201).json({
     ...alert,

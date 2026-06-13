@@ -3,6 +3,7 @@ import { Router } from "express";
 import os from "os";
 import { exec } from "child_process";
 import { promisify } from "util";
+import { bus } from "../lib/service-bus";
 
 const execAsync = promisify(exec);
 
@@ -224,11 +225,23 @@ router.post("/enable", (req, res) => {
   if (safeIps && Array.isArray(safeIps)) state.safeIps = safeIps;
   state.lastTriggeredAt = new Date().toISOString();
   state.triggerCount += 1;
+  bus.publish("firewall.rule_change", {
+    event: "killswitch_enabled",
+    mode: state.mode,
+    allowedInterfaces: state.allowedInterfaces,
+    safeIps: state.safeIps,
+    triggerCount: state.triggerCount,
+  }, "killswitch");
   res.json({ ...state, message: "Kill switch enabled — VPN tunnel is now the sole exit." });
 });
 
 router.post("/disable", (_req, res) => {
   state.enabled = false;
+  bus.publish("firewall.rule_change", {
+    event: "killswitch_disabled",
+    mode: state.mode,
+    triggerCount: state.triggerCount,
+  }, "killswitch");
   res.json({ ...state, message: "Kill switch disabled — normal routing restored." });
 });
 
@@ -240,6 +253,12 @@ router.patch("/config", (req, res) => {
   if (autoTriggerOnDrop !== undefined) state.autoTriggerOnDrop = autoTriggerOnDrop;
   if (blockedOutboundWhenVpnDown !== undefined) state.blockedOutboundWhenVpnDown = blockedOutboundWhenVpnDown;
   if (safeIps && Array.isArray(safeIps)) state.safeIps = safeIps;
+  bus.publish("firewall.rule_change", {
+    event: "killswitch_config_changed",
+    mode: state.mode,
+    autoTriggerOnDrop: state.autoTriggerOnDrop,
+    blockedOutboundWhenVpnDown: state.blockedOutboundWhenVpnDown,
+  }, "killswitch");
   res.json(state);
 });
 

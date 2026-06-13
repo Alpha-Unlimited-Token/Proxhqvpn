@@ -4,10 +4,12 @@
 //   GET /api/firewall-core/top-blocked   — top blocked IPs
 //   GET /api/firewall-core/recent-events — recent firewall security events
 //   GET /api/firewall-core/subsystems    — status of each firewall subsystem
+//   GET /api/firewall-core/manifest      — full capability manifest (all 5 subsystems)
 
 import { Router, type Request, type Response } from "express";
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import { getFirewallManifest, getFirewallCapabilityCount, getFirewallTableCount } from "../lib/firewall-surface";
 
 const router = Router();
 
@@ -105,6 +107,39 @@ router.get("/subsystems", async (_req: Request, res: Response) => {
       { name: "ZTNA Posture",       status: "active",   count: null,  path: "/device-trust" },
     ],
     timestamp: new Date().toISOString(),
+  });
+});
+
+// GET /api/firewall-core/manifest — full subsystem capability manifest
+router.get("/manifest", async (_req: Request, res: Response) => {
+  const manifest = getFirewallManifest();
+
+  const [ruleCounts] = await Promise.all([
+    Promise.all(manifest.subsystems.map(async (sub) => {
+      const table = sub.tableGroups[0];
+      const row = await safeQuery(
+        sql.raw(`SELECT COUNT(*) AS n FROM ${table} LIMIT 1`),
+        [{ n: 0 }]
+      );
+      return { id: sub.id, liveRows: Number(row[0]?.n ?? 0) };
+    })),
+  ]);
+
+  const subsystemsWithLiveData = manifest.subsystems.map((sub) => {
+    const live = ruleCounts[0].find(r => r.id === sub.id);
+    return {
+      ...sub,
+      liveRows: live?.liveRows ?? 0,
+    };
+  });
+
+  res.json({
+    version:            manifest.version,
+    totalSubsystems:    manifest.subsystems.length,
+    totalCapabilities:  getFirewallCapabilityCount(),
+    totalTables:        getFirewallTableCount(),
+    subsystems:         subsystemsWithLiveData,
+    generatedAt:        manifest.generatedAt,
   });
 });
 

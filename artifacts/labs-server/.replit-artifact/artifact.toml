@@ -1,0 +1,36 @@
+kind = "api"
+previewPath = "/api/labs"
+title = "Labs API Server"
+version = "1.0.0"
+id = "artifacts/labs-server"
+
+[[services]]
+localPort = 9090
+name = "Labs API Server"
+paths = [
+  "/api/sqlmap",
+  "/api/redteam-scan",
+  "/api/exploit-import",
+  "/api/omnistrike",
+]
+
+[services.development]
+run = "pnpm --filter @workspace/labs-server run dev"
+
+[services.production]
+
+[services.production.build]
+args = ["pnpm", "--filter", "@workspace/labs-server", "run", "build"]
+
+[services.production.build.env]
+NODE_ENV = "production"
+
+[services.production.run]
+args = ["node", "--enable-source-maps", "artifacts/labs-server/dist/index.mjs"]
+
+[services.production.run.env]
+PORT = "9090"
+NODE_ENV = "production"
+
+[services.production.health.startup]
+path = "/api/labs/healthz"

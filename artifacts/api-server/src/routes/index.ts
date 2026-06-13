@@ -47,7 +47,7 @@ import ambassadorsRouter from "./ambassadors";
 import wireguardRouter from "./wireguard";
 import daemonInboundRouter from "./daemon-inbound";
 import nodeProvisionRouter from "./node-provision";
-import sqlmapRouter from "./sqlmap";
+// sqlmap → migrated to labs-server (artifacts/labs-server)
 import toolRunnerRouter from "./toolrunner";
 import alphaRouter from "./alpha";
 import httpProbeRouter from "./httpprobe";
@@ -67,10 +67,10 @@ import siemRouter from "./siem";
 import osintRouter from "./osint";
 import usernameIntelRouter from "./usernameintel";
 import canaryRouter from "./canary";
-import exploitImportRouter from "./exploitimport";
+// exploitimport → migrated to labs-server (artifacts/labs-server)
 import wafRouter from "./waf";
 import wafBypassRouter from "./wafbypass";
-import omnistrikeRouter from "./omnistrike";
+// omnistrike → migrated to labs-server (artifacts/labs-server)
 import socialAccountRouter from "./social-account";
 import pqcRouter from "./pqc";
 import daitaRouter from "./daita";
@@ -102,7 +102,7 @@ import aiSecurityRouter from "./ai-security";
 import sqliScannerRouter from "./sqli-scanner";
 import adminUsersRouter from "./admin-users";
 import imAutomationRouter from "./imautomation";
-import redteamScanRouter from "./redteamscan";
+// redteamscan → migrated to labs-server (artifacts/labs-server)
 import omegaAgentRouter from "./omega/agent";
 import ghostTrapRouter from "./ghosttrap";
 import deceptionRouter from "./deception";
@@ -172,15 +172,7 @@ router.get("/t/:tokenId/redirect", (req, res, next) => {
 // Must allow cross-origin (agents run on external domains)
 router.use("/omega-agent", omegaAgentRouter);
 
-// C2 ingest — public, receives callbacks from deployed red-team payloads cross-origin
-router.post("/redteam-scan/c2/ingest", (req, res, next) => {
-  req.url = "/c2/ingest";
-  (redteamScanRouter as any).handle(req, res, next);
-});
-router.options("/redteam-scan/c2/ingest", (req, res, next) => {
-  req.url = "/c2/ingest";
-  (redteamScanRouter as any).handle(req, res, next);
-});
+// C2 ingest — moved to labs-server at /api/redteam-scan/c2/ingest
 
 // Ghost Trap lure + beacon endpoints — public (attackers must reach these without auth)
 // /lure/* = platform honeypot endpoints
@@ -436,7 +428,7 @@ router.use("/cve",            requireAccess, cveSearchRouter);         // CVE se
 // ── Command Center Pro routes — requires command_center tier (or admin/employee)
 router.use("/threatintel",     requireCommandCenter, threatintelRouter);
 router.use("/security-audit",  requireCommandCenter, securityauditRouter);
-router.use("/sqlmap",          requireCommandCenter, sqlmapRouter);
+// sqlmap — served by labs-server
 router.use("/tool-runner",     requireCommandCenter, toolRunnerRouter);
 router.use("/alpha",           requireCommandCenter, alphaRouter);
 router.use("/http-probe",      requireCommandCenter, httpProbeRouter);
@@ -454,10 +446,10 @@ router.use("/siem",            requireCommandCenter, siemRouter);
 router.use("/osint",           requireCommandCenter, osintRouter);
 router.use("/username-intel",  requireCommandCenter, usernameIntelRouter);
 router.use("/canary",          requireCommandCenter, canaryRouter);
-router.use("/exploit-import",  requireCommandCenter, exploitImportRouter);
+// exploit-import — served by labs-server
 router.use("/waf",             requireCommandCenter, wafRouter);
 router.use("/waf-bypass",      requireCommandCenter, wafBypassRouter);
-router.use("/omnistrike",      requireCommandCenter, omnistrikeRouter);
+// omnistrike — served by labs-server
 // ── Deception Engine — OWNER / ADMIN ONLY — regular users never see this ───
 router.use("/deception",       requireAdmin,         deceptionRouter);
 router.use("/social-account",  requireCommandCenter, socialAccountRouter);
@@ -481,7 +473,7 @@ router.use("/dependency-map",      requireCommandCenter, dependencyMapRouter);
 router.use("/ai-security",     requireCommandCenter, aiSecurityRouter);
 router.use("/sqli-scanner",    requireCommandCenter, sqliScannerRouter);
 router.use("/im-auto",         requireCommandCenter, imAutomationRouter);
-router.use("/redteam-scan",    requireCommandCenter, redteamScanRouter);
+// redteam-scan — served by labs-server
 // ── VPN Gap-Closers vs NordVPN / Mullvad / Surfshark / ExpressVPN ────────
 router.use("/gps-spoof",       requireAccess, gpsSpoofRouter);
 router.use("/port-forward",    requireAccess, portForwardRouter);

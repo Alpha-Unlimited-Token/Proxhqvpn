@@ -780,6 +780,64 @@ importers:
         specifier: 'catalog:'
         version: 3.25.76
 
+  artifacts/labs-server:
+    dependencies:
+      '@clerk/express':
+        specifier: ^2.1.5
+        version: 2.1.5(express@5.2.1)
+      '@workspace/db':
+        specifier: workspace:*
+        version: link:../../lib/db
+      adm-zip:
+        specifier: ^0.5.10
+        version: 0.5.17
+      drizzle-orm:
+        specifier: 'catalog:'
+        version: 0.45.2(@types/pg@8.18.0)(pg@8.20.0)(sql.js@1.14.1)
+      express:
+        specifier: ^5
+        version: 5.2.1
+      express-rate-limit:
+        specifier: ^8.3.2
+        version: 8.3.2(express@5.2.1)
+      helmet:
+        specifier: ^8.1.0
+        version: 8.1.0
+      multer:
+        specifier: ^1.4.5-lts.1
+        version: 1.4.5-lts.2
+      pino:
+        specifier: ^9
+        version: 9.14.0
+      pino-http:
+        specifier: ^10
+        version: 10.5.0
+      zod:
+        specifier: 'catalog:'
+        version: 3.25.76
+    devDependencies:
+      '@types/adm-zip':
+        specifier: ^0.5.7
+        version: 0.5.8
+      '@types/express':
+        specifier: ^5.0.6
+        version: 5.0.6
+      '@types/multer':
+        specifier: ^1.4.12
+        version: 1.4.13
+      '@types/node':
+        specifier: 'catalog:'
+        version: 25.3.5
+      esbuild:
+        specifier: 0.27.3
+        version: 0.27.3
+      tsx:
+        specifier: 'catalog:'
+        version: 4.21.0
+      typescript:
+        specifier: ~5.9.2
+        version: 5.9.3
+
   artifacts/mobile:
     dependencies:
       '@clerk/clerk-expo':
@@ -4057,6 +4115,9 @@ packages:
   '@types/ms@2.1.0':
     resolution: {integrity: sha512-GsCCIZDE/p3i96vtEqx+7dBUGXrc7zeSK3wwPHIaRThS+9OhWIXRqzs4d6k1SVU8g91DrNRWxWUGhp5KXQb2VA==}
 
+  '@types/multer@1.4.13':
+    resolution: {integrity: sha512-bhhdtPw7JqCiEfC9Jimx5LqX9BDIPJEh2q/fQ4bqbBPtyEZYr3cvF22NwG0DmPZNYA0CAf2CnqDB4KIGGpJcaw==}
+
   '@types/multer@2.1.0':
     resolution: {integrity: sha512-zYZb0+nJhOHtPpGDb3vqPjwpdeGlGC157VpkqNQL+UU2qwoacoQ7MpsAmUptI/0Oa127X32JzWDqQVEXp2RcIA==}
 
@@ -4984,6 +5045,10 @@ packages:
 
   concat-map@0.0.1:
     resolution: {integrity: sha512-/Srv4dswyQNBfohGpz9o6Yb3Gz3SrUDqBH5rTuhGR7ahtlbYKnVxw2bCFMRljaA7EXHaXZ8wsHdodFvbkhKmqg==}
+
+  concat-stream@1.6.2:
+    resolution: {integrity: sha512-27HBghJxjiZtIk3Ycvn/4kbJk/1uZuJFfuPEns6LaEvpvG1f0hTea8lilrouyo9mVc2GWdcEZ8OLoGmSADlrCw==}
+    engines: {'0': node >= 0.8}
 
   concat-stream@2.0.0:
     resolution: {integrity: sha512-MWufYdFw53ccGjCA+Ol7XJYpAlW6/prSMzuPOTRnJGcGzuhLn4Scrz7qf6o8bROZ514ltazcIFJZevcfbo0x7A==}
@@ -7048,6 +7113,10 @@ packages:
   mkdirp-classic@0.5.3:
     resolution: {integrity: sha512-gKLcREMhtuZRwRAfqP3RFW+TK4JqApVBtOIftVgjuABpAtpxhPGaDcfvbhNvD0B8iD1oUr/txX35NjcaY6Ns/A==}
 
+  mkdirp@0.5.6:
+    resolution: {integrity: sha512-FP+p8RB8OWpF3YZBCrP5gtADmtXApB5AMLn+vdyA+PyxCjrCs00mjyUozssO33cwDeT3wNGdLxJ5M//YqtHAJw==}
+    hasBin: true
+
   mkdirp@1.0.4:
     resolution: {integrity: sha512-vVqVZQyf3WLx2Shd0qJ9xuvqgAyKPLAiqITEtqW0oIUjzo3PePDd6fW9iFz30ef7Ysp/oiWqbhszeGWW2T6Gzw==}
     engines: {node: '>=10'}
@@ -7067,6 +7136,11 @@ packages:
 
   ms@2.1.3:
     resolution: {integrity: sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA==}
+
+  multer@1.4.5-lts.2:
+    resolution: {integrity: sha512-VzGiVigcG9zUAoCNU+xShztrlr1auZOlurXynNvO9GiWD1/mTBbUljOKY+qMeazBqXgRnjzeEgJI/wyjJUHg9A==}
+    engines: {node: '>= 6.0.0'}
+    deprecated: Multer 1.x is impacted by a number of vulnerabilities, which have been patched in 2.x. You should upgrade to the latest 2.x version.
 
   multer@2.1.1:
     resolution: {integrity: sha512-mo+QTzKlx8R7E5ylSXxWzGoXoZbOsRMpyitcht8By2KHvMbf3tjwosZ/Mu/XYU6UuJ3VZnODIrak5ZrPiPyB6A==}
@@ -12473,6 +12547,10 @@ snapshots:
 
   '@types/ms@2.1.0': {}
 
+  '@types/multer@1.4.13':
+    dependencies:
+      '@types/express': 5.0.6
+
   '@types/multer@2.1.0':
     dependencies:
       '@types/express': 5.0.6
@@ -13579,6 +13657,13 @@ snapshots:
       - supports-color
 
   concat-map@0.0.1: {}
+
+  concat-stream@1.6.2:
+    dependencies:
+      buffer-from: 1.1.2
+      inherits: 2.0.4
+      readable-stream: 2.3.8
+      typedarray: 0.0.6
 
   concat-stream@2.0.0:
     dependencies:
@@ -15936,6 +16021,10 @@ snapshots:
 
   mkdirp-classic@0.5.3: {}
 
+  mkdirp@0.5.6:
+    dependencies:
+      minimist: 1.2.8
+
   mkdirp@1.0.4: {}
 
   modern-screenshot@4.6.8: {}
@@ -15949,6 +16038,16 @@ snapshots:
   ms@2.0.0: {}
 
   ms@2.1.3: {}
+
+  multer@1.4.5-lts.2:
+    dependencies:
+      append-field: 1.0.0
+      busboy: 1.6.0
+      concat-stream: 1.6.2
+      mkdirp: 0.5.6
+      object-assign: 4.1.1
+      type-is: 1.6.18
+      xtend: 4.0.2
 
   multer@2.1.1:
     dependencies:
@@ -17223,7 +17322,7 @@ snapshots:
 
   socks@2.8.7:
     dependencies:
-      ip-address: 10.1.0
+      ip-address: 10.2.0
       smart-buffer: 4.2.0
 
   sonic-boom@4.2.1:

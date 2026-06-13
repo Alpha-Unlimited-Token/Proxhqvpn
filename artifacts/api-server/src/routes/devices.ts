@@ -5,6 +5,7 @@ import { db } from "@workspace/db";
 import { devicesTable, nodesTable } from "@workspace/db/schema";
 import { eq, isNotNull, and } from "drizzle-orm";
 import { z } from "zod";
+import { bus } from "../lib/service-bus";
 
 const router = Router();
 
@@ -42,6 +43,15 @@ router.post("/", async (req, res) => {
     publicKey: body.data.publicKey ?? null,
     assignedIp,
   }).returning();
+
+  bus.publish("wireguard.config_issued", {
+    event: "device_added",
+    deviceId: device.id,
+    name: device.name,
+    type: device.type,
+    assignedIp,
+    userId: userId ?? null,
+  }, "devices");
 
   res.status(201).json(device);
 });
@@ -115,6 +125,14 @@ router.put("/:id", async (req, res) => {
     .returning();
 
   if (!updated) return res.status(404).json({ error: "Device not found" });
+
+  bus.publish("node.status_change", {
+    event: "device_updated",
+    deviceId: id,
+    changes: body.data,
+    userId: userId ?? null,
+  }, "devices");
+
   res.json(updated);
 });
 
@@ -129,6 +147,15 @@ router.delete("/:id", async (req, res) => {
 
   const [deleted] = await db.delete(devicesTable).where(and(eq(devicesTable.id, id), eq(devicesTable.userId, userId!))).returning();
   if (!deleted) return res.status(404).json({ error: "Device not found" });
+
+  bus.publish("wireguard.config_revoked", {
+    event: "device_removed",
+    deviceId: id,
+    name: existing.name,
+    assignedIp: existing.assignedIp,
+    userId: userId ?? null,
+  }, "devices");
+
   res.json({ ok: true });
 });
 
