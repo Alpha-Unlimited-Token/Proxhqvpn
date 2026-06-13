@@ -18,6 +18,7 @@ import walletTxRouter from "./routes/wallet-tx";
 import walletIntelRouter from "./routes/wallet-intel";
 import { blockTemporaryProductionRoutes } from "./lib/route-governance";
 import { productionSecurityProfile } from "./middlewares/productionSecurityProfile";
+import { errorHandler, notFoundHandler } from "./middlewares/errorHandler";
 import { internalSecretBypass } from "./lib/internal-auth";
 import { logger } from "./lib/logger";
 import { WebhookHandlers } from "./webhookHandlers";
@@ -352,12 +353,7 @@ app.use("/api/wallet-intel", walletIntelRouter);
 
 app.use("/api", router);
 
-app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
-  if (err && typeof err === "object" && "name" in err && (err as any).name === "ZodError") {
-    return res.status(400).json({ error: "Invalid input", details: (err as any).issues });
-  }
-  logger.error({ err }, "Unhandled error");
-  res.status(500).json({ error: "Internal server error" });
-});
+app.use(notFoundHandler);
+app.use(errorHandler);
 
 export default app;

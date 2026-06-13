@@ -4,6 +4,7 @@ import helmet from "helmet";
 import cors from "cors";
 import { clerkMiddleware } from "@clerk/express";
 import { logger } from "./lib/logger";
+import { errorHandler, notFoundHandler } from "./middlewares/errorHandler";
 import { productionSecurityProfile } from "./middlewares/productionSecurityProfile";
 import { requireAuth } from "./routes/_auth";
 import omegaRoutes from "./routes/groups/omega";
@@ -71,8 +72,7 @@ app.use("/api", requireAuth);
 app.use("/api", omegaRoutes);
 app.use("/api", securityLabRoutes);
 
-app.use((_req, res) => {
-  res.status(404).json({ error: "Not found" });
-});
+app.use(notFoundHandler);
+app.use(errorHandler);
 
 export default app;

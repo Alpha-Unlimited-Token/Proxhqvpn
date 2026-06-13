@@ -2,10 +2,11 @@
 import { Router } from "express";
 import { capabilityRegistry } from "@workspace/capabilities";
 import { apiRouteCapabilities } from "./routeCapabilities";
+import { asyncHandler } from "../middlewares/asyncHandler";
 
 const router = Router();
 
-router.get("/", (_req, res) => {
+router.get("/", asyncHandler(async (_req, res) => {
   const capabilities = Object.values(capabilityRegistry);
 
   const criticalRoutes = apiRouteCapabilities.filter((route) => {
@@ -31,6 +32,6 @@ router.get("/", (_req, res) => {
     capabilities,
     ok: duplicateMounts.length === 0,
   });
-});
+}));
 
 export default router;
