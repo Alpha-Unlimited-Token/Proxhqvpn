@@ -267,6 +267,8 @@ const ADVANCED_NAV = [
   { href: "/firewall-compiler",   label: "Firewall Policy Compiler",icon: ShieldAlert },
   { href: "/drift-monitor",       label: "Drift Monitor",           icon: GitCompare },
   { href: "/event-graph",         label: "Global Event Graph",      icon: Activity },
+  { href: "/service-bus",         label: "Internal Service Bus",    icon: Zap },
+  { href: "/device-trust",        label: "Device Trust Engine",     icon: Fingerprint },
   { href: "/security-score",      label: "Security Score",          icon: Shield },
   { href: "/config-lifecycle",    label: "VPN Config Lifecycle",    icon: FileText },
   { href: "/deception-engine",   label: "Deception Engine",       icon: Lock },
@@ -317,6 +319,7 @@ const ADMIN_NAV = [
 ];
 
 const FIREWALL_NAV = [
+  { href: "/firewall-core",               label: "Firewall Core",      icon: ShieldAlert },
   { href: "/firewall",                    label: "Overview",           icon: Shield },
   { href: "/firewall?tab=ghostos",        label: "GhostOS™ Terminal",  icon: Terminal },
   { href: "/firewall?tab=rules",          label: "Firewall Rules",     icon: Filter },

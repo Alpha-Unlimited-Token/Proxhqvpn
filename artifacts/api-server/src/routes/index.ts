@@ -118,6 +118,9 @@ import eventGraphRouter from "./event-graph";
 import attackIntelRouter from "./attackintel";
 import honeypotRouter from "./honeypot";
 import nodeAgentRouter from "./node-agent";
+import serviceBusRouter from "./service-bus";
+import deviceTrustRouter from "./device-trust";
+import firewallCoreRouter from "./firewall-core";
 
 const router: IRouter = Router();
 
@@ -511,6 +514,9 @@ router.use("/security-score",          requireAccess,        securityScoreRouter
 router.use("/drift-monitor",           requireCommandCenter, driftMonitorRouter);
 router.use("/governance",              requireCommandCenter, governanceRouter);
 router.use("/events",                  requireCommandCenter, eventGraphRouter);
+router.use("/service-bus",             requireCommandCenter, serviceBusRouter);
+router.use("/device-trust",            requireCommandCenter, deviceTrustRouter);
+router.use("/firewall-core",           requireCommandCenter, firewallCoreRouter);
 router.get("/config-lifecycle-events", requireAccess, async (req: Request, res: Response) => {
   const userId = (req as any).auth?.userId ?? "unknown";
   const { getConfigLifecycleHistory } = await import("../lib/config-lifecycle");

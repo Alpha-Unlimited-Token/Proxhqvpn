@@ -62,6 +62,9 @@ import CustomerSecurityDashboard from "@/pages/CustomerSecurityDashboard";
 import FirewallPolicyCompiler from "@/pages/FirewallPolicyCompiler";
 import DriftMonitor from "@/pages/DriftMonitor";
 import EventGraph from "@/pages/EventGraph";
+import ServiceBus from "@/pages/ServiceBus";
+import DeviceTrustEngine from "@/pages/DeviceTrustEngine";
+import FirewallCore from "@/pages/FirewallCore";
 import ConfigLifecycle from "@/pages/ConfigLifecycle";
 const VpnCoexist = lazy(() => import("@/pages/VpnCoexist"));
 import VpnGate from "@/pages/VpnGate";
@@ -831,6 +834,15 @@ function AppRoutes() {
           </Route>
           <Route path="/event-graph">
             <CcLayout><EventGraph /></CcLayout>
+          </Route>
+          <Route path="/service-bus">
+            <CcLayout><ServiceBus /></CcLayout>
+          </Route>
+          <Route path="/device-trust">
+            <CcLayout><DeviceTrustEngine /></CcLayout>
+          </Route>
+          <Route path="/firewall-core">
+            <CcLayout><FirewallCore /></CcLayout>
           </Route>
           <Route path="/config-lifecycle">
             <ProtectedLayout><ConfigLifecycle /></ProtectedLayout>
