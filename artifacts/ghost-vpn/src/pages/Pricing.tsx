@@ -302,7 +302,7 @@ export default function Pricing() {
                 onChange={e => { setPromoCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "")); setPromoStatus(null); setPromoAmbassador(null); }}
                 onKeyDown={e => e.key === "Enter" && validatePromo()}
                 placeholder="Enter code (e.g. JOHN2024)"
-                className="bg-black border border-primary/20 text-primary text-xs font-mono px-3 py-1.5 focus:outline-none focus:border-primary/50 rounded-lg tracking-widest w-44"
+                className="bg-black border border-primary/20 text-primary text-xs font-mono px-3 py-1.5 focus:outline-none focus:border-primary/50 rounded-lg tracking-widest w-56"
               />
               <button onClick={validatePromo} disabled={!promoCode.trim()}
                 className="text-[10px] font-mono border border-primary/30 text-primary/60 hover:border-primary hover:text-primary px-3 py-1.5 rounded-lg disabled:opacity-30 transition-colors">
@@ -435,18 +435,18 @@ export default function Pricing() {
           </div>
 
           {/* ── Command Center Pro ── */}
-          <div className="bg-[#0d1610] border border-yellow-500/30 rounded-2xl overflow-hidden flex flex-col shadow-[0_0_50px_rgba(234,179,8,0.06)] relative">
-            <div className="bg-gradient-to-r from-yellow-500/90 to-orange-500/90 text-black text-center text-[11px] font-bold tracking-widest py-2">
+          <div className="bg-[#0d1610] border border-primary/30 rounded-2xl overflow-hidden flex flex-col shadow-[0_0_50px_rgba(0,255,136,0.06)] relative">
+            <div className="bg-gradient-to-r from-primary to-primary/70 text-black text-center text-[11px] font-bold tracking-widest py-2">
               DEVELOPER TOOLKIT — BEST VALUE
             </div>
             <div className="p-7 flex flex-col flex-1">
               <div className="flex items-center justify-between mb-5">
                 <div>
-                  <div className="text-[11px] font-bold uppercase tracking-widest text-yellow-400/70 mb-1">Command Center Pro</div>
+                  <div className="text-[11px] font-bold uppercase tracking-widest text-primary/70 mb-1">Command Center Pro</div>
                   <div className="text-lg font-bold text-white">Full Security Toolkit</div>
                 </div>
-                <div className="w-10 h-10 rounded-xl bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center shrink-0">
-                  <Zap className="w-5 h-5 text-yellow-400/70" />
+                <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+                  <Zap className="w-5 h-5 text-primary/70" />
                 </div>
               </div>
 
@@ -469,12 +469,12 @@ export default function Pricing() {
                 <span className="text-white/70 text-sm pb-1">/{period === "monthly" ? "month" : "year"}</span>
               </div>
               {period === "annual" && (
-                <div className="text-yellow-400/70 text-xs font-medium mb-4">
+                <div className="text-primary/70 text-xs font-medium mb-4">
                   ${(proAnnual / 12 / 100).toFixed(2)}/mo · save {savings(proMonthly, proAnnual)}% vs monthly
                 </div>
               )}
               {period === "monthly" && (
-                <div className="text-yellow-400/50 text-xs mb-4">
+                <div className="text-primary/50 text-xs mb-4">
                   Compare: Burp Suite Pro $449/yr · Shodan $49/mo
                 </div>
               )}
@@ -492,12 +492,12 @@ export default function Pricing() {
               </div>
 
               {/* Pro extras */}
-              <div className="text-[10px] font-bold uppercase tracking-widest text-yellow-400/50 mb-2.5 mt-1">Command Center tools</div>
+              <div className="text-[10px] font-bold uppercase tracking-widest text-primary/50 mb-2.5 mt-1">Command Center tools</div>
               <ul className="space-y-2 mb-7 flex-1">
                 {PRO_EXTRAS.map((f) => (
                   <li key={f.text} className="flex items-center gap-2.5">
-                    <div className="w-5 h-5 rounded-full bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center shrink-0">
-                      <Check className="w-2.5 h-2.5 text-yellow-400" />
+                    <div className="w-5 h-5 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+                      <Check className="w-2.5 h-2.5 text-primary" />
                     </div>
                     <span className="text-[12px] text-white/88">{f.text}</span>
                   </li>
@@ -506,7 +506,7 @@ export default function Pricing() {
 
               {/* CTA */}
               {tier === "command_center" ? (
-                <div className="w-full flex items-center justify-center gap-2 bg-yellow-500/10 border border-yellow-500/25 rounded-xl py-3 text-yellow-400 text-sm font-medium">
+                <div className="w-full flex items-center justify-center gap-2 bg-primary/10 border border-primary/25 rounded-xl py-3 text-primary text-sm font-medium">
                   <Check className="w-4 h-4" /> Current Plan
                 </div>
               ) : (
@@ -514,7 +514,7 @@ export default function Pricing() {
                   <button
                     onClick={() => proPrice && checkout(proPrice.id)}
                     disabled={!!checkingOut || !proPrice}
-                    className="w-full py-3 rounded-xl font-semibold text-[13px] flex items-center justify-center gap-2 bg-gradient-to-r from-yellow-500 to-orange-500 text-black hover:brightness-110 transition-all disabled:opacity-40 shadow-[0_0_30px_rgba(234,179,8,0.2)]"
+                    className="w-full py-3 rounded-xl font-semibold text-[13px] flex items-center justify-center gap-2 bg-primary text-black hover:brightness-110 transition-all disabled:opacity-40 shadow-[0_0_30px_rgba(0,255,136,0.2)]"
                   >
                     {checkingOut === proPrice?.id ? (
                       <><Loader2 className="w-4 h-4 animate-spin" /> Redirecting...</>
@@ -526,7 +526,7 @@ export default function Pricing() {
                   </button>
                   <button
                     onClick={() => openCrypto(period === "monthly" ? "pro_monthly" : "pro_annual", `Command Center Pro — ${period === "monthly" ? "Monthly" : "Annual"}`)}
-                    className="w-full py-2.5 rounded-xl text-[12px] flex items-center justify-center gap-2 border border-orange-500/30 text-orange-400 hover:bg-orange-500/10 transition-all font-medium"
+                    className="w-full py-2.5 rounded-xl text-[12px] flex items-center justify-center gap-2 border border-primary/25 text-primary/60 hover:bg-primary/8 transition-all font-medium"
                   >
                     <Bitcoin className="w-3.5 h-3.5" /> Pay anonymously with Bitcoin/ETH
                   </button>
@@ -551,16 +551,16 @@ export default function Pricing() {
           ].map((r) => (
             <div key={r.tool} className={`rounded-xl p-3.5 text-center ${
               r.highlight
-                ? "bg-yellow-500/8 border border-yellow-500/20"
+                ? "bg-primary/8 border border-primary/20"
                 : "bg-white/[0.02] border border-white/[0.05]"
             }`}>
-              <div className={`text-sm font-bold mb-0.5 ${r.highlight ? "text-yellow-400" : "text-white/83"}`}>
+              <div className={`text-sm font-bold mb-0.5 ${r.highlight ? "text-primary" : "text-white/83"}`}>
                 {r.price}
               </div>
               <div className={`text-[11px] font-semibold mb-0.5 ${r.highlight ? "text-white/93" : "text-white/78"}`}>
                 {r.tool}
               </div>
-              <div className={`text-[10px] ${r.highlight ? "text-yellow-400/50" : "text-white/70"}`}>
+              <div className={`text-[10px] ${r.highlight ? "text-primary/50" : "text-white/70"}`}>
                 {r.tag}
               </div>
             </div>

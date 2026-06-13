@@ -1,7 +1,7 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { lazy } from "react";
 import { Route } from "wouter";
-import { PublicLayout, ProtectedLayout, CcLayout } from "./routeGuards";
+import { PublicLayout, ProtectedLayout, CcLayout, MarketingLayout } from "./routeGuards";
 import { AppLanding } from "./AppLanding";
 import { SignInPage, SignUpPage } from "./authScreens";
 
@@ -46,7 +46,7 @@ export function PublicRoutes() {
       </Route>
 
       <Route path="/pricing">
-        <PublicLayout><Pricing /></PublicLayout>
+        <MarketingLayout><Pricing /></MarketingLayout>
       </Route>
 
       <Route path="/downloads">

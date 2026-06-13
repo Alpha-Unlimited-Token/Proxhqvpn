@@ -22,6 +22,10 @@ export function PublicLayout({ children }: { children: ReactNode }) {
   return <PublicPageLayout>{children}</PublicPageLayout>;
 }
 
+export function MarketingLayout({ children }: { children: ReactNode }) {
+  return <PublicPageLayout>{children}</PublicPageLayout>;
+}
+
 export function ProtectedLayout({ children }: { children: ReactNode }) {
   const { isSignedIn, isLoaded } = useUser();
 
