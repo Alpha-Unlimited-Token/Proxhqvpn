@@ -491,3 +491,9 @@ id = "I34Rfu1etyJmb0AO1V99e"
 uri = "file://proxhqvpn-chatgpt-audit.zip"
 type = "unspecified"
 title = "ProxhqVPN — ChatGPT Audit Package"
+
+[[outputs]]
+id = "egGvCAE_Jy_f73Wwb8Xoh"
+uri = "file://proxhqvpn-FULL-BUILD-PACKAGE.zip"
+type = "unspecified"
+title = "ProxhqVPN — Full Enterprise Build Package (547 files)"
