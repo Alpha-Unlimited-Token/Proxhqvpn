@@ -8,7 +8,10 @@
     "build": "node ./build.mjs",
     "start": "node --enable-source-maps ./dist/index.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "dev:security-api": "export NODE_ENV=development && node ./build.mjs && node --enable-source-maps ./dist/security-index.mjs",
+    "start:security-api": "node --enable-source-maps ./dist/security-index.mjs",
+    "build:security-api": "node ./build.mjs"
   },
   "dependencies": {
     "@clerk/express": "^2.1.5",
