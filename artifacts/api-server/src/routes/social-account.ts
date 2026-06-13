@@ -588,7 +588,7 @@ async function dispatchLogin(platform: string, u: string, p: string, loginUrl: s
     result = { success: false, accountInfo: {}, error: e.message };
   }
 
-  const homeUrl = PLATFORM_HOME[platform] || loginUrl || "https://example.com";
+  const homeUrl = PLATFORM_HOME[platform] || loginUrl || (process.env.APP_URL || "https://proxhqvpn.com");
 
   if (!result.success) {
     if (result.manualRequired) {

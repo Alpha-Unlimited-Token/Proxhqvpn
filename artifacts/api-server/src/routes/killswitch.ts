@@ -379,7 +379,7 @@ router.get("/systemd", (req, res) => {
 
   const serviceFile = `[Unit]
 Description=ProxhqVPN Kill Switch — blocks all non-VPN traffic
-Documentation=https://proxhqvpn.example.com
+Documentation=https://proxhqvpn.com
 DefaultDependencies=no
 Before=network-pre.target
 After=local-fs.target
