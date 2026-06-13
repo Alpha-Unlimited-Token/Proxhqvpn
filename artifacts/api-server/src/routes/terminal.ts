@@ -7,9 +7,19 @@ import { promisify } from "util";
 import { z } from "zod";
 import { Client as SshClient } from "ssh2";
 import type { ConnectConfig, SFTPWrapper } from "ssh2";
-import { randomUUID, timingSafeEqual } from "crypto";
+import { randomUUID } from "crypto";
 import { appendAuditEvent } from "../lib/audit-chain";
 import { shipSecurityEvent } from "../lib/siem";
+import { verifyBreakGlassToken } from "../lib/break-glass";
+import {
+  getHardBlockReason,
+  hasShellChain,
+  isAllowedCommand,
+  truncateTerminalOutput,
+  TERMINAL_OUTPUT_LIMIT,
+  TERMINAL_STDERR_LIMIT,
+} from "../lib/terminal-policy";
+import { auditTerminalEvent } from "../lib/terminal-audit";
 
 const execAsync = promisify(exec);
 
@@ -43,112 +53,6 @@ const router = Router();
 // ─── Audit log ───────────────────────────────────────────────────────────────
 const auditLog: { ts: string; cmd: string; exitCode: number; ip: string }[] = [];
 
-// ─── Hard-blocked dangerous patterns (system-destructive operations) ─────────
-const HARD_BLOCKED: RegExp[] = [
-  /\brm\s+-[rf]{1,3}\s+\/(?!\s*tmp)/i,    // rm -rf / (allow /tmp)
-  /\bmkfs\b/i,
-  /\bdd\s+if=\/dev\/(sd|hd|vd|nvme)/i,
-  /\bformat\s+[cdefg]:/i,                  // Windows format
-  /\b(passwd|chpasswd)\b/i,               // password changes
-  /\bsudo\s+(su|bash|sh)\b/i,
-  />\s*\/etc\/(passwd|shadow|sudoers)/i,
-  /\bshutdown\b|\breboot\b|\bhalt\b/i,
-  /\bsystemctl\s+(stop|disable|mask)\s+(ssh|sshd|network)/i,
-  /\biptables\s+-F\s*$/i,                 // flush all rules with no args
-  /\bkillall\s+-9\s+/i,
-  /\/dev\/null.*&&\s*rm/i,
-  /\becho\s+.*>>\s*\/etc\/crontab/i,
-  /\bchmod\s+[0-7]*7[0-7]*\s+\//i,        // chmod 777 /
-];
-
-// ─── Allowed commands (broad categories for a security research terminal) ────
-const ALLOWED_STARTS: string[] = [
-  // Network recon & scanning
-  "nmap", "masscan", "netdiscover", "arp-scan",
-  // HTTP clients
-  "curl", "wget", "httpie", "http ",
-  // DNS/WHOIS
-  "dig", "nslookup", "host ", "whois", "drill",
-  // Routing & interfaces
-  "ip ", "ifconfig", "route", "ss ", "netstat",
-  // WireGuard
-  "wg ", "wg-quick",
-  // Firewall inspection
-  "iptables -L", "iptables -S", "iptables -n", "ip6tables -L",
-  "nft list", "ufw status",
-  // Connectivity testing
-  "ping", "ping6", "traceroute", "tracepath", "mtr",
-  // SSL/TLS
-  "openssl", "certbot",
-  // System info (read-only)
-  "uname", "hostname", "hostnamectl", "uptime", "who", "w ", "id ",
-  "whoami", "date", "cal",
-  "df ", "free ", "vmstat", "iostat", "top -bn", "htop", "ps ",
-  "ls ", "ll ", "la ", "pwd", "echo", "cat ", "head ", "tail ",
-  "find /tmp", "find /var/log", "find /etc/wireguard",
-  // Scripting/execution (limited)
-  "python3 -c", "python -c", "node -e", "node --eval",
-  "bash -c 'curl", "bash -c 'dig", "bash -c 'nmap",
-  // File read (not write)
-  "cat /etc/os-release", "cat /proc/version", "cat /proc/cpuinfo",
-  "cat /etc/wireguard", "cat /var/log/",
-  // nc/netcat (outbound checks)
-  "nc -zv", "nc -w", "netcat -zv",
-  // SSH (non-interactive)
-  "ssh -o BatchMode", "ssh -T",
-  // Process info
-  "lsof -i", "lsof -n",
-  // Package queries (read-only)
-  "dpkg -l", "rpm -qa", "apt list",
-  // Crypto/keys
-  "wg genkey", "wg pubkey", "openssl genrsa", "openssl rsa",
-  "openssl x509", "openssl s_client", "openssl verify",
-  // ProxhqVPN specific
-  "ghostnet", "python3 tun_daemon",
-  // Security tools
-  "nikto", "sqlmap --level=1", "hydra -I",
-  "tcpdump -i", "tshark -i",
-  // General utilities
-  "env", "printenv", "which", "whereis", "type",
-  "base64", "xxd", "hexdump",
-  "awk", "sed ", "grep ", "cut ", "sort ", "uniq ", "wc ",
-  "jq ", "tr ", "xargs ",
-];
-
-// Shell chain injection patterns that bypass allowlist via command chaining.
-// Applied in NON-ghost-mode only. Ghost mode is admin-only and logs everything.
-const SHELL_CHAIN_BLOCKED: RegExp[] = [
-  /`[^`]{1,300}`/,                 // backtick command substitution
-  /\$\([^)]{1,300}\)/,             // $(...) command substitution
-  /\$\{[^}]{1,300}\}/,             // ${...} variable expansion used for injection
-  /;\s*\S/,                        // ; command separator
-  /&&\s*\S/,                       // && conditional chaining
-  /\|\|\s*\S/,                     // || conditional chaining
-  /\|\s*(?:bash|sh|python|perl|ruby|nc|netcat|socat)/i,  // pipe to shell/interpreter
-  />\s*\/(?!tmp\/)/,               // redirect to file outside /tmp
-  />>/,                            // append redirect (always dangerous)
-  /2>&1\s*>\s*\//,                 // stderr redirect to file
-  /\beval\s*['"`(]/i,              // eval injection
-  /\bexec\s+['"`\-]/i,             // exec injection
-  /\bsource\s+\//i,                // source /path injection
-  /\.\s+\//,                       // . /path (dot-source injection)
-];
-
-function isBlocked(cmd: string): string | null {
-  for (const pat of HARD_BLOCKED) {
-    if (pat.test(cmd)) return `BLOCKED: Destructive operation detected — "${pat.source}"`;
-  }
-  return null;
-}
-
-function hasShellChain(cmd: string): boolean {
-  return SHELL_CHAIN_BLOCKED.some(pat => pat.test(cmd));
-}
-
-function isAllowed(cmd: string): boolean {
-  const lower = cmd.trim().toLowerCase();
-  return ALLOWED_STARTS.some(s => lower.startsWith(s.toLowerCase()));
-}
 
 // ─── GET audit log ────────────────────────────────────────────────────────────
 router.get("/audit-log", (_req, res) => {
@@ -168,8 +72,10 @@ router.post("/exec", async (req, res) => {
   const executedAt = new Date().toISOString();
   const clientIp = req.ip ?? "unknown";
 
+  const actor = getAuth(req).userId ?? "unknown";
+
   // Hard block — always enforced
-  const blockReason = isBlocked(cmd);
+  const blockReason = getHardBlockReason(cmd);
   if (blockReason) {
     auditLog.push({ ts: executedAt, cmd, exitCode: -1, ip: clientIp });
     return res.json({ command: cmd, stdout: "", stderr: blockReason, exitCode: 1, executedAt, blocked: true });
@@ -182,8 +88,8 @@ router.post("/exec", async (req, res) => {
   }
 
   // ProxhqVPN mode bypasses allowlist (full shell access)
-  if (!body.ghostMode && !isAllowed(cmd)) {
-    const allowed = ALLOWED_STARTS.slice(0, 20).join(", ") + "...";
+  if (!body.ghostMode && !isAllowedCommand(cmd)) {
+    const allowed = ["nmap", "curl", "dig", "openssl", "ping", "traceroute", "wg", "python3 -c", "ssh -o BatchMode"].join(", ") + "...";
     return res.json({
       command: cmd,
       stdout: "",
@@ -195,54 +101,32 @@ router.post("/exec", async (req, res) => {
   }
 
   // Ghost mode (ProxhqVPN Mode) = full outbound shell, admin-only, everything audited.
-  // Audit finding: ghost mode requires break-glass authorization token — High severity.
-  // A short-lived token must be issued by an admin and presented in X-Break-Glass-Token.
-  // This prevents accidental enablement and provides a clear audit trail.
+  // Requires a valid break-glass token in X-Break-Glass-Token header.
   if (body.ghostMode) {
-    const bgToken = String(req.headers["x-break-glass-token"] ?? "").trim();
-    const bgExpected = (process.env.BREAK_GLASS_TOKEN ?? "").trim();
-    if (!bgExpected) {
-      return res.status(403).json({
-        error: "Ghost mode is disabled — BREAK_GLASS_TOKEN env var not set by admin",
-      });
-    }
-    if (
-      bgToken.length !== bgExpected.length ||
-      !timingSafeEqual(Buffer.from(bgToken), Buffer.from(bgExpected))
-    ) {
-      void shipSecurityEvent({
-        actor: getAuth(req).userId ?? "anonymous",
+    const token = String(req.headers["x-break-glass-token"] ?? "");
+
+    if (!verifyBreakGlassToken(token)) {
+      await auditTerminalEvent({
+        actor,
         action: "terminal.break_glass_failed",
-        resource: "terminal:ghost_mode",
         result: "deny",
-        severity: "critical",
         ip: clientIp,
-        metadata: { cmd },
+        command: cmd,
       });
       return res.status(403).json({
-        error: "Ghost mode requires a valid break-glass token (X-Break-Glass-Token header)",
+        error: "Ghost mode requires a valid break-glass token",
       });
     }
-    // Break-glass token verified — emit high-severity audit + SIEM event
-    const { userId: bgUid } = getAuth(req);
-    appendAuditEvent({
-      actor: bgUid ?? "unknown",
+
+    await auditTerminalEvent({
+      actor,
       action: "terminal.break_glass_authorized",
-      resource: "terminal:ghost_mode",
       result: "allow",
       ip: clientIp,
-      metadata: { cmd },
-    });
-    void shipSecurityEvent({
-      actor: bgUid ?? "unknown",
-      action: "terminal.break_glass_authorized",
-      resource: "terminal:ghost_mode",
-      result: "allow",
-      severity: "critical",
-      ip: clientIp,
-      metadata: { cmd },
+      command: cmd,
     });
   }
+
   if (body.ghostMode) {
     try {
       const { stdout, stderr } = await execAsync(cmd, {
@@ -253,20 +137,27 @@ router.post("/exec", async (req, res) => {
       });
       auditLog.push({ ts: executedAt, cmd, exitCode: 0, ip: clientIp });
       appendAuditEvent({
-        actor: getAuth(req).userId ?? "unknown",
+        actor,
         action: "terminal.ghost_exec",
         resource: "terminal:shell",
         result: "allow",
         ip: clientIp,
         metadata: { cmd, exitCode: 0 },
       });
-      res.json({ command: cmd, stdout: stdout || "", stderr: stderr || "", exitCode: 0, executedAt, ghostMode: true });
+      res.json({
+        command: cmd,
+        stdout: truncateTerminalOutput(stdout || "", TERMINAL_OUTPUT_LIMIT),
+        stderr: truncateTerminalOutput(stderr || "", TERMINAL_STDERR_LIMIT),
+        exitCode: 0,
+        executedAt,
+        ghostMode: true,
+      });
     } catch (err: any) {
       auditLog.push({ ts: executedAt, cmd, exitCode: err.code ?? 1, ip: clientIp });
       res.json({
         command: cmd,
-        stdout: err.stdout || "",
-        stderr: err.stderr || err.message || "Command failed",
+        stdout: truncateTerminalOutput(err.stdout || "", TERMINAL_OUTPUT_LIMIT),
+        stderr: truncateTerminalOutput(err.stderr || err.message || "Command failed", TERMINAL_STDERR_LIMIT),
         exitCode: typeof err.code === "number" ? err.code : 1,
         executedAt,
         ghostMode: true,
@@ -416,16 +307,48 @@ router.post("/port-scan", async (req, res) => {
 
 interface SshSession {
   id: string;
+  ownerUserId: string;
   host: string;
   port: number;
   username: string;
   connectedAt: string;
+  lastUsedAt: number;
   client: SshClient;
   sftp: SFTPWrapper | null;
   label: string;
 }
 
 const sshSessions = new Map<string, SshSession>();
+
+function getActor(req: any): string {
+  return getAuth(req).userId ?? "unknown";
+}
+
+function getOwnedSession(req: any, sessionId: string): SshSession | null {
+  const session = sshSessions.get(sessionId);
+  const actor = getActor(req);
+
+  if (!session) return null;
+  if (session.ownerUserId !== actor) return null;
+
+  session.lastUsedAt = Date.now();
+  return session;
+}
+
+setInterval(() => {
+  const cutoff = Date.now() - 30 * 60 * 1000;
+
+  for (const [sessionId, session] of sshSessions.entries()) {
+    if (session.lastUsedAt < cutoff) {
+      try {
+        session.client.end();
+      } catch {
+        // ignore cleanup errors
+      }
+      sshSessions.delete(sessionId);
+    }
+  }
+}, 5 * 60 * 1000);
 
 // Helper: get SFTP subsystem for a session (lazy init)
 function getSftp(session: SshSession): Promise<SFTPWrapper> {
@@ -481,10 +404,12 @@ router.post("/ssh/connect", async (req, res) => {
     client.on("ready", () => {
       sshSessions.set(sessionId, {
         id: sessionId,
+        ownerUserId: getActor(req),
         host: body.host,
         port: body.port,
         username: body.username,
         connectedAt: new Date().toISOString(),
+        lastUsedAt: Date.now(),
         client,
         sftp: null,
         label: body.label ?? `${body.username}@${body.host}`,
@@ -502,22 +427,25 @@ router.post("/ssh/connect", async (req, res) => {
 });
 
 // GET /api/terminal/ssh/sessions
-router.get("/ssh/sessions", (_req, res) => {
-  const list = [...sshSessions.values()].map(s => ({
-    id: s.id,
-    host: s.host,
-    port: s.port,
-    username: s.username,
-    label: s.label,
-    connectedAt: s.connectedAt,
-  }));
+router.get("/ssh/sessions", (req, res) => {
+  const actor = getActor(req);
+  const list = [...sshSessions.values()]
+    .filter((s) => s.ownerUserId === actor)
+    .map((s) => ({
+      id: s.id,
+      host: s.host,
+      port: s.port,
+      username: s.username,
+      label: s.label,
+      connectedAt: s.connectedAt,
+    }));
   res.json({ sessions: list });
 });
 
 // DELETE /api/terminal/ssh/sessions/:id
 router.delete("/ssh/sessions/:id", (req, res) => {
-  const session = sshSessions.get(req.params.id);
-  if (!session) return res.status(404).json({ error: "Session not found" });
+  const session = getOwnedSession(req, req.params.id);
+  if (!session) return res.status(404).json({ error: "Session not found or not owned by current user" });
   try { session.client.end(); } catch { /* ignore */ }
   sshSessions.delete(req.params.id);
   res.json({ ok: true });
@@ -531,11 +459,11 @@ router.post("/ssh/exec", async (req, res) => {
     timeout: z.number().min(500).max(120000).optional().default(30000),
   }).parse(req.body);
 
-  const session = sshSessions.get(body.sessionId);
-  if (!session) return res.status(404).json({ error: "Session not found or disconnected" });
+  const session = getOwnedSession(req, body.sessionId);
+  if (!session) return res.status(404).json({ error: "Session not found or not owned by current user" });
 
   // Enforce same hard-block patterns even on remote sessions
-  const blockReason = isBlocked(body.command);
+  const blockReason = getHardBlockReason(body.command);
   if (blockReason) return res.status(403).json({ error: blockReason });
 
   const executedAt = new Date().toISOString();
@@ -552,9 +480,8 @@ router.post("/ssh/exec", async (req, res) => {
       }
       let stdout = "";
       let stderr = "";
-      const MAX = 2 * 1024 * 1024;
-      stream.on("data", (d: Buffer) => { stdout += d; if (stdout.length > MAX) stdout = stdout.slice(-MAX); });
-      stream.stderr.on("data", (d: Buffer) => { stderr += d; if (stderr.length > 256 * 1024) stderr = stderr.slice(-256 * 1024); });
+      stream.on("data", (d: Buffer) => { stdout += d; if (stdout.length > TERMINAL_OUTPUT_LIMIT) stdout = stdout.slice(-TERMINAL_OUTPUT_LIMIT); });
+      stream.stderr.on("data", (d: Buffer) => { stderr += d; if (stderr.length > TERMINAL_STDERR_LIMIT) stderr = stderr.slice(-TERMINAL_STDERR_LIMIT); });
       stream.on("close", (code: number) => {
         clearTimeout(timer);
         resolve({ stdout, stderr, exitCode: code ?? 0 });
@@ -567,6 +494,21 @@ router.post("/ssh/exec", async (req, res) => {
   });
 
   auditLog.push({ ts: executedAt, cmd: `[SSH:${session.label}] ${body.command}`, exitCode: result.exitCode, ip: req.ip ?? "unknown" });
+
+  await auditTerminalEvent({
+    actor: getActor(req),
+    action: "terminal.ssh_exec",
+    result: result.exitCode === 0 ? "allow" : "error",
+    ip: req.ip ?? "unknown",
+    command: body.command,
+    metadata: {
+      sessionId: body.sessionId,
+      host: session.host,
+      username: session.username,
+      exitCode: result.exitCode,
+    },
+  });
+
   res.json({ ...result, command: body.command, executedAt });
 });
 
@@ -577,8 +519,8 @@ router.post("/ssh/sftp/ls", async (req, res) => {
     path: z.string().min(1).max(4096).default("/"),
   }).parse(req.body);
 
-  const session = sshSessions.get(body.sessionId);
-  if (!session) return res.status(404).json({ error: "Session not found" });
+  const session = getOwnedSession(req, body.sessionId);
+  if (!session) return res.status(404).json({ error: "Session not found or not owned by current user" });
 
   try {
     const sftp = await getSftp(session);
@@ -609,8 +551,8 @@ router.post("/ssh/sftp/read", async (req, res) => {
     path: z.string().min(1).max(4096),
   }).parse(req.body);
 
-  const session = sshSessions.get(body.sessionId);
-  if (!session) return res.status(404).json({ error: "Session not found" });
+  const session = getOwnedSession(req, body.sessionId);
+  if (!session) return res.status(404).json({ error: "Session not found or not owned by current user" });
 
   const MAX_BYTES = 512 * 1024;
   try {
@@ -661,8 +603,8 @@ router.post("/ssh/screen/capture", async (req, res) => {
     display: z.string().max(8).optional().default(":0"),
   }).parse(req.body);
 
-  const session = sshSessions.get(body.sessionId);
-  if (!session) return res.status(404).json({ error: "Session not found" });
+  const session = getOwnedSession(req, body.sessionId);
+  if (!session) return res.status(404).json({ error: "Session not found or not owned by current user" });
 
   const q = body.quality;
   const disp = body.display;
@@ -692,8 +634,8 @@ router.post("/ssh/screen/capture", async (req, res) => {
 // Returns screen resolution via xrandr or xdpyinfo
 router.post("/ssh/screen/info", async (req, res) => {
   const body = z.object({ sessionId: z.string().uuid(), display: z.string().max(8).optional().default(":0") }).parse(req.body);
-  const session = sshSessions.get(body.sessionId);
-  if (!session) return res.status(404).json({ error: "Session not found" });
+  const session = getOwnedSession(req, body.sessionId);
+  if (!session) return res.status(404).json({ error: "Session not found or not owned by current user" });
 
   const r = await sshRun(session,
     `DISPLAY=${body.display} xrandr 2>/dev/null | grep ' connected' | grep -oP '\\d+x\\d+' | head -1` +
@@ -723,8 +665,8 @@ router.post("/ssh/screen/input", async (req, res) => {
     display: z.string().max(8).optional().default(":0"),
   }).parse(req.body);
 
-  const session = sshSessions.get(body.sessionId);
-  if (!session) return res.status(404).json({ error: "Session not found" });
+  const session = getOwnedSession(req, body.sessionId);
+  if (!session) return res.status(404).json({ error: "Session not found or not owned by current user" });
 
   const ev = body.event;
   const disp = `DISPLAY=${body.display}`;
