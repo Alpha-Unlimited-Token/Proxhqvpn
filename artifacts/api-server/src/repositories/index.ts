@@ -9,3 +9,6 @@ export * from "./nodesRepository";
 export * from "./wireguardConfigRepository";
 export * from "./deviceLifecycleRepository";
 export * from "./wireguardConfigVersionRepository";
+export * from "./wireguardKeyRotationRepository";
+export * from "./connectionAnalyticsRepository";
+export * from "./bandwidthForecastRepository";

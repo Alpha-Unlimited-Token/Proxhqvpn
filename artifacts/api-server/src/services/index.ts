@@ -10,3 +10,7 @@ export * from "./nodeHealthService";
 export * from "./nodeRoutingService";
 export * from "./nodeFailoverService";
 export * from "./wireguardPeerReconciliationService";
+export * from "./wireguardKeyRotationService";
+export * from "./connectionAnalyticsService";
+export * from "./nodeCapacityService";
+export * from "./bandwidthForecastService";
