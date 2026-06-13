@@ -7,6 +7,7 @@ import { getAuth } from "@clerk/express";
 import crypto from "crypto";
 import dns from "dns";
 import { sendMail, adminEmails } from "../lib/mailer";
+import { platformConfig } from "../config/platform";
 
 const router = Router();
 
@@ -15,7 +16,7 @@ function makeTokenId() {
 }
 
 function buildTokenPayload(tokenId: string, type: string, domain: string) {
-  const base = domain || "proxhqvpn.com";
+  const base = domain || platformConfig.APP_URL.replace(/^https?:\/\//, "");
   const callbackUrl = `https://${base}/api/canary/trigger/${tokenId}`;
   switch (type) {
     case "url":
@@ -245,7 +246,7 @@ async function handleTriggerAsync(req: Request, tokenId: string, ip: string, ua:
             ${rdns}
             <hr style="border-color:#222;margin:16px 0">
             <p style="color:#888;font-size:12px;margin:0">IP has been automatically added to SilkWeb Trapped Entities.<br>
-            View at <a href="https://proxhqvpn.com/silkweb" style="color:#00ff88">proxhqvpn.com/silkweb</a></p>
+            View at <a href="${platformConfig.APP_URL}/silkweb" style="color:#00ff88">${platformConfig.APP_URL.replace(/^https?:\/\//, "")}/silkweb</a></p>
           </div>`,
         text: `Canary triggered!\nToken: ${token.label ?? tokenId} (${token.tokenType})\nSource IP: ${ip}\nLocation: ${geo}\nOrg: ${org}\nUser-Agent: ${ua}\nTime: ${new Date().toUTCString()}`,
       });
@@ -283,7 +284,7 @@ router.post("/tokens", async (req: Request, res: Response) => {
   if (!validTypes.includes(tokenType)) return res.status(400).json({ error: "Invalid token type" });
 
   const tokenId = makeTokenId();
-  const domain = process.env.REPLIT_DEV_DOMAIN || "proxhqvpn.com";
+  const domain = process.env.REPLIT_DEV_DOMAIN || platformConfig.APP_URL.replace(/^https?:\/\//, "");
   const payload = buildTokenPayload(tokenId, tokenType, domain);
 
   const [token] = await db.insert(canaryTokensTable).values({
@@ -352,7 +353,7 @@ router.get("/trigger/:tokenId/redirect", async (req: Request, res: Response) => 
   const ref = req.headers["referer"] || "";
 
   // Redirect immediately — log, trap, and notify after
-  res.redirect(302, "https://proxhqvpn.com");
+  res.redirect(302, platformConfig.APP_URL);
   handleTriggerAsync(req, tokenId, ip, ua, ref);
 });
 
@@ -396,7 +397,7 @@ router.get("/warrant-canary", (_req: Request, res: Response) => {
     "This canary is updated on the 1st of each calendar month (UTC). Removal or non-renewal implies a trigger.",
     "",
     "ProxhqVPN — ALPHA UNLIMITED TECHNOLOGIES LLC",
-    "https://proxhqvpn.com",
+    platformConfig.APP_URL,
   ];
 
   const stmtText = statement.join("\n");

@@ -1,6 +1,7 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { Router } from "express";
 import { getAuth, clerkClient } from "@clerk/express";
+import { platformConfig } from "../config/platform";
 import { getUncachableStripeClient, getStripePublishableKey, getStripeSync } from "../stripeClient";
 import { stripeStorage } from "../stripeStorage";
 import { isEmployeeEmail } from "./employees";
@@ -13,7 +14,7 @@ const HOST = () => {
   // Prefer the custom domain if set, then fall back to the first Replit domain
   if (process.env.CUSTOM_DOMAIN) return `https://${process.env.CUSTOM_DOMAIN}`;
   const domain = process.env.REPLIT_DOMAINS?.split(",")[0];
-  return domain ? `https://${domain}` : (process.env.APP_URL || "https://proxhqvpn.com");
+  return domain ? `https://${domain}` : platformConfig.APP_URL;
 };
 
 router.get("/config", async (_req, res) => {

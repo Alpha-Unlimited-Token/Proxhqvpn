@@ -7,6 +7,7 @@ import { eq, sql } from "drizzle-orm";
 import crypto from "crypto";
 import { z } from "zod";
 import { sendMail, adminEmails } from "../lib/mailer";
+import { platformConfig } from "../config/platform";
 
 /** Normalize db.execute() result — returns plain array for simple queries, {rows} for complex aggregates */
 function toRows(result: unknown): any[] {
@@ -211,13 +212,13 @@ router.post("/apply", async (req, res) => {
               <tr><td style="color:#ffffff;padding:6px 0">Status</td><td style="color:#facc15">Pending Review</td></tr>
             </table>
             <div style="margin-top:20px">
-              <a href="https://proxhqvpn.com/employees" style="background:#00ff88;color:#000;padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:bold;font-size:13px">
+              <a href="${platformConfig.APP_URL}/employees" style="background:#00ff88;color:#000;padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:bold;font-size:13px">
                 Review in Admin → Employee Access
               </a>
             </div>
             <p style="color:#666;font-size:11px;margin-top:20px">ProxhqVPN · ALPHA UNLIMITED TECHNOLOGIES LLC</p>
           </div>`,
-        text: `New Ambassador Application\nName: ${name.trim()}\nPromo Code: ${code}\nBio: ${bio?.trim() || "—"}\nClerk User ID: ${userId}\nStatus: Pending Review\n\nReview at: https://proxhqvpn.com/employees`,
+        text: `New Ambassador Application\nName: ${name.trim()}\nPromo Code: ${code}\nBio: ${bio?.trim() || "—"}\nClerk User ID: ${userId}\nStatus: Pending Review\n\nReview at: ${platformConfig.APP_URL}/employees`,
       });
     }
 
@@ -499,18 +500,18 @@ router.patch("/admin/:id/status", async (req, res) => {
               <div style="color:#ffffff;font-size:13px;font-weight:bold;margin-bottom:12px">What happens next:</div>
               <div style="color:#aaaaaa;font-size:13px;line-height:1.8">
                 ✅ Your profile is now live on the Ambassadors page<br>
-                ✅ Your referral link: <span style="color:#00ff88">proxhqvpn.com?ref=${amb.promo_code}</span><br>
+                ✅ Your referral link: <span style="color:#00ff88">${platformConfig.APP_URL.replace(/^https?:\/\//, "")}?ref=${amb.promo_code}</span><br>
                 ✅ Commissions tracked automatically in your dashboard<br>
                 ✅ Payouts processed monthly
               </div>
             </div>
-            <a href="https://proxhqvpn.com/ambassador/dashboard"
+            <a href="${platformConfig.APP_URL}/ambassador/dashboard"
                style="display:inline-block;background:#00ff88;color:#000000;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:bold;font-size:13px;margin-bottom:24px">
               Open Your Ambassador Dashboard →
             </a>
             <p style="color:#666;font-size:11px;margin:0">Questions? Email us at ambassadors@proxhqvpn.com<br>ProxhqVPN · ALPHA UNLIMITED TECHNOLOGIES LLC</p>
           </div>`,
-        text: `You're approved, ${amb.name}!\n\nYour promo code: ${amb.promo_code}\nYou earn 10% of every subscription your audience purchases.\n\nDashboard: https://proxhqvpn.com/ambassador/dashboard\n\nQuestions? ambassadors@proxhqvpn.com`,
+        text: `You're approved, ${amb.name}!\n\nYour promo code: ${amb.promo_code}\nYou earn 10% of every subscription your audience purchases.\n\nDashboard: ${platformConfig.APP_URL}/ambassador/dashboard\n\nQuestions? ambassadors@proxhqvpn.com`,
       });
     }
 

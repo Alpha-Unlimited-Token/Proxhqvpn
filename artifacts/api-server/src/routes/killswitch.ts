@@ -4,6 +4,7 @@ import os from "os";
 import { exec } from "child_process";
 import { promisify } from "util";
 import { bus } from "../lib/service-bus";
+import { platformConfig } from "../config/platform";
 
 const execAsync = promisify(exec);
 
@@ -379,7 +380,7 @@ router.get("/systemd", (req, res) => {
 
   const serviceFile = `[Unit]
 Description=ProxhqVPN Kill Switch — blocks all non-VPN traffic
-Documentation=https://proxhqvpn.com
+Documentation=${platformConfig.APP_URL}
 DefaultDependencies=no
 Before=network-pre.target
 After=local-fs.target

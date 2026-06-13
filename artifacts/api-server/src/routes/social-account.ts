@@ -2,6 +2,7 @@
 // Copyright © 2025 ALPHA UNLIMITED TECHNOLOGIES LLC — legal@alphauntechnologies.com
 // Social & Game Account Security Audit Engine — per-platform login + authenticated proxy
 import { Router, type Request, type Response } from "express";
+import { platformConfig } from "../config/platform";
 import fetch from "node-fetch";
 import type { Response as NodeFetchResponse } from "node-fetch";
 import { randomBytes, createPublicKey, publicEncrypt, constants } from "crypto";
@@ -588,7 +589,7 @@ async function dispatchLogin(platform: string, u: string, p: string, loginUrl: s
     result = { success: false, accountInfo: {}, error: e.message };
   }
 
-  const homeUrl = PLATFORM_HOME[platform] || loginUrl || (process.env.APP_URL || "https://proxhqvpn.com");
+  const homeUrl = PLATFORM_HOME[platform] || loginUrl || platformConfig.APP_URL;
 
   if (!result.success) {
     if (result.manualRequired) {

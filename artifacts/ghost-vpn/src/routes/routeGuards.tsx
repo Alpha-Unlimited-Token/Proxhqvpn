@@ -3,10 +3,23 @@ import type { ReactNode } from "react";
 import { Redirect } from "wouter";
 import { useUser } from "@clerk/react";
 import { Layout } from "@/components/layout/Layout";
+import { PublicPageLayout } from "@/components/layout/PublicPageLayout";
 import { PaywallGate, AdminGate } from "@/components/PaywallGate";
 
 export function PublicLayout({ children }: { children: ReactNode }) {
-  return <Layout>{children}</Layout>;
+  const { isSignedIn, isLoaded } = useUser();
+
+  if (!isLoaded) {
+    return (
+      <div className="min-h-screen bg-[#080d09] flex items-center justify-center">
+        <div className="w-8 h-8 rounded-full border-2 border-primary/40 border-t-primary animate-spin" />
+      </div>
+    );
+  }
+
+  if (isSignedIn) return <Layout>{children}</Layout>;
+
+  return <PublicPageLayout>{children}</PublicPageLayout>;
 }
 
 export function ProtectedLayout({ children }: { children: ReactNode }) {

@@ -1,6 +1,7 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { Router } from "express";
 import { getAuth } from "@clerk/express";
+import { platformConfig } from "../config/platform";
 
 const router = Router();
 
@@ -128,7 +129,7 @@ router.post("/invite", (req, res) => {
   };
   invites.push(invite);
   inviteStore.set(userId, invites);
-  res.json({ ok: true, invite, link: `https://proxhqvpn.com/meshnet/join/${code}` });
+  res.json({ ok: true, invite, link: `${platformConfig.APP_URL}/meshnet/join/${code}` });
 });
 
 router.get("/invites", (req, res) => {
