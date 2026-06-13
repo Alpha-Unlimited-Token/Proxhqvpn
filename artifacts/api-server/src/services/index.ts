@@ -24,3 +24,8 @@ export * from "./splitTunnelPolicyService";
 export * from "./dnsRoutingService";
 export * from "./dedicatedIpService";
 export * from "./staticIpService";
+export * from "./complianceRoutingService";
+export * from "./multiHopRoutingService";
+export * from "./smartRouteOptimizationService";
+export * from "./tunnelRecoveryService";
+export * from "./globalVpnControlPlaneService";

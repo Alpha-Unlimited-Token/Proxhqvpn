@@ -23,6 +23,7 @@ import nodeTrustRouter from "../node-trust";
 import adminUsersRouter from "../admin-users";
 import employeesRouter from "../employees";
 import setupRouter from "../setup";
+import controlPlaneRouter from "../control-plane";
 
 const router = Router();
 
@@ -204,5 +205,6 @@ registerAdminRoute(router, "/employees", "admin.write", employeesRouter);
 registerAdminRoute(router, "/setup", "admin.write", setupRouter);
 registerAdminRoute(router, "/capability-audit", "admin.read", highRiskRateLimit, capabilityAuditRouter);
 registerAdminRoute(router, "/audit-chain", "admin.read", highRiskRateLimit, auditChainRouter);
+registerAdminRoute(router, "/control-plane", "admin.read", highRiskRateLimit, controlPlaneRouter);
 
 export default router;
