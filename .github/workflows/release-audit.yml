@@ -1,0 +1,49 @@
+name: Production Release Audit
+
+on:
+  workflow_dispatch:
+
+jobs:
+  release-audit:
+    name: Release audit
+    runs-on: ubuntu-latest
+
+    env:
+      NODE_ENV: production
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
+      CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+      ALLOWED_ORIGINS: ${{ secrets.ALLOWED_ORIGINS }}
+      PROXHQ_ENABLE_SECURITY_LAB: "0"
+      PROXHQ_ENABLE_SECURITY_LAB_PROD: "0"
+      PROXHQ_ENABLE_OMEGA: "0"
+      PROXHQ_ENABLE_OMEGA_PROD: "0"
+      PROXHQ_PRELOAD_ATTACKER_FILES: "0"
+      PROXHQ_ENABLE_EMBEDDED_TOR: "0"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.23.0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Release audit
+        run: pnpm run audit:release
+
+      - name: Typecheck
+        run: pnpm run typecheck
+
+      - name: Build
+        run: pnpm -r --if-present run build

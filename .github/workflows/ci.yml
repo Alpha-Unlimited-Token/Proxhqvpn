@@ -1,0 +1,52 @@
+name: ProxhqVPN CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  verify:
+    name: Verify monorepo
+    runs-on: ubuntu-latest
+
+    env:
+      NODE_ENV: test
+      PROXHQ_ENABLE_SECURITY_LAB: "0"
+      PROXHQ_ENABLE_SECURITY_LAB_PROD: "0"
+      PROXHQ_ENABLE_OMEGA: "0"
+      PROXHQ_ENABLE_OMEGA_PROD: "0"
+      PROXHQ_PRELOAD_ATTACKER_FILES: "0"
+      PROXHQ_ENABLE_EMBEDDED_TOR: "0"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.23.0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Capability audits
+        run: pnpm run audit:all-capabilities
+
+      - name: Frontend route audit
+        run: pnpm run audit:frontend-routes
+
+      - name: Typecheck
+        run: pnpm run typecheck
+
+      - name: Build
+        run: pnpm -r --if-present run build
