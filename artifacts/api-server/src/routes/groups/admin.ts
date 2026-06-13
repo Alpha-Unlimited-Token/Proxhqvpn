@@ -453,6 +453,7 @@ import secretsrotationschedulerRouter from "../secrets-rotation-scheduler";
 import productionreadinessv2Router from "../production-readiness-v2";
 import enterprisematurityscorev2Router from "../enterprise-maturity-score-v2";
 import finalplatformselfauditandzippackagingRouter from "../final-platform-self-audit-and-zip-packaging";
+import validationRouter from "../validation";
 
 registerAdminRoute(router, "/safe-remediation-approval-gate", "admin.write", highRiskRateLimit, saferemediationapprovalgateRouter);
 registerAdminRoute(router, "/automated-remediation-executor", "admin.read", highRiskRateLimit, automatedremediationexecutorRouter);
@@ -519,5 +520,6 @@ registerAdminRoute(router, "/secrets-rotation-scheduler", "admin.write", highRis
 registerAdminRoute(router, "/production-readiness-v2", "admin.read", highRiskRateLimit, productionreadinessv2Router);
 registerAdminRoute(router, "/enterprise-maturity-score-v2", "admin.read", highRiskRateLimit, enterprisematurityscorev2Router);
 registerAdminRoute(router, "/final-platform-self-audit-and-zip-packaging", "admin.read", highRiskRateLimit, finalplatformselfauditandzippackagingRouter);
+registerAdminRoute(router, "/validation", "admin.read", highRiskRateLimit, validationRouter);
 
 export default router;

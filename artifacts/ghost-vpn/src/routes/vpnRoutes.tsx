@@ -34,6 +34,7 @@ import DnsSinkhole from "@/pages/DnsSinkhole";
 import ConfigLifecycle from "@/pages/ConfigLifecycle";
 import CustomerSecurityDashboard from "@/pages/CustomerSecurityDashboard";
 import Manuals from "@/pages/Manuals";
+import TrustCenter from "@/pages/TrustCenter";
 
 const VpnCoexist = lazy(() => import("@/pages/VpnCoexist"));
 
@@ -80,6 +81,10 @@ export function VpnRoutes() {
 
       <Route path="/config-lifecycle">
         <ProtectedLayout><ConfigLifecycle /></ProtectedLayout>
+      </Route>
+
+      <Route path="/trust-center">
+        <TrustCenter />
       </Route>
     </>
   );

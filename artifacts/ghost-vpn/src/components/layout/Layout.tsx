@@ -159,6 +159,7 @@ const PROTECTION_NAV = [
   { href: "/ip-exposure",        label: "IP Exposure Scan",    icon: Eye },
   { href: "/ghost-trap",         label: "Ghost Trap",          icon: Skull },
   { href: "/ghost-nodes",        label: "Ghost Nodes",         icon: Network },
+  { href: "/honeypot-command",   label: "Honeypot Command",    icon: Bug },
   { href: "/ghost-trace",        label: "Ghost Trace",         icon: Radar },
 ];
 
@@ -217,9 +218,10 @@ const TIER_COLOR: Record<1 | 2 | 3, string> = {
 };
 
 const ADVANCED_NAV = [
-  { href: "/ghost-trap",    label: "Ghost Trap — Counter Intel", icon: Skull },
-  { href: "/ghost-nodes",  label: "Ghost Nodes",                icon: Network },
-  { href: "/deception-engine", label: "Deception Engine",       icon: Shield },
+  { href: "/ghost-trap",       label: "Ghost Trap — Counter Intel", icon: Skull },
+  { href: "/ghost-nodes",      label: "Ghost Nodes",                icon: Network },
+  { href: "/honeypot-command", label: "Honeypot Command",           icon: Bug },
+  { href: "/deception-engine", label: "Deception Engine",           icon: Shield },
   { href: "/sqlmap",        label: "Vulnerability Scanner", icon: ScanSearch },
   { href: "/alpha-tools",   label: "Alpha Toolkit",         icon: Layers },
   { href: "/tool-runner",   label: "Parrot Tool Runner",    icon: Terminal },

@@ -61,6 +61,7 @@ import LlmProbe from "@/pages/LlmProbe";
 import AiShield from "@/pages/AiShield";
 import AISecuritySuite from "@/pages/AISecuritySuite";
 import VpnTracker from "@/pages/VpnTracker";
+import ValidationDashboard from "@/pages/ValidationDashboard";
 import TransparencyReport from "@/pages/TransparencyReport";
 import AmbassadorDashboard from "@/pages/AmbassadorDashboard";
 
@@ -148,6 +149,7 @@ export function CommandCenterRoutes() {
       <Route path="/ai-security-suite"><CcLayout><AISecuritySuite /></CcLayout></Route>
 
       <Route path="/vpn-tracker"><CcLayout><VpnTracker /></CcLayout></Route>
+      <Route path="/validation"><CcLayout><ValidationDashboard /></CcLayout></Route>
       <Route path="/transparency"><ToolLayout><TransparencyReport /></ToolLayout></Route>
       <Route path="/ambassador/dashboard"><ToolLayout><AmbassadorDashboard /></ToolLayout></Route>
     </>

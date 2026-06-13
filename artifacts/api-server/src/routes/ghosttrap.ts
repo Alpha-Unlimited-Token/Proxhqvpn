@@ -334,6 +334,15 @@ async function handleProbe(req: Request, res: Response, endpointName: string, us
   // Async geo enrichment + VPN/Tor detection
   enrichGeo(probeId, ip).catch(() => {});
 
+  // P2-B: SIEM — probe captured
+  void shipSecurityEvent({
+    actor: userId ?? "ghost_trap",
+    action: "ghost_trap.probe_captured",
+    resource: `ghost_trap_probe:${probeId}`,
+    result: "allow",
+    metadata: { ip, probeType, endpoint: endpointName, tarpitMs, attackVector: attack?.vector ?? null },
+  });
+
   const [ipCount] = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(ghostTrapProbesTable)
@@ -352,6 +361,13 @@ async function handleProbe(req: Request, res: Response, endpointName: string, us
       }).catch(() => {});
       await db.update(ghostTrapProbesTable).set({ autoBlocked: true })
         .where(eq(ghostTrapProbesTable.probeId, probeId)).catch(() => {});
+      void shipSecurityEvent({
+        actor: userId ?? "ghost_trap",
+        action: "ghost_trap.auto_block",
+        resource: `ghost_trap:${ip}`,
+        result: "deny",
+        metadata: { ip, probeCount: count, probeType, endpoint: endpointName },
+      });
     }
   }
 
@@ -1786,6 +1802,13 @@ router.post("/block-source", requireRbac("counter_attack"), async (req, res) => 
   }).catch(() => {});
 
   appendAuditEvent({ action: "block_source", actor: userId ?? "system", resource: `ghost_trap:${ip ?? cidr ?? "unknown"}`, metadata: { reason, permanent } });
+  void shipSecurityEvent({
+    actor: userId ?? "system",
+    action: "ghost_trap.block_source",
+    resource: `ghost_trap:${ip ?? cidr ?? "unknown"}`,
+    result: "deny",
+    metadata: { ip, cidr, reason, permanent },
+  });
 
   res.json({ ok: true, blocked: row });
 });

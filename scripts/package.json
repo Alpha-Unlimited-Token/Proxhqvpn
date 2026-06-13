@@ -7,10 +7,16 @@
     "hello": "tsx ./src/hello.ts",
     "audit:brand": "tsx ./src/audit-brand-consistency.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "audit:capabilities": "pnpm --filter @workspace/api-server exec esbuild ../scripts/audit-route-capabilities.ts --bundle --platform=node --format=esm --alias:@workspace/capabilities=../lib/capabilities/src/index.ts --outfile=/tmp/proxhq-audit-cap.mjs --log-level=silent && node /tmp/proxhq-audit-cap.mjs"
+    "audit:capabilities": "pnpm --filter @workspace/api-server exec esbuild ../scripts/audit-route-capabilities.ts --bundle --platform=node --format=esm --alias:@workspace/capabilities=../lib/capabilities/src/index.ts --outfile=/tmp/proxhq-audit-cap.mjs --log-level=silent && node /tmp/proxhq-audit-cap.mjs",
+    "validation:seed": "tsx ./src/seed-validation-targets.ts",
+    "validation:run": "tsx ./src/run-validation-once.ts",
+    "validation:export": "tsx ./src/export-validation-report.ts"
   },
   "devDependencies": {
     "@types/node": "catalog:",
     "tsx": "catalog:"
+  },
+  "dependencies": {
+    "pg": "^8.20.0"
   }
 }

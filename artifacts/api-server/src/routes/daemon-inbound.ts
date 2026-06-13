@@ -14,7 +14,7 @@ import {
   firewallAtrPoliciesTable, firewallAtrEventsTable,
   firewallDdosConfigTable, firewallDdosEventsTable,
   firewallTrafficDecisionsTable, firewallPeerRulesTable,
-  ghostNodesTable, ghostNodeRoutesTable, ghostTrapRulesTable,
+  ghostNodesTable, ghostNodeEventsTable, ghostNodeRoutesTable, ghostTrapRulesTable,
 } from "@workspace/db";
 import { eq, and, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -1068,6 +1068,67 @@ router.get("/ghost-node-policy", async (req, res) => {
     })),
   });
 });
+
+// ── Ghost Node event ingestion (P3-C) ─────────────────────────────────────────
+// Called by node daemons when a probe against a ghost node endpoint is detected.
+// Rate-limited per source IP to prevent flood ingestion.
+const _ghostEventBucket = new Map<string, { count: number; windowStart: number }>();
+const GHOST_EVENT_MAX    = parseInt(process.env.GHOST_EVENT_IP_RATE ?? "30", 10);
+const GHOST_EVENT_WIN_MS = 60_000;
+
+router.post("/ghost-event", async (req, res) => {
+  const schema = z.object({
+    nodeId:     z.number().int().positive(),
+    eventType:  z.enum(["probe", "handshake_attempt", "port_scan", "wg_init", "other"]),
+    sourceIp:   z.string().min(1).max(45),
+    sourcePort: z.number().int().min(1).max(65535).optional(),
+    rawPayload: z.string().max(4096).optional(),
+    severity:   z.enum(["info", "warn", "critical"]).default("info"),
+  });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+  const { nodeId, eventType, sourceIp, sourcePort, rawPayload, severity } = parsed.data;
+
+  // Per-IP rate gate
+  const now = Date.now();
+  const bucket = _ghostEventBucket.get(sourceIp);
+  if (bucket && now - bucket.windowStart < GHOST_EVENT_WIN_MS && bucket.count >= GHOST_EVENT_MAX) {
+    return res.status(429).json({ ok: false, error: "Rate limit exceeded for this source IP" });
+  }
+  if (!bucket || now - bucket.windowStart >= GHOST_EVENT_WIN_MS) {
+    _ghostEventBucket.set(sourceIp, { count: 1, windowStart: now });
+  } else {
+    bucket.count++;
+  }
+
+  await db.insert(ghostNodeEventsTable).values({
+    ghostNodeId: nodeId,
+    eventType,
+    sourceIp,
+    sourcePort:  sourcePort ?? null,
+    rawPayload:  rawPayload ?? null,
+    severity,
+    fedToSiem:   false,
+  }).catch(() => {});
+
+  void shipSecurityEvent({
+    actor:    "daemon",
+    action:   `ghost_node.${eventType}`,
+    resource: `ghost_node:${nodeId}`,
+    result:   "allow",
+    metadata: { sourceIp, severity, nodeId },
+  });
+
+  return res.json({ ok: true });
+});
+
+// Prune stale ghost event rate-limit buckets every 5 minutes
+setInterval(() => {
+  const cutoff = Date.now() - GHOST_EVENT_WIN_MS;
+  for (const [ip, b] of _ghostEventBucket) {
+    if (b.windowStart < cutoff) _ghostEventBucket.delete(ip);
+  }
+}, 5 * 60_000).unref();
 
 // ── Ghost Trap policy delivery — per-user rule push ───────────────────────────
 // Called by node daemons to pull the latest Ghost Trap detection rules.
