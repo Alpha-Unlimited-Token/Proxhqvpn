@@ -139,22 +139,25 @@ router.post(
 );
 
 // ─── GET /jobs — list caller's jobs (latest 100) ──────────────────────────────
-router.get("/jobs", (req, res) => {
-  const actor = getActor(req);
-  res.json({ jobs: listTerminalJobs(actor) });
-});
+router.get(
+  "/jobs",
+  asyncHandler(async (req, res) => {
+    const actor = getActor(req);
+    res.json({ jobs: await listTerminalJobs(actor) });
+  }),
+);
 
 // ─── GET /jobs/:jobId — poll a specific job ───────────────────────────────────
 router.get(
   "/jobs/:jobId",
   validateRequest({ params: terminalJobParamsSchema }),
-  (req, res) => {
+  asyncHandler(async (req, res) => {
     const actor = getActor(req);
     const params = getValidatedParams<typeof terminalJobParamsSchema>(req);
-    const job = getTerminalJob(actor, params.jobId);
+    const job = await getTerminalJob(actor, params.jobId);
     if (!job) return res.status(404).json({ error: "Job not found" });
-    res.json({ job });
-  },
+    return res.json({ job });
+  }),
 );
 
 // ─── POST http-request (direct outbound HTTP from server) ────────────────────

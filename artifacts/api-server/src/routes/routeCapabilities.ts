@@ -110,6 +110,7 @@ export const apiRouteCapabilities: ApiRouteCapability[] = [
   { mountPath: "/silkweb", capability: "admin.read" },
   { mountPath: "/monitor", capability: "admin.read" },
   { mountPath: "/capability-audit", capability: "admin.read" },
+  { mountPath: "/audit-chain", capability: "admin.read" },
 
   { mountPath: "/nodes", capability: "admin.write" },
   { mountPath: "/firewall", capability: "admin.write" },

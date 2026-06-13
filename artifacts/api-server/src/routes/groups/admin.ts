@@ -6,7 +6,9 @@ import { insertNodeEnrollmentToken } from "../../repositories/nodeEnrollmentRepo
 import { createEnrollmentToken } from "../../lib/node-enrollment";
 import { requireAdmin } from "../_auth";
 import { registerAdminRoute } from "../registerAdminRoute";
+import { criticalRateLimit, highRiskRateLimit } from "../../middlewares/riskRateLimit";
 import capabilityAuditRouter from "../capability-audit";
+import auditChainRouter from "../audit-chain";
 
 import nodesRouter from "../nodes";
 import beaconsRouter from "../beacons";
@@ -177,8 +179,8 @@ registerAdminRoute(router, "/beacons", "admin.read", beaconsRouter);
 registerAdminRoute(router, "/silkweb", "admin.read", silkwebRouter);
 registerAdminRoute(router, "/firewall", "admin.write", firewallRouter);
 registerAdminRoute(router, "/monitor", "admin.read", monitorRouter);
-registerAdminRoute(router, "/terminal", "terminal.exec", terminalRouter);
-registerAdminRoute(router, "/sql", "sql.exec", sqlRouter);
+registerAdminRoute(router, "/terminal", "terminal.exec", criticalRateLimit, terminalRouter);
+registerAdminRoute(router, "/sql", "sql.exec", criticalRateLimit, sqlRouter);
 registerAdminRoute(router, "/deception", "admin.write", deceptionRouter);
 
 router.post("/node-enrollment-token", requireAdmin, async (req: Request, res: Response) => {
@@ -200,6 +202,7 @@ registerAdminRoute(router, "/node-trust", "admin.write", nodeTrustRouter);
 registerAdminRoute(router, "/admin/users", "admin.write", adminUsersRouter);
 registerAdminRoute(router, "/employees", "admin.write", employeesRouter);
 registerAdminRoute(router, "/setup", "admin.write", setupRouter);
-registerAdminRoute(router, "/capability-audit", "admin.read", capabilityAuditRouter);
+registerAdminRoute(router, "/capability-audit", "admin.read", highRiskRateLimit, capabilityAuditRouter);
+registerAdminRoute(router, "/audit-chain", "admin.read", highRiskRateLimit, auditChainRouter);
 
 export default router;

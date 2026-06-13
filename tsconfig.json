@@ -23,6 +23,9 @@
     },
     {
       "path": "./lib/capabilities"
+    },
+    {
+      "path": "./lib/api-contracts"
     }
   ]
 }

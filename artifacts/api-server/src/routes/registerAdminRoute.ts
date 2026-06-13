@@ -16,7 +16,7 @@ export function registerAdminRoute(
   router: Router,
   mountPath: string,
   capability: Capability,
-  childRouter: RequestHandler,
+  ...handlers: RequestHandler[]
 ): void {
   if (!ADMIN_CAPABILITIES.includes(capability)) {
     throw new Error(
@@ -24,5 +24,5 @@ export function registerAdminRoute(
     );
   }
 
-  registerRoute(router, mountPath, capability, childRouter);
+  registerRoute(router, mountPath, capability, ...handlers);
 }

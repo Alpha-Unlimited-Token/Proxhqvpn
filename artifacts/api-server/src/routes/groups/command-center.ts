@@ -2,6 +2,7 @@
 import { Router } from "express";
 import { requireCapability } from "../../middlewares/requireCapability";
 import { registerCommandCenterRoute } from "../registerCommandCenterRoute";
+import { highRiskRateLimit } from "../../middlewares/riskRateLimit";
 
 import threatintelRouter from "../threatintel";
 import securityauditRouter from "../securityaudit";
@@ -55,7 +56,7 @@ registerCommandCenterRoute(router, "/alpha", "command_center.write", alphaRouter
 registerCommandCenterRoute(router, "/http-probe", "command_center.write", httpProbeRouter);
 registerCommandCenterRoute(router, "/dir-fuzzer", "command_center.write", dirFuzzerRouter);
 registerCommandCenterRoute(router, "/subdomain-scan", "command_center.write", subdomainScanRouter);
-registerCommandCenterRoute(router, "/intruder", "command_center.write", intruderRouter);
+registerCommandCenterRoute(router, "/intruder", "command_center.write", highRiskRateLimit, intruderRouter);
 router.use("/ghost-trace", requireCapability("command_center.read"), ghostTraceRouter);
 router.use("/attack-chain", requireCapability("command_center.write"), attackChainRouter);
 router.use("/vpn-tracker", requireCapability("command_center.read"), vpnTrackerRouter);
@@ -64,7 +65,7 @@ router.use("/osint", requireCapability("command_center.write"), osintRouter);
 router.use("/username-intel", requireCapability("command_center.write"), usernameIntelRouter);
 router.use("/canary", requireCapability("command_center.write"), canaryRouter);
 registerCommandCenterRoute(router, "/waf", "command_center.write", wafRouter);
-registerCommandCenterRoute(router, "/waf-bypass", "command_center.write", wafBypassRouter);
+registerCommandCenterRoute(router, "/waf-bypass", "command_center.write", highRiskRateLimit, wafBypassRouter);
 router.use("/social-account", requireCapability("command_center.write"), socialAccountRouter);
 router.use("/ssl-tls", requireCapability("command_center.write"), sslTlsRouter);
 router.use("/jwt-analyzer", requireCapability("command_center.write"), jwtAnalyzerRouter);
@@ -82,7 +83,7 @@ router.use("/quantum-audit", requireCapability("command_center.write"), quantumA
 router.use("/command-governance", requireCapability("command_center.read"), commandGovernanceRouter);
 router.use("/dependency-map", requireCapability("command_center.read"), dependencyMapRouter);
 router.use("/ai-security", requireCapability("command_center.write"), aiSecurityRouter);
-registerCommandCenterRoute(router, "/sqli-scanner", "command_center.write", sqliScannerRouter);
+registerCommandCenterRoute(router, "/sqli-scanner", "command_center.write", highRiskRateLimit, sqliScannerRouter);
 router.use("/im-auto", requireCapability("command_center.write"), imAutomationRouter);
 
 router.use("/firewall-v2", requireCapability("command_center.write"), firewallPolicyV2Router);

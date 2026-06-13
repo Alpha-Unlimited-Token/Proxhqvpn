@@ -9,7 +9,7 @@ export function registerVpnRoute(
   router: Router,
   mountPath: string,
   capability: Capability,
-  childRouter: RequestHandler,
+  ...handlers: RequestHandler[]
 ): void {
   if (!VPN_CAPABILITIES.includes(capability)) {
     throw new Error(
@@ -17,5 +17,5 @@ export function registerVpnRoute(
     );
   }
 
-  registerRoute(router, mountPath, capability, childRouter);
+  registerRoute(router, mountPath, capability, ...handlers);
 }

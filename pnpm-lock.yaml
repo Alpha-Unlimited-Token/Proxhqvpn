@@ -206,6 +206,9 @@ importers:
       '@types/pg':
         specifier: ^8.18.0
         version: 8.18.0
+      '@workspace/api-contracts':
+        specifier: workspace:*
+        version: link:../../lib/api-contracts
       '@workspace/api-zod':
         specifier: workspace:*
         version: link:../../lib/api-zod
@@ -512,6 +515,9 @@ importers:
       '@workspace/api-client-react':
         specifier: workspace:*
         version: link:../../lib/api-client-react
+      '@workspace/api-contracts':
+        specifier: workspace:*
+        version: link:../../lib/api-contracts
       '@workspace/capabilities':
         specifier: workspace:*
         version: link:../../lib/capabilities
@@ -1607,6 +1613,12 @@ importers:
       '@tanstack/react-query':
         specifier: 'catalog:'
         version: 5.90.21(react@19.1.0)
+
+  lib/api-contracts:
+    dependencies:
+      zod:
+        specifier: 'catalog:'
+        version: 3.25.76
 
   lib/api-spec:
     devDependencies:

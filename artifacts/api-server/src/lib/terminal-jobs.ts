@@ -9,6 +9,14 @@ import {
   TERMINAL_STDERR_LIMIT,
 } from "./terminal-policy";
 import { auditTerminalEvent } from "./terminal-audit";
+import {
+  completeTerminalJob as dbCompleteTerminalJob,
+  failTerminalJob as dbFailTerminalJob,
+  getTerminalJobByOwner,
+  insertTerminalJob,
+  listTerminalJobsByOwner,
+  markTerminalJobRunning,
+} from "../repositories/terminalJobsRepository";
 
 const execAsync = promisify(exec);
 
@@ -126,22 +134,25 @@ export function createTerminalJob(input: {
   };
 
   jobs.set(job.id, job);
-  void runTerminalJob(job.id);
+  void insertTerminalJob({
+    id: job.id,
+    ownerUserId: job.ownerUserId,
+    command: job.command,
+    ghostMode: job.ghostMode,
+    timeout: job.timeout,
+  }).then(() => runTerminalJob(job.id));
 
   return job;
 }
 
-export function getTerminalJob(ownerUserId: string, jobId: string): TerminalJob | null {
-  const job = jobs.get(jobId);
-  if (!job || job.ownerUserId !== ownerUserId) return null;
-  return job;
+export async function getTerminalJob(ownerUserId: string, jobId: string) {
+  const memoryJob = jobs.get(jobId);
+  if (memoryJob && memoryJob.ownerUserId === ownerUserId) return memoryJob;
+  return getTerminalJobByOwner(ownerUserId, jobId);
 }
 
-export function listTerminalJobs(ownerUserId: string): TerminalJob[] {
-  return [...jobs.values()]
-    .filter((job) => job.ownerUserId === ownerUserId)
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-    .slice(0, 100);
+export async function listTerminalJobs(ownerUserId: string) {
+  return listTerminalJobsByOwner(ownerUserId);
 }
 
 async function runTerminalJob(jobId: string): Promise<void> {
@@ -150,6 +161,7 @@ async function runTerminalJob(jobId: string): Promise<void> {
 
   job.status = "running";
   job.startedAt = new Date().toISOString();
+  await markTerminalJobRunning(job.id);
 
   try {
     const result = job.ghostMode
@@ -178,6 +190,13 @@ async function runTerminalJob(jobId: string): Promise<void> {
     job.status = result.exitCode === 0 ? "completed" : "failed";
     job.completedAt = new Date().toISOString();
 
+    await dbCompleteTerminalJob({
+      jobId: job.id,
+      stdout: job.stdout,
+      stderr: job.stderr,
+      exitCode: job.exitCode ?? 1,
+    });
+
     await auditTerminalEvent({
       actor: job.ownerUserId,
       action: job.ghostMode ? "terminal.ghost_job_completed" : "terminal.job_completed",
@@ -192,6 +211,11 @@ async function runTerminalJob(jobId: string): Promise<void> {
     job.status = "failed";
     job.error = err?.message ?? "Terminal job failed";
     job.completedAt = new Date().toISOString();
+
+    await dbFailTerminalJob({
+      jobId: job.id,
+      error: job.error ?? "Terminal job failed",
+    });
 
     await auditTerminalEvent({
       actor: job.ownerUserId,

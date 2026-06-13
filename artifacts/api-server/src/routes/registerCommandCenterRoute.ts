@@ -12,7 +12,7 @@ export function registerCommandCenterRoute(
   router: Router,
   mountPath: string,
   capability: Capability,
-  childRouter: RequestHandler,
+  ...handlers: RequestHandler[]
 ): void {
   if (!COMMAND_CENTER_CAPABILITIES.includes(capability)) {
     throw new Error(
@@ -20,5 +20,5 @@ export function registerCommandCenterRoute(
     );
   }
 
-  registerRoute(router, mountPath, capability, childRouter);
+  registerRoute(router, mountPath, capability, ...handlers);
 }

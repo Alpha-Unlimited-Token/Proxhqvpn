@@ -8,7 +8,7 @@ export function registerRoute(
   router: Router,
   mountPath: string,
   capability: Capability,
-  childRouter: RequestHandler,
+  ...handlers: RequestHandler[]
 ): void {
   const alreadyMapped = apiRouteCapabilities.some(
     (route) => route.mountPath === mountPath && route.capability === capability,
@@ -20,5 +20,5 @@ export function registerRoute(
     );
   }
 
-  router.use(mountPath, requireCapability(capability), childRouter);
+  router.use(mountPath, requireCapability(capability), ...handlers);
 }
