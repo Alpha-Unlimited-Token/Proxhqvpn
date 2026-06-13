@@ -8,6 +8,7 @@ import { initStripeRuntime } from "./bootstrap/stripe";
 import { seedRuntimeData } from "./bootstrap/seed";
 import { startRuntimeWorkers } from "./bootstrap/workers";
 import { preloadAttackerFilesIfEnabled } from "./bootstrap/preload-attacker-files";
+import { assertProductionReadiness } from "./bootstrap/production-readiness";
 
 function getPort(): number {
   const rawPort = process.env.PORT;
@@ -26,6 +27,8 @@ function getPort(): number {
 }
 
 async function bootstrap(): Promise<void> {
+  assertProductionReadiness();
+
   verifySystemDependencies();
   startEmbeddedTorIfEnabled();
 
