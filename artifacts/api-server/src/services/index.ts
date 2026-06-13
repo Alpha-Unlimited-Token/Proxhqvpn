@@ -71,3 +71,8 @@ export * from "./networkAnomalyDetectionService";
 export * from "./selfHealingService";
 export * from "./capacityForecastingService";
 export * from "./routeRecommendationService";
+export * from "./backupValidationService";
+export * from "./disasterRecoveryService";
+export * from "./blueGreenDeploymentService";
+export * from "./canaryDeploymentService";
+export * from "./productionReadinessScorecardService";

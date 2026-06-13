@@ -26,6 +26,7 @@ import setupRouter from "../setup";
 import controlPlaneRouter from "../control-plane";
 import policySimulationRouter from "../policy-simulation";
 import executiveReportsRouter from "../executive-reports";
+import productionScorecardRouter from "../production-scorecard";
 
 const router = Router();
 
@@ -210,5 +211,6 @@ registerAdminRoute(router, "/audit-chain", "admin.read", highRiskRateLimit, audi
 registerAdminRoute(router, "/control-plane", "admin.read", highRiskRateLimit, controlPlaneRouter);
 registerAdminRoute(router, "/policy-simulation", "admin.read", highRiskRateLimit, policySimulationRouter);
 registerAdminRoute(router, "/executive-reports", "admin.read", highRiskRateLimit, executiveReportsRouter);
+registerAdminRoute(router, "/production-scorecard", "admin.read", highRiskRateLimit, productionScorecardRouter);
 
 export default router;
