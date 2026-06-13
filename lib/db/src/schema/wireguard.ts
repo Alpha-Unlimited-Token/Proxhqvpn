@@ -41,3 +41,21 @@ export const wgPeerCommandsTable = pgTable("wg_peer_commands", {
 });
 
 export type WgPeerCommand = typeof wgPeerCommandsTable.$inferSelect;
+
+// ── WireGuard config fingerprints ────────────────────────────────────────────
+// Records a SHA-256 fingerprint every time a WireGuard config is provisioned
+// via /api/wireguard/config-v2. Used for auditing and dedup detection.
+export const wireguardConfigFingerprintsTable = pgTable(
+  "wireguard_config_fingerprints",
+  {
+    id: serial("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    deviceId: text("device_id").notNull(),
+    fingerprint: text("fingerprint").notNull(),
+    peerCount: integer("peer_count").notNull().default(0),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+);
+
+export type WireguardConfigFingerprint =
+  typeof wireguardConfigFingerprintsTable.$inferSelect;

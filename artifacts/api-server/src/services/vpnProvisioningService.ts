@@ -6,6 +6,8 @@ import {
   validateWireGuardPrivateKey,
   validateWireGuardPublicKey,
 } from "./wireguardConfigService";
+import { writeAuditEvent } from "../repositories/auditRepository";
+import { saveWireGuardConfigFingerprint } from "../repositories/wireguardConfigRepository";
 
 export type ProvisionVpnConfigInput = {
   userId: string;
@@ -83,11 +85,46 @@ export async function provisionVpnConfig(input: ProvisionVpnConfigInput) {
     peers,
   });
 
+  const fingerprint = fingerprintWireGuardConfig(config);
+
+  // Persist fingerprint + audit event with safe failure — config generation
+  // must succeed even if the DB write or audit chain is temporarily unavailable.
+  try {
+    await saveWireGuardConfigFingerprint({
+      userId: input.userId,
+      deviceId: input.deviceId,
+      fingerprint,
+      peerCount: peers.length,
+    });
+
+    await writeAuditEvent({
+      actor: input.userId,
+      action: "wireguard.config.provisioned",
+      resource: `device:${input.deviceId}`,
+      result: "allow",
+      metadata: {
+        fingerprint,
+        peerCount: peers.length,
+      },
+    });
+  } catch {
+    await writeAuditEvent({
+      actor: input.userId,
+      action: "wireguard.config.fingerprint_persist_failed",
+      resource: `device:${input.deviceId}`,
+      result: "error",
+      metadata: {
+        fingerprint,
+        peerCount: peers.length,
+      },
+    }).catch(() => undefined);
+  }
+
   return {
     userId: input.userId,
     deviceId: input.deviceId,
     config,
-    fingerprint: fingerprintWireGuardConfig(config),
+    fingerprint,
     peerCount: peers.length,
   };
 }
