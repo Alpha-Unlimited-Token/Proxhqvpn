@@ -57,3 +57,8 @@ export * from "./executiveReportingService";
 export * from "./tenantService";
 export * from "./rbacService";
 export * from "./scimProvisioningService";
+export * from "./samlSsoService";
+export * from "./oidcFederationService";
+export * from "./auditExportService";
+export * from "./dataRetentionService";
+export * from "./legalHoldService";
