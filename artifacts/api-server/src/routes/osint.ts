@@ -8,8 +8,13 @@ import { URL } from "url";
 import crypto from "crypto";
 import { z } from "zod";
 import { checkSsrf } from "../lib/ssrfGuard";
+import { requireRbac } from "../middlewares/requireRbac";
 
 const router = Router();
+
+// All OSINT probes (external queries) require recon_write permission.
+// Grants: owner, security_admin, network_admin.
+router.use(requireRbac("recon_write"));
 
 function fetchHead(urlStr: string, timeoutMs = 6000): Promise<{ status: number; headers: Record<string, string> } | null> {
   return new Promise(resolve => {

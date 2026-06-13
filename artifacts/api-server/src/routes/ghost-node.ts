@@ -46,13 +46,13 @@ setInterval(() => {
 }, 5 * 60_000).unref();
 
 // ── List ghost nodes ─────────────────────────────────────────────────────────
-router.get("/", async (req, res) => {
+router.get("/", requireRbac("ghost_node_admin"), async (req, res) => {
   const nodes = await db.select().from(ghostNodesTable).orderBy(desc(ghostNodesTable.createdAt));
   return res.json({ nodes });
 });
 
 // ── Get single ghost node ─────────────────────────────────────────────────────
-router.get("/:id", async (req, res) => {
+router.get("/:id", requireRbac("ghost_node_admin"), async (req, res) => {
   const id = parseInt(req.params.id as string, 10);
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
   const [node] = await db.select().from(ghostNodesTable).where(eq(ghostNodesTable.id, id));

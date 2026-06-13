@@ -27,7 +27,8 @@ export type Action =
   | "honeypot_admin"   // Manage honeypot nodes, IOCs, alerts (CRUD)
   | "deception_admin"  // Manage deception banners, canary tokens, purge events
   | "lab_targets"      // Add/remove/expire authorized lab scan targets
-  | "nodes:vultr_sync";// Trigger Vultr instance reconciliation
+  | "nodes:vultr_sync" // Trigger Vultr instance reconciliation
+  | "recon_write";     // OSINT / passive-active recon against external targets (owner, security_admin, network_admin)
 
 const GRANTS: Record<Role, Action[]> = {
   owner: [
@@ -36,15 +37,18 @@ const GRANTS: Record<Role, Action[]> = {
     "incident:write", "ztna:posture",
     "counter_attack", "silkweb_exploit", "ghost_node_admin",
     "honeypot_admin", "deception_admin", "lab_targets", "nodes:vultr_sync",
+    "recon_write",
   ],
   security_admin: [
     "vpn:read", "peer:read", "audit:read", "audit:export", "incident:write", "ztna:posture",
     "counter_attack", "silkweb_exploit", "ghost_node_admin",
     "honeypot_admin", "deception_admin",
+    "recon_write",
   ],
   network_admin: [
     "vpn:read", "vpn:write", "peer:read", "peer:write", "ztna:posture",
     "honeypot_admin",
+    "recon_write",
   ],
   auditor: [
     "vpn:read", "peer:read", "audit:read", "audit:export",

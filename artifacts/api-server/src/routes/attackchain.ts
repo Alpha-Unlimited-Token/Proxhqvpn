@@ -4,6 +4,7 @@ import { db } from "@workspace/db";
 import { attackChainScansTable, attackChainFindingsTable } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
 import { getAuth } from "@clerk/express";
+import { requireRbac } from "../middlewares/requireRbac";
 import https from "https";
 import http from "http";
 import dns from "dns/promises";
@@ -553,9 +554,8 @@ async function runScan(scanId: number, target: string) {
   }
 }
 
-router.post("/scan", async (req: Request, res: Response) => {
+router.post("/scan", requireRbac("counter_attack"), async (req: Request, res: Response) => {
   const { userId } = getAuth(req);
-  if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
   let { target } = req.body as { target: string };
   if (!target) return res.status(400).json({ error: "target required" });

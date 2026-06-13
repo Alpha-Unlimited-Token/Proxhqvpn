@@ -1,8 +1,23 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { Router } from "express";
 import { z } from "zod";
+import { rateLimit } from "express-rate-limit";
+import { getAuth } from "@clerk/express";
+import { requireRbac } from "../middlewares/requireRbac";
 
 const router = Router();
+
+// Per-user rate limit: 10 AI requests per minute to prevent token-burn abuse.
+const aiRateLimit = rateLimit({
+  windowMs: 60_000,
+  max: 10,
+  keyGenerator: (req) => getAuth(req).userId ?? (req.ip ?? "anon"),
+  message: { error: "Too many AI requests — please wait before retrying." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+router.use(aiRateLimit);
 
 async function callAI(messages: { role: string; content: string }[], maxTokens = 4096): Promise<string> {
   const baseUrl = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
@@ -61,7 +76,7 @@ async function streamAI(
 }
 
 // ── 1. GhostPentest (PentestGPT-inspired) — streaming SSE ─────────────────
-router.post("/pentest", async (req, res) => {
+router.post("/pentest", requireRbac("counter_attack"), async (req, res) => {
   const body = z.object({
     target: z.string().min(1).max(500),
     phase: z.enum(["recon", "vuln-analysis", "exploitation", "full"]).default("full"),
@@ -278,7 +293,7 @@ Return JSON:
 });
 
 // ── 5. AgentStrike (Hexstrike AI-inspired) — multi-agent recon ───────────
-router.post("/agent-strike", async (req, res) => {
+router.post("/agent-strike", requireRbac("counter_attack"), async (req, res) => {
   const body = z.object({
     target: z.string().min(1).max(500),
     modules: z.array(z.enum(["recon","tech-fingerprint","vuln-test","chain-correlation","impact-assessment"])).min(1),
@@ -334,7 +349,7 @@ Make all findings realistic and detailed. Fill in all agent findings based on wh
 });
 
 // ── 6. LLMProbe (Garak-inspired) — LLM vulnerability scanner ─────────────
-router.post("/llm-probe", async (req, res) => {
+router.post("/llm-probe", requireRbac("counter_attack"), async (req, res) => {
   const body = z.object({
     endpoint: z.string().url().max(500),
     apiKey: z.string().max(200).optional(),
@@ -659,7 +674,7 @@ router.post("/hardening-audit", async (req, res) => {
 });
 
 // ─── 2. AI Endpoint Fuzzer ───────────────────────────────────────────────────
-router.post("/fuzzer", async (req, res) => {
+router.post("/fuzzer", requireRbac("counter_attack"), async (req, res) => {
   const schema = z.object({
     targetUrl:    z.string().url(),
     method:       z.enum(["GET", "POST", "PUT", "PATCH"]).default("POST"),
@@ -759,7 +774,7 @@ router.post("/mcp-audit", async (req, res) => {
 });
 
 // ─── 4. AI Rate Limit & DoS Stress Tester ────────────────────────────────────
-router.post("/dos-test", async (req, res) => {
+router.post("/dos-test", requireRbac("counter_attack"), async (req, res) => {
   const schema = z.object({
     targetUrl:     z.string().url(),
     authHeader:    z.string().optional(),
@@ -821,7 +836,7 @@ router.post("/dos-test", async (req, res) => {
 });
 
 // ─── 5. Prompt Injection Scanner ─────────────────────────────────────────────
-router.post("/prompt-inject", async (req, res) => {
+router.post("/prompt-inject", requireRbac("counter_attack"), async (req, res) => {
   const schema = z.object({
     targetUrl:      z.string().url(),
     authHeader:     z.string().optional(),
