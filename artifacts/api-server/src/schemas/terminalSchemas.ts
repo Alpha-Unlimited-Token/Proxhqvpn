@@ -50,3 +50,14 @@ export const portScanBodySchema = z.object({
   ports: z.array(z.number().min(1).max(65535)).max(50),
   timeout: z.number().min(100).max(5000).optional().default(1500),
 });
+
+export const sshSftpLsBodySchema = z.object({
+  sessionId: z.string().uuid(),
+  path: z.string().min(1).max(4096).default("/"),
+});
+
+export const sshSftpReadBodySchema = z.object({
+  sessionId: z.string().uuid(),
+  path: z.string().min(1).max(4096),
+  encoding: z.enum(["utf8", "base64"]).optional().default("utf8"),
+});

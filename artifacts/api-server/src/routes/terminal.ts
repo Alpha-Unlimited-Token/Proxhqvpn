@@ -12,6 +12,13 @@ import {
 import {
   terminalExecBodySchema,
   terminalJobParamsSchema,
+  sshConnectBodySchema,
+  sshSessionParamsSchema,
+  sshExecBodySchema,
+  httpRequestBodySchema,
+  portScanBodySchema,
+  sshSftpLsBodySchema,
+  sshSftpReadBodySchema,
 } from "../schemas/terminalSchemas";
 import { Client as SshClient } from "ssh2";
 import type { ConnectConfig, SFTPWrapper } from "ssh2";
@@ -151,136 +158,148 @@ router.get(
 );
 
 // ─── POST http-request (direct outbound HTTP from server) ────────────────────
-router.post("/http-request", async (req, res) => {
-  const body = z.object({
-    url: z.string().url(),
-    method: z.enum(["GET","POST","PUT","DELETE","HEAD","OPTIONS","PATCH"]).default("GET"),
-    headers: z.record(z.string()).optional().default({}),
-    data: z.string().optional(),
-    followRedirects: z.boolean().optional().default(true),
-    verifySsl: z.boolean().optional().default(true),
-    timeout: z.number().min(500).max(30000).optional().default(10000),
-  }).parse(req.body);
+router.post(
+  "/http-request",
+  validateRequest({ body: httpRequestBodySchema }),
+  asyncHandler(async (req, res) => {
+    const body = getValidatedBody<typeof httpRequestBodySchema>(req);
 
-  // SSRF Protection: block requests to private/internal/metadata IP ranges
-  const ssrf = await checkSsrf(body.url, true);
-  if (ssrf.blocked) {
-    return res.status(403).json({ error: `SSRF blocked: ${ssrf.reason}` });
-  }
+    // SSRF Protection: block requests to private/internal/metadata IP ranges
+    const ssrf = await checkSsrf(body.url, true);
+    if (ssrf.blocked) {
+      return res.status(403).json({ error: `SSRF blocked: ${ssrf.reason}` });
+    }
 
-  const startMs = Date.now();
-  try {
+    const startMs = Date.now();
     const nodeFetch = (await import("node-fetch")).default;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), body.timeout);
 
-    // Redirect SSRF re-validation: manually follow redirects so each hop is
-    // checked against the SSRF guard — prevents open-redirect chains that bypass
-    // the initial check and land on an internal/metadata address.
-    let currentUrl = body.url;
-    let resp: Awaited<ReturnType<typeof nodeFetch>>;
-    const MAX_REDIRECTS = 5;
-    let redirectCount = 0;
-    while (true) {
-      resp = await nodeFetch(currentUrl, {
-        method: body.method,
-        headers: { "User-Agent": "ProxhqVPN/3.0 curl/8.0", ...body.headers },
-        body: body.data,
-        redirect: "manual",   // always manual so we can inspect each hop
-        signal: controller.signal as any,
-      });
-      const location = resp.headers.get("location");
-      if (
-        body.followRedirects &&
-        location &&
-        [301, 302, 303, 307, 308].includes(resp.status) &&
-        redirectCount < MAX_REDIRECTS
-      ) {
-        // Re-validate the redirect target before following
-        const absLocation = new URL(location, currentUrl).toString();
-        const hopCheck = await checkSsrf(absLocation, true);
-        if (hopCheck.blocked) {
-          clearTimeout(timer);
-          return res.status(403).json({ error: `SSRF blocked on redirect hop ${redirectCount + 1}: ${hopCheck.reason}` });
+    try {
+      // Redirect SSRF re-validation: manually follow redirects so each hop is
+      // checked against the SSRF guard — prevents open-redirect chains that bypass
+      // the initial check and land on an internal/metadata address.
+      let currentUrl = body.url;
+      let resp: Awaited<ReturnType<typeof nodeFetch>>;
+      const MAX_REDIRECTS = 5;
+      let redirectCount = 0;
+
+      while (true) {
+        resp = await nodeFetch(currentUrl, {
+          method: body.method,
+          headers: { "User-Agent": "ProxhqVPN/3.0 curl/8.0", ...body.headers },
+          body: body.data,
+          redirect: "manual",
+          signal: controller.signal as any,
+        });
+
+        const location = resp.headers.get("location");
+
+        if (
+          body.followRedirects &&
+          location &&
+          [301, 302, 303, 307, 308].includes(resp.status) &&
+          redirectCount < MAX_REDIRECTS
+        ) {
+          const absLocation = new URL(location, currentUrl).toString();
+          const hopCheck = await checkSsrf(absLocation, true);
+
+          if (hopCheck.blocked) {
+            return res.status(403).json({
+              error: `SSRF blocked on redirect hop ${redirectCount + 1}: ${hopCheck.reason}`,
+            });
+          }
+
+          currentUrl = absLocation;
+          redirectCount++;
+          continue;
         }
-        currentUrl = absLocation;
-        redirectCount++;
-        continue;
+
+        break;
       }
-      break;
+
+      const responseText = await resp.text();
+      const responseHeaders: Record<string, string> = {};
+      resp.headers.forEach((v, k) => { responseHeaders[k] = v; });
+
+      return res.json({
+        url: body.url,
+        status: resp.status,
+        statusText: resp.statusText,
+        headers: responseHeaders,
+        body: responseText.slice(0, 50_000),
+        bodySize: responseText.length,
+        durationMs: Date.now() - startMs,
+        redirected: resp.redirected,
+        finalUrl: resp.url,
+      });
+    } catch (err: any) {
+      return res.json({
+        url: body.url,
+        status: 0,
+        statusText: "Connection failed",
+        headers: {},
+        body: "",
+        bodySize: 0,
+        durationMs: Date.now() - startMs,
+        error: err.message,
+      });
+    } finally {
+      clearTimeout(timer);
     }
-    clearTimeout(timer);
-
-    const responseText = await resp.text();
-    const responseHeaders: Record<string, string> = {};
-    resp.headers.forEach((v, k) => { responseHeaders[k] = v; });
-
-    res.json({
-      url: body.url,
-      status: resp.status,
-      statusText: resp.statusText,
-      headers: responseHeaders,
-      body: responseText.slice(0, 50000),
-      bodySize: responseText.length,
-      durationMs: Date.now() - startMs,
-      redirected: resp.redirected,
-      finalUrl: resp.url,
-    });
-  } catch (err: any) {
-    res.json({
-      url: body.url,
-      status: 0,
-      statusText: "Connection failed",
-      headers: {},
-      body: "",
-      bodySize: 0,
-      durationMs: Date.now() - startMs,
-      error: err.message,
-    });
-  }
-});
+  }),
+);
 
 // ─── GET port-scan (basic TCP connect scan) ────────────────────────────────
-router.post("/port-scan", async (req, res) => {
-  const body = z.object({
-    host: z.string().min(1).max(253),
-    ports: z.array(z.number().min(1).max(65535)).max(50),
-    timeout: z.number().min(100).max(5000).optional().default(1500),
-  }).parse(req.body);
+router.post(
+  "/port-scan",
+  validateRequest({ body: portScanBodySchema }),
+  asyncHandler(async (req, res) => {
+    const body = getValidatedBody<typeof portScanBodySchema>(req);
 
-  // SSRF Protection: block port scans against private/internal IP ranges
-  const ssrf = await checkSsrf(body.host, false);
-  if (ssrf.blocked) {
-    return res.status(403).json({ error: `SSRF blocked: ${ssrf.reason}` });
-  }
+    // SSRF Protection: block port scans against private/internal IP ranges
+    const ssrf = await checkSsrf(body.host, false);
+    if (ssrf.blocked) {
+      return res.status(403).json({ error: `SSRF blocked: ${ssrf.reason}` });
+    }
 
-  const net = await import("net");
-  const results: { port: number; open: boolean; banner?: string }[] = [];
+    const net = await import("net");
+    const results: { port: number; open: boolean; banner?: string }[] = [];
 
-  await Promise.all(
-    body.ports.map(port =>
-      new Promise<void>(resolve => {
-        const sock = new net.Socket();
-        let open = false;
-        let banner = "";
-        sock.setTimeout(body.timeout);
-        sock.connect(port, body.host, () => { open = true; });
-        sock.on("data", d => { banner = d.toString("utf8", 0, 200).replace(/\r?\n/g, " ").trim(); sock.destroy(); });
-        sock.on("timeout", () => sock.destroy());
-        sock.on("error", () => sock.destroy());
-        sock.on("close", () => { results.push({ port, open, ...(banner ? { banner } : {}) }); resolve(); });
-      })
-    )
-  );
+    await Promise.all(
+      body.ports.map(
+        (port) =>
+          new Promise<void>((resolve) => {
+            const sock = new net.Socket();
+            let open = false;
+            let banner = "";
 
-  results.sort((a, b) => a.port - b.port);
-  res.json({
-    host: body.host,
-    scannedAt: new Date().toISOString(),
-    openPorts: results.filter(r => r.open).length,
-    results,
-  });
-});
+            sock.setTimeout(body.timeout);
+            sock.connect(port, body.host, () => { open = true; });
+            sock.on("data", (d: Buffer) => {
+              banner = d.toString("utf8", 0, 200).replace(/\r?\n/g, " ").trim();
+              sock.destroy();
+            });
+            sock.on("timeout", () => sock.destroy());
+            sock.on("error", () => sock.destroy());
+            sock.on("close", () => {
+              results.push({ port, open, ...(banner ? { banner } : {}) });
+              resolve();
+            });
+          }),
+      ),
+    );
+
+    results.sort((a, b) => a.port - b.port);
+
+    return res.json({
+      host: body.host,
+      scannedAt: new Date().toISOString(),
+      openPorts: results.filter((r) => r.open).length,
+      results,
+    });
+  }),
+);
 
 // ─── SSH Session Manager ──────────────────────────────────────────────────────
 
@@ -382,68 +401,72 @@ function getSftp(session: SshSession): Promise<SFTPWrapper> {
 }
 
 // POST /api/terminal/ssh/connect
-router.post("/ssh/connect", async (req, res) => {
-  const body = z.object({
-    host: z.string().min(1).max(253),
-    port: z.number().min(1).max(65535).optional().default(22),
-    username: z.string().min(1).max(64),
-    password: z.string().optional(),
-    privateKey: z.string().optional(),
-    passphrase: z.string().optional(),
-    label: z.string().max(64).optional(),
-    timeout: z.number().min(2000).max(30000).optional().default(10000),
-  }).parse(req.body);
+router.post(
+  "/ssh/connect",
+  validateRequest({ body: sshConnectBodySchema }),
+  asyncHandler(async (req, res) => {
+    const body = getValidatedBody<typeof sshConnectBodySchema>(req);
 
-  if (!body.password && !body.privateKey) {
-    return res.status(400).json({ error: "Provide either password or privateKey" });
-  }
+    if (!body.password && !body.privateKey) {
+      return res.status(400).json({ error: "Provide either password or privateKey" });
+    }
 
-  // SSRF guard — block private/metadata ranges
-  const ssrf = await checkSsrf(body.host, false);
-  if (ssrf.blocked) {
-    return res.status(403).json({ error: `SSRF blocked: ${ssrf.reason}` });
-  }
+    // SSRF guard — block private/metadata ranges
+    const ssrf = await checkSsrf(body.host, false);
+    if (ssrf.blocked) {
+      return res.status(403).json({ error: `SSRF blocked: ${ssrf.reason}` });
+    }
 
-  const sessionId = randomUUID();
-  const client = new SshClient();
+    const sessionId = randomUUID();
+    const client = new SshClient();
 
-  const cfg: ConnectConfig = {
-    host: body.host,
-    port: body.port,
-    username: body.username,
-    readyTimeout: body.timeout,
-    ...(body.password   ? { password: body.password }   : {}),
-    ...(body.privateKey ? {
-      privateKey: body.privateKey,
-      ...(body.passphrase ? { passphrase: body.passphrase } : {}),
-    } : {}),
-  };
+    const cfg: ConnectConfig = {
+      host: body.host,
+      port: body.port,
+      username: body.username,
+      readyTimeout: body.timeout,
+      ...(body.password ? { password: body.password } : {}),
+      ...(body.privateKey
+        ? {
+            privateKey: body.privateKey,
+            ...(body.passphrase ? { passphrase: body.passphrase } : {}),
+          }
+        : {}),
+    };
 
-  await new Promise<void>((resolve, reject) => {
-    client.on("ready", () => {
-      sshSessions.set(sessionId, {
-        id: sessionId,
-        ownerUserId: getActor(req),
-        host: body.host,
-        port: body.port,
-        username: body.username,
-        connectedAt: new Date().toISOString(),
-        lastUsedAt: Date.now(),
-        client,
-        sftp: null,
-        label: body.label ?? `${body.username}@${body.host}`,
+    try {
+      await new Promise<void>((resolve, reject) => {
+        client.on("ready", () => {
+          sshSessions.set(sessionId, {
+            id: sessionId,
+            ownerUserId: getActor(req),
+            host: body.host,
+            port: body.port,
+            username: body.username,
+            connectedAt: new Date().toISOString(),
+            lastUsedAt: Date.now(),
+            client,
+            sftp: null,
+            label: body.label ?? `${body.username}@${body.host}`,
+          });
+          resolve();
+        });
+        client.on("error", reject);
+        client.connect(cfg);
       });
-      resolve();
-    });
-    client.on("error", (err) => reject(err));
-    client.connect(cfg);
-  }).catch((err: Error) => {
-    res.status(400).json({ error: `SSH connection failed: ${err.message}` });
-    throw err; // prevent double-send
-  });
+    } catch (err: any) {
+      return res.status(400).json({ error: `SSH connection failed: ${err.message}` });
+    }
 
-  res.json({ sessionId, host: body.host, port: body.port, username: body.username, connectedAt: new Date().toISOString() });
-});
+    return res.json({
+      sessionId,
+      host: body.host,
+      port: body.port,
+      username: body.username,
+      connectedAt: new Date().toISOString(),
+    });
+  }),
+);
 
 // GET /api/terminal/ssh/sessions
 router.get("/ssh/sessions", (req, res) => {
@@ -462,143 +485,162 @@ router.get("/ssh/sessions", (req, res) => {
 });
 
 // DELETE /api/terminal/ssh/sessions/:id
-router.delete("/ssh/sessions/:id", (req, res) => {
-  const session = getOwnedSession(req, req.params.id);
-  if (!session) return res.status(404).json({ error: "Session not found or not owned by current user" });
-  try { session.client.end(); } catch { /* ignore */ }
-  sshSessions.delete(req.params.id);
-  res.json({ ok: true });
-});
+router.delete(
+  "/ssh/sessions/:id",
+  validateRequest({ params: sshSessionParamsSchema }),
+  (req, res) => {
+    const params = getValidatedParams<typeof sshSessionParamsSchema>(req);
+    const session = getOwnedSession(req, params.id);
+
+    if (!session) {
+      return res.status(404).json({ error: "Session not found or not owned by current user" });
+    }
+
+    try { session.client.end(); } catch { /* ignore */ }
+    sshSessions.delete(params.id);
+
+    return res.json({ ok: true });
+  },
+);
 
 // POST /api/terminal/ssh/exec  — enqueue a job and return 202
-router.post("/ssh/exec", async (req, res) => {
-  const body = z.object({
-    sessionId: z.string().uuid(),
-    command: z.string().min(1).max(4096),
-    timeout: z.number().min(500).max(120000).optional().default(30000),
-  }).parse(req.body);
+router.post(
+  "/ssh/exec",
+  validateRequest({ body: sshExecBodySchema }),
+  asyncHandler(async (req, res) => {
+    const body = getValidatedBody<typeof sshExecBodySchema>(req);
 
-  const session = getOwnedSession(req, body.sessionId);
+    const session = getOwnedSession(req, body.sessionId);
 
-  if (!session) {
-    return res.status(404).json({
-      error: "Session not found or not owned by current user",
-    });
-  }
+    if (!session) {
+      return res.status(404).json({
+        error: "Session not found or not owned by current user",
+      });
+    }
 
-  const blockReason = getHardBlockReason(body.command);
+    const blockReason = getHardBlockReason(body.command);
 
-  if (blockReason) {
-    await auditTerminalEvent({
-      actor: getActor(req),
-      action: "terminal.ssh_job_blocked",
-      result: "deny",
-      ip: req.ip ?? "unknown",
+    if (blockReason) {
+      await auditTerminalEvent({
+        actor: getActor(req),
+        action: "terminal.ssh_job_blocked",
+        result: "deny",
+        ip: req.ip ?? "unknown",
+        command: body.command,
+        metadata: {
+          sessionId: body.sessionId,
+          host: session.host,
+          username: session.username,
+          reason: blockReason,
+        },
+      });
+
+      return res.status(403).json({
+        error: blockReason,
+        blocked: true,
+      });
+    }
+
+    const job = createSshTerminalJob({
+      ownerUserId: getActor(req),
       command: body.command,
-      metadata: {
-        sessionId: body.sessionId,
-        host: session.host,
-        username: session.username,
-        reason: blockReason,
-      },
-    });
-
-    return res.status(403).json({
-      error: blockReason,
-      blocked: true,
-    });
-  }
-
-  const job = createSshTerminalJob({
-    ownerUserId: getActor(req),
-    command: body.command,
-    timeout: body.timeout,
-    sessionId: body.sessionId,
-    host: session.host,
-    username: session.username,
-    run: (command, timeout) => runSshCommand(session, command, timeout),
-  });
-
-  await auditTerminalEvent({
-    actor: getActor(req),
-    action: "terminal.ssh_job_created",
-    result: "allow",
-    ip: req.ip ?? "unknown",
-    command: body.command,
-    metadata: {
-      jobId: job.id,
+      timeout: body.timeout,
       sessionId: body.sessionId,
       host: session.host,
       username: session.username,
-    },
-  });
+      run: (command, timeout) => runSshCommand(session, command, timeout),
+    });
 
-  res.status(202).json({
-    jobId: job.id,
-    status: job.status,
-    createdAt: job.createdAt,
-    pollUrl: `/api/terminal/jobs/${job.id}`,
-  });
-});
+    await auditTerminalEvent({
+      actor: getActor(req),
+      action: "terminal.ssh_job_created",
+      result: "allow",
+      ip: req.ip ?? "unknown",
+      command: body.command,
+      metadata: {
+        jobId: job.id,
+        sessionId: body.sessionId,
+        host: session.host,
+        username: session.username,
+      },
+    });
+
+    return res.status(202).json({
+      jobId: job.id,
+      status: job.status,
+      createdAt: job.createdAt,
+      pollUrl: `/api/terminal/jobs/${job.id}`,
+    });
+  }),
+);
 
 // POST /api/terminal/ssh/sftp/ls  — list directory
-router.post("/ssh/sftp/ls", async (req, res) => {
-  const body = z.object({
-    sessionId: z.string().uuid(),
-    path: z.string().min(1).max(4096).default("/"),
-  }).parse(req.body);
+router.post(
+  "/ssh/sftp/ls",
+  validateRequest({ body: sshSftpLsBodySchema }),
+  asyncHandler(async (req, res) => {
+    const body = getValidatedBody<typeof sshSftpLsBodySchema>(req);
 
-  const session = getOwnedSession(req, body.sessionId);
-  if (!session) return res.status(404).json({ error: "Session not found or not owned by current user" });
+    const session = getOwnedSession(req, body.sessionId);
+    if (!session) {
+      return res.status(404).json({ error: "Session not found or not owned by current user" });
+    }
 
-  try {
     const sftp = await getSftp(session);
     const entries = await new Promise<any[]>((resolve, reject) => {
       sftp.readdir(body.path, (err, list) => {
         if (err) return reject(err);
-        resolve(list.map(e => ({
-          name: e.filename,
-          longname: e.longname,
-          isDir: (e.attrs.mode! & 0o170000) === 0o040000,
-          isSymlink: (e.attrs.mode! & 0o170000) === 0o120000,
-          size: e.attrs.size ?? 0,
-          mode: (e.attrs.mode ?? 0).toString(8),
-          mtime: e.attrs.mtime ?? 0,
-        })));
+        resolve(
+          list.map((e) => ({
+            name: e.filename,
+            longname: e.longname,
+            isDir: (e.attrs.mode! & 0o170000) === 0o040000,
+            isSymlink: (e.attrs.mode! & 0o170000) === 0o120000,
+            size: e.attrs.size ?? 0,
+            mode: (e.attrs.mode ?? 0).toString(8),
+            mtime: e.attrs.mtime ?? 0,
+          })),
+        );
       });
     });
-    res.json({ path: body.path, entries });
-  } catch (err: any) {
-    res.status(400).json({ error: err.message });
-  }
-});
+
+    return res.json({ path: body.path, entries });
+  }),
+);
 
 // POST /api/terminal/ssh/sftp/read  — read a file (capped at 512 KB)
-router.post("/ssh/sftp/read", async (req, res) => {
-  const body = z.object({
-    sessionId: z.string().uuid(),
-    path: z.string().min(1).max(4096),
-  }).parse(req.body);
+router.post(
+  "/ssh/sftp/read",
+  validateRequest({ body: sshSftpReadBodySchema }),
+  asyncHandler(async (req, res) => {
+    const body = getValidatedBody<typeof sshSftpReadBodySchema>(req);
 
-  const session = getOwnedSession(req, body.sessionId);
-  if (!session) return res.status(404).json({ error: "Session not found or not owned by current user" });
+    const session = getOwnedSession(req, body.sessionId);
+    if (!session) {
+      return res.status(404).json({ error: "Session not found or not owned by current user" });
+    }
 
-  const MAX_BYTES = 512 * 1024;
-  try {
+    const MAX_BYTES = 512 * 1024;
     const sftp = await getSftp(session);
     const content = await new Promise<string>((resolve, reject) => {
       const chunks: Buffer[] = [];
-      let total = 0;
       const stream = sftp.createReadStream(body.path, { start: 0, end: MAX_BYTES });
-      stream.on("data", (chunk: Buffer) => { chunks.push(chunk); total += chunk.length; });
-      stream.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
+      stream.on("data", (chunk: Buffer) => { chunks.push(chunk); });
+      stream.on("end", () => {
+        const buf = Buffer.concat(chunks);
+        resolve(body.encoding === "base64" ? buf.toString("base64") : buf.toString("utf8"));
+      });
       stream.on("error", reject);
     });
-    res.json({ path: body.path, content, truncated: content.length >= MAX_BYTES });
-  } catch (err: any) {
-    res.status(400).json({ error: err.message });
-  }
-});
+
+    return res.json({
+      path: body.path,
+      content,
+      encoding: body.encoding,
+      truncated: content.length >= MAX_BYTES,
+    });
+  }),
+);
 
 // ─── Remote Screen Capture & Input Control ────────────────────────────────────
 // Uses scrot/import for screenshots and xdotool for mouse/keyboard injection.
