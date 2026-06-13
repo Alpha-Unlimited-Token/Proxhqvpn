@@ -62,3 +62,7 @@ export * from "./oidcFederationService";
 export * from "./auditExportService";
 export * from "./dataRetentionService";
 export * from "./legalHoldService";
+export * from "./billingService";
+export * from "./usageMeteringService";
+export * from "./licenseService";
+export * from "./customerProvisioningService";
