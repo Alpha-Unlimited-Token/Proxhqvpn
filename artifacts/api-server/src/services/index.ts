@@ -77,3 +77,4 @@ export * from "./blueGreenDeploymentService";
 export * from "./canaryDeploymentService";
 export * from "./productionReadinessScorecardService";
 export * from "./onboardingService";
+export * from "./controlPlaneClusterService";
