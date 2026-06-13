@@ -105,6 +105,8 @@ export const apiRouteCapabilities: ApiRouteCapability[] = [
   { mountPath: "/firewall-v2", capability: "command_center.write" },
   { mountPath: "/device-trust", capability: "command_center.write" },
   { mountPath: "/firewall-core", capability: "command_center.write" },
+  { mountPath: "/security-graph", capability: "command_center.read" },
+  { mountPath: "/security-dashboard-v2", capability: "command_center.read" },
 
   { mountPath: "/beacons", capability: "admin.read" },
   { mountPath: "/silkweb", capability: "admin.read" },

@@ -44,3 +44,8 @@ export * from "./policyVersioningService";
 export * from "./investigationTimelineService";
 export * from "./securityCaseService";
 export * from "./evidenceStorageService";
+export * from "./securityGraphService";
+export * from "./entityCorrelationService";
+export * from "./attackPathService";
+export * from "./securityDashboardService";
+export * from "./detectionTestingService";

@@ -46,6 +46,8 @@ import eventGraphRouter from "../event-graph";
 import serviceBusRouter from "../service-bus";
 import deviceTrustRouter from "../device-trust";
 import firewallCoreRouter from "../firewall-core";
+import securityGraphRouter from "../security-graph";
+import securityDashboardV2Router from "../security-dashboard-v2";
 
 const router = Router();
 
@@ -93,5 +95,7 @@ router.use("/events", requireCapability("command_center.read"), eventGraphRouter
 router.use("/service-bus", requireCapability("command_center.read"), serviceBusRouter);
 router.use("/device-trust", requireCapability("command_center.write"), deviceTrustRouter);
 router.use("/firewall-core", requireCapability("command_center.write"), firewallCoreRouter);
+registerCommandCenterRoute(router, "/security-graph", "command_center.read", securityGraphRouter);
+registerCommandCenterRoute(router, "/security-dashboard-v2", "command_center.read", securityDashboardV2Router);
 
 export default router;
