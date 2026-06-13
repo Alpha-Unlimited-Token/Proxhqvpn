@@ -1,23 +1,21 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
-import React from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ClerkProvider } from "@clerk/react";
 import { Router as WouterRouter, useLocation } from "wouter";
 import { ErrorBoundary } from "@/routes/errorBoundary";
 import { AppRoutes } from "@/routes/AppRoutes";
+import { ClerkQueryClientCacheInvalidator } from "@/routes/queryInvalidator";
+import { ScrollToTop } from "@/routes/ScrollToTop";
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
-function stripBase(path: string): string {
-  return basePath && path.startsWith(basePath)
-    ? path.slice(basePath.length) || "/"
-    : path;
-}
-
 if (!clerkPubKey) {
   throw new Error("Missing VITE_CLERK_PUBLISHABLE_KEY");
 }
+
+const queryClient = new QueryClient();
 
 const ghostGreen = "#00ff88";
 const ghostGreenDark = "#009952";
@@ -38,14 +36,25 @@ const clerkAppearance = {
   },
   elements: {
     rootBox: "w-full",
-    cardBox: "border border-primary/20 bg-black/95 w-full overflow-hidden rounded-xl shadow-lg shadow-primary/5",
+    cardBox:
+      "border border-primary/20 bg-black/95 w-full overflow-hidden rounded-xl shadow-lg shadow-primary/5",
     card: "!shadow-none !border-0 !bg-transparent",
     footer: "!shadow-none !border-0 !bg-transparent",
-    headerTitle: { color: ghostGreen, fontSize: "20px", fontWeight: "700", letterSpacing: "-0.01em" },
+    headerTitle: {
+      color: ghostGreen,
+      fontSize: "20px",
+      fontWeight: "700",
+      letterSpacing: "-0.01em",
+    },
     headerSubtitle: { color: `${ghostGreen}70`, fontSize: "13px" },
-    socialButtonsBlockButton: "border border-primary/25 bg-black/60 hover:bg-primary/10 transition-colors",
+    socialButtonsBlockButton:
+      "border border-primary/25 bg-black/60 hover:bg-primary/10 transition-colors",
     socialButtonsBlockButtonText: { color: ghostGreen, fontSize: "13px" },
-    formFieldLabel: { color: `${ghostGreen}80`, fontSize: "12px", fontWeight: "500" },
+    formFieldLabel: {
+      color: `${ghostGreen}80`,
+      fontSize: "12px",
+      fontWeight: "500",
+    },
     formFieldInput: "bg-black/60 border border-primary/25 text-primary focus:border-primary",
     formButtonPrimary: "bg-primary text-black font-semibold hover:bg-primary/85",
     footerActionLink: { color: ghostGreen, fontSize: "13px" },
@@ -61,6 +70,12 @@ const clerkAppearance = {
     main: "p-6",
   },
 };
+
+function stripBase(path: string): string {
+  return basePath && path.startsWith(basePath)
+    ? path.slice(basePath.length) || "/"
+    : path;
+}
 
 function ClerkProviderWithRoutes() {
   const [, setLocation] = useLocation();
@@ -89,12 +104,16 @@ function ClerkProviderWithRoutes() {
       routerPush={(to) => setLocation(stripBase(to))}
       routerReplace={(to) => setLocation(stripBase(to), { replace: true })}
     >
-      <AppRoutes />
+      <QueryClientProvider client={queryClient}>
+        <ClerkQueryClientCacheInvalidator />
+        <ScrollToTop />
+        <AppRoutes />
+      </QueryClientProvider>
     </ClerkProvider>
   );
 }
 
-function App() {
+export default function App() {
   return (
     <ErrorBoundary>
       <WouterRouter base={basePath}>
@@ -103,5 +122,3 @@ function App() {
     </ErrorBoundary>
   );
 }
-
-export default App;
