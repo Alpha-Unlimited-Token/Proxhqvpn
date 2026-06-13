@@ -209,6 +209,9 @@ importers:
       '@workspace/api-zod':
         specifier: workspace:*
         version: link:../../lib/api-zod
+      '@workspace/capabilities':
+        specifier: workspace:*
+        version: link:../../lib/capabilities
       '@workspace/db':
         specifier: workspace:*
         version: link:../../lib/db
@@ -509,6 +512,9 @@ importers:
       '@workspace/api-client-react':
         specifier: workspace:*
         version: link:../../lib/api-client-react
+      '@workspace/capabilities':
+        specifier: workspace:*
+        version: link:../../lib/capabilities
       '@workspace/omega-api-client-react':
         specifier: workspace:*
         version: link:../../lib/omega-api-client-react
@@ -1576,6 +1582,8 @@ importers:
       zod:
         specifier: 'catalog:'
         version: 3.25.76
+
+  lib/capabilities: {}
 
   lib/db:
     dependencies:

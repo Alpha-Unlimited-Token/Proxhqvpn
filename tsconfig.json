@@ -20,6 +20,9 @@
     },
     {
       "path": "./lib/omega-api-zod"
+    },
+    {
+      "path": "./lib/capabilities"
     }
   ]
 }
