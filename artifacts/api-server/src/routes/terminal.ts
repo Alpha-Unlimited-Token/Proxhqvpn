@@ -2,52 +2,25 @@
 import { Router } from "express";
 import { getAuth } from "@clerk/express";
 import { checkSsrf } from "../lib/ssrfGuard";
-import { exec, spawn } from "child_process";
-import { promisify } from "util";
 import { z } from "zod";
 import { Client as SshClient } from "ssh2";
 import type { ConnectConfig, SFTPWrapper } from "ssh2";
 import { randomUUID } from "crypto";
-import { appendAuditEvent } from "../lib/audit-chain";
-import { shipSecurityEvent } from "../lib/siem";
 import { verifyBreakGlassToken } from "../lib/break-glass";
 import {
   getHardBlockReason,
   hasShellChain,
   isAllowedCommand,
-  truncateTerminalOutput,
   TERMINAL_OUTPUT_LIMIT,
   TERMINAL_STDERR_LIMIT,
 } from "../lib/terminal-policy";
 import { auditTerminalEvent } from "../lib/terminal-audit";
+import {
+  createTerminalJob,
+  getTerminalJob,
+  listTerminalJobs,
+} from "../lib/terminal-jobs";
 
-const execAsync = promisify(exec);
-
-// Non-ghost mode command execution via spawn(shell:false) to prevent shell
-// metacharacter injection even if the allowlist check is somehow bypassed.
-// Simple whitespace tokenizer is sufficient since the allowlist only permits
-// known tool invocations that don't use shell quoting.
-function spawnCommand(cmd: string, timeoutMs: number): Promise<{ stdout: string; stderr: string; exitCode: number }> {
-  return new Promise((resolve) => {
-    const parts = cmd.trim().match(/\S+/g) ?? [];
-    const [file, ...args] = parts;
-    if (!file) return resolve({ stdout: "", stderr: "Empty command", exitCode: 1 });
-
-    const child = spawn(file, args, {
-      shell: false,
-      timeout: timeoutMs,
-      env: { ...process.env, HOME: process.env.HOME ?? "/tmp" },
-    });
-
-    let stdout = "";
-    let stderr = "";
-    const MAX = 4 * 1024 * 1024; // 4 MB cap
-    child.stdout?.on("data", (d: Buffer) => { stdout += d; if (stdout.length > MAX) stdout = stdout.slice(-MAX); });
-    child.stderr?.on("data", (d: Buffer) => { stderr += d; if (stderr.length > 512 * 1024) stderr = stderr.slice(-512 * 1024); });
-    child.on("close", (code) => resolve({ stdout, stderr, exitCode: code ?? 0 }));
-    child.on("error", (err) => resolve({ stdout: "", stderr: err.message, exitCode: 1 }));
-  });
-}
 const router = Router();
 
 // ─── Audit log ───────────────────────────────────────────────────────────────
@@ -59,7 +32,7 @@ router.get("/audit-log", (_req, res) => {
   res.json({ log: auditLog.slice(-200), total: auditLog.length });
 });
 
-// ─── POST exec ───────────────────────────────────────────────────────────────
+// ─── POST exec — enqueues a terminal job, returns 202 + jobId ────────────────
 router.post("/exec", async (req, res) => {
   const body = z.object({
     command: z.string().max(1000),
@@ -69,39 +42,38 @@ router.post("/exec", async (req, res) => {
   }).parse(req.body);
 
   const cmd = body.command.trim();
-  const executedAt = new Date().toISOString();
   const clientIp = req.ip ?? "unknown";
+  const actor = getActor(req);
 
-  const actor = getAuth(req).userId ?? "unknown";
-
-  // Hard block — always enforced
   const blockReason = getHardBlockReason(cmd);
   if (blockReason) {
-    auditLog.push({ ts: executedAt, cmd, exitCode: -1, ip: clientIp });
-    return res.json({ command: cmd, stdout: "", stderr: blockReason, exitCode: 1, executedAt, blocked: true });
-  }
-
-  // In non-ghost mode, block shell chain injection even inside allowlisted commands
-  if (!body.ghostMode && hasShellChain(cmd)) {
-    auditLog.push({ ts: executedAt, cmd, exitCode: -2, ip: clientIp });
-    return res.json({ command: cmd, stdout: "", stderr: "BLOCKED: Shell chain injection detected. Enable GHOST MODE for complex pipelines.", exitCode: 1, executedAt, blocked: true });
-  }
-
-  // ProxhqVPN mode bypasses allowlist (full shell access)
-  if (!body.ghostMode && !isAllowedCommand(cmd)) {
-    const allowed = ["nmap", "curl", "dig", "openssl", "ping", "traceroute", "wg", "python3 -c", "ssh -o BatchMode"].join(", ") + "...";
-    return res.json({
+    await auditTerminalEvent({
+      actor,
+      action: "terminal.job_blocked",
+      result: "deny",
+      ip: clientIp,
       command: cmd,
-      stdout: "",
-      stderr: `Permission denied. Enable GHOST MODE for unrestricted shell, or use one of: ${allowed}\n\nHint: 'curl https://...', 'nmap', 'dig', 'openssl s_client', 'python3 -c' are all allowed.`,
-      exitCode: 1,
-      executedAt,
-      blocked: false,
+      metadata: { reason: blockReason },
     });
+    return res.status(403).json({ command: cmd, stderr: blockReason, exitCode: 1, blocked: true });
   }
 
-  // Ghost mode (ProxhqVPN Mode) = full outbound shell, admin-only, everything audited.
-  // Requires a valid break-glass token in X-Break-Glass-Token header.
+  if (!body.ghostMode && hasShellChain(cmd)) {
+    await auditTerminalEvent({
+      actor,
+      action: "terminal.job_blocked",
+      result: "deny",
+      ip: clientIp,
+      command: cmd,
+      metadata: { reason: "shell_chain" },
+    });
+    return res.status(403).json({ command: cmd, stderr: "BLOCKED: Shell chain injection detected.", exitCode: 1, blocked: true });
+  }
+
+  if (!body.ghostMode && !isAllowedCommand(cmd)) {
+    return res.status(403).json({ command: cmd, stderr: "Permission denied. Command is not allowlisted.", exitCode: 1, blocked: true });
+  }
+
   if (body.ghostMode) {
     const token = String(req.headers["x-break-glass-token"] ?? "");
 
@@ -113,9 +85,7 @@ router.post("/exec", async (req, res) => {
         ip: clientIp,
         command: cmd,
       });
-      return res.status(403).json({
-        error: "Ghost mode requires a valid break-glass token",
-      });
+      return res.status(403).json({ error: "Ghost mode requires a valid break-glass token" });
     }
 
     await auditTerminalEvent({
@@ -127,48 +97,42 @@ router.post("/exec", async (req, res) => {
     });
   }
 
-  if (body.ghostMode) {
-    try {
-      const { stdout, stderr } = await execAsync(cmd, {
-        timeout: body.timeout,
-        maxBuffer: 1024 * 1024 * 4,
-        shell: "/bin/bash",
-        env: { ...process.env, HOME: process.env.HOME ?? "/tmp" },
-      });
-      auditLog.push({ ts: executedAt, cmd, exitCode: 0, ip: clientIp });
-      appendAuditEvent({
-        actor,
-        action: "terminal.ghost_exec",
-        resource: "terminal:shell",
-        result: "allow",
-        ip: clientIp,
-        metadata: { cmd, exitCode: 0 },
-      });
-      res.json({
-        command: cmd,
-        stdout: truncateTerminalOutput(stdout || "", TERMINAL_OUTPUT_LIMIT),
-        stderr: truncateTerminalOutput(stderr || "", TERMINAL_STDERR_LIMIT),
-        exitCode: 0,
-        executedAt,
-        ghostMode: true,
-      });
-    } catch (err: any) {
-      auditLog.push({ ts: executedAt, cmd, exitCode: err.code ?? 1, ip: clientIp });
-      res.json({
-        command: cmd,
-        stdout: truncateTerminalOutput(err.stdout || "", TERMINAL_OUTPUT_LIMIT),
-        stderr: truncateTerminalOutput(err.stderr || err.message || "Command failed", TERMINAL_STDERR_LIMIT),
-        exitCode: typeof err.code === "number" ? err.code : 1,
-        executedAt,
-        ghostMode: true,
-      });
-    }
-  } else {
-    // Allowlisted commands use spawn(shell:false) — no shell expansion, no injection risk
-    const result = await spawnCommand(cmd, body.timeout);
-    auditLog.push({ ts: executedAt, cmd, exitCode: result.exitCode, ip: clientIp });
-    res.json({ command: cmd, stdout: result.stdout, stderr: result.stderr, exitCode: result.exitCode, executedAt, ghostMode: false });
-  }
+  const job = createTerminalJob({
+    ownerUserId: actor,
+    command: cmd,
+    ghostMode: body.ghostMode,
+    timeout: body.timeout,
+  });
+
+  await auditTerminalEvent({
+    actor,
+    action: body.ghostMode ? "terminal.ghost_job_created" : "terminal.job_created",
+    result: "allow",
+    ip: clientIp,
+    command: cmd,
+    metadata: { jobId: job.id },
+  });
+
+  res.status(202).json({
+    jobId: job.id,
+    status: job.status,
+    createdAt: job.createdAt,
+    pollUrl: `/api/terminal/jobs/${job.id}`,
+  });
+});
+
+// ─── GET /jobs — list caller's jobs (latest 100) ──────────────────────────────
+router.get("/jobs", (req, res) => {
+  const actor = getActor(req);
+  res.json({ jobs: listTerminalJobs(actor) });
+});
+
+// ─── GET /jobs/:jobId — poll a specific job ───────────────────────────────────
+router.get("/jobs/:jobId", (req, res) => {
+  const actor = getActor(req);
+  const job = getTerminalJob(actor, req.params.jobId);
+  if (!job) return res.status(404).json({ error: "Job not found" });
+  res.json({ job });
 });
 
 // ─── POST http-request (direct outbound HTTP from server) ────────────────────
