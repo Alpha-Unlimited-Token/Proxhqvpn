@@ -1,0 +1,73 @@
+name: ProxHQ Security Gates
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+
+jobs:
+  security-gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Typecheck all packages
+        run: pnpm run typecheck
+
+      - name: Block TLS verification bypasses
+        run: |
+          ! grep -Rn "CERT_NONE\|check_hostname *= *False\|verify *= *False\|rejectUnauthorized: false" \
+            tools artifacts standalone lib \
+            --include="*.py" --include="*.ts" --include="*.js" \
+            --exclude-dir=node_modules --exclude-dir=dist \
+            --exclude='*test*' --exclude='*verifier*' --exclude='*spec*' \
+            || (echo "❌ TLS verification bypass found — must not ship." && exit 1)
+
+      - name: Block embedded long-lived PSK in generated setup scripts
+        run: |
+          ! grep -Rn 'PSK="\${psk}"' artifacts/api-server/src/routes standalone tools \
+            --exclude-dir=node_modules 2>/dev/null \
+            || (echo "❌ Long-lived daemon PSK embedded in generated script — use enrollment tokens instead." && exit 1)
+
+      - name: Block hardcoded secrets or SSH keys in source
+        run: |
+          ! grep -Rn \
+            "ssh-ed25519 AAAA\|ssh-rsa AAAA\|DAEMON_PSK=[A-Za-z0-9]\{16,\}\|PRIVATE_KEY=[A-Za-z0-9]\{16,\}" \
+            artifacts standalone tools lib \
+            --include="*.ts" --include="*.js" --include="*.py" --include="*.sh" \
+            --exclude-dir=node_modules --exclude-dir=dist \
+            || (echo "❌ Hardcoded secret or SSH key found in source." && exit 1)
+
+      - name: Verify WireGuard route requires device trust
+        run: |
+          grep -n "requireDeviceTrust" artifacts/api-server/src/routes/index.ts | grep wireguard
+          grep -q "requireDeviceTrust" artifacts/api-server/src/middlewares/requireDeviceTrust.ts
+
+      - name: Verify security lab routes are gated
+        run: |
+          grep -n "PROXHQ_ENABLE_SECURITY_LAB" artifacts/api-server/src/app.ts | grep SECURITY_LAB_ENABLED
+
+      - name: Verify route governance middleware exists
+        run: |
+          test -f artifacts/api-server/src/lib/route-governance.ts \
+            || (echo "❌ Route governance middleware missing." && exit 1)
+
+      - name: Verify node enrollment library exists
+        run: |
+          test -f artifacts/api-server/src/lib/node-enrollment.ts \
+            || (echo "❌ Node enrollment token library missing." && exit 1)
+
+      - name: Verify blockTemporaryProductionRoutes is wired in app.ts
+        run: |
+          grep -q "blockTemporaryProductionRoutes" artifacts/api-server/src/app.ts \
+            || (echo "❌ blockTemporaryProductionRoutes not wired into app.ts." && exit 1)
