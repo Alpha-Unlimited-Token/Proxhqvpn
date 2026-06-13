@@ -41,10 +41,10 @@ function tlsCheck(host: string, port: number): Promise<{
 
       resolve({
         valid:         now >= validFrom && now <= validTo,
-        subject:       cert.subject.CN ?? JSON.stringify(cert.subject),
-        issuer:        cert.issuer?.O ?? cert.issuer?.CN ?? "Unknown",
-        validFrom:     cert.valid_from,
-        validTo:       cert.valid_to,
+        subject:       (Array.isArray(cert.subject.CN) ? cert.subject.CN[0] : cert.subject.CN) ?? JSON.stringify(cert.subject),
+        issuer:        (Array.isArray(cert.issuer?.O) ? cert.issuer!.O![0] : cert.issuer?.O) ?? (Array.isArray(cert.issuer?.CN) ? cert.issuer!.CN![0] : cert.issuer?.CN) ?? "Unknown",
+        validFrom:     (Array.isArray(cert.valid_from) ? cert.valid_from[0] : cert.valid_from) ?? "",
+        validTo:       (Array.isArray(cert.valid_to)   ? cert.valid_to[0]   : cert.valid_to)   ?? "",
         daysRemaining,
         protocol,
       });

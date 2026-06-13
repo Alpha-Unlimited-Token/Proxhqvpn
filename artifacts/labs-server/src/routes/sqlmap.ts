@@ -162,7 +162,7 @@ router.post("/scan", async (req, res) => {
 router.get("/scan/:scanId", (req, res) => {
   const scan = activeScans.get(req.params.scanId);
   if (!scan) return res.status(404).json({ error: "Scan not found or expired" });
-  res.json({
+  return res.json({
     scanId: req.params.scanId,
     output: scan.output,
     portOutput: scan.portOutput,
@@ -189,7 +189,7 @@ router.delete("/scan/:scanId", (req, res) => {
   scan.portDone = true;
   scan.output.push("[SCAN CANCELLED BY USER]");
   activeScans.delete(req.params.scanId);
-  res.json({ cancelled: true });
+  return res.json({ cancelled: true });
 });
 
 // ── GET /api/sqlmap/scan/:scanId/report — download full report ────────────────
@@ -309,7 +309,7 @@ router.get("/scan/:scanId/report", (req, res) => {
 
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.setHeader("Content-Disposition", `attachment; filename="proxhqvpn-scan-${req.params.scanId}.html"`);
-  res.send(html);
+  return res.send(html);
 });
 
 export default router;

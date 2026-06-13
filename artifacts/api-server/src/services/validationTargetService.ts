@@ -60,14 +60,14 @@ export async function listValidationTargets(): Promise<ValidationTarget[]> {
   const result = await db.execute(sql`
     SELECT * FROM validation_targets WHERE enabled = TRUE ORDER BY created_at DESC
   `);
-  return (result as { rows: ValidationTarget[] }).rows;
+  return (result as unknown as { rows: ValidationTarget[] }).rows;
 }
 
 export async function getValidationTarget(id: string): Promise<ValidationTarget | null> {
   const result = await db.execute(sql`
     SELECT * FROM validation_targets WHERE id = ${id}::uuid LIMIT 1
   `);
-  const rows = (result as { rows: ValidationTarget[] }).rows;
+  const rows = (result as unknown as { rows: ValidationTarget[] }).rows;
   return rows[0] ?? null;
 }
 

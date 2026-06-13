@@ -44,7 +44,7 @@ export async function createValidationFinding(input: CreateFindingInput): Promis
        ${input.remediation ?? null})
   `);
   const result = await db.execute(sql`SELECT * FROM validation_findings WHERE id = ${id}::uuid`);
-  return (result as { rows: ValidationFinding[] }).rows[0];
+  return (result as unknown as { rows: ValidationFinding[] }).rows[0];
 }
 
 export async function bulkCreateValidationFindings(inputs: CreateFindingInput[]): Promise<void> {
@@ -73,7 +73,7 @@ export async function listOpenValidationFindings(filters?: {
       created_at DESC
     LIMIT ${limit}
   `);
-  return (result as { rows: ValidationFinding[] }).rows;
+  return (result as unknown as { rows: ValidationFinding[] }).rows;
 }
 
 export async function resolveValidationFinding(id: string): Promise<void> {

@@ -20,6 +20,7 @@ import { z } from "zod";
 import crypto from "crypto";
 import { exec } from "child_process";
 import { promisify } from "util";
+import { listInstances, regionLabel } from "../lib/vultr-client";
 
 const execAsync = promisify(exec);
 const router = Router();
@@ -465,6 +466,61 @@ router.post("/lifecycle/run", async (_req, res) => {
     decay:    delivery.status,
     rotation: rotation.status,
     stats:    getLifecycleStats(),
+  });
+});
+
+// ── P5-A: Vultr Instance Sync ─────────────────────────────────────────────────
+// Reconciles live Vultr instances against the nodes table.
+// Returns matched/unmatched counts; never modifies the database — read-only.
+router.post("/vultr-sync", requireRbac("nodes:vultr_sync"), async (req, res) => {
+  const { userId } = getAuth(req);
+
+  const vultrKey = process.env.VULTR_API_KEY;
+  if (!vultrKey) {
+    return res.status(503).json({ error: "VULTR_API_KEY is not configured on this server." });
+  }
+
+  const [vultrInstances, dbNodes] = await Promise.all([
+    listInstances(),
+    db.select({ id: nodesTable.id, name: nodesTable.name, ipAddress: nodesTable.ipAddress, region: nodesTable.region })
+      .from(nodesTable),
+  ]);
+
+  const matched: { vultrId: string; nodeId: number; ip: string; region: string }[] = [];
+  const vultrOnly: { vultrId: string; ip: string; region: string; label: string }[] = [];
+  const dbOnly: { nodeId: number; name: string; ip: string }[] = [];
+
+  const vultrByIp = new Map(vultrInstances.map(v => [v.main_ip, v]));
+  const dbByIp   = new Map(dbNodes.map(n => [n.ipAddress, n]));
+
+  for (const v of vultrInstances) {
+    const dbMatch = dbByIp.get(v.main_ip);
+    if (dbMatch) {
+      matched.push({ vultrId: v.id, nodeId: dbMatch.id, ip: v.main_ip, region: regionLabel(v.region) });
+    } else {
+      vultrOnly.push({ vultrId: v.id, ip: v.main_ip, region: regionLabel(v.region), label: v.label });
+    }
+  }
+
+  for (const n of dbNodes) {
+    if (!vultrByIp.has(n.ipAddress)) {
+      dbOnly.push({ nodeId: n.id, name: n.name, ip: n.ipAddress });
+    }
+  }
+
+  appendAuditEvent({
+    action:   "nodes.vultr_sync",
+    actor:    userId ?? "system",
+    resource: "nodes",
+    metadata: { matched: matched.length, vultrOnly: vultrOnly.length, dbOnly: dbOnly.length },
+  });
+
+  return res.json({
+    ok: true,
+    summary: { matched: matched.length, vultrOnly: vultrOnly.length, dbOnly: dbOnly.length },
+    matched,
+    vultrOnly,
+    dbOnly,
   });
 });
 

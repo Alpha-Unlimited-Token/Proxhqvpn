@@ -64,7 +64,7 @@ router.get("/runs", async (req: Request, res: Response) => {
 });
 
 router.get("/runs/:id", async (req: Request, res: Response) => {
-  const run = await getValidationRun(req.params.id);
+  const run = await getValidationRun(req.params.id as string);
   if (!run) return res.status(404).json({ error: "Not found" });
   res.json(run);
 });
@@ -125,8 +125,8 @@ router.get("/findings", async (req: Request, res: Response) => {
 
 router.post("/findings/:id/resolve", async (req: Request, res: Response) => {
   const { userId } = getAuth(req);
-  await resolveValidationFinding(req.params.id);
-  appendAuditEvent({ actor: userId ?? "system", action: "validation_finding.resolve", resource: `validation_finding:${req.params.id}` });
+  await resolveValidationFinding(req.params.id as string);
+  appendAuditEvent({ actor: userId ?? "system", action: "validation_finding.resolve", resource: `validation_finding:${req.params.id as string}` });
   res.json({ ok: true });
 });
 

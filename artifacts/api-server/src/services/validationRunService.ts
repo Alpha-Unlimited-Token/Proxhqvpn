@@ -155,14 +155,14 @@ export async function listValidationRuns(filters?: {
     ORDER BY started_at DESC
     LIMIT ${limit}
   `);
-  return (result as { rows: ValidationRun[] }).rows;
+  return (result as unknown as { rows: ValidationRun[] }).rows;
 }
 
 export async function getValidationRun(id: string): Promise<ValidationRun | null> {
   const result = await db.execute(sql`
     SELECT * FROM validation_runs WHERE id = ${id}::uuid LIMIT 1
   `);
-  return (result as { rows: ValidationRun[] }).rows[0] ?? null;
+  return (result as unknown as { rows: ValidationRun[] }).rows[0] ?? null;
 }
 
 export async function summarizeValidationRuns(): Promise<{

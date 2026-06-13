@@ -1,42 +1,41 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
-import os from "os";
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import { logger } from "./logger";
 
-const OWNER_ID =
-  process.env.PROXHQ_INSTANCE_ID ??
-  `${os.hostname()}-${process.pid}`;
-
-export async function acquireClusterLock(input: {
+interface ClusterLockOptions {
   key: string;
   ttlMs: number;
-  metadata?: Record<string, unknown>;
-}) {
-  const expiresAt = new Date(Date.now() + input.ttlMs);
-
-  const result: any = await db.execute(sql`
-    INSERT INTO cluster_locks
-      (lock_key, owner_id, expires_at, metadata)
-    VALUES
-      (${input.key}, ${OWNER_ID}, ${expiresAt.toISOString()}, ${JSON.stringify(input.metadata ?? {})}::jsonb)
-    ON CONFLICT (lock_key)
-    DO UPDATE SET
-      owner_id = EXCLUDED.owner_id,
-      expires_at = EXCLUDED.expires_at,
-      metadata = EXCLUDED.metadata,
-      updated_at = NOW()
-    WHERE cluster_locks.expires_at < NOW()
-       OR cluster_locks.owner_id = ${OWNER_ID}
-    RETURNING *
-  `);
-
-  return !!result.rows?.[0];
 }
 
-export async function releaseClusterLock(key: string) {
-  await db.execute(sql`
-    DELETE FROM cluster_locks
-    WHERE lock_key = ${key}
-      AND owner_id = ${OWNER_ID}
-  `);
+/**
+ * Acquires a cluster-wide advisory lock using PostgreSQL pg_try_advisory_lock.
+ * Returns true if the lock was acquired (this instance should proceed), false
+ * if another cluster member already holds it (skip this run).
+ */
+export async function acquireClusterLock({ key }: ClusterLockOptions): Promise<boolean> {
+  try {
+    // Derive a stable int8 from the string key via hashtext (PostgreSQL built-in)
+    const result = await db.execute(
+      sql`SELECT pg_try_advisory_lock(hashtext(${key})::bigint) AS acquired`
+    );
+    const rows: any[] = Array.isArray(result) ? result : ((result as any).rows ?? []);
+    return rows[0]?.acquired === true;
+  } catch (err) {
+    logger.warn({ err, key }, "acquireClusterLock: failed, proceeding without lock");
+    return true;
+  }
+}
+
+/**
+ * Releases the advisory lock so it can be acquired again on the next cycle.
+ */
+export async function releaseClusterLock({ key }: ClusterLockOptions): Promise<void> {
+  try {
+    await db.execute(
+      sql`SELECT pg_advisory_unlock(hashtext(${key})::bigint)`
+    );
+  } catch (err) {
+    logger.warn({ err, key }, "releaseClusterLock: failed");
+  }
 }

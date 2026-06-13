@@ -585,7 +585,7 @@ router.post("/scan", requireRbac("counter_attack"), async (req: Request, res: Re
   const [scan] = await db.insert(attackChainScansTable).values({
     target: hostname,
     scanStatus: "running",
-    createdBy: userId,
+    createdBy: userId ?? "system",
     stagesJson: JSON.stringify(stages),
     currentStage: "Initializing",
   }).returning();

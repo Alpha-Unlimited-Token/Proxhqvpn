@@ -165,6 +165,15 @@ export default function Terminal() {
   }, [polledJob.job]);
   useEffect(() => { sshBottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [sshHistory]);
 
+  // ── SSH helpers ── (declared here so useEffect below can reference it)
+  const loadSessions = useCallback(async () => {
+    try {
+      const r = await fetch(`${BASE}/api/terminal/ssh/sessions`);
+      const d = await r.json();
+      setSshSessions(d.sessions ?? []);
+    } catch { /* ignore */ }
+  }, []);
+
   useEffect(() => {
     if (!polledSshJob.job) return;
     const job = polledSshJob.job;
@@ -286,15 +295,6 @@ export default function Terminal() {
   };
 
   const clearTerminal = () => setHistory([]);
-
-  // ── SSH helpers ──
-  const loadSessions = useCallback(async () => {
-    try {
-      const r = await fetch(`${BASE}/api/terminal/ssh/sessions`);
-      const d = await r.json();
-      setSshSessions(d.sessions ?? []);
-    } catch { /* ignore */ }
-  }, []);
 
   useEffect(() => {
     if (tab === "ssh") loadSessions();

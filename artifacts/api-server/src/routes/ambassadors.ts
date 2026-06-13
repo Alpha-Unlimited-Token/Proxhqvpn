@@ -99,7 +99,7 @@ function sanitizePromoCode(code: string): string {
 }
 
 // ── GET /api/ambassadors — public list (approved only) ────────────────────────
-router.get("/", async (_req, res) => {
+router.get("/", async (req, res) => {
   try {
     const result = await db.execute(sql`
       SELECT a.id, a.name, a.bio, a.promo_code, a.avatar_url, a.social_urls,

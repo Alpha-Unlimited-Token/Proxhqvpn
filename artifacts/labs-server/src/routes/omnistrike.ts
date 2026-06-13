@@ -1119,7 +1119,7 @@ router.get("/scan/:id", async (req, res) => {
   const [scan] = await db.select().from(omnistrikeScansTable).where(eq(omnistrikeScansTable.id, id));
   if (!scan) return res.status(404).json({ error: "Scan not found" });
   const session = sessions.get(id);
-  res.json({ ...scan, session: session ?? null });
+  return res.json({ ...scan, session: session ?? null });
 });
 
 router.post("/scan/:id/stop", async (req, res) => {
@@ -1163,7 +1163,7 @@ router.get("/console/:id/session", async (req, res) => {
     sessions.set(id, sess);
     return res.json(sess);
   }
-  res.json(session);
+  return res.json(session);
 });
 
 // Execute a shell command via the confirmed RCE vector
@@ -1204,7 +1204,7 @@ router.post("/console/:id/exec", async (req, res) => {
     sessions.set(id, session);
   }
 
-  res.json({ command, output: output.substring(0, 3000), exploitUrl, statusCode: r.status, responseTime: r.time });
+  return res.json({ command, output: output.substring(0, 3000), exploitUrl, statusCode: r.status, responseTime: r.time });
 });
 
 // Read a file via LFI or RCE cat
@@ -1234,7 +1234,7 @@ router.post("/console/:id/read", async (req, res) => {
   if (content.includes("<html") || content.includes("<!DOCTYPE")) {
     content = content.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
   }
-  res.json({ filePath, content: content.substring(0, 5000), exploitUrl, statusCode: r.status, responseTime: r.time });
+  return res.json({ filePath, content: content.substring(0, 5000), exploitUrl, statusCode: r.status, responseTime: r.time });
 });
 
 // List directory via RCE ls
@@ -1254,7 +1254,7 @@ router.post("/console/:id/ls", async (req, res) => {
     const name = parts[parts.length - 1] ?? line.trim();
     return { name, isDir: perms.startsWith("d"), perms, size: parts[4] ?? "", modified: parts.slice(5,8).join(" ") };
   }).filter(i => i.name && i.name !== "." && i.name !== "..");
-  res.json({ dirPath, items, exploitUrl, statusCode: r.status, responseTime: r.time });
+  return res.json({ dirPath, items, exploitUrl, statusCode: r.status, responseTime: r.time });
 });
 
 // LFI mode — curated tree of sensitive paths

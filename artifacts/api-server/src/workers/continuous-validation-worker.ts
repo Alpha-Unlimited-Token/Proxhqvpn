@@ -78,7 +78,7 @@ registerWorker({
         if (outcome.findings && outcome.findings.length > 0) {
           await bulkCreateValidationFindings(
             outcome.findings.map(f => ({
-              runId,
+              runId:       runId ?? undefined,
               targetId:    target.id,
               title:       f.title,
               severity:    (f.severity as any) ?? "info",
@@ -92,7 +92,7 @@ registerWorker({
           type:     "validation.run.completed",
           actor:    "continuous-validation-worker",
           subject:  `${target.name}:${schedule.run_type}`,
-          severity: outcome.status === "failed" ? "high" : "info",
+          severity: outcome.status === "failed" ? "error" : "info",
           payload:  { runId, targetId: target.id, runType: schedule.run_type, status: outcome.status, score: outcome.score },
         });
 
