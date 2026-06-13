@@ -1,7 +1,8 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { Router } from "express";
-import { requireDeviceTrust } from "../../middlewares/requireDeviceTrust";
 import { requireCapability } from "../../middlewares/requireCapability";
+import { requireDeviceTrust } from "../../middlewares/requireDeviceTrust";
+import { registerVpnRoute } from "../registerVpnRoute";
 
 import meRouter from "../me";
 import accountSecurityCenterRouter from "../account-security-center";
@@ -44,51 +45,54 @@ import honeypotRouter from "../honeypot";
 const router = Router();
 
 router.use("/me", meRouter);
-router.use("/account-security", requireCapability("vpn.read"), accountSecurityCenterRouter);
+registerVpnRoute(router, "/account-security", "vpn.read", accountSecurityCenterRouter);
 
-router.use("/killswitch", requireCapability("vpn.write"), killswitchRouter);
-router.use("/leaks", requireCapability("vpn.read"), leaksRouter);
-router.use("/split-tunnel", requireCapability("vpn.write"), splittunnelRouter);
-router.use("/obfuscation", requireCapability("vpn.write"), obfuscationRouter);
-router.use("/daemon", requireCapability("vpn.write"), daemonRouter);
-router.use("/vpn-coexist", requireCapability("vpn.write"), vpnCoexistRouter);
-router.use("/vpngate", requireCapability("vpn.write"), vpnGateRouter);
-router.use("/devices", requireCapability("vpn.write"), devicesRouter);
-router.use("/dns-shield", requireCapability("vpn.write"), dnsShieldRouter);
-router.use("/smart-dns", requireCapability("vpn.write"), smartDnsRouter);
-router.use("/router-config", requireCapability("vpn.write"), routerConfigRouter);
+registerVpnRoute(router, "/killswitch", "vpn.write", killswitchRouter);
+registerVpnRoute(router, "/leaks", "vpn.read", leaksRouter);
+registerVpnRoute(router, "/split-tunnel", "vpn.write", splittunnelRouter);
+registerVpnRoute(router, "/obfuscation", "vpn.write", obfuscationRouter);
+registerVpnRoute(router, "/daemon", "vpn.write", daemonRouter);
+registerVpnRoute(router, "/vpn-coexist", "vpn.write", vpnCoexistRouter);
+registerVpnRoute(router, "/vpngate", "vpn.write", vpnGateRouter);
+registerVpnRoute(router, "/devices", "vpn.write", devicesRouter);
+registerVpnRoute(router, "/dns-shield", "vpn.write", dnsShieldRouter);
+registerVpnRoute(router, "/smart-dns", "vpn.write", smartDnsRouter);
+registerVpnRoute(router, "/router-config", "vpn.write", routerConfigRouter);
+
+// WireGuard requires device trust in addition to capability — kept manual
 router.use(
   "/wireguard",
   requireCapability("vpn.write"),
   requireDeviceTrust,
   wireguardRouter,
 );
-router.use("/threat-protection", requireCapability("vpn.read"), threatProtectionRouter);
-router.use("/proxy-browser", requireCapability("vpn.read"), proxyBrowserRouter);
 
-router.use("/pqc", requireCapability("vpn.read"), pqcRouter);
-router.use("/daita", requireCapability("vpn.read"), daitaRouter);
-router.use("/darkweb", requireCapability("vpn.read"), darkwebRouter);
-router.use("/altid", requireCapability("vpn.read"), altidRouter);
-router.use("/iprotator", requireCapability("vpn.write"), iprotatorRouter);
+registerVpnRoute(router, "/threat-protection", "vpn.read", threatProtectionRouter);
+registerVpnRoute(router, "/proxy-browser", "vpn.read", proxyBrowserRouter);
 
-router.use("/cve", requireCapability("vpn.read"), cveSearchRouter);
-router.use("/ghost-trap", requireCapability("vpn.write"), ghostTrapRouter);
-router.use("/fw", requireCapability("vpn.write"), firewallAdvancedRouter);
-router.use("/network-monitor", requireCapability("vpn.read"), networkMonitorRouter);
-router.use("/dns-sinkhole", requireCapability("vpn.write"), dnsSinkholeRouter);
+registerVpnRoute(router, "/pqc", "vpn.read", pqcRouter);
+registerVpnRoute(router, "/daita", "vpn.read", daitaRouter);
+registerVpnRoute(router, "/darkweb", "vpn.read", darkwebRouter);
+registerVpnRoute(router, "/altid", "vpn.read", altidRouter);
+registerVpnRoute(router, "/iprotator", "vpn.write", iprotatorRouter);
 
-router.use("/gps-spoof", requireCapability("vpn.write"), gpsSpoofRouter);
-router.use("/port-forward", requireCapability("vpn.write"), portForwardRouter);
-router.use("/dedicated-ip", requireCapability("vpn.write"), dedicatedIpRouter);
-router.use("/meshnet", requireCapability("vpn.write"), meshnetRouter);
-router.use("/data-broker", requireCapability("vpn.read"), dataBrokerRouter);
-router.use("/fwn", requireCapability("vpn.write"), firewallNextRouter);
-router.use("/fwm", requireCapability("vpn.write"), firewallMilitaryRouter);
+registerVpnRoute(router, "/cve", "vpn.read", cveSearchRouter);
+registerVpnRoute(router, "/ghost-trap", "vpn.write", ghostTrapRouter);
+registerVpnRoute(router, "/fw", "vpn.write", firewallAdvancedRouter);
+registerVpnRoute(router, "/network-monitor", "vpn.read", networkMonitorRouter);
+registerVpnRoute(router, "/dns-sinkhole", "vpn.write", dnsSinkholeRouter);
 
-router.use("/ztna", requireCapability("vpn.write"), ztnaRouter);
-router.use("/security-score", requireCapability("vpn.read"), securityScoreRouter);
-router.use("/attack-intel", requireCapability("vpn.read"), attackIntelRouter);
-router.use("/honeypot", requireCapability("vpn.write"), honeypotRouter);
+registerVpnRoute(router, "/gps-spoof", "vpn.write", gpsSpoofRouter);
+registerVpnRoute(router, "/port-forward", "vpn.write", portForwardRouter);
+registerVpnRoute(router, "/dedicated-ip", "vpn.write", dedicatedIpRouter);
+registerVpnRoute(router, "/meshnet", "vpn.write", meshnetRouter);
+registerVpnRoute(router, "/data-broker", "vpn.read", dataBrokerRouter);
+registerVpnRoute(router, "/fwn", "vpn.write", firewallNextRouter);
+registerVpnRoute(router, "/fwm", "vpn.write", firewallMilitaryRouter);
+
+registerVpnRoute(router, "/ztna", "vpn.write", ztnaRouter);
+registerVpnRoute(router, "/security-score", "vpn.read", securityScoreRouter);
+registerVpnRoute(router, "/attack-intel", "vpn.read", attackIntelRouter);
+registerVpnRoute(router, "/honeypot", "vpn.write", honeypotRouter);
 
 export default router;

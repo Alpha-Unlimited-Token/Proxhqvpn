@@ -1,6 +1,7 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { Router } from "express";
 import { requireCapability } from "../../middlewares/requireCapability";
+import { registerCommandCenterRoute } from "../registerCommandCenterRoute";
 
 import threatintelRouter from "../threatintel";
 import securityauditRouter from "../securityaudit";
@@ -48,13 +49,13 @@ import firewallCoreRouter from "../firewall-core";
 const router = Router();
 
 router.use("/threatintel", requireCapability("command_center.read"), threatintelRouter);
-router.use("/security-audit", requireCapability("command_center.write"), securityauditRouter);
-router.use("/tool-runner", requireCapability("command_center.write"), toolRunnerRouter);
-router.use("/alpha", requireCapability("command_center.write"), alphaRouter);
-router.use("/http-probe", requireCapability("command_center.write"), httpProbeRouter);
-router.use("/dir-fuzzer", requireCapability("command_center.write"), dirFuzzerRouter);
-router.use("/subdomain-scan", requireCapability("command_center.write"), subdomainScanRouter);
-router.use("/intruder", requireCapability("command_center.write"), intruderRouter);
+registerCommandCenterRoute(router, "/security-audit", "command_center.write", securityauditRouter);
+registerCommandCenterRoute(router, "/tool-runner", "command_center.write", toolRunnerRouter);
+registerCommandCenterRoute(router, "/alpha", "command_center.write", alphaRouter);
+registerCommandCenterRoute(router, "/http-probe", "command_center.write", httpProbeRouter);
+registerCommandCenterRoute(router, "/dir-fuzzer", "command_center.write", dirFuzzerRouter);
+registerCommandCenterRoute(router, "/subdomain-scan", "command_center.write", subdomainScanRouter);
+registerCommandCenterRoute(router, "/intruder", "command_center.write", intruderRouter);
 router.use("/ghost-trace", requireCapability("command_center.read"), ghostTraceRouter);
 router.use("/attack-chain", requireCapability("command_center.write"), attackChainRouter);
 router.use("/vpn-tracker", requireCapability("command_center.read"), vpnTrackerRouter);
@@ -62,8 +63,8 @@ router.use("/siem", requireCapability("command_center.read"), siemRouter);
 router.use("/osint", requireCapability("command_center.write"), osintRouter);
 router.use("/username-intel", requireCapability("command_center.write"), usernameIntelRouter);
 router.use("/canary", requireCapability("command_center.write"), canaryRouter);
-router.use("/waf", requireCapability("command_center.write"), wafRouter);
-router.use("/waf-bypass", requireCapability("command_center.write"), wafBypassRouter);
+registerCommandCenterRoute(router, "/waf", "command_center.write", wafRouter);
+registerCommandCenterRoute(router, "/waf-bypass", "command_center.write", wafBypassRouter);
 router.use("/social-account", requireCapability("command_center.write"), socialAccountRouter);
 router.use("/ssl-tls", requireCapability("command_center.write"), sslTlsRouter);
 router.use("/jwt-analyzer", requireCapability("command_center.write"), jwtAnalyzerRouter);
@@ -76,12 +77,12 @@ router.use("/oast", requireCapability("command_center.write"), oastServerRouter)
 router.use("/dep-scanner", requireCapability("command_center.write"), depScannerRouter);
 router.use("/token-seq", requireCapability("command_center.write"), tokenSequencerRouter);
 router.use("/ws-tester", requireCapability("command_center.write"), wsTesterRouter);
-router.use("/sast", requireCapability("command_center.write"), sastRouter);
+registerCommandCenterRoute(router, "/sast", "command_center.write", sastRouter);
 router.use("/quantum-audit", requireCapability("command_center.write"), quantumAuditRouter);
 router.use("/command-governance", requireCapability("command_center.read"), commandGovernanceRouter);
 router.use("/dependency-map", requireCapability("command_center.read"), dependencyMapRouter);
 router.use("/ai-security", requireCapability("command_center.write"), aiSecurityRouter);
-router.use("/sqli-scanner", requireCapability("command_center.write"), sqliScannerRouter);
+registerCommandCenterRoute(router, "/sqli-scanner", "command_center.write", sqliScannerRouter);
 router.use("/im-auto", requireCapability("command_center.write"), imAutomationRouter);
 
 router.use("/firewall-v2", requireCapability("command_center.write"), firewallPolicyV2Router);
