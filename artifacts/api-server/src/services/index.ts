@@ -34,3 +34,8 @@ export * from "./securityEventNormalizationService";
 export * from "./threatIntelIngestionService";
 export * from "./iocCorrelationService";
 export * from "./alertPrioritizationService";
+export * from "./behaviorAnalyticsService";
+export * from "./deviceTrustScoringService";
+export * from "./identityRiskService";
+export * from "./sessionAnomalyService";
+export * from "./zeroTrustPolicyService";
