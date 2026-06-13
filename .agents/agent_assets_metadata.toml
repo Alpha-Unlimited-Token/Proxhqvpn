@@ -503,3 +503,9 @@ id = "Hou5DvfDkcw3zw8I5DUi1"
 uri = "file://PROXHQVPN_FRONTEND_UI_REVIEW_PACKAGE.zip"
 type = "unspecified"
 title = "PROXHQVPN_FRONTEND_UI_REVIEW_PACKAGE.zip"
+
+[[outputs]]
+id = "vEGpCCMz5AQbetOTHsw5B"
+uri = "file://PROXHQVPN_FULL_ARCHITECTURE_EVIDENCE_PACKAGE.zip"
+type = "unspecified"
+title = "ProxhqVPN Full Architecture Evidence Package"
