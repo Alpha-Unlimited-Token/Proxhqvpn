@@ -1,6 +1,12 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useSearch } from "wouter";
+import {
+  createTerminalJob,
+  isQueuedExecResponse,
+  type TerminalJob,
+} from "@/lib/terminalJobsClient";
+import { useTerminalJobPolling } from "@/hooks/useTerminalJobPolling";
 import { usePersistedState } from "@/hooks/usePersistedState";
 import { Terminal as TerminalIcon, Wifi, Scan, FileText, Zap, Globe, Server, FolderOpen, Folder, FileCode, Trash2, RefreshCw, ChevronRight, PlugZap, LogOut, Monitor, MousePointer, Keyboard, ZoomIn, ZoomOut, Pause, Play } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -33,6 +39,15 @@ export default function Terminal() {
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [ghostMode, setGhostMode] = useState(false);
   const [running, setRunning]     = useState(false);
+  const [activeJobId, setActiveJobId]   = useState<string | null>(null);
+  const [activeJob, setActiveJob]       = useState<TerminalJob | null>(null);
+  const [terminalError, setTerminalError] = useState<string | null>(null);
+
+  const polledJob = useTerminalJobPolling({
+    jobId: activeJobId,
+    enabled: !!activeJobId,
+    intervalMs: 1000,
+  });
   const bottomRef = useRef<HTMLDivElement>(null);
 
   // HTTP request state
@@ -109,24 +124,74 @@ export default function Terminal() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [history]);
+
+  useEffect(() => {
+    if (!polledJob.job) return;
+    const job = polledJob.job;
+    setActiveJob(job);
+
+    const out =
+      job.stdout || job.stderr ||
+      (job.status === "queued" || job.status === "running" ? "running…" : "[NO OUTPUT]");
+
+    setHistory(h => {
+      if (h.length === 0) return h;
+      const n = [...h];
+      n[n.length - 1] = {
+        ...n[n.length - 1],
+        out,
+        isError: job.status === "failed" || (typeof job.exitCode === "number" && job.exitCode !== 0),
+        durationMs:
+          job.startedAt && job.completedAt
+            ? Date.parse(job.completedAt) - Date.parse(job.startedAt)
+            : undefined,
+      };
+      return n;
+    });
+
+    if (job.status === "completed" || job.status === "failed") {
+      setRunning(false);
+      setActiveJobId(null);
+    }
+  }, [polledJob.job]);
   useEffect(() => { sshBottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [sshHistory]);
 
-  // Exec local shell command
+  // Exec local shell command — enqueues a job and polls until done
   const execCmd = useCallback(async (cmd: string) => {
-    const t0 = Date.now();
     setRunning(true);
+    setActiveJobId(null);
+    setActiveJob(null);
+    setTerminalError(null);
+
+    let jobQueued = false;
+
     try {
-      const r = await fetch(`${BASE}/api/terminal/exec`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ command: cmd, shell: "bash", ghostMode, timeout: 20000 }),
+      const response = await createTerminalJob({
+        command: cmd,
+        ghostMode,
+        timeout: 20000,
       });
-      const data = await r.json();
-      const out  = data.stdout || data.stderr || "[NO OUTPUT]";
-      setHistory(h => { const n = [...h]; n[n.length - 1] = { cmd, out, isError: data.exitCode !== 0, ghostMode, durationMs: Date.now() - t0 }; return n; });
+
+      if (isQueuedExecResponse(response)) {
+        // 202 queued — polling hook will update history as job progresses
+        setActiveJobId(response.jobId);
+        jobQueued = true;
+        return;
+      }
+
+      // Backward-compat: immediate response (blocked/403 arrives as non-202)
+      const out = response.stdout || response.stderr || "[NO OUTPUT]";
+      setHistory(h => {
+        const n = [...h];
+        n[n.length - 1] = { cmd, out, isError: (response.exitCode ?? 0) !== 0, ghostMode };
+        return n;
+      });
     } catch (e: any) {
+      setTerminalError(e.message);
       setHistory(h => { const n = [...h]; n[n.length - 1] = { cmd, out: e.message, isError: true }; return n; });
-    } finally { setRunning(false); }
+    } finally {
+      if (!jobQueued) setRunning(false);
+    }
   }, [ghostMode]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
