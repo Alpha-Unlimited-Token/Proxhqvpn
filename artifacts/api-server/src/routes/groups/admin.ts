@@ -27,6 +27,8 @@ import controlPlaneRouter from "../control-plane";
 import policySimulationRouter from "../policy-simulation";
 import executiveReportsRouter from "../executive-reports";
 import productionScorecardRouter from "../production-scorecard";
+import platformMaturityRouter from "../platform-maturity";
+import selfAuditRouter from "../self-audit";
 
 const router = Router();
 
@@ -212,5 +214,7 @@ registerAdminRoute(router, "/control-plane", "admin.read", highRiskRateLimit, co
 registerAdminRoute(router, "/policy-simulation", "admin.read", highRiskRateLimit, policySimulationRouter);
 registerAdminRoute(router, "/executive-reports", "admin.read", highRiskRateLimit, executiveReportsRouter);
 registerAdminRoute(router, "/production-scorecard", "admin.read", highRiskRateLimit, productionScorecardRouter);
+registerAdminRoute(router, "/platform-maturity", "admin.read", highRiskRateLimit, platformMaturityRouter);
+registerAdminRoute(router, "/self-audit", "admin.read", highRiskRateLimit, selfAuditRouter);
 
 export default router;

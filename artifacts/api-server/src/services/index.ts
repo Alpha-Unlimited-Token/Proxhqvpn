@@ -93,3 +93,8 @@ export * from "./iso27001ReadinessService";
 export * from "./gdprService";
 export * from "./ccpaService";
 export * from "./trustCenterService";
+export * from "./statusPlatformService";
+export * from "./performanceBenchmarkService";
+export * from "./platformMaturityService";
+export * from "./architectureGovernanceService";
+export * from "./continuousSelfAuditService";

@@ -119,6 +119,8 @@ export const apiRouteCapabilities: ApiRouteCapability[] = [
   { mountPath: "/policy-simulation", capability: "admin.read" },
   { mountPath: "/executive-reports", capability: "admin.read" },
   { mountPath: "/production-scorecard", capability: "admin.read" },
+  { mountPath: "/platform-maturity", capability: "admin.read" },
+  { mountPath: "/self-audit", capability: "admin.read" },
   { mountPath: "/frontend-events", capability: "auth.read" },
 
   { mountPath: "/nodes", capability: "admin.write" },
