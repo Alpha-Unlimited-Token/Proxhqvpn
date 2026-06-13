@@ -19,3 +19,8 @@ export * from "./nodeMaintenanceService";
 export * from "./nodeEnrollmentService";
 export * from "./nodeAttestationService";
 export * from "./nodeBootstrapManifestService";
+export * from "./wireguardMeshOptimizerService";
+export * from "./splitTunnelPolicyService";
+export * from "./dnsRoutingService";
+export * from "./dedicatedIpService";
+export * from "./staticIpService";

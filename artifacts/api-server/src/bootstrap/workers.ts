@@ -8,6 +8,7 @@ import "../workers/scheduler-worker";
 import "../workers/node-lifecycle-worker";
 import "../workers/wireguard-peer-reconciliation-worker";
 import "../workers/node-maintenance-worker";
+import "../workers/wireguard-mesh-optimizer-worker";
 import { startRegisteredWorkers } from "../lib/worker-registry";
 
 export function startRuntimeWorkers(): void {
