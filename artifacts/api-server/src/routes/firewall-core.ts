@@ -126,7 +126,7 @@ router.get("/manifest", async (_req: Request, res: Response) => {
   ]);
 
   const subsystemsWithLiveData = manifest.subsystems.map((sub) => {
-    const live = ruleCounts[0].find(r => r.id === sub.id);
+    const live = ruleCounts.find(r => r.id === sub.id);
     return {
       ...sub,
       liveRows: live?.liveRows ?? 0,

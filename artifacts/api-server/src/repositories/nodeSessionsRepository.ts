@@ -15,7 +15,7 @@ export async function findStaleNodeSessions(cutoff: Date) {
 }
 
 export async function markNodeSessionError(input: {
-  sessionId: string;
+  sessionId: number;
   errorMessage: string;
 }) {
   return db
