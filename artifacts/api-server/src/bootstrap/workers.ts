@@ -6,6 +6,7 @@ import { logger } from "../lib/logger";
 import "../workers/platform-event-worker";
 import "../workers/scheduler-worker";
 import "../workers/node-lifecycle-worker";
+import "../workers/wireguard-peer-reconciliation-worker";
 import { startRegisteredWorkers } from "../lib/worker-registry";
 
 export function startRuntimeWorkers(): void {

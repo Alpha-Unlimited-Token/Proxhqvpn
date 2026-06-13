@@ -6,3 +6,7 @@ export * from "./wireguardConfigService";
 export * from "./vpnProvisioningService";
 export * from "./nodeLifecycleService";
 export * from "./deviceLifecycleService";
+export * from "./nodeHealthService";
+export * from "./nodeRoutingService";
+export * from "./nodeFailoverService";
+export * from "./wireguardPeerReconciliationService";

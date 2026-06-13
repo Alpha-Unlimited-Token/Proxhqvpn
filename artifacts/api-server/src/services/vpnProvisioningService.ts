@@ -8,6 +8,7 @@ import {
 } from "./wireguardConfigService";
 import { writeAuditEvent } from "../repositories/auditRepository";
 import { saveWireGuardConfigFingerprint } from "../repositories/wireguardConfigRepository";
+import { saveWireGuardConfigVersion } from "../repositories/wireguardConfigVersionRepository";
 
 export type ProvisionVpnConfigInput = {
   userId: string;
@@ -87,6 +88,8 @@ export async function provisionVpnConfig(input: ProvisionVpnConfigInput) {
 
   const fingerprint = fingerprintWireGuardConfig(config);
 
+  let configVersion: { id: string; version: number } | null = null;
+
   // Persist fingerprint + audit event with safe failure — config generation
   // must succeed even if the DB write or audit chain is temporarily unavailable.
   try {
@@ -95,6 +98,14 @@ export async function provisionVpnConfig(input: ProvisionVpnConfigInput) {
       deviceId: input.deviceId,
       fingerprint,
       peerCount: peers.length,
+    });
+
+    configVersion = await saveWireGuardConfigVersion({
+      userId: input.userId,
+      deviceId: input.deviceId,
+      fingerprint,
+      config,
+      metadata: { peerCount: peers.length },
     });
 
     await writeAuditEvent({
@@ -126,5 +137,6 @@ export async function provisionVpnConfig(input: ProvisionVpnConfigInput) {
     config,
     fingerprint,
     peerCount: peers.length,
+    version: configVersion?.version ?? null,
   };
 }
