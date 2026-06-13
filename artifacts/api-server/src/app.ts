@@ -14,13 +14,8 @@ import { CLERK_PROXY_PATH, clerkProxyMiddleware } from "./middlewares/clerkProxy
 import fs from "fs";
 import path from "path";
 import router from "./routes";
-import omegaRouter from "./routes/omega";
-const OMEGA_ENABLED = process.env.PROXHQ_ENABLE_OMEGA !== "0"; // default ON; set to "0" to disable at deploy time
-const SECURITY_LAB_ENABLED = process.env.PROXHQ_ENABLE_SECURITY_LAB === "1"; // default OFF; opt-in only
 import walletTxRouter from "./routes/wallet-tx";
 import walletIntelRouter from "./routes/wallet-intel";
-import nodeCrackerRouter from "./routes/node-cracker";
-import devAuditRouter from "./routes/dev-audit";
 import { blockTemporaryProductionRoutes } from "./lib/route-governance";
 import { productionSecurityProfile } from "./middlewares/productionSecurityProfile";
 import { internalSecretBypass } from "./lib/internal-auth";
@@ -355,20 +350,7 @@ app.use(internalSecretBypass);
 app.use("/api/wallet", walletTxRouter);
 app.use("/api/wallet-intel", walletIntelRouter);
 
-// Security lab routes — disabled by default; enable with PROXHQ_ENABLE_SECURITY_LAB=1
-// These include offensive/red-team tooling that should never be public-facing in production.
-if (SECURITY_LAB_ENABLED) {
-  logger.info("Security lab routes enabled (PROXHQ_ENABLE_SECURITY_LAB=1)");
-  app.use("/api/node-cracker", nodeCrackerRouter);
-  app.use("/api/dev-audit", devAuditRouter);
-}
 app.use("/api", router);
-// Omega is mounted AFTER the main /api router (which enforces requireAuth) so all
-// requests to /api/omega/* are authenticated. It is also gated by requireAdmin inside
-// routes/index.ts. Set PROXHQ_ENABLE_OMEGA=0 at deploy time to fully disable.
-if (OMEGA_ENABLED) {
-  app.use("/api/omega", omegaRouter);
-}
 
 app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
   if (err && typeof err === "object" && "name" in err && (err as any).name === "ZodError") {

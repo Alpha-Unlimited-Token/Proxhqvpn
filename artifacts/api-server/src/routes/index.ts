@@ -5,6 +5,8 @@ import adminRoutes from "./groups/admin";
 import vpnRoutes from "./groups/vpn";
 import commandCenterRoutes from "./groups/command-center";
 import miscAuthenticatedRoutes from "./groups/misc-authenticated";
+import securityLabRoutes from "./groups/security-lab";
+import omegaRoutes from "./groups/omega";
 import { requireAuth, requireAdmin } from "./_auth";
 
 const router: IRouter = Router();
@@ -12,9 +14,10 @@ const router: IRouter = Router();
 /**
  * Route-group order matters:
  *
- * 1. Public routes must mount before requireAuth.
+ * 1. Public routes mount before requireAuth.
  * 2. Everything after requireAuth requires Clerk session or validated internal bypass.
- * 3. Group files own their own tier/admin/capability guards.
+ * 3. Normal product routes mount before isolated high-risk route groups.
+ * 4. Security-lab and Omega are disabled by default and admin-only.
  */
 router.use(publicRoutes);
 
@@ -24,6 +27,10 @@ router.use(vpnRoutes);
 router.use(commandCenterRoutes);
 router.use(adminRoutes);
 router.use(miscAuthenticatedRoutes);
+
+// High-risk isolated groups. These are feature-gated and admin-only internally.
+router.use(securityLabRoutes);
+router.use(omegaRoutes);
 
 export { requireAdmin };
 
