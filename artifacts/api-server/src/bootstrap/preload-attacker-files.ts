@@ -1,8 +1,7 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import fs from "fs";
 import path from "path";
-import { and, eq, notInArray } from "drizzle-orm";
-import { db, batchScanJobsTable } from "@workspace/db";
+import { findActiveBatchJobBySourceName } from "../repositories/batchJobsRepository";
 import { createBatchJob } from "../lib/scheme-auditor/batch-worker";
 import { logger } from "../lib/logger";
 
@@ -26,16 +25,7 @@ export async function preloadAttackerFilesIfEnabled(): Promise<void> {
     ];
 
     for (const sourceName of sourceNames) {
-      const [active] = await db
-        .select({ id: batchScanJobsTable.id })
-        .from(batchScanJobsTable)
-        .where(
-          and(
-            eq(batchScanJobsTable.sourceName, sourceName),
-            notInArray(batchScanJobsTable.status, ["cancelled", "failed"]),
-          ),
-        )
-        .limit(1);
+      const active = await findActiveBatchJobBySourceName(sourceName);
 
       if (active) continue;
 

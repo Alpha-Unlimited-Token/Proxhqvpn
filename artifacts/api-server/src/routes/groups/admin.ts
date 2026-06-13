@@ -2,8 +2,7 @@
 import { Router, type Request, type Response } from "express";
 import fs from "fs";
 import path from "path";
-import { sql } from "drizzle-orm";
-import { db } from "@workspace/db";
+import { insertNodeEnrollmentToken } from "../../repositories/nodeEnrollmentRepository";
 import { createEnrollmentToken } from "../../lib/node-enrollment";
 import { requireAdmin } from "../_auth";
 import { registerAdminRoute } from "../registerAdminRoute";
@@ -186,10 +185,12 @@ router.post("/node-enrollment-token", requireAdmin, async (req: Request, res: Re
   const { token, tokenHash, expiresAt } = createEnrollmentToken();
   const region = (req.body?.region as string) ?? null;
 
-  await db.execute(
-    sql`INSERT INTO node_enrollment_tokens (token_hash, created_by, region, expires_at)
-        VALUES (${tokenHash}, ${(req as any).auth?.userId ?? "admin"}, ${region}, ${expiresAt.toISOString()})`,
-  );
+  await insertNodeEnrollmentToken({
+    tokenHash,
+    createdBy: (req as any).auth?.userId ?? "admin",
+    region,
+    expiresAt,
+  });
 
   res.json({ token, expiresAt, region });
 });

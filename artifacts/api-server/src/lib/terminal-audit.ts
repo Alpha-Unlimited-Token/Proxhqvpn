@@ -1,5 +1,5 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
-import { appendAuditEvent } from "./audit-chain";
+import { writeAuditEvent } from "../repositories/auditRepository";
 import { shipSecurityEvent } from "./siem";
 
 export async function auditTerminalEvent(input: {
@@ -15,7 +15,7 @@ export async function auditTerminalEvent(input: {
     ...input.metadata,
   };
 
-  appendAuditEvent({
+  await writeAuditEvent({
     actor: input.actor,
     action: input.action,
     resource: "terminal",
