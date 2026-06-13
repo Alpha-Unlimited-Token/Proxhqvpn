@@ -18,12 +18,18 @@ router.get("/", (_req, res) => {
     return meta?.risk === "high";
   });
 
+  const duplicateMounts = apiRouteCapabilities
+    .map((route) => route.mountPath)
+    .filter((path, index, paths) => paths.indexOf(path) !== index);
+
   res.json({
     totalCapabilities: capabilities.length,
     totalMappedRoutes: apiRouteCapabilities.length,
+    duplicateMounts,
     criticalRoutes,
     highRoutes,
     capabilities,
+    ok: duplicateMounts.length === 0,
   });
 });
 

@@ -1,6 +1,5 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { Router } from "express";
-import { requireAccess } from "../../middlewares/requireAccess";
 import { requireDeviceTrust } from "../../middlewares/requireDeviceTrust";
 import { requireCapability } from "../../middlewares/requireCapability";
 
@@ -45,10 +44,10 @@ import honeypotRouter from "../honeypot";
 const router = Router();
 
 router.use("/me", meRouter);
-router.use("/account-security", requireAccess, accountSecurityCenterRouter);
+router.use("/account-security", requireCapability("vpn.read"), accountSecurityCenterRouter);
 
 router.use("/killswitch", requireCapability("vpn.write"), killswitchRouter);
-router.use("/leaks", requireAccess, leaksRouter);
+router.use("/leaks", requireCapability("vpn.read"), leaksRouter);
 router.use("/split-tunnel", requireCapability("vpn.write"), splittunnelRouter);
 router.use("/obfuscation", requireCapability("vpn.write"), obfuscationRouter);
 router.use("/daemon", requireCapability("vpn.write"), daemonRouter);
@@ -64,32 +63,32 @@ router.use(
   requireDeviceTrust,
   wireguardRouter,
 );
-router.use("/threat-protection", requireAccess, threatProtectionRouter);
-router.use("/proxy-browser", requireAccess, proxyBrowserRouter);
+router.use("/threat-protection", requireCapability("vpn.read"), threatProtectionRouter);
+router.use("/proxy-browser", requireCapability("vpn.read"), proxyBrowserRouter);
 
-router.use("/pqc", requireAccess, pqcRouter);
-router.use("/daita", requireAccess, daitaRouter);
-router.use("/darkweb", requireAccess, darkwebRouter);
-router.use("/altid", requireAccess, altidRouter);
-router.use("/iprotator", requireAccess, iprotatorRouter);
+router.use("/pqc", requireCapability("vpn.read"), pqcRouter);
+router.use("/daita", requireCapability("vpn.read"), daitaRouter);
+router.use("/darkweb", requireCapability("vpn.read"), darkwebRouter);
+router.use("/altid", requireCapability("vpn.read"), altidRouter);
+router.use("/iprotator", requireCapability("vpn.write"), iprotatorRouter);
 
-router.use("/cve", requireAccess, cveSearchRouter);
-router.use("/ghost-trap", requireAccess, ghostTrapRouter);
-router.use("/fw", requireAccess, firewallAdvancedRouter);
-router.use("/network-monitor", requireAccess, networkMonitorRouter);
-router.use("/dns-sinkhole", requireAccess, dnsSinkholeRouter);
+router.use("/cve", requireCapability("vpn.read"), cveSearchRouter);
+router.use("/ghost-trap", requireCapability("vpn.write"), ghostTrapRouter);
+router.use("/fw", requireCapability("vpn.write"), firewallAdvancedRouter);
+router.use("/network-monitor", requireCapability("vpn.read"), networkMonitorRouter);
+router.use("/dns-sinkhole", requireCapability("vpn.write"), dnsSinkholeRouter);
 
-router.use("/gps-spoof", requireAccess, gpsSpoofRouter);
-router.use("/port-forward", requireAccess, portForwardRouter);
-router.use("/dedicated-ip", requireAccess, dedicatedIpRouter);
-router.use("/meshnet", requireAccess, meshnetRouter);
-router.use("/data-broker", requireAccess, dataBrokerRouter);
-router.use("/fwn", requireAccess, firewallNextRouter);
-router.use("/fwm", requireAccess, firewallMilitaryRouter);
+router.use("/gps-spoof", requireCapability("vpn.write"), gpsSpoofRouter);
+router.use("/port-forward", requireCapability("vpn.write"), portForwardRouter);
+router.use("/dedicated-ip", requireCapability("vpn.write"), dedicatedIpRouter);
+router.use("/meshnet", requireCapability("vpn.write"), meshnetRouter);
+router.use("/data-broker", requireCapability("vpn.read"), dataBrokerRouter);
+router.use("/fwn", requireCapability("vpn.write"), firewallNextRouter);
+router.use("/fwm", requireCapability("vpn.write"), firewallMilitaryRouter);
 
-router.use("/ztna", requireAccess, ztnaRouter);
-router.use("/security-score", requireAccess, securityScoreRouter);
-router.use("/attack-intel", requireAccess, attackIntelRouter);
-router.use("/honeypot", requireAccess, honeypotRouter);
+router.use("/ztna", requireCapability("vpn.write"), ztnaRouter);
+router.use("/security-score", requireCapability("vpn.read"), securityScoreRouter);
+router.use("/attack-intel", requireCapability("vpn.read"), attackIntelRouter);
+router.use("/honeypot", requireCapability("vpn.write"), honeypotRouter);
 
 export default router;
