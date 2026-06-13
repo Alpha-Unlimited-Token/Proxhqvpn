@@ -112,6 +112,7 @@ export default function ToolRunner() {
   const [jobId, setJobId]                     = useState<string | null>(null);
   const [dbJobId, setDbJobId]                 = useState<string | null>(null);
   const [exitCode, setExitCode]               = useState<number | null>(null);
+  const [duration, setDuration]               = useState<number | null>(null);
   const [copied, setCopied]                   = useState(false);
   const [activeCategory, setActiveCategory]   = useState<string | null>(null);
   const [searchQ, setSearchQ]                 = useState("");
@@ -120,9 +121,10 @@ export default function ToolRunner() {
   const [geoData, setGeoData]                 = useState<GeoData | null>(null);
   const [pendingApproval, setPendingApproval] = useState<PendingApproval | null>(null);
   const [checkingApproval, setCheckingApproval] = useState(false);
-  const esRef    = useRef<EventSource | null>(null);
-  const termRef  = useRef<HTMLDivElement | null>(null);
-  const formRef  = useRef<HTMLDivElement | null>(null);
+  const esRef       = useRef<EventSource | null>(null);
+  const termRef     = useRef<HTMLDivElement | null>(null);
+  const formRef     = useRef<HTMLDivElement | null>(null);
+  const startTimeRef = useRef<number | null>(null);
 
   useEffect(() => {
     fetch(`${API}/tools`, { credentials: "include" })
@@ -154,10 +156,12 @@ export default function ToolRunner() {
     setJobId(null);
     setDbJobId(null);
     setExitCode(null);
+    setDuration(null);
     setError(null);
     setScopeError(null);
     setGeoData(null);
     setPendingApproval(null);
+    startTimeRef.current = null;
     // On mobile the form renders below the tool list — scroll it into view
     requestAnimationFrame(() => {
       formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -171,9 +175,11 @@ export default function ToolRunner() {
     setJobId(null);
     setDbJobId(null);
     setExitCode(null);
+    setDuration(null);
     setError(null);
     setScopeError(null);
     setGeoData(null);
+    startTimeRef.current = Date.now();
     if (!approvedToken) setPendingApproval(null);
 
     try {
@@ -239,13 +245,21 @@ export default function ToolRunner() {
           const payload = JSON.parse(e.data) as { text?: string; done?: boolean; exitCode?: number };
           if (payload.text) setOutput(prev => [...prev, payload.text!]);
           if (payload.done) {
+            const elapsed = startTimeRef.current !== null
+              ? Math.round((Date.now() - startTimeRef.current) / 1000)
+              : null;
             setExitCode(payload.exitCode ?? 0);
+            setDuration(elapsed);
             setRunning(false);
             es.close();
           }
         } catch { /* ignore parse errors */ }
       };
       es.onerror = () => {
+        const elapsed = startTimeRef.current !== null
+          ? Math.round((Date.now() - startTimeRef.current) / 1000)
+          : null;
+        setDuration(elapsed);
         setRunning(false);
         es.close();
       };
@@ -322,6 +336,15 @@ export default function ToolRunner() {
     setJobId(null);
     setDbJobId(null);
     setExitCode(null);
+    setDuration(null);
+    startTimeRef.current = null;
+  }
+
+  function formatDuration(secs: number): string {
+    if (secs < 60) return `${secs}s`;
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return s > 0 ? `${m}m ${s}s` : `${m}m`;
   }
 
   return (
@@ -650,14 +673,38 @@ export default function ToolRunner() {
 
               {/* Terminal output */}
               {output.length > 0 && (
-                <div className="border border-primary/10 rounded-sm overflow-hidden">
-                  <div className="flex items-center justify-between px-3 py-2 border-b border-primary/10 bg-black/40">
+                <div className={`border rounded-sm overflow-hidden transition-colors ${
+                  !running && exitCode !== null
+                    ? exitCode === 0
+                      ? "border-[#00ff88]/25"
+                      : "border-red-500/25"
+                    : "border-primary/10"
+                }`}>
+                  {/* Terminal title bar */}
+                  <div className={`flex items-center justify-between px-3 py-2 border-b bg-black/40 transition-colors ${
+                    !running && exitCode !== null
+                      ? exitCode === 0 ? "border-[#00ff88]/20" : "border-red-500/20"
+                      : "border-primary/10"
+                  }`}>
                     <div className="flex items-center gap-2">
-                      <Terminal className="w-3.5 h-3.5 text-[#00ff88]" />
+                      <Terminal className={`w-3.5 h-3.5 ${running ? "text-[#00ff88]" : exitCode === 0 ? "text-[#00ff88]/60" : "text-red-400/60"}`} />
                       <span className="text-[10px] text-primary/40 font-mono uppercase tracking-wide">
-                        Output {running ? "— live" : `— ${output.join("").split("\n").length} lines`}
+                        {running
+                          ? "Output — live"
+                          : exitCode !== null
+                            ? `Output — ${output.join("").split("\n").filter(Boolean).length} lines`
+                            : "Output"}
                       </span>
                       {running && <span className="w-2 h-2 rounded-full bg-[#00ff88] animate-pulse" />}
+                      {!running && exitCode !== null && (
+                        <span className={`text-[9px] border px-1.5 py-px font-mono uppercase tracking-wide ${
+                          exitCode === 0
+                            ? "border-[#00ff88]/30 text-[#00ff88]/70 bg-[#00ff88]/5"
+                            : "border-red-500/30 text-red-400/70 bg-red-900/5"
+                        }`}>
+                          {exitCode === 0 ? "completed" : "failed"}
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-1">
                       <button
@@ -683,6 +730,8 @@ export default function ToolRunner() {
                       </button>
                     </div>
                   </div>
+
+                  {/* Scrollable output body */}
                   <div
                     ref={termRef}
                     className="bg-black/80 p-4 overflow-y-auto max-h-[500px] text-[11px] font-mono leading-relaxed whitespace-pre-wrap text-[#00ff88]/90 select-text"
@@ -691,6 +740,43 @@ export default function ToolRunner() {
                     {output.join("")}
                     {running && <span className="animate-pulse text-[#00ff88]">█</span>}
                   </div>
+
+                  {/* Completion footer — shown only after job finishes */}
+                  {!running && exitCode !== null && (
+                    <div className={`flex items-center justify-between px-3 py-2 border-t text-[10px] font-mono ${
+                      exitCode === 0
+                        ? "border-[#00ff88]/20 bg-[#00ff88]/5 text-[#00ff88]/70"
+                        : "border-red-500/20 bg-red-900/5 text-red-400/70"
+                    }`}>
+                      <div className="flex items-center gap-3">
+                        {exitCode === 0
+                          ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                          : <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                        }
+                        <span>
+                          Exit code: <span className="font-bold">{exitCode}</span>
+                          {" · "}
+                          {exitCode === 0 ? "Process completed successfully" : "Process exited with errors"}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0">
+                        {duration !== null && (
+                          <span className="flex items-center gap-1 text-primary/30">
+                            <Clock className="w-3 h-3" />
+                            {formatDuration(duration)}
+                          </span>
+                        )}
+                        {dbJobId && (
+                          <a
+                            href="/tool-history"
+                            className="text-primary/30 hover:text-primary/60 border border-primary/10 hover:border-primary/25 px-2 py-0.5 rounded-sm transition-colors flex items-center gap-1"
+                          >
+                            <History className="w-3 h-3" />History
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </>
