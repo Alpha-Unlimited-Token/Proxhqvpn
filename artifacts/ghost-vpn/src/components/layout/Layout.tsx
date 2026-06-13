@@ -23,6 +23,7 @@ import {
 import { useAccess } from "@/hooks/useAccess";
 import { useNotifications } from "@/hooks/useNotifications";
 import FirewallPromptOverlay from "@/components/FirewallPromptOverlay";
+import { SkipToContent } from "@/components/a11y/SkipToContent";
 
 interface LayoutProps {
   children: ReactNode;
@@ -743,6 +744,7 @@ export function Layout({ children }: LayoutProps) {
 
   return (
     <div className="min-h-screen bg-[#080d09] text-white flex selection:bg-primary selection:text-black">
+      <SkipToContent />
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div
@@ -902,7 +904,7 @@ export function Layout({ children }: LayoutProps) {
         </header>
 
         {/* Page content */}
-        <main className="flex-1 overflow-auto">
+        <main id="main-content" className="flex-1 overflow-auto">
           <div className="p-5 lg:p-7">
             {children}
           </div>

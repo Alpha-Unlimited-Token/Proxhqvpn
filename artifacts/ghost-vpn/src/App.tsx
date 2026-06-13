@@ -14,6 +14,7 @@ import {
   clerkPubKey,
   stripBase,
 } from "@/routes/clerkConfig";
+import { ThemeProvider } from "@/theme/ThemeProvider";
 
 const queryClient = new QueryClient();
 
@@ -32,9 +33,11 @@ function ClerkProviderWithRoutes() {
       routerReplace={(to) => setLocation(stripBase(to), { replace: true })}
     >
       <QueryClientProvider client={queryClient}>
-        <ClerkQueryClientCacheInvalidator />
-        <ScrollToTop />
-        <AppRoutes />
+        <ThemeProvider>
+          <ClerkQueryClientCacheInvalidator />
+          <ScrollToTop />
+          <AppRoutes />
+        </ThemeProvider>
       </QueryClientProvider>
     </ClerkProvider>
   );
