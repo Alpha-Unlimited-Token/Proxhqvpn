@@ -16,6 +16,7 @@
 import { Router, type Request, type Response } from "express";
 import { z } from "zod";
 import { db } from "@workspace/db";
+import { getAuth } from "@clerk/express";
 import { appendAuditEvent } from "../lib/audit-chain";
 import { shipSecurityEvent } from "../lib/siem";
 import { requireRbac } from "../middlewares/requireRbac";
@@ -501,6 +502,9 @@ router.patch("/banners/:id", requireRbac("deception_admin"), async (req: Request
     .returning();
   bannerCacheTs = 0;
   if (!updated) return res.status(404).json({ error: "Not found" });
+  const _actorDecPatch = getAuth(req as any).userId ?? "system";
+  appendAuditEvent({ actor: _actorDecPatch, action: "deception_banner.update", resource: `deception_banner:${id}`, metadata: p.data });
+  void shipSecurityEvent({ actor: _actorDecPatch, action: "deception_banner.update", resource: `deception_banner:${id}`, result: "allow" });
   res.json(updated);
 });
 
@@ -508,7 +512,10 @@ router.patch("/banners/:id", requireRbac("deception_admin"), async (req: Request
 router.delete("/events/:id", requireRbac("deception_admin"), async (req: Request, res: Response) => {
   const id = Number(req.params.id);
   if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
+  const _actorDecDel = getAuth(req as any).userId ?? "system";
   await db.delete(deceptionEventsTable).where(eq(deceptionEventsTable.id, id));
+  appendAuditEvent({ actor: _actorDecDel, action: "deception_event.delete", resource: `deception_event:${id}` });
+  void shipSecurityEvent({ actor: _actorDecDel, action: "deception_event.delete", resource: `deception_event:${id}`, result: "allow" });
   res.json({ ok: true });
 });
 
@@ -520,12 +527,17 @@ router.post("/events/purge", requireRbac("deception_admin"), async (req: Request
   });
   const p = schema.safeParse(req.body);
   if (!p.success) return res.status(400).json({ error: p.error.flatten() });
+  const _actorDecPurge = getAuth(req as any).userId ?? "system";
   if (p.data.all) {
     await db.delete(deceptionEventsTable);
+    appendAuditEvent({ actor: _actorDecPurge, action: "deception_event.purge_all", resource: "deception_events" });
+    void shipSecurityEvent({ actor: _actorDecPurge, action: "deception_event.purge_all", resource: "deception_events", result: "allow" });
     return res.json({ ok: true, purged: "all" });
   }
   if (p.data.ip) {
     await db.delete(deceptionEventsTable).where(eq(deceptionEventsTable.attackerIp, p.data.ip));
+    appendAuditEvent({ actor: _actorDecPurge, action: "deception_event.purge_ip", resource: "deception_events", metadata: { ip: p.data.ip } });
+    void shipSecurityEvent({ actor: _actorDecPurge, action: "deception_event.purge_ip", resource: "deception_events", result: "allow", metadata: { ip: p.data.ip } });
     return res.json({ ok: true, purged: p.data.ip });
   }
   res.status(400).json({ error: "Specify ip or all:true" });

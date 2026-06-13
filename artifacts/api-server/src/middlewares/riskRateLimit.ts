@@ -1,10 +1,10 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
-import rateLimit, { ipKeyGenerator } from "express-rate-limit";
+import rateLimit from "express-rate-limit";
 import type { Request } from "express";
 
 function keyGenerator(req: Request) {
   const userId = (req as any).auth?.userId;
-  return userId ? `user:${userId}` : `ip:${ipKeyGenerator(req)}`;
+  return userId ? `user:${userId}` : `ip:${req.ip ?? req.socket?.remoteAddress ?? "unknown"}`;
 }
 
 export const normalRateLimit = rateLimit({

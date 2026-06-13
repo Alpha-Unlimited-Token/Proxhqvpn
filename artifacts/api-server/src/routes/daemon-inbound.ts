@@ -46,6 +46,28 @@ const router = Router();
 
 const DAEMON_PSK = process.env.DAEMON_PSK ?? "";
 
+// ── P4-D: Minimum agent version enforcement ───────────────────────────────────
+// Set MIN_AGENT_VERSION env var to the minimum acceptable daemon semver string.
+// Daemons send X-Agent-Version header; if below minimum, responses include
+// updateRequired:true so the daemon can self-update gracefully. Non-blocking.
+const MIN_AGENT_VERSION = process.env.MIN_AGENT_VERSION ?? "1.0.0";
+
+function semverCompare(a: string, b: string): number {
+  const pa = a.split(".").map(Number);
+  const pb = b.split(".").map(Number);
+  for (let i = 0; i < 3; i++) {
+    const diff = (pa[i] ?? 0) - (pb[i] ?? 0);
+    if (diff !== 0) return diff;
+  }
+  return 0;
+}
+
+function checkAgentVersion(req: any): { updateRequired: boolean; agentVersion: string; minVersion: string } {
+  const agentVersion = String(req.headers["x-agent-version"] ?? "0.0.0");
+  const updateRequired = semverCompare(agentVersion, MIN_AGENT_VERSION) < 0;
+  return { updateRequired, agentVersion, minVersion: MIN_AGENT_VERSION };
+}
+
 // ── Per-node HMAC auth (preferred) — requires X-Node-ID + X-Daemon-Sig + X-Daemon-TS + X-Daemon-Nonce ──
 // Falls back to DAEMON_PSK if X-Node-ID header is absent (legacy nodes not yet enrolled).
 const perNodeHmacMiddleware = verifyDaemonHmac(async (nodeId: string) => {
@@ -1012,6 +1034,8 @@ router.get("/ghost-node-policy", async (req, res) => {
   const nodeId = parseInt(req.query.nodeId as string);
   if (isNaN(nodeId)) return res.status(400).json({ error: "nodeId required" });
 
+  const versionInfo = checkAgentVersion(req);
+
   const activeGhostNodes = await db.select().from(ghostNodesTable)
     .where(eq(ghostNodesTable.status, "active"))
     .limit(20);
@@ -1025,6 +1049,7 @@ router.get("/ghost-node-policy", async (req, res) => {
   return res.json({
     ok:         true,
     policyTs:   new Date().toISOString(),
+    ...versionInfo,
     ghostNodes: activeGhostNodes.map((n) => ({
       id:             n.id,
       name:           n.name,
@@ -1051,6 +1076,8 @@ router.get("/ghost-trap-policy", async (req, res) => {
   const nodeId = parseInt(req.query.nodeId as string);
   if (isNaN(nodeId)) return res.status(400).json({ error: "nodeId required" });
 
+  const versionInfo = checkAgentVersion(req);
+
   const allRules = await db.select({
     id:       ghostTrapRulesTable.id,
     ruleType: ghostTrapRulesTable.ruleType,
@@ -1064,6 +1091,7 @@ router.get("/ghost-trap-policy", async (req, res) => {
   return res.json({
     ok:      true,
     policyTs: new Date().toISOString(),
+    ...versionInfo,
     rules:   allRules,
   });
 });

@@ -53,7 +53,7 @@ router.get("/", async (req, res) => {
 
 // ── Get single ghost node ─────────────────────────────────────────────────────
 router.get("/:id", async (req, res) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string, 10);
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
   const [node] = await db.select().from(ghostNodesTable).where(eq(ghostNodesTable.id, id));
   if (!node) return res.status(404).json({ error: "Ghost node not found" });
@@ -120,7 +120,7 @@ const PatchSchema = z.object({
 
 router.patch("/:id", requireRbac("ghost_node_admin"), async (req, res) => {
   const { userId } = getAuth(req);
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string, 10);
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
   const parsed = PatchSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
@@ -140,7 +140,7 @@ router.patch("/:id", requireRbac("ghost_node_admin"), async (req, res) => {
 // ── Delete ghost node ─────────────────────────────────────────────────────────
 router.delete("/:id", requireRbac("ghost_node_admin"), async (req, res) => {
   const { userId } = getAuth(req);
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string, 10);
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
   await db.delete(ghostNodesTable).where(eq(ghostNodesTable.id, id));
   appendAuditEvent({ actor: userId ?? "system", action: "ghost_node.delete", resource: `ghost_node:${id}`, metadata: {} });
@@ -150,7 +150,7 @@ router.delete("/:id", requireRbac("ghost_node_admin"), async (req, res) => {
 // ── Quarantine a ghost node (shortcut) ───────────────────────────────────────
 router.post("/:id/quarantine", requireRbac("ghost_node_admin"), async (req, res) => {
   const { userId } = getAuth(req);
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string, 10);
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
   const [node] = await db.update(ghostNodesTable).set({
     status: "quarantined", quarantinedAt: new Date(), updatedAt: new Date(),
@@ -165,7 +165,7 @@ router.post("/:id/quarantine", requireRbac("ghost_node_admin"), async (req, res)
 // PSK bypass: this is called by node daemons, not browser clients.
 // Auth: same PSK pattern as daemon-inbound (verified in the calling middleware layer).
 router.post("/:id/event", async (req, res) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string, 10);
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
   const { eventType = "probe", sourceIp, sourcePort, rawPayload, geoCountry, geoCity, geoAsn, severity = "info" } = req.body as Record<string, unknown>;
   if (!sourceIp || typeof sourceIp !== "string") return res.status(400).json({ error: "sourceIp required" });
@@ -192,7 +192,7 @@ router.post("/:id/event", async (req, res) => {
 
 // ── P6-B: Evidence export — full JSON bundle download ────────────────────────
 router.get("/:id/evidence.json", async (req, res) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string, 10);
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
   const [node] = await db.select().from(ghostNodesTable).where(eq(ghostNodesTable.id, id));
   if (!node) return res.status(404).json({ error: "Ghost node not found" });
@@ -234,7 +234,7 @@ router.get("/:id/evidence.json", async (req, res) => {
 
 // ── List events for a ghost node ─────────────────────────────────────────────
 router.get("/:id/events", async (req, res) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string, 10);
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
   const limit = Math.min(parseInt(String(req.query.limit ?? "100")), 500);
   const events = await db.select().from(ghostNodeEventsTable)
@@ -280,7 +280,7 @@ router.post("/rules", requireRbac("ghost_node_admin"), async (req, res) => {
 
 router.patch("/rules/:id", requireRbac("ghost_node_admin"), async (req, res) => {
   const { userId } = getAuth(req);
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string, 10);
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
   const { enabled, action, priority, description } = req.body as Record<string, unknown>;
   const updates: Record<string, unknown> = { updatedAt: new Date() };
@@ -298,7 +298,7 @@ router.patch("/rules/:id", requireRbac("ghost_node_admin"), async (req, res) => 
 
 router.delete("/rules/:id", requireRbac("ghost_node_admin"), async (req, res) => {
   const { userId } = getAuth(req);
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string, 10);
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
   await db.delete(ghostTrapRulesTable)
     .where(and(eq(ghostTrapRulesTable.id, id), eq(ghostTrapRulesTable.userId, userId!)));
@@ -328,6 +328,90 @@ router.get("/vultr/instances", requireRbac("nodes:vultr_sync"), async (_req, res
   } catch (err: any) {
     return res.status(500).json({ error: err.message ?? "Vultr API error" });
   }
+});
+
+// ── P5-A: POST /vultr/sync — upsert Vultr instances into ghost_nodes ─────────
+// Fetches live Vultr instance list and ensures each has a corresponding ghost
+// node entry (deduped by publicIp). Tracks deception state in
+// vultr_node_deception_state. Requires ghost_node_admin RBAC.
+router.post("/vultr/sync", requireRbac("ghost_node_admin"), async (req, res) => {
+  const { userId } = getAuth(req);
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+  let instances: Awaited<ReturnType<typeof listInstances>>;
+  try {
+    instances = await listInstances();
+  } catch (err: any) {
+    return res.status(502).json({ error: `Vultr API error: ${err.message ?? "unknown"}` });
+  }
+
+  const created: number[] = [];
+  const updated: number[] = [];
+
+  for (const i of instances) {
+    const ip = i.main_ip;
+    if (!ip || ip === "0.0.0.0") continue;
+
+    const nodeName = i.label || i.hostname || `vultr-${i.region}-${i.id.slice(-6)}`;
+
+    // Find existing ghost node by publicIp
+    const [existing] = await db.select({ id: ghostNodesTable.id })
+      .from(ghostNodesTable)
+      .where(eq(ghostNodesTable.publicIp, ip))
+      .limit(1);
+
+    let ghostNodeId: number;
+    if (existing) {
+      await db.update(ghostNodesTable)
+        .set({ name: nodeName, region: i.region, updatedAt: new Date() })
+        .where(eq(ghostNodesTable.id, existing.id));
+      ghostNodeId = existing.id;
+      updated.push(ghostNodeId);
+    } else {
+      const [created_node] = await db.insert(ghostNodesTable).values({
+        name:           nodeName,
+        region:         i.region,
+        publicIp:       ip,
+        status:         i.status === "active" ? "active" : "disabled",
+        isolationLevel: "full",
+        createdBy:      userId,
+      }).returning({ id: ghostNodesTable.id });
+      ghostNodeId = created_node.id;
+      created.push(ghostNodeId);
+    }
+
+    // Upsert deception state record
+    const [stateExisting] = await db.select({ id: vultrNodeDeceptionStateTable.id })
+      .from(vultrNodeDeceptionStateTable)
+      .where(eq(vultrNodeDeceptionStateTable.vultrInstanceId, i.id))
+      .limit(1);
+
+    if (stateExisting) {
+      await db.update(vultrNodeDeceptionStateTable)
+        .set({ ghostNodeId, lastPolicyPush: new Date() })
+        .where(eq(vultrNodeDeceptionStateTable.id, stateExisting.id));
+    } else {
+      await db.insert(vultrNodeDeceptionStateTable).values({
+        vultrInstanceId: i.id,
+        ghostNodeId,
+        decoyEnabled: false,
+      });
+    }
+  }
+
+  appendAuditEvent({
+    actor: userId,
+    action: "ghost_nodes.vultr_sync",
+    resource: "ghost_nodes",
+    metadata: { total: instances.length, created: created.length, updated: updated.length },
+  });
+
+  return res.json({
+    ok:      true,
+    total:   instances.length,
+    created: created.length,
+    updated: updated.length,
+  });
 });
 
 export default router;

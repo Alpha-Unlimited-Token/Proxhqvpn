@@ -136,9 +136,64 @@ export const tarpitDrainTable = pgTable("tarpit_drain", {
   lastSeenAt:      timestamp("last_seen_at").defaultNow().notNull(),
 });
 
+// ── ghost_trap_events — unified high-level event log ─────────────────────────
+// Provides a single, clean timeline across all trap activities for the dashboard.
+export const ghostTrapEventsTable = pgTable("ghost_trap_events", {
+  id:           serial("id").primaryKey(),
+  eventId:      text("event_id").notNull().unique(),
+  userId:       text("user_id"),                          // null = platform event
+  eventType:    text("event_type").notNull(),             // probe|beacon|session|block|evidence|rule_match
+  severity:     text("severity").notNull().default("info"), // info|warn|high|critical
+  sourceIp:     text("source_ip"),
+  summary:      text("summary").notNull(),
+  detailJson:   text("detail_json"),                     // arbitrary context as JSON
+  probeId:      text("probe_id"),                        // link to ghost_trap_probes.probe_id
+  sessionId:    text("session_id"),                      // link to ghost_trap_loop_sessions.session_id
+  fedToSiem:    boolean("fed_to_siem").notNull().default(false),
+  createdAt:    timestamp("created_at").defaultNow().notNull(),
+});
+
+// ── ghost_trap_evidence — exportable evidence bundles ────────────────────────
+export const ghostTrapEvidenceTable = pgTable("ghost_trap_evidence", {
+  id:              serial("id").primaryKey(),
+  evidenceId:      text("evidence_id").notNull().unique(),
+  userId:          text("user_id").notNull(),
+  subjectIp:       text("subject_ip").notNull(),           // attacker IP the evidence relates to
+  evidenceType:    text("evidence_type").notNull(),         // dossier|pcap_summary|probe_log|session_log|full_bundle
+  format:          text("format").notNull().default("json"), // json|text|zip
+  exportedAt:      timestamp("exported_at").defaultNow().notNull(),
+  bundleJson:      text("bundle_json"),                    // serialized evidence payload
+  probeCount:      integer("probe_count").notNull().default(0),
+  sessionCount:    integer("session_count").notNull().default(0),
+  sha256:          text("sha256"),                         // hash of bundleJson for chain-of-custody
+  notes:           text("notes"),
+  createdAt:       timestamp("created_at").defaultNow().notNull(),
+});
+
+// ── ghost_blocked_sources — IPs/CIDRs blocked by Ghost Trap ─────────────────
+export const ghostBlockedSourcesTable = pgTable("ghost_blocked_sources", {
+  id:            serial("id").primaryKey(),
+  blockedBy:     text("blocked_by").notNull(),             // Clerk userId or "platform"
+  sourceIp:      text("source_ip"),                        // single IP block
+  sourceCidr:    text("source_cidr"),                      // CIDR range block
+  reason:        text("reason").notNull().default("manual"), // manual|auto_probe|auto_session|rule_match
+  probeId:       text("probe_id"),
+  sessionId:     text("session_id"),
+  severity:      text("severity").notNull().default("high"),
+  permanent:     boolean("permanent").notNull().default(false),
+  expiresAt:     timestamp("expires_at"),
+  notes:         text("notes"),
+  active:        boolean("active").notNull().default(true),
+  createdAt:     timestamp("created_at").defaultNow().notNull(),
+  updatedAt:     timestamp("updated_at").defaultNow().notNull(),
+});
+
 export type GhostTrapProbe        = typeof ghostTrapProbesTable.$inferSelect;
 export type GhostTrapBeacon       = typeof ghostTrapBeaconsTable.$inferSelect;
 export type GhostTrapConfig       = typeof ghostTrapConfigTable.$inferSelect;
 export type GhostTrapLoopSession  = typeof ghostTrapLoopSessionsTable.$inferSelect;
 export type LabyrinthPath         = typeof labyrinthPathsTable.$inferSelect;
 export type TarpitDrain           = typeof tarpitDrainTable.$inferSelect;
+export type GhostTrapEvent        = typeof ghostTrapEventsTable.$inferSelect;
+export type GhostTrapEvidence     = typeof ghostTrapEvidenceTable.$inferSelect;
+export type GhostBlockedSource    = typeof ghostBlockedSourcesTable.$inferSelect;

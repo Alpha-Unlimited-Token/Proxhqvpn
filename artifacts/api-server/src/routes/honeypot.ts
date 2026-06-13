@@ -134,12 +134,18 @@ router.patch("/nodes/:id", requireRbac("honeypot_admin"), async (req, res) => {
     .where(eq(honeypotNodesTable.id, id))
     .returning();
   if (!node) return res.status(404).json({ error: "Not found" });
+  const _actorHpPatch = getAuth(req as any).userId ?? "system";
+  appendAuditEvent({ actor: _actorHpPatch, action: "honeypot_node.update", resource: `honeypot_node:${id}`, metadata: body });
+  void shipSecurityEvent({ actor: _actorHpPatch, action: "honeypot_node.update", resource: `honeypot_node:${id}`, result: "allow", metadata: body });
   res.json(node);
 });
 
 router.delete("/nodes/:id", requireRbac("honeypot_admin"), async (req, res) => {
   const id = Number(req.params.id);
+  const _actorHpDel = getAuth(req as any).userId ?? "system";
   await db.delete(honeypotNodesTable).where(eq(honeypotNodesTable.id, id));
+  appendAuditEvent({ actor: _actorHpDel, action: "honeypot_node.delete", resource: `honeypot_node:${id}` });
+  void shipSecurityEvent({ actor: _actorHpDel, action: "honeypot_node.delete", resource: `honeypot_node:${id}`, result: "allow" });
   res.status(204).end();
 });
 
@@ -272,7 +278,10 @@ router.post("/iocs", requireRbac("honeypot_admin"), async (req, res) => {
 
 router.delete("/iocs/:id", requireRbac("honeypot_admin"), async (req, res) => {
   const id = Number(req.params.id);
+  const _actorIoc = getAuth(req as any).userId ?? "system";
   await db.delete(honeypotIocsTable).where(eq(honeypotIocsTable.id, id));
+  appendAuditEvent({ actor: _actorIoc, action: "honeypot_ioc.delete", resource: `honeypot_ioc:${id}` });
+  void shipSecurityEvent({ actor: _actorIoc, action: "honeypot_ioc.delete", resource: `honeypot_ioc:${id}`, result: "allow" });
   res.status(204).end();
 });
 
@@ -297,6 +306,8 @@ router.post("/alerts/:id/acknowledge", requireRbac("honeypot_admin"), async (req
     .where(eq(honeypotAlertsTable.id, id))
     .returning();
   if (!alert) return res.status(404).json({ error: "Not found" });
+  appendAuditEvent({ actor: userId ?? "system", action: "honeypot_alert.acknowledge", resource: `honeypot_alert:${id}` });
+  void shipSecurityEvent({ actor: userId ?? "system", action: "honeypot_alert.acknowledge", resource: `honeypot_alert:${id}`, result: "allow" });
   res.json(alert);
 });
 

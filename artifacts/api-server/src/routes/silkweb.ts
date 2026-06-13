@@ -4,7 +4,6 @@ import { db } from "@workspace/db";
 import { silkWebTable, silkRoutesTable, trappedAttackersTable, nodesTable, beaconAlertsTable, blockedIpsTable } from "@workspace/db";
 import { eq, sql, desc } from "drizzle-orm";
 import crypto from "crypto";
-import { exec } from "child_process";
 import { requireRbac } from "../middlewares/requireRbac";
 import { requireLabTarget } from "../lib/lab-targets";
 
@@ -153,32 +152,17 @@ router.post("/trap", async (req, res) => {
   return res.status(201).json({ ok: true, trapped });
 });
 
-// Port scan a trapped attacker using nmap — async, returns jobId immediately
+// ── DISABLED: nmap against a trapped attacker IP ─────────────────────────────
+// Scanning attacker IPs (public internet) without authorization is illegal.
+// Use Ghost Trap counter-intelligence (TCP probes to IPs that attacked you) instead.
 const trappedPortscanJobs = new Map<string, { status: string; results: string | null; cmd: string; ip: string }>();
 
-router.post("/trapped/:id/portscan", async (req, res) => {
-  const id = parseInt(req.params.id);
-  const [attacker] = await db.select().from(trappedAttackersTable).where(eq(trappedAttackersTable.id, id));
-  if (!attacker) return res.status(404).json({ error: "Trapped attacker not found" });
-
-  const { ports = "1-10000", flags = "-sV -T4", useTor = false } = req.body as { ports?: string; flags?: string; useTor?: boolean };
-  const safePorts = ports.replace(/[^0-9\-,]/g, "").substring(0, 50);
-  const safeFlags = flags.replace(/[^a-zA-Z0-9 \-]/g, "").substring(0, 80);
-  const jobId = crypto.randomUUID().substring(0, 8).toUpperCase();
-  const prefix = useTor ? "torsocks " : "";
-  const cmd = `${prefix}nmap ${safeFlags} -p ${safePorts} ${attacker.ip}`;
-  trappedPortscanJobs.set(jobId, { status: "running", results: null, cmd, ip: attacker.ip });
-
-  exec(cmd, { timeout: 120000 }, (err, stdout, stderr) => {
-    const output = [stdout, stderr].filter(Boolean).join("\n").substring(0, 8000);
-    trappedPortscanJobs.set(jobId, {
-      status: err ? "error" : "complete",
-      results: output || (err ? err.message : "No output"),
-      cmd,
-      ip: attacker.ip,
-    });
+router.post("/trapped/:id/portscan", requireRbac("silkweb_exploit"), (req, res) => {
+  res.status(451).json({
+    error: "Disabled — nmap against attacker IPs is unauthorized computer access.",
+    policy: "Port scanning requires authorized_lab_target=true and target_scope='internal_lab'. Use Ghost Trap /counter/port-scan for TCP probes against IPs that have attacked your trap (probe-log verified).",
+    removedAt: "2026-06-13",
   });
-  return res.status(202).json({ ok: true, jobId, cmd, ip: attacker.ip, useTor, message: `nmap launched against ${attacker.ip}` });
 });
 
 router.get("/trapped/:id/portscan/:jobId", (req, res) => {
@@ -187,57 +171,17 @@ router.get("/trapped/:id/portscan/:jobId", (req, res) => {
   return res.json(job);
 });
 
-// Launch SQLmap against a trapped attacker
-router.post("/trapped/:id/sqlmap", requireRbac("silkweb_exploit"), async (req, res) => {
-  const id = parseInt(req.params.id);
-  const [attacker] = await db.select().from(trappedAttackersTable).where(eq(trappedAttackersTable.id, id));
-  if (!attacker) return res.status(404).json({ error: "Trapped attacker not found" });
-
-  if (attacker.sqlmapStatus === "running") {
-    return res.status(409).json({ error: "SQLmap already running against this target" });
-  }
-
-  // Accept custom target URL and extra flags from body
-  const { targetUrl, extraFlags = "" } = req.body as { targetUrl?: string; extraFlags?: string };
-  const safeUrl = (targetUrl ?? `http://${attacker.ip}/`).replace(/['"]/g, "");
-  const safeExtra = extraFlags.replace(/[^a-zA-Z0-9 =\-_.\/]/g, "").substring(0, 200);
-
-  const jobId = crypto.randomUUID().substring(0, 8).toUpperCase();
-  await db.update(trappedAttackersTable).set({
-    sqlmapStatus: "running",
-    sqlmapJobId: jobId,
-    sqlmapStartedAt: new Date(),
-    sqlmapResults: null,
-    sqlmapFinishedAt: null,
-  }).where(eq(trappedAttackersTable.id, id));
-
-  const { useTor = false } = req.body as { useTor?: boolean };
-  const torFlags = useTor ? "--tor --tor-type=SOCKS5 --tor-port=9050" : "";
-  const cmd = [
-    "sqlmap",
-    `-u "${safeUrl}"`,
-    "--batch",
-    "--level=2",
-    "--risk=2",
-    "--timeout=20",
-    "--retries=1",
-    `--output-dir=/tmp/sqlmap-${jobId}`,
-    "--forms",
-    "--dbs",
-    torFlags,
-    safeExtra,
-  ].filter(Boolean).join(" ");
-
-  exec(cmd, { timeout: 120000 }, async (err, stdout, stderr) => {
-    const output = [stdout, stderr].filter(Boolean).join("\n").substring(0, 8000);
-    await db.update(trappedAttackersTable).set({
-      sqlmapStatus: err ? "error" : "complete",
-      sqlmapResults: output || (err ? err.message : "No output"),
-      sqlmapFinishedAt: new Date(),
-    }).where(eq(trappedAttackersTable.id, id));
+// ── DISABLED: SQLmap against trapped attacker IPs ────────────────────────────
+// Running sqlmap against attacker IPs (public internet) is unauthorized computer access.
+// Policy: silkweb exploit tools may only target internal authorized lab targets.
+// Use /api/silkweb/scan/sqlmap with authorized_lab_target=true (lab-internal use only).
+router.post("/trapped/:id/sqlmap", requireRbac("silkweb_exploit"), (req, res) => {
+  res.status(451).json({
+    error: "Disabled — outbound scanning against attacker IPs is unauthorized computer access.",
+    policy: "SQLmap may only run against targets with authorized_lab_target=true and target_scope='internal_lab'. Attacker IPs are public internet targets and are outside the authorized lab scope.",
+    alternative: "Use Ghost Trap evidence export to collect dossiers. File an abuse report via ARIN/RIPE using the attacker WHOIS data.",
+    removedAt: "2026-06-13",
   });
-
-  return res.status(202).json({ ok: true, jobId, cmd, message: "SQLmap launched against " + attacker.ip });
 });
 
 // Get SQLmap results for a trapped attacker
@@ -364,28 +308,15 @@ router.get("/trapped/:id/dossier/download", async (req, res) => {
 const directSqlmapJobs = new Map<string, { status: string; results: string | null }>();
 const directPortscanJobs = new Map<string, { status: string; results: string | null; cmd: string; ip: string }>();
 
-router.post("/scan/portscan", async (req, res) => {
-  const { ip, ports = "1-10000", flags = "-sV -T4", useTor = false } = req.body as {
-    ip?: string; ports?: string; flags?: string; useTor?: boolean;
-  };
-  if (!ip) return res.status(400).json({ error: "ip is required" });
-  const safeIp    = ip.replace(/[^0-9a-fA-F.:\-\/]/g, "").substring(0, 50); // allow CIDR slash
-  const safePorts = ports.replace(/[^0-9\-,]/g, "").substring(0, 50);
-  const safeFlags = flags.replace(/[^a-zA-Z0-9 \-]/g, "").substring(0, 80);
-  const jobId     = crypto.randomUUID().substring(0, 8).toUpperCase();
-  const prefix    = useTor ? "torsocks " : "";
-  const cmd       = `${prefix}nmap ${safeFlags} -p ${safePorts} ${safeIp}`;
-  directPortscanJobs.set(jobId, { status: "running", results: null, cmd, ip: safeIp });
-  exec(cmd, { timeout: 120000 }, (err, stdout, stderr) => {
-    const output = [stdout, stderr].filter(Boolean).join("\n").substring(0, 8000);
-    directPortscanJobs.set(jobId, {
-      status: err ? "error" : "complete",
-      results: output || (err ? err.message : "No output"),
-      cmd,
-      ip: safeIp,
-    });
+// ── DISABLED: Unauthenticated nmap against any IP ────────────────────────────
+// Previously this ran with no auth gate. Now requires silkweb_exploit RBAC and
+// must target an authorized internal lab target only — not attacker/public IPs.
+router.post("/scan/portscan", requireRbac("silkweb_exploit"), (req, res) => {
+  res.status(451).json({
+    error: "Disabled — unauthorized scan against public IPs.",
+    policy: "Port scanning must target authorized internal lab targets only (authorized_lab_target=true, target_scope='internal_lab'). Pass labTargetId in the request body to use a registered lab target.",
+    removedAt: "2026-06-13",
   });
-  return res.status(202).json({ ok: true, jobId, cmd, ip: safeIp, useTor, message: `nmap launched against ${safeIp}` });
 });
 
 router.get("/scan/portscan/:jobId", (req, res) => {
@@ -394,30 +325,16 @@ router.get("/scan/portscan/:jobId", (req, res) => {
   return res.json(job);
 });
 
-router.post("/scan/sqlmap", requireRbac("silkweb_exploit"), async (req, res) => {
-  const { ip, targetUrl, extraFlags = "", useTor = false } = req.body as {
-    ip?: string; targetUrl?: string; extraFlags?: string; useTor?: boolean;
-  };
-  if (!ip) return res.status(400).json({ error: "ip is required" });
-  const safeIp    = ip.replace(/[^0-9a-fA-F.:]/g, "").substring(0, 45);
-  const safeUrl   = (targetUrl ?? `http://${safeIp}/`).replace(/['"]/g, "");
-  const safeExtra = extraFlags.replace(/[^a-zA-Z0-9 =\-_.\/]/g, "").substring(0, 200);
-  const jobId     = crypto.randomUUID().substring(0, 8).toUpperCase();
-  const torFlags  = useTor ? "--tor --tor-type=SOCKS5 --tor-port=9050" : "";
-  directSqlmapJobs.set(jobId, { status: "running", results: null });
-  const cmd = [
-    "sqlmap", `-u "${safeUrl}"`, "--batch", "--level=2", "--risk=2",
-    "--timeout=20", "--retries=1", `--output-dir=/tmp/sqlmap-direct-${jobId}`,
-    "--forms", "--dbs", torFlags, safeExtra,
-  ].filter(Boolean).join(" ");
-  exec(cmd, { timeout: 120000 }, (err, stdout, stderr) => {
-    const output = [stdout, stderr].filter(Boolean).join("\n").substring(0, 8000);
-    directSqlmapJobs.set(jobId, {
-      status: err ? "error" : "complete",
-      results: output || (err ? err.message : "No output"),
-    });
+// ── DISABLED: SQLmap against any IP (direct scan) ────────────────────────────
+// Policy: SQLmap and all outbound exploit tools are prohibited against public IPs.
+// Register an internal lab target via /api/lab-targets and pass its ID instead.
+router.post("/scan/sqlmap", requireRbac("silkweb_exploit"), (req, res) => {
+  res.status(451).json({
+    error: "Disabled — outbound SQLmap against public IPs is prohibited.",
+    policy: "All SQLmap, os-cmd, and file-read tools require authorized_lab_target=true with target_scope='internal_lab'. Public internet scanning is unauthorized computer access.",
+    guidance: "Register an authorized internal lab target at /api/lab-targets then submit labTargetId.",
+    removedAt: "2026-06-13",
   });
-  return res.status(202).json({ ok: true, jobId, cmd, useTor, message: `SQLmap launched against ${safeIp}` });
 });
 
 router.get("/scan/sqlmap/:jobId", (req, res) => {
@@ -433,44 +350,13 @@ const customSqlmapJobs = new Map<string, { status: string; results: string | nul
 const fileReadJobs     = new Map<string, { status: string; results: string | null; path: string }>();
 const osCmdJobs        = new Map<string, { status: string; results: string | null; cmd: string }>();
 
-// Run a fully custom sqlmap command against a trapped attacker
-router.post("/trapped/:id/sqlmap-custom", requireRbac("silkweb_exploit"), async (req, res) => {
-  const id = parseInt(req.params.id);
-  const [attacker] = await db.select().from(trappedAttackersTable).where(eq(trappedAttackersTable.id, id));
-  if (!attacker) return res.status(404).json({ error: "Trapped attacker not found" });
-
-  const { customFlags = "", targetUrl, useTor = false } = req.body as {
-    customFlags?: string; targetUrl?: string; useTor?: boolean;
-  };
-  const safeUrl  = (targetUrl ?? `http://${attacker.ip}/`).replace(/['"]/g, "");
-  // Allow broad set of sqlmap flags but strip dangerous shell metacharacters
-  const safeFlags = customFlags.replace(/[`$(){}|;&<>]/g, "").substring(0, 500);
-  const torFlags  = useTor ? "--tor --tor-type=SOCKS5 --tor-port=9050" : "";
-  const jobId     = crypto.randomUUID().substring(0, 8).toUpperCase();
-
-  const cmd = [
-    "sqlmap",
-    `-u "${safeUrl}"`,
-    "--batch",
-    "--timeout=30",
-    "--retries=1",
-    `--output-dir=/tmp/sqlmap-custom-${jobId}`,
-    torFlags,
-    safeFlags,
-  ].filter(Boolean).join(" ");
-
-  customSqlmapJobs.set(jobId, { status: "running", results: null, cmd });
-
-  exec(cmd, { timeout: 180000 }, (err, stdout, stderr) => {
-    const output = [stdout, stderr].filter(Boolean).join("\n").substring(0, 12000);
-    customSqlmapJobs.set(jobId, {
-      status: err ? "error" : "complete",
-      results: output || (err ? err.message : "No output"),
-      cmd,
-    });
+// ── DISABLED: Custom SQLmap against trapped attacker ─────────────────────────
+router.post("/trapped/:id/sqlmap-custom", requireRbac("silkweb_exploit"), (req, res) => {
+  res.status(451).json({
+    error: "Disabled — outbound exploitation against attacker IPs is prohibited.",
+    policy: "Custom SQLmap flags may only target authorized internal lab targets (authorized_lab_target=true, target_scope='internal_lab'). Attacker IPs are public internet addresses.",
+    removedAt: "2026-06-13",
   });
-
-  return res.status(202).json({ ok: true, jobId, cmd, message: `Custom SQLmap launched against ${attacker.ip}` });
 });
 
 router.get("/trapped/:id/sqlmap-custom/:jobId", (req, res) => {
@@ -479,47 +365,14 @@ router.get("/trapped/:id/sqlmap-custom/:jobId", (req, res) => {
   return res.json(job);
 });
 
-// Read a remote file via SQLmap --file-read
-router.post("/trapped/:id/file-read", requireRbac("silkweb_exploit"), async (req, res) => {
-  const id = parseInt(req.params.id);
-  const [attacker] = await db.select().from(trappedAttackersTable).where(eq(trappedAttackersTable.id, id));
-  if (!attacker) return res.status(404).json({ error: "Trapped attacker not found" });
-
-  const { filePath = "/etc/passwd", targetUrl, useTor = false } = req.body as {
-    filePath?: string; targetUrl?: string; useTor?: boolean;
-  };
-  const safePath  = filePath.replace(/[`$(){}|;&<>'"]/, "").substring(0, 200);
-  const safeUrl   = (targetUrl ?? `http://${attacker.ip}/`).replace(/['"]/g, "");
-  const torFlags  = useTor ? "--tor --tor-type=SOCKS5 --tor-port=9050" : "";
-  const jobId     = crypto.randomUUID().substring(0, 8).toUpperCase();
-
-  const cmd = [
-    "sqlmap",
-    `-u "${safeUrl}"`,
-    "--batch",
-    "--level=3",
-    "--risk=2",
-    "--timeout=30",
-    "--retries=1",
-    `--file-read="${safePath}"`,
-    `--output-dir=/tmp/sqlmap-fread-${jobId}`,
-    torFlags,
-  ].filter(Boolean).join(" ");
-
-  fileReadJobs.set(jobId, { status: "running", results: null, path: safePath });
-
-  exec(cmd, { timeout: 180000 }, (err, stdout, stderr) => {
-    const raw = [stdout, stderr].filter(Boolean).join("\n");
-    // Try to extract the actual file content sqlmap dumps to disk
-    const fileMatch = raw.match(/files\[(\d+)\]:\s*\[(.+?)\]/);
-    fileReadJobs.set(jobId, {
-      status: err && !stdout ? "error" : "complete",
-      results: raw.substring(0, 12000),
-      path: safePath,
-    });
+// ── DISABLED: Remote file read via SQLmap --file-read ────────────────────────
+// Attempting to read files on systems you do not own is unauthorized access.
+router.post("/trapped/:id/file-read", requireRbac("silkweb_exploit"), (req, res) => {
+  res.status(451).json({
+    error: "Disabled — remote file-read on attacker systems is unauthorized computer access.",
+    policy: "File-read capabilities may only target authorized internal lab targets. Attacker systems are not authorized targets under any circumstances.",
+    removedAt: "2026-06-13",
   });
-
-  return res.status(202).json({ ok: true, jobId, cmd, path: safePath, message: `File read initiated for ${safePath} on ${attacker.ip}` });
 });
 
 router.get("/trapped/:id/file-read/:jobId", (req, res) => {
@@ -528,45 +381,14 @@ router.get("/trapped/:id/file-read/:jobId", (req, res) => {
   return res.json(job);
 });
 
-// Execute OS command via SQLmap --os-cmd
-router.post("/trapped/:id/os-cmd", requireRbac("silkweb_exploit"), async (req, res) => {
-  const id = parseInt(req.params.id);
-  const [attacker] = await db.select().from(trappedAttackersTable).where(eq(trappedAttackersTable.id, id));
-  if (!attacker) return res.status(404).json({ error: "Trapped attacker not found" });
-
-  const { osCmd = "id", targetUrl, useTor = false } = req.body as {
-    osCmd?: string; targetUrl?: string; useTor?: boolean;
-  };
-  const safeCmd   = osCmd.replace(/[`$|;&<>]/g, "").substring(0, 200);
-  const safeUrl   = (targetUrl ?? `http://${attacker.ip}/`).replace(/['"]/g, "");
-  const torFlags  = useTor ? "--tor --tor-type=SOCKS5 --tor-port=9050" : "";
-  const jobId     = crypto.randomUUID().substring(0, 8).toUpperCase();
-
-  const cmd = [
-    "sqlmap",
-    `-u "${safeUrl}"`,
-    "--batch",
-    "--level=3",
-    "--risk=3",
-    "--timeout=30",
-    "--retries=1",
-    `--os-cmd="${safeCmd}"`,
-    `--output-dir=/tmp/sqlmap-oscmd-${jobId}`,
-    torFlags,
-  ].filter(Boolean).join(" ");
-
-  osCmdJobs.set(jobId, { status: "running", results: null, cmd });
-
-  exec(cmd, { timeout: 180000 }, (err, stdout, stderr) => {
-    const output = [stdout, stderr].filter(Boolean).join("\n").substring(0, 12000);
-    osCmdJobs.set(jobId, {
-      status: err && !stdout ? "error" : "complete",
-      results: output || (err ? err.message : "No output"),
-      cmd,
-    });
+// ── DISABLED: Remote OS command execution via SQLmap --os-cmd ────────────────
+// Remote OS command execution on systems you do not own is a criminal offense.
+router.post("/trapped/:id/os-cmd", requireRbac("silkweb_exploit"), (req, res) => {
+  res.status(451).json({
+    error: "Disabled — remote OS command execution on attacker systems is a criminal offense under CFAA/CMA.",
+    policy: "OS command execution may only target authorized internal lab targets with authorized_lab_target=true and target_scope='internal_lab'.",
+    removedAt: "2026-06-13",
   });
-
-  return res.status(202).json({ ok: true, jobId, cmd, osCmd: safeCmd, message: `OS command executed on ${attacker.ip}` });
 });
 
 router.get("/trapped/:id/os-cmd/:jobId", (req, res) => {

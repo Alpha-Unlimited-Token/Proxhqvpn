@@ -9,6 +9,7 @@ import {
   ghostTrapLoopSessionsTable,
   blockedIpsTable, trappedAttackersTable, silkWebTable,
   firewallConnectionQueueTable,
+  ghostTrapEventsTable, ghostTrapEvidenceTable, ghostBlockedSourcesTable,
 } from "@workspace/db";
 import { eq, desc, sql, inArray, and, isNull } from "drizzle-orm";
 import crypto from "crypto";
@@ -1563,6 +1564,245 @@ router.delete("/sessions/:sessionId", async (req, res) => {
     }
   }
   res.json({ ok: true, action, session });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// DEFENSIVE GHOST TRAP — Events, Evidence, Block-Source (Phase 1 additions)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// GET /events — unified Ghost Trap event timeline (auth required)
+router.get("/events", async (req, res) => {
+  const userId = ((req as any).auth)?.userId as string | undefined;
+  if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const limit  = Math.min(Number(req.query.limit ?? 100), 500);
+  const events = await db
+    .select()
+    .from(ghostTrapEventsTable)
+    .where(eq(ghostTrapEventsTable.userId, userId))
+    .orderBy(desc(ghostTrapEventsTable.createdAt))
+    .limit(limit);
+
+  const [stats] = await db.select({
+    total:    sql<number>`count(*)::int`,
+    high:     sql<number>`count(*) filter (where severity = 'high')::int`,
+    critical: sql<number>`count(*) filter (where severity = 'critical')::int`,
+    blocks:   sql<number>`count(*) filter (where event_type = 'block')::int`,
+    exports:  sql<number>`count(*) filter (where event_type = 'evidence_export')::int`,
+  }).from(ghostTrapEventsTable).where(eq(ghostTrapEventsTable.userId, userId));
+
+  res.json({ events, stats });
+});
+
+// GET /evidence — list exported evidence bundles (auth required)
+router.get("/evidence", async (req, res) => {
+  const userId = ((req as any).auth)?.userId as string | undefined;
+  if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const limit = Math.min(Number(req.query.limit ?? 50), 200);
+  const bundles = await db
+    .select({
+      evidenceId:   ghostTrapEvidenceTable.evidenceId,
+      subjectIp:    ghostTrapEvidenceTable.subjectIp,
+      evidenceType: ghostTrapEvidenceTable.evidenceType,
+      format:       ghostTrapEvidenceTable.format,
+      probeCount:   ghostTrapEvidenceTable.probeCount,
+      sessionCount: ghostTrapEvidenceTable.sessionCount,
+      sha256:       ghostTrapEvidenceTable.sha256,
+      notes:        ghostTrapEvidenceTable.notes,
+      exportedAt:   ghostTrapEvidenceTable.exportedAt,
+    })
+    .from(ghostTrapEvidenceTable)
+    .where(eq(ghostTrapEvidenceTable.userId, userId))
+    .orderBy(desc(ghostTrapEvidenceTable.exportedAt))
+    .limit(limit);
+
+  res.json({ bundles, total: bundles.length });
+});
+
+// GET /evidence/:id — download single evidence bundle (auth required)
+router.get("/evidence/:evidenceId", async (req, res) => {
+  const userId = ((req as any).auth)?.userId as string | undefined;
+  if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const [row] = await db
+    .select()
+    .from(ghostTrapEvidenceTable)
+    .where(eq(ghostTrapEvidenceTable.evidenceId, String(req.params.evidenceId)))
+    .limit(1);
+
+  if (!row || row.userId !== userId) { res.status(404).json({ error: "Evidence bundle not found" }); return; }
+
+  if (req.query.download === "1") {
+    res.setHeader("Content-Disposition", `attachment; filename="evidence-${row.evidenceId}.json"`);
+    res.setHeader("Content-Type", "application/json");
+    res.send(row.bundleJson ?? "{}");
+    return;
+  }
+  res.json(row);
+});
+
+// POST /export-evidence — generate a signed evidence bundle for an attacker IP (auth required)
+router.post("/export-evidence", requireRbac("counter_attack"), async (req, res) => {
+  const userId = ((req as any).auth)?.userId as string | undefined;
+  if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const { ip, notes } = req.body as { ip?: string; notes?: string };
+  if (!ip) { res.status(400).json({ error: "ip is required" }); return; }
+
+  // Verify the IP actually probed this user's Ghost Trap
+  const probeCheck = await db
+    .select({ id: ghostTrapProbesTable.id })
+    .from(ghostTrapProbesTable)
+    .where(and(eq(ghostTrapProbesTable.attackerIp, ip), eq(ghostTrapProbesTable.userId, userId)))
+    .limit(1);
+  if (!probeCheck.length) {
+    res.status(403).json({ error: "IP not in your Ghost Trap probe log — cannot export evidence for unknown sources." });
+    return;
+  }
+
+  // Build evidence bundle
+  const probes   = await db.select().from(ghostTrapProbesTable)
+    .where(eq(ghostTrapProbesTable.attackerIp, ip))
+    .orderBy(desc(ghostTrapProbesTable.probedAt)).limit(500);
+  const sessions = await db.select().from(ghostTrapLoopSessionsTable)
+    .where(eq(ghostTrapLoopSessionsTable.attackerIp, ip))
+    .orderBy(desc(ghostTrapLoopSessionsTable.createdAt)).limit(100);
+  const beaconRows = await db.select().from(ghostTrapBeaconsTable)
+    .where(eq(ghostTrapBeaconsTable.attackerIp, ip))
+    .orderBy(desc(ghostTrapBeaconsTable.firedAt)).limit(100);
+
+  const bundle = {
+    exportedAt: new Date().toISOString(), exportedBy: userId, subjectIp: ip,
+    platform: "ProxhqVPN Ghost Trap — Alpha Unlimited Technologies LLC",
+    defensiveModeOnly: true,
+    probeCount: probes.length, sessionCount: sessions.length, beaconCount: beaconRows.length,
+    probes: probes.map(p => ({
+      probeId: p.probeId, method: p.method, endpoint: p.endpoint,
+      probeType: p.probeType, attackVector: p.attackVector,
+      tarpitMs: p.tarpitMs, autoBlocked: p.autoBlocked,
+      vpnDetected: p.vpnDetected, torDetected: p.torDetected,
+      geoCountry: p.geoCountry, geoCity: p.geoCity,
+      geoIsp: p.geoIsp, geoAsn: p.geoAsn, probedAt: p.probedAt,
+    })),
+    sessions: sessions.map(s => ({
+      sessionId: s.sessionId, stage: s.stageLabel,
+      loopCount: s.loopCount, totalTarpitMs: s.totalTarpitMs,
+      isActive: s.isActive, createdAt: s.createdAt, lastSeenAt: s.lastSeenAt,
+    })),
+    beacons: beaconRows.map(b => ({
+      beaconId: b.beaconId, firedAt: b.firedAt,
+      firedFromIp: b.firedFromIp, firedUa: b.firedUa,
+      timezone: b.timezone, screenSize: b.screenSize,
+    })),
+    notes: notes ?? null,
+  };
+
+  const bundleJson = JSON.stringify(bundle, null, 2);
+  const sha256     = crypto.createHash("sha256").update(bundleJson).digest("hex");
+  const evidenceId = `EVD-${crypto.randomBytes(8).toString("hex").toUpperCase()}`;
+
+  const [row] = await db.insert(ghostTrapEvidenceTable).values({
+    evidenceId, userId, subjectIp: ip,
+    evidenceType: "full_bundle", format: "json",
+    bundleJson, probeCount: probes.length, sessionCount: sessions.length,
+    sha256, notes: notes ?? null,
+  }).returning();
+
+  // Audit event
+  await db.insert(ghostTrapEventsTable).values({
+    eventId:   `GTE-${crypto.randomBytes(8).toString("hex").toUpperCase()}`,
+    userId,
+    eventType: "evidence_export",
+    severity:  "info",
+    sourceIp:  ip,
+    summary:   `Evidence bundle exported for ${ip} (${probes.length} probes, ${sessions.length} sessions)`,
+    detailJson: JSON.stringify({ evidenceId, sha256 }),
+  }).catch(() => {});
+
+  appendAuditEvent({ action: "evidence_export", actor: userId ?? "system", resource: `ghost_trap:${evidenceId}`, metadata: { ip, sha256 } });
+
+  res.json({ ok: true, evidenceId, sha256, probeCount: probes.length, sessionCount: sessions.length });
+});
+
+// POST /block-source — block an attacker IP (auth required)
+router.post("/block-source", requireRbac("counter_attack"), async (req, res) => {
+  const userId = ((req as any).auth)?.userId as string | undefined;
+  if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const { ip, cidr, reason = "manual", permanent = false, expiresInHours, notes, probeId, sessionId } = req.body as {
+    ip?: string; cidr?: string; reason?: string; permanent?: boolean;
+    expiresInHours?: number; notes?: string; probeId?: string; sessionId?: string;
+  };
+
+  if (!ip && !cidr) { res.status(400).json({ error: "ip or cidr is required" }); return; }
+
+  // Validate: if IP provided, verify it's in the probe log
+  if (ip) {
+    if (!/^(\d{1,3}\.){3}\d{1,3}$/.test(ip)) { res.status(400).json({ error: "Invalid IP format" }); return; }
+    const probeCheck = await db.select({ id: ghostTrapProbesTable.id })
+      .from(ghostTrapProbesTable)
+      .where(and(eq(ghostTrapProbesTable.attackerIp, ip), eq(ghostTrapProbesTable.userId, userId)))
+      .limit(1);
+    if (!probeCheck.length) {
+      res.status(403).json({ error: "IP not in your Ghost Trap probe log" });
+      return;
+    }
+  }
+
+  const expiresAt = (!permanent && expiresInHours)
+    ? new Date(Date.now() + expiresInHours * 3600_000)
+    : null;
+
+  const [row] = await db.insert(ghostBlockedSourcesTable).values({
+    blockedBy:  userId,
+    sourceIp:   ip   ?? null,
+    sourceCidr: cidr ?? null,
+    reason,
+    probeId:    probeId   ?? null,
+    sessionId:  sessionId ?? null,
+    severity:   "high",
+    permanent:  !!permanent,
+    expiresAt:  expiresAt ?? undefined,
+    notes:      notes ?? null,
+  }).returning();
+
+  // Also add to legacy blockedIpsTable for immediate effect
+  if (ip) {
+    await db.insert(blockedIpsTable).values({ ip, reason: `Ghost Trap block: ${reason}`, autoBlocked: false })
+      .onConflictDoNothing()
+      .catch(() => {});
+  }
+
+  // Audit event
+  await db.insert(ghostTrapEventsTable).values({
+    eventId:   `GTE-${crypto.randomBytes(8).toString("hex").toUpperCase()}`,
+    userId,
+    eventType: "block",
+    severity:  "high",
+    sourceIp:  ip ?? cidr,
+    summary:   `Source blocked: ${ip ?? cidr} (${reason})`,
+    detailJson: JSON.stringify({ ip, cidr, permanent, expiresAt }),
+  }).catch(() => {});
+
+  appendAuditEvent({ action: "block_source", actor: userId ?? "system", resource: `ghost_trap:${ip ?? cidr ?? "unknown"}`, metadata: { reason, permanent } });
+
+  res.json({ ok: true, blocked: row });
+});
+
+// GET /blocked-sources — list blocked sources (auth required)
+router.get("/blocked-sources", async (req, res) => {
+  const userId = ((req as any).auth)?.userId as string | undefined;
+  if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const rows = await db
+    .select()
+    .from(ghostBlockedSourcesTable)
+    .where(and(eq(ghostBlockedSourcesTable.blockedBy, userId), eq(ghostBlockedSourcesTable.active, true)))
+    .orderBy(desc(ghostBlockedSourcesTable.createdAt))
+    .limit(200);
+
+  res.json({ blocked: rows, total: rows.length });
 });
 
 export default router;

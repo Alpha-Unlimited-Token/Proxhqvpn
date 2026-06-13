@@ -68,6 +68,29 @@ export const vultrNodeDeceptionStateTable = pgTable("vultr_node_deception_state"
   createdAt:        timestamp("created_at").defaultNow().notNull(),
 });
 
+// ── ghost_node_policies — per-node deception policy config ───────────────────
+export const ghostNodePoliciesTable = pgTable("ghost_node_policies", {
+  id:                 serial("id").primaryKey(),
+  ghostNodeId:        integer("ghost_node_id").notNull().references(() => ghostNodesTable.id),
+  policyVersion:      integer("policy_version").notNull().default(1),
+  decoyBanners:       text("decoy_banners"),               // JSON array of fake service banners
+  portMappings:       text("port_mappings"),               // JSON: { port: fake_service }
+  isolationMode:      text("isolation_mode").notNull().default("full"), // full|partial|monitor_only
+  allowTarpitting:    boolean("allow_tarpitting").notNull().default(true),
+  allowBeacons:       boolean("allow_beacons").notNull().default(true),
+  tarpitMaxMs:        integer("tarpit_max_ms").notNull().default(30000),
+  rateLimit:          integer("rate_limit").notNull().default(30),  // events/IP/min
+  autoBlockThreshold: integer("auto_block_threshold").notNull().default(10),
+  siemFanout:         boolean("siem_fanout").notNull().default(true),
+  logLevel:           text("log_level").notNull().default("standard"), // minimal|standard|verbose
+  policyHash:         text("policy_hash"),
+  pushedAt:           timestamp("pushed_at"),
+  active:             boolean("active").notNull().default(true),
+  createdBy:          text("created_by").notNull(),
+  createdAt:          timestamp("created_at").defaultNow().notNull(),
+  updatedAt:          timestamp("updated_at").defaultNow().notNull(),
+});
+
 // ── ghost_trap_rules — custom detection rules for Ghost Trap ─────────────────
 export const ghostTrapRulesTable = pgTable("ghost_trap_rules", {
   id:          serial("id").primaryKey(),

@@ -208,7 +208,24 @@ export default function GhostTrap() {
   const [reportLoading, setReportLoading] = useState<Record<string, boolean>>({});
   const [backtraceCache, setBacktraceCache] = useState<Record<string, BacktraceResult>>({});
   const [backtraceLoading, setBacktraceLoading] = useState<Record<string, boolean>>({});
-  const [activeTab, setActiveTab] = useState<"probes" | "info" | "how" | "counter" | "loops">("probes");
+  const [activeTab, setActiveTab] = useState<"probes" | "info" | "how" | "counter" | "loops" | "events" | "evidence">("probes");
+
+  // ── Events tab state ────────────────────────────────────────────────────────
+  type GhostEvent = { id: number; eventId: string; eventType: string; severity: string; sourceIp: string | null; summary: string; createdAt: string };
+  type EventStats  = { total: number; high: number; critical: number; blocks: number; exports: number };
+  const [events,        setEvents]       = useState<GhostEvent[]>([]);
+  const [eventStats,    setEventStats]   = useState<EventStats | null>(null);
+  const [eventsLoading, setEventsLoading] = useState(false);
+
+  // ── Evidence tab state ──────────────────────────────────────────────────────
+  type EvidenceBundle = { evidenceId: string; subjectIp: string; evidenceType: string; probeCount: number; sessionCount: number; sha256: string | null; notes: string | null; exportedAt: string };
+  const [evidenceBundles, setEvidenceBundles] = useState<EvidenceBundle[]>([]);
+  const [evidenceLoading, setEvidenceLoading] = useState(false);
+  const [exportingIp,     setExportingIp]     = useState<string | null>(null);
+  const [exportIpInput,   setExportIpInput]   = useState("");
+  const [blockIpInput,    setBlockIpInput]    = useState("");
+  const [blockingIp,      setBlockingIp]      = useState(false);
+  const [blockMsg,        setBlockMsg]        = useState<{ ok: boolean; text: string } | null>(null);
 
   // ── Tarpit Loop state ──────────────────────────────────────────────────────
   const [loopSessions,   setLoopSessions]   = useState<LoopSession[]>([]);
@@ -356,6 +373,71 @@ export default function GhostTrap() {
     setClearing(true);
     await fetch(`${BASE}/api/ghost-trap/probes`, { method: "DELETE", credentials: "include" });
     setWhoisCache({}); setBacktraceCache({}); await load(); setClearing(false);
+  };
+
+  // ── Events tab helpers ────────────────────────────────────────────────────
+  const loadEvents = useCallback(async () => {
+    setEventsLoading(true);
+    try {
+      const r = await fetch(`${BASE}/api/ghost-trap/events?limit=200`, { credentials: "include" });
+      if (r.ok) { const d = await r.json(); setEvents(d.events ?? []); setEventStats(d.stats ?? null); }
+    } catch { /* ignore */ }
+    setEventsLoading(false);
+  }, []);
+
+  useEffect(() => {
+    if (activeTab !== "events") return;
+    loadEvents();
+    const t = setInterval(loadEvents, 8000);
+    return () => clearInterval(t);
+  }, [activeTab, loadEvents]);
+
+  // ── Evidence tab helpers ──────────────────────────────────────────────────
+  const loadEvidence = useCallback(async () => {
+    setEvidenceLoading(true);
+    try {
+      const r = await fetch(`${BASE}/api/ghost-trap/evidence?limit=50`, { credentials: "include" });
+      if (r.ok) { const d = await r.json(); setEvidenceBundles(d.bundles ?? []); }
+    } catch { /* ignore */ }
+    setEvidenceLoading(false);
+  }, []);
+
+  useEffect(() => {
+    if (activeTab !== "evidence") return;
+    loadEvidence();
+  }, [activeTab, loadEvidence]);
+
+  const exportEvidence = async () => {
+    const ip = exportIpInput.trim();
+    if (!ip) return;
+    setExportingIp(ip);
+    try {
+      const r = await fetch(`${BASE}/api/ghost-trap/export-evidence`, {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ip }),
+      });
+      if (r.ok) { await loadEvidence(); setExportIpInput(""); }
+      else { const d = await r.json(); alert(d.error ?? "Export failed"); }
+    } catch { /* ignore */ }
+    setExportingIp(null);
+  };
+
+  const blockSource = async () => {
+    const ip = blockIpInput.trim();
+    if (!ip) return;
+    setBlockingIp(true); setBlockMsg(null);
+    try {
+      const r = await fetch(`${BASE}/api/ghost-trap/block-source`, {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ip, reason: "manual", permanent: false }),
+      });
+      const d = await r.json();
+      if (r.ok) { setBlockMsg({ ok: true, text: `Blocked ${ip}` }); setBlockIpInput(""); }
+      else { setBlockMsg({ ok: false, text: d.error ?? "Block failed" }); }
+    } catch { setBlockMsg({ ok: false, text: "Network error" }); }
+    setBlockingIp(false);
   };
 
   // ── Tarpit Loop helpers ───────────────────────────────────────────────────
@@ -706,7 +788,7 @@ export default function GhostTrap() {
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-white/[0.06] flex-wrap">
-        {([["probes", "Probe Feed"], ["info", "Attacker Intel"], ["how", "How It Works"], ["counter", "⚔ Counter Attack"], ["loops", "♾ Tarpit Loops"]] as const).map(([key, label]) => (
+        {([["probes", "Probe Feed"], ["info", "Attacker Intel"], ["how", "How It Works"], ["counter", "⚔ Counter Attack"], ["loops", "♾ Tarpit Loops"], ["events", "📋 Event Timeline"], ["evidence", "🔒 Evidence"]] as const).map(([key, label]) => (
           <button key={key} onClick={() => setActiveTab(key)}
             className={`px-4 py-2 text-sm rounded-t-lg transition-all ${
               activeTab === key ? "text-white bg-[#0d1610] border border-b-0 border-white/[0.07]" : "text-white/40 hover:text-white/60"
@@ -1964,6 +2046,172 @@ export default function GhostTrap() {
             </div>
           </div>
 
+        </div>
+      )}
+
+      {/* ── EVENT TIMELINE ──────────────────────────────────────────────────── */}
+      {activeTab === "events" && (
+        <div className="space-y-4">
+          {eventStats && (
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+              {[
+                { label: "Total Events",  value: eventStats.total,    color: "text-white" },
+                { label: "High Severity", value: eventStats.high,     color: "text-orange-400" },
+                { label: "Critical",      value: eventStats.critical, color: "text-red-400" },
+                { label: "Blocks",        value: eventStats.blocks,   color: "text-yellow-400" },
+                { label: "Exports",       value: eventStats.exports,  color: "text-blue-400" },
+              ].map(s => (
+                <div key={s.label} className="bg-[#0d1610] border border-white/[0.07] rounded-xl p-4">
+                  <div className="text-[10px] text-white/30 uppercase tracking-widest mb-1">{s.label}</div>
+                  <div className={`text-2xl font-bold ${s.color}`}>{s.value}</div>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="bg-[#0d1610] border border-white/[0.07] rounded-xl overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]">
+              <div className="text-sm font-semibold text-white flex items-center gap-2">
+                <Shield className="w-4 h-4 text-primary" /> Ghost Trap Event Timeline
+                <span className="text-xs text-white/30 font-normal ml-1">({events.length})</span>
+              </div>
+              <button onClick={loadEvents} className="text-xs text-white/40 hover:text-white/70 transition-colors">Refresh</button>
+            </div>
+            {eventsLoading && <div className="p-8 text-center text-white/30 text-sm">Loading…</div>}
+            {!eventsLoading && events.length === 0 && (
+              <div className="p-10 text-center">
+                <Shield className="w-8 h-8 text-white/10 mx-auto mb-3" />
+                <div className="text-sm text-white/30">No events yet.</div>
+                <div className="text-xs text-white/20 mt-1">Events are created when probes, blocks, and evidence exports occur.</div>
+              </div>
+            )}
+            <div className="divide-y divide-white/[0.04]">
+              {events.map(ev => {
+                const sevColor = ev.severity === "critical" ? "text-red-400 bg-red-500/10 border-red-500/30"
+                  : ev.severity === "high"     ? "text-orange-400 bg-orange-500/10 border-orange-500/30"
+                  : ev.severity === "warn"     ? "text-yellow-400 bg-yellow-500/10 border-yellow-500/30"
+                  : "text-white/50 bg-white/5 border-white/10";
+                const typeColor = ev.eventType === "block"          ? "text-red-400"
+                  : ev.eventType === "evidence_export"              ? "text-blue-400"
+                  : ev.eventType === "probe"                        ? "text-primary"
+                  : ev.eventType === "session_start"                ? "text-purple-400"
+                  : "text-white/40";
+                return (
+                  <div key={ev.id} className="flex items-start gap-3 px-4 py-2.5 hover:bg-white/[0.02]">
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 mt-0.5 ${sevColor}`}>
+                      {ev.severity.toUpperCase()}
+                    </span>
+                    <span className={`text-[10px] font-mono shrink-0 mt-1 ${typeColor}`}>{ev.eventType}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs text-white/70">{ev.summary}</div>
+                      {ev.sourceIp && <div className="text-[10px] text-white/30 font-mono mt-0.5">{ev.sourceIp}</div>}
+                    </div>
+                    <div className="text-[10px] text-white/25 shrink-0 mt-0.5 font-mono">
+                      {new Date(ev.createdAt).toLocaleTimeString()}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── EVIDENCE BUNDLES ────────────────────────────────────────────────── */}
+      {activeTab === "evidence" && (
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="bg-[#0d1610] border border-white/[0.07] rounded-xl p-4 space-y-3">
+              <div className="text-sm font-semibold text-white flex items-center gap-2">
+                <Database className="w-4 h-4 text-blue-400" /> Export Evidence Bundle
+              </div>
+              <div className="text-xs text-white/40">Generate a SHA-256 signed evidence bundle for a probe IP.</div>
+              <div className="flex gap-2">
+                <input
+                  value={exportIpInput}
+                  onChange={e => setExportIpInput(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && exportEvidence()}
+                  placeholder="Attacker IP (e.g. 1.2.3.4)"
+                  className="flex-1 bg-black/40 border border-white/[0.08] rounded-lg px-3 py-1.5 text-sm font-mono text-white placeholder-white/20 focus:outline-none focus:border-blue-500/50"
+                />
+                <button onClick={exportEvidence} disabled={!!exportingIp || !exportIpInput.trim()}
+                  className="px-4 py-1.5 text-xs font-semibold bg-blue-500/10 border border-blue-500/30 text-blue-400 hover:bg-blue-500/20 disabled:opacity-40 rounded-lg transition-all">
+                  {exportingIp ? "Exporting…" : "Export"}
+                </button>
+              </div>
+            </div>
+            <div className="bg-[#0d1610] border border-white/[0.07] rounded-xl p-4 space-y-3">
+              <div className="text-sm font-semibold text-white flex items-center gap-2">
+                <Ban className="w-4 h-4 text-red-400" /> Block Source IP
+              </div>
+              <div className="text-xs text-white/40">Block an attacker IP from future probes. IP must be in your probe log.</div>
+              <div className="flex gap-2">
+                <input
+                  value={blockIpInput}
+                  onChange={e => { setBlockIpInput(e.target.value); setBlockMsg(null); }}
+                  onKeyDown={e => e.key === "Enter" && blockSource()}
+                  placeholder="Attacker IP to block"
+                  className="flex-1 bg-black/40 border border-white/[0.08] rounded-lg px-3 py-1.5 text-sm font-mono text-white placeholder-white/20 focus:outline-none focus:border-red-500/50"
+                />
+                <button onClick={blockSource} disabled={blockingIp || !blockIpInput.trim()}
+                  className="px-4 py-1.5 text-xs font-semibold bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500/20 disabled:opacity-40 rounded-lg transition-all">
+                  {blockingIp ? "Blocking…" : "Block"}
+                </button>
+              </div>
+              {blockMsg && (
+                <div className={`text-xs px-3 py-1.5 rounded-lg border ${blockMsg.ok ? "text-green-400 bg-green-500/10 border-green-500/30" : "text-red-400 bg-red-500/10 border-red-500/30"}`}>
+                  {blockMsg.text}
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="bg-[#0d1610] border border-white/[0.07] rounded-xl overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]">
+              <div className="text-sm font-semibold text-white flex items-center gap-2">
+                <Key className="w-4 h-4 text-primary" /> Signed Evidence Bundles
+                <span className="text-xs text-white/30 font-normal ml-1">({evidenceBundles.length})</span>
+              </div>
+              <button onClick={loadEvidence} className="text-xs text-white/40 hover:text-white/70 transition-colors">Refresh</button>
+            </div>
+            {evidenceLoading && <div className="p-8 text-center text-white/30 text-sm">Loading…</div>}
+            {!evidenceLoading && evidenceBundles.length === 0 && (
+              <div className="p-10 text-center">
+                <Key className="w-8 h-8 text-white/10 mx-auto mb-3" />
+                <div className="text-sm text-white/30">No evidence bundles yet.</div>
+                <div className="text-xs text-white/20 mt-1">Use "Export Evidence Bundle" above to create your first chain-of-custody package.</div>
+              </div>
+            )}
+            <div className="divide-y divide-white/[0.04]">
+              {evidenceBundles.map(ev => (
+                <div key={ev.evidenceId} className="flex items-center gap-3 px-4 py-3 hover:bg-white/[0.02]">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <span className="text-xs font-mono text-primary">{ev.evidenceId}</span>
+                      <span className="text-[10px] text-white/30 bg-white/5 px-1.5 py-0.5 rounded">{ev.evidenceType}</span>
+                    </div>
+                    <div className="text-xs text-white/60 font-mono">{ev.subjectIp}</div>
+                    {ev.sha256 && <div className="text-[10px] text-white/20 font-mono mt-0.5 truncate">SHA-256: {ev.sha256.slice(0, 32)}…</div>}
+                  </div>
+                  <div className="text-right shrink-0">
+                    <div className="text-xs text-white/40">{ev.probeCount} probes · {ev.sessionCount} sessions</div>
+                    <div className="text-[10px] text-white/20 font-mono mt-0.5">{new Date(ev.exportedAt).toLocaleDateString()}</div>
+                  </div>
+                  <a href={`${BASE}/api/ghost-trap/evidence/${ev.evidenceId}?download=1`}
+                    download={`evidence-${ev.evidenceId}.json`}
+                    className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold bg-white/5 border border-white/[0.08] text-white/60 hover:text-white hover:bg-white/10 rounded-lg transition-all shrink-0">
+                    <ExternalLink className="w-3 h-3" /> Download
+                  </a>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="bg-yellow-500/5 border border-yellow-500/20 rounded-xl p-4">
+            <div className="text-xs font-semibold text-yellow-400 mb-2">⚠ Defensive Use Only</div>
+            <div className="text-xs text-white/40 leading-relaxed">
+              Ghost Trap evidence bundles are for law enforcement filing, abuse team reports (ARIN/RIPE/APNIC), and internal security documentation only.
+              No automated scanning, SQLmap, or exploitation tools are available against attacker IPs — all such capabilities were removed on 2026-06-13 per CFAA/CMA policy.
+              See <span className="font-mono text-white/50">GHOST_PHASE1_SAFETY_FIX_REPORT.md</span> for details.
+            </div>
+          </div>
         </div>
       )}
 
