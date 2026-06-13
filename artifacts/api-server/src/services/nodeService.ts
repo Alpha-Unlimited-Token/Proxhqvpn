@@ -6,7 +6,7 @@ import {
   updateNodeHeartbeat,
 } from "../repositories/nodesRepository";
 
-export async function getNodeOrThrow(nodeId: number) {
+export async function getNodeOrThrow(nodeId: string | number) {
   const node = await findNodeById(nodeId);
 
   if (!node) {
@@ -21,8 +21,9 @@ export async function getAvailableVpnNodes() {
 }
 
 export async function recordNodeHeartbeat(input: {
-  nodeId: number;
+  nodeId: string | number;
   publicIp?: string | null;
+  metadata?: Record<string, unknown>;
 }) {
   const node = await findNodeById(input.nodeId);
 
@@ -40,9 +41,12 @@ export async function recordNodeHeartbeat(input: {
 
 /**
  * Toggles a node between "active" and "inactive".
- * ("maintenance" is not a valid DB enum value — use "inactive" instead.)
+ * ("maintenance" maps to "inactive" in the DB enum.)
  */
-export async function setNodeInactive(nodeId: number, inactive: boolean) {
+export async function setNodeInactive(
+  nodeId: string | number,
+  inactive: boolean,
+) {
   const status = inactive ? "inactive" : "active";
 
   await markNodeStatus({ nodeId, status });

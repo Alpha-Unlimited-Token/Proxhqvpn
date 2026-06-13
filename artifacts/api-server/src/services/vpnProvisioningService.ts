@@ -15,6 +15,14 @@ export type ProvisionVpnConfigInput = {
   dns?: string[];
 };
 
+function readNodeValue(node: any, keys: string[]): unknown {
+  for (const key of keys) {
+    if (node[key] !== undefined && node[key] !== null) return node[key];
+  }
+
+  return null;
+}
+
 export async function provisionVpnConfig(input: ProvisionVpnConfigInput) {
   if (!validateWireGuardPrivateKey(input.privateKey)) {
     throw new Error("Invalid WireGuard private key");
@@ -23,16 +31,40 @@ export async function provisionVpnConfig(input: ProvisionVpnConfigInput) {
   const nodes = await getAvailableVpnNodes();
 
   const peers = nodes
-    .filter((node) => node.publicKey && validateWireGuardPublicKey(node.publicKey))
+    .map((node: any) => {
+      const publicKey = readNodeValue(node, [
+        "publicKey",
+        "public_key",
+        "wireguardPublicKey",
+      ]);
+
+      const publicIp = readNodeValue(node, [
+        "publicIp",
+        "public_ip",
+        "ipAddress",
+        "ip_address",
+      ]);
+
+      const port = readNodeValue(node, [
+        "port",
+        "listenPort",
+        "listen_port",
+        "wireguardPort",
+      ]);
+
+      return { publicKey, publicIp, port };
+    })
+    .filter(
+      (node) =>
+        node.publicKey &&
+        validateWireGuardPublicKey(String(node.publicKey)),
+    )
     .map((node) => ({
-      publicKey: node.publicKey,
-      // nodesTable uses listenPort (not port) and ipAddress / publicIp
+      publicKey: String(node.publicKey),
       endpoint:
-        node.publicIp && node.listenPort
-          ? `${node.publicIp}:${node.listenPort}`
-          : node.ipAddress && node.listenPort
-            ? `${node.ipAddress}:${node.listenPort}`
-            : null,
+        node.publicIp && node.port
+          ? `${String(node.publicIp)}:${String(node.port)}`
+          : null,
       allowedIps: ["0.0.0.0/0", "::/0"],
       persistentKeepalive: 25,
     }));
