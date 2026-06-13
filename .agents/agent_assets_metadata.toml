@@ -497,3 +497,9 @@ id = "egGvCAE_Jy_f73Wwb8Xoh"
 uri = "file://proxhqvpn-FULL-BUILD-PACKAGE.zip"
 type = "unspecified"
 title = "ProxhqVPN — Full Enterprise Build Package (547 files)"
+
+[[outputs]]
+id = "Hou5DvfDkcw3zw8I5DUi1"
+uri = "file://PROXHQVPN_FRONTEND_UI_REVIEW_PACKAGE.zip"
+type = "unspecified"
+title = "PROXHQVPN_FRONTEND_UI_REVIEW_PACKAGE.zip"
