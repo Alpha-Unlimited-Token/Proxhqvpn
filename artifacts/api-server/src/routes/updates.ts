@@ -9,8 +9,11 @@ import multer from "multer";
 
 const router = Router();
 
-// Persistent storage for update manifests and installer files
-const UPDATES_DIR = path.resolve(process.cwd(), "../../updates-store");
+// Persistent storage for update manifests and installer files.
+// PROXHQ_UPDATES_DIR env var lets production override the path.
+// Default: os.tmpdir()/proxhq-updates-store (always writable; ephemeral on
+// Cloud Run — set PROXHQ_UPDATES_DIR to a mounted volume for persistence).
+const UPDATES_DIR = process.env.PROXHQ_UPDATES_DIR ?? path.join(os.tmpdir(), "proxhq-updates-store");
 const CONFIG_FILE = path.join(UPDATES_DIR, "versions.json");
 const FILES_DIR = path.join(UPDATES_DIR, "files");
 
