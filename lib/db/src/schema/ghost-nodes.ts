@@ -1,8 +1,8 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 // Ghost Node — decoy/deception VPN node infrastructure.
 // Ghost nodes are fake WireGuard endpoints presented to scanners/attackers.
-// They are NEVER connected to real customer VPN tunnels.
-import { pgTable, serial, text, integer, boolean, jsonb, timestamp } from "drizzle-orm/pg-core";
+// ghost_exit_sessions: ephemeral Vultr nodes used as offensive exit nodes (routing mode).
+import { pgTable, serial, text, integer, boolean, jsonb, timestamp, uuid } from "drizzle-orm/pg-core";
 
 // ── ghost_nodes — inventory of decoy nodes ────────────────────────────────────
 export const ghostNodesTable = pgTable("ghost_nodes", {
@@ -89,6 +89,34 @@ export const ghostNodePoliciesTable = pgTable("ghost_node_policies", {
   createdBy:          text("created_by").notNull(),
   createdAt:          timestamp("created_at").defaultNow().notNull(),
   updatedAt:          timestamp("updated_at").defaultNow().notNull(),
+});
+
+// ── ghost_exit_sessions — ephemeral offensive exit node sessions ──────────────
+// Each session provisions a fresh Vultr VPS as a WireGuard exit node.
+// The node's WireGuard server private key lives only in node RAM (/dev/shm).
+// On destroy, Vultr deletes the instance → RAM cleared → key irrecoverable.
+// ProxhqVPN never stores: user's real IP, traffic, DNS queries, WG server privkey.
+export const ghostExitSessionsTable = pgTable("ghost_exit_sessions", {
+  id:                uuid("id").defaultRandom().primaryKey(),
+  userId:            text("user_id").notNull(),              // Clerk userId
+  region:            text("region").notNull(),               // Vultr region code
+  exitIp:            text("exit_ip"),                        // IP visible to websites (NOT user's IP)
+  wgServerPubkey:    text("wg_server_pubkey"),               // Server WG public key (private lives in node RAM only)
+  wgClientPubkey:    text("wg_client_pubkey"),               // Client WG public key
+  wgClientPrivkeyEnc: text("wg_client_privkey_enc"),         // AES-256-GCM encrypted client private key
+  wgClientIp:        text("wg_client_ip").notNull().default("10.99.0.2"),
+  vultrInstanceId:   text("vultr_instance_id"),              // Needed for Vultr destroy API call
+  ghostNodeId:       integer("ghost_node_id").references(() => ghostNodesTable.id),
+  sessionPsk:        text("session_psk").notNull(),          // Timing-safe PSK for node registration callback
+  status:            text("status").notNull().default("provisioning"),
+  // status values: provisioning | ready | active | burned | destroyed | error
+  probeCount:        integer("probe_count").notNull().default(0),  // Attacker probes during session
+  burnReason:        text("burn_reason"),                    // manual | probe_threshold | timer | disconnect | burned
+  provisionedAt:     timestamp("provisioned_at").defaultNow().notNull(),
+  readyAt:           timestamp("ready_at"),                  // When Vultr node registered back (WG ready)
+  connectedAt:       timestamp("connected_at"),              // When user activated WG tunnel
+  endedAt:           timestamp("ended_at"),
+  destroyedAt:       timestamp("destroyed_at"),              // When Vultr instance was destroyed
 });
 
 // ── ghost_trap_rules — custom detection rules for Ghost Trap ─────────────────

@@ -219,6 +219,7 @@ const TIER_COLOR: Record<1 | 2 | 3, string> = {
 const ADVANCED_NAV = [
   { href: "/ghost-trap",       label: "Ghost Trap — Counter Intel", icon: Skull },
   { href: "/ghost-nodes",      label: "Ghost Nodes",                icon: Network },
+  { href: "/ghost-routing",    label: "Ghost Routing Mode",         icon: Zap },
   { href: "/honeypot-command", label: "Honeypot Command",           icon: Bug },
   { href: "/ghost-trace",      label: "Ghost Trace",                icon: Radar },
   { href: "/deception-engine", label: "Deception Engine",           icon: Shield },

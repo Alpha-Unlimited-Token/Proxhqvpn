@@ -104,6 +104,57 @@ export async function listFirewallRules(groupId: string): Promise<VultrFirewallR
   return data.firewall_rules ?? [];
 }
 
+// ── Mutating instance operations ─────────────────────────────────────────────
+
+export interface CreateInstanceOpts {
+  region:    string;     // e.g. "lax", "lhr", "ord"
+  label:     string;     // human-readable label shown in Vultr dashboard
+  hostname?: string;
+  userData:  string;     // raw bash script — will be base64-encoded for Vultr
+  plan?:     string;     // defaults to "vc2-1c-512mb" (cheapest, ~$0.004/hr)
+  osId?:     number;     // defaults to 1743 (Ubuntu 22.04 LTS x64)
+  tags?:     string[];
+}
+
+/** Provision a new Vultr VPS instance with the given user-data startup script. */
+export async function createInstance(opts: CreateInstanceOpts): Promise<VultrInstance> {
+  const userDataB64 = Buffer.from(opts.userData, "utf8").toString("base64");
+  const hostname = (opts.hostname ?? opts.label)
+    .replace(/[^a-z0-9-]/gi, "-")
+    .toLowerCase()
+    .slice(0, 64);
+  const data = await vultrFetch<{ instance: VultrInstance }>("/instances", {
+    method: "POST",
+    body: JSON.stringify({
+      region:    opts.region,
+      plan:      opts.plan ?? "vc2-1c-512mb",
+      os_id:     opts.osId ?? 1743,
+      label:     opts.label,
+      hostname,
+      user_data: userDataB64,
+      tags:      opts.tags ?? ["proxhq-ghost-exit"],
+    }),
+  });
+  return data.instance;
+}
+
+/** Destroy a Vultr instance. Vultr clears the underlying block device on deallocation.
+ *  Returns void on success (Vultr responds 204 No Content). */
+export async function destroyInstance(id: string): Promise<void> {
+  const res = await fetch(`${BASE}/instances/${id}`, {
+    method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${apiKey()}`,
+      "Content-Type": "application/json",
+    },
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!res.ok && res.status !== 204) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`Vultr destroy ${id} → HTTP ${res.status}: ${body}`);
+  }
+}
+
 /** Map Vultr region code to human-readable label (best-effort). */
 export function regionLabel(code: string): string {
   const map: Record<string, string> = {

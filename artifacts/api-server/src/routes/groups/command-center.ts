@@ -5,6 +5,7 @@ import { registerCommandCenterRoute } from "../registerCommandCenterRoute";
 import { highRiskRateLimit } from "../../middlewares/riskRateLimit";
 import realtimeRouter from "../realtime";
 import ghostNodeRouter from "../ghost-node";
+import ghostRoutingRouter from "../ghost-routing";
 
 import threatintelRouter from "../threatintel";
 import securityauditRouter from "../securityaudit";
@@ -104,5 +105,6 @@ registerCommandCenterRoute(router, "/security-reports", "command_center.read", s
 registerCommandCenterRoute(router, "/realtime", "command_center.read", realtimeRouter);
 
 router.use("/ghost-nodes", requireCapability("command_center.write"), ghostNodeRouter);
+router.use("/ghost-nodes/exit", ghostRoutingRouter);
 
 export default router;
