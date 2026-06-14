@@ -15,7 +15,7 @@ const shared = {
   keyGenerator,
   standardHeaders: true,
   legacyHeaders: false,
-  validate: { keyGenerator: false },
+  validate: false,
 } as const;
 
 export const normalRateLimit = rateLimit({

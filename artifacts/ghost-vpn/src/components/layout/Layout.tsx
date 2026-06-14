@@ -217,8 +217,11 @@ const TIER_COLOR: Record<1 | 2 | 3, string> = {
 };
 
 const ADVANCED_NAV = [
+  { href: "/security-ops",     label: "Security Operations Center", icon: Eye },
   { href: "/ghost-trap",       label: "Ghost Trap — Counter Intel", icon: Skull },
+  { href: "/ghost-trap-ops",   label: "Ghost Trap Dashboard",       icon: Shield },
   { href: "/ghost-nodes",      label: "Ghost Nodes",                icon: Network },
+  { href: "/ghost-nodes-ops",  label: "Ghost Node Fleet Monitor",   icon: Server },
   { href: "/ghost-routing",    label: "Ghost Routing Mode",         icon: Zap },
   { href: "/honeypot-command", label: "Honeypot Command",           icon: Bug },
   { href: "/ghost-trace",      label: "Ghost Trace",                icon: Radar },

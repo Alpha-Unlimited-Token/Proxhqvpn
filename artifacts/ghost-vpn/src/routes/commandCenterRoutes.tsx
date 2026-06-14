@@ -57,6 +57,9 @@ import QuantumAuditPage from "@/pages/QuantumAudit";
 import GhostPentest from "@/pages/GhostPentest";
 import DeceptionEngine from "@/pages/DeceptionEngine";
 import GhostNodes from "@/pages/GhostNodes";
+import GhostNodesDashboard from "@/pages/GhostNodesDashboard";
+import GhostTrapDashboard from "@/pages/GhostTrapDashboard";
+import SecurityOperationsCenter from "@/pages/SecurityOperationsCenter";
 import GhostRouting from "@/pages/GhostRouting";
 import RequestMind from "@/pages/RequestMind";
 import SocCopilot from "@/pages/SocCopilot";
@@ -149,6 +152,9 @@ export function CommandCenterRoutes() {
       <Route path="/ghost-pentest"><CcLayout><GhostPentest /></CcLayout></Route>
       <Route path="/deception-engine"><CcLayout><DeceptionEngine /></CcLayout></Route>
       <Route path="/ghost-nodes"><CcLayout><GhostNodes /></CcLayout></Route>
+      <Route path="/ghost-nodes-ops"><AdminLayout><GhostNodesDashboard /></AdminLayout></Route>
+      <Route path="/ghost-trap-ops"><AdminLayout><GhostTrapDashboard /></AdminLayout></Route>
+      <Route path="/security-ops"><AdminLayout><SecurityOperationsCenter /></AdminLayout></Route>
       <Route path="/ghost-routing"><CcLayout><GhostRouting /></CcLayout></Route>
       <Route path="/request-mind"><CcLayout><RequestMind /></CcLayout></Route>
       <Route path="/soc-copilot"><CcLayout><SocCopilot /></CcLayout></Route>

@@ -20,7 +20,7 @@ const aiRateLimit = rateLimit({
   message: { error: "Too many AI requests — please wait before retrying." },
   standardHeaders: true,
   legacyHeaders: false,
-  validate: { keyGenerator: false },
+  validate: false,
 });
 
 router.use(aiRateLimit);
