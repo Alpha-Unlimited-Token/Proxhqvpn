@@ -11,10 +11,16 @@ const router = Router();
 const aiRateLimit = rateLimit({
   windowMs: 60_000,
   max: 10,
-  keyGenerator: (req) => getAuth(req).userId ?? (req.ip ?? "anon"),
+  keyGenerator: (req) => {
+    const userId = getAuth(req).userId;
+    if (userId) return `user:${userId}`;
+    const ip = req.ip ?? req.socket?.remoteAddress ?? "anon";
+    return `ip:${ip.startsWith("::ffff:") ? ip.slice(7) : ip}`;
+  },
   message: { error: "Too many AI requests — please wait before retrying." },
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { keyGenerator: false },
 });
 
 router.use(aiRateLimit);

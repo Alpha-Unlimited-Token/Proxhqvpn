@@ -4,31 +4,36 @@ import type { Request } from "express";
 
 function keyGenerator(req: Request) {
   const userId = (req as any).auth?.userId;
-  return userId ? `user:${userId}` : `ip:${req.ip ?? req.socket?.remoteAddress ?? "unknown"}`;
+  if (userId) return `user:${userId}`;
+  const ip = req.ip ?? req.socket?.remoteAddress ?? "unknown";
+  // Normalize IPv6-mapped IPv4 (::ffff:1.2.3.4 → 1.2.3.4)
+  const normalized = ip.startsWith("::ffff:") ? ip.slice(7) : ip;
+  return `ip:${normalized}`;
 }
 
-export const normalRateLimit = rateLimit({
-  windowMs: 60_000,
-  max: 120,
+const shared = {
   keyGenerator,
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { keyGenerator: false },
+} as const;
+
+export const normalRateLimit = rateLimit({
+  ...shared,
+  windowMs: 60_000,
+  max: 120,
 });
 
 export const highRiskRateLimit = rateLimit({
+  ...shared,
   windowMs: 60_000,
   max: 30,
-  keyGenerator,
-  standardHeaders: true,
-  legacyHeaders: false,
   message: { error: "High-risk route rate limit exceeded" },
 });
 
 export const criticalRateLimit = rateLimit({
+  ...shared,
   windowMs: 60_000,
   max: 10,
-  keyGenerator,
-  standardHeaders: true,
-  legacyHeaders: false,
   message: { error: "Critical route rate limit exceeded" },
 });
