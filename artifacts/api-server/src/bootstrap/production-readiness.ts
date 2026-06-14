@@ -70,13 +70,24 @@ function collectProductionIssues(): ReadinessIssue[] {
     });
   }
 
-  const origins = parseOrigins(process.env.ALLOWED_ORIGINS);
+  // Auto-detect from REPLIT_DOMAINS when ALLOWED_ORIGINS is not explicitly set.
+  // REPLIT_DOMAINS is always present in Replit-hosted production deployments.
+  const explicitOrigins = parseOrigins(process.env.ALLOWED_ORIGINS);
+  const replitDomainOrigins = (process.env.REPLIT_DOMAINS ?? "")
+    .split(",")
+    .map((d) => d.trim())
+    .filter(Boolean)
+    .map((d) => `https://${d}`);
+
+  const origins =
+    explicitOrigins.length > 0 ? explicitOrigins : replitDomainOrigins;
 
   if (origins.length === 0) {
     issues.push({
       code: "ALLOWED_ORIGINS_EMPTY",
       severity: "error",
-      message: "ALLOWED_ORIGINS must be set in production.",
+      message:
+        "ALLOWED_ORIGINS must be set in production (or REPLIT_DOMAINS must be available).",
     });
   }
 

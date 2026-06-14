@@ -8,6 +8,7 @@ id = "artifacts/labs-server"
 localPort = 9090
 name = "Labs API Server"
 paths = [
+  "/api/labs",
   "/api/sqlmap",
   "/api/redteam-scan",
   "/api/exploit-import",

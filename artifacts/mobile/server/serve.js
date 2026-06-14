@@ -104,7 +104,13 @@ function serveStaticFile(urlPath, res) {
   res.end(content);
 }
 
-const landingPageTemplate = fs.readFileSync(TEMPLATE_PATH, "utf-8");
+let landingPageTemplate;
+try {
+  landingPageTemplate = fs.readFileSync(TEMPLATE_PATH, "utf-8");
+} catch {
+  landingPageTemplate =
+    "<!DOCTYPE html><html><body><h1>ProxhqVPN Mobile</h1><p>Open in Expo Go to get started.</p></body></html>";
+}
 const appName = getAppName();
 
 const server = http.createServer((req, res) => {
@@ -113,6 +119,12 @@ const server = http.createServer((req, res) => {
 
   if (basePath && pathname.startsWith(basePath)) {
     pathname = pathname.slice(basePath.length) || "/";
+  }
+
+  if (pathname === "/status" || pathname === "/health") {
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end(JSON.stringify({ status: "ok", service: "mobile" }));
+    return;
   }
 
   if (pathname === "/" || pathname === "/manifest") {
