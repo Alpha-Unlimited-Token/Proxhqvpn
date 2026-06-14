@@ -2,6 +2,7 @@
 import { Router, type Request, type Response } from "express";
 import { requireAdmin } from "../middlewares/requireAdmin";
 import fs from "fs";
+import os from "os";
 import path from "path";
 import crypto from "crypto";
 import multer from "multer";
@@ -13,13 +14,24 @@ const UPDATES_DIR = path.resolve(process.cwd(), "../../updates-store");
 const CONFIG_FILE = path.join(UPDATES_DIR, "versions.json");
 const FILES_DIR = path.join(UPDATES_DIR, "files");
 
-// Ensure directories exist
-if (!fs.existsSync(UPDATES_DIR)) fs.mkdirSync(UPDATES_DIR, { recursive: true });
-if (!fs.existsSync(FILES_DIR)) fs.mkdirSync(FILES_DIR, { recursive: true });
+// Ensure directories exist — best-effort: on read-only or restricted filesystems
+// (e.g. Cloud Run autoscale) this is non-fatal; upload endpoints will return 503
+// but the server will still start and the health check will pass.
+let DIRS_AVAILABLE = false;
+try {
+  if (!fs.existsSync(UPDATES_DIR)) fs.mkdirSync(UPDATES_DIR, { recursive: true });
+  if (!fs.existsSync(FILES_DIR)) fs.mkdirSync(FILES_DIR, { recursive: true });
+  DIRS_AVAILABLE = true;
+} catch {
+  // non-fatal — server continues, uploads degraded
+}
 
-// Multer for installer uploads (up to 500MB)
+// Multer for installer uploads (up to 500MB).
+// Use FILES_DIR when available; fall back to os.tmpdir() (always writable) on
+// restricted/ephemeral filesystems (e.g. Cloud Run). Uploads are still
+// accepted but files won't persist beyond the request on autoscale.
 const upload = multer({
-  dest: FILES_DIR,
+  dest: DIRS_AVAILABLE ? FILES_DIR : os.tmpdir(),
   limits: { fileSize: 500 * 1024 * 1024 },
 });
 

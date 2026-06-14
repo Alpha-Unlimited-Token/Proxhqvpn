@@ -117,7 +117,7 @@ export class KnowledgeStore {
     this.pubKeyFile   = path.join(this.dir, "public-keys.json");
     this.metaFile     = path.join(this.dir, "address-meta.json");
 
-    fs.mkdirSync(this.dir, { recursive: true });
+    try { fs.mkdirSync(this.dir, { recursive: true }); } catch {}
 
     this.state = {
       startedAt:       new Date().toISOString(),

@@ -10,6 +10,7 @@ import {
   blockedIpsTable, trappedAttackersTable, silkWebTable,
   firewallConnectionQueueTable,
   ghostTrapEventsTable, ghostTrapEvidenceTable, ghostBlockedSourcesTable,
+  ghostTrapRulesTable,
 } from "@workspace/db";
 import { eq, desc, sql, inArray, and, isNull } from "drizzle-orm";
 import crypto from "crypto";
@@ -1860,6 +1861,79 @@ router.get("/blocked-sources", async (req, res) => {
     .limit(200);
 
   res.json({ blocked: rows, total: rows.length });
+});
+
+// ── P6-A: Ghost Trap Rules CRUD ───────────────────────────────────────────────
+// GET  /api/ghost-trap/rules          — list rules for the authed user
+// POST /api/ghost-trap/rules          — create a rule
+// PATCH /api/ghost-trap/rules/:id     — update a rule
+// DELETE /api/ghost-trap/rules/:id    — delete a rule
+
+const VALID_RULE_TYPES   = ["path_pattern", "ua_pattern", "header_pattern", "ip_cidr"] as const;
+const VALID_RULE_ACTIONS = ["log", "tarpit", "block", "silk_trap"] as const;
+
+router.get("/rules", async (req, res) => {
+  const userId = ((req as any).auth)?.userId as string | undefined;
+  if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const rows = await db
+    .select()
+    .from(ghostTrapRulesTable)
+    .where(eq(ghostTrapRulesTable.userId, userId))
+    .orderBy(ghostTrapRulesTable.priority, desc(ghostTrapRulesTable.createdAt));
+  res.json({ rules: rows, total: rows.length });
+});
+
+router.post("/rules", requireRbac("counter_attack"), async (req, res) => {
+  const userId = ((req as any).auth)?.userId as string | undefined;
+  if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const { ruleType, pattern, action, priority, enabled, description } = req.body ?? {};
+  if (!VALID_RULE_TYPES.includes(ruleType))    { res.status(400).json({ error: `ruleType must be one of: ${VALID_RULE_TYPES.join(", ")}` }); return; }
+  if (!VALID_RULE_ACTIONS.includes(action))    { res.status(400).json({ error: `action must be one of: ${VALID_RULE_ACTIONS.join(", ")}` }); return; }
+  if (!pattern || typeof pattern !== "string") { res.status(400).json({ error: "pattern is required" }); return; }
+  const [rule] = await db.insert(ghostTrapRulesTable).values({
+    userId,
+    ruleType,
+    pattern:     pattern.trim(),
+    action,
+    priority:    Number(priority) || 50,
+    enabled:     enabled !== false,
+    description: description ?? null,
+  }).returning();
+  appendAuditEvent({ actor: userId, action: "ghost_trap_rule.create", resource: `ghost_trap_rule:${rule.id}`, metadata: { ruleType, pattern: pattern.trim(), action } });
+  res.status(201).json({ rule });
+});
+
+router.patch("/rules/:id", requireRbac("counter_attack"), async (req, res) => {
+  const userId = ((req as any).auth)?.userId as string | undefined;
+  if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const id = Number(req.params.id);
+  if (!id) { res.status(400).json({ error: "Invalid id" }); return; }
+  const [existing] = await db.select().from(ghostTrapRulesTable).where(and(eq(ghostTrapRulesTable.id, id), eq(ghostTrapRulesTable.userId, userId)));
+  if (!existing) { res.status(404).json({ error: "Rule not found" }); return; }
+  const { ruleType, pattern, action, priority, enabled, description } = req.body ?? {};
+  if (ruleType && !VALID_RULE_TYPES.includes(ruleType))   { res.status(400).json({ error: "Invalid ruleType" }); return; }
+  if (action   && !VALID_RULE_ACTIONS.includes(action))   { res.status(400).json({ error: "Invalid action" }); return; }
+  const updates: Record<string, unknown> = { updatedAt: new Date() };
+  if (ruleType     !== undefined) updates.ruleType     = ruleType;
+  if (pattern      !== undefined) updates.pattern      = String(pattern).trim();
+  if (action       !== undefined) updates.action       = action;
+  if (priority     !== undefined) updates.priority     = Number(priority);
+  if (enabled      !== undefined) updates.enabled      = Boolean(enabled);
+  if (description  !== undefined) updates.description  = description;
+  const [updated] = await db.update(ghostTrapRulesTable).set(updates as never).where(eq(ghostTrapRulesTable.id, id)).returning();
+  appendAuditEvent({ actor: userId, action: "ghost_trap_rule.update", resource: `ghost_trap_rule:${id}`, metadata: updates });
+  res.json({ rule: updated });
+});
+
+router.delete("/rules/:id", requireRbac("counter_attack"), async (req, res) => {
+  const userId = ((req as any).auth)?.userId as string | undefined;
+  if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const id = Number(req.params.id);
+  const [existing] = await db.select().from(ghostTrapRulesTable).where(and(eq(ghostTrapRulesTable.id, id), eq(ghostTrapRulesTable.userId, userId)));
+  if (!existing) { res.status(404).json({ error: "Rule not found" }); return; }
+  await db.delete(ghostTrapRulesTable).where(eq(ghostTrapRulesTable.id, id));
+  appendAuditEvent({ actor: userId, action: "ghost_trap_rule.delete", resource: `ghost_trap_rule:${id}` });
+  res.json({ deleted: true });
 });
 
 export default router;

@@ -200,7 +200,7 @@ export class MegaScanner {
   private store:      KnowledgeStore;
 
   constructor(private baseDir: string) {
-    fs.mkdirSync(baseDir, { recursive: true });
+    try { fs.mkdirSync(baseDir, { recursive: true }); } catch {}
     this.stateFile  = path.join(baseDir, "mega-state.json");
     this.reportFile = path.join(baseDir, "mega-report.json");
     this.store      = new KnowledgeStore(baseDir);

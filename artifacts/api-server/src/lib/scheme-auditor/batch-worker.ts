@@ -29,8 +29,8 @@ const SCAN_TIMEOUT   = 5 * 60_000; // 5 min max per single target
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 function ensureDirs() {
-  fs.mkdirSync(JOBS_DIR,    { recursive: true });
-  fs.mkdirSync(REPORTS_DIR, { recursive: true });
+  try { fs.mkdirSync(JOBS_DIR,    { recursive: true }); } catch {}
+  try { fs.mkdirSync(REPORTS_DIR, { recursive: true }); } catch {}
 }
 
 async function runConcurrent<T>(

@@ -1574,7 +1574,7 @@ router.get("/advanced-attack-report/:filename", requireAdmin, (req: Request, res
   // ═══════════════════════════════════════════════════════════════════════════
 
   const THREAT_REPORTS_DIR = path.join(getReportsDir(), "threat-scans");
-  fs.mkdirSync(THREAT_REPORTS_DIR, { recursive: true });
+  try { fs.mkdirSync(THREAT_REPORTS_DIR, { recursive: true }); } catch {}
 
   interface ThreatScanState {
     running:    boolean;
@@ -2656,7 +2656,7 @@ router.get("/advanced-attack-report/:filename", requireAdmin, (req: Request, res
 
   // ── Boot: auto-start 30 s after server starts ──────────────────────────────
   setTimeout(() => {
-    fs.mkdirSync(REPORTS_DIR, { recursive: true });
+    try { fs.mkdirSync(REPORTS_DIR, { recursive: true }); } catch {}
     mlog("Watchdog boot check…");
     const done = hasCompletedReport();
     if (done) {
