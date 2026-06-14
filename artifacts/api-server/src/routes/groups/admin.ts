@@ -18,6 +18,7 @@ import monitorRouter from "../monitor";
 import terminalRouter from "../terminal";
 import sqlRouter from "../sqlquery";
 import deceptionRouter from "../deception";
+import labTargetsRouter from "../lab-targets";
 import nodeEnrollV2Router from "../node-enroll-v2";
 import nodeTrustRouter from "../node-trust";
 import adminUsersRouter from "../admin-users";
@@ -273,6 +274,7 @@ registerAdminRoute(router, "/monitor", "admin.read", monitorRouter);
 registerAdminRoute(router, "/terminal", "terminal.exec", criticalRateLimit, terminalRouter);
 registerAdminRoute(router, "/sql", "sql.exec", criticalRateLimit, sqlRouter);
 registerAdminRoute(router, "/deception", "admin.write", deceptionRouter);
+registerAdminRoute(router, "/lab-targets", "admin.write", labTargetsRouter);
 
 router.post("/node-enrollment-token", requireAdmin, async (req: Request, res: Response) => {
   const { token, tokenHash, expiresAt } = createEnrollmentToken();

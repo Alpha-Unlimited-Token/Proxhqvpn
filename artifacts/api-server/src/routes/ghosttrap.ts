@@ -574,6 +574,7 @@ router.post("/config", async (req, res) => {
     ...(userDomain !== undefined && { userDomain: userDomain === "" || userDomain === null ? null : String(userDomain) }),
     updatedAt: new Date(),
   }).where(eq(ghostTrapConfigTable.id, cfg.id)).returning();
+  appendAuditEvent({ actor: userId, action: "ghost_trap.config_update", resource: `ghost_trap_config:${cfg.id}`, metadata: { enabled, autoBlockAfter, silkTrapAfter, deviceMode } });
   res.json(updated);
 });
 
@@ -1032,6 +1033,8 @@ router.post("/counter/manual-scan", requireRbac("counter_attack"), async (req, r
     intelligence = `${open.length} port(s) open — ${open.map(r => r.service).join(", ")}.`;
   }
 
+  appendAuditEvent({ actor: userId, action: "counter_attack.manual_scan", resource: `ip:${ip}`, metadata: { port: userPort, openCount: open.length, intelligence } });
+  void shipSecurityEvent({ actor: userId, action: "counter_attack.manual_scan", resource: `ip:${ip}`, result: "allow", severity: "medium", metadata: { openCount: open.length } });
   res.json({ ip, targetPort: userPort, results, openCount: open.length, closedCount: closed.length, filteredCount: filtered.length, intelligence, scannedAt: new Date().toISOString() });
 });
 
@@ -1075,6 +1078,8 @@ router.post("/counter/manual-osint", requireRbac("counter_attack"), async (req, 
   } catch { /* network may be unavailable */ }
 
   results.queriedAt = new Date().toISOString();
+  appendAuditEvent({ actor: userId, action: "counter_attack.manual_osint", resource: `ip:${ip}`, metadata: { rdns: results.rdns } });
+  void shipSecurityEvent({ actor: userId, action: "counter_attack.manual_osint", resource: `ip:${ip}`, result: "allow", severity: "medium", metadata: { ip } });
   res.json(results);
 });
 
@@ -1437,6 +1442,8 @@ router.post("/engage", async (req, res) => {
   const host  = req.headers["x-forwarded-host"] ?? req.headers.host ?? "";
   const beaconBase = `${proto}://${host}/api/ghost-trap`;
 
+  void shipSecurityEvent({ actor: userId, action: "ghost_trap.tarpit_engaged", resource: `session:${sessionId}`, result: "allow", severity: "low", metadata: { ip, triggerType: String(body.triggerType ?? "manual") } });
+  appendAuditEvent({ actor: userId, action: "ghost_trap.engage", resource: `session:${sessionId}`, metadata: { ip, triggerType: String(body.triggerType ?? "manual") } });
   res.json({
     sessionId,
     loopUrl: `${beaconBase}/loop/${sessionId}`,

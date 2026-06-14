@@ -508,6 +508,18 @@ router.patch("/banners/:id", requireRbac("deception_admin"), async (req: Request
   res.json(updated);
 });
 
+// DELETE /api/deception/banners/:id — remove a custom banner
+router.delete("/banners/:id", requireRbac("deception_admin"), async (req: Request, res: Response) => {
+  const id = Number(req.params.id);
+  if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
+  const _actorDecBannerDel = getAuth(req as any).userId ?? "system";
+  await db.delete(deceptionBannersTable).where(eq(deceptionBannersTable.id, id));
+  bannerCacheTs = 0;
+  appendAuditEvent({ actor: _actorDecBannerDel, action: "deception_banner.delete", resource: `deception_banner:${id}` });
+  void shipSecurityEvent({ actor: _actorDecBannerDel, action: "deception_banner.delete", resource: `deception_banner:${id}`, result: "allow" });
+  res.json({ ok: true });
+});
+
 // DELETE /api/deception/events/:id — purge a single event
 router.delete("/events/:id", requireRbac("deception_admin"), async (req: Request, res: Response) => {
   const id = Number(req.params.id);
