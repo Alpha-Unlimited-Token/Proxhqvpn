@@ -41,5 +41,4 @@ export * from "./deception";
 export * from "./audit-log-append-only";
 export * from "./honeypot";
 export * from "./tool-library";
-export * from "./lab-targets";
-export * from "./ghost-nodes";
+export * from "./daemon-ip-bans";

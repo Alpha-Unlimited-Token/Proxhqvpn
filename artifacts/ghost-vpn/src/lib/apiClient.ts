@@ -16,8 +16,12 @@ export async function apiFetch<T>(
   init: RequestInit = {},
 ): Promise<T> {
   const normalized = path.startsWith("/") ? path : `/${path}`;
+  // Guard against callers that already include the /api prefix — strip it to
+  // avoid building /api/api/... URLs. The regex only matches /api at the start
+  // when followed by "/" or end-of-string, so /api-keys etc. are unaffected.
+  const apiPath = normalized.replace(/^\/api(?=\/|$)/, "") || "/";
 
-  const res = await fetch(`${BASE}/api${normalized}`, {
+  const res = await fetch(`${BASE}/api${apiPath}`, {
     credentials: "include",
     ...init,
     headers: {

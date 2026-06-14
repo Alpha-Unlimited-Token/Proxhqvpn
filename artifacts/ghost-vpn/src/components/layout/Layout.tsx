@@ -158,10 +158,8 @@ const PROTECTION_NAV = [
   { href: "/threat-protection",  label: "Threat Protection",   icon: ShieldAlert },
   { href: "/obfuscation",        label: "Stealth Protocol",    icon: EyeOff },
   { href: "/ip-exposure",        label: "IP Exposure Scan",    icon: Eye },
-  { href: "/ghost-trap",         label: "Ghost Trap",          icon: Skull },
-  { href: "/ghost-nodes",        label: "Ghost Nodes",         icon: Network },
-  { href: "/honeypot-command",   label: "Honeypot Command",    icon: Bug },
-  { href: "/ghost-trace",        label: "Ghost Trace",         icon: Radar },
+  // Ghost Trap, Ghost Nodes, Honeypot Command, Ghost Trace moved to ADVANCED_NAV
+  // (Command Center Pro tier) — these are security-ops tools, not consumer VPN features.
 ];
 
 const PRIVACY_SUITE_NAV = [
@@ -222,6 +220,7 @@ const ADVANCED_NAV = [
   { href: "/ghost-trap",       label: "Ghost Trap — Counter Intel", icon: Skull },
   { href: "/ghost-nodes",      label: "Ghost Nodes",                icon: Network },
   { href: "/honeypot-command", label: "Honeypot Command",           icon: Bug },
+  { href: "/ghost-trace",      label: "Ghost Trace",                icon: Radar },
   { href: "/deception-engine", label: "Deception Engine",           icon: Shield },
   { href: "/sqlmap",        label: "Vulnerability Scanner", icon: ScanSearch },
   { href: "/alpha-tools",   label: "Alpha Toolkit",         icon: Layers },

@@ -31,9 +31,15 @@ function htmlEntityEncode(s: string): string {
 }
 
 function htmlEntityDecode(s: string): string {
-  const ta = document.createElement("textarea");
-  ta.innerHTML = s;
-  return ta.value;
+  // Use DOMParser (text-only extraction) instead of setting innerHTML on a
+  // live element. parseFromString never executes scripts and the result is
+  // read as textContent only, so no XSS path exists even with adversarial input.
+  try {
+    const doc = new DOMParser().parseFromString(s, "text/html");
+    return doc.body.textContent ?? s;
+  } catch {
+    return s;
+  }
 }
 
 function decodeJWT(s: string): string {

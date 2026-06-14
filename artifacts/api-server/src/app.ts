@@ -23,6 +23,7 @@ import { internalSecretBypass } from "./lib/internal-auth";
 import { logger } from "./lib/logger";
 import { WebhookHandlers } from "./webhookHandlers";
 import { tenantContext } from "./middlewares/tenantContext";
+import { db, daemonIpBansTable } from "@workspace/db";
 
 const app: Express = express();
 
@@ -219,6 +220,10 @@ app.use((req: Request, _res: Response, next: NextFunction) => {
 // Applying it globally would lock out browser users whose Clerk session
 // hasn't loaded yet (normal 401s from /api/me) — causing the paywall to
 // show for admin users who have no subscription in the DB.
+//
+// Architecture: in-memory Map is the hot-path (synchronous check); the
+// daemon_ip_bans DB table is the durable backing store so bans survive
+// process restarts. Writes are fire-and-forget (non-blocking on the request path).
 const ipFailures = new Map<string, { count: number; since: number; bannedUntil: number }>();
 const BAN_THRESHOLD = 10;
 const BAN_WINDOW_MS = 5 * 60_000;   // 5 minutes
@@ -226,6 +231,40 @@ const BAN_DURATION_MS = 30 * 60_000; // 30 minutes
 
 function getClientIp(req: Request): string {
   return req.ip ?? req.socket.remoteAddress ?? "unknown";
+}
+
+// Persist the current in-memory state for an IP to the DB (fire-and-forget).
+function persistDaemonBan(ip: string, rec: { count: number; since: number; bannedUntil: number }): void {
+  const now = Date.now();
+  db.insert(daemonIpBansTable)
+    .values({ ip, failureCount: rec.count, windowStart: rec.since, bannedUntil: rec.bannedUntil, updatedAt: now })
+    .onConflictDoUpdate({
+      target: daemonIpBansTable.ip,
+      set: { failureCount: rec.count, windowStart: rec.since, bannedUntil: rec.bannedUntil, updatedAt: now },
+    })
+    .catch((err: unknown) => logger.warn({ err, ip }, "[daemon-ban] Failed to persist ban record to DB"));
+}
+
+// On startup: load any still-active ban records from DB into the in-memory Map.
+// Expired records are ignored; they will be cleaned up by the next write.
+export async function loadDaemonBansFromDb(): Promise<void> {
+  try {
+    const rows = await db.select().from(daemonIpBansTable);
+    const now = Date.now();
+    for (const row of rows) {
+      // Only restore bans that are still active or windows that are still open
+      if (row.bannedUntil > now || (row.windowStart + BAN_WINDOW_MS) > now) {
+        ipFailures.set(row.ip, {
+          count:       row.failureCount,
+          since:       row.windowStart,
+          bannedUntil: row.bannedUntil,
+        });
+      }
+    }
+    logger.info({ loaded: ipFailures.size }, "[daemon-ban] Restored active ban records from DB");
+  } catch (err) {
+    logger.warn({ err }, "[daemon-ban] Could not load ban records from DB — starting with empty Map");
+  }
 }
 
 // Daemon-inbound ban middleware — applied only to /api/daemon-inbound routes below.
@@ -248,6 +287,8 @@ export function daemonIpBanMiddleware(req: Request, res: Response, next: NextFun
         logger.warn({ ip, count: existing.count }, "[security] IP auto-banned for repeated daemon auth failures");
       }
       ipFailures.set(ip, existing);
+      // Persist asynchronously so the response is never delayed
+      persistDaemonBan(ip, existing);
     }
   });
   next();

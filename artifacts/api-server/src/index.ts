@@ -1,5 +1,5 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
-import app from "./app";
+import app, { loadDaemonBansFromDb } from "./app";
 import { logger } from "./lib/logger";
 import { verifySystemDependencies } from "./bootstrap/system-deps";
 import { startEmbeddedTorIfEnabled } from "./bootstrap/tor";
@@ -33,6 +33,7 @@ async function bootstrap(): Promise<void> {
   startEmbeddedTorIfEnabled();
 
   await initStripeRuntime();
+  await loadDaemonBansFromDb();
 
   seedRuntimeData();
   startSessionWatchdog();
