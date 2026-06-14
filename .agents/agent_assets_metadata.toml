@@ -509,3 +509,33 @@ id = "vEGpCCMz5AQbetOTHsw5B"
 uri = "file://PROXHQVPN_FULL_ARCHITECTURE_EVIDENCE_PACKAGE.zip"
 type = "unspecified"
 title = "ProxhqVPN Full Architecture Evidence Package"
+
+[[outputs]]
+id = "hhZCEOozXTd7O1rFvXfCt"
+uri = "file://standalone/dist/ProxhqVPN-Windows-x64.zip"
+type = "unspecified"
+title = "ProxhqVPN — Windows x64 Standalone (310 MB)"
+
+[[outputs]]
+id = "TlkFM3Tv96eBzF54JG7Gs"
+uri = "file://standalone/dist/ProxhqVPN-macOS-arm64.zip"
+type = "unspecified"
+title = "ProxhqVPN — macOS Apple Silicon Standalone (278 MB)"
+
+[[outputs]]
+id = "fkBNOGjMH-JbeMeIk7SZe"
+uri = "file://standalone/dist/ProxhqVPN-Linux-x64.zip"
+type = "unspecified"
+title = "ProxhqVPN — Linux x64 Standalone (641 MB)"
+
+[[outputs]]
+id = "xbrN8Sk4gVKVkDAdaJQEr"
+uri = "file://standalone/dist/ProxhqVPN-NativeSource-AllPlatforms.zip"
+type = "unspecified"
+title = "ProxhqVPN — Native Source Code (Electron + Expo + Installers + 81 Manuals)"
+
+[[outputs]]
+id = "v8P_JwjRwHvW8zebHR4Dv"
+uri = "file://standalone/dist/ChatGPT-Native-App-Conversion-Prompt.txt"
+type = "text"
+title = "ChatGPT Native App Conversion Prompt (paste into o3 / Claude)"
