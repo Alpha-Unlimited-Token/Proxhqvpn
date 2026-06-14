@@ -80,7 +80,7 @@ Clerk (`app_3CcwHo66ohArVtaIa0XTcv88i4Y`). Env vars: `VITE_CLERK_PUBLISHABLE_KEY
 | /manuals | Manuals | Downloadable PDF-style manuals (RAM Keys, Node Hardening, Firewall Suite, etc.) |
 | /downloads | Downloads | Multi-platform install page + README .txt guides |
 | /setup | AdminSetup | Streaming server dependency installer (admin only) |
-| /pricing | Pricing | Subscription plans — VPN Basic $6.99/mo, Command Center Pro $39.99/mo |
+| /pricing | Pricing | 5-tier plans: Personal $9.99/mo · Power User $19.99/mo · Professional $39.99/mo · Business $12–15/user/mo · Enterprise custom + Firewall & Developer add-ons |
 
 ## API Routes (api-server)
 
