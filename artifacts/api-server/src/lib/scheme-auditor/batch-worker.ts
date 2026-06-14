@@ -10,6 +10,7 @@
  */
 
 import fs from "fs";
+import os from "os";
 import path from "path";
 import { db } from "@workspace/db";
 import { batchScanJobsTable, batchScanResultsTable } from "@workspace/db";
@@ -19,7 +20,7 @@ import { detectChain } from "./chain-detector";
 import { logger } from "../logger";
 
 // ── Constants ────────────────────────────────────────────────────────────────
-const REPORTS_ROOT   = path.join(process.cwd(), "..", "..", "proxhq-reports");
+const REPORTS_ROOT   = process.env.PROXHQ_REPORTS_DIR ?? path.join(os.tmpdir(), "proxhq-reports");
 const JOBS_DIR       = path.join(REPORTS_ROOT, "jobs");
 const REPORTS_DIR    = path.join(REPORTS_ROOT, "reports");
 const CHUNK_SIZE     = 3;          // targets per processing tick

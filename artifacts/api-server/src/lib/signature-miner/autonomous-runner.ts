@@ -70,7 +70,8 @@ import {
 
 // ── Paths ─────────────────────────────────────────────────────────────────────
 
-const CACHE_DIR     = "/home/runner/workspace/proxhq-reports/sig-cache";
+import os from "os";
+const CACHE_DIR     = process.env.PROXHQ_SIG_CACHE_DIR ?? path.join(os.tmpdir(), "proxhq-reports", "sig-cache");
 const STATE_FILE    = path.join(CACHE_DIR, "autonomous-state.json");
 const FINDINGS_FILE = path.join(CACHE_DIR, "autonomous-findings.json");
 const LOG_FILE      = path.join(CACHE_DIR, "autonomous-run.log");
