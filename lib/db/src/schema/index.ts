@@ -42,3 +42,4 @@ export * from "./audit-log-append-only";
 export * from "./honeypot";
 export * from "./tool-library";
 export * from "./daemon-ip-bans";
+export * from "./platform";
