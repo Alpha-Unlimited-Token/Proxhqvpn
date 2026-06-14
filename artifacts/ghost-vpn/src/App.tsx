@@ -18,6 +18,7 @@ import { ThemeProvider } from "@/theme/ThemeProvider";
 import { AppStateProvider } from "@/state/appState";
 import { I18nProvider } from "@/i18n/I18nProvider";
 import { UxModeProvider } from "@/ux/UxModeProvider";
+import { UserModeProvider } from "@/state/userModeState";
 
 const queryClient = new QueryClient();
 
@@ -40,9 +41,11 @@ function ClerkProviderWithRoutes() {
           <I18nProvider>
           <AppStateProvider>
             <UxModeProvider>
-              <ClerkQueryClientCacheInvalidator />
-              <ScrollToTop />
-              <AppRoutes />
+              <UserModeProvider>
+                <ClerkQueryClientCacheInvalidator />
+                <ScrollToTop />
+                <AppRoutes />
+              </UserModeProvider>
             </UxModeProvider>
           </AppStateProvider>
           </I18nProvider>

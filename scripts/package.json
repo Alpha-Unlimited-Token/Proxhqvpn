@@ -12,7 +12,14 @@
     "validation:seed": "tsx ./src/seed-validation-targets.ts",
     "validation:run": "tsx ./src/run-validation-once.ts",
     "validation:export": "tsx ./src/export-validation-report.ts",
-    "audit:frontend-routes": "tsx ./src/audit-frontend-routes.ts"
+    "audit:frontend-routes": "tsx ./src/audit-frontend-routes.ts",
+    "audit:frontend-api": "tsx ./src/audit-frontend-api-usage.ts",
+    "audit:route-capabilities": "tsx ./src/audit-route-capability-coverage.ts",
+    "audit:route-validation": "tsx ./src/audit-route-validation.ts",
+    "audit:worker-singletons": "tsx ./src/audit-worker-singletons.ts",
+    "audit:env-domains": "tsx ./src/audit-env-domains.ts",
+    "audit:public-data": "tsx ./src/audit-public-data-leaks.ts",
+    "audit:evidence": "tsx ./src/generate-build-audit-results.ts"
   },
   "devDependencies": {
     "@types/node": "catalog:",

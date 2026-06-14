@@ -1,6 +1,12 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import type { Capability } from "@workspace/capabilities";
 
+/**
+ * User experience mode — controls which navigation sections are visible.
+ * Persisted to localStorage via UserModeProvider (state/userModeState.tsx).
+ */
+export type UserMode = "consumer" | "business" | "security" | "admin";
+
 export type RouteAccess =
   | "public"
   | "authenticated"

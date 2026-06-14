@@ -14,6 +14,7 @@
     "audit:production-env": "pnpm --filter @workspace/scripts exec tsx ./audit-production-env.ts",
     "audit:brand": "pnpm --filter @workspace/scripts exec tsx ./src/audit-brand-consistency.ts",
     "audit:release": "pnpm run audit:all-capabilities && pnpm run audit:api-routes && pnpm run audit:frontend-routes && pnpm run audit:production-env",
+    "audit:hardening": "pnpm --filter @workspace/scripts run audit:frontend-api && pnpm --filter @workspace/scripts run audit:route-validation && pnpm --filter @workspace/scripts run audit:env-domains && pnpm --filter @workspace/scripts run audit:public-data",
     "ci": "pnpm run audit:all-capabilities && pnpm run audit:api-routes && pnpm run audit:frontend-routes && pnpm run typecheck && pnpm -r --if-present run build",
     "dev:security-console": "pnpm --filter @workspace/security-console dev",
     "build:security-console": "pnpm --filter @workspace/security-console build",

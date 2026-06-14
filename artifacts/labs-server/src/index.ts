@@ -10,6 +10,7 @@ import { pino } from "pino";
 import { clerkMiddleware } from "@clerk/express";
 import rateLimit from "express-rate-limit";
 import { requireLabsAdmin } from "./middleware/auth.js";
+import { requireLabsServiceAuth } from "./middleware/requireLabsServiceAuth.js";
 import sqlmapRouter from "./routes/sqlmap.js";
 import exploitImportRouter from "./routes/exploitimport.js";
 import redteamScanRouter from "./routes/redteamscan.js";
@@ -81,7 +82,14 @@ const toolLimiter = rateLimit({
   legacyHeaders:   false,
 });
 
-// ── All offensive routes require admin ────────────────────────────────────
+// ── Labs service PSK guard — defense-in-depth before admin check ──────────
+// Health check is defined before this block so it remains public.
+app.use("/api/sqlmap",         requireLabsServiceAuth);
+app.use("/api/exploit-import", requireLabsServiceAuth);
+app.use("/api/redteam-scan",   requireLabsServiceAuth);
+app.use("/api/omnistrike",     requireLabsServiceAuth);
+
+// ── All offensive routes require Clerk admin ─────────────────────────────
 app.use("/api", labsLimiter, requireLabsAdmin);
 
 // ── Route mounting — same paths as api-server so frontend is unchanged ─────

@@ -3,8 +3,14 @@ import { z } from "zod";
 import crypto from "crypto";
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import { requireAuth } from "./_auth";
+import { highRiskRateLimit } from "../middlewares/riskRateLimit";
 
 const router = Router();
+
+// Explicit auth + rate-limit guard — do not rely only on route-group middleware.
+router.use(requireAuth);
+router.use(highRiskRateLimit);
 
 function fingerprintHash(input: string) {
   return crypto.createHash("sha256").update(input).digest("hex");

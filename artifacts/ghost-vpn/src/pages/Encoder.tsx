@@ -1,6 +1,7 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import React, { useState, useCallback } from "react";
 import { usePersistedState } from "@/hooks/usePersistedState";
+import { decodeHtmlEntities } from "@/lib/safeTextEncoding";
 
 type Mode = "encode" | "decode";
 
@@ -31,15 +32,8 @@ function htmlEntityEncode(s: string): string {
 }
 
 function htmlEntityDecode(s: string): string {
-  // Use DOMParser (text-only extraction) instead of setting innerHTML on a
-  // live element. parseFromString never executes scripts and the result is
-  // read as textContent only, so no XSS path exists even with adversarial input.
-  try {
-    const doc = new DOMParser().parseFromString(s, "text/html");
-    return doc.body.textContent ?? s;
-  } catch {
-    return s;
-  }
+  // Pure string-based decoder — no DOM, no DOMParser, no XSS surface.
+  return decodeHtmlEntities(s);
 }
 
 function decodeJWT(s: string): string {
