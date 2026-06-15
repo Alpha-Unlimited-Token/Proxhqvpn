@@ -19,7 +19,8 @@
     "audit:worker-singletons": "tsx ./src/audit-worker-singletons.ts",
     "audit:env-domains": "tsx ./src/audit-env-domains.ts",
     "audit:public-data": "tsx ./src/audit-public-data-leaks.ts",
-    "audit:evidence": "tsx ./src/generate-build-audit-results.ts"
+    "audit:evidence": "tsx ./src/generate-build-audit-results.ts",
+    "audit:commercial-license": "tsx ./src/auditCommercialLicensing.ts"
   },
   "devDependencies": {
     "@types/node": "catalog:",

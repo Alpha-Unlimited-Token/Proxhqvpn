@@ -14,3 +14,4 @@
 - [platform_events + control_plane_instances schema](platform-schema.md) — both tables use raw SQL (not Drizzle ORM) but ARE in Drizzle schema at lib/db/src/schema/platform.ts; never treat them as stale or drop them.
 - [ghost_trap_rules schema location](ghost-trap-rules-schema.md) — ghostTrapRulesTable is defined in lib/db/src/schema/ghost-nodes.ts (not ghosttrap.ts). Columns: userId, ruleType (path_pattern|ua_pattern|header_pattern|ip_cidr), pattern, action (log|tarpit|block|silk_trap), priority, enabled, description, matchCount, lastMatchAt.
 - [Ghost system route groups](ghost-route-groups.md) — /api/ghost-nodes is in command-center.ts group; /api/lab-targets is in admin.ts group; both already had router files before this session.
+- [Entitlement system design](entitlement-system-design.md) — requireFeature checks req.__isAdmin first; public catalog in public.ts; /me returns all features=true for admins.

@@ -2,6 +2,8 @@
 import { Router, type Request, type Response } from "express";
 import healthRouter from "../health";
 import updatesRouter from "../updates";
+import { PRODUCT_CATALOG } from "../../commercial/productCatalog";
+import { FEATURE_REGISTRY } from "../../commercial/featureRegistry";
 import anonRouter from "../anon";
 import ambassadorsRouter from "../ambassadors";
 import stripeRouter from "../stripe";
@@ -91,6 +93,15 @@ router.use("/wallet", walletTxRouter);
 router.use("/wallet-intel", walletIntelRouter);
 
 router.use("/trust-center", trustCenterRouter);
+
+// ── Public commercial catalog (no auth required) ──────────────────────────────
+router.get("/entitlements/products", (_req, res) => {
+  res.json({ products: PRODUCT_CATALOG });
+});
+router.get("/entitlements/features", (_req, res) => {
+  res.json({ features: Object.values(FEATURE_REGISTRY) });
+});
+
 router.use("/anon", anonRouter);
 router.use("/ambassadors", ambassadorsRouter);
 router.use("/stripe", stripeRouter);

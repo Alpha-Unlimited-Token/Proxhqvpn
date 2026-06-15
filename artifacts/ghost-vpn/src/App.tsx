@@ -19,6 +19,7 @@ import { AppStateProvider } from "@/state/appState";
 import { I18nProvider } from "@/i18n/I18nProvider";
 import { UxModeProvider } from "@/ux/UxModeProvider";
 import { UserModeProvider } from "@/state/userModeState";
+import { EntitlementProvider } from "@/lib/entitlements";
 
 const queryClient = new QueryClient();
 
@@ -44,7 +45,9 @@ function ClerkProviderWithRoutes() {
               <UserModeProvider>
                 <ClerkQueryClientCacheInvalidator />
                 <ScrollToTop />
-                <AppRoutes />
+                <EntitlementProvider>
+                  <AppRoutes />
+                </EntitlementProvider>
               </UserModeProvider>
             </UxModeProvider>
           </AppStateProvider>

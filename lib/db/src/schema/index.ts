@@ -45,3 +45,4 @@ export * from "./daemon-ip-bans";
 export * from "./platform";
 export * from "./validation";
 export * from "./node-maintenance";
+export * from "./commercial-entitlements";
