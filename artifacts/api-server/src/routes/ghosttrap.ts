@@ -19,8 +19,19 @@ import net from "net";
 import { requireRbac } from "../middlewares/requireRbac";
 import { appendAuditEvent } from "../lib/audit-chain";
 import { shipSecurityEvent } from "../lib/siem";
+import { sendMail, adminEmails } from "../lib/mailer";
 
 const router = Router();
+
+// ── Email rate limit: 1 alert per IP per hour (in-memory) ───────────────────
+const _gtAlertedIps = new Map<string, number>();
+function gtShouldAlert(ip: string): boolean {
+  const now = Date.now();
+  const last = _gtAlertedIps.get(ip) ?? 0;
+  if (now - last < 60 * 60 * 1000) return false;
+  _gtAlertedIps.set(ip, now);
+  return true;
+}
 
 // ─── 1×1 transparent GIF bytes ───────────────────────────────────────────────
 const PIXEL_GIF = Buffer.from(
@@ -377,6 +388,38 @@ async function handleProbe(req: Request, res: Response, endpointName: string, us
     result: "allow",
     metadata: { ip, probeType, endpoint: endpointName, tarpitMs, attackVector: attack?.vector ?? null },
   });
+
+  // Email alert — first probe from each IP per hour
+  if (gtShouldAlert(ip)) {
+    const to = adminEmails();
+    if (to.length > 0) {
+      void sendMail({
+        to,
+        subject: `🪤 ProxhqVPN Ghost Trap: Probe captured from ${ip} → /${endpointName}`,
+        html: `
+          <div style="font-family:monospace;background:#0a0a0a;color:#e0e0e0;padding:24px;border-radius:8px;max-width:600px">
+            <div style="color:#00ff88;font-size:20px;font-weight:bold;margin-bottom:16px">🪤 Ghost Trap — Probe Captured</div>
+            <table style="width:100%;border-collapse:collapse">
+              <tr><td style="padding:6px;color:#888">Attacker IP</td><td style="padding:6px;color:#ff4444;font-weight:bold">${ip}</td></tr>
+              <tr><td style="padding:6px;color:#888">Probe Type</td><td style="padding:6px">${probeType}${attack ? ` — <span style="color:#ff6600">${attack.vector}</span>` : ""}</td></tr>
+              <tr><td style="padding:6px;color:#888">Endpoint Hit</td><td style="padding:6px;color:#ffaa00">/${endpointName}</td></tr>
+              <tr><td style="padding:6px;color:#888">User-Agent</td><td style="padding:6px;font-size:11px;color:#aaa">${ua.substring(0, 200) || "(none)"}</td></tr>
+              <tr><td style="padding:6px;color:#888">Tarpit Delay</td><td style="padding:6px">${tarpitMs}ms</td></tr>
+              <tr><td style="padding:6px;color:#888">Source Port</td><td style="padding:6px">${sourcePort ?? "unknown"}</td></tr>
+              <tr><td style="padding:6px;color:#888">Hop Chain</td><td style="padding:6px;font-size:11px">${hopChain.length > 1 ? hopChain.join(" → ") : "direct"}</td></tr>
+              <tr><td style="padding:6px;color:#888">Probe ID</td><td style="padding:6px;font-size:11px;color:#555">${probeId}</td></tr>
+              <tr><td style="padding:6px;color:#888">Detected At</td><td style="padding:6px">${new Date().toUTCString()}</td></tr>
+            </table>
+            <div style="margin-top:16px;padding:12px;background:#111;border-radius:6px;font-size:12px;color:#aaa">
+              Fake response served: <strong>${fake.contentType}</strong><br>
+              Beacon tracking pixel embedded: <code style="color:#00ff88">${probeId}</code>
+            </div>
+            <div style="margin-top:12px;font-size:11px;color:#555">ProxhqVPN Ghost Trap — Alpha Unlimited Technologies LLC</div>
+          </div>`,
+        text: `GHOST TRAP PROBE CAPTURED\nIP: ${ip}\nType: ${probeType}${attack ? ` (${attack.vector})` : ""}\nEndpoint: /${endpointName}\nUA: ${ua.substring(0, 150)}\nTarpit: ${tarpitMs}ms\nTime: ${new Date().toUTCString()}`,
+      }).catch(() => {});
+    }
+  }
 
   const [ipCount] = await db
     .select({ count: sql<number>`count(*)::int` })
