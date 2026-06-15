@@ -1943,4 +1943,183 @@ router.delete("/rules/:id", requireRbac("counter_attack"), async (req, res) => {
   res.json({ deleted: true });
 });
 
+// ─── Admin: Attacker Intel Summary (unique IPs + aggregate stats) ─────────────
+// Owner-only — returns every unique attacker IP with probe counts, geo, beacon
+// fires, first/last seen, and severity classification.
+router.get("/intel-summary", requireRbac("counter_attack"), async (req, res) => {
+  const userId = ((req as any).auth)?.userId as string | undefined;
+  if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const rows = await db.select({
+    attackerIp:   ghostTrapProbesTable.attackerIp,
+    probeCount:   sql<number>`count(*)::int`,
+    firstSeen:    sql<string>`min(probed_at)`,
+    lastSeen:     sql<string>`max(probed_at)`,
+    geoCountry:   sql<string | null>`max(geo_country)`,
+    geoCity:      sql<string | null>`max(geo_city)`,
+    geoIsp:       sql<string | null>`max(geo_isp)`,
+    geoOrg:       sql<string | null>`max(geo_org)`,
+    geoAsn:       sql<string | null>`max(geo_asn)`,
+    vpnDetected:  sql<boolean>`bool_or(vpn_detected)`,
+    torDetected:  sql<boolean>`bool_or(tor_detected)`,
+    autoBlocked:  sql<boolean>`bool_or(auto_blocked)`,
+    silkTrapped:  sql<boolean>`bool_or(silk_trapped)`,
+    beaconFires:  sql<number>`count(*) filter (where beacon_fired = true)::int`,
+    sqlCount:     sql<number>`count(*) filter (where probe_type = 'sql_injection')::int`,
+    xssCount:     sql<number>`count(*) filter (where probe_type = 'xss')::int`,
+    cmdCount:     sql<number>`count(*) filter (where probe_type = 'cmd_injection')::int`,
+    attackerPort: sql<number | null>`max(attacker_port)`,
+    attackerUa:   sql<string | null>`max(attacker_ua)`,
+  }).from(ghostTrapProbesTable)
+    .where(eq(ghostTrapProbesTable.userId, userId))
+    .groupBy(ghostTrapProbesTable.attackerIp)
+    .orderBy(sql`max(probed_at) desc`);
+
+  const attackers = rows.map(r => {
+    const severity =
+      r.sqlCount > 0 || r.cmdCount > 0 ? "critical" :
+      r.xssCount > 0 || r.probeCount > 10 ? "high" :
+      r.beaconFires > 0 ? "high" :
+      r.probeCount > 3 ? "medium" : "low";
+    return { ...r, severity };
+  });
+
+  res.json({ attackers, total: attackers.length });
+});
+
+// ─── Admin: Full intelligence dossier for one attacker IP ─────────────────────
+router.get("/intel/:ip", requireRbac("counter_attack"), async (req, res) => {
+  const userId = ((req as any).auth)?.userId as string | undefined;
+  if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const { ip } = req.params;
+
+  const [probes, beacons, events, evidence, sessions] = await Promise.all([
+    db.select().from(ghostTrapProbesTable)
+      .where(and(eq(ghostTrapProbesTable.attackerIp, ip), eq(ghostTrapProbesTable.userId, userId)))
+      .orderBy(desc(ghostTrapProbesTable.probedAt))
+      .limit(500),
+    db.select().from(ghostTrapBeaconsTable)
+      .where(and(eq(ghostTrapBeaconsTable.attackerIp, ip), eq(ghostTrapBeaconsTable.userId, userId)))
+      .orderBy(desc(ghostTrapBeaconsTable.firedAt)),
+    db.select().from(ghostTrapEventsTable)
+      .where(eq(ghostTrapEventsTable.attackerIp, ip))
+      .orderBy(desc(ghostTrapEventsTable.createdAt))
+      .limit(200),
+    db.select().from(ghostTrapEvidenceTable)
+      .where(eq(ghostTrapEvidenceTable.attackerIp, ip))
+      .orderBy(desc(ghostTrapEvidenceTable.capturedAt))
+      .limit(100),
+    db.select().from(ghostTrapLoopSessionsTable)
+      .where(eq(ghostTrapLoopSessionsTable.attackerIp, ip))
+      .orderBy(desc(ghostTrapLoopSessionsTable.sessionStart))
+      .limit(50),
+  ]);
+
+  if (!probes.length && !events.length) {
+    res.status(404).json({ error: "No data found for this IP" });
+    return;
+  }
+
+  const first = probes[0];
+  const geo = first ? {
+    country:     first.geoCountry,
+    city:        first.geoCity,
+    isp:         first.geoIsp,
+    org:         first.geoOrg,
+    asn:         first.geoAsn,
+    timezone:    first.geoTimezone,
+    latitude:    first.geoLat,
+    longitude:   first.geoLon,
+    vpnDetected: first.vpnDetected,
+    torDetected: first.torDetected,
+  } : null;
+
+  const attackVectors = [...new Set(probes.map(p => p.attackVector).filter(Boolean))];
+  const probeTypes    = [...new Set(probes.map(p => p.probeType))];
+  const userAgents    = [...new Set(probes.map(p => p.attackerUa).filter(Boolean))].slice(0, 5);
+  const endpoints     = [...new Set(probes.map(p => p.endpoint))].slice(0, 30);
+
+  const payloads = probes
+    .filter(p => p.attackVector)
+    .slice(0, 50)
+    .map(p => ({
+      at:          p.probedAt,
+      method:      p.method,
+      endpoint:    p.endpoint,
+      type:        p.probeType,
+      payload:     p.attackVector,
+      fakeResp:    p.fakeResponse,
+      tarpitMs:    p.tarpitMs,
+      beaconFired: p.beaconFired,
+      headers:     p.probeHeaders ? (() => { try { return JSON.parse(p.probeHeaders!); } catch { return {}; } })() : {},
+    }));
+
+  const bannerTranscripts = probes
+    .filter(p => p.fakeResponse)
+    .slice(0, 20)
+    .map(p => ({ at: p.probedAt, endpoint: p.endpoint, banner: p.fakeResponse }));
+
+  const beaconFingerprints = beacons.map(b => ({
+    beaconId:   b.beaconId,
+    firedAt:    b.firedAt,
+    fromIp:     b.firedFromIp,
+    userAgent:  b.firedUa,
+    screenSize: b.screenSize,
+    language:   b.browserLang,
+    timezone:   b.timezone,
+    platform:   b.platform,
+    plugins:    b.plugins,
+    canvas:     b.canvasFingerprint,
+    webgl:      b.webglFingerprint,
+  }));
+
+  const wormCallbacks = probes
+    .filter(p => p.dataCollected)
+    .map(p => {
+      try { return { at: p.probedAt, data: JSON.parse(p.dataCollected!) }; }
+      catch { return { at: p.probedAt, data: p.dataCollected }; }
+    })
+    .slice(0, 20);
+
+  const hopChains = probes
+    .filter(p => p.hopChain)
+    .map(p => { try { return JSON.parse(p.hopChain!); } catch { return []; } })
+    .filter(c => c.length > 0)
+    .slice(0, 5);
+
+  const severity =
+    probeTypes.includes("sql_injection") || probeTypes.includes("cmd_injection") ? "critical" :
+    probeTypes.includes("xss") || probes.length > 10 ? "high" :
+    beacons.length > 0 ? "high" :
+    probes.length > 3 ? "medium" : "low";
+
+  res.json({
+    ip,
+    severity,
+    geo,
+    summary: {
+      totalProbes:    probes.length,
+      totalBeacons:   beacons.length,
+      totalEvidence:  evidence.length,
+      totalSessions:  sessions.length,
+      firstSeen:      probes[probes.length - 1]?.probedAt ?? null,
+      lastSeen:       probes[0]?.probedAt ?? null,
+      autoBlocked:    probes.some(p => p.autoBlocked),
+      silkTrapped:    probes.some(p => p.silkTrapped),
+      probeTypes,
+      attackVectors,
+      userAgents,
+      endpoints,
+      sourcePort:     first?.attackerPort ?? null,
+    },
+    payloads,
+    bannerTranscripts,
+    beaconFingerprints,
+    wormCallbacks,
+    hopChains,
+    evidence: evidence.slice(0, 50),
+    sessions: sessions.slice(0, 20),
+  });
+});
+
 export default router;
