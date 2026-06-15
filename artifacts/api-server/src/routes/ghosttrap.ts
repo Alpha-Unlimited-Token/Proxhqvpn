@@ -1993,25 +1993,26 @@ router.get("/intel/:ip", requireRbac("counter_attack"), async (req, res) => {
   if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
   const { ip } = req.params;
 
+  const targetIp = String(ip);
   const [probes, beacons, events, evidence, sessions] = await Promise.all([
     db.select().from(ghostTrapProbesTable)
-      .where(and(eq(ghostTrapProbesTable.attackerIp, ip), eq(ghostTrapProbesTable.userId, userId)))
+      .where(and(eq(ghostTrapProbesTable.attackerIp, targetIp), eq(ghostTrapProbesTable.userId, userId)))
       .orderBy(desc(ghostTrapProbesTable.probedAt))
       .limit(500),
     db.select().from(ghostTrapBeaconsTable)
-      .where(and(eq(ghostTrapBeaconsTable.attackerIp, ip), eq(ghostTrapBeaconsTable.userId, userId)))
+      .where(and(eq(ghostTrapBeaconsTable.attackerIp, targetIp), eq(ghostTrapBeaconsTable.userId, userId)))
       .orderBy(desc(ghostTrapBeaconsTable.firedAt)),
     db.select().from(ghostTrapEventsTable)
-      .where(eq(ghostTrapEventsTable.attackerIp, ip))
+      .where(eq(ghostTrapEventsTable.sourceIp, targetIp))
       .orderBy(desc(ghostTrapEventsTable.createdAt))
       .limit(200),
     db.select().from(ghostTrapEvidenceTable)
-      .where(eq(ghostTrapEvidenceTable.attackerIp, ip))
-      .orderBy(desc(ghostTrapEvidenceTable.capturedAt))
+      .where(eq(ghostTrapEvidenceTable.subjectIp, targetIp))
+      .orderBy(desc(ghostTrapEvidenceTable.exportedAt))
       .limit(100),
     db.select().from(ghostTrapLoopSessionsTable)
-      .where(eq(ghostTrapLoopSessionsTable.attackerIp, ip))
-      .orderBy(desc(ghostTrapLoopSessionsTable.sessionStart))
+      .where(eq(ghostTrapLoopSessionsTable.attackerIp, targetIp))
+      .orderBy(desc(ghostTrapLoopSessionsTable.createdAt))
       .limit(50),
   ]);
 
@@ -2028,8 +2029,6 @@ router.get("/intel/:ip", requireRbac("counter_attack"), async (req, res) => {
     org:         first.geoOrg,
     asn:         first.geoAsn,
     timezone:    first.geoTimezone,
-    latitude:    first.geoLat,
-    longitude:   first.geoLon,
     vpnDetected: first.vpnDetected,
     torDetected: first.torDetected,
   } : null;
@@ -2067,17 +2066,14 @@ router.get("/intel/:ip", requireRbac("counter_attack"), async (req, res) => {
     screenSize: b.screenSize,
     language:   b.browserLang,
     timezone:   b.timezone,
-    platform:   b.platform,
-    plugins:    b.plugins,
-    canvas:     b.canvasFingerprint,
-    webgl:      b.webglFingerprint,
+    headers:    b.firedHeaders ? (() => { try { return JSON.parse(b.firedHeaders!); } catch { return {}; } })() : {},
   }));
 
-  const wormCallbacks = probes
-    .filter(p => p.dataCollected)
-    .map(p => {
-      try { return { at: p.probedAt, data: JSON.parse(p.dataCollected!) }; }
-      catch { return { at: p.probedAt, data: p.dataCollected }; }
+  const wormCallbacks = sessions
+    .filter(s => s.intelligenceJson)
+    .map(s => {
+      try { return { at: s.createdAt, sessionId: s.sessionId, stage: s.stageLabel, data: JSON.parse(s.intelligenceJson!) }; }
+      catch { return { at: s.createdAt, sessionId: s.sessionId, stage: s.stageLabel, data: s.intelligenceJson }; }
     })
     .slice(0, 20);
 

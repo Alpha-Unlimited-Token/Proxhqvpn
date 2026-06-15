@@ -13,10 +13,12 @@ import UserManagement from "@/pages/UserManagement";
 import Employees from "@/pages/Employees";
 import Setup from "@/pages/Setup";
 import NodeTrustEngine from "@/pages/NodeTrustEngine";
+import AttackerIntelligence from "@/pages/AttackerIntelligence";
 
 export function AdminRoutes() {
   return (
     <>
+      <Route path="/admin/ghost-trap"><AdminLayout><AttackerIntelligence /></AdminLayout></Route>
       <Route path="/node-trust"><AdminLayout><NodeTrustEngine /></AdminLayout></Route>
       <Route path="/nodes"><AdminLayout><NodeManager /></AdminLayout></Route>
       <Route path="/beacons"><AdminLayout><BeaconAlerts /></AdminLayout></Route>

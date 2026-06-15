@@ -137,6 +137,7 @@ const PAGE_NAMES: Record<string, string> = {
   "/llm-probe":            "LLMProbe — LLM Vulnerability Scanner",
   "/ai-shield":            "AIShield — LLM Security Firewall",
   "/vpn-tracker":          "VPN Tracker",
+  "/admin/ghost-trap":     "Attacker Intelligence Center",
 };
 
 const USER_NAV = [
@@ -314,6 +315,7 @@ const AMBASSADOR_NAV = [
 ];
 
 const ADMIN_NAV = [
+  { href: "/admin/ghost-trap",   label: "Attacker Intel",     icon: Skull },
   { href: "/dashboard",          label: "Dashboard",          icon: LayoutDashboard },
   { href: "/nodes",              label: "VPN Servers",        icon: Server },
   { href: "/beacons",            label: "Threat Monitor",     icon: ShieldAlert },
