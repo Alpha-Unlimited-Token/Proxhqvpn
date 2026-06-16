@@ -539,3 +539,9 @@ id = "v8P_JwjRwHvW8zebHR4Dv"
 uri = "file://standalone/dist/ChatGPT-Native-App-Conversion-Prompt.txt"
 type = "text"
 title = "ChatGPT Native App Conversion Prompt (paste into o3 / Claude)"
+
+[[outputs]]
+id = "jpVM8pU5WTkmx98y-0MKw"
+uri = "file://ghost-node-docs.zip"
+type = "unspecified"
+title = "Ghost Node Docs Package (Install Guide + Uninstall Script)"
