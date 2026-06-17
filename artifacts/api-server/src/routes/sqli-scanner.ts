@@ -9,6 +9,7 @@ import { z } from "zod";
 import https from "https";
 import http from "http";
 import { URL } from "url";
+import { requireVerifiedAsset } from "../lib/verified-assets";
 
 const router = Router();
 
@@ -204,6 +205,8 @@ router.post("/scan", async (req: Request, res: Response) => {
   if (!body.success) return res.status(400).json({ error: "Invalid input", details: body.error.issues });
 
   const targetUrl = body.data.url;
+  const _sqliUserId = (req as any).auth?.userId ?? "unknown";
+  await requireVerifiedAsset(_sqliUserId, targetUrl, req);
   const checks = body.data.checks ?? { errorBased: true, booleanBlind: true, timeBased: true, union: true };
 
   // Auto-detect parameters from URL if not specified

@@ -80,8 +80,8 @@ app.use(
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'", "https://clerk.accounts.dev", "https://*.clerk.accounts.dev"],
-        styleSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrc: ["'self'", "https://clerk.accounts.dev", "https://*.clerk.accounts.dev"],
+        styleSrc: ["'self'", "https://fonts.googleapis.com"],
         imgSrc: ["'self'", "data:", "https://img.clerk.com", "https://*.clerk.com"],
         connectSrc: ["'self'", "https://clerk.accounts.dev", "https://*.clerk.accounts.dev", "https://api.clerk.com"],
         fontSrc: ["'self'", "https://fonts.gstatic.com"],
@@ -124,10 +124,10 @@ const globalLimiter = rateLimit({
 
 const terminalLimiter = rateLimit({
   windowMs: 60_000,
-  max: 20,
+  max: 10, // Halved — compensates for in-memory store resetting on restart
   standardHeaders: "draft-7",
   legacyHeaders: false,
-  message: { error: "Terminal rate limit: max 20 commands/minute." },
+  message: { error: "Terminal rate limit: max 10 commands/minute." },
 });
 
 const sqlLimiter = rateLimit({

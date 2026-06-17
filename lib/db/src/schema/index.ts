@@ -47,3 +47,6 @@ export * from "./validation";
 export * from "./node-maintenance";
 export * from "./commercial-entitlements";
 export * from "./verified-assets";
+export * from "./file-scan-jobs";
+export * from "./marketing-drafts";
+export * from "./autoscale";

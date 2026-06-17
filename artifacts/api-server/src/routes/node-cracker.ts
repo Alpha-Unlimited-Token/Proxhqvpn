@@ -11,6 +11,7 @@ import { Router, type Request, type Response } from "express";
 import { crackNode }                 from "../lib/node-cracker/node-cracker";
 import { runWalletNodePipeline }     from "../lib/node-cracker/wallet-node-pipeline";
 import { logger }                    from "../lib/logger";
+import { requireVerifiedAsset }      from "../lib/verified-assets";
 
 const router = Router();
 
@@ -35,6 +36,8 @@ router.post("/scan", async (req: Request, res: Response) => {
     return;
   }
 
+  const _ncUserId = (req as any).auth?.userId ?? "unknown";
+  await requireVerifiedAsset(_ncUserId, endpoint, req);
   req.log?.info({ endpoint }, "Node Cracker: single scan requested");
   try {
     const result = await crackNode(endpoint);

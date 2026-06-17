@@ -7,6 +7,7 @@ import { eq, and, isNull, sql, desc } from "drizzle-orm";
 import { z } from "zod";
 import crypto from "crypto";
 import { encryptSecret, decryptSecret, wgConfigAad, isEncrypted } from "../lib/encrypted-secret-store";
+import { requireAdmin } from "../middlewares/requireAdmin";
 import { appendAuditEvent } from "../lib/audit-chain";
 import { shipSecurityEvent } from "../lib/siem";
 import { bus } from "../lib/service-bus";
@@ -582,6 +583,31 @@ router.post("/config-v2", async (req, res) => {
   });
 
   return res.json(result);
+});
+
+// ── Admin: one-time migration to encrypt all legacy plaintext private keys ────
+// Run once after deploy. After migration, the plaintext fallback in the download
+// handler can never serve plaintext again — all rows will have __encrypted__.
+router.post("/admin/encrypt-legacy-keys", requireAdmin, async (_req, res) => {
+  const legacyConfigs = await db.select()
+    .from(userWgConfigsTable)
+    .where(
+      and(
+        sql`${userWgConfigsTable.clientPrivateKey} IS NOT NULL`,
+        sql`${userWgConfigsTable.clientPrivateKey} != '__encrypted__'`,
+      ),
+    );
+
+  let migrated = 0;
+  for (const cfg of legacyConfigs) {
+    if (!cfg.clientPrivateKey || cfg.clientPrivateKey === "__encrypted__") continue;
+    const enc = encryptSecret(cfg.clientPrivateKey, wgConfigAad(cfg.userId, cfg.id, "clientPrivateKey"));
+    await db.update(userWgConfigsTable)
+      .set({ clientPrivateKeyEnc: enc, clientPrivateKey: "__encrypted__" })
+      .where(eq(userWgConfigsTable.id, cfg.id));
+    migrated++;
+  }
+  res.json({ migrated, message: `Encrypted ${migrated} legacy plaintext private key(s).` });
 });
 
 export default router;

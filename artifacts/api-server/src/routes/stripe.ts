@@ -7,6 +7,10 @@ import { stripeStorage } from "../stripeStorage";
 import { isEmployeeEmail } from "./employees";
 import { requireAdmin } from "../middlewares/requireAdmin";
 import { z } from "zod";
+import { db } from "@workspace/db";
+import { usersTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
+import { logger } from "../lib/logger";
 
 const router = Router();
 
@@ -268,6 +272,94 @@ router.post("/admin/cancel-trials", requireAdmin, async (req, res) => {
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// ── POST /api/stripe/webhook — Stripe lifecycle events ──────────────────────
+// Raw body parser is required for signature verification.
+// In public.ts, mount this BEFORE json middleware:
+//   router.post("/stripe/webhook", express.raw({ type: "application/json" }), stripeWebhookHandler)
+router.post("/webhook", async (req, res) => {
+  const sig = req.headers["stripe-signature"] as string | undefined;
+
+  let event: any;
+  try {
+    const stripe = await getUncachableStripeClient();
+    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+    if (webhookSecret && sig) {
+      event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
+    } else {
+      // No secret configured — parse body as-is (development / Replit connector flow)
+      event = typeof req.body === "string" || Buffer.isBuffer(req.body)
+        ? JSON.parse(req.body.toString())
+        : req.body;
+    }
+  } catch (err: any) {
+    logger.warn({ err: err.message }, "Stripe webhook signature verification failed");
+    return res.status(400).json({ error: `Webhook error: ${err.message}` });
+  }
+
+  try {
+    switch (event.type) {
+      case "customer.subscription.deleted":
+      case "customer.subscription.updated": {
+        const sub = event.data.object;
+        const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer?.id;
+        if (customerId) {
+          const [user] = await db.select().from(usersTable)
+            .where(eq(usersTable.stripeCustomerId, customerId)).limit(1);
+          if (user) {
+            // subscriptionId may have changed (e.g. upgrade replaced old sub)
+            const newSubId = typeof sub.id === "string" ? sub.id : null;
+            if (newSubId && newSubId !== user.stripeSubscriptionId) {
+              await db.update(usersTable)
+                .set({ stripeSubscriptionId: newSubId })
+                .where(eq(usersTable.id, user.id));
+            }
+            logger.info({ userId: user.id, status: sub.status }, "Stripe subscription updated");
+          }
+        }
+        break;
+      }
+      case "invoice.payment_failed": {
+        const invoice = event.data.object;
+        const customerId = typeof invoice.customer === "string" ? invoice.customer : invoice.customer?.id;
+        if (customerId) {
+          const [user] = await db.select().from(usersTable)
+            .where(eq(usersTable.stripeCustomerId, customerId)).limit(1);
+          if (user) {
+            logger.warn({ userId: user.id, customerId }, "Stripe invoice payment failed");
+          }
+        }
+        break;
+      }
+      case "checkout.session.completed": {
+        const session = event.data.object;
+        if (session.mode === "subscription" && session.subscription) {
+          const customerId = typeof session.customer === "string" ? session.customer : session.customer?.id;
+          if (customerId) {
+            const [user] = await db.select().from(usersTable)
+              .where(eq(usersTable.stripeCustomerId, customerId)).limit(1);
+            if (user) {
+              const subId = typeof session.subscription === "string" ? session.subscription : null;
+              if (subId) {
+                await db.update(usersTable)
+                  .set({ stripeSubscriptionId: subId })
+                  .where(eq(usersTable.id, user.id));
+              }
+              logger.info({ userId: user.id }, "Stripe checkout completed — subscription activated");
+            }
+          }
+        }
+        break;
+      }
+      default:
+        break;
+    }
+  } catch (err) {
+    logger.error({ err, eventType: event?.type }, "Stripe webhook handler error");
+  }
+
+  res.json({ received: true });
 });
 
 export default router;

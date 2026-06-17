@@ -11,6 +11,7 @@ import { Router } from "express";
 import * as https from "https";
 import * as http from "http";
 import { URL } from "url";
+import { requireVerifiedAsset } from "../lib/verified-assets";
 
 const router = Router();
 
@@ -290,6 +291,8 @@ router.post("/scan", async (req, res) => {
   const { targetUrl, param = "q", classes, limit = 200 } = req.body;
   if (!targetUrl) return res.status(400).json({ error: "targetUrl required" });
   try { new URL(targetUrl); } catch { return res.status(400).json({ error: "Invalid URL" }); }
+  const _wafUserId = (req as any).auth?.userId ?? "unknown";
+  await requireVerifiedAsset(_wafUserId, targetUrl, req);
 
   const selectedClasses: AttackClass[] = Array.isArray(classes) && classes.length
     ? classes.filter((c: string) => ["sqli","xss","lfi","rce","ssrf","xxe","ssti","nosqli"].includes(c))

@@ -13,9 +13,23 @@ import { serializeDates } from "../../lib/serialize";
 
 const router: IRouter = Router();
 
-// ── CORS helper (agents run on external origins) ─────────────────────────────
+// ── CORS helper — restricted to localhost/LAN origins only ──────────────────
+// Wildcard ACAO is not appropriate for a commercial product that stores
+// keystroke and clipboard data. Restrict to localhost and RFC1918 ranges
+// where legitimate audit agents would run.
 function agentCors(req: Request, res: Response) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
+  const origin = req.headers.origin;
+  const allowedPatterns = [
+    /^https?:\/\/localhost(:\d+)?$/,
+    /^https?:\/\/127\.\d+\.\d+\.\d+(:\d+)?$/,
+    /^https?:\/\/10\.\d+\.\d+\.\d+(:\d+)?$/,
+    /^https?:\/\/192\.168\.\d+\.\d+(:\d+)?$/,
+    /^https?:\/\/172\.(1[6-9]|2\d|3[01])\.\d+\.\d+(:\d+)?$/,
+  ];
+  if (origin && allowedPatterns.some(p => p.test(origin))) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Vary", "Origin");
+  }
   res.setHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 }

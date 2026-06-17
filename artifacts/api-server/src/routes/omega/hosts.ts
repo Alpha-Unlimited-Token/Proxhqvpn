@@ -21,8 +21,13 @@ import { tokenForHost } from "../../lib/omega-store";
 
 const router: IRouter = Router();
 
-router.get("/hosts", async (_req, res): Promise<void> => {
-  const hosts = await db.select().from(hostsTable).orderBy(hostsTable.createdAt);
+router.get("/hosts", async (req, res): Promise<void> => {
+  const { userId } = getAuth(req);
+  const hosts = userId
+    ? await db.select().from(hostsTable)
+        .where(eq(hostsTable.ownerUserId, userId))
+        .orderBy(hostsTable.createdAt)
+    : [];
   res.json(ListHostsResponse.parse(serializeDateArray(hosts)));
 });
 
@@ -44,6 +49,8 @@ router.get("/hosts/:id", async (req, res): Promise<void> => {
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
   const [host] = await db.select().from(hostsTable).where(eq(hostsTable.id, params.data.id));
   if (!host) { res.status(404).json({ error: "Host not found" }); return; }
+  const { userId } = getAuth(req);
+  if (host.ownerUserId && host.ownerUserId !== userId) { res.status(403).json({ error: "Forbidden" }); return; }
   res.json(GetHostResponse.parse(serializeDates(host)));
 });
 

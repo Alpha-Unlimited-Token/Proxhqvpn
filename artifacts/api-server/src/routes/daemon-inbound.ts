@@ -174,72 +174,38 @@ router.post("/worm-callhome", async (req, res) => {
 
 router.use(requirePsk);
 
-// ── Worm-payload — node fetches this before sending banner to attacker ───────
+// ── Worm-payload — detection-only service banners (NO tracking JS, NO pixels) ─
+// Honeypot detects the connection at the network level via iptables LOG.
+// The banner itself is passive — it identifies the service but does not
+// embed phone-home scripts or tracking pixels that fire on the attacker's browser.
 router.get("/worm-payload", (req, res) => {
   const type = (req.query.type as string | undefined)?.toLowerCase() ?? "http";
-  const port = parseInt(req.query.port as string) || 80;
-  const nodeId = req.query.nodeId ?? "?";
-
-  // Unique worm ID per request so we can correlate callbacks
-  const wormId = randomUUID().substring(0, 12);
-
-  // Base URL for callbacks — prefer REPLIT_DOMAINS, fall back to request host
-  const domains = (process.env.REPLIT_DOMAINS ?? "").split(",").filter(Boolean);
-  const baseUrl = domains.length > 0
-    ? `https://${domains[0]}`
-    : `http://${req.headers.host ?? "localhost"}`;
-
-  const callbackUrl = `${baseUrl}/api/daemon-inbound/worm-callhome`;
-  const pixelUrl    = `${baseUrl}/api/daemon-inbound/worm-callhome`;
 
   if (type === "ftp") {
-    const banner = [
-      `220-ProFTPD 1.3.5 Server (Debian) [${req.socket.remoteAddress ?? "unknown"}]`,
-      `220-Welcome to FTP service`,
-      `220-[ref:${wormId}] See ftp://help.${domains[0] ?? "proxhqvpn.com"}/setup for client configuration`,
-      `220 Server ready.`,
-    ].join("\r\n");
-    return res.json({ type: "ftp", wormId, banner });
+    return res.json({
+      type: "ftp",
+      banner: `220 ProFTPD 1.3.5 Server ready.\r\n`,
+    });
   }
 
   if (type === "ssh") {
-    const banner = `SSH-2.0-OpenSSH_8.9p1 Ubuntu-3ubuntu0.6\r\n` +
-      `# [svc:${wormId}] System management: ${baseUrl}/status\r\n`;
-    return res.json({ type: "ssh", wormId, banner });
+    return res.json({
+      type: "ssh",
+      banner: `SSH-2.0-OpenSSH_8.9p1 Ubuntu-3ubuntu0.6\r\n`,
+    });
   }
 
-  // Default: HTTP — full response with hidden worm trackers
-  const wormScript = `
-<script>
-(function(){
-  var w={id:"${wormId}",ua:navigator.userAgent,ref:document.referrer,ts:Date.now()};
-  fetch("${callbackUrl}",{method:"POST",headers:{"Content-Type":"application/json"},
-    body:JSON.stringify(w),mode:"no-cors"}).catch(function(){});
-})();
-</script>`.trim();
-
-  const body = `<html>
-<head><title>Apache2 Default Page</title></head>
-<body>
-<h1>It works!</h1>
-<p>This is the default web page for this server.</p>
-<p>The web server software is running but no content has been added, yet.</p>
-<img src="${pixelUrl}?wid=${wormId}&np=${port}&ni=${nodeId}" width="1" height="1" style="display:none" alt="">
-${wormScript}
-</body>
-</html>`;
-
+  // Default: HTTP — plain page, no trackers
   const httpResponse = [
     `HTTP/1.1 200 OK`,
     `Server: Apache/2.4.51 (Ubuntu)`,
     `Content-Type: text/html; charset=utf-8`,
-    `Content-Length: ${Buffer.byteLength(body)}`,
-    `Connection: close`,
     ``,
-    body,
+    `<html><head><title>It works!</title></head>`,
+    `<body><h1>It works!</h1></body></html>`,
   ].join("\r\n");
 
-  return res.json({ type: "http", wormId, banner: httpResponse, body });
+  return res.json({ type: "http", banner: httpResponse });
 });
 
 router.post("/report", async (req, res) => {
