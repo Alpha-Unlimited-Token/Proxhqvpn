@@ -76,7 +76,6 @@ import AmbassadorDashboard from "@/pages/AmbassadorDashboard";
 const OsintRecon      = lazy(() => import("@/pages/OsintRecon"));
 const UsernameIntel   = lazy(() => import("@/pages/UsernameIntel"));
 const CanaryTokens    = lazy(() => import("@/pages/CanaryTokens"));
-const OmniStrike      = lazy(() => import("@/pages/OmniStrike"));
 const WafAnalyzer     = lazy(() => import("@/pages/WafAnalyzer"));
 const SocialBreach    = lazy(() => import("@/pages/SocialBreach"));
 const BugBountyHub    = lazy(() => import("@/pages/BugBountyHub"));
@@ -126,7 +125,6 @@ export function CommandCenterRoutes() {
       <Route path="/osint"><CcLayout><OsintRecon /></CcLayout></Route>
       <Route path="/username-intel"><CcLayout><UsernameIntel /></CcLayout></Route>
       <Route path="/canary"><CcLayout><CanaryTokens /></CcLayout></Route>
-      <Route path="/omnistrike"><CcLayout><OmniStrike /></CcLayout></Route>
       <Route path="/waf"><CcLayout><WafAnalyzer /></CcLayout></Route>
       <Route path="/social-breach"><CcLayout><SocialBreach /></CcLayout></Route>
       <Route path="/bug-bounty"><CcLayout><BugBountyHub /></CcLayout></Route>

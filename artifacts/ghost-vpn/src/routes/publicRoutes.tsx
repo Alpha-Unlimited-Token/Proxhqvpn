@@ -22,7 +22,6 @@ import HackAnon from "@/pages/HackAnon";
 import AmbassadorHandbook from "@/pages/AmbassadorHandbook";
 import EmployeeHandbook from "@/pages/EmployeeHandbook";
 import ImAutomation from "@/pages/ImAutomation";
-import RedTeamScan from "@/pages/RedTeamScan";
 
 const Downloads        = lazy(() => import("@/pages/Downloads"));
 const BrowserExtension = lazy(() => import("@/pages/BrowserExtension"));
@@ -64,10 +63,6 @@ export function PublicRoutes() {
 
       <Route path="/im-auto">
         <CcLayout><ImAutomation /></CcLayout>
-      </Route>
-
-      <Route path="/redteam-scan">
-        <CcLayout><RedTeamScan /></CcLayout>
       </Route>
 
       <Route path="/hackanon">
