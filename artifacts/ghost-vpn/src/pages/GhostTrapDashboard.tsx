@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { SecurityOpsShell, SecurityMetricCard } from "@/components/security-ops";
 import {
   ShieldCheck, Globe, Clock, Ban, Siren, Download,
-  AlertTriangle, Loader2, RefreshCw,
+  AlertTriangle, Loader2, RefreshCw, Shield, Activity, Database, Lock,
 } from "lucide-react";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -70,7 +70,7 @@ const SEVERITY_COLOR: Record<string, string> = {
 };
 
 export default function GhostTrapDashboard() {
-  const [activeTab, setActiveTab] = useState<"events" | "sessions" | "evidence">("events");
+  const [activeTab, setActiveTab] = useState<"events" | "sessions" | "evidence" | "telemetry">("events");
 
   const eventsQ = useQuery<{ probes?: TrapEvent[]; stats?: TrapStats }>({
     queryKey: ["ghost-trap-events"],
@@ -97,6 +97,41 @@ export default function GhostTrapDashboard() {
     queryKey: ["ghost-trap-port-stats"],
     queryFn: () => apiFetch("/api/command-center/ghost-trap/port-stats"),
     refetchInterval: 30_000,
+    retry: false,
+  });
+
+  type TelemetryRow = {
+    id: number; sourceIp: string; destPort: number; protocol: string;
+    probeClass: string | null; toolSignature: string | null; portLabel: string | null;
+    tarpitApplied: boolean | null; tarpitMs: number | null; capturedAt: string;
+    legalBasis: string | null;
+  };
+  type TelemetryData = {
+    total24h: number;
+    byPortLabel: Record<string, number>;
+    byProbeClass: Record<string, number>;
+    byToolSignature: Record<string, number>;
+    recentProbes: TelemetryRow[];
+    legalBasis: {
+      summary: string;
+      laws: string[];
+      whatIsCollected: string[];
+      whatIsNOTCollected: string[];
+    };
+  };
+
+  const telemetryQ = useQuery<TelemetryData>({
+    queryKey: ["ghost-trap-telemetry"],
+    queryFn: () => apiFetch("/api/command-center/ghost-trap/telemetry"),
+    refetchInterval: 20_000,
+    retry: false,
+  });
+
+  type SigRow = { tool_signature: string; probe_class: string; port_label: string; total: number; last_seen: string; tarpit_count: number };
+  const toolSigsQ = useQuery<{ signatures: SigRow[]; generatedAt: string }>({
+    queryKey: ["ghost-trap-tool-sigs"],
+    queryFn: () => apiFetch("/api/command-center/ghost-trap/telemetry/tool-signatures"),
+    refetchInterval: 60_000,
     retry: false,
   });
 
@@ -212,7 +247,7 @@ export default function GhostTrapDashboard() {
 
         {/* Tabs */}
         <div className="flex gap-2 border-b border-white/[0.07] pb-0">
-          {(["events", "sessions", "evidence"] as const).map((tab) => (
+          {(["events", "sessions", "evidence", "telemetry"] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -386,6 +421,160 @@ export default function GhostTrapDashboard() {
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {/* Telemetry tab */}
+        {activeTab === "telemetry" && (
+          <div className="space-y-4">
+
+            {/* Legal Basis Card */}
+            <div className="rounded-2xl border border-primary/20 bg-primary/[0.04] p-5">
+              <div className="flex items-start gap-3 mb-4">
+                <Shield className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+                <div>
+                  <div className="text-sm font-semibold text-primary mb-1">Passive Probe Telemetry — Legal Basis</div>
+                  <div className="text-xs text-white/60 leading-relaxed">
+                    {telemetryQ.data?.legalBasis?.summary ?? "All telemetry is passive — recorded from packets sent TO our own infrastructure."}
+                  </div>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 text-xs">
+                <div>
+                  <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-primary/60 mb-2">
+                    <Lock className="w-3 h-3" /> Applicable law
+                  </div>
+                  <ul className="space-y-1 text-white/50 leading-relaxed">
+                    {(telemetryQ.data?.legalBasis?.laws ?? [
+                      "US: 18 U.S.C. § 2511(2)(a)(i) — provider interception for service protection",
+                      "EU: GDPR Art. 6(1)(f) — legitimate interest (security defence)",
+                      "UK: IPA 2016 s.48 — system controller logging",
+                    ]).map((l, i) => <li key={i} className="flex gap-1.5"><span className="text-primary/40">•</span>{l}</li>)}
+                  </ul>
+                </div>
+                <div className="space-y-3">
+                  <div>
+                    <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-green-400/60 mb-1.5">
+                      <ShieldCheck className="w-3 h-3" /> What is collected
+                    </div>
+                    <ul className="space-y-1 text-white/50 leading-relaxed">
+                      {(telemetryQ.data?.legalBasis?.whatIsCollected ?? [
+                        "Source IP and port of inbound connection",
+                        "Packet structure sent by attacker's client",
+                        "HTTP path and User-Agent sent to our lure server",
+                        "Tarpit delay applied by our server",
+                      ]).map((l, i) => <li key={i} className="flex gap-1.5"><span className="text-green-400/40">✓</span>{l}</li>)}
+                    </ul>
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-red-400/60 mb-1.5">
+                      <Ban className="w-3 h-3" /> What is NOT collected
+                    </div>
+                    <ul className="space-y-1 text-white/50 leading-relaxed">
+                      {(telemetryQ.data?.legalBasis?.whatIsNOTCollected ?? [
+                        "No data from attacker's own systems",
+                        "No cross-site tracking",
+                        "No code execution on attacker devices",
+                        "No outbound connections to attacker IPs",
+                      ]).map((l, i) => <li key={i} className="flex gap-1.5"><span className="text-red-400/40">✗</span>{l}</li>)}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Stat row */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {[
+                { label: "Probes (24h)", value: telemetryQ.data?.total24h ?? 0, icon: <Activity className="w-4 h-4" />, color: "text-primary" },
+                { label: "Ghost Port 51820", value: telemetryQ.data?.byPortLabel?.["GHOST_PORT_51820"] ?? 0, icon: <Globe className="w-4 h-4" />, color: "text-yellow-400" },
+                { label: "Hidden Port 41194", value: telemetryQ.data?.byPortLabel?.["REAL_WG_PORT_HIDDEN"] ?? 0, icon: <AlertTriangle className="w-4 h-4" />, color: "text-red-400" },
+                { label: "HTTP Lure", value: telemetryQ.data?.byPortLabel?.["HTTP_LURE"] ?? 0, icon: <Database className="w-4 h-4" />, color: "text-blue-400" },
+              ].map((s) => (
+                <div key={s.label} className="rounded-xl border border-white/[0.07] bg-black/30 p-3 flex flex-col gap-1">
+                  <div className={`flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest ${s.color}/60`}>
+                    {s.icon}{s.label}
+                  </div>
+                  <div className={`text-2xl font-bold font-mono ${s.color}`}>{s.value}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Tool Signature Table */}
+            <div className="rounded-2xl border border-white/[0.07] bg-black/40 overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-white/40">Detected Scanner Tools (7-day window)</span>
+                <button onClick={() => toolSigsQ.refetch()} disabled={toolSigsQ.isFetching} className="text-white/30 hover:text-primary transition-colors">
+                  <RefreshCw className={`w-3.5 h-3.5 ${toolSigsQ.isFetching ? "animate-spin" : ""}`} />
+                </button>
+              </div>
+              {toolSigsQ.isLoading ? (
+                <div className="flex items-center justify-center gap-2 py-10 text-white/40 text-sm">
+                  <Loader2 className="w-4 h-4 animate-spin" /> Loading tool signatures...
+                </div>
+              ) : (toolSigsQ.data?.signatures ?? []).length === 0 ? (
+                <div className="py-10 text-center text-white/30 text-sm">No telemetry recorded yet — signatures appear once daemons are running.</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-white/[0.05] text-white/30 text-[10px] uppercase tracking-widest">
+                        <th className="px-4 py-2 text-left">Tool</th>
+                        <th className="px-4 py-2 text-left">Probe Class</th>
+                        <th className="px-4 py-2 text-left">Port</th>
+                        <th className="px-4 py-2 text-right">Count</th>
+                        <th className="px-4 py-2 text-right">Tarpitted</th>
+                        <th className="px-4 py-2 text-right">Last Seen</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/[0.04]">
+                      {(toolSigsQ.data?.signatures ?? []).map((s, i) => (
+                        <tr key={i} className="hover:bg-white/[0.02] transition-colors">
+                          <td className="px-4 py-2.5 font-mono text-primary">{s.tool_signature ?? "unknown"}</td>
+                          <td className="px-4 py-2.5 text-white/50">{s.probe_class ?? "—"}</td>
+                          <td className="px-4 py-2.5 text-white/40">{s.port_label ?? "—"}</td>
+                          <td className="px-4 py-2.5 text-right font-mono text-white/70">{s.total}</td>
+                          <td className="px-4 py-2.5 text-right text-yellow-400/70">{s.tarpit_count}</td>
+                          <td className="px-4 py-2.5 text-right text-white/30">{s.last_seen ? new Date(s.last_seen).toLocaleString() : "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Recent Probes Feed */}
+            <div className="rounded-2xl border border-white/[0.07] bg-black/40 overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-white/40">Recent Probe Log (24h, up to 100)</span>
+                <button onClick={() => telemetryQ.refetch()} disabled={telemetryQ.isFetching} className="text-white/30 hover:text-primary transition-colors">
+                  <RefreshCw className={`w-3.5 h-3.5 ${telemetryQ.isFetching ? "animate-spin" : ""}`} />
+                </button>
+              </div>
+              {telemetryQ.isLoading ? (
+                <div className="flex items-center justify-center gap-2 py-10 text-white/40 text-sm">
+                  <Loader2 className="w-4 h-4 animate-spin" /> Loading probes...
+                </div>
+              ) : (telemetryQ.data?.recentProbes ?? []).length === 0 ? (
+                <div className="py-10 text-center text-white/30 text-sm">No probes in the last 24 hours.</div>
+              ) : (
+                <div className="divide-y divide-white/[0.04]">
+                  {(telemetryQ.data?.recentProbes ?? []).map((p) => (
+                    <div key={p.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/[0.02] transition-colors text-xs">
+                      <span className={`shrink-0 w-2 h-2 rounded-full ${p.portLabel === "REAL_WG_PORT_HIDDEN" ? "bg-red-400" : p.portLabel === "HTTP_LURE" ? "bg-blue-400" : "bg-yellow-400"}`} />
+                      <span className="font-mono text-white/60 w-28 shrink-0">{p.sourceIp}</span>
+                      <span className="text-white/40 shrink-0">:{p.destPort}</span>
+                      <span className="text-white/30 uppercase shrink-0">{p.protocol}</span>
+                      <span className="text-primary/80 font-mono shrink-0">{p.toolSignature ?? "unknown"}</span>
+                      <span className="text-white/40 hidden md:block">{p.probeClass ?? "—"}</span>
+                      {p.tarpitApplied && <span className="text-yellow-400/60 shrink-0">tarpit {p.tarpitMs}ms</span>}
+                      <span className="text-white/20 ml-auto shrink-0">{new Date(p.capturedAt).toLocaleTimeString()}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>

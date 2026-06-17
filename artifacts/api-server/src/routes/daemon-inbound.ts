@@ -3,6 +3,7 @@ import { createHash, randomUUID, timingSafeEqual } from "crypto";
 import { appendAuditEvent } from "../lib/audit-chain";
 import { shipSecurityEvent } from "../lib/siem";
 import { publishPlatformEvent } from "../lib/event-bus";
+import { probeTelemetryTable } from "@workspace/db";
 import { exec } from "child_process";
 import { Router } from "express";
 import { db } from "@workspace/db";
@@ -1289,6 +1290,53 @@ router.get("/peer-rules-export", async (req, res) => {
   }));
 
   return res.json({ rules: enriched });
+});
+
+// ── POST /probe-telemetry — passive probe telemetry from ghost daemons ────────
+// Receives rich fingerprint data from ghost-wireguard.py (port 51820) and
+// ghost-realport-monitor.py (port 41194).
+//
+// Legal basis for every record stored:
+//   "honeypot_passive_self_defense" — we are logging packets/requests that
+//   the attacker intentionally sent TO our own servers.  This is identical in
+//   character to standard IDS/firewall logging (Snort, Suricata, fail2ban).
+//   No data is obtained from the attacker's systems; we only record what they
+//   chose to send to us.  Applicable law supports this under:
+//     • US: 18 U.S.C. § 2511(2)(a)(i) — provider interception for service protection
+//     • EU: GDPR Art. 6(1)(f) — legitimate interest (security defence)
+//     • UK: IPA 2016 s.48 — system controller logging
+router.post("/probe-telemetry", async (req, res) => {
+  const body = z.object({
+    sourceIp:      z.string(),
+    sourcePort:    z.number().optional(),
+    destPort:      z.number().optional(),
+    protocol:      z.string().optional(),
+    probeClass:    z.string().optional(),
+    toolSignature: z.string().optional(),
+    fingerprint:   z.unknown().optional(),
+    nodeId:        z.union([z.number(), z.string()]).optional(),
+    portLabel:     z.string().optional(),
+    tarpitApplied: z.boolean().optional(),
+    tarpitMs:      z.number().optional(),
+    legalBasis:    z.string().optional(),
+  }).passthrough().parse(req.body);
+
+  await db.insert(probeTelemetryTable).values({
+    sourceIp:      body.sourceIp,
+    sourcePort:    body.sourcePort,
+    destPort:      body.destPort ?? (body.portLabel?.includes("REAL") ? 41194 : 51820),
+    protocol:      body.protocol ?? "udp",
+    probeClass:    body.probeClass,
+    toolSignature: body.toolSignature,
+    fingerprint:   body.fingerprint as Record<string, unknown> | undefined,
+    nodeId:        String(body.nodeId ?? "unknown"),
+    portLabel:     body.portLabel,
+    tarpitApplied: body.tarpitApplied ?? false,
+    tarpitMs:      body.tarpitMs,
+    legalBasis:    body.legalBasis ?? "honeypot_passive_self_defense",
+  });
+
+  res.status(201).json({ ok: true });
 });
 
 export default router;

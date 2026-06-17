@@ -167,6 +167,92 @@ def build_handshake_response(init: Dict) -> Tuple[bytes, Dict]:
 
     return response, session_info
 
+# ── Passive WireGuard handshake fingerprinting ────────────────────────────────
+# Analyzes fields the attacker's WireGuard client sent TO our server.
+# No outbound probing — all data originates from their inbound packets.
+# Legal basis: server-side analysis of packets received by our own socket.
+def classify_wg_client(init: Dict, raw_pkt: bytes) -> Dict:
+    sender_idx = init.get("sender_index", 0)
+    mac1       = init.get("mac1", b"")
+    # mac2 lives at bytes 132–148 of the 148-byte WireGuard HandshakeInitiation
+    mac2       = raw_pkt[132:148] if len(raw_pkt) >= 148 else b"\x00" * 16
+
+    mac1_zero = all(b == 0 for b in mac1) if mac1 else True
+    mac2_zero = all(b == 0 for b in mac2)
+
+    if mac1_zero:
+        sig   = "malformed_wg_scanner"
+        notes = ["mac1 is all-zeros — violates WireGuard spec; likely a fuzzer or broken PoC"]
+    elif mac2_zero and sender_idx < 10:
+        sig   = "masscan_or_zgrab"
+        notes = ["mac2=0 + low sender_index; masscan/zgrab pattern — no cookie exchange"]
+    elif mac2_zero:
+        sig   = "generic_wg_scanner"
+        notes = ["mac2=0 — no prior cookie exchange; automated scanner, not a real WG client"]
+    else:
+        sig   = "wg_client"
+        notes = ["mac2 non-zero — proper WireGuard client or cookie-aware scanner"]
+
+    return {
+        "tool_signature": sig,
+        "probe_class":    "wg_handshake_init",
+        "mac1_zero":      mac1_zero,
+        "mac2_zero":      mac2_zero,
+        "sender_index":   sender_idx,
+        "notes":          notes,
+    }
+
+
+# ── Passive HTTP request fingerprinting ───────────────────────────────────────
+# Analyzes headers the attacker's tool sent to our lure HTTP server.
+# No outbound probing — all data originates from their inbound HTTP request.
+def fingerprint_http_request(ua: str, path: str, has_accept_lang: bool) -> Dict:
+    ua_l = (ua or "").lower()
+    if "masscan"        in ua_l: sig = "masscan_http"
+    elif "nmap"         in ua_l: sig = "nmap_scripting_engine"
+    elif "python-requests" in ua_l: sig = "python_requests"
+    elif "curl"         in ua_l: sig = "curl"
+    elif "go-http-client" in ua_l: sig = "go_http_scanner"
+    elif "zgrab"        in ua_l: sig = "zgrab"
+    elif "shodan"       in ua_l: sig = "shodan_crawler"
+    elif "mozilla" in ua_l and has_accept_lang: sig = "browser_manual_user"
+    elif "mozilla"      in ua_l: sig = "headless_browser"
+    elif not ua or ua == "unknown": sig = "no_ua_raw_scanner"
+    else:                        sig = "unknown_http_tool"
+
+    probe_class = "http_lure_scan"
+    if "wp-login"  in path or "wordpress" in path: probe_class = "http_lure_wp_scan"
+    elif "phpmyadmin" in path:                     probe_class = "http_lure_db_scan"
+    elif "admin"   in path:                        probe_class = "http_lure_admin_scan"
+
+    return {
+        "tool_signature":  sig,
+        "probe_class":     probe_class,
+        "path_accessed":   path,
+        "ua":              ua[:200],
+        "has_accept_lang": has_accept_lang,
+    }
+
+
+# ── Report passive telemetry to /probe-telemetry ──────────────────────────────
+# Sends rich fingerprint data separately from the honeypot-hit alert.
+# Every record carries explicit legalBasis so the DB is self-documenting.
+def report_telemetry(telemetry: Dict, backend_url: str, psk: str):
+    payload = {
+        "legalBasis": "honeypot_passive_self_defense",
+        **telemetry,
+    }
+    try:
+        requests.post(
+            f"{backend_url}/api/daemon-inbound/probe-telemetry",
+            json=payload,
+            headers={"X-Daemon-PSK": psk},
+            timeout=5,
+        )
+    except Exception as e:
+        log.debug(f"Telemetry report failed (non-critical): {e}")
+
+
 # ── Report probe to ProxhqVPN backend ────────────────────────────────────────
 def report_probe(source_ip: str, source_port: int, init: Dict,
                  session_info: Dict, node_id: str, backend_url: str, psk: str,
@@ -202,7 +288,8 @@ def report_probe(source_ip: str, source_port: int, init: Dict,
 
 # ── Tarpit: delayed response ──────────────────────────────────────────────────
 def delayed_respond(sock, response_bytes, addr, delay_ms, source_ip, source_port,
-                    init, session_info, node_id, backend_url, psk, listen_port):
+                    init, session_info, node_id, backend_url, psk, listen_port,
+                    raw_pkt: bytes = b""):
     """Send the fake response after a tarpit delay, then report."""
     time.sleep(delay_ms / 1000.0)
     try:
@@ -212,6 +299,21 @@ def delayed_respond(sock, response_bytes, addr, delay_ms, source_ip, source_port
         log.warning(f"Send failed: {e}")
     report_probe(source_ip, source_port, init, session_info, node_id, backend_url, psk,
                  listen_port=listen_port, delay_ms=delay_ms)
+    # Also send rich passive telemetry
+    wg_fp = classify_wg_client(init, raw_pkt)
+    report_telemetry({
+        "sourceIp":      source_ip,
+        "sourcePort":    source_port,
+        "destPort":      listen_port,
+        "protocol":      "udp",
+        "probeClass":    wg_fp["probe_class"],
+        "toolSignature": wg_fp["tool_signature"],
+        "fingerprint":   wg_fp,
+        "nodeId":        node_id,
+        "portLabel":     "GHOST_PORT_51820" if listen_port == 51820 else "REAL_WG_PORT_HIDDEN",
+        "tarpitApplied": True,
+        "tarpitMs":      delay_ms,
+    }, backend_url, psk)
 
 # ── HTTP Lure Server ──────────────────────────────────────────────────────────
 LURE_PAGES = {
@@ -255,6 +357,37 @@ LURE_PAGES = {
 
 _lure_config: Dict[str, str] = {}
 
+# ── P6-C: Per-IP lure rate limiting ───────────────────────────────────────────
+# Prevents a single scanner from hammering the lure HTTP server and generating
+# thousands of identical alerts.  We still serve a response (tarpit) so the
+# attacker cannot detect the limit; we just suppress back-end reporting.
+_LURE_MAX_PER_HOUR: int          = 20
+_LURE_WINDOW_SECS:  float        = 3600.0
+_lure_ip_counts:    Dict[str, int]   = {}
+_lure_ip_windows:   Dict[str, float] = {}
+_lure_rate_lock     = threading.Lock()
+
+def lure_rate_check(ip: str) -> bool:
+    """Return True if this IP is within the per-hour request budget."""
+    now = time.time()
+    with _lure_rate_lock:
+        if now - _lure_ip_windows.get(ip, 0) > _LURE_WINDOW_SECS:
+            _lure_ip_counts[ip]  = 0
+            _lure_ip_windows[ip] = now
+        count = _lure_ip_counts.get(ip, 0)
+        if count >= _LURE_MAX_PER_HOUR:
+            return False
+        _lure_ip_counts[ip] = count + 1
+        # Prune dict when it grows large (avoid unbounded memory)
+        if len(_lure_ip_counts) > 50_000:
+            cutoff = now - _LURE_WINDOW_SECS
+            stale  = [k for k, w in _lure_ip_windows.items() if w < cutoff]
+            for k in stale:
+                _lure_ip_counts.pop(k, None)
+                _lure_ip_windows.pop(k, None)
+        return True
+
+
 class LureHandler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
         pass
@@ -263,6 +396,17 @@ class LureHandler(BaseHTTPRequestHandler):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path.rstrip("/") or "/"
         client_ip = self.client_address[0]
+
+        # P6-C: per-IP rate limit — respond normally but skip reporting
+        if not lure_rate_check(client_ip):
+            log.debug(f"Lure rate-limited: {client_ip} ({path})")
+            time.sleep(random.uniform(1, 3))  # still tarpit
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.send_header("Server", "nginx/1.24.0")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
 
         beacon_id = str(uuid.uuid4())
         backend_url = _lure_config.get("backend_url", "")
@@ -290,7 +434,11 @@ class LureHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(page)
 
-        log.info(f"HTTP lure served: {path} \u2192 {client_ip} (beacon: {beacon_id[:8]}...)")
+        ua             = self.headers.get("User-Agent", "unknown")
+        has_accept_lang = bool(self.headers.get("Accept-Language"))
+        http_fp        = fingerprint_http_request(ua, path, has_accept_lang)
+
+        log.info(f"HTTP lure served: {path} → {client_ip} tool={http_fp['tool_signature']} (beacon: {beacon_id[:8]}...)")
 
         threading.Thread(
             target=lambda: requests.post(
@@ -305,7 +453,7 @@ class LureHandler(BaseHTTPRequestHandler):
                     "honeypotType": "http_lure",
                     "lurePath":     path,
                     "beaconId":     beacon_id,
-                    "userAgent":    self.headers.get("User-Agent", "unknown"),
+                    "userAgent":    ua,
                     "portProbed":   8080,
                     "portLabel":    "HTTP_LURE",
                     "timestamp":    datetime.now(timezone.utc).isoformat(),
@@ -316,10 +464,39 @@ class LureHandler(BaseHTTPRequestHandler):
             daemon=True,
         ).start()
 
+        # Also send passive telemetry with full HTTP fingerprint
+        threading.Thread(
+            target=report_telemetry,
+            args=({
+                "sourceIp":      client_ip,
+                "sourcePort":    self.client_address[1],
+                "destPort":      8080,
+                "protocol":      "tcp",
+                "probeClass":    http_fp["probe_class"],
+                "toolSignature": http_fp["tool_signature"],
+                "fingerprint":   http_fp,
+                "nodeId":        node_id,
+                "portLabel":     "HTTP_LURE",
+                "tarpitApplied": True,
+            }, backend_url, psk),
+            daemon=True,
+        ).start()
+
     def do_POST(self):
         content_length = int(self.headers.get("Content-Length", 0))
         body = self.rfile.read(content_length).decode("utf-8", errors="replace")
         client_ip = self.client_address[0]
+
+        # P6-C: per-IP rate limit — still consume the body to avoid 400 errors
+        if not lure_rate_check(client_ip):
+            log.debug(f"Lure POST rate-limited: {client_ip}")
+            time.sleep(2)
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+
         backend_url = _lure_config.get("backend_url", "")
         psk = _lure_config.get("psk", "")
         node_id = _lure_config.get("node_id", "unknown")

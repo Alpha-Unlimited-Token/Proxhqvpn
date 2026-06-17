@@ -52,3 +52,4 @@ export * from "./marketing-drafts";
 export * from "./autoscale";
 export * from "./ip-enrichment-cache";
 export * from "./detection-signatures";
+export * from "./probe-telemetry";

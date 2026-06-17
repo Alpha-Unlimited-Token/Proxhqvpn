@@ -91,6 +91,39 @@ def classify_probe(pkt_len: int) -> dict:
             "severity":    "high",
         }
 
+# ── Report passive telemetry to /probe-telemetry ──────────────────────────────
+# Legal basis: logging UDP packets sent TO our own hidden WireGuard socket.
+# Only data the attacker chose to send to us is recorded — no outbound probing.
+def report_telemetry(probe: dict, classification: dict,
+                     backend_url: str, psk: str, node_id: str):
+    payload = {
+        "sourceIp":      probe["source_ip"],
+        "sourcePort":    probe["source_port"],
+        "destPort":      41194,
+        "protocol":      "udp",
+        "probeClass":    classification["probe_type"],
+        "toolSignature": "wg_scanner_real_port",
+        "fingerprint":   {
+            "pkt_len":     probe.get("pkt_len", 0),
+            "description": classification.get("description", ""),
+            "severity":    classification.get("severity", "high"),
+        },
+        "nodeId":        node_id,
+        "portLabel":     "REAL_WG_PORT_HIDDEN",
+        "tarpitApplied": False,
+        "legalBasis":    "honeypot_passive_self_defense",
+    }
+    try:
+        requests.post(
+            f"{backend_url}/api/daemon-inbound/probe-telemetry",
+            json=payload,
+            headers={"X-Daemon-PSK": psk},
+            timeout=5,
+        )
+    except Exception as e:
+        log.debug(f"Telemetry report failed (non-critical): {e}")
+
+
 def report_to_backend(probe: dict, classification: dict,
                        backend_url: str, psk: str, node_id: str):
     if already_reported_too_much(probe["source_ip"]):
@@ -137,6 +170,9 @@ def report_to_backend(probe: dict, classification: dict,
             log.error(f"Backend report failed: HTTP {r.status_code}")
     except Exception as e:
         log.error(f"Backend report error: {e}")
+
+    # Also send rich passive telemetry to /probe-telemetry
+    report_telemetry(probe, classification, backend_url, psk, node_id)
 
 def tail_log(log_path: str, backend_url: str, psk: str, node_id: str):
     log.info(f"Monitoring {log_path} for real WireGuard port probes...")

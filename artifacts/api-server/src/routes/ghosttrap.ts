@@ -10,7 +10,7 @@ import {
   blockedIpsTable, trappedAttackersTable, silkWebTable,
   firewallConnectionQueueTable,
   ghostTrapEventsTable, ghostTrapEvidenceTable, ghostBlockedSourcesTable,
-  ghostTrapRulesTable,
+  ghostTrapRulesTable, probeTelemetryTable,
 } from "@workspace/db";
 import { eq, desc, sql, inArray, and, isNull } from "drizzle-orm";
 import crypto from "crypto";
@@ -564,6 +564,98 @@ router.all("/u/:userToken/lure/{*path}", async (req, res) => {
 // ═══════════════════════════════════════════════════════════════════════════════
 // AUTH-PROTECTED DASHBOARD ENDPOINTS
 // ═══════════════════════════════════════════════════════════════════════════════
+
+// ── Passive Probe Telemetry endpoints ─────────────────────────────────────────
+// All data in probe_telemetry is gathered passively — recorded from packets/
+// requests that attackers intentionally sent to our own servers.
+// No outbound access to attacker systems is performed here.
+//
+// GET /telemetry — aggregated passive probe telemetry (last 24 h)
+router.get("/telemetry", async (req, res) => {
+  const cutoff = new Date(Date.now() - 24 * 60 * 60_000);
+
+  const rows = await db.select().from(probeTelemetryTable)
+    .where(sql`captured_at > ${cutoff}`)
+    .orderBy(desc(probeTelemetryTable.capturedAt))
+    .limit(200)
+    .catch(() => []);
+
+  const byPortLabel: Record<string, number>     = {};
+  const byProbeClass: Record<string, number>    = {};
+  const byToolSignature: Record<string, number> = {};
+
+  for (const r of rows) {
+    const pl = r.portLabel ?? "unknown";
+    const pc = r.probeClass ?? "unknown";
+    const ts = r.toolSignature ?? "unknown";
+    byPortLabel[pl]     = (byPortLabel[pl]     ?? 0) + 1;
+    byProbeClass[pc]    = (byProbeClass[pc]     ?? 0) + 1;
+    byToolSignature[ts] = (byToolSignature[ts]  ?? 0) + 1;
+  }
+
+  res.json({
+    total24h:       rows.length,
+    byPortLabel,
+    byProbeClass,
+    byToolSignature,
+    recentProbes:   rows.slice(0, 100).map(r => ({
+      id:            r.id,
+      sourceIp:      r.sourceIp,
+      destPort:      r.destPort,
+      protocol:      r.protocol,
+      probeClass:    r.probeClass,
+      toolSignature: r.toolSignature,
+      portLabel:     r.portLabel,
+      tarpitApplied: r.tarpitApplied,
+      tarpitMs:      r.tarpitMs,
+      legalBasis:    r.legalBasis,
+      capturedAt:    r.capturedAt,
+    })),
+    legalBasis: {
+      summary: "All telemetry is passive — recorded from packets sent TO our own infrastructure.",
+      laws: [
+        "US: 18 U.S.C. § 2511(2)(a)(i) — provider interception for service protection",
+        "EU: GDPR Art. 6(1)(f) — legitimate interest (security defence, no override by attacker)",
+        "UK: IPA 2016 s.48 — system controller may log connections to own systems",
+      ],
+      whatIsCollected: [
+        "Source IP and port of inbound connection",
+        "Packet structure / handshake fields sent by the attacker's client",
+        "HTTP request path, User-Agent, and headers sent to our lure server",
+        "Timing and response delay (tarpit duration applied by our server)",
+      ],
+      whatIsNOTCollected: [
+        "No data from attacker's own systems",
+        "No cross-site tracking of attackers on other websites",
+        "No code execution on attacker devices",
+        "No outbound connections to attacker IPs (those require lab_targets authorization)",
+      ],
+    },
+  });
+});
+
+// GET /telemetry/tool-signatures — ranked list of detected scanner tools
+router.get("/telemetry/tool-signatures", async (req, res) => {
+  const rows = await db.execute(sql`
+    SELECT
+      tool_signature,
+      probe_class,
+      port_label,
+      COUNT(*)::int                      AS total,
+      MAX(captured_at)                   AS last_seen,
+      COUNT(*) FILTER (WHERE tarpit_applied) ::int AS tarpit_count
+    FROM probe_telemetry
+    WHERE captured_at > NOW() - INTERVAL '7 days'
+    GROUP BY tool_signature, probe_class, port_label
+    ORDER BY total DESC
+    LIMIT 50
+  `).catch(() => ({ rows: [] }));
+
+  res.json({
+    signatures: (rows as any)?.rows ?? [],
+    generatedAt: new Date().toISOString(),
+  });
+});
 
 // GET /port-stats — per-port probe counts from trapped_attackers (ghost WG daemon pipeline)
 router.get("/port-stats", async (req, res) => {
