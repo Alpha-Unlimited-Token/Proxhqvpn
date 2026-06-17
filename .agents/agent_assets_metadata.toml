@@ -545,3 +545,9 @@ id = "jpVM8pU5WTkmx98y-0MKw"
 uri = "file://ghost-node-docs.zip"
 type = "unspecified"
 title = "Ghost Node Docs Package (Install Guide + Uninstall Script)"
+
+[[outputs]]
+id = "g7IXIqdCYu1e8jeVol9uH"
+uri = "file://.local/PROXHQVPN_MASTER_AUDIT_PROMPT.txt"
+type = "text"
+title = "ProxhqVPN Master Audit Prompt"
