@@ -356,6 +356,129 @@ ok "Services started"
 # ─── 10. LOG DIR ──────────────────────────────────────────────────────────────
 mkdir -p /var/log/proxhqvpn && chmod 750 /var/log/proxhqvpn
 
+# ─── 11. GHOST WIREGUARD DAEMON ───────────────────────────────────────────────
+# Listens on UDP 51820 (standard WireGuard port) and responds to handshake
+# probes with a convincing fake response + tarpit delay.
+# Real WireGuard runs on port 41194.
+log "Installing Ghost WireGuard daemon..."
+
+apt-get install -y python3-pip
+pip3 install cryptography requests --break-system-packages 2>/dev/null || \
+pip3 install cryptography requests 2>/dev/null || true
+
+if [ -f /tmp/ghost-wireguard.py ]; then
+  cp /tmp/ghost-wireguard.py /usr/local/bin/proxhq-ghost-wg.py
+  chmod 700 /usr/local/bin/proxhq-ghost-wg.py
+
+  cat > /etc/systemd/system/proxhq-ghost-wg.service << SVCEOF
+[Unit]
+Description=ProxhqVPN Ghost WireGuard Daemon (Deception Layer)
+After=network.target
+Documentation=https://proxhqvpn.com
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/bin/python3 /usr/local/bin/proxhq-ghost-wg.py \
+  --port 51820 \
+  --real-wg-port ${REAL_WG_PORT:-41194} \
+  --backend ${PROXHQ_BACKEND_URL:-https://proxhqvpn.com} \
+  --psk ${HONEYPOT_PSK} \
+  --node-id ${NODE_ID:-unknown}
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+Environment="GHOST_TARPIT_MIN_MS=2000"
+Environment="GHOST_TARPIT_MAX_MS=8000"
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/tmp
+
+[Install]
+WantedBy=multi-user.target
+SVCEOF
+
+  systemctl daemon-reload
+  systemctl enable proxhq-ghost-wg
+  systemctl start proxhq-ghost-wg
+  ok "Ghost WireGuard daemon installed on port 51820"
+else
+  log "SKIP: /tmp/ghost-wireguard.py not present — upload first and re-run"
+fi
+
+# ─── 12. GHOST TRAP ON REAL WIREGUARD PORT (41194) ───────────────────────────
+# Log every inbound packet on the hidden real WireGuard port.
+# The ghost-realport-monitor.py daemon reads this log and fires critical alerts.
+log "Configuring real WireGuard port (41194) probe logging..."
+
+nft add table ip proxhq_real_wg_monitor 2>/dev/null || true
+nft add chain ip proxhq_real_wg_monitor input { type filter hook input priority -1 \; } 2>/dev/null || true
+nft add rule ip proxhq_real_wg_monitor input \
+  udp dport 41194 \
+  limit rate 60/minute \
+  log prefix "PROXHQ_REAL_WG_PROBE: " level warn 2>/dev/null || true
+
+# Make sure rsyslog captures kernel messages to a file we can monitor
+mkdir -p /etc/rsyslog.d
+cat >> /etc/rsyslog.d/99-proxhq.conf << 'RSYSLOG' 2>/dev/null || true
+:msg, contains, "PROXHQ_REAL_WG_PROBE" /var/log/proxhq-real-wg-probes.log
+& stop
+RSYSLOG
+
+touch /var/log/proxhq-real-wg-probes.log
+chmod 640 /var/log/proxhq-real-wg-probes.log
+systemctl restart rsyslog 2>/dev/null || true
+ok "Real WG probe log: /var/log/proxhq-real-wg-probes.log"
+
+# ─── 13. REAL PORT MONITOR SERVICE ────────────────────────────────────────────
+log "Installing Real WireGuard Port Monitor service..."
+
+if [ -f /tmp/ghost-realport-monitor.py ]; then
+  cp /tmp/ghost-realport-monitor.py /usr/local/bin/proxhq-realport-monitor.py
+  chmod 700 /usr/local/bin/proxhq-realport-monitor.py
+
+  cat > /etc/systemd/system/proxhq-realport-monitor.service << SVCEOF
+[Unit]
+Description=ProxhqVPN Real WireGuard Port Monitor (High-Severity Alert)
+After=network.target rsyslog.service
+Requires=rsyslog.service
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/bin/python3 /usr/local/bin/proxhq-realport-monitor.py \
+  --backend ${PROXHQ_BACKEND_URL:-https://proxhqvpn.com} \
+  --psk ${HONEYPOT_PSK} \
+  --node-id ${NODE_ID:-unknown}
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+SVCEOF
+
+  systemctl daemon-reload
+  systemctl enable proxhq-realport-monitor
+  systemctl start proxhq-realport-monitor
+  ok "Real port monitor installed — 41194 probes = immediate CRITICAL alert"
+else
+  log "SKIP: /tmp/ghost-realport-monitor.py not present — upload first and re-run"
+fi
+
+# ─── 14. HTTP LURE PORT REDIRECT (80 → 8080) ──────────────────────────────────
+# Redirect port 80 → 8080 where ghost-wireguard.py HTTP lure server listens.
+# Any HTTP probe on port 80 hits fake admin/phpMyAdmin/WordPress login pages.
+log "Configuring HTTP lure port redirect (80 → 8080)..."
+iptables -t nat -A PREROUTING -p tcp --dport 80 -j REDIRECT --to-port 8080 2>/dev/null || true
+ip6tables -t nat -A PREROUTING -p tcp --dport 80 -j REDIRECT --to-port 8080 2>/dev/null || true
+# Persist rules
+iptables-save > /etc/iptables/rules.v4 2>/dev/null || true
+ip6tables-save > /etc/iptables/rules.v6 2>/dev/null || true
+ok "Port 80 → 8080 redirect active (HTTP lure server)"
+
 # ─── SUMMARY ──────────────────────────────────────────────────────────────────
 echo ""
 echo "╔══════════════════════════════════════════════════════════════╗"

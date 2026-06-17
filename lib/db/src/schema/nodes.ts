@@ -28,6 +28,8 @@ export const nodesTable = pgTable("nodes", {
   wgBaseConfClean: boolean("wg_base_conf_clean"),
   daemonSecret: text("daemon_secret"),
   vultrInstanceId: text("vultr_instance_id"),  // Vultr VPS instance ID for API sync
+  realWgPort:     integer("real_wg_port").notNull().default(41194),  // Hidden real WireGuard port
+  ghostWgPort:    integer("ghost_wg_port").notNull().default(51820), // Decoy port shown to scanners
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

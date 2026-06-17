@@ -244,9 +244,10 @@ router.get("/my-config/:id/text", async (req, res) => {
   const [node] = await db.select().from(nodesTable).where(eq(nodesTable.id, cfg.nodeId));
   if (!node) return res.status(404).json({ error: "Node not found" });
 
+  const realPort = node.realWgPort ?? 41194;
   const endpoint = node.publicIp
-    ? `${node.publicIp}:${node.listenPort}`
-    : `# SET_SERVER_PUBLIC_IP:${node.listenPort}`;
+    ? `${node.publicIp}:${realPort}`
+    : `# SET_SERVER_PUBLIC_IP:${realPort}`;
 
   // Decrypt private key — use encrypted column if available, fall back to legacy plaintext.
   let privateKeyForDownload: string;
@@ -426,9 +427,10 @@ router.get("/all-configs-zip", async (req, res) => {
         .where(eq(userWgConfigsTable.id, cfg.id));
     }
 
+    const realPort2 = node.realWgPort ?? 41194;
     const endpoint = node.publicIp
-      ? `${node.publicIp}:${node.listenPort}`
-      : `# SET_SERVER_PUBLIC_IP:${node.listenPort}`;
+      ? `${node.publicIp}:${realPort2}`
+      : `# SET_SERVER_PUBLIC_IP:${realPort2}`;
 
     const slug = node.region.toLowerCase().replace(/[^a-z0-9]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
     const filename = `proxhqvpn-${slug}.conf`;

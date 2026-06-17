@@ -565,6 +565,30 @@ router.all("/u/:userToken/lure/{*path}", async (req, res) => {
 // AUTH-PROTECTED DASHBOARD ENDPOINTS
 // ═══════════════════════════════════════════════════════════════════════════════
 
+// GET /port-stats — per-port probe counts from trapped_attackers (ghost WG daemon pipeline)
+router.get("/port-stats", async (req, res) => {
+  const realPortRows = await db.execute(sql`
+    SELECT COUNT(*)::int AS n
+    FROM trapped_attackers
+    WHERE trapped_at > NOW() - INTERVAL '24 hours'
+      AND data_collected::jsonb->>'portLabel' = 'REAL_WG_PORT_HIDDEN'
+  `).catch(() => ({ rows: [{ n: 0 }] }));
+
+  const decoyPortRows = await db.execute(sql`
+    SELECT COUNT(*)::int AS n
+    FROM trapped_attackers
+    WHERE trapped_at > NOW() - INTERVAL '24 hours'
+      AND (data_collected::jsonb->>'portLabel' LIKE 'GHOST_PORT%'
+           OR data_collected::jsonb->>'portLabel' = 'HTTP_LURE'
+           OR data_collected::jsonb->>'portLabel' IS NULL)
+  `).catch(() => ({ rows: [{ n: 0 }] }));
+
+  res.json({
+    realPortProbes24h:  Number((realPortRows as any)?.rows?.[0]?.n ?? 0),
+    decoyPortProbes24h: Number((decoyPortRows as any)?.rows?.[0]?.n ?? 0),
+  });
+});
+
 router.get("/probes", async (req, res) => {
   const userId = ((req as any).auth)?.userId as string | undefined;
   if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }

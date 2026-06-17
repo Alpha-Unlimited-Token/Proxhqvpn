@@ -6,6 +6,7 @@ const NAV_ITEMS: [string, string][] = [
   ["/ghost-nodes",       "Ghost Nodes"],
   ["/ghost-trace",       "Ghost Trace"],
   ["/ghost-chain",       "Ghost Chain"],
+  ["/deception-engine",  "Deception Engine"],
   ["/security-score",    "Security Score"],
   ["/siem",             "SIEM"],
   ["/osint",            "OSINT"],

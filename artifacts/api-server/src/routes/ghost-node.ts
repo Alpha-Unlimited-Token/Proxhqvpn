@@ -414,4 +414,27 @@ router.post("/vultr/sync", requireRbac("ghost_node_admin"), async (req, res) => 
   });
 });
 
+// GET /api/ghost-nodes/:id/wg-stats — Ghost WireGuard probe statistics for a node
+router.get("/:id/wg-stats", requireRbac("ghost_node_admin"), async (req, res) => {
+  const nodeId = parseInt(req.params.id as string, 10);
+  if (isNaN(nodeId)) return res.status(400).json({ error: "Invalid id" });
+
+  const cutoff24h = new Date(Date.now() - 24 * 60 * 60_000);
+
+  const allEvents = await db.select().from(ghostNodeEventsTable)
+    .where(eq(ghostNodeEventsTable.ghostNodeId, nodeId));
+
+  const recent = allEvents.filter(e => e.createdAt >= cutoff24h);
+
+  const stats = {
+    handshakeProbes24h:      recent.filter(e => e.eventType === "wireguard_handshake_init").length,
+    dataPacketsAfterFake24h: recent.filter(e => e.eventType === "data_packet_after_fake_handshake").length,
+    totalProbes24h:          recent.length,
+    totalProbesAllTime:      allEvents.length,
+    uniqueSourceIps24h:      new Set(recent.map(e => e.sourceIp)).size,
+  };
+
+  res.json(stats);
+});
+
 export default router;

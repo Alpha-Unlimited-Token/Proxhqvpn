@@ -93,6 +93,13 @@ export default function GhostTrapDashboard() {
     retry: false,
   });
 
+  const portStatsQ = useQuery<{ realPortProbes24h?: number; decoyPortProbes24h?: number }>({
+    queryKey: ["ghost-trap-port-stats"],
+    queryFn: () => apiFetch("/api/command-center/ghost-trap/port-stats"),
+    refetchInterval: 30_000,
+    retry: false,
+  });
+
   const stats   = eventsQ.data?.stats ?? {};
   const events  = eventsQ.data?.probes ?? [];
   const sessions = sessionsQ.data?.sessions ?? [];
@@ -169,6 +176,38 @@ export default function GhostTrapDashboard() {
             status={(stats.beaconFires ?? 0) > 0 ? "warning" : "good"}
             detail="Outbound alert triggers"
           />
+        </div>
+
+        {/* Dual-Port Detection row — Ghost WireGuard daemon pipeline */}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="rounded-xl border border-red-500/30 bg-red-500/[0.04] p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-2 h-2 rounded-full bg-red-500" />
+              <span className="text-xs font-bold text-red-400">Hidden Port 41194 (Real WG)</span>
+            </div>
+            <div className="text-2xl font-black text-red-400">
+              {portStatsQ.data?.realPortProbes24h ?? 0}
+            </div>
+            <div className="text-xs text-white/40 mt-1">Probes in last 24 h</div>
+            <div className="text-[10px] text-white/30 mt-2 leading-relaxed">
+              {(portStatsQ.data?.realPortProbes24h ?? 0) > 0
+                ? "⚠️ Someone found the hidden port. Review alerts immediately."
+                : "✓ Hidden port undetected by scanners"}
+            </div>
+          </div>
+          <div className="rounded-xl border border-primary/20 bg-primary/[0.03] p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+              <span className="text-xs font-bold text-primary">Decoy Port 51820 (Ghost WG)</span>
+            </div>
+            <div className="text-2xl font-black text-primary">
+              {portStatsQ.data?.decoyPortProbes24h ?? 0}
+            </div>
+            <div className="text-xs text-white/40 mt-1">Probes in last 24 h</div>
+            <div className="text-[10px] text-white/30 mt-2 leading-relaxed">
+              Routine internet scanners. Ghost WireGuard responding with fake handshakes.
+            </div>
+          </div>
         </div>
 
         {/* Tabs */}

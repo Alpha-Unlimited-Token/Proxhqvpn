@@ -2,6 +2,7 @@
 import { createHash, randomUUID, timingSafeEqual } from "crypto";
 import { appendAuditEvent } from "../lib/audit-chain";
 import { shipSecurityEvent } from "../lib/siem";
+import { publishPlatformEvent } from "../lib/event-bus";
 import { exec } from "child_process";
 import { Router } from "express";
 import { db } from "@workspace/db";
@@ -396,49 +397,162 @@ router.post("/peer-ack", async (req, res) => {
 });
 
 // Honeypot port connection hit — spider emulating open port trapped a visitor
+// Also accepts rich payloads from ghost-wireguard.py and ghost-realport-monitor.py
 router.post("/honeypot-hit", async (req, res) => {
   const body = z.object({
-    nodeId: z.number(),
-    attackerIp: z.string(),
-    port: z.number(),
-    banner: z.string().optional(),
-    rawRequest: z.string().optional(),
-  }).parse(req.body);
+    // Node identification — numeric ID (classic) or string handle (ghost daemons)
+    nodeId:        z.union([z.number(), z.string()]).optional(),
+    // IP — classic: attackerIp, ghost daemons: sourceIp
+    attackerIp:    z.string().optional(),
+    sourceIp:      z.string().optional(),
+    // Port — classic: port, ghost daemons: portProbed or sourcePort
+    port:          z.number().optional(),
+    sourcePort:    z.number().optional(),
+    portProbed:    z.number().optional(),
+    // Port context for severity escalation
+    portLabel:     z.string().optional(),
+    // Probe classification
+    probeType:     z.string().optional(),
+    attackType:    z.string().optional(),
+    honeypotType:  z.string().optional(),
+    severity:      z.string().optional(),
+    description:   z.string().optional(),
+    alertNote:     z.string().optional(),
+    // Classic fields
+    banner:        z.string().optional(),
+    rawRequest:    z.string().optional(),
+    // Lure fields
+    lurePath:      z.string().optional(),
+    beaconId:      z.string().optional(),
+    userAgent:     z.string().optional(),
+    submittedData: z.string().optional(),
+    // WG-specific intel
+    senderIndex:   z.number().optional(),
+    ephemeralKey:  z.string().optional(),
+    mac1:          z.string().optional(),
+    sessionInfo:   z.unknown().optional(),
+    tarpitMs:      z.number().optional(),
+    tarpitApplied: z.boolean().optional(),
+    pktLen:        z.number().optional(),
+    rawLogLine:    z.string().optional(),
+  }).passthrough().parse(req.body);
 
-  const [node] = await db.select().from(nodesTable).where(eq(nodesTable.id, body.nodeId));
-  if (!node) return res.status(404).json({ error: "Node not found" });
+  // ── Normalize field names across classic and ghost daemon formats ──────────
+  const attackerIp = body.attackerIp ?? body.sourceIp ?? "unknown";
+  const port       = body.port ?? body.portProbed ?? body.sourcePort ?? 0;
+  const portLabel  = body.portLabel ?? "";
 
-  const fp = `IP:${body.attackerIp}|PORT:${body.port}|NODE:${node.name}|TS:${Date.now()}`;
+  // ── Port severity escalation ──────────────────────────────────────────────
+  // Probes on hidden real WG port (41194) are always critical — nobody should know it exists.
+  const effectiveSeverity =
+    portLabel === "REAL_WG_PORT_HIDDEN" ? "critical"
+    : (body.severity ?? "medium");
+
+  // ── Lure probe classification ─────────────────────────────────────────────
+  const isLureProbe = body.honeypotType === "http_lure" ||
+                      body.honeypotType === "http_lure_credential" ||
+                      (body.probeType?.startsWith("http_lure_") ?? false);
+  const isCredentialHarvest = body.honeypotType === "http_lure_credential" ||
+                              body.probeType === "credential_submission_on_lure";
+  const finalSeverity = isCredentialHarvest ? "critical"
+    : isLureProbe ? "high"
+    : effectiveSeverity;
+
+  // ── Immediate critical alerts for real-port probes and credential harvests ─
+  if (portLabel === "REAL_WG_PORT_HIDDEN") {
+    void publishPlatformEvent({
+      type:     "ghost_trap.real_port_probe",
+      actor:    "ghost-trap",
+      subject:  attackerIp,
+      severity: "critical",
+      payload: {
+        sourceIp:   attackerIp,
+        sourcePort: port,
+        probeType:  body.probeType,
+        portProbed: body.portProbed ?? 41194,
+        portLabel,
+        nodeId:     body.nodeId,
+        alertNote:  body.alertNote,
+        description:body.description,
+      },
+    });
+    void shipSecurityEvent({
+      actor:    String(body.nodeId ?? "unknown-node"),
+      action:   "ghost_trap.real_port_probe",
+      resource: `ip:${attackerIp}`,
+      result:   "deny",
+      severity: "critical",
+      metadata: { portProbed: body.portProbed ?? 41194, probeType: body.probeType, nodeId: body.nodeId },
+    });
+  }
+
+  if (isCredentialHarvest) {
+    void publishPlatformEvent({
+      type:     "honeypot.credential_harvest_attempt",
+      actor:    "honeypot-lure",
+      subject:  attackerIp,
+      severity: "critical",
+      payload: {
+        sourceIp:      attackerIp,
+        submittedData: body.submittedData,
+        lurePath:      body.lurePath,
+        nodeId:        body.nodeId,
+        note:          "Attacker submitted credentials on a honeypot login page",
+      },
+    });
+  }
+
+  // ── Node lookup — numeric IDs only; ghost daemons send string handles ─────
+  const numericNodeId = typeof body.nodeId === "number" ? body.nodeId
+    : typeof body.nodeId === "string" ? (parseInt(body.nodeId, 10) || null)
+    : null;
+  const [node] = numericNodeId
+    ? await db.select().from(nodesTable).where(eq(nodesTable.id, numericNodeId))
+    : [];
+  // Only 404 when a valid numeric nodeId was supplied and not found
+  if (!node && numericNodeId !== null && typeof body.nodeId === "number") {
+    return res.status(404).json({ error: "Node not found" });
+  }
+
+  const nodeName   = node?.name   ?? String(body.nodeId ?? "ghost-daemon");
+  const nodeRegion = node?.region  ?? "unknown";
+  const nodeLayer  = node?.layer   ?? "outer";
+
+  const fp = `IP:${attackerIp}|PORT:${port}|NODE:${nodeName}|TS:${Date.now()}`;
 
   // Always trap honeypot visitors into silkweb (they connected to fake open port)
-  const existing = await db.select().from(trappedAttackersTable).where(sql`ip = ${body.attackerIp}`).limit(1);
+  const existing = await db.select().from(trappedAttackersTable).where(sql`ip = ${attackerIp}`).limit(1);
   let trappedId: number | null = null;
 
   if (existing.length === 0) {
     const [trapped] = await db.insert(trappedAttackersTable).values({
-      ip: body.attackerIp,
+      ip: attackerIp,
       fingerprint: fp,
-      entryNodeId: body.nodeId,
+      entryNodeId: numericNodeId ?? 0,
       loopCount: 0,
       dataCollected: JSON.stringify({
-        honeypotPort: body.port,
-        banner: body.banner,
-        rawRequest: body.rawRequest?.substring(0, 500),
-        nodeRegion: node.region,
+        honeypotPort:  port,
+        banner:        body.banner,
+        rawRequest:    body.rawRequest?.substring(0, 500),
+        nodeRegion:    nodeRegion,
+        portLabel,
+        probeType:     body.probeType,
+        honeypotType:  body.honeypotType,
+        lurePath:      body.lurePath,
+        tarpitMs:      body.tarpitMs,
+        alertNote:     body.alertNote,
+        submittedData: body.submittedData?.substring(0, 200),
       }),
-      honeypotPort: body.port,
-      probeType: "honeypot_connect",
+      honeypotPort: port,
+      probeType: body.probeType ?? "honeypot_connect",
       sqlmapStatus: "idle",
     }).returning();
     trappedId = trapped.id;
 
     // HTTP banner recorded as intelligence only — auto-SQLmap removed (P1-A safety fix).
-    // Running sqlmap against an unknown external IP is unauthorized computer access
-    // under CFAA / Computer Misuse Act / EU Directive 2013/40/EU.
-    // To scan a target, add it to lab_targets first and use the SilkWeb console.
     if (body.banner && body.banner.includes("HTTP")) {
       logger.info(
-        { ip: body.attackerIp, port: body.port, banner: body.banner.substring(0, 120) },
+        { ip: attackerIp, port, banner: body.banner.substring(0, 120) },
         "HTTP banner captured on honeypot port — stored as intelligence (no auto-scan)",
       );
     }
@@ -450,43 +564,53 @@ router.post("/honeypot-hit", async (req, res) => {
   }
 
   // Create a beacon alert for visibility in the Beacons panel
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await db.insert(beaconAlertsTable).values({
-    nodeId: body.nodeId,
-    nodeName: node.name,
-    nodeLayer: node.layer,
-    attackerIp: body.attackerIp,
+    nodeId:              numericNodeId ?? 0,
+    nodeName:            nodeName,
+    nodeLayer:           nodeLayer as "outer" | "inner",
+    attackerIp:          attackerIp,
     attackerFingerprint: fp,
-    probeType: "port_scan",
-    severity: "critical",
-    status: "active",
-    silkWebTrapped: true,
-    rawData: body.rawRequest ?? `Honeypot port ${body.port} hit`,
-    detectedAt: new Date(),
+    probeType:           "port_scan" as const,
+    severity:            finalSeverity as "low" | "medium" | "high" | "critical",
+    status:              "active" as const,
+    silkWebTrapped:      true,
+    rawData:             body.rawRequest ?? body.description ?? `Honeypot port ${port} hit`,
+    detectedAt:          new Date(),
   });
 
   // Email alert on first honeypot contact from this IP (rate-limited 1/hr per IP)
-  if (shouldSendAlert(body.attackerIp)) {
+  if (shouldSendAlert(attackerIp)) {
     const to = adminEmails();
     if (to.length > 0) {
+      const subjectPrefix = finalSeverity === "critical" ? "🚨 CRITICAL" : "🕸️";
+      const portCtx = portLabel === "REAL_WG_PORT_HIDDEN"
+        ? `HIDDEN port ${port} (41194) — someone found the real WG port!`
+        : isCredentialHarvest
+          ? `lure page credential submission`
+          : `port ${port}`;
       void sendMail({
         to,
-        subject: `🕸️ ProxhqVPN: Attacker TRAPPED in Ghost Trap — ${body.attackerIp} on port ${body.port}`,
+        subject: `${subjectPrefix} ProxhqVPN: Attacker TRAPPED in Ghost Trap — ${attackerIp} on ${portCtx}`,
         html: `
           <div style="font-family:monospace;background:#0a0a0a;color:#e0e0e0;padding:24px;border-radius:8px;max-width:600px">
             <div style="color:#00ff88;font-size:20px;font-weight:bold;margin-bottom:16px">🕸️ ProxhqVPN Ghost Trap — Attacker Caught</div>
             <table style="width:100%;border-collapse:collapse">
-              <tr><td style="padding:6px;color:#888">Severity</td><td style="padding:6px">${severityBadge("critical")}</td></tr>
-              <tr><td style="padding:6px;color:#888">Attacker IP</td><td style="padding:6px;color:#ff4444;font-weight:bold">${body.attackerIp}</td></tr>
-              <tr><td style="padding:6px;color:#888">Honeypot Port</td><td style="padding:6px">${body.port}</td></tr>
-              <tr><td style="padding:6px;color:#888">Node</td><td style="padding:6px">${node.name} (${node.region ?? "unknown region"})</td></tr>
+              <tr><td style="padding:6px;color:#888">Severity</td><td style="padding:6px">${severityBadge(finalSeverity)}</td></tr>
+              <tr><td style="padding:6px;color:#888">Attacker IP</td><td style="padding:6px;color:#ff4444;font-weight:bold">${attackerIp}</td></tr>
+              <tr><td style="padding:6px;color:#888">Probe Type</td><td style="padding:6px">${body.probeType ?? "port_scan"}</td></tr>
+              <tr><td style="padding:6px;color:#888">Port Probed</td><td style="padding:6px">${port}${portLabel ? ` (${portLabel})` : ""}</td></tr>
+              <tr><td style="padding:6px;color:#888">Node</td><td style="padding:6px">${nodeName} (${nodeRegion})</td></tr>
+              <tr><td style="padding:6px;color:#888">Honeypot Type</td><td style="padding:6px">${body.honeypotType ?? "classic"}</td></tr>
               <tr><td style="padding:6px;color:#888">SilkWeb Trapped</td><td style="padding:6px">${existing.length === 0 ? "✅ New trap entry created" : "⚠️ Already in SilkWeb (loop_count incremented)"}</td></tr>
+              ${body.alertNote ? `<tr><td style="padding:6px;color:#888">Alert Note</td><td style="padding:6px;font-size:11px;color:#ff8800">${body.alertNote}</td></tr>` : ""}
               ${body.banner ? `<tr><td style="padding:6px;color:#888">Banner Sent</td><td style="padding:6px;font-size:11px">${body.banner.substring(0, 200)}</td></tr>` : ""}
               ${body.rawRequest ? `<tr><td style="padding:6px;color:#888">Raw Request</td><td style="padding:6px;font-size:11px">${body.rawRequest.substring(0, 300)}</td></tr>` : ""}
               <tr><td style="padding:6px;color:#888">Trapped At</td><td style="padding:6px">${new Date().toUTCString()}</td></tr>
             </table>
             <div style="margin-top:16px;font-size:12px;color:#555">ProxhqVPN — Alpha Unlimited Technologies LLC</div>
           </div>`,
-        text: `PROXHQVPN GHOST TRAP [CRITICAL]\nAttacker: ${body.attackerIp}\nPort: ${body.port}\nNode: ${node.name}\nTime: ${new Date().toUTCString()}`,
+        text: `PROXHQVPN GHOST TRAP [${finalSeverity.toUpperCase()}]\nAttacker: ${attackerIp}\nPort: ${port} (${portLabel || "classic"})\nType: ${body.probeType ?? "port_scan"}\nNode: ${nodeName}\nTime: ${new Date().toUTCString()}`,
       }).catch(err => logger.error({ err }, "Failed to send honeypot alert email"));
     }
   }
@@ -496,7 +620,7 @@ router.post("/honeypot-hit", async (req, res) => {
     const tid = trappedId;
     import("../lib/ip-enrichment")
       .then(({ enrichIp }) =>
-        enrichIp(body.attackerIp).then(enr =>
+        enrichIp(attackerIp).then(enr =>
           db.update(trappedAttackersTable).set({
             enrichmentData:   enr as unknown as Record<string, unknown>,
             threatScore:      enr.threatScore,
@@ -511,10 +635,10 @@ router.post("/honeypot-hit", async (req, res) => {
           }).where(eq(trappedAttackersTable.id, tid)),
         ),
       )
-      .catch(err => logger.warn({ err, ip: body.attackerIp }, "IP enrichment failed — non-fatal"));
+      .catch(err => logger.warn({ err, ip: attackerIp }, "IP enrichment failed — non-fatal"));
   }
 
-  return res.status(201).json({ ok: true, trappedId, message: `${body.attackerIp} trapped via honeypot port ${body.port}` });
+  return res.status(201).json({ ok: true, trappedId, message: `${attackerIp} trapped via honeypot port ${port}` });
 });
 
 // VPN Gate double-hop endpoints
