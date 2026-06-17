@@ -118,8 +118,18 @@ const globalLimiter = rateLimit({
   max: 300,
   standardHeaders: "draft-7",
   legacyHeaders: false,
-  skip: (req) => req.path === "/healthz" || req.path.startsWith("/api/daemon-inbound"),
+  skip: (req) => req.path === "/healthz",
   message: { error: "Too many requests." },
+});
+
+// Dedicated daemon rate limiter — generous enough for real nodes (check-ins every 30s = 2/min per node)
+// but protects against DoS on the unauthenticated daemon-inbound path.
+const daemonLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 500,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: { error: "Daemon rate limit exceeded." },
 });
 
 const terminalLimiter = rateLimit({
@@ -356,7 +366,8 @@ const consoleLimiter = rateLimit({
   message: { error: "Max 60 console commands per minute." },
 });
 
-app.use("/api/terminal",   terminalLimiter);
+app.use("/api/terminal",        terminalLimiter);
+app.use("/api/daemon-inbound",  daemonLimiter);
 app.use("/api/omnistrike/scan", (req: Request, res: Response, next: NextFunction) => {
   if (req.method === "POST") return omniLimiter(req, res, next);
   next();

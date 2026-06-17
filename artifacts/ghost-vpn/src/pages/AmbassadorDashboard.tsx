@@ -5,7 +5,7 @@ import {
   Award, Copy, Check, Plus, Trash2, Loader2, Play,
   DollarSign, Users, TrendingUp, Clock, Youtube,
   ExternalLink, ChevronDown, ChevronUp, Globe,
-  CheckCircle, XCircle, AlertCircle, Edit3, Save,
+  CheckCircle, XCircle, AlertCircle, Edit3, Save, Banknote, Share2,
 } from "lucide-react";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -100,6 +100,10 @@ export default function AmbassadorDashboard() {
   const [bioValue, setBioValue]         = useState("");
   const [savingBio, setSavingBio]       = useState(false);
 
+  // Payout request
+  const [payoutLoading, setPayoutLoading] = useState(false);
+  const [linkCopied, setLinkCopied]       = useState(false);
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -124,6 +128,35 @@ export default function AmbassadorDashboard() {
     setCodeCopied(true);
     setTimeout(() => setCodeCopied(false), 2000);
     toast({ title: "Promo code copied!", description: `${profile.promoCode} is now in your clipboard` });
+  };
+
+  const copyRefLink = async () => {
+    if (!profile) return;
+    const link = `${window.location.origin}/ref/${profile.promoCode}`;
+    await navigator.clipboard.writeText(link).catch(() => {});
+    setLinkCopied(true);
+    setTimeout(() => setLinkCopied(false), 2000);
+    toast({ title: "Referral link copied!", description: link });
+  };
+
+  const requestPayout = async () => {
+    if (!profile) return;
+    setPayoutLoading(true);
+    try {
+      const r = await fetch(`${BASE}/api/ambassadors/me/request-payout`, {
+        method: "POST", credentials: "include",
+      });
+      const d = await r.json();
+      if (!r.ok) {
+        toast({ title: d.error ?? "Payout request failed", variant: "destructive" });
+      } else {
+        toast({ title: "Payout requested!", description: d.message });
+      }
+    } catch {
+      toast({ title: "Network error", variant: "destructive" });
+    } finally {
+      setPayoutLoading(false);
+    }
   };
 
   const addVideo = async () => {
@@ -234,9 +267,14 @@ export default function AmbassadorDashboard() {
             {codeCopied ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
             {codeCopied ? "Copied!" : "Copy Code"}
           </button>
+          <button onClick={copyRefLink}
+            className="flex items-center gap-2 border border-primary/30 hover:border-primary bg-black px-3 py-1.5 text-[10px] font-mono text-primary/60 hover:text-primary rounded transition-colors">
+            {linkCopied ? <Check className="w-3 h-3 text-green-400" /> : <Share2 className="w-3 h-3" />}
+            {linkCopied ? "Link Copied!" : "Copy Referral Link"}
+          </button>
         </div>
         <p className="text-[10px] text-primary/30 font-mono mt-2">
-          Share this code with your audience. When they enter it at checkout, you earn 10% of their subscription.
+          Share your code or referral link. When someone subscribes using either, you earn 10% commission.
         </p>
       </div>
 
@@ -255,6 +293,28 @@ export default function AmbassadorDashboard() {
           </div>
         ))}
       </div>
+
+      {/* Payout request */}
+      {profile.status === "approved" && (
+        <div className="flex items-center justify-between border border-primary/15 rounded p-4 bg-primary/3">
+          <div>
+            <div className="text-xs font-mono text-primary/70 font-bold">Request Payout</div>
+            <div className="text-[10px] text-primary/30 font-mono mt-0.5">
+              {pendingPayout >= 2000
+                ? `$${(pendingPayout / 100).toFixed(2)} available — minimum $20.00 met`
+                : `$${(pendingPayout / 100).toFixed(2)} pending — minimum $20.00 required`}
+            </div>
+          </div>
+          <button
+            onClick={requestPayout}
+            disabled={payoutLoading || pendingPayout < 2000}
+            className="flex items-center gap-2 border border-primary/30 hover:border-primary disabled:opacity-40 disabled:cursor-not-allowed bg-black px-4 py-2 text-[10px] font-mono text-primary/60 hover:text-primary rounded transition-colors"
+          >
+            {payoutLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Banknote className="w-3.5 h-3.5" />}
+            {payoutLoading ? "Sending..." : "Request Payout"}
+          </button>
+        </div>
+      )}
 
       {/* Profile / Bio */}
       <div className="border border-primary/15 rounded-lg p-5 space-y-3">

@@ -11,6 +11,7 @@ import { db } from "@workspace/db";
 import { usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { logger } from "../lib/logger";
+import { sendMail } from "../lib/mailer";
 
 const router = Router();
 
@@ -179,6 +180,38 @@ router.post("/portal", async (req, res) => {
   res.json({ url: portal.url });
 });
 
+// ── POST /api/stripe/change-plan — in-app upgrade / downgrade ────────────────
+router.post("/change-plan", async (req, res) => {
+  const { userId } = getAuth(req);
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+  const body = z.object({ priceId: z.string().min(1) }).safeParse(req.body);
+  if (!body.success) return res.status(400).json({ error: "priceId required" });
+
+  const user = await stripeStorage.getUser(userId);
+  if (!user?.stripeSubscriptionId) {
+    return res.status(400).json({ error: "No active subscription found. Please subscribe first via /checkout." });
+  }
+
+  try {
+    const stripe = await getUncachableStripeClient();
+    const sub = await stripe.subscriptions.retrieve(user.stripeSubscriptionId);
+    const itemId = sub.items.data[0]?.id;
+    if (!itemId) return res.status(400).json({ error: "Subscription has no items" });
+
+    const updated = await stripe.subscriptions.update(user.stripeSubscriptionId, {
+      items: [{ id: itemId, price: body.data.priceId }],
+      proration_behavior: "create_prorations",
+    });
+
+    logger.info({ userId, priceId: body.data.priceId, status: updated.status }, "Subscription plan changed");
+    res.json({ ok: true, status: updated.status, subscriptionId: updated.id });
+  } catch (err: any) {
+    logger.error({ err, userId }, "change-plan failed");
+    res.status(500).json({ error: err.message ?? "Plan change failed" });
+  }
+});
+
 // ── ADMIN: List & cancel used/active trial subscriptions ────────────────────
 // "Used" = subscription exists in Stripe with status=trialing that has a
 // trial_start date (meaning it was actually started, not just created).
@@ -317,14 +350,32 @@ router.post("/webhook", async (req, res) => {
           const [user] = await db.select().from(usersTable)
             .where(eq(usersTable.stripeCustomerId, customerId)).limit(1);
           if (user) {
-            // subscriptionId may have changed (e.g. upgrade replaced old sub)
             const newSubId = typeof sub.id === "string" ? sub.id : null;
             if (newSubId && newSubId !== user.stripeSubscriptionId) {
-              await db.update(usersTable)
-                .set({ stripeSubscriptionId: newSubId })
-                .where(eq(usersTable.id, user.id));
+              await db.update(usersTable).set({ stripeSubscriptionId: newSubId }).where(eq(usersTable.id, user.id));
             }
             logger.info({ userId: user.id, status: sub.status }, "Stripe subscription updated");
+
+            // Email drip: win-back on cancellation
+            if (event.type === "customer.subscription.deleted") {
+              try {
+                const clerkUser = await clerkClient.users.getUser(user.id);
+                const email = clerkUser.emailAddresses.find(e => e.id === clerkUser.primaryEmailAddressId)?.emailAddress;
+                if (email) {
+                  void sendMail({
+                    to: email,
+                    subject: "We'll miss you — come back anytime | ProxhqVPN",
+                    html: `<div style="font-family:monospace;background:#080d09;color:#aaaaaa;padding:32px;max-width:560px">
+                      <h2 style="color:#ffffff;margin:0 0 8px">Your ProxhqVPN subscription has ended.</h2>
+                      <p>If you ran into an issue or the price didn't work for you, we want to know. Reply to this email — we read every message.</p>
+                      <p>If you'd like to come back, your account is always here. <a href="${HOST()}/pricing" style="color:#00ff88">View plans →</a></p>
+                      <p style="color:#666;font-size:11px;margin-top:24px">ProxhqVPN · ALPHA UNLIMITED TECHNOLOGIES LLC</p>
+                    </div>`,
+                    text: `Your ProxhqVPN subscription has ended. If you'd like to come back: ${HOST()}/pricing`,
+                  });
+                }
+              } catch { /* non-critical */ }
+            }
           }
         }
         break;
@@ -337,6 +388,25 @@ router.post("/webhook", async (req, res) => {
             .where(eq(usersTable.stripeCustomerId, customerId)).limit(1);
           if (user) {
             logger.warn({ userId: user.id, customerId }, "Stripe invoice payment failed");
+            // Email drip: payment failed notification
+            try {
+              const clerkUser = await clerkClient.users.getUser(user.id);
+              const email = clerkUser.emailAddresses.find(e => e.id === clerkUser.primaryEmailAddressId)?.emailAddress;
+              if (email) {
+                void sendMail({
+                  to: email,
+                  subject: "Action required: Your ProxhqVPN payment failed",
+                  html: `<div style="font-family:monospace;background:#080d09;color:#aaaaaa;padding:32px;max-width:560px">
+                    <h2 style="color:#ff4444;margin:0 0 8px">Payment failed</h2>
+                    <p>We couldn't process your ProxhqVPN subscription payment. To keep your VPN access, please update your payment method.</p>
+                    <a href="${HOST()}/account" style="display:inline-block;background:#00ff88;color:#000;padding:10px 20px;border-radius:4px;text-decoration:none;font-weight:bold;margin:16px 0">Update payment method →</a>
+                    <p>If your card was recently updated, Stripe will retry automatically within 24 hours. No action needed if so.</p>
+                    <p style="color:#666;font-size:11px;margin-top:24px">ProxhqVPN · ALPHA UNLIMITED TECHNOLOGIES LLC</p>
+                  </div>`,
+                  text: `Your ProxhqVPN payment failed. Update your card: ${HOST()}/account`,
+                });
+              }
+            } catch { /* non-critical */ }
           }
         }
         break;
@@ -351,11 +421,33 @@ router.post("/webhook", async (req, res) => {
             if (user) {
               const subId = typeof session.subscription === "string" ? session.subscription : null;
               if (subId) {
-                await db.update(usersTable)
-                  .set({ stripeSubscriptionId: subId })
-                  .where(eq(usersTable.id, user.id));
+                await db.update(usersTable).set({ stripeSubscriptionId: subId }).where(eq(usersTable.id, user.id));
               }
               logger.info({ userId: user.id }, "Stripe checkout completed — subscription activated");
+              // Email drip: welcome / upgrade confirmation
+              try {
+                const clerkUser = await clerkClient.users.getUser(user.id);
+                const email = clerkUser.emailAddresses.find(e => e.id === clerkUser.primaryEmailAddressId)?.emailAddress;
+                const firstName = clerkUser.firstName ?? "there";
+                if (email) {
+                  void sendMail({
+                    to: email,
+                    subject: "You're protected — ProxhqVPN is active",
+                    html: `<div style="font-family:monospace;background:#080d09;color:#aaaaaa;padding:32px;max-width:560px">
+                      <h2 style="color:#00ff88;margin:0 0 8px">Welcome to ProxhqVPN, ${firstName}!</h2>
+                      <p>Your subscription is active. Here's how to get started:</p>
+                      <ol style="line-height:2;color:#aaaaaa">
+                        <li>Install WireGuard on your device — <a href="${HOST()}/downloads" style="color:#00ff88">Downloads page →</a></li>
+                        <li>Generate your config — <a href="${HOST()}/dashboard/wireguard" style="color:#00ff88">WireGuard Config →</a></li>
+                        <li>Connect and verify — <a href="${HOST()}/dashboard/leaks" style="color:#00ff88">Leak Detection →</a></li>
+                      </ol>
+                      <p>Questions? Reply to this email or visit <a href="${HOST()}/guide" style="color:#00ff88">the user guide</a>.</p>
+                      <p style="color:#666;font-size:11px;margin-top:24px">ProxhqVPN · ALPHA UNLIMITED TECHNOLOGIES LLC</p>
+                    </div>`,
+                    text: `Welcome to ProxhqVPN! Get started: ${HOST()}/downloads`,
+                  });
+                }
+              } catch { /* non-critical */ }
             }
           }
         }

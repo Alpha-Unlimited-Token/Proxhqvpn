@@ -169,7 +169,7 @@ export default function Pricing() {
   const { tier, hasAccess, hasCommandCenter } = useAccess();
   const [period, setPeriod] = useState<BillingPeriod>("annual");
   const [checkingOut, setCheckingOut] = useState<string | null>(null);
-  const [promoCode, setPromoCode] = useState("");
+  const [promoCode, setPromoCode] = useState(() => sessionStorage.getItem("proxhq_promo_code") ?? "");
   const [promoStatus, setPromoStatus] = useState<null | "valid" | "invalid">(null);
   const [promoAmbassador, setPromoAmbassador] = useState<string | null>(null);
   const [showPowerFeatures, setShowPowerFeatures] = useState(false);

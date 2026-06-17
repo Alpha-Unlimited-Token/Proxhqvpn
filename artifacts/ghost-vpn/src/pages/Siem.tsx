@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import {
   Database, AlertTriangle, Shield, Activity, Clock,
-  RefreshCw, Search, ChevronRight, Atom, TerminalSquare,
+  RefreshCw, Search, ChevronRight, Atom, TerminalSquare, Download,
 } from "lucide-react";
 import { AttackerIntelDrawer } from "@/components/AttackerIntelPanel";
 
@@ -170,9 +170,14 @@ export default function Siem() {
             Unified security event timeline aggregating alerts from Beacon Monitor, Ghost Trace, Firewall, Ghost Chain, and <span className="text-cyan-400/70">QuantumAudit blockchain engine</span> — all in one searchable log.
           </p>
         </div>
-        <button onClick={() => refetch()} className="p-1.5 border border-primary/20 hover:border-[#00ff88]/40 rounded transition-colors text-primary/40 hover:text-[#00ff88]">
-          <RefreshCw className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-2">
+          <a href={`${BASE}/api/siem/export?format=csv`} download className="p-1.5 border border-primary/20 hover:border-[#00ff88]/40 rounded transition-colors text-primary/40 hover:text-[#00ff88]" title="Export CSV">
+            <Download className="w-4 h-4" />
+          </a>
+          <button onClick={() => refetch()} className="p-1.5 border border-primary/20 hover:border-[#00ff88]/40 rounded transition-colors text-primary/40 hover:text-[#00ff88]">
+            <RefreshCw className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       {/* Stats */}

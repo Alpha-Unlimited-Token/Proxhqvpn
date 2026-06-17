@@ -5,16 +5,12 @@ const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
 
 interface WarrantCanary {
   statement: string;
-  effectiveDate: string;
-  updatedAt: string;
-  jurisdiction: string;
-  nslReceived: number;
-  courtOrdersReceived: number;
-  gagOrdersReceived: number;
-  userDataDisclosed: number;
-  keysHandedOver: number;
-  backdoorsInstalled: number;
-  canaryIntact: boolean;
+  issuedAt: string;
+  expiresAt: string;
+  daysRemaining: number;
+  sha256: string;
+  canaryVersion: number;
+  canaryIntact?: boolean;
 }
 
 const QUARTERS = [
@@ -131,8 +127,15 @@ export default function TransparencyReport() {
             {canary.statement}
           </div>
         )}
-        <div className="text-white/30 text-[10px]">
-          Effective: {canary?.effectiveDate ?? "—"} · Last updated: {canary?.updatedAt ? new Date(canary.updatedAt).toLocaleString() : "—"}
+        <div className="text-white/30 text-[10px] flex flex-wrap gap-4 mt-1">
+          <span>Issued: {canary?.issuedAt ? new Date(canary.issuedAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "—"}</span>
+          <span>Next update: {canary?.expiresAt ? new Date(canary.expiresAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "—"}</span>
+          {canary?.daysRemaining !== undefined && (
+            <span className={canary.daysRemaining <= 7 ? "text-yellow-400" : "text-white/30"}>
+              {canary.daysRemaining}d remaining
+            </span>
+          )}
+          {canary?.sha256 && <span className="text-white/20 font-mono text-[9px] truncate max-w-xs">SHA-256: {canary.sha256}</span>}
         </div>
       </div>
 

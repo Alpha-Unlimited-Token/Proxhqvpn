@@ -455,6 +455,50 @@ router.get("/admin/all", async (req, res) => {
   }
 });
 
+// ── POST /api/ambassadors/me/request-payout — request a payout ───────────────
+// Sends an email to the admin team and records the request for manual processing.
+router.post("/me/request-payout", async (req, res) => {
+  const { userId } = getAuth(req);
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+  try {
+    const rows = toRows(await db.execute(sql`
+      SELECT a.id, a.name, a.promo_code, a.total_earnings_cents, a.status, a.contact_email
+      FROM ambassadors a WHERE a.user_id = ${userId} LIMIT 1
+    `));
+    const amb = rows[0] as { id: number; name: string; promo_code: string; total_earnings_cents: number; status: string; contact_email: string | null } | undefined;
+    if (!amb) return res.status(404).json({ error: "Ambassador profile not found" });
+    if (amb.status !== "approved") return res.status(400).json({ error: "Only approved ambassadors can request payouts" });
+    if (amb.total_earnings_cents < 2000) return res.status(400).json({ error: "Minimum payout is $20.00" });
+
+    const amountDollars = (amb.total_earnings_cents / 100).toFixed(2);
+
+    const admins = adminEmails();
+    if (admins.length > 0) {
+      void sendMail({
+        to: admins,
+        subject: `[ProxhqVPN] Ambassador Payout Request — ${amb.name} ($${amountDollars})`,
+        html: `
+          <div style="font-family:monospace;background:#080d09;color:#00ff88;padding:32px;border-radius:8px;max-width:560px">
+            <h2 style="margin:0 0 8px;color:#ffffff;font-size:20px">Ambassador Payout Request</h2>
+            <table style="color:#aaaaaa;font-size:13px;border-collapse:collapse;width:100%;margin:16px 0">
+              <tr><td style="padding:4px 0;color:#666">Ambassador:</td><td style="color:#ffffff">${amb.name}</td></tr>
+              <tr><td style="padding:4px 0;color:#666">Promo Code:</td><td style="color:#00ff88">${amb.promo_code}</td></tr>
+              <tr><td style="padding:4px 0;color:#666">Amount:</td><td style="color:#00ff88;font-weight:bold">$${amountDollars}</td></tr>
+              <tr><td style="padding:4px 0;color:#666">Contact:</td><td>${amb.contact_email ?? "not set"}</td></tr>
+            </table>
+            <p style="color:#666;font-size:11px">Process this payout via Stripe or bank transfer, then reset their total_earnings_cents.</p>
+          </div>`,
+        text: `Payout request from ${amb.name} (${amb.promo_code}): $${amountDollars}. Contact: ${amb.contact_email ?? "not set"}.`,
+      });
+    }
+
+    return res.json({ ok: true, message: `Payout request for $${amountDollars} submitted. Our team will process it within 5-7 business days.` });
+  } catch {
+    return res.status(500).json({ error: "Failed to submit payout request" });
+  }
+});
+
 // ── Admin: PATCH /api/ambassadors/admin/:id/status — approve/reject ───────────
 router.patch("/admin/:id/status", async (req, res) => {
   const { userId } = getAuth(req);

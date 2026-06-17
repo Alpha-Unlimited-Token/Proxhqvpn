@@ -154,6 +154,59 @@ router.get("/stats", async (req: Request, res: Response) => {
   }
 });
 
+router.get("/export", async (req: Request, res: Response) => {
+  try {
+    const format = (req.query.format as string | undefined) || "csv";
+    const since = req.query.from ? new Date(req.query.from as string) : new Date(Date.now() - 7 * 86_400_000);
+    const until = req.query.to   ? new Date(req.query.to   as string) : new Date();
+    const sevFilter = req.query.severity as string | undefined;
+    const srcFilter = req.query.source   as string | undefined;
+
+    const fakeReq = Object.assign(Object.create(req), { query: { limit: "1000", since: since.toISOString(), ...(sevFilter ? { severity: sevFilter } : {}), ...(srcFilter ? { source: srcFilter } : {}) } });
+
+    const events: SiemEvent[] = [];
+
+    if (!srcFilter || srcFilter === "beacon") {
+      const beacons = await db.select().from(beaconAlertsTable).where(gte(beaconAlertsTable.detectedAt, since)).orderBy(desc(beaconAlertsTable.detectedAt)).limit(500);
+      beacons.forEach(b => events.push({ id: `beacon-${b.id}`, source: "Beacon Monitor", eventType: "intrusion_probe", severity: b.severity as SiemEvent["severity"], title: `${b.probeType} probe from ${b.attackerIp}`, details: `Node: ${b.nodeName} | Layer: ${b.nodeLayer} | Status: ${b.status}`, timestamp: b.detectedAt instanceof Date ? b.detectedAt.toISOString() : String(b.detectedAt), metadata: { nodeId: b.nodeId, attackerIp: b.attackerIp } }));
+    }
+    if (!srcFilter || srcFilter === "firewall") {
+      const blocked = await db.select().from(blockedIpsTable).where(gte(blockedIpsTable.blockedAt, since)).orderBy(desc(blockedIpsTable.blockedAt)).limit(500);
+      blocked.forEach(b => events.push({ id: `firewall-${b.id}`, source: "Firewall", eventType: "ip_blocked", severity: "medium", title: `IP blocked: ${b.ip}`, details: b.reason, timestamp: b.blockedAt instanceof Date ? b.blockedAt.toISOString() : String(b.blockedAt) }));
+    }
+    if (!srcFilter || srcFilter === "ghost_trace") {
+      const obs = await db.select().from(ghostTraceObservationsTable).where(and(isNotNull(ghostTraceObservationsTable.anomalyType), gte(ghostTraceObservationsTable.observedAt, since))).orderBy(desc(ghostTraceObservationsTable.observedAt)).limit(500);
+      obs.forEach(o => events.push({ id: `ghost-${o.id}`, source: "Ghost Trace", eventType: `device_anomaly_${o.anomalyType}`, severity: o.anomalyScore >= 80 ? "critical" : o.anomalyScore >= 50 ? "high" : "medium", title: `${o.anomalyType} on ${o.deviceName}`, details: `Score: ${o.anomalyScore}/100`, timestamp: o.observedAt instanceof Date ? o.observedAt.toISOString() : String(o.observedAt) }));
+    }
+
+    const filtered = events
+      .filter(e => new Date(e.timestamp) <= until)
+      .filter(e => !sevFilter || sevFilter === "all" || e.severity === sevFilter)
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+    void fakeReq; // suppress unused-var
+
+    if (format === "json") {
+      res.setHeader("Content-Type", "application/json");
+      res.setHeader("Content-Disposition", `attachment; filename="siem-export-${Date.now()}.json"`);
+      return res.json(filtered);
+    }
+
+    // CSV export
+    const escape = (v: string) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const header = ["id", "timestamp", "source", "eventType", "severity", "title", "details"].join(",");
+    const rows = filtered.map(e => [e.id, e.timestamp, e.source, e.eventType, e.severity, e.title, e.details].map(escape).join(","));
+    const csv = [header, ...rows].join("\n");
+
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Disposition", `attachment; filename="siem-export-${Date.now()}.csv"`);
+    return res.send(csv);
+  } catch (err) {
+    req.log.error({ err }, "[siem] export error");
+    res.status(500).json({ error: "Export failed" });
+  }
+});
+
 router.get("/timeline", async (req: Request, res: Response) => {
   try {
     const since = new Date(Date.now() - 24 * 3_600_000);
