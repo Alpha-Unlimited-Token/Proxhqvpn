@@ -162,13 +162,6 @@ const ambassadorLimiter = rateLimit({
   message: { error: "Too many ambassador requests — please wait a moment." },
 });
 
-const socialAccountLimiter = rateLimit({
-  windowMs: 60_000,
-  max: 40,
-  standardHeaders: "draft-7",
-  legacyHeaders: false,
-  message: { error: "Social Breach rate limit: max 40 requests/minute." },
-});
 
 app.use(globalLimiter);
 
@@ -325,8 +318,8 @@ const WAF_PATTERNS: [RegExp, string][] = [
 app.use((req: Request, res: Response, next: NextFunction) => {
   // Skip Stripe webhook — raw buffer, not a user input path
   if (req.path === "/api/stripe/webhook") return next();
-  // Skip OmniStrike/WAF tool routes — they intentionally carry payloads in their JSON body
-  if (req.path.startsWith("/api/omnistrike") || req.path.startsWith("/api/waf")) return next();
+  // Skip WAF tool routes — they intentionally carry payloads in their JSON body
+  if (req.path.startsWith("/api/waf")) return next();
 
   // Decode once and twice to catch single and double URL-encoding bypasses
   let decoded = req.url;
@@ -366,11 +359,6 @@ const consoleLimiter = rateLimit({
 
 app.use("/api/terminal",        terminalLimiter);
 app.use("/api/daemon-inbound",  daemonLimiter);
-app.use("/api/omnistrike/scan", (req: Request, res: Response, next: NextFunction) => {
-  if (req.method === "POST") return omniLimiter(req, res, next);
-  next();
-});
-app.use("/api/omnistrike/console", consoleLimiter);
 app.use("/api/sql", sqlLimiter);
 app.use("/api/nodes", (req: Request, res: Response, next: NextFunction) => {
   if (["POST", "PUT", "DELETE"].includes(req.method)) return mutateLimiter(req, res, next);
@@ -381,7 +369,6 @@ app.use("/api/firewall", (req: Request, res: Response, next: NextFunction) => {
   next();
 });
 // Strict rate limit on ambassador write operations to prevent abuse
-app.use("/api/social-account", socialAccountLimiter);
 app.use("/api/ambassadors/apply", ambassadorLimiter);
 app.use("/api/ambassadors/record-referral", ambassadorLimiter);
 app.use("/api/ambassadors/me/videos", (req: Request, res: Response, next: NextFunction) => {

@@ -37,12 +37,6 @@ const businessHiddenRoutes = [
   "/canary",
   "/silkweb",
   "/beacons",
-  "/alpha-tools",
-  "/sqlmap",
-  "/parrot-tools",
-
-  "/lab-targets",
-  "/hack-anon",
 ];
 
 export function shouldShowRoute(input: {

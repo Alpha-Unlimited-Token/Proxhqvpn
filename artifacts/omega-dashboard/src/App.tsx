@@ -9,8 +9,6 @@ import Dashboard from "@/pages/dashboard";
 import Hosts from "@/pages/hosts";
 import HostDetails from "@/pages/host-details";
 import Events from "@/pages/events";
-import Keylogger from "@/pages/keylogger";
-import ScreenCapture from "@/pages/screen-capture";
 import FileManager from "@/pages/file-manager";
 import Chat from "@/pages/chat";
 import IpScanner from "@/pages/ip-scanner";
@@ -20,7 +18,6 @@ import SystemInfo from "@/pages/system-info";
 import Windows from "@/pages/windows";
 import ClipboardPage from "@/pages/clipboard";
 import MessageManager from "@/pages/message-manager";
-import RemoteCommands from "@/pages/remote-commands";
 import ProxhqTools from "@/pages/proxhq-tools";
 
 const queryClient = new QueryClient({
@@ -39,8 +36,6 @@ function Router() {
       <Route path="/hosts" component={Hosts} />
       <Route path="/hosts/:id" component={HostDetails} />
       <Route path="/events" component={Events} />
-      <Route path="/keylogger" component={Keylogger} />
-      <Route path="/screen-capture" component={ScreenCapture} />
       <Route path="/file-manager" component={FileManager} />
       <Route path="/chat" component={Chat} />
       <Route path="/ip-scanner" component={IpScanner} />
@@ -50,7 +45,6 @@ function Router() {
       <Route path="/windows" component={Windows} />
       <Route path="/clipboard" component={ClipboardPage} />
       <Route path="/message-manager" component={MessageManager} />
-      <Route path="/remote-commands" component={RemoteCommands} />
       <Route path="/proxhq-tools" component={ProxhqTools} />
       <Route component={NotFound} />
     </Switch>

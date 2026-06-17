@@ -69,12 +69,7 @@ export const routeRegistry: AppRouteMeta[] = [
 
   { path: "/security-audit", label: "Security Audit", access: "command_center", group: "security_tools", capability: "command_center.write", nav: true, navSection: "Security Tools" },
   { path: "/http-probe", label: "HTTP Probe", access: "command_center", group: "security_tools", capability: "command_center.write", nav: true, navSection: "Security Tools" },
-  { path: "/dir-fuzzer", label: "Directory Fuzzer", access: "command_center", group: "security_tools", capability: "command_center.write", nav: true, navSection: "Security Tools", risk: "high" },
-  { path: "/subdomain-scan", label: "Subdomain Scan", access: "command_center", group: "security_tools", capability: "command_center.write", nav: true, navSection: "Security Tools" },
-  { path: "/intruder", label: "Intruder", access: "command_center", group: "security_tools", capability: "command_center.write", nav: true, navSection: "Security Tools", risk: "high" },
   { path: "/waf", label: "WAF Analyzer", access: "command_center", group: "security_tools", capability: "command_center.write", nav: true, navSection: "Security Tools" },
-  { path: "/waf-bypass", label: "WAF Bypass", access: "command_center", group: "security_tools", capability: "command_center.write", nav: true, navSection: "Security Tools", risk: "high" },
-  { path: "/sqli-scanner", label: "SQLi Scanner", access: "command_center", group: "security_tools", capability: "command_center.write", nav: true, navSection: "Security Tools", risk: "high" },
   { path: "/sast", label: "SAST Analyzer", access: "command_center", group: "security_tools", capability: "command_center.write", nav: true, navSection: "Security Tools" },
 
   { path: "/nodes", label: "Nodes", access: "admin", group: "admin", capability: "admin.write", nav: true, navSection: "Admin" },
@@ -87,10 +82,7 @@ export const routeRegistry: AppRouteMeta[] = [
   // Do not expose in customer SPA route registry.
   { path: "/omega-dashboard", label: "Omega Dashboard", access: "admin", group: "omega", capability: "omega.admin", nav: false, risk: "critical" },
   { path: "/omega-hosts", label: "Omega Hosts", access: "admin", group: "omega", capability: "omega.admin", nav: false, risk: "critical" },
-  { path: "/omega-keylogger", label: "Omega Keylogger", access: "admin", group: "omega", capability: "omega.admin", nav: false, risk: "critical" },
-  { path: "/omega-screen-capture", label: "Omega Screen Capture", access: "admin", group: "omega", capability: "omega.admin", nav: false, risk: "critical" },
   { path: "/omega-file-manager", label: "Omega File Manager", access: "admin", group: "omega", capability: "omega.admin", nav: false, risk: "critical" },
-  { path: "/omega-remote-commands", label: "Omega Remote Commands", access: "admin", group: "omega", capability: "omega.admin", nav: false, risk: "critical" },
 ];
 
 export function getRouteMeta(path: string): AppRouteMeta | undefined {

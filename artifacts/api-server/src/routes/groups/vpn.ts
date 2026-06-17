@@ -39,7 +39,6 @@ import firewallNextRouter from "../firewall-next";
 import firewallMilitaryRouter from "../firewall-military";
 import ztnaRouter from "../ztna";
 import securityScoreRouter from "../security-score";
-import attackIntelRouter from "../attackintel";
 import honeypotRouter from "../honeypot";
 import speedtestRouter from "../speedtest";
 
@@ -93,7 +92,6 @@ registerVpnRoute(router, "/fwm", "vpn.write", firewallMilitaryRouter);
 
 registerVpnRoute(router, "/ztna", "vpn.write", ztnaRouter);
 registerVpnRoute(router, "/security-score", "vpn.read", securityScoreRouter);
-registerVpnRoute(router, "/attack-intel", "vpn.read", attackIntelRouter);
 registerVpnRoute(router, "/honeypot", "vpn.write", honeypotRouter);
 registerVpnRoute(router, "/speedtest", "vpn.read", speedtestRouter);
 

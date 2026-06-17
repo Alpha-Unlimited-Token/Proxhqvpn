@@ -4,7 +4,6 @@ import healthRouter from "../health";
 import updatesRouter from "../updates";
 import { PRODUCT_CATALOG } from "../../commercial/productCatalog";
 import { FEATURE_REGISTRY } from "../../commercial/featureRegistry";
-import anonRouter from "../anon";
 import ambassadorsRouter from "../ambassadors";
 import stripeRouter from "../stripe";
 import cryptoPaymentsRouter from "../crypto-payments";
@@ -97,7 +96,6 @@ router.get("/entitlements/features", (_req, res) => {
   res.json({ features: Object.values(FEATURE_REGISTRY) });
 });
 
-router.use("/anon", anonRouter);
 router.use("/ambassadors", ambassadorsRouter);
 router.use("/stripe", stripeRouter);
 router.use("/payments/crypto", cryptoPaymentsRouter);

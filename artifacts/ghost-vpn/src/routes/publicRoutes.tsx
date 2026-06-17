@@ -1,7 +1,7 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { lazy } from "react";
 import { Route } from "wouter";
-import { PublicLayout, ProtectedLayout, CcLayout, MarketingLayout } from "./routeGuards";
+import { PublicLayout, ProtectedLayout, MarketingLayout } from "./routeGuards";
 import { AppLanding } from "./AppLanding";
 import { SignInPage, SignUpPage } from "./authScreens";
 
@@ -15,17 +15,13 @@ import AutoSetup from "@/pages/AutoSetup";
 import Ambassadors from "@/pages/Ambassadors";
 import AmbassadorApply from "@/pages/AmbassadorApply";
 import CheckoutSuccess from "@/pages/CheckoutSuccess";
-import AnonAuth from "@/pages/AnonAuth";
-import AnonDashboard from "@/pages/AnonDashboard";
-import AnonUpgrade from "@/pages/AnonUpgrade";
-import HackAnon from "@/pages/HackAnon";
 import AmbassadorHandbook from "@/pages/AmbassadorHandbook";
 import EmployeeHandbook from "@/pages/EmployeeHandbook";
-import ImAutomation from "@/pages/ImAutomation";
 
 const Downloads        = lazy(() => import("@/pages/Downloads"));
 const BrowserExtension = lazy(() => import("@/pages/BrowserExtension"));
 const UserGuide        = lazy(() => import("@/pages/UserGuide"));
+
 function HomeRedirect() {
   return <Home />;
 }
@@ -36,10 +32,6 @@ export function PublicRoutes() {
       <Route path="/" component={HomeRedirect} />
       <Route path="/sign-in/*?" component={SignInPage} />
       <Route path="/sign-up/*?" component={SignUpPage} />
-
-      <Route path="/anon-auth" component={AnonAuth} />
-      <Route path="/anon" component={AnonDashboard} />
-      <Route path="/anon/upgrade" component={AnonUpgrade} />
 
       <Route path="/app">
         <ProtectedLayout><AppLanding /></ProtectedLayout>
@@ -59,14 +51,6 @@ export function PublicRoutes() {
 
       <Route path="/guide">
         <PublicLayout><UserGuide /></PublicLayout>
-      </Route>
-
-      <Route path="/im-auto">
-        <CcLayout><ImAutomation /></CcLayout>
-      </Route>
-
-      <Route path="/hackanon">
-        <CcLayout><HackAnon /></CcLayout>
       </Route>
 
       <Route path="/handbook/ambassador">

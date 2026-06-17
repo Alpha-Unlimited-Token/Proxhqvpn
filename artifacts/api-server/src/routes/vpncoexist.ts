@@ -131,16 +131,9 @@ interface ToolExceptionRule {
 
 const TOOL_DEFAULTS: Omit<ToolExceptionRule, "id" | "addedAt">[] = [
   { tool: "http-probe",     toolLabel: "HTTP Probe",          outboundBypass: true, inboundBypass: true,  ports: "80,443,8080,8443",        protocols: ["tcp"],       cidr: "*", enabled: true,  note: "HTTP/HTTPS reconnaissance — allow outbound requests and return traffic" },
-  { tool: "intruder",       toolLabel: "Intruder",            outboundBypass: true, inboundBypass: true,  ports: "80,443,8080",             protocols: ["tcp"],       cidr: "*", enabled: true,  note: "Intruder attack traffic — bypass kill switch for target connections" },
-  { tool: "dir-fuzzer",     toolLabel: "Directory Fuzzer",    outboundBypass: true, inboundBypass: true,  ports: "80,443,8080,8443",        protocols: ["tcp"],       cidr: "*", enabled: true,  note: "Directory/path fuzzing — high-volume outbound HTTP traffic" },
-  { tool: "sqlmap",         toolLabel: "SQLmap Scanner",      outboundBypass: true, inboundBypass: true,  ports: "80,443,3306,5432,1433",   protocols: ["tcp"],       cidr: "*", enabled: true,  note: "SQL injection testing — allow DB port responses through" },
-  { tool: "alpha",          toolLabel: "Alpha Toolkit",       outboundBypass: true, inboundBypass: true,  ports: "*",                       protocols: ["tcp","udp"], cidr: "*", enabled: true,  note: "Alpha Toolkit full bypass — multi-protocol offensive operations" },
   { tool: "osint",          toolLabel: "OSINT Engine",        outboundBypass: true, inboundBypass: true,  ports: "80,443",                  protocols: ["tcp"],       cidr: "*", enabled: true,  note: "OSINT queries — allow external API and web traffic" },
   { tool: "waf",            toolLabel: "WAF Analyzer",        outboundBypass: true, inboundBypass: true,  ports: "80,443,8080,8443",        protocols: ["tcp"],       cidr: "*", enabled: true,  note: "WAF probe traffic — allow bypass and evasion test connections" },
-  { tool: "subdomain-scan", toolLabel: "Subdomain Scanner",   outboundBypass: true, inboundBypass: true,  ports: "80,443,53",               protocols: ["tcp","udp"], cidr: "*", enabled: true,  note: "DNS resolution + HTTP probes for subdomain discovery" },
   { tool: "ghost-trace",    toolLabel: "Ghost Trace",         outboundBypass: true, inboundBypass: true,  ports: "*",                       protocols: ["icmp","udp","tcp"], cidr: "*", enabled: true,  note: "Traceroute/ICMP probes — allow all ICMP and TTL packets" },
-  { tool: "omnistrike",     toolLabel: "OmniStrike",          outboundBypass: true, inboundBypass: true,  ports: "*",                       protocols: ["tcp","udp"], cidr: "*", enabled: true,  note: "OmniStrike coordinated attack — full outbound/inbound bypass" },
-  { tool: "exploit-import", toolLabel: "Exploit Import",      outboundBypass: true, inboundBypass: false, ports: "80,443",                  protocols: ["tcp"],       cidr: "*", enabled: true,  note: "Exploit downloads — allow outbound; block unsolicited inbound" },
   { tool: "attack-chain",   toolLabel: "Attack Chain",        outboundBypass: true, inboundBypass: true,  ports: "*",                       protocols: ["tcp","udp"], cidr: "*", enabled: true,  note: "Attack chain orchestration — allow all tool traffic during chain execution" },
 ];
 
