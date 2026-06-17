@@ -46,3 +46,4 @@ export * from "./platform";
 export * from "./validation";
 export * from "./node-maintenance";
 export * from "./commercial-entitlements";
+export * from "./verified-assets";

@@ -3,11 +3,13 @@ import { Router, type Request, type Response } from "express";
 import { requireCapability } from "../../middlewares/requireCapability";
 import frontendEventsRouter from "../frontend-events";
 import entitlementsRouter from "../entitlements";
+import verifiedAssetsRouter from "../verified-assets";
 
 const router = Router();
 
 router.use("/frontend-events", frontendEventsRouter);
 router.use("/entitlements", entitlementsRouter);
+router.use("/verified-assets", verifiedAssetsRouter);
 
 router.get("/config-lifecycle-events", requireCapability("vpn.read"), async (req: Request, res: Response) => {
   const userId = (req as any).auth?.userId ?? "unknown";

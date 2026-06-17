@@ -7,6 +7,7 @@ import { Router } from "express";
 import { z } from "zod";
 import https from "https";
 import dns from "dns/promises";
+import { requireVerifiedAsset } from "../lib/verified-assets";
 
 const router = Router();
 
@@ -150,7 +151,9 @@ function addSubdomain(found: Map<string, SubdomainResult>, sub: string, source: 
 router.post("/", async (req, res) => {
   try {
     const params = ScanSchema.parse(req.body);
+    const _sdUserId = (req as any).auth?.userId ?? "unknown";
     const domain = params.domain.toLowerCase().replace(/^\.+|\.+$/g, "");
+    await requireVerifiedAsset(_sdUserId, domain, req);
 
     const found = new Map<string, SubdomainResult>();
     const timeout = Math.min(params.timeoutMs, 15000);

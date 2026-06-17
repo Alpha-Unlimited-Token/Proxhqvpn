@@ -8,6 +8,7 @@ import { z } from "zod";
 import https from "https";
 import http from "http";
 import { URL } from "url";
+import { requireVerifiedAsset } from "../lib/verified-assets";
 
 const router = Router();
 
@@ -109,6 +110,8 @@ function doRequest(opts: {
 router.post("/", async (req, res) => {
   try {
     const params = ProbeSchema.parse(req.body);
+    const _hpUserId = (req as any).auth?.userId ?? "unknown";
+    await requireVerifiedAsset(_hpUserId, params.url, req);
     const start = Date.now();
     const redirectChain: { status: number; location: string }[] = [];
 

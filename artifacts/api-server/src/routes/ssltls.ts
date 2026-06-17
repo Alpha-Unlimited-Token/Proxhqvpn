@@ -3,6 +3,7 @@ import { Router } from "express";
 import * as tls from "tls";
 import * as https from "https";
 import * as net from "net";
+import { requireVerifiedAsset } from "../lib/verified-assets";
 
 const router = Router();
 
@@ -87,6 +88,8 @@ router.post("/scan", async (req, res) => {
 
   const cleanHost = host.replace(/^https?:\/\//, "").split("/")[0];
   const port = Number(rawPort) || 443;
+  const _tlsUserId = (req as any).auth?.userId ?? "unknown";
+  await requireVerifiedAsset(_tlsUserId, cleanHost, req);
 
   const result: TlsResult = {
     host: cleanHost,

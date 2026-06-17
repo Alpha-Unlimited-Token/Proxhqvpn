@@ -8,6 +8,7 @@ import { z } from "zod";
 import https from "https";
 import http from "http";
 import { URL } from "url";
+import { requireVerifiedAsset } from "../lib/verified-assets";
 
 const router = Router();
 
@@ -299,6 +300,8 @@ async function fuzzPaths(
 router.post("/", async (req, res) => {
   try {
     const params = FuzzSchema.parse(req.body);
+    const _dfUserId = (req as any).auth?.userId ?? "unknown";
+    await requireVerifiedAsset(_dfUserId, params.url, req);
     const baseWords = params.wordlist === "custom"
       ? (params.customWords ?? [])
       : WORDLISTS[params.wordlist];

@@ -5,6 +5,7 @@ import { z } from "zod";
 import os from "os";
 import path from "path";
 import fs from "fs";
+import { requireVerifiedAsset } from "../lib/verified-assets";
 
 const router = Router();
 const SQLMAP_PY = "/home/runner/workspace/tools/sqlmap/sqlmap.py";
@@ -54,6 +55,9 @@ router.post("/scan", async (req, res) => {
     randomAgent: z.boolean().default(true),
     batch: z.boolean().default(true),
   }).parse(req.body);
+
+  const userId = (req as any).auth?.userId ?? "unknown";
+  await requireVerifiedAsset(userId, body.url, req);
 
   const scanId = `scan_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
   const outDir = path.join(os.tmpdir(), `sqlmap_${scanId}`);
