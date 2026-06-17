@@ -4,7 +4,7 @@ import {
   LayoutDashboard, 
   Search, 
   List, 
-  ShieldAlert, 
+  ShieldAlert,
   Cpu,
   Menu,
   ShieldCheck,
@@ -24,7 +24,6 @@ import {
   Unlock,
   Wallet,
   ShieldBan,
-  FlaskConical,
   Network,
 } from "lucide-react";
 import { useState } from "react";
@@ -109,8 +108,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <NavItem href="/wallet-scanner" icon={Wallet} label="Wallet Scanner" />
             <NavItem href="/wallet-intel" icon={ShieldBan} label="Attack Vector Audit" />
             <NavItem href="/wallet-web-spider" icon={Network} label="Wallet Web Spider" />
-            <NavItem href="/node-cracker" icon={Cpu} label="Node Cracker" />
-            <NavItem href="/dev-audit" icon={FlaskConical} label="External Dev Audit" />
             <NavItem href="/pentest" icon={Terminal} label="Pen Test" />
           </div>
         </div>

@@ -8,7 +8,6 @@ import { errorHandler, notFoundHandler } from "./middlewares/errorHandler";
 import { productionSecurityProfile } from "./middlewares/productionSecurityProfile";
 import { requireAuth } from "./routes/_auth";
 import omegaRoutes from "./routes/groups/omega";
-import securityLabRoutes from "./routes/groups/security-lab";
 
 function parseOrigins(value: string | undefined): string[] {
   return (value ?? "")
@@ -64,13 +63,12 @@ app.get("/api/healthz", (_req, res) => {
     ok: true,
     service: "security-api",
     omegaEnabled: process.env.PROXHQ_ENABLE_OMEGA === "1",
-    securityLabEnabled: process.env.PROXHQ_ENABLE_SECURITY_LAB === "1",
+    securityLabEnabled: false,
   });
 });
 
 app.use("/api", requireAuth);
 app.use("/api", omegaRoutes);
-app.use("/api", securityLabRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

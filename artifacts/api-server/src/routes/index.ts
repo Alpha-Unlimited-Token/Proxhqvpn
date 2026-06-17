@@ -5,7 +5,6 @@ import adminRoutes from "./groups/admin";
 import vpnRoutes from "./groups/vpn";
 import commandCenterRoutes from "./groups/command-center";
 import miscAuthenticatedRoutes from "./groups/misc-authenticated";
-import securityLabRoutes from "./groups/security-lab";
 import omegaRoutes from "./groups/omega";
 import { requireAuth, requireAdmin } from "./_auth";
 
@@ -28,8 +27,7 @@ router.use(commandCenterRoutes);
 router.use(adminRoutes);
 router.use(miscAuthenticatedRoutes);
 
-// High-risk isolated groups. These are feature-gated and admin-only internally.
-router.use(securityLabRoutes);
+// Omega routes (feature-gated and admin-only).
 router.use(omegaRoutes);
 
 export { requireAdmin };

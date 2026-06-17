@@ -29,7 +29,6 @@ const securityOnlyRoutes = [
 
 const businessHiddenRoutes = [
   "/ghost",
-  "/security-lab",
   "/ghost-trap",
   "/ghost-nodes",
   "/ghost-chain",
@@ -41,7 +40,7 @@ const businessHiddenRoutes = [
   "/alpha-tools",
   "/sqlmap",
   "/parrot-tools",
-  "/dev-audit",
+
   "/lab-targets",
   "/hack-anon",
 ];
