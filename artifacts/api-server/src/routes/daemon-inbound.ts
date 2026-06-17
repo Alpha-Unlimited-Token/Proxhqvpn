@@ -70,6 +70,24 @@ function checkAgentVersion(req: any): { updateRequired: boolean; agentVersion: s
   return { updateRequired, agentVersion, minVersion: MIN_AGENT_VERSION };
 }
 
+// ── P6-C: Per-IP lure event rate limiting ─────────────────────────────────────
+// Prevents a single IP from flooding the beacon/trap tables with repeated lure events.
+// Window: 5 min. Max events per IP: 10. Credential harvests always bypass (always critical).
+const LURE_RATE_WINDOW_MS  = 5 * 60 * 1000;
+const LURE_RATE_MAX_EVENTS = 10;
+const _lureIpTimestamps    = new Map<string, number[]>();
+
+function checkLureRateLimit(ip: string, bypass: boolean): boolean {
+  if (bypass) return true; // credential harvests + real-port probes always allowed
+  const now         = Date.now();
+  const windowStart = now - LURE_RATE_WINDOW_MS;
+  const prev        = (_lureIpTimestamps.get(ip) ?? []).filter(t => t > windowStart);
+  if (prev.length >= LURE_RATE_MAX_EVENTS) return false;
+  prev.push(now);
+  _lureIpTimestamps.set(ip, prev);
+  return true;
+}
+
 // ── Per-node HMAC auth (preferred) — requires X-Node-ID + X-Daemon-Sig + X-Daemon-TS + X-Daemon-Nonce ──
 // Falls back to DAEMON_PSK if X-Node-ID header is absent (legacy nodes not yet enrolled).
 const perNodeHmacMiddleware = verifyDaemonHmac(async (nodeId: string) => {
@@ -485,6 +503,13 @@ router.post("/honeypot-hit", async (req, res) => {
       severity: "critical",
       metadata: { portProbed: body.portProbed ?? 41194, probeType: body.probeType, nodeId: body.nodeId },
     });
+  }
+
+  // ── P6-C: per-IP lure rate limit ─────────────────────────────────────────────
+  // Bypass for critical events (credential harvest, real WG port probe).
+  if (isLureProbe && !checkLureRateLimit(attackerIp, isCredentialHarvest || portLabel === "REAL_WG_PORT_HIDDEN")) {
+    req.log.warn({ ip: attackerIp }, "Lure event rate-limited — skipping DB insert");
+    return res.status(200).json({ received: true, rateLimited: true });
   }
 
   if (isCredentialHarvest) {

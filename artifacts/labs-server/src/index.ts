@@ -1,7 +1,6 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
-// Labs API Server — isolated deployment boundary for offensive security tooling.
-// Serves at: /api/sqlmap, /api/redteam-scan, /api/exploit-import, /api/omnistrike
-// Auth: Clerk session + admin email required for all routes.
+// Labs API Server — isolated deployment boundary.
+// Serves at: /api/exploit-import
 
 import express from "express";
 import helmet from "helmet";
@@ -11,10 +10,7 @@ import { clerkMiddleware } from "@clerk/express";
 import rateLimit from "express-rate-limit";
 import { requireLabsAdmin } from "./middleware/auth.js";
 import { requireLabsServiceAuth } from "./middleware/requireLabsServiceAuth.js";
-import sqlmapRouter from "./routes/sqlmap.js";
 import exploitImportRouter from "./routes/exploitimport.js";
-import redteamScanRouter from "./routes/redteamscan.js";
-import omnistrikeRouter from "./routes/omnistrike.js";
 
 const PORT = parseInt(process.env.PORT ?? "9090", 10);
 const CORS_ORIGIN = /\.replit\.dev$|\.replit\.app$|^http:\/\/localhost/;
@@ -73,7 +69,7 @@ const labsLimiter = rateLimit({
   legacyHeaders:   false,
 });
 
-// ── Strict per-tool limits ─────────────────────────────────────────────────
+// ── Per-route limits ───────────────────────────────────────────────────────
 const toolLimiter = rateLimit({
   windowMs: 60_000,
   max:      5,
@@ -82,21 +78,14 @@ const toolLimiter = rateLimit({
   legacyHeaders:   false,
 });
 
-// ── Labs service PSK guard — defense-in-depth before admin check ──────────
-// Health check is defined before this block so it remains public.
-app.use("/api/sqlmap",         requireLabsServiceAuth);
+// ── Service auth guard ─────────────────────────────────────────────────────
 app.use("/api/exploit-import", requireLabsServiceAuth);
-app.use("/api/redteam-scan",   requireLabsServiceAuth);
-app.use("/api/omnistrike",     requireLabsServiceAuth);
 
-// ── All offensive routes require Clerk admin ─────────────────────────────
+// ── All routes require Clerk admin ────────────────────────────────────────
 app.use("/api", labsLimiter, requireLabsAdmin);
 
-// ── Route mounting — same paths as api-server so frontend is unchanged ─────
-app.use("/api/sqlmap",         toolLimiter, sqlmapRouter);
+// ── Route mounting ────────────────────────────────────────────────────────
 app.use("/api/exploit-import", toolLimiter, exploitImportRouter);
-app.use("/api/redteam-scan",   toolLimiter, redteamScanRouter);
-app.use("/api/omnistrike",     toolLimiter, omnistrikeRouter);
 
 // ── Error handler ─────────────────────────────────────────────────────────
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

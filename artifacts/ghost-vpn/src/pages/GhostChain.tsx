@@ -6,12 +6,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import {
-  Target, AlertTriangle, ShieldOff, CheckCircle, Clock, ChevronRight,
+  Target, ShieldOff, CheckCircle, Clock, ChevronRight,
   Loader2, Trash2, Globe, Lock, Code2, Database, Server, Link2,
   AlertOctagon, Info, Zap, BarChart2, GitMerge, Layers, Network,
-  RefreshCw, Search, Copy, Terminal, FlaskConical, Atom,
+  RefreshCw, Search, Atom,
 } from "lucide-react";
-import { getExploitPayload, type ExploitPayload } from "@/lib/exploitPayloads";
 
 const QA_BASE_GC = import.meta.env.BASE_URL?.replace(/\/ghost-vpn\/?$/, "") ?? "";
 
@@ -338,20 +337,8 @@ function StageTracker({ stages }: { stages: Stage[] }) {
 
 function FindingCard({ finding }: { finding: Finding }) {
   const [expanded, setExpanded] = useState(false);
-  const [activeTab, setActiveTab] = useState<"details" | "exploit">("details");
-  const [copied, setCopied] = useState(false);
-  const { toast } = useToast();
   const sev = finding.severity as Severity;
   const Icon = SURFACE_ICON[finding.surfaceType] || Globe;
-  const exploit = getExploitPayload(finding.findingType, finding.surface);
-
-  const copyExploit = () => {
-    if (!exploit) return;
-    navigator.clipboard.writeText(exploit.code);
-    setCopied(true);
-    toast({ title: "Exploit code copied", description: "For authorized testing on your own systems only." });
-    setTimeout(() => setCopied(false), 2000);
-  };
 
   return (
     <div className={`border rounded-sm p-3 text-xs font-mono ${SEV_COLOR[sev]}`}>
@@ -369,11 +356,6 @@ function FindingCard({ finding }: { finding: Finding }) {
                 {sev}
               </span>
               <span className="font-bold text-current">{finding.title}</span>
-              {exploit && (
-                <span className="text-[9px] font-bold border border-orange-400/40 bg-orange-400/10 text-orange-400 px-1 py-px rounded flex items-center gap-0.5">
-                  <Terminal className="w-2.5 h-2.5" />PoC
-                </span>
-              )}
             </div>
             <div className="text-current/60 mt-0.5 truncate">{finding.surface}</div>
           </div>
@@ -386,35 +368,8 @@ function FindingCard({ finding }: { finding: Finding }) {
       {expanded && (
         <div className="mt-3 border-t border-current/20 pt-2.5">
 
-          {/* Tab row */}
-          <div className="flex gap-px mb-3">
-            <button
-              onClick={() => setActiveTab("details")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-sm transition-all ${
-                activeTab === "details"
-                  ? "bg-current/15 text-current"
-                  : "text-current/35 hover:text-current/55"
-              }`}
-            >
-              <Info className="w-3 h-3" />Details
-            </button>
-            {exploit && (
-              <button
-                onClick={() => setActiveTab("exploit")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-sm transition-all ${
-                  activeTab === "exploit"
-                    ? "bg-orange-400/15 text-orange-400 border border-orange-400/30"
-                    : "text-orange-400/40 hover:text-orange-400/70"
-                }`}
-              >
-                <FlaskConical className="w-3 h-3" />Exploit PoC
-              </button>
-            )}
-          </div>
-
-          {/* Details tab */}
-          {activeTab === "details" && (
-            <div className="space-y-2.5">
+          {/* Finding details */}
+          <div className="space-y-2.5">
               {finding.businessImpact && (
                 <div>
                   <div className="text-[10px] text-current/40 uppercase tracking-wide mb-1">Business Impact</div>
@@ -434,57 +389,6 @@ function FindingCard({ finding }: { finding: Finding }) {
                 </div>
               )}
             </div>
-          )}
-
-          {/* Exploit PoC tab */}
-          {activeTab === "exploit" && exploit && (
-            <div className="space-y-2.5">
-
-              {/* Disclaimer */}
-              <div className="flex items-start gap-2 border border-orange-400/20 bg-orange-400/5 rounded-sm px-3 py-2">
-                <AlertTriangle className="w-3.5 h-3.5 text-orange-400/70 shrink-0 mt-0.5" />
-                <div>
-                  <div className="text-[10px] font-bold text-orange-400/80 uppercase tracking-wide">Authorized Testing Only</div>
-                  <div className="text-[10px] text-orange-400/50 mt-0.5 leading-relaxed">
-                    Run this code only against systems you own or have explicit written permission to test. Unauthorized use is illegal under the CFAA and similar laws.
-                  </div>
-                </div>
-              </div>
-
-              {/* Attack category + language */}
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-[9px] font-bold border border-orange-400/30 text-orange-400/80 px-1.5 py-0.5 rounded uppercase tracking-wider">
-                    {exploit.category}
-                  </span>
-                  <span className="text-[9px] text-primary/60 border border-primary/35 px-1.5 py-0.5 rounded uppercase">
-                    {exploit.lang}
-                  </span>
-                </div>
-                <button
-                  onClick={copyExploit}
-                  className="flex items-center gap-1.5 text-[10px] border border-orange-400/30 text-orange-400/60 hover:text-orange-400 hover:border-orange-400/50 px-2 py-1 rounded-sm transition-colors"
-                >
-                  <Copy className="w-3 h-3" />
-                  {copied ? "Copied!" : "Copy"}
-                </button>
-              </div>
-
-              {/* Code block */}
-              <div className="relative">
-                <pre className="text-[10px] bg-black/50 border border-orange-400/15 p-3 rounded overflow-x-auto whitespace-pre text-orange-400/70 leading-relaxed max-h-72 overflow-y-auto">
-                  {exploit.code}
-                </pre>
-              </div>
-
-              {/* Attacker note */}
-              {exploit.note && (
-                <div className="text-[10px] text-primary/65 leading-relaxed border-l-2 border-orange-400/40 pl-2.5">
-                  <span className="text-orange-400/75 font-bold">Why it works: </span>{exploit.note}
-                </div>
-              )}
-            </div>
-          )}
 
         </div>
       )}

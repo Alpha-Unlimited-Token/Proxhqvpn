@@ -27,8 +27,6 @@ import RedTeamScan from "@/pages/RedTeamScan";
 const Downloads        = lazy(() => import("@/pages/Downloads"));
 const BrowserExtension = lazy(() => import("@/pages/BrowserExtension"));
 const UserGuide        = lazy(() => import("@/pages/UserGuide"));
-const ParrotTools      = lazy(() => import("@/pages/ParrotTools"));
-
 function HomeRedirect() {
   return <Home />;
 }
@@ -62,10 +60,6 @@ export function PublicRoutes() {
 
       <Route path="/guide">
         <PublicLayout><UserGuide /></PublicLayout>
-      </Route>
-
-      <Route path="/parrot-tools">
-        <CcLayout><ParrotTools /></CcLayout>
       </Route>
 
       <Route path="/im-auto">

@@ -9,7 +9,6 @@ import ghostRoutingRouter from "../ghost-routing";
 
 import threatintelRouter from "../threatintel";
 import securityauditRouter from "../securityaudit";
-import toolRunnerRouter from "../toolrunner";
 import alphaRouter from "../alpha";
 import httpProbeRouter from "../httpprobe";
 import dirFuzzerRouter from "../dirfuzzer";
@@ -60,7 +59,7 @@ const router = Router();
 
 router.use("/threatintel", requireCapability("command_center.read"), threatintelRouter);
 registerCommandCenterRoute(router, "/security-audit", "command_center.write", securityauditRouter);
-registerCommandCenterRoute(router, "/tool-runner", "command_center.write", toolRunnerRouter);
+
 registerCommandCenterRoute(router, "/alpha", "command_center.write", alphaRouter);
 registerCommandCenterRoute(router, "/http-probe", "command_center.write", httpProbeRouter);
 registerCommandCenterRoute(router, "/dir-fuzzer", "command_center.write", dirFuzzerRouter);

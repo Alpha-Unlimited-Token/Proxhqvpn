@@ -9,7 +9,6 @@ import BusinessDashboard from "@/pages/BusinessDashboard";
 import SecurityOperationsDashboard from "@/pages/SecurityOperationsDashboard";
 import OnboardingV2 from "@/pages/OnboardingV2";
 import ProxyConfig from "@/pages/ProxyConfig";
-import SqlmapScanner from "@/pages/SqlmapScanner";
 import AlphaTools from "@/pages/AlphaTools";
 import ToolRunner from "@/pages/ToolRunner";
 import ToolHistory from "@/pages/ToolHistory";
@@ -77,7 +76,6 @@ import AmbassadorDashboard from "@/pages/AmbassadorDashboard";
 const OsintRecon      = lazy(() => import("@/pages/OsintRecon"));
 const UsernameIntel   = lazy(() => import("@/pages/UsernameIntel"));
 const CanaryTokens    = lazy(() => import("@/pages/CanaryTokens"));
-const ExploitImporter = lazy(() => import("@/pages/ExploitImporter"));
 const OmniStrike      = lazy(() => import("@/pages/OmniStrike"));
 const WafAnalyzer     = lazy(() => import("@/pages/WafAnalyzer"));
 const SocialBreach    = lazy(() => import("@/pages/SocialBreach"));
@@ -92,7 +90,6 @@ export function CommandCenterRoutes() {
       <Route path="/command-center"><CcLayout><SecurityOperationsDashboard /></CcLayout></Route>
       <Route path="/onboarding"><CcLayout><OnboardingV2 /></CcLayout></Route>
       <Route path="/proxy"><CcLayout><ProxyConfig /></CcLayout></Route>
-      <Route path="/sqlmap"><CcLayout><SqlmapScanner /></CcLayout></Route>
       <Route path="/alpha-tools"><CcLayout><AlphaTools /></CcLayout></Route>
       <Route path="/tool-runner"><CcLayout><ToolRunner /></CcLayout></Route>
       <Route path="/tool-history"><CcLayout><ToolHistory /></CcLayout></Route>
@@ -129,7 +126,6 @@ export function CommandCenterRoutes() {
       <Route path="/osint"><CcLayout><OsintRecon /></CcLayout></Route>
       <Route path="/username-intel"><CcLayout><UsernameIntel /></CcLayout></Route>
       <Route path="/canary"><CcLayout><CanaryTokens /></CcLayout></Route>
-      <Route path="/exploit-import"><CcLayout><ExploitImporter /></CcLayout></Route>
       <Route path="/omnistrike"><CcLayout><OmniStrike /></CcLayout></Route>
       <Route path="/waf"><CcLayout><WafAnalyzer /></CcLayout></Route>
       <Route path="/social-breach"><CcLayout><SocialBreach /></CcLayout></Route>
