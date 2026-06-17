@@ -514,38 +514,6 @@ router.get("/beacon/:beaconId", async (req, res) => {
   res.status(200).send(PIXEL_GIF);
 });
 
-router.get("/beacon/:beaconId/js", async (req, res) => {
-  const { beaconId } = req.params;
-  res.setHeader("Content-Type", "application/javascript");
-  res.setHeader("Cache-Control", "no-store");
-  res.status(200).send(`
-(function(){
-  try {
-    var d = {
-      l: navigator.language,
-      s: screen.width + 'x' + screen.height,
-      z: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      p: navigator.platform,
-      c: navigator.hardwareConcurrency
-    };
-    fetch('${req.protocol}://${req.headers.host}/api/ghost-trap/beacon/${beaconId}/cb', {
-      method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(d)
-    }).catch(function(){});
-  } catch(e){}
-})();
-`);
-});
-
-router.post("/beacon/:beaconId/cb", async (req, res) => {
-  const { beaconId } = req.params;
-  const { l, s, z } = req.body as Record<string, string>;
-  await db.update(ghostTrapBeaconsTable).set({
-    browserLang: l ?? null, screenSize: s ?? null, timezone: z ?? null,
-  }).where(eq(ghostTrapBeaconsTable.beaconId, beaconId)).catch(() => {});
-  await db.update(ghostTrapProbesTable).set({ beaconFired: true, beaconFiredAt: new Date() })
-    .where(eq(ghostTrapProbesTable.beaconId, beaconId)).catch(() => {});
-  res.json({ ok: true });
-});
 
 // ─── Per-user lure endpoints (PUBLIC — attributed via userToken in URL) ────────
 // Each VPN user gets a unique URL like /api/ghost-trap/u/:token/lure/login
@@ -1028,8 +996,7 @@ router.get("/report/:ip", async (req, res) => {
 
   const beaconSection = beacons.length ? beacons.map(b =>
     `  Beacon ${b.beaconId.substring(0, 8)} fired at ${b.firedAt.toISOString()} from ${b.firedFromIp ?? ip}\n` +
-    `    User-Agent: ${b.firedUa ?? "—"}\n` +
-    (b.browserLang ? `    Browser:    Language=${b.browserLang}  Screen=${b.screenSize ?? "—"}  TZ=${b.timezone ?? "—"}\n` : "")
+    `    User-Agent: ${b.firedUa ?? "—"}\n`
   ).join("\n") : "  No beacon fires recorded.";
 
   const uniqueVectors = [...new Set(probes.map(p => p.attackVector).filter(Boolean))];
@@ -1775,7 +1742,6 @@ router.post("/export-evidence", requireRbac("counter_attack"), async (req, res) 
     beacons: beaconRows.map(b => ({
       beaconId: b.beaconId, firedAt: b.firedAt,
       firedFromIp: b.firedFromIp, firedUa: b.firedUa,
-      timezone: b.timezone, screenSize: b.screenSize,
     })),
     notes: notes ?? null,
   };
@@ -2087,9 +2053,6 @@ router.get("/intel/:ip", requireRbac("counter_attack"), async (req, res) => {
     firedAt:    b.firedAt,
     fromIp:     b.firedFromIp,
     userAgent:  b.firedUa,
-    screenSize: b.screenSize,
-    language:   b.browserLang,
-    timezone:   b.timezone,
     headers:    b.firedHeaders ? (() => { try { return JSON.parse(b.firedHeaders!); } catch { return {}; } })() : {},
   }));
 

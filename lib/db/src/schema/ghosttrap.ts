@@ -48,9 +48,6 @@ export const ghostTrapBeaconsTable = pgTable("ghost_trap_beacons", {
   firedFromIp: text("fired_from_ip"),
   firedUa:     text("fired_ua"),
   firedHeaders:text("fired_headers"),
-  browserLang: text("browser_lang"),
-  screenSize:  text("screen_size"),
-  timezone:    text("timezone"),
 });
 
 export const ghostTrapConfigTable = pgTable("ghost_trap_config", {

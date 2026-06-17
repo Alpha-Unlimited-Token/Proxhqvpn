@@ -73,8 +73,6 @@ export async function exportEvidenceBundle(userId: string, subjectIp: string, no
       firedAt:    b.firedAt,
       firedFromIp: b.firedFromIp,
       firedUa:    b.firedUa,
-      timezone:   b.timezone,
-      screenSize: b.screenSize,
     })),
     notes,
   };
