@@ -50,3 +50,5 @@ export * from "./verified-assets";
 export * from "./file-scan-jobs";
 export * from "./marketing-drafts";
 export * from "./autoscale";
+export * from "./ip-enrichment-cache";
+export * from "./detection-signatures";

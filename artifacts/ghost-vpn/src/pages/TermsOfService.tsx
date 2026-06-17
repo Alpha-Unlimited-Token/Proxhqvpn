@@ -74,15 +74,43 @@ export default function TermsOfService() {
             </ul>
             <div className="mt-4 p-3 border border-yellow-800 bg-yellow-900/10 text-yellow-400 text-sm">
               <strong>SECURITY LAB TOOLS:</strong> The security scanning tools (SQL injection scanner,
-              WAF bypass, subdomain scanner, etc.) require verified asset ownership before use.
-              Attempting to scan domains or systems you do not own is a violation of these Terms and
-              may constitute a violation of the Computer Fraud and Abuse Act (CFAA), the UK Computer
-              Misuse Act, or equivalent laws in your jurisdiction.
+              WAF bypass, subdomain scanner, etc.) are restricted to verified lab targets only.
+              Attempting to scan systems you do not own is a violation of these Terms and may constitute
+              a violation of the Computer Fraud and Abuse Act (CFAA), the UK Computer Misuse Act, or
+              equivalent laws in your jurisdiction.
             </div>
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-green-300 mb-3 border-b border-green-900 pb-2">5. Accounts and Security</h2>
+            <h2 className="text-xl font-semibold text-green-300 mb-3 border-b border-green-900 pb-2">5. Security Infrastructure and Honeypot Systems</h2>
+            <p className="mb-3">
+              ProxhqVPN operates a passive honeypot and deception network (<strong className="text-green-300">Ghost Trap</strong>)
+              as part of its infrastructure protection. By connecting to or probing ProxhqVPN infrastructure,
+              you acknowledge that:
+            </p>
+            <ul className="list-none space-y-1 pl-4 mb-3">
+              {[
+                "ProxhqVPN nodes may present decoy services (fake open ports, emulated services) designed to detect hostile actors",
+                "Any interaction with ProxhqVPN infrastructure may be logged, fingerprinted, and used for security purposes",
+                "Unauthorized probing, scanning, or attacking ProxhqVPN infrastructure is prohibited under these Terms and applicable law",
+                "Source IP addresses interacting with honeypot services may be shared with third-party threat intelligence databases",
+                "Automatic firewall blocking may be applied to IPs detected probing or attacking ProxhqVPN nodes",
+              ].map((item) => (
+                <li key={item} className="flex gap-2">
+                  <span className="text-green-500">→</span>
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="text-green-400/80 text-sm">
+              Subscribers using ProxhqVPN legitimately are not affected by these systems. The honeypot
+              network only captures traffic directed at decoy services — it has no visibility into
+              subscriber VPN traffic, which remains completely private.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold text-green-300 mb-3 border-b border-green-900 pb-2">6. Accounts and Security</h2>
             <p className="mb-2">
               You are responsible for maintaining the confidentiality of your account credentials.
               You must notify us immediately at{" "}
@@ -96,7 +124,7 @@ export default function TermsOfService() {
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-green-300 mb-3 border-b border-green-900 pb-2">6. Payments and Subscriptions</h2>
+            <h2 className="text-xl font-semibold text-green-300 mb-3 border-b border-green-900 pb-2">7. Payments and Subscriptions</h2>
             <p className="mb-2">
               Subscriptions are billed in advance on a monthly or annual basis via Stripe. All fees are
               non-refundable except where required by law. We reserve the right to change pricing with
@@ -109,7 +137,7 @@ export default function TermsOfService() {
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-green-300 mb-3 border-b border-green-900 pb-2">7. Service Availability</h2>
+            <h2 className="text-xl font-semibold text-green-300 mb-3 border-b border-green-900 pb-2">8. Service Availability</h2>
             <p>
               We aim for high availability but do not guarantee uninterrupted service. We are not liable
               for downtime, data loss, or service interruptions. We may modify or discontinue features
@@ -118,7 +146,7 @@ export default function TermsOfService() {
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-green-300 mb-3 border-b border-green-900 pb-2">8. Limitation of Liability</h2>
+            <h2 className="text-xl font-semibold text-green-300 mb-3 border-b border-green-900 pb-2">9. Limitation of Liability</h2>
             <p>
               TO THE MAXIMUM EXTENT PERMITTED BY LAW, ALPHA UNLIMITED TECHNOLOGIES LLC SHALL NOT BE
               LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES,
@@ -129,7 +157,7 @@ export default function TermsOfService() {
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-green-300 mb-3 border-b border-green-900 pb-2">9. Indemnification</h2>
+            <h2 className="text-xl font-semibold text-green-300 mb-3 border-b border-green-900 pb-2">10. Indemnification</h2>
             <p>
               You agree to indemnify and hold harmless Alpha Unlimited Technologies LLC, its officers,
               directors, employees, and agents from any claims, damages, or expenses (including legal
@@ -138,7 +166,7 @@ export default function TermsOfService() {
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-green-300 mb-3 border-b border-green-900 pb-2">10. Governing Law</h2>
+            <h2 className="text-xl font-semibold text-green-300 mb-3 border-b border-green-900 pb-2">11. Governing Law</h2>
             <p>
               These Terms are governed by the laws of the United States. Any disputes shall be resolved
               through binding arbitration in accordance with the rules of the American Arbitration
@@ -147,7 +175,7 @@ export default function TermsOfService() {
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-green-300 mb-3 border-b border-green-900 pb-2">11. Changes to Terms</h2>
+            <h2 className="text-xl font-semibold text-green-300 mb-3 border-b border-green-900 pb-2">12. Changes to Terms</h2>
             <p>
               We may update these Terms at any time. Material changes will be communicated by email
               at least 14 days in advance. Continued use of the service after the effective date of
@@ -156,7 +184,7 @@ export default function TermsOfService() {
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-green-300 mb-3 border-b border-green-900 pb-2">12. Contact</h2>
+            <h2 className="text-xl font-semibold text-green-300 mb-3 border-b border-green-900 pb-2">13. Contact</h2>
             <p>
               For questions about these Terms:{" "}
               <a href="mailto:legal@proxhqvpn.com" className="text-green-300 underline">legal@proxhqvpn.com</a>

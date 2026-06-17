@@ -41,6 +41,7 @@ import ztnaRouter from "../ztna";
 import securityScoreRouter from "../security-score";
 import attackIntelRouter from "../attackintel";
 import honeypotRouter from "../honeypot";
+import speedtestRouter from "../speedtest";
 
 const router = Router();
 
@@ -94,5 +95,6 @@ registerVpnRoute(router, "/ztna", "vpn.write", ztnaRouter);
 registerVpnRoute(router, "/security-score", "vpn.read", securityScoreRouter);
 registerVpnRoute(router, "/attack-intel", "vpn.read", attackIntelRouter);
 registerVpnRoute(router, "/honeypot", "vpn.write", honeypotRouter);
+registerVpnRoute(router, "/speedtest", "vpn.read", speedtestRouter);
 
 export default router;

@@ -61,6 +61,10 @@ export const apiRouteCapabilities: ApiRouteCapability[] = [
   { mountPath: "/fwm", capability: "vpn.write" },
   { mountPath: "/ztna", capability: "vpn.write" },
   { mountPath: "/honeypot", capability: "vpn.write" },
+  { mountPath: "/speedtest", capability: "vpn.read" },
+  { mountPath: "/compliance-reports", capability: "command_center.read" },
+  { mountPath: "/ai-threat", capability: "command_center.read" },
+  { mountPath: "/detection-signatures", capability: "command_center.write" },
 
   { mountPath: "/threatintel", capability: "command_center.read" },
   { mountPath: "/ghost-trace", capability: "command_center.read" },

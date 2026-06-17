@@ -136,6 +136,10 @@ const COMPARE_ROWS: { feature: string; proxhq: ColVal; nord: ColVal; express: Co
   { feature: "sysctl Kernel Hardening on Nodes",   proxhq: "yes", nord: "no",      express: "no",      mullvad: "no",      proton: "no",      surf: "no"      },
   { feature: "Honeypot Worm Injection & Callbacks", proxhq: "yes", nord: "no",      express: "no",      mullvad: "no",      proton: "no",      surf: "no"      },
   { feature: "Per-Attacker Intelligence Dossier",  proxhq: "yes", nord: "no",      express: "no",      mullvad: "no",      proton: "no",      surf: "no"      },
+  { feature: "IP Enrichment Engine (AbuseIPDB + GreyNoise)", proxhq: "yes", nord: "no", express: "no", mullvad: "no",  proton: "no",      surf: "no"      },
+  { feature: "AI Threat Analysis (plain-English alerts)", proxhq: "yes", nord: "no",  express: "no",      mullvad: "no",      proton: "no",      surf: "no"      },
+  { feature: "Custom Detection Signature Engine",   proxhq: "yes", nord: "no",      express: "no",      mullvad: "no",      proton: "no",      surf: "no"      },
+  { feature: "Built-In VPN Speed Test",             proxhq: "yes", nord: "partial",  express: "partial", mullvad: "partial", proton: "partial",  surf: "partial" },
 ];
 
 const PRICING_PLANS = [
@@ -275,6 +279,14 @@ const FAQS = [
   {
     q: "What is the difference between VPN Basic and Command Center Pro?",
     a: "VPN Basic ($6.99/mo) gives you full privacy protection — WireGuard encryption, kill switch, DNS shield, double-hop routing, split tunneling, GPS spoofing, port forwarding, dedicated IP, meshnet networking, and data broker opt-out scanning. Command Center Pro ($39.99/mo) adds the full professional security suite: Alpha Toolkit, SQLmap, HTTP Probe, Directory Fuzzer, Subdomain Scout, Ghost Chain Exploit Arsenal, Exploit Importer (24 step-by-step vuln guides), OSINT Recon, OAST injection tester, dependency vulnerability scanner, JWT/API token sequence analyzer, WebSocket security tester, SAST static code analysis, WAF Analyzer, SIEM, Canary Tokens, and SilkWeb honeypot control — everything a security researcher, pentester, or developer needs.",
+  },
+  {
+    q: "Does ProxhqVPN scan or monitor internet traffic other than through my VPN tunnel?",
+    a: "No. ProxhqVPN never inspects, logs, or stores your VPN traffic. The only external traffic we capture is from hostile probers who attack our own infrastructure — our Ghost Trap honeypot logs the source IP, probe type, and fingerprint of attackers interacting with our decoy services. This has zero overlap with subscriber VPN traffic and is disclosed in our Privacy Policy (§4).",
+  },
+  {
+    q: "What is Ghost Trap and does it affect my privacy?",
+    a: "Ghost Trap is a passive honeypot system embedded in ProxhqVPN's infrastructure. It presents fake open ports and decoy services to attract attackers who scan our VPN nodes. When an attacker interacts with a decoy service, their IP and probe metadata are logged and used to auto-block them across the network. Ghost Trap only captures data from hostile external parties — it has no visibility into subscriber VPN traffic. Your privacy as a subscriber is completely unaffected.",
   },
 ];
 

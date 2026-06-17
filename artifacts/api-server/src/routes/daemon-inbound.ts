@@ -491,6 +491,29 @@ router.post("/honeypot-hit", async (req, res) => {
     }
   }
 
+  // Async IP enrichment — fire-and-forget; populates threat intel on trapped_attackers row
+  if (trappedId !== null) {
+    const tid = trappedId;
+    import("../lib/ip-enrichment")
+      .then(({ enrichIp }) =>
+        enrichIp(body.attackerIp).then(enr =>
+          db.update(trappedAttackersTable).set({
+            enrichmentData:   enr as unknown as Record<string, unknown>,
+            threatScore:      enr.threatScore,
+            threatCategory:   enr.threatCategory,
+            threatTags:       enr.threatTags as unknown as string[],
+            countryCode:      enr.countryCode,
+            asn:              enr.asn,
+            asnOrg:           enr.asnOrg,
+            isTor:            enr.greynoiseIsTor,
+            isKnownMalicious: enr.isKnownMalicious,
+            enrichedAt:       new Date(),
+          }).where(eq(trappedAttackersTable.id, tid)),
+        ),
+      )
+      .catch(err => logger.warn({ err, ip: body.attackerIp }, "IP enrichment failed — non-fatal"));
+  }
+
   return res.status(201).json({ ok: true, trappedId, message: `${body.attackerIp} trapped via honeypot port ${body.port}` });
 });
 

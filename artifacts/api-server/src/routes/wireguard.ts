@@ -282,6 +282,7 @@ router.get("/my-config/:id/text", async (req, res) => {
 PrivateKey = ${privateKeyForDownload}
 Address = ${cfg.assignedIp}/24
 DNS = 1.1.1.1, 1.0.0.1
+MTU = 1420
 
 # ProxhqVPN — GhostNet Security Configuration
 # Post-Quantum Resistance: PresharedKey (symmetric 256-bit) mixed into WireGuard

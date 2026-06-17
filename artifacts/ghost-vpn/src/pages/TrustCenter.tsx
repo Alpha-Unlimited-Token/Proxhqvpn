@@ -194,6 +194,37 @@ export default function TrustCenter() {
           </ul>
         </div>
 
+        {/* Ghost Trap — Honeypot Infrastructure */}
+        <div className="rounded-xl border border-white/10 bg-white/[0.03] p-6 space-y-3">
+          <div className="flex items-center gap-2.5">
+            <Shield className="w-5 h-5 text-primary" />
+            <span className="text-sm font-semibold text-white/90">Honeypot Infrastructure — Ghost Trap</span>
+          </div>
+          <p className="text-sm text-white/55 leading-relaxed">
+            ProxhqVPN runs a passive deception network called Ghost Trap on all VPN nodes. Decoy services
+            (fake open ports and emulated service banners) attract and fingerprint hostile probers. All
+            interactions are logged, enriched with AbuseIPDB and GreyNoise threat intelligence, and used
+            to auto-block attackers across the network. Ghost Trap is strictly passive — no counter-scanning
+            or offensive tools are ever executed. Capture data is retained for 90 days, disclosed in the
+            Privacy Policy, and never commingled with subscriber VPN traffic.
+          </p>
+          <ul className="text-sm text-white/55 space-y-1.5">
+            {[
+              "All probes logged with full IP enrichment (country, ASN, AbuseIPDB score, GreyNoise classification)",
+              "AI-powered plain-English threat explanations for every detection",
+              "Custom detection signature engine — AND/OR rule builder per user",
+              "Automatic firewall blocking on configurable probe threshold",
+              "Evidence export for compliance and incident reporting",
+              "Zero overlap with subscriber VPN traffic — decoy services only",
+            ].map(item => (
+              <li key={item} className="flex items-start gap-2">
+                <span className="text-primary mt-0.5 shrink-0">›</span>
+                {item}
+              </li>
+            ))}
+          </ul>
+        </div>
+
         {/* Vulnerability Disclosure Policy */}
         <div id="disclosure" className="rounded-xl border border-primary/20 bg-primary/[0.04] p-6 space-y-4">
           <div className="flex items-center gap-2.5">

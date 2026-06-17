@@ -77,6 +77,9 @@ const PROFESSIONAL_EXTRAS = [
   { icon: ShieldCheck, text: "Security Audit — TLS grader, HTTP headers, WHOIS/RDAP" },
   { icon: Database,   text: "Audit history (SHA3-256 hash chain)" },
   { icon: Network,    text: "OSINT Recon engine — DNS, ASN, email security fingerprinting" },
+  { icon: ShieldCheck, text: "Ghost Trap passive honeypot + IP enrichment (AbuseIPDB + GreyNoise)" },
+  { icon: Radar,      text: "AI Threat Analysis — plain-English detection explanations (Claude)" },
+  { icon: Activity,   text: "Custom Detection Signature Engine — AND/OR rule builder" },
 ];
 
 const BUSINESS_EXTRAS = [

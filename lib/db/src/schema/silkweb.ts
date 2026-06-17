@@ -1,5 +1,5 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
-import { pgTable, serial, text, integer, boolean, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, integer, boolean, jsonb, timestamp } from "drizzle-orm/pg-core";
 import { nodesTable } from "./nodes";
 
 export const silkWebTable = pgTable("silk_web", {
@@ -35,8 +35,19 @@ export const trappedAttackersTable = pgTable("trapped_attackers", {
   sqlmapStatus: text("sqlmap_status").default("idle"),
   sqlmapJobId: text("sqlmap_job_id"),
   sqlmapResults: text("sqlmap_results"),
-  sqlmapStartedAt: timestamp("sqlmap_started_at"),
+  sqlmapStartedAt:  timestamp("sqlmap_started_at"),
   sqlmapFinishedAt: timestamp("sqlmap_finished_at"),
+  // IP Enrichment Engine fields (populated async by Ghost Trap)
+  enrichmentData:   jsonb("enrichment_data"),
+  threatScore:      integer("threat_score"),
+  threatCategory:   text("threat_category"),
+  threatTags:       jsonb("threat_tags"),
+  countryCode:      text("country_code"),
+  asn:              text("asn"),
+  asnOrg:           text("asn_org"),
+  isTor:            boolean("is_tor").default(false),
+  isKnownMalicious: boolean("is_known_malicious").default(false),
+  enrichedAt:       timestamp("enriched_at"),
 });
 
 export type InsertSilkWeb = typeof silkWebTable.$inferInsert;

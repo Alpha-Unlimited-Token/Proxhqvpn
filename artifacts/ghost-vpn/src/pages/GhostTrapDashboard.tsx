@@ -132,6 +132,18 @@ export default function GhostTrapDashboard() {
         </div>
       }
     >
+      {/* Passive-only disclosure banner */}
+      <div className="flex items-start gap-3 rounded-xl border border-primary/20 bg-primary/[0.04] px-4 py-3 mb-2">
+        <ShieldCheck className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+        <p className="text-xs text-primary/80 leading-relaxed">
+          <strong className="text-primary">Ghost Trap is entirely passive.</strong>{" "}
+          All probes are logged, fingerprinted, and blocked — no counter-scanning, no offensive tools,
+          no actions taken against external hosts. Data collected from attackers is stored for 90 days
+          and disclosed in our{" "}
+          <a href="/privacy" className="underline hover:text-primary">Privacy Policy §4</a>.
+        </p>
+      </div>
+
       <div className="space-y-6">
         {/* Metric cards */}
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

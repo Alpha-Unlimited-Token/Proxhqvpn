@@ -52,6 +52,9 @@ import firewallCoreRouter from "../firewall-core";
 import securityGraphRouter from "../security-graph";
 import securityDashboardV2Router from "../security-dashboard-v2";
 import securityReportsRouter from "../security-reports";
+import complianceReportsRouter from "../compliance-reports";
+import aiThreatRouter from "../ai-threat-analysis";
+import detectionSignaturesRouter from "../detection-signatures";
 
 const router = Router();
 
@@ -106,5 +109,9 @@ registerCommandCenterRoute(router, "/realtime", "command_center.read", realtimeR
 
 router.use("/ghost-nodes", requireCapability("command_center.write"), ghostNodeRouter);
 router.use("/ghost-nodes/exit", ghostRoutingRouter);
+
+registerCommandCenterRoute(router, "/compliance-reports", "command_center.read", complianceReportsRouter);
+registerCommandCenterRoute(router, "/ai-threat", "command_center.read", aiThreatRouter);
+router.use("/detection-signatures", requireCapability("command_center.write"), detectionSignaturesRouter);
 
 export default router;

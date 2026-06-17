@@ -296,17 +296,64 @@ net.core.rmem_max=16777216
 net.core.wmem_max=16777216
 net.ipv4.tcp_rmem=4096 87380 16777216
 net.ipv4.tcp_wmem=4096 65536 16777216
+
+# BBR congestion control — better throughput on high-latency / lossy VPN paths
+# Requires Linux kernel 4.9+ (all modern Ubuntu LTS qualify)
+net.core.default_qdisc=fq
+net.ipv4.tcp_congestion_control=bbr
 SYSCTL
 sysctl --system
 ok "sysctl tuning applied"
 
-# ─── 8. START SERVICES ────────────────────────────────────────────────────────
+# ─── 8. UNBOUND DNS RESOLVER (local caching + DNS-over-TLS) ──────────────────
+log "Installing and configuring Unbound..."
+apt-get install -y unbound
+
+cat > /etc/unbound/unbound.conf.d/proxhqvpn.conf << 'UNBOUND'
+server:
+  interface: 127.0.0.1
+  port: 5353
+  do-ip4: yes
+  do-ip6: no
+  do-udp: yes
+  do-tcp: yes
+  access-control: 127.0.0.0/8 allow
+  hide-identity: yes
+  hide-version: yes
+  harden-glue: yes
+  harden-dnssec-stripped: yes
+  use-caps-for-id: yes
+  val-permissive-mode: no
+  cache-min-ttl: 60
+  cache-max-ttl: 86400
+  prefetch: yes
+  num-threads: 2
+  so-reuseport: yes
+
+  # DNS-over-TLS upstream (Cloudflare)
+  forward-zone:
+    name: "."
+    forward-tls-upstream: yes
+    forward-addr: 1.1.1.1@853#cloudflare-dns.com
+    forward-addr: 1.0.0.1@853#cloudflare-dns.com
+UNBOUND
+
+systemctl enable --now unbound
+# Point local DNS at Unbound
+echo "nameserver 127.0.0.1" > /etc/resolv.conf.proxhqvpn
+# Only override resolv.conf if systemd-resolved is not managing it
+if ! systemctl is-active --quiet systemd-resolved; then
+  cp /etc/resolv.conf.proxhqvpn /etc/resolv.conf
+fi
+ok "Unbound DNS-over-TLS resolver installed on 127.0.0.1:5353"
+
+# ─── 9. START SERVICES ────────────────────────────────────────────────────────
 log "Starting services..."
 systemctl enable --now auditd fail2ban chrony unattended-upgrades
 systemctl restart fail2ban
 ok "Services started"
 
-# ─── 9. LOG DIR ───────────────────────────────────────────────────────────────
+# ─── 10. LOG DIR ──────────────────────────────────────────────────────────────
 mkdir -p /var/log/proxhqvpn && chmod 750 /var/log/proxhqvpn
 
 # ─── SUMMARY ──────────────────────────────────────────────────────────────────

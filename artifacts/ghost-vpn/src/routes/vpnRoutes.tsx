@@ -37,6 +37,7 @@ import Manuals from "@/pages/Manuals";
 import TrustCenter from "@/pages/TrustCenter";
 import SecurityOverview from "@/pages/SecurityOverview";
 import PublicStatus from "@/pages/PublicStatus";
+import SpeedTest from "@/pages/SpeedTest";
 
 const VpnCoexist = lazy(() => import("@/pages/VpnCoexist"));
 
@@ -76,6 +77,7 @@ export function VpnRoutes() {
       <Route path="/network-monitor"><ToolLayout><NetworkMonitor /></ToolLayout></Route>
       <Route path="/dns-sinkhole"><ToolLayout><DnsSinkhole /></ToolLayout></Route>
       <Route path="/manuals"><ToolLayout><Manuals /></ToolLayout></Route>
+      <Route path="/speed-test"><ToolLayout><SpeedTest /></ToolLayout></Route>
 
       <Route path="/security-score">
         <ProtectedLayout><CustomerSecurityDashboard /></ProtectedLayout>

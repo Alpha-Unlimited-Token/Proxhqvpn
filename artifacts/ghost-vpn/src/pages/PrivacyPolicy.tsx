@@ -63,7 +63,44 @@ export default function PrivacyPolicy() {
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-green-300 mb-3 border-b border-green-900 pb-2">4. Data Retention</h2>
+            <h2 className="text-xl font-semibold text-green-300 mb-3 border-b border-green-900 pb-2">4. Honeypot Infrastructure — Ghost Trap Disclosure</h2>
+            <p className="mb-3">
+              ProxhqVPN operates a passive honeypot and threat deception network called <strong className="text-green-300">Ghost Trap</strong>.
+              This system presents decoy services (fake open ports, fake HTTP endpoints) on VPN nodes to attract
+              and fingerprint hostile probers. When an external party interacts with these decoy services, the
+              following data is collected and retained <strong className="text-green-300">for security defense purposes only</strong>:
+            </p>
+            <ul className="list-none space-y-1 pl-4 mb-3">
+              {[
+                "Source IP address of the probing host",
+                "Probe type (port scan, web request, WireGuard handshake attempt, etc.)",
+                "Network fingerprint (TCP/IP stack signature, user agent, raw request headers)",
+                "Country, ASN, and ISP of the probing IP (via public geo-IP services)",
+                "AbuseIPDB confidence score and GreyNoise threat classification (via third-party APIs)",
+                "Timestamp and node on which the probe was detected",
+              ].map((item) => (
+                <li key={item} className="flex gap-2">
+                  <span className="text-green-500">→</span>
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="mb-3 text-green-400/80">
+              <strong className="text-green-300">Important:</strong> Ghost Trap data is collected from
+              third parties probing ProxhqVPN infrastructure — not from ProxhqVPN subscribers or their traffic.
+              Subscriber VPN traffic is never logged, inspected, or stored (see §2). Ghost Trap data is
+              used solely to block hostile actors and improve platform security.
+            </p>
+            <p className="text-green-400/80">
+              <strong className="text-green-300">No retaliation:</strong> The Ghost Trap system is strictly
+              passive and defensive. It does not execute offensive tools, counter-scan, or take any automated
+              action against detected probe sources beyond logging, fingerprinting, and firewall blocking.
+              All trap data is retained for 90 days, then purged automatically.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold text-green-300 mb-3 border-b border-green-900 pb-2">5. Data Retention</h2>
             <div className="overflow-x-auto">
               <table className="w-full text-sm border border-green-900">
                 <thead>
@@ -91,7 +128,7 @@ export default function PrivacyPolicy() {
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-green-300 mb-3 border-b border-green-900 pb-2">5. Third-Party Services</h2>
+            <h2 className="text-xl font-semibold text-green-300 mb-3 border-b border-green-900 pb-2">6. Third-Party Services</h2>
             <p className="mb-3">We use these third-party services to operate ProxhqVPN:</p>
             <ul className="list-none space-y-1 pl-4">
               {[
@@ -111,7 +148,7 @@ export default function PrivacyPolicy() {
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-green-300 mb-3 border-b border-green-900 pb-2">6. Your Rights (GDPR / CCPA)</h2>
+            <h2 className="text-xl font-semibold text-green-300 mb-3 border-b border-green-900 pb-2">7. Your Rights (GDPR / CCPA)</h2>
             <p className="mb-3">Depending on your jurisdiction, you have the right to:</p>
             <ul className="list-none space-y-1 pl-4">
               {[
@@ -135,7 +172,7 @@ export default function PrivacyPolicy() {
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-green-300 mb-3 border-b border-green-900 pb-2">7. Security</h2>
+            <h2 className="text-xl font-semibold text-green-300 mb-3 border-b border-green-900 pb-2">8. Security</h2>
             <p>
               WireGuard private keys are encrypted at rest using AES-256-GCM. We use TLS 1.3 for all
               connections. Our infrastructure is protected by mTLS, rate limiting, and a hardened firewall
@@ -144,7 +181,7 @@ export default function PrivacyPolicy() {
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-green-300 mb-3 border-b border-green-900 pb-2">8. Jurisdiction</h2>
+            <h2 className="text-xl font-semibold text-green-300 mb-3 border-b border-green-900 pb-2">9. Jurisdiction</h2>
             <p>
               Alpha Unlimited Technologies LLC is registered in the United States. This privacy policy
               is governed by U.S. law. For users in the European Economic Area, we comply with GDPR.
@@ -153,7 +190,7 @@ export default function PrivacyPolicy() {
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-green-300 mb-3 border-b border-green-900 pb-2">9. Contact</h2>
+            <h2 className="text-xl font-semibold text-green-300 mb-3 border-b border-green-900 pb-2">10. Contact</h2>
             <p>
               Privacy requests:{" "}
               <a href="mailto:privacy@proxhqvpn.com" className="text-green-300 underline">privacy@proxhqvpn.com</a>
@@ -164,7 +201,7 @@ export default function PrivacyPolicy() {
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-green-300 mb-3 border-b border-green-900 pb-2">10. Changes to This Policy</h2>
+            <h2 className="text-xl font-semibold text-green-300 mb-3 border-b border-green-900 pb-2">11. Changes to This Policy</h2>
             <p>
               We may update this policy. Material changes will be emailed to account holders at least
               14 days before taking effect. Continued use of the service after that date constitutes
