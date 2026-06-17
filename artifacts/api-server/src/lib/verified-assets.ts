@@ -110,12 +110,33 @@ export async function verifyViaHttpFile(
   domain: string,
   token: string,
 ): Promise<{ verified: boolean; evidence: object }> {
-  const url = `https://${domain}/.well-known/${TOKEN_PREFIX}.txt`;
+  // Try HTTPS first (strict TLS), fall back to HTTP only if HTTPS is unavailable.
+  // We never disable TLS certificate validation — if the domain has a cert issue,
+  // DNS TXT verification should be used instead.
+  const urls = [
+    `https://${domain}/.well-known/${TOKEN_PREFIX}.txt`,
+    `http://${domain}/.well-known/${TOKEN_PREFIX}.txt`,
+  ];
+  for (const url of urls) {
+    const result = await attemptHttpFileVerification(url, token, domain);
+    if (result.verified || result.reachable) return result;
+  }
+  return {
+    verified: false,
+    evidence: { method: "http_file", domain, error: "unreachable on both HTTPS and HTTP", checkedAt: new Date().toISOString() },
+  };
+}
+
+async function attemptHttpFileVerification(
+  url: string,
+  token: string,
+  _domain: string,
+): Promise<{ verified: boolean; reachable?: boolean; evidence: object }> {
   return new Promise((resolve) => {
     const fetcher = url.startsWith("https") ? https : http;
     const req = fetcher.get(
       url,
-      { timeout: 10000, rejectUnauthorized: false },
+      { timeout: 10000 },
       (res) => {
         let body = "";
         res.on("data", (chunk: Buffer) => { body += chunk.toString(); });
@@ -123,6 +144,7 @@ export async function verifyViaHttpFile(
           const verified = body.trim() === token;
           resolve({
             verified,
+            reachable: true, // server responded — skip HTTP fallback
             evidence: {
               method: "http_file",
               url,
