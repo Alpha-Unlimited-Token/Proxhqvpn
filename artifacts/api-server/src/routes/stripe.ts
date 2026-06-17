@@ -281,14 +281,23 @@ router.post("/admin/cancel-trials", requireAdmin, async (req, res) => {
 router.post("/webhook", async (req, res) => {
   const sig = req.headers["stripe-signature"] as string | undefined;
 
+  const isProduction = process.env.NODE_ENV === "production" || !!process.env.REPLIT_DEPLOYMENT;
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+  // Fail closed in production: require both a webhook secret and a signature header.
+  if (isProduction && (!webhookSecret || !sig)) {
+    logger.warn({ hasSig: !!sig, hasSecret: !!webhookSecret }, "Stripe webhook rejected — signature required in production");
+    return res.status(400).json({ error: "Webhook signature verification required" });
+  }
+
   let event: any;
   try {
     const stripe = await getUncachableStripeClient();
-    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
     if (webhookSecret && sig) {
       event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
     } else {
-      // No secret configured — parse body as-is (development / Replit connector flow)
+      // Development-only fallback: parse unsigned body for local testing
+      // (never reached in production — blocked above)
       event = typeof req.body === "string" || Buffer.isBuffer(req.body)
         ? JSON.parse(req.body.toString())
         : req.body;
