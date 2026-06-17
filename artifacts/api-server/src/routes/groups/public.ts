@@ -16,8 +16,6 @@ import daemonInboundRouter from "../daemon-inbound";
 import nodeProvisionRouter from "../node-provision";
 import nodeAgentRouter from "../node-agent";
 import honeypotRouter from "../honeypot";
-import walletTxRouter from "../wallet-tx";
-import walletIntelRouter from "../wallet-intel";
 import trustCenterRouter from "../trust-center";
 import { daemonIpBanMiddleware } from "../../app";
 
@@ -88,9 +86,6 @@ router.post("/honeypot/ingest", (req, res, next) => {
   req.url = "/ingest";
   (honeypotRouter as any).handle(req, res, next);
 });
-
-router.use("/wallet", walletTxRouter);
-router.use("/wallet-intel", walletIntelRouter);
 
 router.use("/trust-center", trustCenterRouter);
 

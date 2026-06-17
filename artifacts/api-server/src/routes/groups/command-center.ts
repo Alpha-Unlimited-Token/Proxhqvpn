@@ -35,7 +35,6 @@ import depScannerRouter from "../depscanner";
 import tokenSequencerRouter from "../tokensequencer";
 import wsTesterRouter from "../wstester";
 import sastRouter from "../sast";
-import quantumAuditRouter from "../quantum-audit";
 import commandGovernanceRouter from "../command-governance";
 import dependencyMapRouter from "../dependency-map";
 import aiSecurityRouter from "../ai-security";
@@ -87,7 +86,6 @@ router.use("/dep-scanner", requireCapability("command_center.write"), depScanner
 router.use("/token-seq", requireCapability("command_center.write"), tokenSequencerRouter);
 router.use("/ws-tester", requireCapability("command_center.write"), wsTesterRouter);
 registerCommandCenterRoute(router, "/sast", "command_center.write", sastRouter);
-router.use("/quantum-audit", requireCapability("command_center.write"), quantumAuditRouter);
 router.use("/command-governance", requireCapability("command_center.read"), commandGovernanceRouter);
 router.use("/dependency-map", requireCapability("command_center.read"), dependencyMapRouter);
 router.use("/ai-security", requireCapability("command_center.write"), aiSecurityRouter);

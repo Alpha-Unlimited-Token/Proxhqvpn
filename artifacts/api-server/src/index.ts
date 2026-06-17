@@ -7,7 +7,6 @@ import { startSessionWatchdog } from "./bootstrap/session-watchdog";
 import { initStripeRuntime } from "./bootstrap/stripe";
 import { seedRuntimeData } from "./bootstrap/seed";
 import { startRuntimeWorkers } from "./bootstrap/workers";
-import { preloadAttackerFilesIfEnabled } from "./bootstrap/preload-attacker-files";
 import { assertProductionReadiness } from "./bootstrap/production-readiness";
 
 function getPort(): number {
@@ -38,8 +37,6 @@ async function bootstrap(): Promise<void> {
   seedRuntimeData();
   startSessionWatchdog();
   startRuntimeWorkers();
-
-  void preloadAttackerFilesIfEnabled();
 
   const port = getPort();
 

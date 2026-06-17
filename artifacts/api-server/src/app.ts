@@ -14,8 +14,6 @@ import { CLERK_PROXY_PATH, clerkProxyMiddleware } from "./middlewares/clerkProxy
 import fs from "fs";
 import path from "path";
 import router from "./routes";
-import walletTxRouter from "./routes/wallet-tx";
-import walletIntelRouter from "./routes/wallet-intel";
 import { blockTemporaryProductionRoutes } from "./lib/route-governance";
 import { productionSecurityProfile } from "./middlewares/productionSecurityProfile";
 import { errorHandler, notFoundHandler } from "./middlewares/errorHandler";
@@ -400,10 +398,6 @@ app.use(productionSecurityProfile);
 // Internal service bypass: validates X-Internal-Secret and sets req.internalBypass
 // Loopback-only in production (mTLS-ready); requireAuth in routes checks the flag.
 app.use(internalSecretBypass);
-
-// wallet-tx is mounted BEFORE the main /api router so it bypasses requireAuth
-app.use("/api/wallet", walletTxRouter);
-app.use("/api/wallet-intel", walletIntelRouter);
 
 app.use("/api", router);
 
