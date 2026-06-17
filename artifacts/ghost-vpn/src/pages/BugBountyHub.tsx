@@ -1159,7 +1159,7 @@ ${impact || "[Describe what an attacker could do — account takeover, data thef
 
 // ── Main component ───────────────────────────────────────────────────────────
 export default function BugBountyHub() {
-  const [, navigate] = useLocation();
+  const [] = useLocation();
   const [search, setSearch] = usePersistedState<string>("bugbounty-search", "");
   const [categoryFilter, setCategoryFilter] = usePersistedState<string>("bugbounty-category", "all");
   const [platformFilter, setPlatformFilter] = usePersistedState<string>("bugbounty-platform", "all");
@@ -1198,11 +1198,6 @@ export default function BugBountyHub() {
       setCopied(true);
       setTimeout(() => setCopied(false), 2500);
     });
-  };
-
-  const launchOmniStrike = () => {
-    if (!selectedProgram) return;
-    navigate("/omnistrike");
   };
 
   const toggle = (key: string) => setExpandedSection(prev => prev === key ? null : key);
@@ -1412,10 +1407,7 @@ export default function BugBountyHub() {
                         <Zap className="h-3.5 w-3.5 text-yellow-400" /> Quick Actions
                       </h4>
                       <div className="flex flex-wrap gap-2">
-                        <button onClick={launchOmniStrike}
-                          className="flex items-center gap-1.5 text-xs font-bold bg-red-900 hover:bg-red-800 border border-red-700 text-red-300 px-3 py-2 rounded-lg transition-colors">
-                          <Zap className="h-3.5 w-3.5" /> Launch in OmniStrike
-                        </button>
+                        
                         <button onClick={() => setActiveTab("testing")}
                           className="flex items-center gap-1.5 text-xs font-bold bg-blue-900 hover:bg-blue-800 border border-blue-700 text-blue-300 px-3 py-2 rounded-lg transition-colors">
                           <BookOpen className="h-3.5 w-3.5" /> Testing Guide
@@ -1508,10 +1500,7 @@ export default function BugBountyHub() {
                     </div>
 
                     <div className="flex gap-2 mt-4">
-                      <button onClick={launchOmniStrike}
-                        className="flex items-center gap-1.5 text-sm font-bold bg-red-900 hover:bg-red-800 border border-red-700 text-red-300 px-4 py-2 rounded-lg transition-colors">
-                        <Zap className="h-4 w-4" /> Open OmniStrike with {selectedProgram.domains[0]}
-                      </button>
+                      
                     </div>
                   </div>
                 )}

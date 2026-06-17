@@ -18,7 +18,6 @@ export * from "./sinkhole";
 export * from "./canary";
 export * from "./ghosttrap";
 export * from "./waf";
-export * from "./omnistrike";
 export * from "./crypto";
 export * from "./notifications";
 export * from "./quantum-audit";

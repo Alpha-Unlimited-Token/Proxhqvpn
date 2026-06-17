@@ -1621,7 +1621,6 @@ export default function GhostTrap() {
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                         {[
                           { label: "Ghost Chain", desc: "Map full attack path + kill chain from this IP", href: `/ghost-chain`, icon: Network, color: "text-primary border-primary/25 bg-primary/8" },
-                          { label: "Subdomain Scout", desc: "Enumerate all domains / subdomains on this IP", href: `/subdomain-scan?ip=${counterIp}`, icon: Globe, color: "text-blue-400 border-blue-500/25 bg-blue-500/8" },
                           { label: "OSINT Recon", desc: "Full passive recon — DNS, TLS, headers, ASN", href: `/osint?target=${counterIp}`, icon: Search, color: "text-purple-400 border-purple-500/25 bg-purple-500/8" },
                           { label: "Threat Intel", desc: "Check IP reputation across 6 threat feeds", href: `/threat-intel?ip=${counterIp}`, icon: ShieldAlert, color: "text-orange-400 border-orange-500/25 bg-orange-500/8" },
                         ].map(({ label, desc, href, icon: Icon, color }) => (
@@ -1665,7 +1664,7 @@ export default function GhostTrap() {
                   steps: [
                     { title: "Download the Authority Report immediately", detail: "Go to the Probe Feed tab → expand the attacker's IP → click Download Report. This gives you their IP, source port, exact timestamp (ms precision), all HTTP headers, attack payloads, hop chain, and VPN exit node identification. This is your forensic record — timestamp it." },
                     { title: "Note the TCP source port", detail: "The source port (e.g. 52341) combined with the exact timestamp uniquely identifies their TCP session in ISP logs. This is the key data a court order or subpoena request to their ISP needs to correlate to a specific subscriber. Without this, you only have the VPN exit IP." },
-                    { title: "Capture the User-Agent string", detail: "The User-Agent reveals their exact tooling. 'sqlmap/1.7' means they ran SQLmap. 'Nmap Scripting Engine' means Nmap NSE. 'python-requests/2.28' means a custom script. 'Mozilla/5.0' on a SQLi probe means they used a browser. The tool fingerprint tells you their skill level and what to expect next." },
+                    { title: "Capture the User-Agent string", detail: "The User-Agent reveals their exact tooling. A scanner UA string means an automated tool was used. 'Nmap Scripting Engine' means Nmap NSE. 'python-requests/2.28' means a custom script. 'Mozilla/5.0' on a SQLi probe means they used a browser. The tool fingerprint tells you their skill level and what to expect next." },
                     { title: "Read the full X-Forwarded-For hop chain", detail: "This shows every proxy they routed through: [real_ip] → [vpn_exit] → [your_server]. The leftmost IP in the chain is closest to their real identity. If they used Tor, you'll see a Tor exit node. If they used a VPN, Ghost Trap's VPN detection identifies the provider." },
                   ]
                 },

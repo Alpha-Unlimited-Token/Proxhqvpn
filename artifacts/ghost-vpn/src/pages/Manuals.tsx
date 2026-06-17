@@ -4131,17 +4131,13 @@ TABLE OF CONTENTS
   in the jku header without validation, you can point it to your
   own JWKS endpoint.
 
-  Attack:
-  1. Generate an RSA key pair (JWT Analyzer does this for you).
-  2. Host your public key as a JWKS JSON at a URL you control
-  3. Add to JWT header: "jku": "https://your-oast-server/jwks.json"
-  4. Sign the token with YOUR private key.
-  5. The server fetches YOUR JWKS and validates with your key.
-     → You control the signing key → forge any claims.
-
-  JWT Analyzer → Forgery Attacks → jku Injection:
-  → Enter your JWKS URL (OAST Tester provides one automatically)
-  → Generates the key pair, hosts it, and forges the token.
+  How jku Injection Works (defender context):
+  1. An RSA key pair is generated.
+  2. The public key is hosted as JWKS JSON at an attacker-controlled URL.
+  3. The JWT header "jku" is set to point to that URL.
+  4. The token is signed with the attacker private key.
+  5. A vulnerable server fetches that URL and validates using the attacker key.
+     → Fix: validate jku against an allowlist of trusted JWKS endpoints.
 
 6. ATTACK 4 — x5u HEADER INJECTION
 

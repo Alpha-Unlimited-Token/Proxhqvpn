@@ -346,7 +346,7 @@ export default function NodeHealth() {
   "ip":       "203.0.113.5",
   "os":       "ParrotOS 6.1",
   "arch":     "x86_64",
-  "tools":    ["nmap", "nuclei", "sqlmap"],
+  "tools":    ["nmap", "nuclei"],
   "cpuPct":   24.5,
   "memPct":   61.2,
   "diskMb":   48230,

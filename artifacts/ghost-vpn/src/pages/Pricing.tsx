@@ -63,7 +63,7 @@ const POWER_EXTRAS = [
 ];
 
 const PROFESSIONAL_EXTRAS = [
-  { icon: ScanSearch, text: "Vulnerability Scanner (SQLMap + nmap port scan)" },
+  { icon: ScanSearch, text: "Vulnerability Scanner (nmap port scan)" },
   { icon: Send,       text: "HTTP Probe — Burp Repeater equivalent" },
   { icon: FolderSearch, text: "Directory Fuzzer — hidden endpoint brute force (ffuf)" },
   { icon: Radar,      text: "Subdomain Scout — certificate transparency + DNS enumeration" },
@@ -855,7 +855,7 @@ export default function Pricing() {
             { feature: "GPS Spoofing + Meshnet", t1: false, t3: true, t5: true },
           ]},
           { category: "🛡️ Security Research (Professional)", rows: [
-            { feature: "Vulnerability Scanner (SQLMap + nmap)", t1: false, t3: true, t5: true },
+            { feature: "Vulnerability Scanner (nmap port scan)", t1: false, t3: true, t5: true },
             { feature: "HTTP Probe / Dir Fuzzer / Subdomain Scout", t1: false, t3: true, t5: true },
             { feature: "SAST / Dependency / WebSocket / OAST scanners", t1: false, t3: true, t5: true },
             { feature: "Threat Intelligence + OSINT Recon", t1: false, t3: true, t5: true },

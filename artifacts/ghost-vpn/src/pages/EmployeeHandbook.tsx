@@ -284,19 +284,10 @@ ss -tupn | grep LISTEN          # Listening ports`}</CB>
         <h4 className="font-bold text-primary text-[11px]">Offensive Tools</h4>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {[
-            { tool: "Alpha Toolkit", path: "/alpha-tools", desc: "Universal scanner (35+ languages, 200+ vuln patterns), vulnerability verifier, and web scraper. All Tor-routable." },
-            { tool: "Vulnerability Scanner", path: "/sqlmap", desc: "Full SQLMap integration for automated SQL injection testing across all DBMS types. Tamper scripts + Tor routing." },
             { tool: "HTTP Probe", path: "/http-probe", desc: "Craft raw HTTP requests. Inspect full responses. Equivalent to Burp Suite Repeater." },
-            { tool: "Directory Fuzzer", path: "/dir-fuzzer", desc: "Brute-force hidden endpoints, admin panels, backup files, .git, .env. Equivalent to ffuf/gobuster." },
-            { tool: "Subdomain Scout", path: "/subdomain-scan", desc: "Certificate transparency log enumeration + DNS brute-force subdomain discovery." },
-            { tool: "Intruder", path: "/intruder", desc: "Automated parameter fuzzer — Sniper, Battering Ram, Pitchfork, Cluster Bomb modes (Burp Intruder equivalent)." },
-            { tool: "Payload Generator", path: "/payloads", desc: "Pre-built payloads: SQLi, XSS, SSTI, SSRF, XXE, RCE, Path Traversal, Command Injection, WAF bypass, JWT secrets." },
             { tool: "Ghost Chain Arsenal", path: "/ghost-chain", desc: "200+ categorized exploits with Details tab (CVEs, technique explanation) and PoC code tab. Integrates with HTTP Probe and Intruder." },
-            { tool: "Exploit Importer", path: "/exploit-import", desc: "Upload Nessus/Burp/ZAP/Nikto/OpenVAS reports. Auto-extracts findings, CVE IDs, severity. Three result tabs: Details · Instructions · PoC Code. Download Full Report as .md." },
             { tool: "OSINT Recon", path: "/osint-recon", desc: "Aggregates 15+ passive intel sources: Shodan, Censys, AbuseIPDB, VirusTotal, GreyNoise, WHOIS, DNSDumpster, crt.sh, HaveIBeenPwned. All VPN-routed." },
             { tool: "GPS Spoofing", path: "/gps-spoof", desc: "Fake your GPS coordinates at the VPN tunnel level. Bypass geo-restricted apps, spoof device location for testing, and mask real physical position." },
-            { tool: "OAST Tester", path: "/oast-tester", desc: "Out-of-band application security testing via interactsh. Generate DNS/HTTP/SMTP callback payloads and monitor live hits for blind SSRF, XXE, and injection detection." },
-            { tool: "Token Sequencer", path: "/token-seq", desc: "Capture and analyze session tokens for entropy weakness. Perform statistical analysis and attempt prediction attacks on low-entropy token generators." },
             { tool: "WebSocket Tester", path: "/ws-tester", desc: "Connect, intercept, replay, and fuzz WebSocket frames. Equivalent to Burp Suite WebSocket testing. Supports ws:// and wss:// with auth header injection." },
             { tool: "Dependency Scanner", path: "/dep-scanner", desc: "Scan any project directory or package manifest (npm/pip/cargo/go/maven/composer) for known CVEs. Severity-ranked results with remediation guidance." },
             { tool: "QuantumAudit", path: "/quantum-audit/", desc: "Standalone blockchain security auditing platform. Scans smart contracts and DeFi protocols for classical vulnerabilities (reentrancy, oracle manipulation, flash loan) and post-quantum cryptographic weaknesses (ECDSA nonce reuse, weak-k, r-collision, Shor's algorithm exposure). Includes 5-engine Signature Mining suite." },
@@ -357,50 +348,6 @@ ss -tupn | grep LISTEN          # Listening ports`}</CB>
     ),
   },
   {
-    id: "social-breach", title: "Social & Game Breach Tester", icon: Shield,
-    content: (
-      <div className="space-y-3">
-        <p>The Social & Game Account Breach Tester is a Command Center Pro feature that provides an authenticated proxy browser for auditing account security across 80+ platforms. All traffic is VPN-routed.</p>
-        <Note type="danger">This tool is for authorized testing only. Employees must only use it against accounts they own or have explicit written permission to audit. Unauthorized credential testing violates the CFAA and is grounds for immediate termination.</Note>
-        <h4 className="font-bold text-primary text-[11px]">Platform Coverage</h4>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          {[
-            { cat: "Social Media", count: "35+ platforms", ex: "Instagram, Discord, GitHub, Reddit, Twitter/X, Telegram, LinkedIn" },
-            { cat: "Gaming Launchers", count: "10+ platforms", ex: "Steam (RSA login), Epic Games, Blizzard, GOG, Ubisoft, EA/Origin" },
-            { cat: "Game Titles", count: "15+ games", ex: "Roblox, Fortnite, Valorant, League of Legends, Apex Legends, GTA" },
-            { cat: "Legacy Platforms", count: "10+ platforms", ex: "Xbox Live, PlayStation, Nintendo, 2K, Konami, Sega" },
-          ].map(({ cat, count, ex }) => (
-            <div key={cat} className="border border-primary/10 rounded px-2.5 py-2">
-              <div className="flex items-center justify-between mb-0.5">
-                <div className="text-[10px] font-mono font-bold text-primary">{cat}</div>
-                <code className="text-[8px] text-primary/40">{count}</code>
-              </div>
-              <div className="text-[9px] font-mono text-primary/83">{ex}</div>
-            </div>
-          ))}
-        </div>
-        <h4 className="font-bold text-primary text-[11px] mt-3">Login Strategies</h4>
-        <div className="space-y-1.5 text-[10px] font-mono text-primary/83">
-          <div>• <strong>Auto (API-based)</strong> — Discord, Steam (with RSA decryption), Reddit, GitHub, Roblox, Twitch, Instagram, Epic, GOG. Credentials are sent to the platform API and session cookies returned automatically.</div>
-          <div>• <strong>Manual (proxy browser)</strong> — All other platforms. The real platform login page is loaded in the embedded proxy browser, credentials are entered normally, and the resulting session is captured.</div>
-        </div>
-        <h4 className="font-bold text-primary text-[11px] mt-3">Session Management</h4>
-        <div className="space-y-1.5 text-[10px] font-mono text-primary/83">
-          <div>• Sessions are stored in-memory on the API server with a 4-hour TTL from last activity.</div>
-          <div>• The proxy browser injects session cookies automatically into all page loads.</div>
-          <div>• Navigation history is tracked with Back/Forward controls and persistent state across sidebar navigation.</div>
-          <div>• Sessions can be manually terminated from the Active Sessions panel in the tool.</div>
-        </div>
-        <h4 className="font-bold text-primary text-[11px] mt-3">Security Hardening</h4>
-        <div className="space-y-1.5 text-[10px] font-mono text-primary/83">
-          <div>• <strong>SSRF Protection</strong>: All proxy URLs are validated to block private IP ranges (10.x, 192.168.x, 172.16-31.x, 127.x, 169.254.x) and internal hostnames (.local, .internal, localhost, GCP/AWS metadata).</div>
-          <div>• <strong>Rate Limiting</strong>: 40 requests/minute per IP on all /api/social-account endpoints.</div>
-          <div>• <strong>HTTP/HTTPS only</strong>: Other protocols are rejected at the proxy layer.</div>
-        </div>
-      </div>
-    ),
-  },
-  {
     id: "bug-bounty", title: "Bug Bounty Research Hub", icon: Shield,
     content: (
       <div className="space-y-3">
@@ -430,8 +377,7 @@ ss -tupn | grep LISTEN          # Listening ports`}</CB>
         <h4 className="font-bold text-primary text-[11px] mt-3">Hub Features</h4>
         <div className="space-y-1.5 text-[10px] font-mono text-primary/83">
           <div>• <strong>Program Cards</strong> — Scope, payout table, testing methodology, and link to the official program page for each of 19 programs.</div>
-          <div>• <strong>OmniStrike Integration</strong> — "Launch in OmniStrike" button opens OmniStrike pre-configured for the program's target domain.</div>
-          <div>• <strong>Report Generator</strong> — Fills in a standard HackerOne-format vulnerability disclosure report. Select severity, enter details, copy with one click.</div>
+          <div>• <strong>Report Generator</strong> — Auto-fills HackerOne-format disclosure reports with severity, description, and reproduction steps.</div>
           <div>• <strong>Platform Filters</strong> — Filter programs by platform (HackerOne, Bugcrowd, MSRC, Google VRP, Intigriti) and payout range.</div>
         </div>
         <h4 className="font-bold text-primary text-[11px] mt-3">Employee Policy on Bug Bounty</h4>
@@ -453,7 +399,6 @@ ss -tupn | grep LISTEN          # Listening ports`}</CB>
           {[
             { title: "Getting Started Guide", tier: "All Plans", desc: "Installation, first connection, WireGuard config, Kill Switch, DNS, devices." },
             { title: "WireGuard Advanced Config", tier: "All Plans", desc: "Split tunneling, double-hop, obfuscation, router setup, SmartDNS." },
-            { title: "OmniStrike Suite", tier: "Pro", desc: "All 13 attack modules, orchestration modes, post-exploitation, stealth." },
             { title: "WAF Analyzer", tier: "Pro", desc: "WAF detection, bypass testing suite, 25+ vendor signatures." },
             { title: "Social & Game Breach Tester", tier: "Pro", desc: "Platform coverage, login strategies, session management, SSRF protection." },
             { title: "Bug Bounty Research Hub", tier: "Pro", desc: "19 programs, testing methodology, report generator, best practices." },
@@ -560,11 +505,11 @@ ProxhqVPN Support | support@proxhqvpn.com`}</CB>
             fn: () => {
               const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>ProxhqVPN — Sales Reference</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Segoe UI',sans-serif;background:#050f05;color:#e5e5e5}@media print{.slide{page-break-after:always}body{background:#fff;color:#111}}.slide{min-height:100vh;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:60px;border-bottom:2px solid #111;text-align:center}.slide h1{font-size:3em;color:#00ff88;margin-bottom:16px;font-weight:900}.slide h2{font-size:2em;color:#00ff88;margin-bottom:16px}.slide p{font-size:1.05em;color:#bbb;max-width:800px;text-align:left;line-height:1.7}.slide ul{max-width:800px;text-align:left}.slide li{font-size:1em;margin:8px 0;color:#ccc;line-height:1.6}.grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;max-width:900px;text-align:left}.card{background:#0d1f0d;border:1px solid #1a3a1a;padding:20px;border-radius:8px}.card h3{color:#00ff88;margin-bottom:8px}.card p{font-size:.9em;color:#aaa}.tier-badge{display:inline-block;padding:4px 12px;border-radius:4px;font-size:.85em;font-weight:700;margin:4px}.t1{background:#0a3a3a;color:#00ffcc;border:1px solid #00ffcc44}.t2{background:#3a1a0a;color:#ff8800;border:1px solid #ff880044}.t3{background:#1a0a3a;color:#aa66ff;border:1px solid #aa66ff44}</style></head><body>
 <div class="slide"><h1>ProxhqVPN</h1><p style="text-align:center;color:#888;font-size:1.2em">ALPHA UNLIMITED TECHNOLOGIES LLC<br><strong style="color:#00ff88">Internal Sales Reference</strong><br><span style="font-size:.8em;color:#555">CONFIDENTIAL — Employees only</span></p></div>
-<div class="slide"><h2>Platform Overview</h2><div class="grid"><div class="card"><h3>Privacy & VPN</h3><p>60-node WireGuard mesh, Kill Switch + IPv6, DNS Sinkhole, Tor, VPN Gate (6,000+ nodes), Multi-device, DPI obfuscation</p></div><div class="card"><h3>Defense</h3><p>SilkWeb honeypot, Canary Tokens, Firewall Manager, Ghost Trace (behavioral analysis), Beacon Monitor, SIEM</p></div><div class="card"><h3>Offense / Research</h3><p>Alpha Toolkit, SQLMap, Ghost Chain, OSINT Recon, Exploit Importer, OmniStrike, OAST, WAF Bypass, QuantumAudit</p></div><div class="card"><h3>AI & Arsenal</h3><p>SOC Co-Pilot, LLM Probe, AI Shield, Code Sentinel, Agent Strike, Ghost PenTest, Request Mind</p></div></div></div>
+<div class="slide"><h2>Platform Overview</h2><div class="grid"><div class="card"><h3>Privacy & VPN</h3><p>60-node WireGuard mesh, Kill Switch + IPv6, DNS Sinkhole, Tor, VPN Gate (6,000+ nodes), Multi-device, DPI obfuscation</p></div><div class="card"><h3>Defense</h3><p>SilkWeb honeypot, Canary Tokens, Firewall Manager, Ghost Trace (behavioral analysis), Beacon Monitor, SIEM</p></div><div class="card"><h3>Security Research</h3><p>OSINT Recon, Ghost Chain, QuantumAudit, HTTP Probe, CVE Lookup, JWT Analyzer, Dep Scanner, SAST, IaC Scanner, API Tester</p></div><div class="card"><h3>AI & Intelligence</h3><p>SOC Co-Pilot, AI Shield, Code Sentinel, Ghost PenTest, Request Mind</p></div></div></div></div>
 <div class="slide"><h2>Pricing Tiers</h2><br><div class="grid" style="grid-template-columns:1fr 1fr 1fr"><div class="card"><div class="tier-badge t1">Recon</div><h3>$6.99/mo</h3><p>VPN Basic — privacy, DNS Sinkhole, smart DNS, kill switch, Tor, all devices</p></div><div class="card"><div class="tier-badge t2">Strike</div><h3>$39.99/mo</h3><p>Command Center Pro — Recon tier + full security toolkit (replaces Burp Suite Pro)</p></div><div class="card"><div class="tier-badge t3">Arsenal</div><h3>Contact Us</h3><p>Elite — WAF Bypass, HTTP Interceptor, QuantumAudit, AI tools, SOC Co-Pilot</p></div></div></div>
-<div class="slide"><h2>Command Center Pro vs. Competitors</h2><br><ul><li><strong style="color:#00ff88">vs. Burp Suite Pro ($449/yr)</strong> — ProxhqVPN Strike = $479/yr and includes the full VPN + 40+ more tools beyond Burp</li><li><strong style="color:#00ff88">vs. NordVPN / ExpressVPN</strong> — No security tools whatsoever; purely VPN/streaming focused</li><li><strong style="color:#00ff88">vs. Metasploit Pro ($15k/yr)</strong> — ProxhqVPN includes Ghost Chain + OmniStrike covering equivalent use cases</li><li><strong style="color:#00ff88">vs. Caido ($450/yr)</strong> — HTTP Interceptor + API Security Tester covers equivalent functionality</li><li><strong style="color:#ff4444">Where ProxhqVPN doesn't replace</strong> — Nessus/Tenable for enterprise vulnerability management, Cobalt Strike for red team C2</li></ul></div>
+<div class="slide"><h2>Command Center Pro vs. Competitors</h2><br><ul><li><strong style="color:#00ff88">vs. NordVPN / ExpressVPN</strong> — No security tools whatsoever; purely VPN/streaming focused</li><li><strong style="color:#00ff88">vs. standalone security tools</strong> — ProxhqVPN bundles defensive security research, OSINT, Ghost Chain, SIEM, QuantumAudit, and full VPN into one platform</li><li><strong style="color:#ff4444">Where ProxhqVPN focuses</strong> — Defensive security research, threat intelligence, VPN privacy, and compliance tooling</li></ul></div>
 <div class="slide"><h2>Target Customer Profiles</h2><br><div class="grid"><div class="card"><h3>Security Researcher</h3><p>Bug bounty hunter, CTF player, pen tester. Pain: Burp Suite Pro too expensive. Solution: Strike tier replaces it + adds VPN opsec.</p></div><div class="card"><h3>Developer</h3><p>Needs API testing, secret scanning, dependency audit, IaC security. Pain: Separate tools for each task. Solution: All in one platform, routed through VPN.</p></div><div class="card"><h3>Privacy User</h3><p>Wants no-log VPN + DNS blocker + device-level protection. Pain: VPN + Pi-hole setup is complex. Solution: DNS Sinkhole built-in, one subscription.</p></div><div class="card"><h3>Web3 / Crypto Team</h3><p>Needs smart contract auditing. Pain: Expensive manual audits. Solution: QuantumAudit for classical + post-quantum vulnerability scanning.</p></div></div></div>
-<div class="slide"><h2>Common Objections</h2><br><ul><li><strong style="color:#ff8800">"I already use NordVPN"</strong> — ProxhqVPN doesn't replace their existing VPN subscription immediately. Start with the security tools angle: "Do you also pay for Burp Suite separately?" If yes, that's the immediate ROI.</li><li><strong style="color:#ff8800">"The tools seem complicated"</strong> — Every tool has a built-in User Guide (/guide) with step-by-step instructions. HackAnon page explains every attack class in plain English. No prior security experience required.</li><li><strong style="color:#ff8800">"Is it legal?"</strong> — All tools are legal for authorized testing. Legal disclaimers on every page. Comparable to Burp Suite Pro, which is used by every major enterprise security team globally.</li><li><strong style="color:#ff8800">"I'm worried about my data"</strong> — Zero-log policy. Warrant canary at /api/warrant-canary (publicly accessible, cryptographically signed). Hosted by ALPHA UNLIMITED TECHNOLOGIES LLC, a registered LLC.</li></ul></div>
+<div class="slide"><h2>Common Objections</h2><br><ul><li><strong style="color:#ff8800">"I already use NordVPN"</strong> — ProxhqVPN doesn't replace their existing VPN subscription immediately. Start with the security tools angle: "Do you also pay for Burp Suite separately?" If yes, that's the immediate ROI.</li><li><strong style="color:#ff8800">"The tools seem complicated"</strong> — Every tool has a built-in User Guide (/guide) with step-by-step instructions. The User Guide (/guide) explains every feature in plain English. No prior security experience required.</li><li><strong style="color:#ff8800">"Is it legal?"</strong> — All tools are legal for authorized testing. Legal disclaimers on every page. Comparable to Burp Suite Pro, which is used by every major enterprise security team globally.</li><li><strong style="color:#ff8800">"I'm worried about my data"</strong> — Zero-log policy. Warrant canary at /api/warrant-canary (publicly accessible, cryptographically signed). Hosted by ALPHA UNLIMITED TECHNOLOGIES LLC, a registered LLC.</li></ul></div>
 <div class="slide"><h2>Support Channels</h2><br><ul><li><strong style="color:#00ff88">Customer Support</strong>: support@proxhqvpn.com — 24hr response SLA on business days</li><li><strong style="color:#00ff88">Ambassador Support</strong>: ambassadors@proxhqvpn.com — Priority channel for ambassador issues</li><li><strong style="color:#00ff88">Security Reports</strong>: security@proxhqvpn.com — PGP available on request</li><li><strong style="color:#00ff88">Admin / Technical</strong>: admin@proxhqvpn.com — Internal escalation only</li><li><strong style="color:#00ff88">Self-Service</strong>: /guide, /manuals, /platforms, /downloads — comprehensive documentation</li></ul><br><p style="text-align:center;font-size:.9em;color:#555">This deck is CONFIDENTIAL — for employee use only.<br>© 2026 ALPHA UNLIMITED TECHNOLOGIES LLC</p></div>
 </body></html>`;
               const blob = new Blob([html], { type: "text/html" });

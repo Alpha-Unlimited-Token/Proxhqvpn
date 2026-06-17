@@ -347,16 +347,6 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   next();
 });
 
-// ── OmniStrike / Console rate limits ──────────────────────────────────────────
-const omniLimiter = rateLimit({
-  windowMs: 60_000, max: 5, standardHeaders: "draft-7", legacyHeaders: false,
-  message: { error: "Max 5 OmniStrike scans per minute." },
-});
-const consoleLimiter = rateLimit({
-  windowMs: 60_000, max: 60, standardHeaders: "draft-7", legacyHeaders: false,
-  message: { error: "Max 60 console commands per minute." },
-});
-
 app.use("/api/terminal",        terminalLimiter);
 app.use("/api/daemon-inbound",  daemonLimiter);
 app.use("/api/sql", sqlLimiter);

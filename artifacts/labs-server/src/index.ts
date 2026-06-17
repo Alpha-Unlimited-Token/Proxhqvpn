@@ -1,6 +1,5 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 // Labs API Server — isolated deployment boundary.
-// Serves at: /api/exploit-import
 
 import express from "express";
 import helmet from "helmet";
@@ -8,9 +7,6 @@ import { pinoHttp } from "pino-http";
 import { pino } from "pino";
 import { clerkMiddleware } from "@clerk/express";
 import rateLimit from "express-rate-limit";
-import { requireLabsAdmin } from "./middleware/auth.js";
-import { requireLabsServiceAuth } from "./middleware/requireLabsServiceAuth.js";
-import exploitImportRouter from "./routes/exploitimport.js";
 
 const PORT = parseInt(process.env.PORT ?? "9090", 10);
 const CORS_ORIGIN = /\.replit\.dev$|\.replit\.app$|^http:\/\/localhost/;
@@ -79,13 +75,10 @@ const toolLimiter = rateLimit({
 });
 
 // ── Service auth guard ─────────────────────────────────────────────────────
-app.use("/api/exploit-import", requireLabsServiceAuth);
 
 // ── All routes require Clerk admin ────────────────────────────────────────
-app.use("/api", labsLimiter, requireLabsAdmin);
 
 // ── Route mounting ────────────────────────────────────────────────────────
-app.use("/api/exploit-import", toolLimiter, exploitImportRouter);
 
 // ── Error handler ─────────────────────────────────────────────────────────
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

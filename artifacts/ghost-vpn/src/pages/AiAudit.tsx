@@ -129,7 +129,7 @@ DEVELOPER & OFFENSIVE SECURITY TOOLS (Command Center Pro)
   - OSINT Spider: GitHub search, Pastebin, ENS records, OP_RETURN, transaction input data
   - Peel Chain: hop-by-hop fund-flow with signature collection + nonce-reuse key recovery
   - Hybrid Worm: all 4 engines as parallel worms; shared CrossEnginePool, 12 data-flow wires
-- Bug Bounty Hub, HackAnon, Exploit Importer, Social Breach Tester, VPN Tracker
+- Bug Bounty Hub, VPN Tracker
 - Network Monitor: real-time traffic flow, bandwidth timeline, protocol breakdown, geo routing
 
 ────────────────────────────────────────────────────────────

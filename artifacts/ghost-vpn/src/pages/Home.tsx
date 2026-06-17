@@ -176,7 +176,7 @@ const PRICING_PLANS = [
     badge: "BEST VALUE",
     features: [
       "Everything in Personal + Power User",
-      "Vulnerability Scanner (SQLMap + nmap)",
+      "Vulnerability Scanner (nmap port scan)",
       "HTTP Probe, Dir Fuzzer, Subdomain Scout",
       "OAST / WebSocket / SAST / Dependency scanners",
       "Threat Intelligence + OSINT Recon engine",
@@ -528,7 +528,7 @@ const NODE_LOCATIONS = [
 function useLiveStats() {
   const [stats, setStats] = useState<{
     activeNodes: number; trappedAttackers: number; silkRoutes: number;
-    honeypotNodes: number; sqlmapJobs: number;
+    honeypotNodes: number;
   } | null>(null);
 
   useEffect(() => {
@@ -585,7 +585,7 @@ export default function Home() {
             </div>
             <div className="inline-flex items-center gap-2 bg-blue-400/10 border border-blue-400/25 rounded-full px-4 py-1.5">
               <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
-              <span className="text-xs text-blue-300 font-medium">New — Dark Web Monitor &amp; OmniStrike Now Live</span>
+              <span className="text-xs text-blue-300 font-medium">New — Ghost Nodes &amp; Dark Web Monitor Live</span>
             </div>
           </div>
 
@@ -804,29 +804,10 @@ export default function Home() {
                 Full attacker dossier per entity <ArrowRight className="w-3.5 h-3.5" />
               </div>
             </Link>
-
-            {/* OmniStrike */}
-            <Link href="/sign-up" className="group bg-[#0d1610] border border-white/[0.07] rounded-2xl p-6 hover:border-red-400/25 hover:shadow-[0_0_30px_rgba(248,113,113,0.05)] transition-all">
-              <div className="flex items-start justify-between mb-4">
-                <div className="w-11 h-11 rounded-xl bg-red-400/10 border border-red-400/20 flex items-center justify-center group-hover:bg-red-400/15 transition-colors">
-                  <Swords className="w-5 h-5 text-red-400" />
-                </div>
-                <span className="text-[9px] font-bold uppercase tracking-widest bg-red-400/10 text-red-400 border border-red-400/20 rounded-full px-2.5 py-1">Command Center</span>
-              </div>
-              <h3 className="text-base font-bold text-white mb-2">OmniStrike</h3>
-              <p className="text-xs text-white/70 leading-relaxed mb-4">
-                Multi-vector offensive security platform built for penetration testers. Orchestrate exploit chains,
-                manage payloads, and coordinate attacks across your full target surface from a single panel.
-              </p>
-              <div className="flex items-center gap-1.5 text-xs text-red-400/70 group-hover:text-red-400 transition-colors font-medium">
-                Unlock with Command Center <ArrowRight className="w-3.5 h-3.5" />
-              </div>
-            </Link>
           </div>
         </div>
       </section>
 
-      {/* ── SERVER LOCATIONS ── */}
       <section className="py-20 px-6 border-t border-white/[0.05]">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-12">
@@ -1145,7 +1126,6 @@ export default function Home() {
                 color: "red",
                 desc: "Professional-grade tools for ethical hacking and penetration testing.",
                 tools: [
-                  { icon: Swords,    name: "OmniStrike",        detail: "Multi-vector exploit orchestration" },
                   { icon: ScanSearch, name: "SQLmap Scanner",   detail: "Automated SQL injection & DB takeover" },
                   { icon: Bug,       name: "Directory Fuzzer",   detail: "Brute-force hidden paths & endpoints" },
                   { icon: Layers,    name: "Ghost Chain",        detail: "Chained exploit delivery arsenal" },

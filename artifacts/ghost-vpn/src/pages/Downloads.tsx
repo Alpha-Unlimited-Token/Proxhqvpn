@@ -1242,26 +1242,9 @@ connecting to ProxhqVPN to verify coverage.
 COMMAND CENTER PRO TOOLS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Alpha Toolkit (/alpha-tools):
-  Three engines: Universal Scanner (35+ languages, 200+ vuln patterns),
-  Vulnerability Verifier (actively probes Scanner findings), Web Scraper
-  (browser-based, stores to 14-table SQLite DB). All Tor-routable.
-
-Vulnerability Scanner (/sqlmap):
-  Full SQLmap integration for automated SQL injection testing.
-  Modes: GET/POST/form-data, all DBMS types, Tor routing, tamper scripts.
-
 HTTP Probe (/http-probe):
   Full HTTP client — all methods, custom headers, body editors.
   Equivalent to Burp Suite Repeater. Full response inspector.
-
-Directory Fuzzer (/dir-fuzzer):
-  Brute-force hidden files/dirs with wordlists. Equivalent to ffuf/gobuster.
-  Common wordlists: admin panels, API routes, git/config files, backups.
-
-Subdomain Scout (/subdomain-scan):
-  Certificate Transparency log enumeration + DNS brute-force.
-  Passive (CT logs) or active (DNS resolution) enumeration modes.
 
 Threat Intelligence (/threat-intel):
   IP reputation (AbuseIPDB/Shodan/GreyNoise), WHOIS, TLS cert inspector,
@@ -1270,14 +1253,6 @@ Threat Intelligence (/threat-intel):
 Security Audit (/security-audit):
   Self-audit of ProxhqVPN platform — TLS grade, open ports, WireGuard
   key strength, firewall rules, CORS, CSP headers. PASS/WARN/FAIL output.
-
-Intruder (/intruder):
-  Automated parameter fuzzer. Modes: Sniper, Battering Ram, Pitchfork,
-  Cluster Bomb. Modeled after Burp Intruder.
-
-Payload Generator (/payloads):
-  Pre-built payloads: SQLi, XSS, SSTI, SSRF, XXE, RCE, Path Traversal,
-  Command Injection, WAF bypass, JWT secrets, credential lists.
 
 CVE Lookup (/cve-search):
   NVD database search by CVE ID or keyword. CVSS score filtering.
@@ -1315,42 +1290,6 @@ Ghost Chain Exploit Arsenal (/ghost-chain):
   Cache Poisoning, CORS, WebSocket hijacking, subdomain takeover.
   Integrates with HTTP Probe and Intruder (click Send to tool).
 
-Exploit Importer (/exploit-import):
-  Upload Nessus XML, Burp HTML, Nikto, ZAP, or OpenVAS reports.
-  Also accepts .txt, .log, .json — ZIP archives auto-extracted.
-  30+ pattern categories: SQLi, XSS, RCE, SSRF, XXE, LFI, IDOR, CSRF,
-  JWT vulns, SSTI, CORS, mass assignment, GraphQL, buffer overflow,
-  exposed .env/.git, hardcoded secrets, open Actuator/Swagger,
-  weak TLS, no rate limiting, open redirect, default credentials.
-  CVE IDs auto-extracted. Results sorted by severity.
-
-  Each result card has THREE TABS:
-    [Details]      Full evidence text, CVE hyperlinks, severity badge
-    [Instructions] Complete step-by-step exploitation guide:
-                   - Impact assessment
-                   - Tools required (with exact install commands)
-                   - Before you start / prerequisites
-                   - Numbered attack walkthrough with terminal commands
-                   - How to verify the exploit succeeded
-                   - Remediation with corrected code examples
-                   - Reference links (PortSwigger, OWASP, NVD)
-    [Exploit Code] Ready-to-run PoC code (Python, Bash, SQL, JS, XML)
-                   with one-click clipboard copy
-
-  Download Full Report: Click the green button in the results header
-  to download a comprehensive .md (Markdown) report of all findings —
-  including full instruction guides for every vulnerability detected.
-  Ideal for client deliverables, pentest reports, and team briefings.
-
-  24 Built-in Vulnerability Guides:
-    SQL Injection, XSS, RCE, LFI, SSRF, XXE, IDOR, CSRF, JWT attacks,
-    Deserialization, SSTI, CORS misconfig, Auth Bypass, .env Exposure,
-    .git Exposure, Missing Security Headers, No Rate Limiting,
-    Hardcoded Secrets, Buffer Overflow, Mass Assignment, Weak TLS,
-    Spring Actuator Exposure, Open Redirect, Default Credentials,
-    GraphQL Security, CVE-Based Exploits
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 VPN BASIC EXCLUSIVE FEATURES
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -1483,7 +1422,6 @@ WINDOWS-SPECIFIC FEATURES
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 WHAT'S NEW IN VERSION 2.2.0
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  Exploit Importer (/exploit-import) — Command Center Pro:
   Upload scan reports (Nessus, Burp Suite, Nikto, ZAP, OpenVAS)
   and get structured findings with three tabs per result:
     [Details]      Evidence, CVE ID, severity

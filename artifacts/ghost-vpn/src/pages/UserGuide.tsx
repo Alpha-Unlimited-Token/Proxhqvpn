@@ -1071,7 +1071,7 @@ whois target.com                 # WHOIS data`}</CB>
             { t: "Real-World Examples", d: "Named historical incidents and bug bounty reports referencing this vulnerability class (e.g., Log4Shell RCE, Coinbase CORS misconfiguration, Facebook IDOR)." },
             { t: "Tools Required", d: "Every tool needed to exploit the vulnerability, with exact install commands for all major operating systems (apt, brew, pip, gem, go install). You never have to guess what to install." },
             { t: "Before You Start", d: "Prerequisites and access requirements you need before beginning — what to confirm, what permissions you need, what recon must be done first." },
-            { t: "Step-by-Step Walkthrough", d: "Numbered attack steps, each with a description AND a ready-to-run command (curl, sqlmap, python3, metasploit, nuclei, etc.). Commands work directly in a terminal against your target." },
+            { t: "Step-by-Step Walkthrough", d: "Numbered remediation and verification steps, each with a description and example commands. Steps cover detection, impact assessment, and remediation guidance for the finding type." },
             { t: "How to Verify", d: "Exactly how to confirm the vulnerability is successfully exploited — what output to look for, what HTTP response to expect, what server behavior confirms the attack worked." },
             { t: "How to Fix", d: "Remediation steps with corrected code examples in the relevant language (Node.js, Python, Java, PHP). Shows the vulnerable pattern and the safe replacement side-by-side." },
             { t: "Further Reading", d: "Reference links to PortSwigger Web Security Academy, OWASP Testing Guide, NVD CVE database, and tool documentation for deeper research." },
@@ -1117,11 +1117,11 @@ whois target.com                 # WHOIS data`}</CB>
         </div>
         <h4 className="font-bold text-primary text-[11px] mt-3">How to Access a Guide</h4>
         <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
-          <li><span className="text-primary/30">1.</span> Go to <strong>Exploit Importer</strong> (<code>/exploit-import</code>).</li>
-          <li><span className="text-primary/30">2.</span> Upload or paste any scanner report containing vulnerability findings.</li>
+          <li><span className="text-primary/30">1.</span> Go to <strong>Security Audit</strong> (<code>/security-audit</code>).</li>
+          <li><span className="text-primary/30">2.</span> Run a scan against your target to generate findings.</li>
           <li><span className="text-primary/30">3.</span> Click any finding card to expand it.</li>
-          <li><span className="text-primary/30">4.</span> Click the green <strong>Instructions</strong> tab — the complete guide for that vulnerability type loads inline.</li>
-          <li><span className="text-primary/30">5.</span> Scroll through Impact → Tools → Prerequisites → Steps → Verify → Fix → References.</li>
+          <li><span className="text-primary/30">4.</span> Review the finding details, severity, and recommended remediation.</li>
+          <li><span className="text-primary/30">5.</span> Export the full report as a structured disclosure document.</li>
           <li><span className="text-primary/30">6.</span> To export everything: click <strong>Download Full Report</strong> at the top to get a <code>.md</code> file covering all findings.</li>
         </ol>
         <Note type="info">The instruction library is available offline in the downloaded report — the .md file includes all guides for every finding detected in your upload, formatted for sharing with clients or teams.</Note>
@@ -1518,10 +1518,6 @@ whois target.com                 # WHOIS data`}</CB>
         <div className="text-[10px] font-mono text-primary/83">
           Cloudflare, AWS WAF, Akamai, Imperva, Sucuri, ModSecurity, F5 BIG-IP, Barracuda, Fortinet FortiWeb, Radware, Wallarm, Fastly, CloudFront, Nginx+ModSec, and more.
         </div>
-        <h4 className="font-bold text-primary text-[11px] mt-3">OmniStrike Integration</h4>
-        <div className="text-[10px] font-mono text-primary/83">
-          When a WAF is detected, OmniStrike automatically increases tamper level to 5 and wraps all subsequent payloads with the detected bypass techniques.
-        </div>
       </div>
     ),
   },
@@ -1540,7 +1536,6 @@ whois target.com                 # WHOIS data`}</CB>
           <li>Click a program to expand it — view scope, payout table, and testing methodology.</li>
           <li>Click <strong>View Program</strong> to open the official bounty platform page.</li>
           <li>Register with the program before any testing.</li>
-          <li>Click <strong>Launch in OmniStrike</strong> to open OmniStrike pre-configured for in-scope testing.</li>
           <li>After finding a valid vulnerability, use the <strong>Report Generator</strong> to create a disclosure report.</li>
         </ol>
         <h4 className="font-bold text-primary text-[11px] mt-3">Program Summary (19 programs)</h4>
@@ -1698,24 +1693,14 @@ whois target.com                 # WHOIS data`}</CB>
         <p><strong>WAF Analyzer</strong> (<code>/waf</code>) detects the presence and type of a Web Application Firewall protecting a target, then tests bypass techniques to find gaps in coverage — helping you understand what payloads your WAF misses.</p>
         <h4 className="font-bold text-primary text-[11px]">WAF Detection</h4>
         <p className="text-[10px] font-mono text-primary/83">The analyzer identifies 25+ WAF vendors from response headers, cookies, and behavioral signatures: Cloudflare, AWS WAF, Akamai Kona, F5 Advanced WAF, ModSecurity (OWASP CRS), Sucuri, Imperva Incapsula, Barracuda, Fortinet FortiWeb, Radware AppWall, Sophos, and more.</p>
-        <h4 className="font-bold text-primary text-[11px] mt-3">WAF Bypass Generator (<code>/waf-bypass</code>)</h4>
-        <p className="text-[10px] font-mono text-primary/83 mb-2">The companion WAF Bypass Generator creates evasion payloads for your specific WAF vendor:</p>
-        <div className="space-y-1.5 text-[10px] font-mono text-primary/83">
-          <div>• <strong>URL encoding</strong>: Single-encode, double-encode, unicode, hex, HTML entity</div>
-          <div>• <strong>SQL obfuscation</strong>: Inline comments (/**/) , version comments (/*!*/), case variation, whitespace alternatives (tab, newline, CR)</div>
-          <div>• <strong>XSS evasion</strong>: Event handler variations, tag case, SVG vectors, template literal injection, CSS expression, vbscript</div>
-          <div>• <strong>HTTP layer</strong>: Chunked Transfer Encoding, HTTP parameter pollution, path confusion (//api, /./api), Host header bypass</div>
-          <div>• <strong>Content-Type switching</strong>: text/plain, application/x-www-form-urlencoded for JSON endpoints</div>
-        </div>
-        <h4 className="font-bold text-primary text-[11px] mt-3">How to Use</h4>
+        <h4 className="font-bold text-primary text-[11px] mt-3">How to Use WAF Analyzer</h4>
         <ol className="space-y-1.5 text-[10px] font-mono text-primary/83">
           <li><span className="text-primary/30">1.</span> Navigate to <strong>WAF Analyzer</strong> (<code>/waf</code>) and enter the target URL.</li>
           <li><span className="text-primary/30">2.</span> Click <strong>Detect WAF</strong>. The tool identifies the vendor and version where possible.</li>
-          <li><span className="text-primary/30">3.</span> Go to <strong>WAF Bypass Generator</strong> (<code>/waf-bypass</code>).</li>
-          <li><span className="text-primary/30">4.</span> Select the detected WAF vendor and your payload type (SQLi, XSS, etc.).</li>
-          <li><span className="text-primary/30">5.</span> Copy the generated bypass payloads and test them in the HTTP Interceptor.</li>
+          <li><span className="text-primary/30">3.</span> Review the detected WAF vendor, coverage gaps, and recommended hardening rules.</li>
+          <li><span className="text-primary/30">4.</span> Export ModSecurity, Nginx, or Apache config rules to close identified coverage gaps.</li>
         </ol>
-        <Note type="warn">Arsenal tier required for WAF Bypass Generator. WAF Analyzer is also Arsenal-tier. Authorized security testing only.</Note>
+        <Note type="warn">Arsenal tier required for WAF Analyzer. Use only against systems you own or have explicit written authorization to test.</Note>
       </div>
     ),
   },

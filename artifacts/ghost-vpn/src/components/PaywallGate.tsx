@@ -134,7 +134,7 @@ function UpgradeScreen() {
       <div className="mt-8 bg-yellow-500/5 border border-yellow-500/15 rounded-xl px-5 py-4 max-w-sm w-full text-left">
         <div className="text-[11px] font-semibold text-yellow-400/80 mb-2">Included in Command Center Pro</div>
         {[
-          "Vulnerability Scanner (SQLMap + nmap)",
+          "Vulnerability Scanner (nmap port scan)",
           "Ghost Chain — Tor-veiled proxy routing",
           "Alpha Toolkit — scraper, verifier, tools",
           "Threat Intelligence dashboard",
