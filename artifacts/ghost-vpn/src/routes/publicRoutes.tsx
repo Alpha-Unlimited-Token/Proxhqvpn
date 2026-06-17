@@ -7,6 +7,8 @@ import { SignInPage, SignUpPage } from "./authScreens";
 
 import Home from "@/pages/Home";
 import Pricing from "@/pages/Pricing";
+import PrivacyPolicy from "@/pages/PrivacyPolicy";
+import TermsOfService from "@/pages/TermsOfService";
 import Account from "@/pages/Account";
 import AutoSetup from "@/pages/AutoSetup";
 import Ambassadors from "@/pages/Ambassadors";
@@ -103,6 +105,14 @@ export function PublicRoutes() {
 
       <Route path="/autosetup">
         <AutoSetup />
+      </Route>
+
+      <Route path="/privacy">
+        <PublicLayout><PrivacyPolicy /></PublicLayout>
+      </Route>
+
+      <Route path="/terms">
+        <PublicLayout><TermsOfService /></PublicLayout>
       </Route>
     </>
   );
