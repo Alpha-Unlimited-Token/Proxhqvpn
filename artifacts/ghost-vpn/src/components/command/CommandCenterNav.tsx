@@ -2,18 +2,11 @@
 import { Link, useLocation } from "wouter";
 
 const NAV_ITEMS: [string, string][] = [
-  ["/threat-bus",        "Threat Bus"],
-  ["/ghost-trap",        "Ghost Trap"],
-  ["/ghost-nodes",       "Ghost Nodes"],
-  ["/ghost-trace",       "Ghost Trace"],
-  ["/ghost-chain",       "Ghost Chain"],
-  ["/deception-engine",  "Deception Engine"],
-  ["/security-score",    "Security Score"],
-  ["/siem",             "SIEM"],
-  ["/osint",            "OSINT"],
-  ["/canary",           "Canary Tokens"],
-  ["/quantum-audit",    "QuantumAudit"],
-  ["/node-trust",       "Node Trust"],
+  ["/siem",          "Security Event Log"],
+  ["/canary",        "Canary Tokens"],
+  ["/security-score","Security Score"],
+  ["/quantum-audit", "QuantumAudit"],
+  ["/node-trust",    "Node Trust"],
 ];
 
 export function CommandCenterNav() {

@@ -27,7 +27,6 @@ import DedicatedIp from "@/pages/DedicatedIp";
 import Meshnet from "@/pages/Meshnet";
 import DataBrokerScan from "@/pages/DataBrokerScan";
 import IpExposure from "@/pages/IpExposure";
-import GhostTrap from "@/pages/GhostTrap";
 import NetworkMonitor from "@/pages/NetworkMonitor";
 import DnsSinkhole from "@/pages/DnsSinkhole";
 import ConfigLifecycle from "@/pages/ConfigLifecycle";
@@ -71,7 +70,6 @@ export function VpnRoutes() {
       <Route path="/data-broker"><ToolLayout><DataBrokerScan /></ToolLayout></Route>
 
       <Route path="/ip-exposure"><ToolLayout><IpExposure /></ToolLayout></Route>
-      <Route path="/ghost-trap"><ToolLayout><GhostTrap /></ToolLayout></Route>
       <Route path="/network-monitor"><ToolLayout><NetworkMonitor /></ToolLayout></Route>
       <Route path="/dns-sinkhole"><ToolLayout><DnsSinkhole /></ToolLayout></Route>
       <Route path="/manuals"><ToolLayout><Manuals /></ToolLayout></Route>

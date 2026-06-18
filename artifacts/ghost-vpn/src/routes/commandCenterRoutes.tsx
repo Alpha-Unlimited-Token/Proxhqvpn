@@ -26,8 +26,6 @@ import HttpProbe from "@/pages/HttpProbe";
 import Encoder from "@/pages/Encoder";
 import Comparer from "@/pages/Comparer";
 import CveSearch from "@/pages/CveSearch";
-import GhostTrace from "@/pages/GhostTrace";
-import GhostChain from "@/pages/GhostChain";
 import Siem from "@/pages/Siem";
 import SslTlsAnalyzer from "@/pages/SslTlsAnalyzer";
 import JwtAnalyzer from "@/pages/JwtAnalyzer";
@@ -37,14 +35,7 @@ import DepScanner from "@/pages/DepScanner";
 import WsTester from "@/pages/WsTester";
 import SastAnalyzer from "@/pages/SastAnalyzer";
 import QuantumAuditPage from "@/pages/QuantumAudit";
-import DeceptionEngine from "@/pages/DeceptionEngine";
 import ThreatBusDashboard from "@/pages/ThreatBusDashboard";
-import GhostTrap from "@/pages/GhostTrap";
-import GhostNodes from "@/pages/GhostNodes";
-import GhostNodesDashboard from "@/pages/GhostNodesDashboard";
-import GhostTrapDashboard from "@/pages/GhostTrapDashboard";
-import SecurityOperationsCenter from "@/pages/SecurityOperationsCenter";
-import GhostRouting from "@/pages/GhostRouting";
 import RequestMind from "@/pages/RequestMind";
 import SocCopilot from "@/pages/SocCopilot";
 import CodeSentinel from "@/pages/CodeSentinel";
@@ -55,11 +46,8 @@ import ValidationDashboard from "@/pages/ValidationDashboard";
 import TransparencyReport from "@/pages/TransparencyReport";
 import AmbassadorDashboard from "@/pages/AmbassadorDashboard";
 
-const OsintRecon    = lazy(() => import("@/pages/OsintRecon"));
-const UsernameIntel = lazy(() => import("@/pages/UsernameIntel"));
 const CanaryTokens  = lazy(() => import("@/pages/CanaryTokens"));
 const WafAnalyzer   = lazy(() => import("@/pages/WafAnalyzer"));
-const BugBountyHub  = lazy(() => import("@/pages/BugBountyHub"));
 
 export function CommandCenterRoutes() {
   return (
@@ -89,14 +77,9 @@ export function CommandCenterRoutes() {
       <Route path="/comparer"><CcLayout><Comparer /></CcLayout></Route>
       <Route path="/cve-search"><CcLayout><CveSearch /></CcLayout></Route>
 
-      <Route path="/ghost-trace"><CcLayout><GhostTrace /></CcLayout></Route>
-      <Route path="/ghost-chain"><CcLayout><GhostChain /></CcLayout></Route>
       <Route path="/siem"><CcLayout><Siem /></CcLayout></Route>
-      <Route path="/osint"><CcLayout><OsintRecon /></CcLayout></Route>
-      <Route path="/username-intel"><CcLayout><UsernameIntel /></CcLayout></Route>
       <Route path="/canary"><CcLayout><CanaryTokens /></CcLayout></Route>
       <Route path="/waf"><CcLayout><WafAnalyzer /></CcLayout></Route>
-      <Route path="/bug-bounty"><CcLayout><BugBountyHub /></CcLayout></Route>
 
       <Route path="/ssl-tls"><CcLayout><SslTlsAnalyzer /></CcLayout></Route>
       <Route path="/jwt-analyzer"><CcLayout><JwtAnalyzer /></CcLayout></Route>
@@ -108,13 +91,6 @@ export function CommandCenterRoutes() {
       <Route path="/quantum-audit"><CcLayout><QuantumAuditPage /></CcLayout></Route>
 
       <Route path="/threat-bus"><CcLayout><ThreatBusDashboard /></CcLayout></Route>
-      <Route path="/ghost-trap"><CcLayout><GhostTrap /></CcLayout></Route>
-      <Route path="/deception-engine"><CcLayout><DeceptionEngine /></CcLayout></Route>
-      <Route path="/ghost-nodes"><CcLayout><GhostNodes /></CcLayout></Route>
-      <Route path="/ghost-nodes-ops"><AdminLayout><GhostNodesDashboard /></AdminLayout></Route>
-      <Route path="/ghost-trap-ops"><AdminLayout><GhostTrapDashboard /></AdminLayout></Route>
-      <Route path="/security-ops"><AdminLayout><SecurityOperationsCenter /></AdminLayout></Route>
-      <Route path="/ghost-routing"><CcLayout><GhostRouting /></CcLayout></Route>
       <Route path="/request-mind"><CcLayout><RequestMind /></CcLayout></Route>
       <Route path="/soc-copilot"><CcLayout><SocCopilot /></CcLayout></Route>
       <Route path="/code-sentinel"><CcLayout><CodeSentinel /></CcLayout></Route>
