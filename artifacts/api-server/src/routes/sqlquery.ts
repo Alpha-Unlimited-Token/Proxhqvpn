@@ -12,8 +12,24 @@ const router = Router();
 const READONLY_RE   = /^\s*(select|with|explain|show|describe|\\\w)/i;
 const BLOCKED_LOCAL = /\b(insert|update|delete|drop|truncate|alter|create|grant|revoke|exec|execute|call|pg_read_file|pg_ls_dir|lo_import|lo_export|copy)\b/i;
 
+// MySQL version-conditional comments (/*!50001 ... */) can hide payloads that
+// bypass keyword filters on non-MySQL databases if left intact.
+// We strip all comment styles before analysis: --, /**/, and /*!...*/.
 function stripSqlComments(q: string): string {
-  return q.replace(/--[^\n]*/g, " ").replace(/\/\*[\s\S]*?\*\//g, " ").replace(/\s+/g, " ").trim();
+  return q
+    .replace(/\/\*![\s\S]*?\*\//g, " ")   // MySQL conditional: /*!50001 payload */
+    .replace(/\/\*[\s\S]*?\*\//g, " ")     // Block comments: /* ... */
+    .replace(/--[^\n]*/g, " ")             // Line comments: -- comment
+    .replace(/#[^\n]*/g, " ")              // MySQL hash comments: # comment
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+// MySQL inline-comment obfuscation: keywords split by /**/ e.g. SE/**/LECT
+const MYSQL_INLINE_COMMENT_INJECTION_RE = /\b\w+\/\*\*?\/\w+\b/;
+
+function hasInlineCommentInjection(q: string): boolean {
+  return MYSQL_INLINE_COMMENT_INJECTION_RE.test(q);
 }
 
 // ─── External connection pool store ──────────────────────────────────────────
@@ -40,6 +56,14 @@ router.post("/query", async (req, res) => {
     query: z.string().max(4000),
     limit: z.number().max(1000).optional().default(100),
   }).parse(req.body);
+
+  // Detect inline-comment obfuscation on raw input BEFORE stripping (e.g. SE/**/LECT)
+  if (hasInlineCommentInjection(body.query)) {
+    return res.json({
+      query: body.query, rows: [], columns: [], rowCount: 0, executionTimeMs: 0,
+      error: "Inline comment injection pattern detected in query.",
+    });
+  }
 
   const query = stripSqlComments(body.query.trim());
   const start = Date.now();

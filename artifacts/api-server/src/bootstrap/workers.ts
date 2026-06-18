@@ -11,6 +11,10 @@ import "../workers/self-healing-worker";
 import "../workers/wireguard-mesh-optimizer-worker";
 import "../workers/control-plane-heartbeat-worker";
 import "../workers/continuous-validation-worker";
+import "../workers/node-offline-alert-worker";
+import "../workers/audit-chain-integrity-worker";
+import "../workers/canary-token-cleanup-worker";
+import "../workers/ztna-posture-expiry-worker";
 import { startRegisteredWorkers } from "../lib/worker-registry";
 
 export function startRuntimeWorkers(): void {

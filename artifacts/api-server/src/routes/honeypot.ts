@@ -22,19 +22,23 @@ import crypto from "crypto";
 const router = Router();
 
 // ── Stats ─────────────────────────────────────────────────────────────────────
+// N+1 fix: all COUNT queries run in parallel via Promise.all
 router.get("/stats", requireAdmin, async (req, res) => {
-  const [nodeStats] = await db
-    .select({ total: count(), active: sql<number>`count(*) filter (where ${honeypotNodesTable.status} = 'active')` })
-    .from(honeypotNodesTable);
-
-  const [attackerStats] = await db.select({ total: count() }).from(honeypotAttackersTable);
-  const [sessionStats] = await db.select({ total: count() }).from(honeypotSessionsTable);
-  const [commandStats] = await db.select({ total: count() }).from(honeypotCommandsTable);
-  const [fileStats] = await db.select({ total: count() }).from(honeypotFilesTable);
-  const [alertStats] = await db
-    .select({ total: count() })
-    .from(honeypotAlertsTable)
-    .where(eq(honeypotAlertsTable.acknowledged, false));
+  const [
+    [nodeStats],
+    [attackerStats],
+    [sessionStats],
+    [commandStats],
+    [fileStats],
+    [alertStats],
+  ] = await Promise.all([
+    db.select({ total: count(), active: sql<number>`count(*) filter (where ${honeypotNodesTable.status} = 'active')` }).from(honeypotNodesTable),
+    db.select({ total: count() }).from(honeypotAttackersTable),
+    db.select({ total: count() }).from(honeypotSessionsTable),
+    db.select({ total: count() }).from(honeypotCommandsTable),
+    db.select({ total: count() }).from(honeypotFilesTable),
+    db.select({ total: count() }).from(honeypotAlertsTable).where(eq(honeypotAlertsTable.acknowledged, false)),
+  ]);
 
   // Sessions per day (last 14 days)
   const sessionsByDay = await db.execute<{ date: string; count: number }>(

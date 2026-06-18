@@ -106,13 +106,49 @@ export async function sendToSiemWebhook(event: SiemEvent): Promise<void> {
  * Call this for every security-relevant action: key access, posture checks,
  * admin actions, daemon auth, ghost mode, firewall changes.
  */
+// ── Dead-Letter Queue — holds events that failed all delivery attempts ────────
+export interface DeadLetterEntry {
+  event: SiemEvent;
+  failedAt: string;
+  reason: string;
+  attempts: number;
+}
+
+const _deadLetterQueue: DeadLetterEntry[] = [];
+const DEAD_LETTER_MAX = 500;
+
+export function getDeadLetterQueue(): DeadLetterEntry[] {
+  return [..._deadLetterQueue];
+}
+
+export function clearDeadLetterQueue(): void {
+  _deadLetterQueue.length = 0;
+}
+
+function addToDeadLetter(event: SiemEvent, reason: string, attempts: number): void {
+  if (_deadLetterQueue.length >= DEAD_LETTER_MAX) {
+    _deadLetterQueue.shift(); // drop oldest when at capacity
+  }
+  _deadLetterQueue.push({ event, failedAt: new Date().toISOString(), reason, attempts });
+}
+
 export async function shipSecurityEvent(event: SiemEvent): Promise<void> {
   // Always log locally first (never lose events due to SIEM outage)
   logger.info({ siem: true, ...event }, "security_event");
 
   // Ship to all configured destinations in parallel — failures are warned, not thrown
-  await Promise.allSettled([
+  const results = await Promise.allSettled([
     sendToSplunk(event),
     sendToSiemWebhook(event),
   ]);
+
+  // If ALL remote destinations failed, add to dead-letter queue for replay
+  const allFailed = results.every((r) => r.status === "rejected");
+  if (allFailed && (process.env.SPLUNK_HEC_URL || process.env.SIEM_WEBHOOK_URL)) {
+    const reasons = results
+      .filter((r): r is PromiseRejectedResult => r.status === "rejected")
+      .map((r) => String(r.reason))
+      .join("; ");
+    addToDeadLetter(event, reasons, 2); // 2 = max retry attempts already exhausted
+  }
 }

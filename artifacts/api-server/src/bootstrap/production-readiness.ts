@@ -156,6 +156,47 @@ function collectProductionIssues(): ReadinessIssue[] {
     });
   }
 
+  // Cryptographic keys — required for audit chain integrity and WireGuard key encryption
+  if (!hasStrongSecret(process.env.AUDIT_HMAC_KEY_B64, 44)) {
+    issues.push({
+      code: "AUDIT_HMAC_KEY_MISSING",
+      severity: "error",
+      message:
+        "AUDIT_HMAC_KEY_B64 must be set to a 32-byte base64 value in production. " +
+        "Generate with: node -e \"console.log(require('crypto').randomBytes(32).toString('base64'))\"",
+    });
+  }
+
+  if (!hasStrongSecret(process.env.PROXHQ_MASTER_KEY_B64, 44)) {
+    issues.push({
+      code: "PROXHQ_MASTER_KEY_MISSING",
+      severity: "error",
+      message:
+        "PROXHQ_MASTER_KEY_B64 must be set for WireGuard key envelope encryption. " +
+        "Generate with: node -e \"console.log(require('crypto').randomBytes(32).toString('base64'))\"",
+    });
+  }
+
+  if (!hasStrongSecret(process.env.INTERNAL_SECRET)) {
+    issues.push({
+      code: "INTERNAL_SECRET_MISSING",
+      severity: "warn",
+      message:
+        "INTERNAL_SECRET is not set — internal service authentication will fall back to SESSION_SECRET. " +
+        "Set INTERNAL_SECRET to a dedicated 32+ char secret to separate concerns.",
+    });
+  }
+
+  if (!hasStrongSecret(process.env.DAEMON_PSK)) {
+    issues.push({
+      code: "DAEMON_PSK_MISSING",
+      severity: "warn",
+      message:
+        "DAEMON_PSK is not set. Daemon-inbound routes will reject all node callbacks. " +
+        "Required for WireGuard key delivery and node health check-ins.",
+    });
+  }
+
   return issues;
 }
 

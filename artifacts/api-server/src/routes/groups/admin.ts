@@ -9,6 +9,8 @@ import { registerAdminRoute } from "../registerAdminRoute";
 import { criticalRateLimit, highRiskRateLimit } from "../../middlewares/riskRateLimit";
 import capabilityAuditRouter from "../capability-audit";
 import auditChainRouter from "../audit-chain";
+import nodeHealthSummaryRouter from "../node-health-summary";
+import siemDlqRouter from "../siem-dlq";
 
 import nodesRouter from "../nodes";
 import beaconsRouter from "../beacons";
@@ -486,5 +488,7 @@ registerAdminRoute(router, "/enterprise-maturity-score-v2", "admin.read", highRi
 registerAdminRoute(router, "/final-platform-self-audit-and-zip-packaging", "admin.read", highRiskRateLimit, finalplatformselfauditandzippackagingRouter);
 registerAdminRoute(router, "/validation", "admin.read", highRiskRateLimit, validationRouter);
 registerAdminRoute(router, "/trust-center", "admin.write", highRiskRateLimit, trustCenterAdminRouter);
+registerAdminRoute(router, "/node-health-summary", "admin.read", highRiskRateLimit, nodeHealthSummaryRouter);
+registerAdminRoute(router, "/siem-dlq", "admin.write", highRiskRateLimit, siemDlqRouter);
 
 export default router;
