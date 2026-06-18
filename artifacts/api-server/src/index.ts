@@ -9,6 +9,7 @@ import { seedRuntimeData } from "./bootstrap/seed";
 import { startRuntimeWorkers } from "./bootstrap/workers";
 import { assertProductionReadiness } from "./bootstrap/production-readiness";
 import { seedChainFromDb } from "./lib/audit-chain";
+import { runStartupSync } from "./lib/nftables-sync";
 
 function getPort(): number {
   const rawPort = process.env.PORT;
@@ -35,6 +36,7 @@ async function bootstrap(): Promise<void> {
   await initStripeRuntime();
   await loadDaemonBansFromDb();
   await seedChainFromDb();
+  await runStartupSync();
 
   seedRuntimeData();
   startSessionWatchdog();

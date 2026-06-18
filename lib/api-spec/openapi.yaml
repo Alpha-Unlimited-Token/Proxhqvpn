@@ -1724,6 +1724,148 @@ paths:
                     type: integer
                 required: [accepted]
 
+
+  /firewall/user-rules:
+    get:
+      operationId: listUserFirewallRules
+      tags: [firewall]
+      summary: List current user's persistent firewall rules
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserFirewallRuleList"
+    post:
+      operationId: createUserFirewallRule
+      tags: [firewall]
+      summary: Create a persistent firewall rule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserFirewallRuleBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserFirewallRuleResponse"
+
+  /firewall/user-rules/all:
+    get:
+      operationId: listAllUserFirewallRules
+      tags: [firewall]
+      summary: Admin — list all users' rules
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserFirewallRuleList"
+
+  /firewall/user-rules/sync:
+    post:
+      operationId: syncUserFirewallRules
+      tags: [firewall]
+      summary: Admin — force nftables rebuild from DB
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:            { type: boolean }
+                  rulesWritten:  { type: integer }
+                  usersAffected: { type: integer }
+                  dryRun:        { type: boolean }
+                  error:         { type: string }
+
+  /firewall/user-rules/activity:
+    get:
+      operationId: getUserFirewallActivity
+      tags: [firewall]
+      summary: Rules triggered by real traffic (hit counts > 0)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  activity:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/UserFirewallRule"
+
+  /firewall/user-rules/{id}:
+    patch:
+      operationId: updateUserFirewallRule
+      tags: [firewall]
+      summary: Update a persistent firewall rule
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserFirewallRuleBody"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserFirewallRuleResponse"
+    delete:
+      operationId: deleteUserFirewallRule
+      tags: [firewall]
+      summary: Permanently delete a persistent firewall rule
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:        { type: boolean }
+                  deletedId: { type: integer }
+
+  /firewall/user-rules/{id}/toggle:
+    post:
+      operationId: toggleUserFirewallRule
+      tags: [firewall]
+      summary: Toggle a rule on or off without deleting it
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Toggled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserFirewallRuleResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -3622,3 +3764,77 @@ components:
           items:
             $ref: "#/components/schemas/HoneypotIngestEvent"
       required: [events]
+
+    UserFirewallRule:
+      type: object
+      properties:
+        id:           { type: integer }
+        userId:       { type: string }
+        label:        { type: string }
+        protocol:     { type: string, enum: [tcp, udp, both] }
+        direction:    { type: string, enum: [inbound, outbound, both] }
+        action:       { type: string, enum: [allow, block] }
+        externalPort: { type: integer }
+        internalPort: { type: ["integer", "null"] }
+        sourceIp:     { type: ["string", "null"] }
+        tunnelIp:     { type: ["string", "null"] }
+        notes:        { type: ["string", "null"] }
+        enabled:      { type: boolean }
+        synced:       { type: boolean }
+        hitCount:     { type: integer }
+        lastHitAt:    { type: ["string", "null"] }
+        createdAt:    { type: string }
+        updatedAt:    { type: string }
+      required: [id, userId, label, protocol, direction, action, externalPort, enabled, synced, hitCount, createdAt]
+
+    UserFirewallRuleList:
+      type: object
+      properties:
+        rules:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserFirewallRule"
+        total: { type: integer }
+      required: [rules, total]
+
+    UserFirewallRuleResponse:
+      type: object
+      properties:
+        ok:   { type: boolean }
+        rule: { $ref: "#/components/schemas/UserFirewallRule" }
+        sync:
+          type: object
+          properties:
+            ok:            { type: boolean }
+            rulesWritten:  { type: integer }
+            usersAffected: { type: integer }
+            dryRun:        { type: boolean }
+
+    CreateUserFirewallRuleBody:
+      type: object
+      properties:
+        label:        { type: string }
+        protocol:     { type: string, enum: [tcp, udp, both] }
+        direction:    { type: string, enum: [inbound, outbound, both] }
+        action:       { type: string, enum: [allow, block] }
+        externalPort: { type: integer }
+        internalPort: { type: integer }
+        sourceIp:     { type: string }
+        tunnelIp:     { type: string }
+        notes:        { type: string }
+        enabled:      { type: boolean }
+      required: [label, externalPort]
+
+    UpdateUserFirewallRuleBody:
+      type: object
+      properties:
+        label:        { type: string }
+        protocol:     { type: string, enum: [tcp, udp, both] }
+        direction:    { type: string, enum: [inbound, outbound, both] }
+        action:       { type: string, enum: [allow, block] }
+        externalPort: { type: integer }
+        internalPort: { type: integer }
+        sourceIp:     { type: string }
+        tunnelIp:     { type: string }
+        notes:        { type: string }
+        enabled:      { type: boolean }

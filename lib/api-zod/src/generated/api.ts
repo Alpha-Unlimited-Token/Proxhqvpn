@@ -2187,3 +2187,220 @@ export const IngestHoneypotEventBody = zod.object({
 export const IngestHoneypotEventResponse = zod.object({
   accepted: zod.number(),
 });
+
+/**
+ * @summary List current user's persistent firewall rules
+ */
+export const ListUserFirewallRulesResponse = zod.object({
+  rules: zod.array(
+    zod.object({
+      id: zod.number(),
+      userId: zod.string(),
+      label: zod.string(),
+      protocol: zod.enum(["tcp", "udp", "both"]),
+      direction: zod.enum(["inbound", "outbound", "both"]),
+      action: zod.enum(["allow", "block"]),
+      externalPort: zod.number(),
+      internalPort: zod.number().nullish(),
+      sourceIp: zod.string().nullish(),
+      tunnelIp: zod.string().nullish(),
+      notes: zod.string().nullish(),
+      enabled: zod.boolean(),
+      synced: zod.boolean(),
+      hitCount: zod.number(),
+      lastHitAt: zod.string().nullish(),
+      createdAt: zod.string(),
+      updatedAt: zod.string().optional(),
+    }),
+  ),
+  total: zod.number(),
+});
+
+/**
+ * @summary Create a persistent firewall rule
+ */
+export const CreateUserFirewallRuleBody = zod.object({
+  label: zod.string(),
+  protocol: zod.enum(["tcp", "udp", "both"]).optional(),
+  direction: zod.enum(["inbound", "outbound", "both"]).optional(),
+  action: zod.enum(["allow", "block"]).optional(),
+  externalPort: zod.number(),
+  internalPort: zod.number().optional(),
+  sourceIp: zod.string().optional(),
+  tunnelIp: zod.string().optional(),
+  notes: zod.string().optional(),
+  enabled: zod.boolean().optional(),
+});
+
+/**
+ * @summary Admin — list all users' rules
+ */
+export const ListAllUserFirewallRulesResponse = zod.object({
+  rules: zod.array(
+    zod.object({
+      id: zod.number(),
+      userId: zod.string(),
+      label: zod.string(),
+      protocol: zod.enum(["tcp", "udp", "both"]),
+      direction: zod.enum(["inbound", "outbound", "both"]),
+      action: zod.enum(["allow", "block"]),
+      externalPort: zod.number(),
+      internalPort: zod.number().nullish(),
+      sourceIp: zod.string().nullish(),
+      tunnelIp: zod.string().nullish(),
+      notes: zod.string().nullish(),
+      enabled: zod.boolean(),
+      synced: zod.boolean(),
+      hitCount: zod.number(),
+      lastHitAt: zod.string().nullish(),
+      createdAt: zod.string(),
+      updatedAt: zod.string().optional(),
+    }),
+  ),
+  total: zod.number(),
+});
+
+/**
+ * @summary Admin — force nftables rebuild from DB
+ */
+export const SyncUserFirewallRulesResponse = zod.object({
+  ok: zod.boolean().optional(),
+  rulesWritten: zod.number().optional(),
+  usersAffected: zod.number().optional(),
+  dryRun: zod.boolean().optional(),
+  error: zod.string().optional(),
+});
+
+/**
+ * @summary Rules triggered by real traffic (hit counts > 0)
+ */
+export const GetUserFirewallActivityResponse = zod.object({
+  activity: zod
+    .array(
+      zod.object({
+        id: zod.number(),
+        userId: zod.string(),
+        label: zod.string(),
+        protocol: zod.enum(["tcp", "udp", "both"]),
+        direction: zod.enum(["inbound", "outbound", "both"]),
+        action: zod.enum(["allow", "block"]),
+        externalPort: zod.number(),
+        internalPort: zod.number().nullish(),
+        sourceIp: zod.string().nullish(),
+        tunnelIp: zod.string().nullish(),
+        notes: zod.string().nullish(),
+        enabled: zod.boolean(),
+        synced: zod.boolean(),
+        hitCount: zod.number(),
+        lastHitAt: zod.string().nullish(),
+        createdAt: zod.string(),
+        updatedAt: zod.string().optional(),
+      }),
+    )
+    .optional(),
+});
+
+/**
+ * @summary Update a persistent firewall rule
+ */
+export const UpdateUserFirewallRuleParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateUserFirewallRuleBody = zod.object({
+  label: zod.string().optional(),
+  protocol: zod.enum(["tcp", "udp", "both"]).optional(),
+  direction: zod.enum(["inbound", "outbound", "both"]).optional(),
+  action: zod.enum(["allow", "block"]).optional(),
+  externalPort: zod.number().optional(),
+  internalPort: zod.number().optional(),
+  sourceIp: zod.string().optional(),
+  tunnelIp: zod.string().optional(),
+  notes: zod.string().optional(),
+  enabled: zod.boolean().optional(),
+});
+
+export const UpdateUserFirewallRuleResponse = zod.object({
+  ok: zod.boolean().optional(),
+  rule: zod
+    .object({
+      id: zod.number(),
+      userId: zod.string(),
+      label: zod.string(),
+      protocol: zod.enum(["tcp", "udp", "both"]),
+      direction: zod.enum(["inbound", "outbound", "both"]),
+      action: zod.enum(["allow", "block"]),
+      externalPort: zod.number(),
+      internalPort: zod.number().nullish(),
+      sourceIp: zod.string().nullish(),
+      tunnelIp: zod.string().nullish(),
+      notes: zod.string().nullish(),
+      enabled: zod.boolean(),
+      synced: zod.boolean(),
+      hitCount: zod.number(),
+      lastHitAt: zod.string().nullish(),
+      createdAt: zod.string(),
+      updatedAt: zod.string().optional(),
+    })
+    .optional(),
+  sync: zod
+    .object({
+      ok: zod.boolean().optional(),
+      rulesWritten: zod.number().optional(),
+      usersAffected: zod.number().optional(),
+      dryRun: zod.boolean().optional(),
+    })
+    .optional(),
+});
+
+/**
+ * @summary Permanently delete a persistent firewall rule
+ */
+export const DeleteUserFirewallRuleParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const DeleteUserFirewallRuleResponse = zod.object({
+  ok: zod.boolean().optional(),
+  deletedId: zod.number().optional(),
+});
+
+/**
+ * @summary Toggle a rule on or off without deleting it
+ */
+export const ToggleUserFirewallRuleParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ToggleUserFirewallRuleResponse = zod.object({
+  ok: zod.boolean().optional(),
+  rule: zod
+    .object({
+      id: zod.number(),
+      userId: zod.string(),
+      label: zod.string(),
+      protocol: zod.enum(["tcp", "udp", "both"]),
+      direction: zod.enum(["inbound", "outbound", "both"]),
+      action: zod.enum(["allow", "block"]),
+      externalPort: zod.number(),
+      internalPort: zod.number().nullish(),
+      sourceIp: zod.string().nullish(),
+      tunnelIp: zod.string().nullish(),
+      notes: zod.string().nullish(),
+      enabled: zod.boolean(),
+      synced: zod.boolean(),
+      hitCount: zod.number(),
+      lastHitAt: zod.string().nullish(),
+      createdAt: zod.string(),
+      updatedAt: zod.string().optional(),
+    })
+    .optional(),
+  sync: zod
+    .object({
+      ok: zod.boolean().optional(),
+      rulesWritten: zod.number().optional(),
+      usersAffected: zod.number().optional(),
+      dryRun: zod.boolean().optional(),
+    })
+    .optional(),
+});

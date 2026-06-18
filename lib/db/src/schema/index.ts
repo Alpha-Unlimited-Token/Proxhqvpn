@@ -50,3 +50,4 @@ export * from "./network-baseline";
 export * from "./user-webhooks";
 export * from "./tunnel-quality";
 export * from "./wg-deception";
+export * from "./user-firewall-rules";

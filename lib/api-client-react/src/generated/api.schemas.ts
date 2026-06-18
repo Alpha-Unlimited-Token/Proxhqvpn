@@ -1454,6 +1454,153 @@ export interface HoneypotIngestPayload {
   events: HoneypotIngestEvent[];
 }
 
+export type UserFirewallRuleProtocol =
+  (typeof UserFirewallRuleProtocol)[keyof typeof UserFirewallRuleProtocol];
+
+export const UserFirewallRuleProtocol = {
+  tcp: "tcp",
+  udp: "udp",
+  both: "both",
+} as const;
+
+export type UserFirewallRuleDirection =
+  (typeof UserFirewallRuleDirection)[keyof typeof UserFirewallRuleDirection];
+
+export const UserFirewallRuleDirection = {
+  inbound: "inbound",
+  outbound: "outbound",
+  both: "both",
+} as const;
+
+export type UserFirewallRuleAction =
+  (typeof UserFirewallRuleAction)[keyof typeof UserFirewallRuleAction];
+
+export const UserFirewallRuleAction = {
+  allow: "allow",
+  block: "block",
+} as const;
+
+export interface UserFirewallRule {
+  id: number;
+  userId: string;
+  label: string;
+  protocol: UserFirewallRuleProtocol;
+  direction: UserFirewallRuleDirection;
+  action: UserFirewallRuleAction;
+  externalPort: number;
+  /** @nullable */
+  internalPort?: number | null;
+  /** @nullable */
+  sourceIp?: string | null;
+  /** @nullable */
+  tunnelIp?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  enabled: boolean;
+  synced: boolean;
+  hitCount: number;
+  /** @nullable */
+  lastHitAt?: string | null;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface UserFirewallRuleList {
+  rules: UserFirewallRule[];
+  total: number;
+}
+
+export type UserFirewallRuleResponseSync = {
+  ok?: boolean;
+  rulesWritten?: number;
+  usersAffected?: number;
+  dryRun?: boolean;
+};
+
+export interface UserFirewallRuleResponse {
+  ok?: boolean;
+  rule?: UserFirewallRule;
+  sync?: UserFirewallRuleResponseSync;
+}
+
+export type CreateUserFirewallRuleBodyProtocol =
+  (typeof CreateUserFirewallRuleBodyProtocol)[keyof typeof CreateUserFirewallRuleBodyProtocol];
+
+export const CreateUserFirewallRuleBodyProtocol = {
+  tcp: "tcp",
+  udp: "udp",
+  both: "both",
+} as const;
+
+export type CreateUserFirewallRuleBodyDirection =
+  (typeof CreateUserFirewallRuleBodyDirection)[keyof typeof CreateUserFirewallRuleBodyDirection];
+
+export const CreateUserFirewallRuleBodyDirection = {
+  inbound: "inbound",
+  outbound: "outbound",
+  both: "both",
+} as const;
+
+export type CreateUserFirewallRuleBodyAction =
+  (typeof CreateUserFirewallRuleBodyAction)[keyof typeof CreateUserFirewallRuleBodyAction];
+
+export const CreateUserFirewallRuleBodyAction = {
+  allow: "allow",
+  block: "block",
+} as const;
+
+export interface CreateUserFirewallRuleBody {
+  label: string;
+  protocol?: CreateUserFirewallRuleBodyProtocol;
+  direction?: CreateUserFirewallRuleBodyDirection;
+  action?: CreateUserFirewallRuleBodyAction;
+  externalPort: number;
+  internalPort?: number;
+  sourceIp?: string;
+  tunnelIp?: string;
+  notes?: string;
+  enabled?: boolean;
+}
+
+export type UpdateUserFirewallRuleBodyProtocol =
+  (typeof UpdateUserFirewallRuleBodyProtocol)[keyof typeof UpdateUserFirewallRuleBodyProtocol];
+
+export const UpdateUserFirewallRuleBodyProtocol = {
+  tcp: "tcp",
+  udp: "udp",
+  both: "both",
+} as const;
+
+export type UpdateUserFirewallRuleBodyDirection =
+  (typeof UpdateUserFirewallRuleBodyDirection)[keyof typeof UpdateUserFirewallRuleBodyDirection];
+
+export const UpdateUserFirewallRuleBodyDirection = {
+  inbound: "inbound",
+  outbound: "outbound",
+  both: "both",
+} as const;
+
+export type UpdateUserFirewallRuleBodyAction =
+  (typeof UpdateUserFirewallRuleBodyAction)[keyof typeof UpdateUserFirewallRuleBodyAction];
+
+export const UpdateUserFirewallRuleBodyAction = {
+  allow: "allow",
+  block: "block",
+} as const;
+
+export interface UpdateUserFirewallRuleBody {
+  label?: string;
+  protocol?: UpdateUserFirewallRuleBodyProtocol;
+  direction?: UpdateUserFirewallRuleBodyDirection;
+  action?: UpdateUserFirewallRuleBodyAction;
+  externalPort?: number;
+  internalPort?: number;
+  sourceIp?: string;
+  tunnelIp?: string;
+  notes?: string;
+  enabled?: boolean;
+}
+
 export type ListNodesParams = {
   /**
    * Filter by layer (outer=50 ghost nodes, inner=10 core nodes)
@@ -1626,4 +1773,21 @@ export type ListHoneypotAlertsParams = {
 
 export type IngestHoneypotEvent200 = {
   accepted: number;
+};
+
+export type SyncUserFirewallRules200 = {
+  ok?: boolean;
+  rulesWritten?: number;
+  usersAffected?: number;
+  dryRun?: boolean;
+  error?: string;
+};
+
+export type GetUserFirewallActivity200 = {
+  activity?: UserFirewallRule[];
+};
+
+export type DeleteUserFirewallRule200 = {
+  ok?: boolean;
+  deletedId?: number;
 };

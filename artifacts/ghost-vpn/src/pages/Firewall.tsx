@@ -99,6 +99,7 @@ const TAB_ICONS: Record<string, React.ReactNode> = {
   ddos:        <Activity size={13} />,
   optimizer:   <Bot size={13} />,
   riskscore:   <BarChart3 size={13} />,
+  myrules:     <ShieldCheck size={13} />,
 };
 const TABS = [
   { id:"overview", label:"Overview" }, { id:"ghostos", label:"GhostOS™" }, { id:"ips", label:"IPS Engine" },
@@ -167,6 +168,7 @@ const TABS = [
   { id:"ddos",        label:"🛡 DDoS Shield" },
   { id:"optimizer",   label:"🤖 AI Optimizer" },
   { id:"riskscore",   label:"📊 Risk Score" },
+  { id:"myrules",    label:"🔐 My Rules" },
 ];
 const SEV_COLOR: Record<string,string> = { critical:"#ff2244", high:"#ff6600", medium:"#ffaa00", low:"#aaccff", info:"#888" };
 const TRUST_COLOR: Record<string,string> = { trusted:"#00ff88", untrusted:"#ff4444", dmz:"#ff9900", management:"#4488ff" };
@@ -333,6 +335,7 @@ const TAB_GROUPS: Record<string, {
     icon: "🔑",
     label: "Access & Control",
     tabs: [
+      { id:"myrules",      label:"My Persistent Rules",  desc:"Your personal rules — survive restart & logoff" },
       { id:"peerrules",    label:"Peer Rules",           desc:"WireGuard peer-level firewall rules" },
       { id:"optimizer",    label:"AI Optimizer",         desc:"Automated rule de-duplication & cleanup" },
       { id:"nodesync",     label:"Node Sync",            desc:"Push rules to all 60 mesh nodes" },
@@ -6771,6 +6774,391 @@ function RiskScoreTab() {
   );
 }
 
+// ── My Persistent Rules Tab ───────────────────────────────────────────────────
+// Per-user firewall rules stored in Postgres. Survive server restart, logoff,
+// and VPN reconnection. Written to nftables immediately on every change.
+interface UserFwRule {
+  id: number;
+  label: string;
+  protocol: "tcp" | "udp" | "both";
+  direction: "inbound" | "outbound" | "both";
+  action: "allow" | "block";
+  externalPort: number;
+  internalPort: number | null;
+  sourceIp: string | null;
+  tunnelIp: string | null;
+  notes: string | null;
+  enabled: boolean;
+  synced: boolean;
+  hitCount: number;
+  lastHitAt: string | null;
+  createdAt: string;
+}
+
+const PROTO_COLOR: Record<string, string> = { tcp:"#4af", udp:"#fa4", both:"#a4f" };
+const DIR_COLOR:   Record<string, string> = { inbound:"#f64", outbound:"#4f8", both:"#f84" };
+const ACT_COLOR:   Record<string, string> = { allow:"#00ff88", block:"#ff4444" };
+
+const EMPTY_FORM = {
+  label:"", protocol:"tcp" as const, direction:"inbound" as const,
+  action:"allow" as const, externalPort:"", internalPort:"",
+  sourceIp:"", notes:"",
+};
+
+function MyRulesTab() {
+  const [rules, setRules]       = useState<UserFwRule[]>([]);
+  const [loading, setLoading]   = useState(true);
+  const [showAdd, setShowAdd]   = useState(false);
+  const [form, setForm]         = useState({ ...EMPTY_FORM });
+  const [saving, setSaving]     = useState(false);
+  const [syncing, setSyncing]   = useState(false);
+  const [syncMsg, setSyncMsg]   = useState<string | null>(null);
+  const [error, setError]       = useState<string | null>(null);
+
+  const load = async () => {
+    try {
+      setLoading(true);
+      const r = await fetch("/api/firewall/user-rules");
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const d = await r.json();
+      setRules(d.rules ?? []);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const toggle = async (id: number) => {
+    await fetch(`/api/firewall/user-rules/${id}/toggle`, { method:"POST" });
+    load();
+  };
+
+  const del = async (id: number, label: string) => {
+    if (!confirm(`Delete rule "${label}"? This cannot be undone.`)) return;
+    await fetch(`/api/firewall/user-rules/${id}`, { method:"DELETE" });
+    load();
+  };
+
+  const save = async () => {
+    setSaving(true); setError(null);
+    try {
+      const body = {
+        label:        form.label,
+        protocol:     form.protocol,
+        direction:    form.direction,
+        action:       form.action,
+        externalPort: Number(form.externalPort),
+        internalPort: form.internalPort ? Number(form.internalPort) : undefined,
+        sourceIp:     form.sourceIp || undefined,
+        notes:        form.notes || undefined,
+      };
+      const r = await fetch("/api/firewall/user-rules", {
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!r.ok) { const d = await r.json(); throw new Error(JSON.stringify(d.error)); }
+      setShowAdd(false);
+      setForm({ ...EMPTY_FORM });
+      load();
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const sync = async () => {
+    setSyncing(true); setSyncMsg(null);
+    try {
+      const r = await fetch("/api/firewall/user-rules/sync", { method:"POST" });
+      const d = await r.json();
+      setSyncMsg(d.ok
+        ? `✓ Synced — ${d.rulesWritten} rule${d.rulesWritten !== 1 ? "s" : ""} applied to nftables${d.dryRun ? " (dev mode)" : ""}`
+        : `Error: ${d.error}`
+      );
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const S: Record<string, React.CSSProperties> = {
+    card:   { background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:8, padding:"16px 18px", marginBottom:14 },
+    th:     { textAlign:"left", padding:"5px 10px", color:"#444", fontSize:10, fontFamily:"monospace", fontWeight:500, borderBottom:"1px solid #111", textTransform:"uppercase" as const },
+    td:     { padding:"7px 10px", fontSize:11, borderBottom:"1px solid #0d0d0d", verticalAlign:"middle" },
+    mono:   { fontFamily:"monospace" },
+    btn:    { background:"none", border:"1px solid #222", color:"#888", borderRadius:4, padding:"4px 10px", fontSize:10, cursor:"pointer", fontFamily:"monospace" },
+    btnGrn: { background:"#00ff8811", border:"1px solid #00ff8833", color:"#00ff88", borderRadius:4, padding:"4px 10px", fontSize:10, cursor:"pointer", fontFamily:"monospace" },
+    label:  { display:"block", fontSize:10, color:"#555", marginBottom:4, fontFamily:"monospace" },
+    input:  { width:"100%", background:"#111", border:"1px solid #222", color:"#ccc", borderRadius:4, padding:"6px 10px", fontSize:12, fontFamily:"monospace", boxSizing:"border-box" as const },
+    sel:    { width:"100%", background:"#111", border:"1px solid #222", color:"#ccc", borderRadius:4, padding:"6px 10px", fontSize:12, fontFamily:"monospace" },
+  };
+
+  const enabledCount  = rules.filter(r => r.enabled).length;
+  const syncedCount   = rules.filter(r => r.synced).length;
+  const activityRules = rules.filter(r => r.hitCount > 0).sort((a,b) => b.hitCount - a.hitCount);
+
+  return (
+    <div style={{ color:"#ccc" }}>
+
+      {/* ── Header ─────────────────────────────────────────────────────────── */}
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16, flexWrap:"wrap", gap:8 }}>
+        <div>
+          <div style={{ fontSize:15, fontWeight:700, color:"#fff", fontFamily:"monospace" }}>
+            🔐 My Persistent Firewall Rules
+          </div>
+          <div style={{ fontSize:11, color:"#444", marginTop:3 }}>
+            Rules are stored in the database — they survive server reboots, VPN logoffs, and reconnections.
+            Every change is written to nftables immediately.
+          </div>
+        </div>
+        <div style={{ display:"flex", gap:8 }}>
+          <button style={S.btn} onClick={sync} disabled={syncing}>
+            {syncing ? "Syncing…" : "↺ Force Sync"}
+          </button>
+          <button style={S.btnGrn} onClick={() => setShowAdd(true)}>
+            + Add Rule
+          </button>
+        </div>
+      </div>
+
+      {/* ── Sync message ──────────────────────────────────────────────────── */}
+      {syncMsg && (
+        <div style={{ background: syncMsg.startsWith("✓") ? "#00ff8811" : "#ff444411",
+          border:`1px solid ${syncMsg.startsWith("✓") ? "#00ff8833" : "#ff444433"}`,
+          borderRadius:6, padding:"8px 12px", fontSize:11, marginBottom:12, fontFamily:"monospace" }}>
+          {syncMsg}
+        </div>
+      )}
+
+      {/* ── How it works ──────────────────────────────────────────────────── */}
+      <div style={{ ...S.card, borderLeft:"3px solid #00ff8844" }}>
+        <div style={{ fontSize:11, color:"#555", fontWeight:700, marginBottom:8, fontFamily:"monospace" }}>HOW IT WORKS</div>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(200px, 1fr))", gap:10, fontSize:11, color:"#555" }}>
+          {[
+            ["1. Create a rule", "Set protocol, direction, port, and whether to allow or block."],
+            ["2. Auto-applied instantly", "Your rule is written to nftables on the server the moment you save it."],
+            ["3. Persists forever", "Rules live in the database — restart the server, log off, reconnect — they're still there."],
+            ["4. Toggle any time", "Flip a rule off without deleting it. It stays in the DB but nftables skips it."],
+          ].map(([title, desc]) => (
+            <div key={title}>
+              <div style={{ color:"#00ff8888", fontFamily:"monospace", marginBottom:3 }}>{title}</div>
+              <div style={{ color:"#444", lineHeight:1.5 }}>{desc}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Stats bar ─────────────────────────────────────────────────────── */}
+      <div style={{ display:"flex", gap:10, marginBottom:14, flexWrap:"wrap" }}>
+        {[
+          ["Total Rules",   String(rules.length),   "#ccc"],
+          ["Active",        String(enabledCount),    "#00ff88"],
+          ["Inactive",      String(rules.length - enabledCount), "#555"],
+          ["Synced",        String(syncedCount),     "#4af"],
+          ["Triggered",     String(activityRules.length), "#fa4"],
+        ].map(([label, val, color]) => (
+          <div key={label} style={{ background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:6, padding:"8px 14px", textAlign:"center" as const, minWidth:80 }}>
+            <div style={{ fontSize:18, fontWeight:700, color, fontFamily:"monospace" }}>{val}</div>
+            <div style={{ fontSize:9, color:"#444", fontFamily:"monospace", textTransform:"uppercase" as const, marginTop:2 }}>{label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Error ─────────────────────────────────────────────────────────── */}
+      {error && (
+        <div style={{ background:"#ff444411", border:"1px solid #ff444433", borderRadius:6, padding:"8px 12px", fontSize:11, marginBottom:12, color:"#ff8888", fontFamily:"monospace" }}>
+          {error}
+        </div>
+      )}
+
+      {/* ── Rules table ───────────────────────────────────────────────────── */}
+      <div style={S.card}>
+        <div style={{ fontSize:11, color:"#555", fontWeight:700, marginBottom:10, fontFamily:"monospace" }}>PERSISTENT RULES</div>
+        {loading ? (
+          <div style={{ color:"#333", fontSize:11, fontFamily:"monospace", padding:8 }}>Loading…</div>
+        ) : rules.length === 0 ? (
+          <div style={{ color:"#333", fontSize:11, fontFamily:"monospace", padding:16, textAlign:"center" as const }}>
+            No rules yet. Click <span style={{ color:"#00ff88" }}>+ Add Rule</span> to create your first persistent firewall rule.
+          </div>
+        ) : (
+          <div style={{ overflowX:"auto" as const }}>
+            <table style={{ width:"100%", borderCollapse:"collapse" }}>
+              <thead>
+                <tr>
+                  {["Label","Proto","Direction","Port","Tunnel IP","Action","Hits","Status","Synced",""].map(h => (
+                    <th key={h} style={S.th}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rules.map(r => (
+                  <tr key={r.id} style={{ opacity: r.enabled ? 1 : 0.4 }}>
+                    <td style={{ ...S.td, ...S.mono, color:"#ccc", maxWidth:140, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                      {r.label}
+                      {r.notes && <div style={{ fontSize:9, color:"#444", marginTop:2 }}>{r.notes}</div>}
+                    </td>
+                    <td style={S.td}><Bdg label={r.protocol.toUpperCase()} color={PROTO_COLOR[r.protocol]} sm /></td>
+                    <td style={S.td}><Bdg label={r.direction} color={DIR_COLOR[r.direction]} sm /></td>
+                    <td style={{ ...S.td, ...S.mono, color:"#aaa" }}>
+                      {r.externalPort}
+                      {r.internalPort && r.internalPort !== r.externalPort && (
+                        <span style={{ color:"#555" }}> → {r.internalPort}</span>
+                      )}
+                      {r.sourceIp && <div style={{ fontSize:9, color:"#444" }}>src: {r.sourceIp}</div>}
+                    </td>
+                    <td style={{ ...S.td, ...S.mono, color:"#555", fontSize:10 }}>{r.tunnelIp ?? "—"}</td>
+                    <td style={S.td}><Bdg label={r.action.toUpperCase()} color={ACT_COLOR[r.action]} sm /></td>
+                    <td style={{ ...S.td, ...S.mono, color: r.hitCount > 0 ? "#fa4" : "#333" }}>
+                      {r.hitCount > 0 ? r.hitCount.toLocaleString() : "—"}
+                      {r.lastHitAt && <div style={{ fontSize:9, color:"#555" }}>{new Date(r.lastHitAt).toLocaleDateString()}</div>}
+                    </td>
+                    <td style={S.td}>
+                      <button
+                        onClick={() => toggle(r.id)}
+                        style={{ ...S.btn, color: r.enabled ? "#00ff88" : "#555", borderColor: r.enabled ? "#00ff8833" : "#1a1a1a" }}
+                        title={r.enabled ? "Click to disable" : "Click to enable"}
+                      >
+                        {r.enabled ? "● Active" : "○ Off"}
+                      </button>
+                    </td>
+                    <td style={{ ...S.td, ...S.mono, fontSize:10, color: r.synced ? "#00ff8866" : "#fa466" }}>
+                      {r.synced ? "✓" : "pending"}
+                    </td>
+                    <td style={S.td}>
+                      <button onClick={() => del(r.id, r.label)} style={{ ...S.btn, color:"#ff4444", borderColor:"#ff444422" }} title="Delete permanently">
+                        <Trash2 size={11} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* ── Activity feed ─────────────────────────────────────────────────── */}
+      {activityRules.length > 0 && (
+        <div style={S.card}>
+          <div style={{ fontSize:11, color:"#555", fontWeight:700, marginBottom:10, fontFamily:"monospace" }}>
+            🔥 RULE ACTIVITY — Matched Connections
+          </div>
+          <div style={{ fontSize:10, color:"#444", marginBottom:10 }}>
+            These rules have been triggered by real traffic. Hit counts are incremented by the server log parser.
+          </div>
+          {activityRules.map(r => (
+            <div key={r.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"6px 0", borderBottom:"1px solid #0d0d0d" }}>
+              <div style={{ flex:1, fontFamily:"monospace", fontSize:11, color:"#ccc" }}>{r.label}</div>
+              <Bdg label={`port ${r.externalPort}`} color="#555" sm />
+              <Bdg label={r.action.toUpperCase()} color={ACT_COLOR[r.action]} sm />
+              <div style={{ fontFamily:"monospace", fontSize:12, color:"#fa4", minWidth:40, textAlign:"right" as const }}>
+                {r.hitCount.toLocaleString()}×
+              </div>
+              <div style={{ fontSize:10, color:"#444", minWidth:80, textAlign:"right" as const }}>
+                {r.lastHitAt ? new Date(r.lastHitAt).toLocaleString() : ""}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Add Rule Modal ────────────────────────────────────────────────── */}
+      {showAdd && (
+        <div style={{ position:"fixed", inset:0, background:"#000000cc", zIndex:999, display:"flex", alignItems:"center", justifyContent:"center" }}>
+          <div style={{ background:"#0d0d0d", border:"1px solid #222", borderRadius:10, padding:24, width:480, maxWidth:"95vw", maxHeight:"90vh", overflowY:"auto" }}>
+            <div style={{ fontSize:14, fontWeight:700, color:"#fff", fontFamily:"monospace", marginBottom:16 }}>
+              + Add Persistent Firewall Rule
+            </div>
+
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:12 }}>
+              <div style={{ gridColumn:"1/-1" }}>
+                <label style={S.label}>Rule Label *</label>
+                <input style={S.input} placeholder='e.g. "Game server", "Block Torrent"'
+                  value={form.label} onChange={e => setForm(f => ({ ...f, label: e.target.value }))} />
+              </div>
+
+              <div>
+                <label style={S.label}>Protocol</label>
+                <select style={S.sel} value={form.protocol}
+                  onChange={e => setForm(f => ({ ...f, protocol: e.target.value as any }))}>
+                  <option value="tcp">TCP</option>
+                  <option value="udp">UDP</option>
+                  <option value="both">TCP + UDP</option>
+                </select>
+              </div>
+              <div>
+                <label style={S.label}>Direction</label>
+                <select style={S.sel} value={form.direction}
+                  onChange={e => setForm(f => ({ ...f, direction: e.target.value as any }))}>
+                  <option value="inbound">Inbound (coming in)</option>
+                  <option value="outbound">Outbound (going out)</option>
+                  <option value="both">Both</option>
+                </select>
+              </div>
+              <div>
+                <label style={S.label}>Action</label>
+                <select style={S.sel} value={form.action}
+                  onChange={e => setForm(f => ({ ...f, action: e.target.value as any }))}>
+                  <option value="allow">Allow ✓</option>
+                  <option value="block">Block ✗</option>
+                </select>
+              </div>
+              <div>
+                <label style={S.label}>External Port * (1–65535)</label>
+                <input style={S.input} type="number" min={1} max={65535} placeholder="e.g. 25565"
+                  value={form.externalPort} onChange={e => setForm(f => ({ ...f, externalPort: e.target.value }))} />
+              </div>
+              <div>
+                <label style={S.label}>Internal Port (optional)</label>
+                <input style={S.input} type="number" min={1} max={65535} placeholder="Same as external"
+                  value={form.internalPort} onChange={e => setForm(f => ({ ...f, internalPort: e.target.value }))} />
+              </div>
+              <div>
+                <label style={S.label}>Source IP / CIDR (optional)</label>
+                <input style={S.input} placeholder="e.g. 1.2.3.4/32 or blank for any"
+                  value={form.sourceIp} onChange={e => setForm(f => ({ ...f, sourceIp: e.target.value }))} />
+              </div>
+              <div style={{ gridColumn:"1/-1" }}>
+                <label style={S.label}>Notes (optional)</label>
+                <input style={S.input} placeholder="Why does this rule exist?"
+                  value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
+              </div>
+            </div>
+
+            <div style={{ background:"#00ff8808", border:"1px solid #00ff8822", borderRadius:6, padding:"8px 12px", fontSize:10, color:"#00ff8888", marginBottom:14, fontFamily:"monospace" }}>
+              This rule will be saved to the database and applied to nftables immediately.
+              It will automatically reload every time the server restarts — you never need to re-enter it.
+            </div>
+
+            {error && (
+              <div style={{ background:"#ff444411", border:"1px solid #ff444433", borderRadius:4, padding:"6px 10px", fontSize:10, color:"#ff8888", marginBottom:10, fontFamily:"monospace" }}>
+                {error}
+              </div>
+            )}
+
+            <div style={{ display:"flex", gap:8, justifyContent:"flex-end" }}>
+              <button style={S.btn} onClick={() => { setShowAdd(false); setForm({ ...EMPTY_FORM }); setError(null); }}>
+                Cancel
+              </button>
+              <button
+                style={{ ...S.btnGrn, opacity: saving || !form.label || !form.externalPort ? 0.5 : 1 }}
+                onClick={save}
+                disabled={saving || !form.label || !form.externalPort}
+              >
+                {saving ? "Saving…" : "Save Rule"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Firewall() {
   const getInitialTab = () => {
     try { return new URLSearchParams(window.location.search).get("tab") ?? "overview"; } catch { return "overview"; }
@@ -6999,6 +7387,7 @@ export default function Firewall() {
             {tab==="ddos"        && <DdosTab/>}
             {tab==="optimizer"   && <OptimizerTab/>}
             {tab==="riskscore"   && <RiskScoreTab/>}
+            {tab==="myrules"     && <MyRulesTab/>}
           </TabErrorBoundary>
         </div>
       </div>

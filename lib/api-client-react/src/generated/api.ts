@@ -36,7 +36,9 @@ import type {
   CreateFqdnRuleBody,
   CreateGhostOsRuleBody,
   CreateNodeBody,
+  CreateUserFirewallRuleBody,
   CreateZoneBody,
+  DeleteUserFirewallRule200,
   DpiRule,
   DpiRuleList,
   FirewallAnalytics,
@@ -50,6 +52,7 @@ import type {
   GeoBlock,
   GeoBlockList,
   GetGhostOsSpec200,
+  GetUserFirewallActivity200,
   GhostOsRule,
   GhostOsRuleList,
   HealthStatus,
@@ -99,6 +102,7 @@ import type {
   SqlQueryBody,
   SqlQueryResult,
   SyncThreatFeed200,
+  SyncUserFirewallRules200,
   SystemStats,
   TerminalExecBody,
   TerminalResult,
@@ -121,6 +125,9 @@ import type {
   UpdateGhostOsRuleBody,
   UpdateNodeBody,
   UpdateThreatFeedBody,
+  UpdateUserFirewallRuleBody,
+  UserFirewallRuleList,
+  UserFirewallRuleResponse,
   VulnerabilityList,
   WireguardConfig,
 } from "./api.schemas";
@@ -7922,4 +7929,667 @@ export const useIngestHoneypotEvent = <
   TContext
 > => {
   return useMutation(getIngestHoneypotEventMutationOptions(options));
+};
+
+/**
+ * @summary List current user's persistent firewall rules
+ */
+export const getListUserFirewallRulesUrl = () => {
+  return `/api/firewall/user-rules`;
+};
+
+export const listUserFirewallRules = async (
+  options?: RequestInit,
+): Promise<UserFirewallRuleList> => {
+  return customFetch<UserFirewallRuleList>(getListUserFirewallRulesUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListUserFirewallRulesQueryKey = () => {
+  return [`/api/firewall/user-rules`] as const;
+};
+
+export const getListUserFirewallRulesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listUserFirewallRules>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listUserFirewallRules>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListUserFirewallRulesQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listUserFirewallRules>>
+  > = ({ signal }) => listUserFirewallRules({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listUserFirewallRules>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListUserFirewallRulesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listUserFirewallRules>>
+>;
+export type ListUserFirewallRulesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List current user's persistent firewall rules
+ */
+
+export function useListUserFirewallRules<
+  TData = Awaited<ReturnType<typeof listUserFirewallRules>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listUserFirewallRules>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListUserFirewallRulesQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a persistent firewall rule
+ */
+export const getCreateUserFirewallRuleUrl = () => {
+  return `/api/firewall/user-rules`;
+};
+
+export const createUserFirewallRule = async (
+  createUserFirewallRuleBody: CreateUserFirewallRuleBody,
+  options?: RequestInit,
+): Promise<UserFirewallRuleResponse> => {
+  return customFetch<UserFirewallRuleResponse>(getCreateUserFirewallRuleUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createUserFirewallRuleBody),
+  });
+};
+
+export const getCreateUserFirewallRuleMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createUserFirewallRule>>,
+    TError,
+    { data: BodyType<CreateUserFirewallRuleBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createUserFirewallRule>>,
+  TError,
+  { data: BodyType<CreateUserFirewallRuleBody> },
+  TContext
+> => {
+  const mutationKey = ["createUserFirewallRule"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createUserFirewallRule>>,
+    { data: BodyType<CreateUserFirewallRuleBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createUserFirewallRule(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateUserFirewallRuleMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createUserFirewallRule>>
+>;
+export type CreateUserFirewallRuleMutationBody =
+  BodyType<CreateUserFirewallRuleBody>;
+export type CreateUserFirewallRuleMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create a persistent firewall rule
+ */
+export const useCreateUserFirewallRule = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createUserFirewallRule>>,
+    TError,
+    { data: BodyType<CreateUserFirewallRuleBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createUserFirewallRule>>,
+  TError,
+  { data: BodyType<CreateUserFirewallRuleBody> },
+  TContext
+> => {
+  return useMutation(getCreateUserFirewallRuleMutationOptions(options));
+};
+
+/**
+ * @summary Admin — list all users' rules
+ */
+export const getListAllUserFirewallRulesUrl = () => {
+  return `/api/firewall/user-rules/all`;
+};
+
+export const listAllUserFirewallRules = async (
+  options?: RequestInit,
+): Promise<UserFirewallRuleList> => {
+  return customFetch<UserFirewallRuleList>(getListAllUserFirewallRulesUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListAllUserFirewallRulesQueryKey = () => {
+  return [`/api/firewall/user-rules/all`] as const;
+};
+
+export const getListAllUserFirewallRulesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listAllUserFirewallRules>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listAllUserFirewallRules>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListAllUserFirewallRulesQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listAllUserFirewallRules>>
+  > = ({ signal }) => listAllUserFirewallRules({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listAllUserFirewallRules>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListAllUserFirewallRulesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listAllUserFirewallRules>>
+>;
+export type ListAllUserFirewallRulesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Admin — list all users' rules
+ */
+
+export function useListAllUserFirewallRules<
+  TData = Awaited<ReturnType<typeof listAllUserFirewallRules>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listAllUserFirewallRules>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListAllUserFirewallRulesQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Admin — force nftables rebuild from DB
+ */
+export const getSyncUserFirewallRulesUrl = () => {
+  return `/api/firewall/user-rules/sync`;
+};
+
+export const syncUserFirewallRules = async (
+  options?: RequestInit,
+): Promise<SyncUserFirewallRules200> => {
+  return customFetch<SyncUserFirewallRules200>(getSyncUserFirewallRulesUrl(), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getSyncUserFirewallRulesMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof syncUserFirewallRules>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof syncUserFirewallRules>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["syncUserFirewallRules"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof syncUserFirewallRules>>,
+    void
+  > = () => {
+    return syncUserFirewallRules(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SyncUserFirewallRulesMutationResult = NonNullable<
+  Awaited<ReturnType<typeof syncUserFirewallRules>>
+>;
+
+export type SyncUserFirewallRulesMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Admin — force nftables rebuild from DB
+ */
+export const useSyncUserFirewallRules = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof syncUserFirewallRules>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof syncUserFirewallRules>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getSyncUserFirewallRulesMutationOptions(options));
+};
+
+/**
+ * @summary Rules triggered by real traffic (hit counts > 0)
+ */
+export const getGetUserFirewallActivityUrl = () => {
+  return `/api/firewall/user-rules/activity`;
+};
+
+export const getUserFirewallActivity = async (
+  options?: RequestInit,
+): Promise<GetUserFirewallActivity200> => {
+  return customFetch<GetUserFirewallActivity200>(
+    getGetUserFirewallActivityUrl(),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetUserFirewallActivityQueryKey = () => {
+  return [`/api/firewall/user-rules/activity`] as const;
+};
+
+export const getGetUserFirewallActivityQueryOptions = <
+  TData = Awaited<ReturnType<typeof getUserFirewallActivity>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getUserFirewallActivity>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetUserFirewallActivityQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getUserFirewallActivity>>
+  > = ({ signal }) => getUserFirewallActivity({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getUserFirewallActivity>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetUserFirewallActivityQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getUserFirewallActivity>>
+>;
+export type GetUserFirewallActivityQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Rules triggered by real traffic (hit counts > 0)
+ */
+
+export function useGetUserFirewallActivity<
+  TData = Awaited<ReturnType<typeof getUserFirewallActivity>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getUserFirewallActivity>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetUserFirewallActivityQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Update a persistent firewall rule
+ */
+export const getUpdateUserFirewallRuleUrl = (id: number) => {
+  return `/api/firewall/user-rules/${id}`;
+};
+
+export const updateUserFirewallRule = async (
+  id: number,
+  updateUserFirewallRuleBody: UpdateUserFirewallRuleBody,
+  options?: RequestInit,
+): Promise<UserFirewallRuleResponse> => {
+  return customFetch<UserFirewallRuleResponse>(
+    getUpdateUserFirewallRuleUrl(id),
+    {
+      ...options,
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(updateUserFirewallRuleBody),
+    },
+  );
+};
+
+export const getUpdateUserFirewallRuleMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateUserFirewallRule>>,
+    TError,
+    { id: number; data: BodyType<UpdateUserFirewallRuleBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateUserFirewallRule>>,
+  TError,
+  { id: number; data: BodyType<UpdateUserFirewallRuleBody> },
+  TContext
+> => {
+  const mutationKey = ["updateUserFirewallRule"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateUserFirewallRule>>,
+    { id: number; data: BodyType<UpdateUserFirewallRuleBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateUserFirewallRule(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateUserFirewallRuleMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateUserFirewallRule>>
+>;
+export type UpdateUserFirewallRuleMutationBody =
+  BodyType<UpdateUserFirewallRuleBody>;
+export type UpdateUserFirewallRuleMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update a persistent firewall rule
+ */
+export const useUpdateUserFirewallRule = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateUserFirewallRule>>,
+    TError,
+    { id: number; data: BodyType<UpdateUserFirewallRuleBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateUserFirewallRule>>,
+  TError,
+  { id: number; data: BodyType<UpdateUserFirewallRuleBody> },
+  TContext
+> => {
+  return useMutation(getUpdateUserFirewallRuleMutationOptions(options));
+};
+
+/**
+ * @summary Permanently delete a persistent firewall rule
+ */
+export const getDeleteUserFirewallRuleUrl = (id: number) => {
+  return `/api/firewall/user-rules/${id}`;
+};
+
+export const deleteUserFirewallRule = async (
+  id: number,
+  options?: RequestInit,
+): Promise<DeleteUserFirewallRule200> => {
+  return customFetch<DeleteUserFirewallRule200>(
+    getDeleteUserFirewallRuleUrl(id),
+    {
+      ...options,
+      method: "DELETE",
+    },
+  );
+};
+
+export const getDeleteUserFirewallRuleMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteUserFirewallRule>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteUserFirewallRule>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteUserFirewallRule"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteUserFirewallRule>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteUserFirewallRule(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteUserFirewallRuleMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteUserFirewallRule>>
+>;
+
+export type DeleteUserFirewallRuleMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Permanently delete a persistent firewall rule
+ */
+export const useDeleteUserFirewallRule = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteUserFirewallRule>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteUserFirewallRule>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteUserFirewallRuleMutationOptions(options));
+};
+
+/**
+ * @summary Toggle a rule on or off without deleting it
+ */
+export const getToggleUserFirewallRuleUrl = (id: number) => {
+  return `/api/firewall/user-rules/${id}/toggle`;
+};
+
+export const toggleUserFirewallRule = async (
+  id: number,
+  options?: RequestInit,
+): Promise<UserFirewallRuleResponse> => {
+  return customFetch<UserFirewallRuleResponse>(
+    getToggleUserFirewallRuleUrl(id),
+    {
+      ...options,
+      method: "POST",
+    },
+  );
+};
+
+export const getToggleUserFirewallRuleMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof toggleUserFirewallRule>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof toggleUserFirewallRule>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["toggleUserFirewallRule"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof toggleUserFirewallRule>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return toggleUserFirewallRule(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ToggleUserFirewallRuleMutationResult = NonNullable<
+  Awaited<ReturnType<typeof toggleUserFirewallRule>>
+>;
+
+export type ToggleUserFirewallRuleMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Toggle a rule on or off without deleting it
+ */
+export const useToggleUserFirewallRule = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof toggleUserFirewallRule>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof toggleUserFirewallRule>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getToggleUserFirewallRuleMutationOptions(options));
 };

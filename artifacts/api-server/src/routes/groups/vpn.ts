@@ -26,6 +26,7 @@ import iprotatorRouter from "../iprotator";
 import cveSearchRouter from "../cvesearch";
 import ghostTrapRouter from "../ghosttrap";
 import wgDeceptionRouter from "../wg-deception";
+import userFirewallRulesRouter from "../user-firewall-rules";
 import firewallAdvancedRouter from "../firewall-advanced";
 import networkMonitorRouter from "../networkmonitor";
 import dnsSinkholeRouter from "../dnssinkhole";
@@ -96,5 +97,6 @@ registerVpnRoute(router, "/speedtest", "vpn.read", speedtestRouter);
 registerVpnRoute(router, "/ghoststream", "vpn.write", ghoststreamRouter);
 registerVpnRoute(router, "/neuralfence", "vpn.write", neuralfenceRouter);
 registerVpnRoute(router, "/wg-deception", "vpn.write", wgDeceptionRouter);
+registerVpnRoute(router, "/user-firewall-rules", "vpn.write", userFirewallRulesRouter);
 
 export default router;
