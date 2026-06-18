@@ -118,18 +118,6 @@ import aigeneratedinvestigationtimelineRouter from "../ai-generated-investigatio
 import aiplaybookrecommendationRouter from "../ai-playbook-recommendation";
 const router = Router();
 
-router.get("/daemon-download", requireAdmin, (_req: Request, res: Response) => {
-  const filePath = path.resolve(process.cwd(), "../../tools/proxhqd.py");
-
-  if (!fs.existsSync(filePath)) {
-    return res.status(404).json({ error: "Daemon file not found" });
-  }
-
-  res.setHeader("Content-Type", "text/plain");
-  res.setHeader("Content-Disposition", "attachment; filename=proxhqd.py");
-  res.send(fs.readFileSync(filePath, "utf-8"));
-});
-
 router.get("/setup-script", requireAdmin, (req: Request, res: Response) => {
   const replitDomain =
     process.env.REPLIT_DEV_DOMAIN ||

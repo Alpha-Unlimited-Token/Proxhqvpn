@@ -10,7 +10,6 @@ import cryptoPaymentsRouter from "../crypto-payments";
 import notificationsRouter from "../notifications";
 import canaryRouter from "../canary";
 import ghostTrapRouter from "../ghosttrap";
-import omegaAgentRouter from "../omega/agent";
 import daemonInboundRouter from "../daemon-inbound";
 import nodeProvisionRouter from "../node-provision";
 import nodeAgentRouter from "../node-agent";
@@ -58,8 +57,6 @@ router.get("/t/:tokenId/redirect", (req, res, next) => {
   req.url = `/trigger/${req.params.tokenId}/redirect`;
   (canaryRouter as any).handle(req, res, next);
 });
-
-router.use("/omega-agent", omegaAgentRouter);
 
 router.use("/ghost-trap", (req, res, next) => {
   if (

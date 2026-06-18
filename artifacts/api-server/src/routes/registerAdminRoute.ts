@@ -10,7 +10,6 @@ const ADMIN_CAPABILITIES: Capability[] = [
   "terminal.exec",
   "sql.exec",
   "security_lab.admin",
-  "omega.admin",
 ];
 
 export function registerAdminRoute(

@@ -50,7 +50,6 @@ export function requireCapability(capability: Capability) {
         case "admin.read":
         case "admin.write":
         case "security_lab.admin":
-        case "omega.admin":
         case "terminal.exec":
         case "sql.exec": {
           const ok = await runMiddleware(requireAdmin, req, res);

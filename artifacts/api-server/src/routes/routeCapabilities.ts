@@ -130,7 +130,6 @@ export const apiRouteCapabilities: ApiRouteCapability[] = [
 
   { mountPath: "/node-cracker", capability: "security_lab.admin" },
   { mountPath: "/dev-audit", capability: "security_lab.admin" },
-  { mountPath: "/omega", capability: "omega.admin" },
   { mountPath: "/webauthn-fido2-admin-enforcement", capability: "admin.read" },
   { mountPath: "/mfa-policy-engine", capability: "admin.read" },
   { mountPath: "/device-posture-collection", capability: "admin.read" },
