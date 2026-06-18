@@ -30,8 +30,6 @@
     "@workspace/api-zod": "workspace:*",
     "@workspace/capabilities": "workspace:*",
     "@workspace/db": "workspace:*",
-    "@workspace/omega-api-zod": "workspace:*",
-
     "adm-zip": "^0.5.17",
     "archiver": "^7.0.1",
     "bitcoinjs-lib": "^7.0.1",
