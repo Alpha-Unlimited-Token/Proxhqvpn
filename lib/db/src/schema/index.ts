@@ -49,3 +49,4 @@ export * from "./command-approvals";
 export * from "./network-baseline";
 export * from "./user-webhooks";
 export * from "./tunnel-quality";
+export * from "./wg-deception";
