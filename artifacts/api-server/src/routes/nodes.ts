@@ -3,6 +3,7 @@ import { Router } from "express";
 import { getAuth } from "@clerk/express";
 import { db } from "@workspace/db";
 import { nodesTable, beaconAlertsTable } from "@workspace/db";
+import { nodeAgentHealthTable } from "@workspace/db/schema";
 import { eq, gte, sql, lt, and } from "drizzle-orm";
 import { wgPeerCommandsTable } from "@workspace/db";
 import { appendAuditEvent } from "../lib/audit-chain";
@@ -130,25 +131,44 @@ router.post("/", requireRbac("vpn:write"), async (req, res) => {
 });
 
 router.get("/stats/summary", async (req, res) => {
-  const nodes = await db.select().from(nodesTable);
-  const active = nodes.filter((n) => n.status === "active");
+  const STALE_MS = 5 * 60 * 1000; // node-agent is "online" if checked in within 5 min
+  const cutoff = new Date(Date.now() - STALE_MS);
+
+  const [nodes, agentNodes, alertsToday] = await Promise.all([
+    db.select().from(nodesTable),
+    db.select().from(nodeAgentHealthTable),
+    countAlertsToday(),
+  ]);
+
+  // Real Vultr servers — online = lastSeenAt within last 5 minutes
+  const agentOnline  = agentNodes.filter((a) => new Date(a.lastSeenAt) >= cutoff);
+  const agentOffline = agentNodes.filter((a) => new Date(a.lastSeenAt) < cutoff);
+
+  // WireGuard mesh nodes (inner/outer layer metadata)
+  const meshActive = nodes.filter((n) => n.status === "active");
+
+  // Dashboard totals: real servers take priority if any are registered
+  const totalNodes  = agentNodes.length > 0 ? agentNodes.length : nodes.length;
+  const activeNodes = agentNodes.length > 0 ? agentOnline.length : meshActive.length;
 
   const storedLatencies = nodes.filter((n) => n.latencyMs > 0).map((n) => n.latencyMs);
   const avgLatency = storedLatencies.length
     ? storedLatencies.reduce((s, l) => s + l, 0) / storedLatencies.length
     : 0;
 
-  const alertsToday = await countAlertsToday();
-
   res.json({
-    totalNodes: nodes.length,
-    activeNodes: active.length,
+    totalNodes,
+    activeNodes,
+    offlineNodes: agentNodes.length > 0 ? agentOffline.length : nodes.length - meshActive.length,
     outerNodes: nodes.filter((n) => n.layer === "outer").length,
     innerNodes: nodes.filter((n) => n.layer === "inner").length,
     avgLatencyMs: Math.round(avgLatency * 10) / 10,
     totalTrafficGb: 0,
     rotationsToday: 0,
     alertsToday,
+    // breakdown for transparency
+    agentTotal:  agentNodes.length,
+    agentOnline: agentOnline.length,
   });
 });
 
