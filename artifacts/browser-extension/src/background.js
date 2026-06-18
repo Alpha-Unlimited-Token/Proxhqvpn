@@ -15,13 +15,48 @@ const DEFAULT_CONFIG = {
   showNotifs: true,
 };
 
+// Sensitive fields that must NEVER sync to Google's servers.
+// Proxy credentials belong in local storage only.
+const LOCAL_KEYS = ["proxyHost", "proxyPort", "proxyUser", "proxyPass"];
+const SYNC_KEYS  = ["dashboardUrl", "proxyEnabled", "webrtcEnabled", "dohEnabled",
+                    "dnsModeEnabled", "autoEnable", "showNotifs"];
+
 let config = { ...DEFAULT_CONFIG };
 
-// ── Load config ──────────────────────────────────────────────────────────────
+// ── Load config (sync for preferences, local for credentials) ─────────────────
 async function loadConfig() {
-  const stored = await chrome.storage.sync.get(DEFAULT_CONFIG);
-  config = { ...DEFAULT_CONFIG, ...stored };
+  const syncDefaults  = SYNC_KEYS.reduce((o, k) => ({ ...o, [k]: DEFAULT_CONFIG[k] }), {});
+  const localDefaults = LOCAL_KEYS.reduce((o, k) => ({ ...o, [k]: DEFAULT_CONFIG[k] }), {});
+  const [synced, local] = await Promise.all([
+    chrome.storage.sync.get(syncDefaults),
+    chrome.storage.local.get(localDefaults),
+  ]);
+  config = { ...DEFAULT_CONFIG, ...synced, ...local };
   return config;
+}
+
+// ── Save sensitive fields to local storage only ───────────────────────────────
+async function saveSensitiveConfig(updates) {
+  const sensitive = {};
+  for (const key of LOCAL_KEYS) {
+    if (key in updates) sensitive[key] = updates[key];
+  }
+  if (Object.keys(sensitive).length > 0) {
+    await chrome.storage.local.set(sensitive);
+    Object.assign(config, sensitive);
+  }
+}
+
+// ── Save non-sensitive preferences to sync storage ────────────────────────────
+async function saveSyncConfig(updates) {
+  const safe = {};
+  for (const key of SYNC_KEYS) {
+    if (key in updates) safe[key] = updates[key];
+  }
+  if (Object.keys(safe).length > 0) {
+    await chrome.storage.sync.set(safe);
+    Object.assign(config, safe);
+  }
 }
 
 // ── Badge helper ─────────────────────────────────────────────────────────────
@@ -35,10 +70,11 @@ function updateBadge(enabled) {
   }
 }
 
-// ── SOCKS5 proxy ─────────────────────────────────────────────────────────────
+// ── SOCKS5 proxy via PAC script (routes DNS through proxy — fixes DNS leaks) ──
+// PAC-based routing means DNS resolves server-side, not in the browser.
+// This fixes the DNS leak that occurs when using fixed_servers mode.
 async function setProxy(enabled) {
   if (!enabled || !config.proxyHost || !config.proxyPort) {
-    // Clear proxy
     await chrome.proxy.settings.set({
       value: { mode: "direct" },
       scope: "regular",
@@ -47,20 +83,19 @@ async function setProxy(enabled) {
     return;
   }
 
-  const proxyConfig = {
-    mode: "fixed_servers",
-    rules: {
-      singleProxy: {
-        scheme: "socks5",
-        host: config.proxyHost,
-        port: parseInt(String(config.proxyPort), 10),
-      },
-      bypassList: ["localhost", "127.0.0.1", "::1"],
-    },
-  };
+  const host = String(config.proxyHost);
+  const port = parseInt(String(config.proxyPort), 10);
+
+  const pacScript = `function FindProxyForURL(url, host) {
+    if (shExpMatch(host, "localhost") || isInNet(host, "127.0.0.0", "255.0.0.0") ||
+        isInNet(host, "::1", "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff")) {
+      return "DIRECT";
+    }
+    return "SOCKS5 ${host}:${port}; SOCKS ${host}:${port}; DIRECT";
+  }`;
 
   await chrome.proxy.settings.set({
-    value: proxyConfig,
+    value: { mode: "pac_script", pacScript: { data: pacScript } },
     scope: "regular",
   });
 
@@ -107,8 +142,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
     if (msg.type === "GET_STATUS") {
       const proxySettings = await chrome.proxy.settings.get({});
+      const mode = proxySettings.value?.mode;
       sendResponse({
-        proxyEnabled: proxySettings.value?.mode === "fixed_servers",
+        proxyEnabled: mode === "pac_script" || mode === "fixed_servers",
         webrtcEnabled: config.webrtcEnabled,
         dohEnabled: config.dohEnabled,
         dnsModeEnabled: config.dnsModeEnabled,
@@ -121,7 +157,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
     if (msg.type === "TOGGLE_PROXY") {
       config.proxyEnabled = msg.enabled;
-      await chrome.storage.sync.set({ proxyEnabled: msg.enabled });
+      await saveSyncConfig({ proxyEnabled: msg.enabled });
       await setProxy(msg.enabled);
       sendResponse({ ok: true });
       return;
@@ -129,7 +165,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
     if (msg.type === "TOGGLE_WEBRTC") {
       config.webrtcEnabled = msg.enabled;
-      await chrome.storage.sync.set({ webrtcEnabled: msg.enabled });
+      await saveSyncConfig({ webrtcEnabled: msg.enabled });
       await setWebRtcProtection(msg.enabled);
       sendResponse({ ok: true });
       return;
@@ -137,7 +173,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
     if (msg.type === "TOGGLE_DOH") {
       config.dohEnabled = msg.enabled;
-      await chrome.storage.sync.set({ dohEnabled: msg.enabled });
+      await saveSyncConfig({ dohEnabled: msg.enabled });
       await setDoh(msg.enabled);
       sendResponse({ ok: true });
       return;
@@ -145,7 +181,20 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
     if (msg.type === "TOGGLE_DNSMODE") {
       config.dnsModeEnabled = msg.enabled;
-      await chrome.storage.sync.set({ dnsModeEnabled: msg.enabled });
+      await saveSyncConfig({ dnsModeEnabled: msg.enabled });
+      sendResponse({ ok: true });
+      return;
+    }
+
+    // Save proxy credentials — local storage only, never sync
+    if (msg.type === "SAVE_PROXY_CREDENTIALS") {
+      await saveSensitiveConfig({
+        proxyHost: msg.proxyHost ?? config.proxyHost,
+        proxyPort: msg.proxyPort ?? config.proxyPort,
+        proxyUser: msg.proxyUser ?? config.proxyUser,
+        proxyPass: msg.proxyPass ?? config.proxyPass,
+      });
+      if (config.proxyEnabled) await setProxy(true);
       sendResponse({ ok: true });
       return;
     }
@@ -167,7 +216,7 @@ chrome.runtime.onInstalled.addListener(async () => {
   await loadConfig();
   if (config.autoEnable && config.proxyHost) {
     config.proxyEnabled = true;
-    await chrome.storage.sync.set({ proxyEnabled: true });
+    await saveSyncConfig({ proxyEnabled: true });
   }
   await applyAll(config);
 });
@@ -183,6 +232,6 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name !== "status-refresh") return;
   await loadConfig();
   const proxySettings = await chrome.proxy.settings.get({});
-  const isOn = proxySettings.value?.mode === "fixed_servers";
-  updateBadge(isOn);
+  const mode = proxySettings.value?.mode;
+  updateBadge(mode === "pac_script" || mode === "fixed_servers");
 });

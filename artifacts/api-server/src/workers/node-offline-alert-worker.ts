@@ -7,6 +7,7 @@ import { nodeAgentHealthTable } from "@workspace/db";
 import { lt, sql } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { shipSecurityEvent } from "../lib/siem";
+import { broadcastSecurityEvent } from "../lib/sse-event-bus";
 
 const OFFLINE_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
 
@@ -48,6 +49,13 @@ registerWorker({
         result: "error",
         severity: "high",
         metadata: { nodeName: node.nodeName, ip: node.ip, silentMin, lastSeenAt: node.lastSeenAt?.toISOString() },
+      });
+
+      broadcastSecurityEvent({
+        type:      "node.offline",
+        severity:  "high",
+        payload:   { nodeId: node.nodeId, nodeName: node.nodeName, ip: node.ip, silentMin },
+        adminOnly: true,
       });
 
       _alertedNodes.add(node.nodeId);

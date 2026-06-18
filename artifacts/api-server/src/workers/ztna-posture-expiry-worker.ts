@@ -8,6 +8,8 @@ import { ztnaDevicesTable } from "@workspace/db";
 import { and, eq, isNotNull, lt, sql } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { shipSecurityEvent } from "../lib/siem";
+import { broadcastSecurityEvent } from "../lib/sse-event-bus";
+import { insertNotification } from "../lib/notifications";
 
 registerWorker({
   name: "ztna-posture-expiry-worker",
@@ -40,6 +42,20 @@ registerWorker({
           result: "deny",
           severity: "medium",
           metadata: { deviceId: device.id, userId: device.userId },
+        });
+        broadcastSecurityEvent({
+          type:      "ztna.posture_expired",
+          severity:  "medium",
+          payload:   { deviceId: device.id, userId: device.userId },
+          adminOnly: false,
+        });
+        void insertNotification({
+          userId:   device.userId,
+          type:     "posture_expired",
+          title:    "Device Trust Expired",
+          body:     "Your device posture certificate has expired. Re-authenticate to restore VPN access.",
+          category: "security",
+          data:     { deviceId: device.id },
         });
       }
     } catch {

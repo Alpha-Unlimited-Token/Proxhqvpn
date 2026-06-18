@@ -12,6 +12,7 @@ import { logger } from "./logger";
 import { shipSecurityEvent } from "./siem";
 import { appendAuditEvent } from "./audit-chain";
 import { sendMail, adminEmails } from "./mailer";
+import { broadcastSecurityEvent } from "./sse-event-bus";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -270,6 +271,12 @@ export async function ingestAttackerEvent(opts: {
       result:   "deny",
       severity: "critical",
       metadata: { score: newScore, previousScore, patterns: patterns.map(p => p.name), ip: opts.ip },
+    });
+    broadcastSecurityEvent({
+      type:      "neuralfence.hard_block",
+      severity:  "critical",
+      payload:   { ip: opts.ip, score: Math.round(newScore), patterns: patterns.map(p => p.name) },
+      adminOnly: true,
     });
     const emails = adminEmails();
     if (emails.length > 0) {

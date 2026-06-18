@@ -8,6 +8,8 @@ import crypto from "crypto";
 import dns from "dns";
 import { sendMail, adminEmails } from "../lib/mailer";
 import { platformConfig } from "../config/platform";
+import { broadcastSecurityEvent } from "../lib/sse-event-bus";
+import { insertNotification } from "../lib/notifications";
 
 const router = Router();
 
@@ -251,6 +253,33 @@ async function handleTriggerAsync(req: Request, tokenId: string, ip: string, ua:
         text: `Canary triggered!\nToken: ${token.label ?? tokenId} (${token.tokenType})\nSource IP: ${ip}\nLocation: ${geo}\nOrg: ${org}\nUser-Agent: ${ua}\nTime: ${new Date().toUTCString()}`,
       });
     }
+
+    // 5. Real-time SSE broadcast to all connected admins
+    broadcastSecurityEvent({
+      type:      "canary.triggered",
+      severity:  "high",
+      payload:   {
+        tokenId,
+        tokenType: token.tokenType,
+        label:     token.label ?? tokenId,
+        sourceIp:  ip,
+        country:   enrichment.geoCountry,
+        city:      enrichment.geoCity,
+        org:       enrichment.geoOrg,
+      },
+      adminOnly: true,
+    });
+
+    // 6. Per-user notification for the token owner
+    void insertNotification({
+      userId:   token.createdBy,
+      type:     "canary_triggered",
+      title:    `Canary Token Triggered — ${token.label ?? tokenId}`,
+      body:     `A ${token.tokenType} token was triggered by ${ip}${enrichment.geoCountry ? ` (${enrichment.geoCountry})` : ""}.`,
+      category: "security",
+      data:     { tokenId, tokenType: token.tokenType, sourceIp: ip },
+    });
+
   } catch (err: any) {
     // Never propagate — response already sent
   }

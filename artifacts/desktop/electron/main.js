@@ -127,7 +127,9 @@ function createMainWindow() {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
       nodeIntegration: false,
-      webSecurity: false,
+      webSecurity: true,
+      allowRunningInsecureContent: false,
+      experimentalFeatures: false,
       webRTCIPHandlingPolicy: "disable_non_proxied_udp",
     },
     icon: path.join(__dirname, "..", "assets", "icon.png"),
@@ -309,7 +311,9 @@ async function generateAndInstallConfig(sendProgress, win) {
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
-      webSecurity: false,
+      webSecurity: true,
+      allowRunningInsecureContent: false,
+      experimentalFeatures: false,
     },
   });
 

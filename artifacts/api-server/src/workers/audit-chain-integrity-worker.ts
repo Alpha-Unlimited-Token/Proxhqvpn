@@ -8,6 +8,7 @@ import { desc } from "drizzle-orm";
 import { verifyChain, type ChainEntry } from "../lib/audit-chain";
 import { logger } from "../lib/logger";
 import { shipSecurityEvent } from "../lib/siem";
+import { broadcastSecurityEvent } from "../lib/sse-event-bus";
 
 const VERIFY_WINDOW = 200; // verify last 200 entries on each run
 
@@ -57,6 +58,12 @@ registerWorker({
         result: "error",
         severity: "critical",
         metadata: { firstBadIndex: result.firstBadIndex, reason: result.reason, windowSize: entries.length },
+      });
+      broadcastSecurityEvent({
+        type:      "audit_chain.integrity_violation",
+        severity:  "critical",
+        payload:   { firstBadIndex: result.firstBadIndex, reason: result.reason },
+        adminOnly: true,
       });
     } else {
       logger.info({ windowSize: entries.length }, "Audit chain integrity verified");

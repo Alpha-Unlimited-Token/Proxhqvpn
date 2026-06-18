@@ -5,10 +5,12 @@ import { usersTable } from "./users";
 export const notificationsTable = pgTable("notifications", {
   id:        serial("id").primaryKey(),
   userId:    text("user_id").notNull().references(() => usersTable.id),
-  type:      text("type").notNull(),   // 'crypto_payment_confirmed' | 'crypto_payment_expired'
+  type:      text("type").notNull(),
   title:     text("title").notNull(),
   body:      text("body").notNull(),
-  data:      jsonb("data"),            // arbitrary extra payload
+  data:      jsonb("data"),
+  /** Category: 'payment' | 'security' | 'vpn' | 'system' | 'compliance' */
+  category:  text("category").notNull().default("system"),
   read:      boolean("read").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
