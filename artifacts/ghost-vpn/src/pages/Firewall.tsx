@@ -5439,7 +5439,7 @@ function YaraEngineTab() {
             {feature:"Memory Scan (YARA)",      proxhq:true,  norton:true,  crowdstrike:true,  sentinel:true},
             {feature:"Open Source Intel (OSINT)",proxhq:true, norton:false, crowdstrike:false, sentinel:false},
             {feature:"Rootkit Scanner",         proxhq:true,  norton:true,  crowdstrike:true,  sentinel:true},
-            {feature:"Blockchain IOC (SigMiner)",proxhq:true, norton:false, crowdstrike:false, sentinel:false},
+
             {feature:"Zero Trust Integration",  proxhq:true,  norton:false, crowdstrike:true,  sentinel:true},
           ].map(f=>(
             <div key={f.feature} style={{ background:"#111", borderRadius:6, padding:"8px 10px" }}>

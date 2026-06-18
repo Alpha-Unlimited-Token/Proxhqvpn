@@ -13,9 +13,6 @@
       "path": "./lib/api-zod"
     },
     {
-      "path": "./lib/wallet-tx"
-    },
-    {
       "path": "./lib/omega-api-client-react"
     },
     {

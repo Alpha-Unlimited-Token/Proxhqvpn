@@ -59,13 +59,6 @@ export const TIER_FEATURES: Record<Tier, string[]> = {
     "event_graph",
   ],
   labs: [
-    "sig_mining_engine",
-    "blockchain_scanner",
-    "ecdsa_analyzer",
-    "web_sig_spider",
-    "osint_spider",
-    "peel_chain",
-    "hybrid_worm",
     "redteam_scan",
     "sast",
     "ai_security",

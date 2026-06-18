@@ -73,7 +73,7 @@ const NODE_ICON: Record<string, React.ReactNode> = {
   clerk:        <Lock className="w-5 h-5" />,
   splunk:       <Activity className="w-5 h-5" />,
   quantum_audit:<FlaskConical className="w-5 h-5" />,
-  sig_engine:   <Cpu className="w-5 h-5" />,
+
 };
 
 function StatusPill({ status }: { status: ServiceStatus }) {

@@ -290,8 +290,8 @@ ss -tupn | grep LISTEN          # Listening ports`}</CB>
             { tool: "GPS Spoofing", path: "/gps-spoof", desc: "Fake your GPS coordinates at the VPN tunnel level. Bypass geo-restricted apps, spoof device location for testing, and mask real physical position." },
             { tool: "WebSocket Tester", path: "/ws-tester", desc: "Connect, intercept, replay, and fuzz WebSocket frames. Equivalent to Burp Suite WebSocket testing. Supports ws:// and wss:// with auth header injection." },
             { tool: "Dependency Scanner", path: "/dep-scanner", desc: "Scan any project directory or package manifest (npm/pip/cargo/go/maven/composer) for known CVEs. Severity-ranked results with remediation guidance." },
-            { tool: "QuantumAudit", path: "/quantum-audit/", desc: "Standalone blockchain security auditing platform. Scans smart contracts and DeFi protocols for classical vulnerabilities (reentrancy, oracle manipulation, flash loan) and post-quantum cryptographic weaknesses (ECDSA nonce reuse, weak-k, r-collision, Shor's algorithm exposure). Includes 5-engine Signature Mining suite." },
-            { tool: "Sig Miner", path: "/quantum-audit/sig-miner", desc: "5-engine blockchain forensics suite: Block Scanner (on-chain ECDSA extraction), Web Spider (paste site crawl), OSINT Spider (GitHub/Pastebin), Peel Chain (fund-flow tracing), Hybrid Worm (all engines in parallel with shared intelligence pool). Use for authorized blockchain security research." },
+            { tool: "QuantumAudit", path: "/quantum-audit/", desc: "Standalone blockchain security auditing platform. Scans smart contracts and DeFi protocols for classical vulnerabilities (reentrancy, oracle manipulation, flash loan) and post-quantum cryptographic weaknesses (Shor's algorithm exposure, lattice attacks, weak entropy). Use only on contracts and addresses you own or have explicit permission to audit." },
+
           ].map(({ tool, path, desc }) => (
             <div key={tool} className="border border-primary/10 rounded px-2.5 py-2">
               <div className="flex items-center justify-between mb-0.5">
@@ -578,7 +578,7 @@ ProxhqVPN Support | support@proxhqvpn.com`}</CB>
         <div className="grid grid-cols-2 gap-2">
           {[
             { cat: "Classical Blockchain", items: ["Reentrancy attacks", "Flash loan manipulation", "Oracle price manipulation", "Integer overflow/underflow", "Access control failures"] },
-            { cat: "Post-Quantum", items: ["ECDSA nonce reuse (private key recovery)", "Weak-k (k < 2^24 brute force)", "R-value collision across txs", "Shor's algorithm exposure (ECDSA)", "MSB/LSB nonce bias detection"] },
+            { cat: "Post-Quantum", items: ["Shor's algorithm exposure (ECDSA)", "MSB/LSB nonce bias detection", "Lattice-based signature analysis", "Weak entropy detection"] },
           ].map(({ cat, items }) => (
             <div key={cat} className="border border-primary/10 rounded px-2.5 py-2">
               <div className="text-[10px] font-mono font-bold text-primary mb-1">{cat}</div>
@@ -586,9 +586,7 @@ ProxhqVPN Support | support@proxhqvpn.com`}</CB>
             </div>
           ))}
         </div>
-        <h4 className="font-bold text-primary text-[11px] mt-3">Signature Mining Suite</h4>
-        <p className="text-[10px] font-mono text-primary/83">The 5-engine Signature Miner (<code>/quantum-audit/sig-miner</code>) is for authorized blockchain forensic research. The <strong>Hybrid Worm Engine</strong> runs all four engines in parallel with a shared Cross-Engine intelligence pool. Only use against blockchains or addresses you are authorized to investigate. All mining sessions are logged.</p>
-        <Note type="danger">QuantumAudit findings that reveal recoverable private keys constitute active security vulnerabilities. Handle all key material found during research as strictly confidential and disclose only through proper responsible disclosure channels. Do not use recovered keys for any financial transactions.</Note>
+        <Note type="info">QuantumAudit is for authorized security research on contracts and addresses you own or have explicit permission to audit. All scan sessions are logged in the audit trail.</Note>
       </div>
     ),
   },

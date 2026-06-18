@@ -137,7 +137,7 @@ router.get("/graph", async (_req: Request, res: Response) => {
     { id: "clerk",        label: "Clerk Auth",               category: "external",   status: clerkResult.status,  latencyMs: clerkResult.latencyMs },
     { id: "splunk",       label: "Splunk SIEM (external)",   category: "external",   status: splunkResult.status },
     { id: "quantum_audit",label: "QuantumAudit Engine",      category: "labs",       status: "ok" },
-    { id: "sig_engine",   label: "Sig Mining Engine",        category: "labs",       status: "ok" },
+
   ];
 
   const edges: [string, string][] = [
@@ -162,7 +162,7 @@ router.get("/graph", async (_req: Request, res: Response) => {
     ["drift", "db"],
     ["ztna", "db"],
     ["api", "quantum_audit"],
-    ["api", "sig_engine"],
+
   ];
 
   const healthSummary = {

@@ -95,8 +95,6 @@ export const batchScanResultsTable = pgTable("batch_scan_results", {
   signatureScheme:    text("signature_scheme"),
   hasVulnerability:   boolean("has_vulnerability").notNull().default(false),
   vulnerabilityCount: integer("vulnerability_count").notNull().default(0),
-  recoveredPrivateKey: text("recovered_private_key"),   // if key was recovered
-  recoveredNonceK:    text("recovered_nonce_k"),
   sharedRValue:       text("shared_r_value"),
   scanError:          text("scan_error"),
   execMs:             integer("exec_ms"),

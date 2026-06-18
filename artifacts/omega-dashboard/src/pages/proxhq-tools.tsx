@@ -68,7 +68,7 @@ const TOOLS: Tool[] = [
   { name: "Security Audit", path: "/security-audit", description: "TLS inspector, HTTP header grader, WHOIS", tier: "admin", category: "Admin" },
   // Blockchain
   { name: "QuantumAudit", path: "/quantum-audit", description: "Smart contract security auditing", tier: "pro", category: "Blockchain" },
-  { name: "Signature Miner", path: "/quantum-audit/sig-miner", description: "5-engine ECDSA nonce-reuse + key recovery", tier: "pro", category: "Blockchain" },
+
 ];
 
 const CATEGORIES = ["VPN Core", "Privacy", "Defense", "Offense / Recon", "Admin", "Blockchain"];
