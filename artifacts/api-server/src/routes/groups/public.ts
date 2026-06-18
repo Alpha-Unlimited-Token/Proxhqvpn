@@ -14,6 +14,7 @@ import daemonInboundRouter from "../daemon-inbound";
 import nodeProvisionRouter from "../node-provision";
 import nodeAgentRouter from "../node-agent";
 import honeypotRouter from "../honeypot";
+import nodeInstallScriptsRouter from "../node-install-scripts";
 import trustCenterRouter from "../trust-center";
 import { daemonIpBanMiddleware } from "../../app";
 
@@ -77,6 +78,7 @@ router.get("/warrant-canary", (req, res, next) => {
 
 router.use("/node-provision", nodeProvisionRouter);
 router.use("/node-agent", nodeAgentRouter);
+router.use("/node-scripts", nodeInstallScriptsRouter);
 
 router.post("/honeypot/ingest", (req, res, next) => {
   req.url = "/ingest";
