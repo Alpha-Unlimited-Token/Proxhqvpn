@@ -85,6 +85,7 @@ export const terminalJobsTable = pgTable("terminal_jobs", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
   startedAt: timestamp("started_at"),
   completedAt: timestamp("completed_at"),
+  expiresAt: timestamp("expires_at").notNull().$defaultFn(() => new Date(Date.now() + 24 * 60 * 60_000)),
 });
 
 // ── VPN connection events (connectionAnalyticsRepository.ts) ──────────────────

@@ -2,12 +2,13 @@
 import { Router } from "express";
 import { getAuth } from "@clerk/express";
 import { db } from "@workspace/db";
-import { userWgConfigsTable, nodesTable, usersTable, wgPeerCommandsTable, ztnaDevicesTable } from "@workspace/db";
+import { userWgConfigsTable, nodesTable, usersTable, wgPeerCommandsTable, ztnaDevicesTable, tunnelQualityMetricsTable } from "@workspace/db";
 import { eq, and, isNull, sql, desc } from "drizzle-orm";
 import { z } from "zod";
 import crypto from "crypto";
 import { encryptSecret, decryptSecret, wgConfigAad, isEncrypted } from "../lib/encrypted-secret-store";
 import { requireAdmin } from "../middlewares/requireAdmin";
+import { asyncHandler } from "../middlewares/asyncHandler";
 import { appendAuditEvent } from "../lib/audit-chain";
 import { shipSecurityEvent } from "../lib/siem";
 import { bus } from "../lib/service-bus";
@@ -612,5 +613,92 @@ router.post("/admin/encrypt-legacy-keys", requireAdmin, async (_req, res) => {
   }
   res.json({ migrated, message: `Encrypted ${migrated} legacy plaintext private key(s).` });
 });
+
+// ─── X-2: Tunnel Health Monitoring ───────────────────────────────────────────
+
+// GET /api/wireguard/tunnel-health — get recent quality metrics for the caller
+router.get("/tunnel-health", asyncHandler(async (req, res) => {
+  const { userId } = getAuth(req);
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+  const metrics = await db
+    .select()
+    .from(tunnelQualityMetricsTable)
+    .where(eq(tunnelQualityMetricsTable.userId, userId))
+    .orderBy(desc(tunnelQualityMetricsTable.measuredAt))
+    .limit(100);
+
+  const grouped: Record<number, typeof metrics> = {};
+  for (const m of metrics) {
+    if (!grouped[m.configId]) grouped[m.configId] = [];
+    grouped[m.configId]!.push(m);
+  }
+
+  const summary = Object.entries(grouped).map(([configId, records]) => {
+    const latest    = records[0]!;
+    const avgLatency = records.filter(r => r.latencyMs != null).reduce((s, r) => s + (r.latencyMs ?? 0), 0) / (records.filter(r => r.latencyMs != null).length || 1);
+    const avgLoss    = records.filter(r => r.packetLoss != null).reduce((s, r) => s + (r.packetLoss ?? 0), 0) / (records.filter(r => r.packetLoss != null).length || 1);
+    return {
+      configId:       parseInt(configId, 10),
+      nodeId:         latest.nodeId,
+      latestMeasuredAt: latest.measuredAt,
+      latencyMs:       latest.latencyMs,
+      packetLoss:      latest.packetLoss,
+      jitterMs:        latest.jitterMs,
+      avgLatencyMs:    Math.round(avgLatency * 10) / 10,
+      avgPacketLoss:   Math.round(avgLoss * 100) / 100,
+      bytesSent:       latest.bytesSent,
+      bytesRecv:       latest.bytesRecv,
+      health:          (latest.latencyMs ?? 0) < 100 && (latest.packetLoss ?? 0) < 0.05 ? "good"
+                     : (latest.latencyMs ?? 0) < 250 ? "fair" : "degraded",
+    };
+  });
+
+  res.json({ metrics: summary, raw: metrics });
+}));
+
+// POST /api/wireguard/tunnel-health/report — daemon/agent reports a measurement
+// Protected by Clerk auth; future: support daemon PSK as alternative
+router.post("/tunnel-health/report", asyncHandler(async (req, res) => {
+  const { userId } = getAuth(req);
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+  const body = z.object({
+    configId:    z.number().int().positive(),
+    nodeId:      z.number().int().positive(),
+    latencyMs:   z.number().min(0).max(60000).optional(),
+    packetLoss:  z.number().min(0).max(1).optional(),
+    jitterMs:    z.number().min(0).max(5000).optional(),
+    bytesSent:   z.number().int().min(0).optional().default(0),
+    bytesRecv:   z.number().int().min(0).optional().default(0),
+    handshakeAt: z.string().datetime().optional(),
+  }).parse(req.body);
+
+  // Verify the config belongs to the caller
+  const [config] = await db
+    .select({ id: userWgConfigsTable.id })
+    .from(userWgConfigsTable)
+    .where(and(
+      eq(userWgConfigsTable.id, body.configId),
+      eq(userWgConfigsTable.userId, userId),
+      isNull(userWgConfigsTable.revokedAt),
+    ));
+
+  if (!config) return res.status(403).json({ error: "Config not found or not owned by caller" });
+
+  await db.insert(tunnelQualityMetricsTable).values({
+    userId,
+    configId:    body.configId,
+    nodeId:      body.nodeId,
+    latencyMs:   body.latencyMs,
+    packetLoss:  body.packetLoss,
+    jitterMs:    body.jitterMs,
+    bytesSent:   body.bytesSent,
+    bytesRecv:   body.bytesRecv,
+    handshakeAt: body.handshakeAt ? new Date(body.handshakeAt) : undefined,
+  });
+
+  res.json({ ok: true, message: "Tunnel quality metric recorded" });
+}));
 
 export default router;

@@ -39,6 +39,8 @@ import ztnaRouter from "../ztna";
 import securityScoreRouter from "../security-score";
 import honeypotRouter from "../honeypot";
 import speedtestRouter from "../speedtest";
+import ghoststreamRouter from "../ghoststream";
+import neuralfenceRouter from "../neuralfence";
 
 const router = Router();
 
@@ -90,5 +92,7 @@ registerVpnRoute(router, "/ztna", "vpn.write", ztnaRouter);
 registerVpnRoute(router, "/security-score", "vpn.read", securityScoreRouter);
 registerVpnRoute(router, "/honeypot", "vpn.write", honeypotRouter);
 registerVpnRoute(router, "/speedtest", "vpn.read", speedtestRouter);
+registerVpnRoute(router, "/ghoststream", "vpn.write", ghoststreamRouter);
+registerVpnRoute(router, "/neuralfence", "vpn.write", neuralfenceRouter);
 
 export default router;

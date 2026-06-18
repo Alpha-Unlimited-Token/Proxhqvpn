@@ -41,6 +41,7 @@ import complianceReportsRouter from "../compliance-reports";
 import aiThreatRouter from "../ai-threat-analysis";
 import detectionSignaturesRouter from "../detection-signatures";
 import threatBusRouter from "../threat-bus";
+import livecontextRouter from "../livecontext";
 
 const router = Router();
 
@@ -85,5 +86,6 @@ registerCommandCenterRoute(router, "/compliance-reports", "command_center.read",
 registerCommandCenterRoute(router, "/ai-threat", "command_center.read", aiThreatRouter);
 router.use("/detection-signatures", requireCapability("command_center.write"), detectionSignaturesRouter);
 router.use("/threat-bus", requireCapability("command_center.read"), threatBusRouter);
+registerCommandCenterRoute(router, "/livecontext", "command_center.write", livecontextRouter);
 
 export default router;

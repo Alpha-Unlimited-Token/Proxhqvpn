@@ -50,6 +50,17 @@ function maskConnString(s: string): string {
   return s.replace(/\/\/([^:@]+):([^@]+)@/, "//$1:****@");
 }
 
+// ─── C-3: SIGTERM/SIGINT cleanup — drain all external pool connections ────────
+async function cleanupAllExtConns(): Promise<void> {
+  for (const conn of extConns.values()) {
+    await conn.pgPool.end().catch(() => {});
+  }
+  extConns.clear();
+}
+
+process.once("SIGTERM", () => { void cleanupAllExtConns(); });
+process.once("SIGINT",  () => { void cleanupAllExtConns(); });
+
 // ─── LOCAL DB QUERY ───────────────────────────────────────────────────────────
 router.post("/query", async (req, res) => {
   const body = z.object({

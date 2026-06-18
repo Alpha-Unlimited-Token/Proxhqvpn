@@ -15,6 +15,10 @@ import "../workers/node-offline-alert-worker";
 import "../workers/audit-chain-integrity-worker";
 import "../workers/canary-token-cleanup-worker";
 import "../workers/ztna-posture-expiry-worker";
+import "../workers/ghoststream-rotation-worker";
+import "../workers/neuralfence-decay-worker";
+import "../workers/blocked-ip-cleanup-worker";
+import "../workers/traffic-baseline-worker";
 import { startRegisteredWorkers } from "../lib/worker-registry";
 
 export function startRuntimeWorkers(): void {

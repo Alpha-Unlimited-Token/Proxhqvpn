@@ -166,6 +166,61 @@ router.get(
   }),
 );
 
+// ─── GET /jobs/:jobId/stream — SSE stream of job status (C-5) ─────────────────
+router.get(
+  "/jobs/:jobId/stream",
+  asyncHandler(async (req, res) => {
+    const actor  = getActor(req);
+    const jobId  = String(req.params.jobId ?? "");
+    if (!jobId) return res.status(400).json({ error: "Missing jobId" });
+
+    const job = await getTerminalJob(actor, jobId);
+    if (!job) return res.status(404).json({ error: "Job not found" });
+
+    res.setHeader("content-type",  "text/event-stream");
+    res.setHeader("cache-control", "no-cache");
+    res.setHeader("x-accel-buffering", "no");
+    res.flushHeaders();
+
+    const sendEvent = (data: object) => {
+      res.write(`data: ${JSON.stringify(data)}\n\n`);
+    };
+
+    sendEvent({ type: "connected", jobId });
+
+    let lastStatus = "";
+    const intervalId = setInterval(async () => {
+      try {
+        const current = await getTerminalJob(actor, jobId);
+        if (!current) {
+          clearInterval(intervalId);
+          sendEvent({ type: "error", message: "Job not found" });
+          res.end();
+          return;
+        }
+
+        if (current.status !== lastStatus) {
+          lastStatus = current.status;
+          sendEvent({ type: "update", job: current });
+        }
+
+        if (current.status === "completed" || current.status === "failed") {
+          clearInterval(intervalId);
+          sendEvent({ type: "complete", job: current });
+          res.end();
+        }
+      } catch {
+        clearInterval(intervalId);
+        res.end();
+      }
+    }, 500);
+
+    req.on("close", () => {
+      clearInterval(intervalId);
+    });
+  }),
+);
+
 // ─── POST http-request (direct outbound HTTP from server) ────────────────────
 router.post(
   "/http-request",
@@ -382,20 +437,22 @@ function runSshCommand(
   });
 }
 
+const SSH_IDLE_TIMEOUT_MS    = 15 * 60_000;   // 15-minute idle cutoff
+const SSH_MAX_DURATION_MS    = 60 * 60_000;   // 1-hour hard cap regardless of activity
+
 setInterval(() => {
-  const cutoff = Date.now() - 30 * 60 * 1000;
+  const now        = Date.now();
+  const idleCutoff = now - SSH_IDLE_TIMEOUT_MS;
 
   for (const [sessionId, session] of sshSessions.entries()) {
-    if (session.lastUsedAt < cutoff) {
-      try {
-        session.client.end();
-      } catch {
-        // ignore cleanup errors
-      }
+    const idleTooLong      = session.lastUsedAt < idleCutoff;
+    const connectedTooLong = (now - new Date(session.connectedAt).getTime()) > SSH_MAX_DURATION_MS;
+    if (idleTooLong || connectedTooLong) {
+      try { session.client.end(); } catch { /* ignore cleanup errors */ }
       sshSessions.delete(sessionId);
     }
   }
-}, 5 * 60 * 1000);
+}, 5 * 60_000);
 
 // Helper: get SFTP subsystem for a session (lazy init)
 function getSftp(session: SshSession): Promise<SFTPWrapper> {
