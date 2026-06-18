@@ -15,7 +15,7 @@ export NODE_REGION="US-Chicago"
 export REPLIT_DOMAIN="8ed1e79f-3fa7-4c82-b61d-7b93cb57936e-00-1arzc3ag01duz.spock.replit.dev"
 export HONEYPOT_PSK="d8bc18968a21cfb9982d7970a11f6cad4f9f468587dcdfcfc211937f57f6dbc2"
 export NODE_AGENT_PSK="655014e5d0bce05bc7bb20258570cf7ac77a956baabc04e77980529b56964a11"
-export WG_PORT="51194"
+export WG_PORT="39285"
 export API_PORT="8080"
 export WG_SUBNET="10.8.4"
 
@@ -41,7 +41,7 @@ NODE_REGION=US-Chicago
 HONEYPOT_PSK=d8bc18968a21cfb9982d7970a11f6cad4f9f468587dcdfcfc211937f57f6dbc2
 NODE_AGENT_PSK=655014e5d0bce05bc7bb20258570cf7ac77a956baabc04e77980529b56964a11
 PROXHQ_API=https://8ed1e79f-3fa7-4c82-b61d-7b93cb57936e-00-1arzc3ag01duz.spock.replit.dev
-WG_PORT=51194
+WG_PORT=39285
 EOF
 chmod 600 /etc/proxhq/env
 echo "  Done."
@@ -275,7 +275,7 @@ cat > /etc/nftables.conf << NFTEOF
 #!/usr/sbin/nft -f
 flush ruleset
 table inet filter {
-  set ALLOWED_UDP { type inet_service; elements = { 51194, 53 } }
+  set ALLOWED_UDP { type inet_service; elements = { 39285, 53 } }
   set ALLOWED_TCP { type inet_service; elements = { 8080, 443, 80 } }
   set GHOST_NODE_PORTS { type inet_service; elements = { 51820, 51821, 51822, 1194, 4500, 500 } }
   set GHOST_TRAP_PORTS { type inet_service; elements = { 21, 22, 23, 25, 110, 143, 445, 1433, 3306, 3389, 5432, 5900, 6379, 8443, 9200, 27017 } }
