@@ -290,7 +290,7 @@ router.post("/beacon", async (req, res) => {
   };
 
   const severity = severityMap[body.probeType];
-  const fp = body.fingerprint ?? `IP:${body.attackerIp}|Source:proxhqd`;
+  const fp = body.fingerprint ?? `IP:${body.attackerIp}|Source:node-agent`;
 
   // Auto-trap high/critical probes into the silkweb
   let silkWebTrapped = false;

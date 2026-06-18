@@ -147,18 +147,6 @@ function collectProductionIssues(): ReadinessIssue[] {
     });
   }
 
-  if (
-    isEnabled(process.env.PROXHQ_ENABLE_OMEGA) ||
-    isEnabled(process.env.PROXHQ_ENABLE_OMEGA_PROD)
-  ) {
-    issues.push({
-      code: "OMEGA_ENABLED",
-      severity: "error",
-      message:
-        "Omega must not be enabled on the public production API deployment.",
-    });
-  }
-
   if (process.env.PROXHQ_SKIP_SYSTEM_DEP_CHECK === "1") {
     issues.push({
       code: "SYSTEM_DEP_CHECK_SKIPPED",

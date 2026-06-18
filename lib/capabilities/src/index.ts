@@ -10,7 +10,6 @@ export type Capability =
   | "admin.read"
   | "admin.write"
   | "security_lab.admin"
-  | "omega.admin"
   | "terminal.exec"
   | "sql.exec";
 
@@ -76,12 +75,6 @@ export const capabilityRegistry: Record<Capability, CapabilityMeta> = {
     capability: "security_lab.admin",
     label: "Security Lab Admin",
     description: "Access to isolated security-lab tooling.",
-    risk: "critical",
-  },
-  "omega.admin": {
-    capability: "omega.admin",
-    label: "Omega Admin",
-    description: "Access to isolated Omega control-plane tooling.",
     risk: "critical",
   },
   "terminal.exec": {

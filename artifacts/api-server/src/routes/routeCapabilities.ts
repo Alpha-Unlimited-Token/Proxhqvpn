@@ -31,7 +31,6 @@ export const apiRouteCapabilities: ApiRouteCapability[] = [
   { mountPath: "/pqc", capability: "vpn.read" },
   { mountPath: "/daita", capability: "vpn.read" },
   { mountPath: "/darkweb", capability: "vpn.read" },
-  { mountPath: "/altid", capability: "vpn.read" },
   { mountPath: "/cve", capability: "vpn.read" },
   { mountPath: "/network-monitor", capability: "vpn.read" },
   { mountPath: "/data-broker", capability: "vpn.read" },
@@ -41,7 +40,6 @@ export const apiRouteCapabilities: ApiRouteCapability[] = [
   { mountPath: "/killswitch", capability: "vpn.write" },
   { mountPath: "/split-tunnel", capability: "vpn.write" },
   { mountPath: "/obfuscation", capability: "vpn.write" },
-  { mountPath: "/daemon", capability: "vpn.write" },
   { mountPath: "/vpn-coexist", capability: "vpn.write" },
   { mountPath: "/vpngate", capability: "vpn.write" },
   { mountPath: "/devices", capability: "vpn.write" },
@@ -78,7 +76,6 @@ export const apiRouteCapabilities: ApiRouteCapability[] = [
   { mountPath: "/service-bus", capability: "command_center.read" },
 
   { mountPath: "/security-audit", capability: "command_center.write" },
-  { mountPath: "/tool-runner", capability: "command_center.write" },
   { mountPath: "/alpha", capability: "command_center.write" },
   { mountPath: "/http-probe", capability: "command_center.write" },
   { mountPath: "/attack-chain", capability: "command_center.write" },

@@ -21,8 +21,7 @@ export type RouteGroup =
   | "privacy"
   | "command_center"
   | "security_tools"
-  | "admin"
-  | "omega";
+  | "admin";
 
 export type AppRouteMeta = {
   path: string;
@@ -58,7 +57,6 @@ export const routeRegistry: AppRouteMeta[] = [
   { path: "/pqc", label: "Post Quantum", access: "vpn", group: "privacy", capability: "vpn.read", nav: true, navSection: "Privacy" },
   { path: "/daita", label: "DAITA", access: "vpn", group: "privacy", capability: "vpn.read", nav: true, navSection: "Privacy" },
   { path: "/dark-web", label: "Dark Web Monitor", access: "vpn", group: "privacy", capability: "vpn.read", nav: true, navSection: "Privacy" },
-  { path: "/alt-id", label: "Alt Identity", access: "vpn", group: "privacy", capability: "vpn.read", nav: true, navSection: "Privacy" },
   { path: "/ip-rotator", label: "IP Rotator", access: "vpn", group: "privacy", capability: "vpn.write", nav: true, navSection: "Privacy" },
 
   { path: "/dashboard", label: "Command Center", access: "command_center", group: "command_center", capability: "command_center.read", nav: true, navSection: "Command Center" },
@@ -78,11 +76,6 @@ export const routeRegistry: AppRouteMeta[] = [
   { path: "/employees", label: "Employees", access: "admin", group: "admin", capability: "admin.write", nav: true, navSection: "Admin" },
   { path: "/setup", label: "Setup", access: "admin", group: "admin", capability: "admin.write", nav: true, navSection: "Admin" },
 
-  // Omega routes moved to artifacts/security-console.
-  // Do not expose in customer SPA route registry.
-  { path: "/omega-dashboard", label: "Omega Dashboard", access: "admin", group: "omega", capability: "omega.admin", nav: false, risk: "critical" },
-  { path: "/omega-hosts", label: "Omega Hosts", access: "admin", group: "omega", capability: "omega.admin", nav: false, risk: "critical" },
-  { path: "/omega-file-manager", label: "Omega File Manager", access: "admin", group: "omega", capability: "omega.admin", nav: false, risk: "critical" },
 ];
 
 export function getRouteMeta(path: string): AppRouteMeta | undefined {

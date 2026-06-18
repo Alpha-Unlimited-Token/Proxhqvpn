@@ -1914,33 +1914,6 @@ whois target.com                 # WHOIS data`}</CB>
     ),
   },
   {
-    id: "alt-identity",
-    title: "Alt Identity Generator",
-    icon: User,
-    content: (
-      <div className="space-y-3">
-        <p><strong>Alt Identity</strong> (<code>/alt-identity</code>) generates complete, realistic alternative personas for privacy-critical research, penetration testing, and account compartmentalization. Pairs with IP Rotator and VPN Gate for full operational security. Command Center Pro only.</p>
-        <h4 className="font-bold text-primary text-[11px]">Generated Identity Fields</h4>
-        <div className="grid grid-cols-2 gap-2">
-          {[
-            { cat: "Personal", items: ["Full name (gender/country/locale matched)", "Date of birth (configurable age range)", "SSN-format (non-real, passes format checks)", "Phone number (country prefix matched)"] },
-            { cat: "Address", items: ["Street address (real street, fake number)", "City, state/province, postal code", "Country (matches exit node geo by default)", "Time zone (matched to address)"] },
-            { cat: "Online", items: ["Username (pronounceable, unique style)", "Email address (configurable domain)", "Password (entropy-configurable)", "Security Q&A pairs (5 random sets)"] },
-            { cat: "Payment (Fake)", items: ["Credit card number (Luhn-valid, non-real)", "Expiry date and CVV format", "Bank name (realistic issuer string)", "IBAN / routing number format"] },
-          ].map(({ cat, items }) => (
-            <div key={cat} className="border border-primary/10 rounded px-2.5 py-2">
-              <div className="text-[10px] font-mono font-bold text-primary mb-1">{cat}</div>
-              {items.map(i => <div key={i} className="text-[9px] font-mono text-primary/83">• {i}</div>)}
-            </div>
-          ))}
-        </div>
-        <h4 className="font-bold text-primary text-[11px] mt-3">Saving & Managing Identities</h4>
-        <p className="text-[10px] font-mono text-primary/83">Save up to 10 identities per account. Each saved identity can be given a custom label (e.g. "Research Account 1", "Bug Bounty Persona"). Copy any field individually with one click, or copy the full identity as JSON.</p>
-        <Note type="warn">Alt Identity data is synthetic — it passes format validation checks but is not real. Do not use fake payment details to actually purchase anything — that constitutes fraud. This tool is intended for privacy research and authorized social engineering simulations only.</Note>
-      </div>
-    ),
-  },
-  {
     id: "dark-web-monitor",
     title: "Dark Web Monitor",
     icon: Search,
@@ -2094,40 +2067,6 @@ whois target.com                 # WHOIS data`}</CB>
           <div>• <span className="text-primary/40 font-bold">REVOKED</span> — peer key has been removed from the server config</div>
         </div>
         <Note type="info">VPN Tracker data refreshes every 10 seconds. Click <strong>Force Refresh</strong> to poll all nodes immediately. Use the Export button to download the peer table as CSV for compliance auditing.</Note>
-      </div>
-    ),
-  },
-  {
-    id: "parrot-tools",
-    title: "Parrot OS Tool Library",
-    icon: Layers,
-    content: (
-      <div className="space-y-3">
-        <p><strong>Parrot Tools</strong> (<code>/parrot-tools</code>) is a curated, searchable index of every security tool included in Parrot OS Security Edition — organized by category, with descriptions, command examples, and direct links to the relevant ProxhqVPN tool where applicable. Available on all plans.</p>
-        <h4 className="font-bold text-primary text-[11px]">Tool Categories</h4>
-        <div className="grid grid-cols-2 gap-2">
-          {[
-            { cat: "Information Gathering", items: ["Nmap — port scanner and service fingerprinter", "Maltego — visual OSINT and link analysis", "theHarvester — email/domain OSINT", "Shodan CLI — internet-wide device search", "Subfinder — passive subdomain enumeration"] },
-            { cat: "Vulnerability Analysis", items: ["Nikto — web server vulnerability scanner", "OpenVAS — network vulnerability scanner", "SQLmap — automated SQL injection", "WPScan — WordPress security scanner", "Lynis — system security auditing"] },
-            { cat: "Exploitation", items: ["Metasploit Framework — modular exploit framework", "BeEF — browser exploitation framework", "Exploit-DB searchsploit — offline CVE search", "RouterSploit — embedded device exploits", "Impacket — Windows/SMB exploitation"] },
-            { cat: "Password & Crypto", items: ["Hashcat — GPU-accelerated hash cracking", "John the Ripper — CPU hash cracking", "Hydra — network authentication brute-force", "CrackMapExec — Active Directory auditing", "Aircrack-ng — WiFi WEP/WPA cracking"] },
-            { cat: "Forensics & Reverse Engineering", items: ["Volatility 3 — memory forensics", "Ghidra — NSA disassembler/decompiler", "Autopsy — digital forensics platform", "Wireshark — packet capture and analysis", "Binwalk — firmware extraction"] },
-            { cat: "Social Engineering", items: ["SET (Social Engineering Toolkit) — phishing, credential harvest", "Gophish — phishing campaign management", "Evilginx2 — MITM phishing with 2FA bypass", "King Phisher — email phishing simulation", "Zphisher — ready-made phishing templates"] },
-          ].map(({ cat, items }) => (
-            <div key={cat} className="border border-primary/10 rounded px-2.5 py-2">
-              <div className="text-[10px] font-mono font-bold text-primary mb-1">{cat}</div>
-              {items.map(i => <div key={i} className="text-[9px] font-mono text-primary/83">• {i}</div>)}
-            </div>
-          ))}
-        </div>
-        <h4 className="font-bold text-primary text-[11px] mt-3">How to Use the Library</h4>
-        <ol className="space-y-1 text-[10px] font-mono text-primary/83">
-          <li><span className="text-primary/30">1.</span> Navigate to <code>/parrot-tools</code> and use the search bar to find a tool by name or description.</li>
-          <li><span className="text-primary/30">2.</span> Filter by category using the sidebar filter.</li>
-          <li><span className="text-primary/30">3.</span> Click any tool card to expand the full description, usage examples, and install command.</li>
-          <li><span className="text-primary/30">4.</span> If a ProxhqVPN equivalent exists, the <strong>Use in ProxhqVPN</strong> button links directly to that page.</li>
-        </ol>
-        <Note type="info">The Parrot Tools library is a reference index — it does not install or execute tools on your machine. Use the ProxhqVPN Terminal page or your local Parrot OS installation to run the tools directly.</Note>
       </div>
     ),
   },

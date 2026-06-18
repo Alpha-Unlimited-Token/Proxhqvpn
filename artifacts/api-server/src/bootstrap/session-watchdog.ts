@@ -15,7 +15,7 @@ async function timeoutStaleSessions(): Promise<void> {
       await markNodeSessionError({
         sessionId: session.id,
         errorMessage:
-          "Node daemon not responding. Ensure proxhqd.py is running on the node server with DAEMON_PSK configured and can reach this API.",
+          "Node daemon not responding. Ensure the node agent is running on the node server with DAEMON_PSK configured and can reach this API.",
       });
 
       logger.warn(

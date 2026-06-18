@@ -44,14 +44,6 @@ export function assertSecurityApiReadiness(): void {
       }
     }
 
-    if (!isEnabled(process.env.PROXHQ_ENABLE_OMEGA)) {
-      logger.warn("Security API started with Omega disabled");
-    }
-
-    if (!isEnabled(process.env.PROXHQ_ENABLE_OMEGA_PROD)) {
-      logger.warn("Security API production Omega override disabled");
-    }
-
     if (!isEnabled(process.env.PROXHQ_ENABLE_SECURITY_LAB)) {
       logger.warn("Security API started with Security Lab disabled");
     }

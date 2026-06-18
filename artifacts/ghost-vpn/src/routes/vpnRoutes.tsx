@@ -20,7 +20,6 @@ import OnionBrowser from "@/pages/OnionBrowser";
 import PostQuantum from "@/pages/PostQuantum";
 import Daita from "@/pages/Daita";
 import DarkWebMonitor from "@/pages/DarkWebMonitor";
-import AltIdentity from "@/pages/AltIdentity";
 import IpRotator from "@/pages/IpRotator";
 import GpsSpoofing from "@/pages/GpsSpoofing";
 import PortForwarding from "@/pages/PortForwarding";
@@ -63,7 +62,6 @@ export function VpnRoutes() {
       <Route path="/pqc"><ToolLayout><PostQuantum /></ToolLayout></Route>
       <Route path="/daita"><ToolLayout><Daita /></ToolLayout></Route>
       <Route path="/dark-web"><ToolLayout><DarkWebMonitor /></ToolLayout></Route>
-      <Route path="/alt-id"><ToolLayout><AltIdentity /></ToolLayout></Route>
       <Route path="/ip-rotator"><ToolLayout><IpRotator /></ToolLayout></Route>
 
       <Route path="/gps-spoof"><ToolLayout><GpsSpoofing /></ToolLayout></Route>

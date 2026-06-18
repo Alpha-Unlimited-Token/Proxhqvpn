@@ -7,7 +7,6 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
-const API_TOOL = "/api/tool-runner";
 const API_NODE  = "/api/node-agent";
 const STALE_THRESHOLD_MS = 5 * 60 * 1000;
 
@@ -78,7 +77,7 @@ export default function NodeHealth() {
   async function loadNodes() {
     setLoading(true);
     try {
-      const r = await fetch(`${API_TOOL}/node-agents`, { credentials: "include" });
+      const r = await fetch(`${API_NODE}/nodes`, { credentials: "include" });
       if (!r.ok) {
         const d = await r.json();
         throw new Error(d.error ?? "Failed to load node agents");

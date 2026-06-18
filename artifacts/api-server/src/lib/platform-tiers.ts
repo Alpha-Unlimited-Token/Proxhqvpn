@@ -27,7 +27,6 @@ export const TIER_FEATURES: Record<Tier, string[]> = {
     "pqc",
     "daita",
     "darkweb",
-    "altid",
     "ip_rotator",
     "dedicated_ip",
     "gps_spoof",

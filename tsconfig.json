@@ -13,12 +13,6 @@
       "path": "./lib/api-zod"
     },
     {
-      "path": "./lib/omega-api-client-react"
-    },
-    {
-      "path": "./lib/omega-api-zod"
-    },
-    {
       "path": "./lib/capabilities"
     },
     {

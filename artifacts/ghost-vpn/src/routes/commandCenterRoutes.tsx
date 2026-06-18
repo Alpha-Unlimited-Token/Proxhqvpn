@@ -9,11 +9,6 @@ import BusinessDashboard from "@/pages/BusinessDashboard";
 import SecurityOperationsDashboard from "@/pages/SecurityOperationsDashboard";
 import OnboardingV2 from "@/pages/OnboardingV2";
 import ProxyConfig from "@/pages/ProxyConfig";
-import ToolRunner from "@/pages/ToolRunner";
-import ToolHistory from "@/pages/ToolHistory";
-import ToolScope from "@/pages/ToolScope";
-import ScanScheduler from "@/pages/ScanScheduler";
-import ToolApprovals from "@/pages/ToolApprovals";
 import NodeHealth from "@/pages/NodeHealth";
 import SecurityAudit from "@/pages/SecurityAudit";
 import AiAudit from "@/pages/AiAudit";
@@ -42,7 +37,6 @@ import DepScanner from "@/pages/DepScanner";
 import WsTester from "@/pages/WsTester";
 import SastAnalyzer from "@/pages/SastAnalyzer";
 import QuantumAuditPage from "@/pages/QuantumAudit";
-import GhostPentest from "@/pages/GhostPentest";
 import DeceptionEngine from "@/pages/DeceptionEngine";
 import ThreatBusDashboard from "@/pages/ThreatBusDashboard";
 import GhostTrap from "@/pages/GhostTrap";
@@ -76,12 +70,6 @@ export function CommandCenterRoutes() {
       <Route path="/command-center"><CcLayout><SecurityOperationsDashboard /></CcLayout></Route>
       <Route path="/onboarding"><CcLayout><OnboardingV2 /></CcLayout></Route>
       <Route path="/proxy"><CcLayout><ProxyConfig /></CcLayout></Route>
-      <Route path="/tool-runner"><CcLayout><ToolRunner /></CcLayout></Route>
-      <Route path="/tool-history"><CcLayout><ToolHistory /></CcLayout></Route>
-      <Route path="/tool-scope"><CcLayout><ToolScope /></CcLayout></Route>
-      <Route path="/scan-scheduler"><CcLayout><ScanScheduler /></CcLayout></Route>
-      <Route path="/tool-scheduler"><CcLayout><ScanScheduler /></CcLayout></Route>
-      <Route path="/tool-approvals"><AdminLayout><ToolApprovals /></AdminLayout></Route>
       <Route path="/node-health"><CcLayout><NodeHealth /></CcLayout></Route>
       <Route path="/security-audit"><CcLayout><SecurityAudit /></CcLayout></Route>
       <Route path="/ai-audit"><CcLayout><AiAudit /></CcLayout></Route>
@@ -119,7 +107,6 @@ export function CommandCenterRoutes() {
       <Route path="/sast"><CcLayout><SastAnalyzer /></CcLayout></Route>
       <Route path="/quantum-audit"><CcLayout><QuantumAuditPage /></CcLayout></Route>
 
-      <Route path="/ghost-pentest"><CcLayout><GhostPentest /></CcLayout></Route>
       <Route path="/threat-bus"><CcLayout><ThreatBusDashboard /></CcLayout></Route>
       <Route path="/ghost-trap"><CcLayout><GhostTrap /></CcLayout></Route>
       <Route path="/deception-engine"><CcLayout><DeceptionEngine /></CcLayout></Route>

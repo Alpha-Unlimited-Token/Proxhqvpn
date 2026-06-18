@@ -8169,56 +8169,6 @@ goes through the server — only key exchange).
 Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
   },
 
-  // ── Advanced Privacy Suite ────────────────────────────────────────────────
-  {
-    id: "alt-id-manual",
-    title: "Alternative Identity",
-    subtitle: "Fake Identity Generator for Account Registration",
-    tier: "both",
-    pages: 3,
-    icon: Eye,
-    version: "1.0",
-    iconColor: "text-violet-400",
-    content: `ALTERNATIVE IDENTITY — COMPLETE MANUAL
-ProxhqVPN v1.0 · © 2026 Alpha Unlimited Technologies LLC
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-1. OVERVIEW
-
-Alternative Identity generates realistic but entirely synthetic personal
-identities for use when registering with services that demand personal
-details — protecting your real identity from data breaches and leaks.
-
-Navigate to: Dashboard → Privacy Suite → Alternative Identity (/alt-id)
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-2. GENERATED FIELDS
-
-Each identity includes:
-  • Full name (country-appropriate)
-  • Date of birth (configurable age range)
-  • Address (real city/zip format, fake street)
-  • Phone number (valid prefix, fake subscriber)
-  • Email suggestions (pattern-matched to name)
-  • Username suggestions
-  • Password suggestion (high-entropy)
-  • Security question answers
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-3. USING ALT-IDS SAFELY
-
-  • Track which alt-id you use per service (use a password manager)
-  • Use a separate email alias per service (ProtonMail + aliases)
-  • Combine with IP Rotator to prevent cross-service tracking
-  • Never use alt-id for services requiring legal identity verification
-
-Legal note: Alternative Identity is for privacy protection. Do not
-use to misrepresent yourself in legal or financial contexts.
-
-Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
-  },
   {
     id: "ip-rotator-manual",
     title: "IP Rotator",
@@ -8752,75 +8702,6 @@ Export results as JSON, CSV, or SARIF for integration with CI/CD.
 Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
   },
 
-  // ── Command Center — AI Security Suite ────────────────────────────────────
-  {
-    id: "ghost-pentest-manual",
-    title: "GhostPentest — AI Pentest Engine",
-    subtitle: "Autonomous AI-Directed Penetration Testing",
-    tier: "pro",
-    pages: 5,
-    icon: Shield,
-    version: "1.0",
-    iconColor: "text-blue-400",
-    content: `GHOSTPENTEST — AI PENTEST ENGINE — COMPLETE MANUAL
-ProxhqVPN v1.0 · © 2026 Alpha Unlimited Technologies LLC
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-1. OVERVIEW
-
-GhostPentest is an autonomous AI-directed penetration testing engine.
-It conducts multi-stage reconnaissance, fingerprinting, vulnerability
-discovery, and exploitation attempts — all guided by an AI planner
-that adapts its strategy based on intermediate findings.
-
-Navigate to: Command Center → GhostPentest (/ghost-pentest)
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-2. TESTING STAGES
-
-Stage 1 — Surface Discovery:
-  Subdomain enumeration (9-source passive), port scanning, banner grabbing
-
-Stage 2 — Technology Fingerprinting:
-  Web framework, CMS, server, CDN, WAF detection
-  JavaScript library versions, API endpoints
-
-Stage 3 — Vulnerability Assessment:
-  CVE mapping against fingerprinted versions
-  OWASP Top 10 automated checks
-  Authentication flow analysis
-
-Stage 4 — Exploitation Attempts (with permission only):
-  Safe exploitation of confirmed vulnerabilities
-  Proof-of-concept extraction (e.g. reading /etc/passwd via LFI)
-  Authentication bypass confirmation
-
-Stage 5 — Impact Assessment:
-  CVSS score assignment
-  Business impact narrative
-  Complete pentest report generation
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-3. USAGE
-
-  1. Enter target scope (domain, IP range, or specific URLs)
-  2. Select test depth: Recon Only / Assessment / Full Pentest
-  3. Confirm scope agreement (only test systems you own or have permission)
-  4. Click "Launch GhostPentest"
-  5. Monitor live findings as stages complete
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-4. REPORTS
-
-PDF and JSON reports generated automatically:
-  Executive summary, technical findings, evidence screenshots,
-  CVSS scores, remediation steps, re-test checklist
-
-Copyright © 2026 ALPHA UNLIMITED TECHNOLOGIES LLC`,
-  },
   {
     id: "soc-copilot-manual",
     title: "SOC Copilot — AI Security Operations",
@@ -11377,7 +11258,7 @@ const CATEGORIES = [
     border: "border-violet-900",
     bg: "bg-violet-950/20",
     ids: [
-      "post-quantum-manual", "daita-manual", "alt-id-manual",
+      "post-quantum-manual", "daita-manual",
       "ip-rotator-manual", "data-broker-manual",
     ],
   },
@@ -11404,7 +11285,7 @@ const CATEGORIES = [
     border: "border-purple-900",
     bg: "bg-purple-950/20",
     ids: [
-      "ghost-pentest-manual", "soc-copilot-manual", "code-sentinel-manual", "ai-shield-manual", "request-mind-manual",    ],
+      "soc-copilot-manual", "code-sentinel-manual", "ai-shield-manual", "request-mind-manual",    ],
   },
   {
     label: "Blockchain Security",

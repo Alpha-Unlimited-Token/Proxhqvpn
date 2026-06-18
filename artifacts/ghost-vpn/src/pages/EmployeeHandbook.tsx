@@ -194,7 +194,6 @@ const SECTIONS: Section[] = [
         </div>
         <CB label="safe diagnostic commands">{`wg show                         # WireGuard status
 journalctl -u wg-quick@wg0 -n 50  # Recent logs
-systemctl status proxhqd        # Daemon status
 df -h && free -m                # Disk and RAM
 ss -tupn | grep LISTEN          # Listening ports`}</CB>
       </div>
@@ -532,32 +531,6 @@ ProxhqVPN Support | support@proxhqvpn.com`}</CB>
           </div>
         ))}
         <Note type="warn">Sales materials are for internal and authorized ambassador use only. Do not distribute externally without explicit admin approval.</Note>
-      </div>
-    ),
-  },
-  {
-    id: "omega-dashboard", title: "Omega Admin Dashboard", icon: Activity,
-    content: (
-      <div className="space-y-3">
-        <p>The <strong>Omega Dashboard</strong> is the administrative analytics and subscriber management interface, accessible at <code>/omega-dashboard/</code>. This is a separate artifact from the main ProxhqVPN app — admin-only access.</p>
-        <h4 className="font-bold text-primary text-[11px]">Key Admin Capabilities</h4>
-        <div className="space-y-2">
-          {[
-            { t: "Subscriber Management", d: "View all active subscribers, their plan tier (VPN Basic vs Command Center Pro), billing cycle, join date, Clerk user ID, and subscription status. Filter and search by email, plan, or date." },
-            { t: "Revenue Analytics", d: "Monthly Recurring Revenue (MRR), Annual Recurring Revenue (ARR), churn rate, new subscriber trend, plan distribution breakdown. Data sourced live from Stripe API." },
-            { t: "Ambassador Program", d: "All ambassador accounts: promo codes, referral counts, commission earned, approval status. Approve pending applications, edit commission rates, and view referral attribution per subscriber." },
-            { t: "Employee Management", d: "All employee accounts with their access tier and last login. Add or remove employees. Set access permissions per employee." },
-            { t: "User Plan Override", d: "Manually upgrade or downgrade any subscriber's plan tier — used for support cases, extended trials, or correcting Stripe sync issues." },
-          ].map(({ t, d }) => (
-            <div key={t} className="border border-primary/10 rounded px-3 py-2">
-              <div className="text-[10px] font-mono font-bold text-primary">{t}</div>
-              <div className="text-[9px] font-mono text-primary/83 mt-0.5">{d}</div>
-            </div>
-          ))}
-        </div>
-        <h4 className="font-bold text-primary text-[11px] mt-3">Access</h4>
-        <p className="text-[10px] font-mono text-primary/83">Omega Dashboard is only accessible to accounts with <code>isAdmin: true</code> in the employees table. If you cannot access it, contact <a href="mailto:alphaunlimitedtechnologies@gmail.com" className="text-primary hover:underline">alphaunlimitedtechnologies@gmail.com</a> for access provisioning. Do not share the dashboard URL publicly.</p>
-        <Note type="warn">All actions in the Omega Dashboard (plan overrides, ambassador approvals, employee additions) are logged. Unauthorized modifications to subscriber data are a security policy violation.</Note>
       </div>
     ),
   },

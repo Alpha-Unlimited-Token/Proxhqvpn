@@ -81,7 +81,7 @@ async function streamAI(
   return full;
 }
 
-// ── 1. GhostPentest (PentestGPT-inspired) — streaming SSE ─────────────────
+// ── 1. AI Security Assessment — streaming SSE ─────────────────────────────
 router.post("/pentest", requireRbac("counter_attack"), async (req, res) => {
   const body = z.object({
     target: z.string().min(1).max(500),
@@ -95,7 +95,7 @@ router.post("/pentest", requireRbac("counter_attack"), async (req, res) => {
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
 
-  const systemPrompt = `You are GhostPentest — an AI-powered penetration testing engine for authorized security testing. You help developers and security professionals audit their own infrastructure. Always emphasize that testing requires authorization. Output structured JSON phases.`;
+  const systemPrompt = `You are an AI-powered security assessment engine for authorized testing. You help developers and security professionals audit their own infrastructure. Always emphasize that testing requires explicit authorization. Output structured JSON phases.`;
 
   const userPrompt = `Perform a ${phase === "full" ? "complete multi-phase" : phase} security assessment on target: ${target}
 ${context ? `Additional context: ${context}` : ""}

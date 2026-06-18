@@ -153,25 +153,25 @@ echo "   Region: $REGION"
 echo "========================================"
 echo ""
 
-echo "[0/7] Waiting for system to be ready..."
+echo "[0/5] Waiting for system to be ready..."
 sleep 5
 systemctl is-active --quiet cloud-init-local 2>/dev/null && sleep 10
 ok
 
-echo "[1/7] Installing WireGuard..."
+echo "[1/5] Installing WireGuard..."
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq 2>&1 | tail -1 || true
 apt-get install -y wireguard wireguard-tools openvpn curl python3 iptables 2>&1 | grep -E "^(Err|W:|E:)" || true
 which wg > /dev/null 2>&1 || die "WireGuard failed to install. Try: apt-get install wireguard"
 ok
 
-echo "[2/7] Generating WireGuard keys..."
+echo "[2/5] Generating WireGuard keys..."
 SERVER_PRIVKEY=$(wg genkey) || die "Failed to generate WireGuard private key"
 SERVER_PUBKEY=$(echo "$SERVER_PRIVKEY" | wg pubkey) || die "Failed to derive public key"
 echo "  Public key: $SERVER_PUBKEY"
 ok
 
-echo "[3/7] Detecting public IP..."
+echo "[3/5] Detecting public IP..."
 PUBLIC_IP=$(curl -sf --max-time 8 https://api.ipify.org 2>/dev/null) \\
   || PUBLIC_IP=$(curl -sf --max-time 8 https://ipinfo.io/ip 2>/dev/null) \\
   || PUBLIC_IP=$(curl -sf --max-time 8 https://icanhazip.com 2>/dev/null)
@@ -179,7 +179,7 @@ PUBLIC_IP=$(curl -sf --max-time 8 https://api.ipify.org 2>/dev/null) \\
 echo "  IP: $PUBLIC_IP"
 ok
 
-echo "[4/7] Registering node with ProxhqVPN..."
+echo "[4/5] Registering node with ProxhqVPN..."
 [ -z "$ENROLL_TOKEN" ] && die "ENROLL_TOKEN is required. Generate one in the admin panel → Nodes → Node Enrollment."
 PAYLOAD='{"token":"'"$ENROLL_TOKEN"'","nodeId":"'"$HOSTNAME"'","publicKey":"'"$SERVER_PUBKEY"'","region":"'"$REGION"'","publicIp":"'"$PUBLIC_IP"'"}'
 RESPONSE=$(curl -sf --max-time 15 -X POST "$API/node-enrollment/claim" \\
@@ -191,7 +191,7 @@ SERVER_VPN_IP=$(echo "$RESPONSE" | python3 -c "import sys,json; d=json.load(sys.
 echo "  Node ID: $NODE_ID | VPN IP: $SERVER_VPN_IP"
 ok
 
-echo "[5/7] Configuring WireGuard..."
+echo "[5/5] Configuring WireGuard..."
 mkdir -p /etc/wireguard
 cat > /etc/wireguard/wg0.conf << WGEOF
 [Interface]
@@ -206,33 +206,6 @@ grep -q "net.ipv4.ip_forward=1" /etc/sysctl.conf || echo "net.ipv4.ip_forward=1"
 sysctl -w net.ipv4.ip_forward=1 -q
 systemctl enable wg-quick@wg0 2>/dev/null || true
 systemctl restart wg-quick@wg0 || die "WireGuard failed to start — check /etc/wireguard/wg0.conf"
-ok
-
-echo "[6/7] Installing ProxhqVPN daemon..."
-curl -sf --max-time 15 "$API/daemon-download" -o /usr/local/bin/proxhqd.py || die "Failed to download daemon from $API/daemon-download"
-chmod +x /usr/local/bin/proxhqd.py
-ok
-
-echo "[7/7] Starting daemon service..."
-cat > /etc/systemd/system/proxhqd.service << SVCEOF
-[Unit]
-Description=ProxhqVPN Daemon
-After=network.target wg-quick@wg0.service
-Wants=wg-quick@wg0.service
-
-[Service]
-ExecStart=/usr/bin/python3 /usr/local/bin/proxhqd.py --api \${API} --node-id \${NODE_ID}
-Restart=always
-RestartSec=30
-StandardOutput=journal
-StandardError=journal
-
-[Install]
-WantedBy=multi-user.target
-SVCEOF
-systemctl daemon-reload
-systemctl enable proxhqd
-systemctl restart proxhqd
 ok
 
 echo ""

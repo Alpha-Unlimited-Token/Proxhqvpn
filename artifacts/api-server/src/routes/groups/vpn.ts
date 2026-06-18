@@ -22,7 +22,6 @@ import proxyBrowserRouter from "../proxybrowser";
 import pqcRouter from "../pqc";
 import daitaRouter from "../daita";
 import darkwebRouter from "../darkweb";
-import altidRouter from "../altid";
 import iprotatorRouter from "../iprotator";
 import cveSearchRouter from "../cvesearch";
 import ghostTrapRouter from "../ghosttrap";
@@ -71,7 +70,6 @@ registerVpnRoute(router, "/proxy-browser", "vpn.read", proxyBrowserRouter);
 registerVpnRoute(router, "/pqc", "vpn.read", pqcRouter);
 registerVpnRoute(router, "/daita", "vpn.read", daitaRouter);
 registerVpnRoute(router, "/darkweb", "vpn.read", darkwebRouter);
-registerVpnRoute(router, "/altid", "vpn.read", altidRouter);
 registerVpnRoute(router, "/iprotator", "vpn.write", iprotatorRouter);
 
 registerVpnRoute(router, "/cve", "vpn.read", cveSearchRouter);

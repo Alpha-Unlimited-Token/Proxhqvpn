@@ -28,7 +28,7 @@ export function createNodeBootstrapManifest(input: {
     apiBase: input.apiBase,
     region: input.region ?? null,
     requiredPackages: ["wireguard", "wireguard-tools", "curl", "python3"],
-    serviceName: "proxhqd",
+    serviceName: "proxhq-node",
     generatedAt: generatedAt.toISOString(),
     expiresAt: expiresAt.toISOString(),
   };
