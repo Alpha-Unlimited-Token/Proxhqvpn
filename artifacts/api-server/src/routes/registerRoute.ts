@@ -3,6 +3,7 @@ import type { Router, RequestHandler } from "express";
 import type { Capability } from "@workspace/capabilities";
 import { requireCapability } from "../middlewares/requireCapability";
 import { apiRouteCapabilities } from "./routeCapabilities";
+import { logger } from "../lib/logger";
 
 export function registerRoute(
   router: Router,
@@ -15,8 +16,9 @@ export function registerRoute(
   );
 
   if (!alreadyMapped && process.env.NODE_ENV !== "production") {
-    console.warn(
-      `[route-capability] ${mountPath} mounted with ${capability} but missing from apiRouteCapabilities`,
+    logger.warn(
+      { mountPath, capability },
+      "[route-capability] route mounted but missing from apiRouteCapabilities",
     );
   }
 

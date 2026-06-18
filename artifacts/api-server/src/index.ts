@@ -8,6 +8,7 @@ import { initStripeRuntime } from "./bootstrap/stripe";
 import { seedRuntimeData } from "./bootstrap/seed";
 import { startRuntimeWorkers } from "./bootstrap/workers";
 import { assertProductionReadiness } from "./bootstrap/production-readiness";
+import { seedChainFromDb } from "./lib/audit-chain";
 
 function getPort(): number {
   const rawPort = process.env.PORT;
@@ -33,6 +34,7 @@ async function bootstrap(): Promise<void> {
 
   await initStripeRuntime();
   await loadDaemonBansFromDb();
+  await seedChainFromDb();
 
   seedRuntimeData();
   startSessionWatchdog();

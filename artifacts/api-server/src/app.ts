@@ -45,14 +45,16 @@ app.post(
 
 const ALLOWED_ORIGINS: Array<string | RegExp> = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(",").map((o) => o.trim())
-  : [
-      "http://localhost",
-      "http://localhost:3000",
-      "http://localhost:5173",
-      /\.replit\.dev$/,
-      /\.repl\.co$/,
-      /\.replit\.app$/,
-    ];
+  : (() => {
+      if (process.env.NODE_ENV === "production") {
+        logger.warn("ALLOWED_ORIGINS not set in production — using Replit domain allowlist only. Set ALLOWED_ORIGINS to restrict further.");
+      }
+      return [
+        /\.replit\.dev$/,
+        /\.repl\.co$/,
+        /\.replit\.app$/,
+      ];
+    })();
 
 app.set("trust proxy", 1);
 
@@ -78,14 +80,16 @@ app.use(
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "https://clerk.accounts.dev", "https://*.clerk.accounts.dev"],
+        scriptSrc: ["'self'", "https://clerk.accounts.dev", "https://challenges.cloudflare.com"],
         styleSrc: ["'self'", "https://fonts.googleapis.com"],
         imgSrc: ["'self'", "data:", "https://img.clerk.com", "https://*.clerk.com"],
-        connectSrc: ["'self'", "https://clerk.accounts.dev", "https://*.clerk.accounts.dev", "https://api.clerk.com"],
+        connectSrc: ["'self'", "https://clerk.accounts.dev", "https://api.clerk.com"],
         fontSrc: ["'self'", "https://fonts.gstatic.com"],
         objectSrc: ["'none'"],
+        baseUri: ["'self'"],
         frameSrc: ["'none'"],
         frameAncestors: ["'none'"],
+        upgradeInsecureRequests: [],
       },
     },
     crossOriginEmbedderPolicy: false,
@@ -201,6 +205,12 @@ app.use((_req: Request, res: Response, next: NextFunction) => {
 // Blocks the most common vector for prototype pollution attacks.
 function sanitizeObject(obj: unknown, depth = 0): void {
   if (!obj || typeof obj !== "object" || depth > 10) return;
+  // Only recurse into plain objects — skip Arrays, Dates, Buffers, etc.
+  if (Array.isArray(obj)) {
+    for (const item of obj) sanitizeObject(item, depth + 1);
+    return;
+  }
+  if (Object.getPrototypeOf(obj) !== Object.prototype) return;
   const o = obj as Record<string, unknown>;
   for (const key of Object.keys(o)) {
     if (key === "__proto__" || key === "constructor" || key === "prototype") {
@@ -208,7 +218,7 @@ function sanitizeObject(obj: unknown, depth = 0): void {
       logger.warn({ key }, "Prototype pollution attempt blocked");
       continue;
     }
-    if (typeof o[key] === "object") sanitizeObject(o[key], depth + 1);
+    if (o[key] !== null && typeof o[key] === "object") sanitizeObject(o[key], depth + 1);
   }
 }
 app.use((req: Request, _res: Response, next: NextFunction) => {
@@ -350,6 +360,7 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 app.use("/api/terminal",        terminalLimiter);
 app.use("/api/daemon-inbound",  daemonLimiter);
 app.use("/api/sql", sqlLimiter);
+app.use("/api/node-provision",  mutateLimiter);
 app.use("/api/nodes", (req: Request, res: Response, next: NextFunction) => {
   if (["POST", "PUT", "DELETE"].includes(req.method)) return mutateLimiter(req, res, next);
   next();

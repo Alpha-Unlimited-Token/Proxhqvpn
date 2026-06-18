@@ -63,7 +63,6 @@ export const ALLOWED_COMMAND_STARTS: string[] = [
   "find /tmp", "find /var/log", "find /etc/wireguard",
   // Scripting/execution (limited)
   "python3 -c", "python -c", "node -e", "node --eval",
-  "bash -c 'curl", "bash -c 'dig", "bash -c 'nmap",
   // File read (not write)
   "cat /etc/os-release", "cat /proc/version", "cat /proc/cpuinfo",
   "cat /etc/wireguard", "cat /var/log/",
@@ -80,8 +79,7 @@ export const ALLOWED_COMMAND_STARTS: string[] = [
   "openssl x509", "openssl s_client", "openssl verify",
   // ProxhqVPN specific
   "ghostnet", "python3 tun_daemon",
-  // Security tools
-  "nikto", "sqlmap --level=1", "hydra -I",
+  // Packet capture (read-only, no credential scanners)
   "tcpdump -i", "tshark -i",
   // General utilities
   "env", "printenv", "which", "whereis", "type",

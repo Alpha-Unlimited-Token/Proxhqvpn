@@ -38,15 +38,21 @@ import {
   getTerminalJob,
   listTerminalJobs,
 } from "../lib/terminal-jobs";
+import { requireAdmin } from "../middlewares/requireAdmin";
 
 const router = Router();
 
 // ─── Audit log ───────────────────────────────────────────────────────────────
+const AUDIT_LOG_MAX = 500;
 const auditLog: { ts: string; cmd: string; exitCode: number; ip: string }[] = [];
 
+function pushAuditLog(entry: { ts: string; cmd: string; exitCode: number; ip: string }): void {
+  auditLog.push(entry);
+  if (auditLog.length > AUDIT_LOG_MAX) auditLog.shift();
+}
 
-// ─── GET audit log ────────────────────────────────────────────────────────────
-router.get("/audit-log", (_req, res) => {
+// ─── GET audit log — admin only ───────────────────────────────────────────────
+router.get("/audit-log", requireAdmin, (_req, res) => {
   res.json({ log: auditLog.slice(-200), total: auditLog.length });
 });
 

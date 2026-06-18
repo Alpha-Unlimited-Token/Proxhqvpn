@@ -5,6 +5,7 @@ import { db } from "@workspace/db";
 import { appendAuditEvent } from "../lib/audit-chain";
 import { shipSecurityEvent } from "../lib/siem";
 import { requireRbac } from "../middlewares/requireRbac";
+import { requireAdmin } from "../middlewares/requireAdmin";
 import {
   honeypotNodesTable,
   honeypotAttackersTable,
@@ -21,7 +22,7 @@ import crypto from "crypto";
 const router = Router();
 
 // ── Stats ─────────────────────────────────────────────────────────────────────
-router.get("/stats", async (req, res) => {
+router.get("/stats", requireAdmin, async (req, res) => {
   const [nodeStats] = await db
     .select({ total: count(), active: sql<number>`count(*) filter (where ${honeypotNodesTable.status} = 'active')` })
     .from(honeypotNodesTable);
@@ -81,7 +82,7 @@ router.get("/stats", async (req, res) => {
 });
 
 // ── Nodes ─────────────────────────────────────────────────────────────────────
-router.get("/nodes", async (_req, res) => {
+router.get("/nodes", requireAdmin, async (_req, res) => {
   const nodes = await db.select().from(honeypotNodesTable).orderBy(desc(honeypotNodesTable.createdAt));
   res.json(nodes);
 });
@@ -150,7 +151,7 @@ router.delete("/nodes/:id", requireRbac("honeypot_admin"), async (req, res) => {
 });
 
 // ── Attackers ─────────────────────────────────────────────────────────────────
-router.get("/attackers", async (req, res) => {
+router.get("/attackers", requireAdmin, async (req, res) => {
   const limit = Math.min(Number(req.query.limit ?? 50), 200);
   const offset = Number(req.query.offset ?? 0);
   const [{ total }] = await db.select({ total: count() }).from(honeypotAttackersTable);
@@ -163,7 +164,7 @@ router.get("/attackers", async (req, res) => {
   res.json({ attackers, total: Number(total) });
 });
 
-router.get("/attackers/:id", async (req, res) => {
+router.get("/attackers/:id", requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
   const [attacker] = await db.select().from(honeypotAttackersTable).where(eq(honeypotAttackersTable.id, id));
   if (!attacker) return res.status(404).json({ error: "Not found" });
@@ -171,7 +172,7 @@ router.get("/attackers/:id", async (req, res) => {
 });
 
 // ── Sessions ──────────────────────────────────────────────────────────────────
-router.get("/sessions", async (req, res) => {
+router.get("/sessions", requireAdmin, async (req, res) => {
   const limit = Math.min(Number(req.query.limit ?? 50), 200);
   const offset = Number(req.query.offset ?? 0);
   const attackerId = req.query.attackerId ? Number(req.query.attackerId) : undefined;
@@ -206,7 +207,7 @@ router.get("/sessions", async (req, res) => {
   res.json({ sessions, total: Number(total) });
 });
 
-router.get("/sessions/:id", async (req, res) => {
+router.get("/sessions/:id", requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
   const [row] = await db
     .select()
@@ -223,7 +224,7 @@ router.get("/sessions/:id", async (req, res) => {
 });
 
 // ── Commands ──────────────────────────────────────────────────────────────────
-router.get("/commands", async (req, res) => {
+router.get("/commands", requireAdmin, async (req, res) => {
   const limit = Math.min(Number(req.query.limit ?? 100), 500);
   const offset = Number(req.query.offset ?? 0);
   const sessionId = req.query.sessionId ? Number(req.query.sessionId) : undefined;
@@ -242,7 +243,7 @@ router.get("/commands", async (req, res) => {
 });
 
 // ── Files ─────────────────────────────────────────────────────────────────────
-router.get("/files", async (req, res) => {
+router.get("/files", requireAdmin, async (req, res) => {
   const limit = Math.min(Number(req.query.limit ?? 50), 200);
   const offset = Number(req.query.offset ?? 0);
   const [{ total }] = await db.select({ total: count() }).from(honeypotFilesTable);
@@ -256,7 +257,7 @@ router.get("/files", async (req, res) => {
 });
 
 // ── IOCs ──────────────────────────────────────────────────────────────────────
-router.get("/iocs", async (req, res) => {
+router.get("/iocs", requireAdmin, async (req, res) => {
   const type = req.query.type as string | undefined;
   const whereClause = type ? eq(honeypotIocsTable.type, type) : undefined;
   const iocs = await db.select().from(honeypotIocsTable).where(whereClause).orderBy(desc(honeypotIocsTable.lastSeenAt));
@@ -286,7 +287,7 @@ router.delete("/iocs/:id", requireRbac("honeypot_admin"), async (req, res) => {
 });
 
 // ── Alerts ────────────────────────────────────────────────────────────────────
-router.get("/alerts", async (req, res) => {
+router.get("/alerts", requireAdmin, async (req, res) => {
   const acknowledged = req.query.acknowledged === "true" ? true : req.query.acknowledged === "false" ? false : undefined;
   const whereClause = acknowledged !== undefined ? eq(honeypotAlertsTable.acknowledged, acknowledged) : undefined;
   const alerts = await db

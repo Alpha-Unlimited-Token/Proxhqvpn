@@ -4,6 +4,31 @@
 
 import { logger } from "./logger";
 
+const SIEM_MAX_RETRIES = 2;
+const SIEM_RETRY_DELAY_MS = 500;
+
+async function fetchWithRetry(
+  url: string,
+  init: Omit<RequestInit, "signal">,
+  retries = SIEM_MAX_RETRIES,
+): Promise<Response> {
+  let lastErr: unknown;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      // Fresh AbortSignal per attempt — a spent signal causes immediate abort on retry
+      const resp = await fetch(url, { ...init, signal: AbortSignal.timeout(8000) });
+      if (resp.ok || resp.status < 500) return resp; // 4xx = config error, no retry
+      lastErr = new Error(`HTTP ${resp.status}`);
+    } catch (err) {
+      lastErr = err;
+    }
+    if (attempt < retries) {
+      await new Promise((r) => setTimeout(r, SIEM_RETRY_DELAY_MS * (attempt + 1)));
+    }
+  }
+  throw lastErr;
+}
+
 export interface SiemEvent {
   actor: string;
   action: string;
@@ -31,20 +56,19 @@ export async function sendToSplunk(event: SiemEvent): Promise<void> {
   });
 
   try {
-    const resp = await fetch(SPLUNK_HEC_URL, {
+    const resp = await fetchWithRetry(SPLUNK_HEC_URL, {
       method: "POST",
       headers: {
         authorization: `Splunk ${SPLUNK_HEC_TOKEN}`,
         "content-type": "application/json",
       },
       body: payload,
-      signal: AbortSignal.timeout(5000),
     });
     if (!resp.ok) {
-      logger.warn({ status: resp.status }, "Splunk HEC delivery failed");
+      logger.warn({ status: resp.status }, "Splunk HEC delivery failed after retries");
     }
   } catch (err) {
-    logger.warn({ err }, "Splunk HEC unreachable — event not shipped");
+    logger.warn({ err }, "Splunk HEC unreachable after retries — event not shipped");
   }
 }
 
@@ -57,7 +81,7 @@ export async function sendToSiemWebhook(event: SiemEvent): Promise<void> {
   if (!SIEM_WEBHOOK_URL) return;
 
   try {
-    const resp = await fetch(SIEM_WEBHOOK_URL, {
+    const resp = await fetchWithRetry(SIEM_WEBHOOK_URL, {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -65,13 +89,12 @@ export async function sendToSiemWebhook(event: SiemEvent): Promise<void> {
         "x-proxhqvpn-source": "audit",
       },
       body: JSON.stringify({ ts: new Date().toISOString(), ...event }),
-      signal: AbortSignal.timeout(5000),
     });
     if (!resp.ok) {
-      logger.warn({ status: resp.status }, "SIEM webhook delivery failed");
+      logger.warn({ status: resp.status }, "SIEM webhook delivery failed after retries");
     }
   } catch (err) {
-    logger.warn({ err }, "SIEM webhook unreachable — event not shipped");
+    logger.warn({ err }, "SIEM webhook unreachable after retries — event not shipped");
   }
 }
 

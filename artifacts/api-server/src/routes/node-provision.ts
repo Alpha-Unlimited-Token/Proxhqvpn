@@ -1,5 +1,6 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { Router, type Request, type Response } from "express";
+import crypto from "crypto";
 import { db } from "@workspace/db";
 import { nodesTable } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
@@ -10,7 +11,12 @@ const PSK = process.env.DAEMON_PSK;
 
 function checkPsk(req: Request, res: Response): boolean {
   if (!PSK) { res.status(500).json({ error: "DAEMON_PSK not configured" }); return false; }
-  if (req.headers["x-daemon-psk"] !== PSK) { res.status(401).json({ error: "Invalid PSK" }); return false; }
+  const header = String(req.headers["x-daemon-psk"] ?? "");
+  // Timing-safe comparison — prevents character-by-character oracle attacks
+  if (header.length !== PSK.length) { res.status(401).json({ error: "Invalid PSK" }); return false; }
+  const provided = Buffer.from(header);
+  const expected = Buffer.from(PSK);
+  if (!crypto.timingSafeEqual(provided, expected)) { res.status(401).json({ error: "Invalid PSK" }); return false; }
   return true;
 }
 

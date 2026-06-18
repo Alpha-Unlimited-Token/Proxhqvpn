@@ -1,5 +1,6 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { Router } from "express";
+import crypto from "crypto";
 import { pool } from "@workspace/db";
 import { z } from "zod";
 import { Pool as PgPool, type PoolConfig } from "pg";
@@ -76,7 +77,7 @@ router.post("/connect", async (req, res) => {
     ssl: z.boolean().optional().default(false),
   }).parse(req.body);
 
-  const id = Math.random().toString(36).slice(2, 10);
+  const id = crypto.randomUUID().replace(/-/g, "").slice(0, 16);
 
   // Enforce connection limit
   if (extConns.size >= 10) {

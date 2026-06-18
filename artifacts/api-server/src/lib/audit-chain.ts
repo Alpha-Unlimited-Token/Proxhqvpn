@@ -1,8 +1,11 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 // Tamper-evident SHA3-256 hash-chain audit ledger with HMAC-SHA512 signing.
 // Upgraded from SHA-256 to SHA3-256 per gap bridge audit (2026-06-09).
-// Provides: append(), verifyChain(), currentChainTip(), and AuditLedger class.
+// Provides: append(), verifyChain(), currentChainTip(), seedChainFromDb(), and AuditLedger class.
 import crypto from "crypto";
+import { db } from "@workspace/db";
+import { auditLogAppendOnlyTable } from "@workspace/db";
+import { desc } from "drizzle-orm";
 
 export interface AuditEvent {
   actor: string;       // userId, "daemon:<nodeId>", or "system"
@@ -100,6 +103,29 @@ export function verifyChain(
 
 /** Current chain tip hash — use as prevHash seed after process restart. */
 export function currentChainTip(): string { return _prevHash; }
+
+/**
+ * Seed the in-process chain state from the last persisted row in the DB.
+ * Call once during server startup — before any appendAuditEvent() calls —
+ * so the in-memory chain continues from the last persisted hash rather than
+ * restarting from GENESIS on every process restart (which breaks chain continuity).
+ */
+export async function seedChainFromDb(): Promise<void> {
+  try {
+    const [last] = await db
+      .select()
+      .from(auditLogAppendOnlyTable)
+      .orderBy(desc(auditLogAppendOnlyTable.seq))
+      .limit(1);
+
+    if (last) {
+      _seq = last.seq;
+      _prevHash = last.hash;
+    }
+  } catch {
+    // Non-fatal: if the table doesn't exist yet (first boot), start from GENESIS
+  }
+}
 
 /**
  * Class-based ledger for use where multiple independent chains are needed

@@ -3,6 +3,7 @@
 // All write/admin routes require ghost_node_admin RBAC action.
 // Ghost Trap Rules CRUD included here.
 import { Router } from "express";
+import { logger } from "../lib/logger";
 import { db } from "@workspace/db";
 import {
   ghostNodesTable, ghostNodeEventsTable, ghostNodeRoutesTable,
@@ -480,7 +481,7 @@ router.post("/escalate-to-firewall", requireRbac("ghost_node_admin"), async (req
     body: JSON.stringify({ ip, reason, nodeId }),
   }).catch((err: Error) => {
     // Non-fatal: event is already persisted above
-    console.error("[ghost-node] escalate-to-firewall loopback failed:", err.message);
+    logger.error({ err }, "[ghost-node] escalate-to-firewall loopback failed");
   });
 
   await appendAuditEvent({
