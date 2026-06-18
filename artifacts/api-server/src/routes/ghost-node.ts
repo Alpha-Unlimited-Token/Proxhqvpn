@@ -437,4 +437,60 @@ router.get("/:id/wg-stats", requireRbac("ghost_node_admin"), async (req, res) =>
   res.json(stats);
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// ── Threat Bus Integration — Layer 3 escalation endpoint ──────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+
+import { threatBusEventsTable } from "@workspace/db";
+import { bus } from "../lib/service-bus";
+
+const EscalateToFirewallSchema = z.object({
+  ip:     z.string().ip(),
+  nodeId: z.string().max(100).optional(),
+  reason: z.string().max(500).optional(),
+});
+
+// POST /api/ghost-nodes/escalate-to-firewall
+// Layer 3 → Layer 1: Ghost Node detected active exploitation — hard-block at firewall.
+router.post("/escalate-to-firewall", requireRbac("ghost_node_admin"), async (req, res) => {
+  const parse = EscalateToFirewallSchema.safeParse(req.body);
+  if (!parse.success) return res.status(400).json({ error: parse.error.flatten() });
+  const { ip, nodeId, reason } = parse.data;
+
+  const [ev] = await db.insert(threatBusEventsTable).values({
+    eventType:   "HARD_BLOCK_ENFORCED",
+    sourceLayer: "ghost_nodes",
+    targetLayer: "firewall",
+    attackerIp:  ip,
+    reason: reason ?? `Ghost Node ${nodeId ?? "unknown"} detected active exploitation`,
+    payload: nodeId ? { nodeId } : null,
+  }).returning();
+
+  bus.publish("ghost_node.escalate_firewall", { ip, nodeId, reason }, "ghost-nodes");
+
+  // Fan out to firewall block-from-ghost-node internally via HTTP
+  // (loopback call so the firewall route handles audit + DB write)
+  const port = process.env.PORT ?? "8080";
+  fetch(`http://localhost:${port}/api/firewall/block-from-ghost-node`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Internal-Secret": process.env.INTERNAL_SECRET ?? "",
+    },
+    body: JSON.stringify({ ip, reason, nodeId }),
+  }).catch((err: Error) => {
+    // Non-fatal: event is already persisted above
+    console.error("[ghost-node] escalate-to-firewall loopback failed:", err.message);
+  });
+
+  await appendAuditEvent({
+    action:   "ghost_nodes.escalate_firewall",
+    actor:    req.ip ?? "unknown",
+    resource: ip,
+    metadata: { nodeId, reason },
+  });
+
+  return res.json({ ok: true, event: ev });
+});
+
 export default router;

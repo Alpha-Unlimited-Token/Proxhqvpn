@@ -2,6 +2,7 @@
 import { Link, useLocation } from "wouter";
 
 const NAV_ITEMS: [string, string][] = [
+  ["/threat-bus",        "Threat Bus"],
   ["/ghost-trap",        "Ghost Trap"],
   ["/ghost-nodes",       "Ghost Nodes"],
   ["/ghost-trace",       "Ghost Trace"],

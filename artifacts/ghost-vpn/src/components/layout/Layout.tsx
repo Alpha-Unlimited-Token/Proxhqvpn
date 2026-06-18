@@ -198,6 +198,7 @@ const TIER_COLOR: Record<1 | 2 | 3, string> = {
 
 const ADVANCED_NAV = [
   { href: "/security-ops",     label: "Security Operations Center", icon: Eye },
+  { href: "/threat-bus",       label: "Threat Bus — Live Escalations", icon: Zap },
   { href: "/ghost-trap",       label: "Ghost Trap — Counter Intel", icon: Skull },
   { href: "/ghost-trap-ops",   label: "Ghost Trap Dashboard",       icon: Shield },
   { href: "/ghost-nodes",      label: "Ghost Nodes",                icon: Network },

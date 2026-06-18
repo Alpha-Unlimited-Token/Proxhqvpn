@@ -2105,4 +2105,48 @@ router.get("/intel/:ip", requireRbac("counter_attack"), async (req, res) => {
   });
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// ── Threat Bus Integration — Layer 2 escalation endpoint ──────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+
+import { threatBusEventsTable } from "@workspace/db";
+import { bus } from "../lib/service-bus";
+import { z as _z } from "zod";
+
+const EscalateToGhostNodeSchema = _z.object({
+  ip:           _z.string().ip(),
+  threatScore:  _z.number().int().min(0).max(100).optional(),
+  evidenceId:   _z.number().int().optional(),
+  reason:       _z.string().max(500).optional(),
+});
+
+// POST /api/ghost-trap/escalate-to-ghost-node
+// Layer 2 → Layer 3: Ghost Trap captured entity — activate Ghost Node deception.
+router.post("/escalate-to-ghost-node", requireRbac("honeypot_admin"), async (req, res) => {
+  const parse = EscalateToGhostNodeSchema.safeParse(req.body);
+  if (!parse.success) return res.status(400).json({ error: parse.error.flatten() });
+  const { ip, threatScore, evidenceId, reason } = parse.data;
+
+  const [ev] = await db.insert(threatBusEventsTable).values({
+    eventType:   "ENTITY_TRAPPED",
+    sourceLayer: "ghost_trap",
+    targetLayer: "ghost_nodes",
+    attackerIp:  ip,
+    threatScore: threatScore ?? null,
+    reason: reason ?? `Ghost Trap captured entity — activating deception routing${evidenceId ? ` (evidence #${evidenceId})` : ""}`,
+    payload: evidenceId ? { evidenceId } : null,
+  }).returning();
+
+  bus.publish("ghost_trap.escalate_ghost_node", { ip, threatScore, evidenceId, reason }, "ghost-trap");
+
+  await appendAuditEvent({
+    action:   "ghost_trap.escalate_ghost_node",
+    actor:    req.ip ?? "unknown",
+    resource: ip,
+    metadata: { threatScore, evidenceId, reason },
+  });
+
+  return res.json({ ok: true, event: ev });
+});
+
 export default router;

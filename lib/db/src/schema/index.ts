@@ -1,4 +1,5 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
+export * from "./threat-bus";
 export * from "./lab-targets";
 export * from "./ghost-nodes";
 export * from "./nodes";

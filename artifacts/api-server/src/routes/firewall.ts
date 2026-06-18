@@ -2434,4 +2434,88 @@ router.delete("/user-decisions/:id", async (req, res) => {
   res.json({ ok: true });
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// ── Threat Bus Integration — Layer 1 escalation endpoints ─────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+
+import { threatBusEventsTable } from "@workspace/db";
+import { bus } from "../lib/service-bus";
+import { appendAuditEvent } from "../lib/audit-chain";
+
+const EscalateToGhostTrapSchema = z.object({
+  ip:          z.string().ip(),
+  threatScore: z.number().int().min(0).max(100),
+  reason:      z.string().max(500).optional(),
+});
+
+// POST /api/firewall/escalate-to-ghost-trap
+// Layer 1 → Layer 2: firewall detected high-threat IP, activates Ghost Trap lure.
+router.post("/escalate-to-ghost-trap", async (req, res) => {
+  const parse = EscalateToGhostTrapSchema.safeParse(req.body);
+  if (!parse.success) return res.status(400).json({ error: parse.error.flatten() });
+  const { ip, threatScore, reason } = parse.data;
+
+  const [ev] = await db.insert(threatBusEventsTable).values({
+    eventType:   "SUSPECT_IP_DETECTED",
+    sourceLayer: "firewall",
+    targetLayer: "ghost_trap",
+    attackerIp:  ip,
+    threatScore,
+    reason: reason ?? `Auto-escalated by firewall — threat score ${threatScore}`,
+  }).returning();
+
+  bus.publish("firewall.escalate_ghost_trap", { ip, threatScore, reason }, "firewall");
+
+  await appendAuditEvent({
+    action:   "firewall.escalate_ghost_trap",
+    actor:    req.ip ?? "unknown",
+    resource: ip,
+    metadata: { threatScore, reason },
+  });
+
+  logger.info({ ip, threatScore }, "Firewall escalated IP to Ghost Trap");
+  return res.json({ ok: true, event: ev });
+});
+
+// POST /api/firewall/block-from-ghost-node
+// Layer 3 → Layer 1: Ghost Nodes detected active exploitation, hard-blocks at firewall.
+const BlockFromGhostNodeSchema = z.object({
+  ip:     z.string().ip(),
+  reason: z.string().max(500).optional(),
+  nodeId: z.string().max(100).optional(),
+});
+
+router.post("/block-from-ghost-node", async (req, res) => {
+  const parse = BlockFromGhostNodeSchema.safeParse(req.body);
+  if (!parse.success) return res.status(400).json({ error: parse.error.flatten() });
+  const { ip, reason, nodeId } = parse.data;
+
+  // Permanent block — no expiry
+  await db.insert(blockedIpsTable).values({
+    ip,
+    reason: reason ?? `Hard-blocked by Ghost Nodes (node: ${nodeId ?? "unknown"})`,
+    autoBlocked: true,
+  }).onConflictDoNothing();
+
+  const [ev] = await db.insert(threatBusEventsTable).values({
+    eventType:   "HARD_BLOCK_ENFORCED",
+    sourceLayer: "ghost_nodes",
+    targetLayer: "firewall",
+    attackerIp:  ip,
+    reason: reason ?? `Ghost Nodes feedback — permanent block enforced`,
+  }).returning();
+
+  bus.publish("ghost_node.escalate_firewall", { ip, reason, nodeId }, "ghost-nodes");
+
+  await appendAuditEvent({
+    action:   "firewall.hard_block_from_ghost_node",
+    actor:    req.ip ?? "unknown",
+    resource: ip,
+    metadata: { reason, nodeId },
+  });
+
+  logger.warn({ ip, nodeId }, "Ghost Nodes hard-blocked IP at firewall level");
+  return res.json({ ok: true, event: ev });
+});
+
 export default router;

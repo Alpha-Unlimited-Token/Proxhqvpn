@@ -44,6 +44,7 @@ import SastAnalyzer from "@/pages/SastAnalyzer";
 import QuantumAuditPage from "@/pages/QuantumAudit";
 import GhostPentest from "@/pages/GhostPentest";
 import DeceptionEngine from "@/pages/DeceptionEngine";
+import ThreatBusDashboard from "@/pages/ThreatBusDashboard";
 import GhostTrap from "@/pages/GhostTrap";
 import GhostNodes from "@/pages/GhostNodes";
 import GhostNodesDashboard from "@/pages/GhostNodesDashboard";
@@ -119,6 +120,7 @@ export function CommandCenterRoutes() {
       <Route path="/quantum-audit"><CcLayout><QuantumAuditPage /></CcLayout></Route>
 
       <Route path="/ghost-pentest"><CcLayout><GhostPentest /></CcLayout></Route>
+      <Route path="/threat-bus"><CcLayout><ThreatBusDashboard /></CcLayout></Route>
       <Route path="/ghost-trap"><CcLayout><GhostTrap /></CcLayout></Route>
       <Route path="/deception-engine"><CcLayout><DeceptionEngine /></CcLayout></Route>
       <Route path="/ghost-nodes"><CcLayout><GhostNodes /></CcLayout></Route>

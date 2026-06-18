@@ -22,7 +22,10 @@ export type EventChannel =
   | "threat_intel.ioc_match"
   | "audit.chain_entry"
   | "session.login"
-  | "session.logout";
+  | "session.logout"
+  | "firewall.escalate_ghost_trap"
+  | "ghost_trap.escalate_ghost_node"
+  | "ghost_node.escalate_firewall";
 
 export interface BusEvent<T = unknown> {
   channel: EventChannel;
@@ -96,6 +99,8 @@ class ServiceBus {
       "ghost_trace.anomaly", "ghost_chain.kill_chain", "canary.triggered",
       "threat_intel.ioc_match", "audit.chain_entry", "session.login",
       "session.logout",
+      "firewall.escalate_ghost_trap", "ghost_trap.escalate_ghost_node",
+      "ghost_node.escalate_firewall",
     ];
   }
 }

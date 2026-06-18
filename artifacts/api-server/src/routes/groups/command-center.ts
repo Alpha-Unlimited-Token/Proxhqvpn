@@ -40,6 +40,7 @@ import securityReportsRouter from "../security-reports";
 import complianceReportsRouter from "../compliance-reports";
 import aiThreatRouter from "../ai-threat-analysis";
 import detectionSignaturesRouter from "../detection-signatures";
+import threatBusRouter from "../threat-bus";
 
 const router = Router();
 
@@ -83,5 +84,6 @@ router.use("/ghost-nodes/exit", ghostRoutingRouter);
 registerCommandCenterRoute(router, "/compliance-reports", "command_center.read", complianceReportsRouter);
 registerCommandCenterRoute(router, "/ai-threat", "command_center.read", aiThreatRouter);
 router.use("/detection-signatures", requireCapability("command_center.write"), detectionSignaturesRouter);
+router.use("/threat-bus", requireCapability("command_center.read"), threatBusRouter);
 
 export default router;
