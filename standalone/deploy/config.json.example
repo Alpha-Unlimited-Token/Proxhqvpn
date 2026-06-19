@@ -1,0 +1,12 @@
+{
+  "api_base":        "https://proxhqvpn.com",
+  "node_agent_psk":  "REPLACE_WITH_NODE_AGENT_PSK_ENV_VAR_VALUE",
+  "honeypot_psk":    "REPLACE_WITH_HONEYPOT_PSK_ENV_VAR_VALUE",
+  "node_id":         "proxhqvpn-node-2-london",
+  "node_name":       "ProxhqVPN London #2",
+  "wg_interface":    "wg0",
+  "real_wg_port":    41194,
+  "checkin_interval": 30,
+  "health_interval":  10,
+  "retry_delay":      5
+}

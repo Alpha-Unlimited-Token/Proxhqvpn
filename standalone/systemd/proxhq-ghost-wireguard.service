@@ -1,0 +1,39 @@
+[Unit]
+Description=ProxhqVPN Ghost WireGuard Honeypot (decoy port 51820)
+Documentation=https://proxhqvpn.com/guide
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/proxhq
+
+# Args are populated by deploy-node-daemon.sh from /etc/proxhq/config.json
+# via the EnvironmentFile directive below.
+EnvironmentFile=/etc/proxhq/daemon.env
+ExecStart=/usr/bin/python3 /opt/proxhq/ghost-wireguard.py \
+    --port 51820 \
+    --real-wg-port ${REAL_WG_PORT} \
+    --backend ${API_BASE} \
+    --psk ${HONEYPOT_PSK} \
+    --node-id ${NODE_ID}
+
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=proxhq-ghost-wg
+
+# Must bind raw UDP port — needs CAP_NET_BIND_SERVICE
+# root is used so WireGuard port (< 1024) can be bound directly.
+# The daemon itself never routes or forwards any traffic.
+NoNewPrivileges=false
+PrivateTmp=true
+ProtectHome=true
+
+MemoryMax=128M
+CPUQuota=10%
+
+[Install]
+WantedBy=multi-user.target

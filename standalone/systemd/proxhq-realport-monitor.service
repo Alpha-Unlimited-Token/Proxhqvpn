@@ -1,0 +1,35 @@
+[Unit]
+Description=ProxhqVPN Real WireGuard Port Monitor (hidden port probe alerter)
+Documentation=https://proxhqvpn.com/guide
+After=network-online.target wg-quick@wg0.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=proxhq
+Group=proxhq
+WorkingDirectory=/opt/proxhq
+EnvironmentFile=/etc/proxhq/daemon.env
+ExecStart=/usr/bin/python3 /opt/proxhq/ghost-realport-monitor.py \
+    --backend ${API_BASE} \
+    --psk ${HONEYPOT_PSK} \
+    --node-id ${NODE_ID}
+
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=proxhq-realport-mon
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+# Needs read access to /var/log/proxhq-real-wg-probes.log
+ReadWritePaths=/var/log
+
+MemoryMax=64M
+CPUQuota=3%
+
+[Install]
+WantedBy=multi-user.target
