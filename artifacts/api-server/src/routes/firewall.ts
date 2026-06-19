@@ -20,6 +20,7 @@ import {
 import { createHash } from "crypto";
 import { eq, sql, lt, desc, asc, inArray } from "drizzle-orm";
 import { z } from "zod";
+import { requireAdmin } from "../middlewares/requireAdmin";
 import { logger } from "../lib/logger";
 
 const router = Router();
@@ -2442,8 +2443,8 @@ function makePatternKey(sourceIp: string, destPort?: string, protocol?: string):
   return sourceIp;
 }
 
-// GET /api/firewall/prompts — pending prompts (global queue, no auth required for reads)
-router.get("/prompts", async (req, res) => {
+// GET /api/firewall/prompts — pending prompts (global admin queue, admin-only)
+router.get("/prompts", requireAdmin, async (req, res) => {
   const GLOBAL_UID = "global_admin";
 
   const existing = await db.select().from(firewallConnectionPromptsTable)
@@ -2533,15 +2534,15 @@ router.get("/prompts", async (req, res) => {
   res.json({ prompts, pendingCount: prompts.filter(p => p.decision === "pending").length });
 });
 
-// POST /api/firewall/prompts/:id/decide — accept, deny, or block
-router.post("/prompts/:id/decide", async (req, res) => {
+// POST /api/firewall/prompts/:id/decide — accept, deny, or block (admin-only)
+router.post("/prompts/:id/decide", requireAdmin, async (req, res) => {
   const GLOBAL_UID = "global_admin";
   const schema = z.object({
     decision: z.enum(["allow_once", "allow_always", "block_always", "dismissed"]),
     notes: z.string().max(256).optional(),
   });
   const body = schema.parse(req.body);
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
 
   const [prompt] = await db.select().from(firewallConnectionPromptsTable)
     .where(eq(firewallConnectionPromptsTable.id, id));
@@ -2591,8 +2592,8 @@ router.post("/prompts/:id/decide", async (req, res) => {
   res.json({ ok: true, decision: body.decision });
 });
 
-// GET /api/firewall/user-decisions — all remembered rules
-router.get("/user-decisions", async (_req, res) => {
+// GET /api/firewall/user-decisions — all remembered rules (admin-only)
+router.get("/user-decisions", requireAdmin, async (_req, res) => {
   const GLOBAL_UID = "global_admin";
   const decisions = await db.select().from(firewallUserDecisionsTable)
     .where(eq(firewallUserDecisionsTable.userId, GLOBAL_UID))
