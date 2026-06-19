@@ -56,7 +56,7 @@ export default function FirewallPromptOverlay() {
   useEffect(() => {
     if (!isSignedIn) return;
     fetchPrompts();
-    const timer = setInterval(fetchPrompts, 20000);
+    const timer = setInterval(fetchPrompts, 8000);
     return () => clearInterval(timer);
   }, [isSignedIn, fetchPrompts]);
 

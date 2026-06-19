@@ -23,6 +23,7 @@ import {
 import { useAccess } from "@/hooks/useAccess";
 import { useNotifications } from "@/hooks/useNotifications";
 import FirewallPromptOverlay from "@/components/FirewallPromptOverlay";
+import TrafficAlertsPanel from "@/components/TrafficAlertsPanel";
 import { SkipToContent } from "@/components/a11y/SkipToContent";
 import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
 
@@ -428,6 +429,8 @@ export function Layout({ children }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [trafficPanelOpen, setTrafficPanelOpen] = useState(false);
+  const [firewallAlertCount, setFirewallAlertCount] = useState(0);
   const [pendingUpdate, setPendingUpdate] = useState<UpdateInfo | null>(null);
   const [updateDismissed, setUpdateDismissed] = useState(false);
   const [restarting, setRestarting] = useState(false);
@@ -447,6 +450,20 @@ export function Layout({ children }: LayoutProps) {
     const t = setTimeout(() => { setAlertVisible(false); setTimeout(dismissAlert, 400); }, 8000);
     return () => clearTimeout(t);
   }, [newAlert, dismissAlert]);
+
+  // Poll firewall alert count for header badge (don't open overlay — just count)
+  useEffect(() => {
+    if (!user) return;
+    const poll = () => {
+      fetch(import.meta.env.BASE_URL.replace(/\/$/, "") + "/api/firewall/prompts", { credentials: "include" })
+        .then(r => r.ok ? r.json() : null)
+        .then(d => { if (d) setFirewallAlertCount(d.pendingCount ?? 0); })
+        .catch(() => {});
+    };
+    poll();
+    const t = setInterval(poll, 10_000);
+    return () => clearInterval(t);
+  }, [user]);
 
   // Register the callback that Electron calls when a background update finishes downloading
   useEffect(() => {
@@ -704,11 +721,27 @@ export function Layout({ children }: LayoutProps) {
               {new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
             </div>
 
+            {/* ── Firewall alert shield ── */}
+            {user && (
+              <button
+                onClick={() => { setTrafficPanelOpen(v => !v); setNotifOpen(false); setUserMenuOpen(false); }}
+                className="relative w-7 h-7 rounded-lg flex items-center justify-center text-white/50 hover:text-white/80 hover:bg-white/[0.07] transition-all"
+                title="Traffic Firewall Alerts"
+              >
+                <ShieldAlert className="w-4 h-4" />
+                {firewallAlertCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-red-500 text-[8px] font-bold text-white flex items-center justify-center leading-none animate-pulse">
+                    {firewallAlertCount > 9 ? "9+" : firewallAlertCount}
+                  </span>
+                )}
+              </button>
+            )}
+
             {/* ── Notification bell ── */}
             {user && (
               <div className="relative">
                 <button
-                  onClick={() => { setNotifOpen(v => !v); setUserMenuOpen(false); }}
+                  onClick={() => { setNotifOpen(v => !v); setUserMenuOpen(false); setTrafficPanelOpen(false); }}
                   className="relative w-7 h-7 rounded-lg flex items-center justify-center text-white/50 hover:text-white/80 hover:bg-white/[0.07] transition-all"
                   title="Notifications"
                 >
@@ -989,6 +1022,13 @@ export function Layout({ children }: LayoutProps) {
 
       {/* Firewall Connection Approval Overlay — per-user persistent allow/block decisions */}
       <FirewallPromptOverlay />
+
+      {/* Traffic Alerts Panel — full rule management (alerts / saved rules / blocked IPs) */}
+      <TrafficAlertsPanel
+        open={trafficPanelOpen}
+        onClose={() => setTrafficPanelOpen(false)}
+        onCountChange={setFirewallAlertCount}
+      />
     </div>
   );
 }

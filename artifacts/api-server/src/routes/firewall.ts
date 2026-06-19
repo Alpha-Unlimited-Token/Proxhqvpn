@@ -14,6 +14,7 @@ import {
   firewallDdosConfigTable, firewallDdosEventsTable,
   trappedAttackersTable, beaconAlertsTable,
   firewallConnectionPromptsTable, firewallUserDecisionsTable,
+  nodeAgentEventsTable,
 } from "@workspace/db";
 import { createHash } from "crypto";
 import { eq, sql, lt, desc, asc, inArray } from "drizzle-orm";
@@ -2301,6 +2302,37 @@ router.get("/prompts", async (req, res) => {
         });
         seenKeys.add(key);
         if (toInsert.length >= 3) break;
+      }
+    }
+
+    // Also pull real ghost-trap TCP/UDP events from node agents
+    if (toInsert.length < 3) {
+      const ghostEvents = await db.select().from(nodeAgentEventsTable)
+        .where(inArray(nodeAgentEventsTable.eventType, [
+          "ghost_trap_tcp", "ghost_trap_udp", "ghost_trap_event",
+          "honeypot_hit", "ghost_probe", "trap_triggered",
+        ]))
+        .orderBy(desc(nodeAgentEventsTable.createdAt)).limit(30);
+
+      for (const ev of ghostEvents) {
+        const p = ev.payload as Record<string, unknown> | null;
+        const srcIp = (p?.src_ip ?? p?.srcIp ?? p?.source_ip ?? null) as string | null;
+        if (!srcIp) continue;
+        const destPort = (p?.dest_port ?? p?.destPort ?? p?.port ?? null);
+        const portStr = destPort != null ? String(destPort) : undefined;
+        const key = makePatternKey(srcIp, portStr);
+        if (!seenKeys.has(key) && !decidedKeys.has(key)) {
+          const portLabel = portStr ? ` on port ${portStr}` : "";
+          toInsert.push({
+            userId, sourceIp: srcIp,
+            destPort: portStr ?? null, protocol: "tcp",
+            reason: `Ghost-trap triggered${portLabel} — real attacker probe from ${srcIp} (node: ${ev.nodeId})`,
+            threatLevel: "high", patternKey: key, decision: "pending",
+            metadata: { nodeId: ev.nodeId, eventType: ev.eventType, rawPayload: p },
+          });
+          seenKeys.add(key);
+          if (toInsert.length >= 5) break;
+        }
       }
     }
 
