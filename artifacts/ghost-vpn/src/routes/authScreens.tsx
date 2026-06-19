@@ -128,21 +128,6 @@ export function SignInPage() {
                 <div className="flex-1 h-px bg-white/[0.07]" />
               </div>
 
-              <a
-                href={`${basePath}/anon-auth`}
-                className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl bg-white/[0.04] border border-white/[0.07] hover:bg-white/[0.07] hover:border-primary/30 transition-all group block"
-              >
-                <div className="w-5 h-5 shrink-0 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center">
-                  <div className="w-2 h-2 rounded-full bg-primary" />
-                </div>
-                <div className="text-left">
-                  <div className="text-sm font-medium text-white group-hover:text-primary/90 transition-colors">
-                    Anonymous Account
-                  </div>
-                  <div className="text-xs text-white/45">No email. Just a 16-digit number.</div>
-                </div>
-              </a>
-
               <p className="text-center text-xs text-white/35">
                 No account?{" "}
                 <a href={`${basePath}/sign-up`} className="text-primary hover:underline">
@@ -215,23 +200,6 @@ export function SignUpPage() {
                 <span className="text-xs text-white/30">or</span>
                 <div className="flex-1 h-px bg-white/[0.07]" />
               </div>
-
-              <a
-                href={`${basePath}/anon-auth`}
-                className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl bg-white/[0.04] border border-white/[0.07] hover:bg-white/[0.07] hover:border-primary/30 transition-all group block"
-              >
-                <div className="w-5 h-5 shrink-0 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center">
-                  <div className="w-2 h-2 rounded-full bg-primary" />
-                </div>
-                <div className="text-left">
-                  <div className="text-sm font-medium text-white group-hover:text-primary/90 transition-colors">
-                    Anonymous Account
-                  </div>
-                  <div className="text-xs text-white/45">
-                    No email. Just a 16-digit number. 30-day free trial.
-                  </div>
-                </div>
-              </a>
 
               <p className="text-center text-xs text-white/35">
                 Already have one?{" "}

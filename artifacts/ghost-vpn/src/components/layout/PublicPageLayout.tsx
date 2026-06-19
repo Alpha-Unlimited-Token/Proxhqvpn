@@ -6,6 +6,7 @@ import { Menu, X } from "lucide-react";
 const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
 
 const NAV_LINKS = [
+  { label: "Home",        href: "/" },
   { label: "Pricing",     href: "/pricing" },
   { label: "Downloads",   href: "/downloads" },
   { label: "Ambassadors", href: "/ambassadors" },
