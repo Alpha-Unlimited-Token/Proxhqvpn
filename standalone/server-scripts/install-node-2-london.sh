@@ -23,7 +23,8 @@ echo "[1/15] System update..."
 apt-get update -qq && apt-get upgrade -y -qq
 
 echo "[2/15] Installing packages..."
-apt-get install -y -qq   wireguard wireguard-tools nftables knockd nmap curl   python3 python3-pip ufw net-tools iproute2 iptables   fail2ban unattended-upgrades jq vim
+apt-get install -y -qq   wireguard wireguard-tools nftables knockd nmap curl   python3 python3-pip net-tools iproute2 iptables   fail2ban unattended-upgrades jq vim
+systemctl stop ufw 2>/dev/null; systemctl disable ufw 2>/dev/null; apt-get remove -y -qq ufw 2>/dev/null; true
 
 echo "[3/15] Generating WireGuard keys (RAM-only)..."
 export SERVER_PRIVATE_KEY=$(wg genkey)
@@ -311,7 +312,7 @@ table inet nat {
 NFTEOF
 nft -f /etc/nftables.conf
 systemctl enable nftables
-systemctl restart nftables
+systemctl reset-failed nftables 2>/dev/null; systemctl stop nftables 2>/dev/null; systemctl start nftables
 echo "  Firewall active."
 
 echo "[11/15] Installing port-knock SSH guard..."
