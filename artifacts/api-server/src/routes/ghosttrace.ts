@@ -235,4 +235,112 @@ router.post("/ingest", async (req: Request, res: Response) => {
   }
 });
 
+// GET /api/ghost-trace/beacon-patterns
+// Multi-interval C2 beacon pattern scanner across all tracked devices
+router.get("/beacon-patterns", async (req: Request, res: Response) => {
+  try {
+    const KNOWN_C2_INTERVALS = [
+      { label: "30s heartbeat",   ms: 30_000,     risk: "critical" as const },
+      { label: "60s beacon",      ms: 60_000,     risk: "high"     as const },
+      { label: "2min beacon",     ms: 120_000,    risk: "high"     as const },
+      { label: "5min beacon",     ms: 300_000,    risk: "medium"   as const },
+      { label: "10min beacon",    ms: 600_000,    risk: "medium"   as const },
+      { label: "30min checkin",   ms: 1_800_000,  risk: "medium"   as const },
+      { label: "1hr slow beacon", ms: 3_600_000,  risk: "low"      as const },
+    ];
+
+    const obs = await db
+      .select()
+      .from(ghostTraceObservationsTable)
+      .where(isNotNull(ghostTraceObservationsTable.avgIntervalMs))
+      .orderBy(desc(ghostTraceObservationsTable.observedAt))
+      .limit(1000);
+
+    const deviceMap = new Map<string, typeof obs>();
+    for (const o of obs) {
+      if (!deviceMap.has(o.peerPublicKey)) deviceMap.set(o.peerPublicKey, []);
+      deviceMap.get(o.peerPublicKey)!.push(o);
+    }
+
+    const patterns: Array<{
+      peerPublicKey: string;
+      deviceName: string;
+      sampleCount: number;
+      meanIntervalMs: number;
+      stdDevMs: number;
+      jitterRatio: number;
+      matchedC2Pattern: string | null;
+      c2Risk: "critical" | "high" | "medium" | "low";
+      confidence: "high" | "medium" | "low";
+      recommendation: string;
+      lastSeen: string;
+    }> = [];
+
+    for (const [peerKey, observations] of deviceMap.entries()) {
+      const intervals = observations
+        .map(o => o.avgIntervalMs)
+        .filter((v): v is number => v !== null && v > 0);
+
+      if (intervals.length < 2) continue;
+
+      const mean = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+      const variance = intervals.reduce((a, b) => a + (b - mean) ** 2, 0) / intervals.length;
+      const stdDev = Math.sqrt(variance);
+      const jitterRatio = mean > 0 ? stdDev / mean : 1;
+
+      const matchedC2 = KNOWN_C2_INTERVALS.find(
+        c2 => Math.abs(mean - c2.ms) < c2.ms * 0.15
+      );
+
+      const confidence: "high" | "medium" | "low" =
+        jitterRatio < 0.08 ? "high" :
+        jitterRatio < 0.25 ? "medium" : "low";
+
+      const c2Risk: "critical" | "high" | "medium" | "low" =
+        matchedC2?.risk ?? (jitterRatio < 0.1 ? "medium" : "low");
+
+      patterns.push({
+        peerPublicKey: peerKey.slice(0, 16) + "...",
+        deviceName: observations[0]?.deviceName ?? "unknown",
+        sampleCount: intervals.length,
+        meanIntervalMs: Math.round(mean),
+        stdDevMs: Math.round(stdDev),
+        jitterRatio: Math.round(jitterRatio * 1000) / 1000,
+        matchedC2Pattern: matchedC2?.label ?? null,
+        c2Risk,
+        confidence,
+        recommendation:
+          confidence === "high" && matchedC2
+            ? `BLOCK — high-confidence C2 beacon at ${matchedC2.label} interval`
+            : confidence === "medium"
+            ? "INVESTIGATE — low-jitter periodic outbound detected"
+            : "MONITOR — regular traffic, verify legitimacy",
+        lastSeen:
+          observations[0]?.observedAt instanceof Date
+            ? observations[0].observedAt.toISOString()
+            : String(observations[0]?.observedAt ?? ""),
+      });
+    }
+
+    const riskOrder = { critical: 0, high: 1, medium: 2, low: 3 };
+    patterns.sort(
+      (a, b) =>
+        (riskOrder[a.c2Risk] ?? 4) - (riskOrder[b.c2Risk] ?? 4)
+    );
+
+    res.json({
+      scannedDevices: deviceMap.size,
+      beaconPatternsDetected: patterns.filter(p => p.confidence !== "low").length,
+      highConfidenceC2: patterns.filter(p => p.confidence === "high").length,
+      patterns,
+      knownC2Intervals: KNOWN_C2_INTERVALS,
+      scannedAt: new Date().toISOString(),
+    });
+  } catch (err) {
+    req.log.error({ err }, "[ghost-trace] beacon-patterns error");
+    res.status(500).json({ error: "Beacon pattern scan failed" });
+  }
+});
+
 export default router;
+

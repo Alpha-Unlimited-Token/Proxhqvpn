@@ -196,4 +196,89 @@ router.get("/summary", (_req, res) => {
   });
 });
 
+// POST /api/threatintel/nrd-check
+// Newly Registered Domain detection via RDAP — flags domains < 30 days old
+// as C2 infrastructure / phishing domains (high attacker-infra indicator)
+router.post("/nrd-check", asyncHandler(async (req, res) => {
+  const { domain } = z.object({ domain: z.string().min(1).max(253) }).parse(req.body);
+
+  if (!/^[a-zA-Z0-9.-]+$/.test(domain)) {
+    return res.status(400).json({ error: "Invalid domain format" });
+  }
+
+  const parts = domain.replace(/\.$/, "").split(".");
+  const rootDomain = parts.length >= 2 ? parts.slice(-2).join(".") : domain;
+
+  let registrationDate: Date | null = null;
+  let lastUpdated: Date | null = null;
+  let registrar: string | null = null;
+  let rdapSource = "";
+
+  try {
+    const rdapResp = await fetch(`https://rdap.org/domain/${rootDomain}`, {
+      signal: AbortSignal.timeout(7000),
+      headers: { Accept: "application/json" },
+    });
+    if (rdapResp.ok) {
+      const rdapData = await rdapResp.json() as any;
+      const events: Array<{ eventAction: string; eventDate: string }> =
+        rdapData.events ?? [];
+      const regEvent = events.find(e => e.eventAction === "registration");
+      const updEvent = events.find(e => e.eventAction === "last changed");
+      if (regEvent?.eventDate) {
+        registrationDate = new Date(regEvent.eventDate);
+        rdapSource = "rdap.org";
+      }
+      if (updEvent?.eventDate) lastUpdated = new Date(updEvent.eventDate);
+      const entities: any[] = rdapData.entities ?? [];
+      const regEntity = entities.find((e: any) => e.roles?.includes("registrar"));
+      const vcardArr: any[][] = regEntity?.vcardArray?.[1] ?? [];
+      const fnEntry = vcardArr.find((v: any[]) => v[0] === "fn");
+      registrar = fnEntry?.[3] ?? null;
+    }
+  } catch { }
+
+  const ageMs = registrationDate ? Date.now() - registrationDate.getTime() : null;
+  const ageDays = ageMs !== null ? Math.floor(ageMs / 86_400_000) : null;
+
+  const isNrd     = ageDays !== null && ageDays < 30;
+  const isRecent  = ageDays !== null && ageDays < 90;
+
+  const risk: "critical" | "high" | "medium" | "low" =
+    ageDays === null ? "medium" :
+    ageDays < 7     ? "critical" :
+    ageDays < 30    ? "high" :
+    ageDays < 90    ? "medium" : "low";
+
+  const flags: string[] = [
+    ...(ageDays !== null && ageDays < 7 ? ["suspicious_freshness"] : []),
+    ...(isNrd     ? ["newly_registered_domain"] : []),
+    ...(isRecent  ? ["recently_registered"]     : []),
+  ];
+
+  res.json({
+    domain,
+    rootDomain,
+    registrationDate: registrationDate?.toISOString() ?? null,
+    lastUpdated:      lastUpdated?.toISOString() ?? null,
+    ageDays,
+    registrar,
+    isNrd,
+    isRecent,
+    risk,
+    rdapSource: rdapSource || null,
+    flags,
+    recommendation:
+      risk === "critical"
+        ? "BLOCK — domain registered < 7 days ago. Extremely high C2/phishing risk."
+        : risk === "high"
+        ? "BLOCK — NRD < 30 days old. High probability attacker infrastructure."
+        : risk === "medium"
+        ? "MONITOR — recently registered or registration date unavailable."
+        : "Clean — domain age predates typical attacker infrastructure windows.",
+    checkedAt: new Date().toISOString(),
+  });
+}));
+
 export default router;
+

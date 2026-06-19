@@ -46,6 +46,7 @@ import ValidationDashboard from "@/pages/ValidationDashboard";
 import TransparencyReport from "@/pages/TransparencyReport";
 import AmbassadorDashboard from "@/pages/AmbassadorDashboard";
 import AttackerIntelligence from "@/pages/AttackerIntelligence";
+import KillChainDefender from "@/pages/KillChainDefender";
 
 const CanaryTokens  = lazy(() => import("@/pages/CanaryTokens"));
 const WafAnalyzer   = lazy(() => import("@/pages/WafAnalyzer"));
@@ -103,6 +104,7 @@ export function CommandCenterRoutes() {
       <Route path="/transparency"><ToolLayout><TransparencyReport /></ToolLayout></Route>
       <Route path="/ambassador/dashboard"><ToolLayout><AmbassadorDashboard /></ToolLayout></Route>
       <Route path="/attacker-intel"><CcLayout><AttackerIntelligence /></CcLayout></Route>
+      <Route path="/kill-chain-defender"><CcLayout><KillChainDefender /></CcLayout></Route>
     </>
   );
 }
