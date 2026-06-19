@@ -23,7 +23,7 @@ export default function ValidationTargetForm() {
 
   const load = () => {
     setLoading(true);
-    fetch("/api/admin/validation/targets")
+    fetch("/api/validation/targets")
       .then(r => r.json())
       .then(d => setTargets(d.targets ?? []))
       .catch(() => {})
@@ -35,7 +35,7 @@ export default function ValidationTargetForm() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true); setMsg("");
-    const r = await fetch("/api/admin/validation/targets", {
+    const r = await fetch("/api/validation/targets", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...form, url: form.url || undefined, host: form.host || undefined }),

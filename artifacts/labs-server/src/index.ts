@@ -7,6 +7,7 @@ import { pinoHttp } from "pino-http";
 import { pino } from "pino";
 import { clerkMiddleware } from "@clerk/express";
 import rateLimit from "express-rate-limit";
+import labsRouter from "./routes/labs";
 
 const PORT = parseInt(process.env.PORT ?? "9090", 10);
 const CORS_ORIGIN = /\.replit\.dev$|\.replit\.app$|^http:\/\/localhost/;
@@ -74,11 +75,12 @@ const toolLimiter = rateLimit({
   legacyHeaders:   false,
 });
 
-// ── Service auth guard ─────────────────────────────────────────────────────
+// ── Global rate limit applied to all /api/labs/* routes ──────────────────
+app.use("/api/labs", labsLimiter);
+app.use("/api/labs/tools", toolLimiter);
 
-// ── All routes require Clerk admin ────────────────────────────────────────
-
-// ── Route mounting ────────────────────────────────────────────────────────
+// ── Route mounting ─────────────────────────────────────────────────────────
+app.use("/api/labs", labsRouter);
 
 // ── Error handler ─────────────────────────────────────────────────────────
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

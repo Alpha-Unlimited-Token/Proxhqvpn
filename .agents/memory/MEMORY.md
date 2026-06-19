@@ -18,3 +18,4 @@
 - [WG handshake passive fingerprinting](wg-handshake-fingerprinting.md) — mac2 at bytes 132-147 of 148-byte WG HandshakeInitiation; all-zeros = masscan/zgrab scanner (no cookie exchange); probe_telemetry table stores legalBasis on every row for auditability.
 - [Offensive tool audit cleanup](offensive-tool-cleanup.md) — pattern for bulk section removal from large TSX files and what was removed in the June 2026 security audit.
 - [drizzle-kit push interactive prompt](drizzle-push-prompt.md) — push and push-force both stall on interactive prompt when omega_* tables exist; bypass with direct SQL via executeSql instead.
+- [Full audit findings + routing patterns](audit-findings-and-fixes.md) — registerAdminRoute prefix is literal (not /admin/<name>); quantum-audit routes were absent from api-server; standalone/server.ts holds parallel impls of documented routes.

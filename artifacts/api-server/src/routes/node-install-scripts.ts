@@ -41,7 +41,7 @@ router.get("/:nodeId", (req: Request, res: Response) => {
     return;
   }
 
-  const nodeId = req.params.nodeId.toLowerCase();
+  const nodeId = (req.params.nodeId as string).toLowerCase();
   const filename = NODE_SCRIPT_MAP[nodeId];
 
   if (!filename) {

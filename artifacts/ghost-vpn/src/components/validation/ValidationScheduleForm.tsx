@@ -12,7 +12,7 @@ export default function ValidationScheduleForm() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true); setMsg("");
-    const r = await fetch("/api/admin/validation/schedules", {
+    const r = await fetch("/api/validation/schedules", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...form, intervalMinutes: Number(form.intervalMinutes) }),

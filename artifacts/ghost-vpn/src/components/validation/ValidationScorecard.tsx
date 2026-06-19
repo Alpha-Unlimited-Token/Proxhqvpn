@@ -61,7 +61,7 @@ export default function ValidationScorecard() {
 
   const load = () => {
     setLoading(true);
-    fetch("/api/admin/validation/scorecard")
+    fetch("/api/validation/scorecard")
       .then(r => r.ok ? r.json() : Promise.reject(r.status))
       .then(d => { setData(d); setError(null); })
       .catch(e => setError(`Failed to load scorecard (${e})`))

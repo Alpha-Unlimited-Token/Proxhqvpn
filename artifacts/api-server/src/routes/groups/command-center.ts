@@ -42,6 +42,7 @@ import aiThreatRouter from "../ai-threat-analysis";
 import detectionSignaturesRouter from "../detection-signatures";
 import threatBusRouter from "../threat-bus";
 import livecontextRouter from "../livecontext";
+import quantumAuditRouter from "../quantum-audit";
 
 const router = Router();
 
@@ -87,5 +88,6 @@ registerCommandCenterRoute(router, "/ai-threat", "command_center.read", aiThreat
 router.use("/detection-signatures", requireCapability("command_center.write"), detectionSignaturesRouter);
 router.use("/threat-bus", requireCapability("command_center.read"), threatBusRouter);
 registerCommandCenterRoute(router, "/livecontext", "command_center.write", livecontextRouter);
+router.use("/quantum-audit", requireCapability("command_center.read"), quantumAuditRouter);
 
 export default router;

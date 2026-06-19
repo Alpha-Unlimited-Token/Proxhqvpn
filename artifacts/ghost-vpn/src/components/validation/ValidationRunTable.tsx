@@ -32,7 +32,7 @@ export default function ValidationRunTable() {
   const load = useCallback(() => {
     setLoading(true);
     const qs = runType ? `?run_type=${runType}` : "";
-    fetch(`/api/admin/validation/runs${qs}`)
+    fetch(`/api/validation/runs${qs}`)
       .then(r => r.json())
       .then(d => setRuns(d.runs ?? []))
       .catch(() => {})
@@ -44,7 +44,7 @@ export default function ValidationRunTable() {
   const triggerRun = async () => {
     if (!targetId.trim()) { setMsg("Enter a target ID first"); return; }
     setTriggering(true); setMsg("");
-    const r = await fetch("/api/admin/validation/runs", {
+    const r = await fetch("/api/validation/runs", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ targetId: targetId.trim(), runType: triggerType }),

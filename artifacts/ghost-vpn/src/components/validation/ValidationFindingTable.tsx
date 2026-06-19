@@ -24,7 +24,7 @@ export default function ValidationFindingTable() {
   const load = () => {
     setLoading(true);
     const qs = severity ? `?severity=${severity}` : "";
-    fetch(`/api/admin/validation/findings${qs}`)
+    fetch(`/api/validation/findings${qs}`)
       .then(r => r.json())
       .then(d => setFindings(d.findings ?? []))
       .catch(() => {})
@@ -35,7 +35,7 @@ export default function ValidationFindingTable() {
 
   const resolve = async (id: string) => {
     setResolving(id);
-    await fetch(`/api/admin/validation/findings/${id}/resolve`, { method: "POST" }).catch(() => {});
+    await fetch(`/api/validation/findings/${id}/resolve`, { method: "POST" }).catch(() => {});
     setResolving(null);
     load();
   };
