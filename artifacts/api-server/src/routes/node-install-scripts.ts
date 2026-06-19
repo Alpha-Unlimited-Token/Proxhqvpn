@@ -18,6 +18,13 @@ const SCRIPTS_DIR = fs.existsSync(
   ? path.resolve(__dirname, "../../../standalone/server-scripts")
   : path.resolve(process.cwd(), "../../standalone/server-scripts");
 
+// Combat hardening script lives in standalone/scripts/ (not server-scripts/)
+const COMBAT_SCRIPT_PATH = fs.existsSync(
+  path.resolve(__dirname, "../../../standalone/scripts/combat-attacker-architecture.sh")
+)
+  ? path.resolve(__dirname, "../../../standalone/scripts/combat-attacker-architecture.sh")
+  : path.resolve(process.cwd(), "../../standalone/scripts/combat-attacker-architecture.sh");
+
 const NODE_SCRIPT_MAP: Record<string, string> = {
   "proxhqvpn-node-2":         "install-node-2-london.sh",
   "proxhqvpn-tokyo-01":       "install-tokyo-01.sh",
@@ -34,6 +41,16 @@ function validatePsk(req: Request): boolean {
     diff |= header.charCodeAt(i) ^ NODE_AGENT_PSK.charCodeAt(i);
   return diff === 0;
 }
+
+// Public — no PSK needed (script contains no secrets; env vars are passed at runtime)
+router.get("/combat-hardening", (_req: Request, res: Response) => {
+  if (!fs.existsSync(COMBAT_SCRIPT_PATH)) {
+    res.status(503).type("text/plain").send("Combat script not found on server.\n");
+    return;
+  }
+  const script = fs.readFileSync(COMBAT_SCRIPT_PATH, "utf-8");
+  res.status(200).type("text/plain").send(script);
+});
 
 router.get("/:nodeId", (req: Request, res: Response) => {
   if (!validatePsk(req)) {
