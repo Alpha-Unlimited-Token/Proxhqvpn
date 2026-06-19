@@ -285,7 +285,6 @@ table inet filter {
     iif lo accept
     ct state established,related accept
     ip protocol icmp limit rate 10/second accept
-    ip6 nexthdr icmpv6 limit rate 10/second accept
     udp dport @ALLOWED_UDP accept
     tcp dport @ALLOWED_TCP accept
     udp dport @GHOST_NODE_PORTS log prefix "PROXHQ_GHOST_NODE: " drop
