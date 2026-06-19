@@ -255,8 +255,8 @@ router.post("/node-enrollment-token", requireAdmin, async (req: Request, res: Re
 
 registerAdminRoute(router, "/node-enrollment", "admin.write", nodeEnrollV2Router);
 registerAdminRoute(router, "/node-trust", "admin.write", nodeTrustRouter);
-registerAdminRoute(router, "/admin/users", "admin.write", adminUsersRouter);
-registerAdminRoute(router, "/employees", "admin.write", employeesRouter);
+registerAdminRoute(router, "/admin/users", "admin.write", highRiskRateLimit, adminUsersRouter);
+registerAdminRoute(router, "/employees", "admin.write", highRiskRateLimit, employeesRouter);
 registerAdminRoute(router, "/setup", "admin.write", setupRouter);
 registerAdminRoute(router, "/capability-audit", "admin.read", highRiskRateLimit, capabilityAuditRouter);
 registerAdminRoute(router, "/audit-chain", "admin.read", highRiskRateLimit, auditChainRouter);

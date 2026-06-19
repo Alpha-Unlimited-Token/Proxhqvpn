@@ -1,5 +1,7 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { Router } from "express";
+import { z } from "zod";
+import { asyncHandler } from "../middlewares/asyncHandler";
 import fetch from "node-fetch";
 
 const router = Router();
@@ -94,9 +96,9 @@ router.get("/feeds", (_req, res) => {
   });
 });
 
-router.post("/check-ip", async (req, res) => {
-  const { ip } = req.body as { ip?: string };
-  if (!ip || !/^[\d.:a-f]+$/i.test(ip)) {
+router.post("/check-ip", asyncHandler(async (req, res) => {
+  const { ip } = z.object({ ip: z.string().min(1).max(45) }).parse(req.body);
+  if (!/^[\d.:a-f]+$/i.test(ip)) {
     return res.status(400).json({ error: "Invalid IP address" });
   }
 
@@ -134,7 +136,7 @@ router.post("/check-ip", async (req, res) => {
       : "No known threats detected.",
     checkedAt: new Date().toISOString(),
   });
-});
+}));
 
 router.get("/blocklist", (_req, res) => {
   res.json({
@@ -169,7 +171,7 @@ router.delete("/blocklist/:ip", (req, res) => {
   res.json({ removed: req.params.ip });
 });
 
-router.get("/tor-exits", async (_req, res) => {
+router.get("/tor-exits", asyncHandler(async (_req, res) => {
   try {
     const resp = await fetch("https://check.torproject.org/exit-addresses", {
       signal: AbortSignal.timeout(8000),
@@ -180,7 +182,7 @@ router.get("/tor-exits", async (_req, res) => {
   } catch (e: any) {
     res.json({ count: TOR_EXIT_SAMPLE.length, exits: TOR_EXIT_SAMPLE, source: "local-cache", error: e.message });
   }
-});
+}));
 
 router.get("/summary", (_req, res) => {
   res.json({

@@ -1,5 +1,5 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
-import { pgTable, serial, text, integer, boolean, timestamp, pgEnum, jsonb, real } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, integer, boolean, timestamp, pgEnum, jsonb, real, index } from "drizzle-orm/pg-core";
 
 export const firewallDirectionEnum = pgEnum("firewall_direction", ["inbound", "outbound", "both"]);
 export const firewallActionEnum = pgEnum("firewall_action", ["allow", "deny", "drop", "reject", "masquerade", "log"]);
@@ -1214,7 +1214,12 @@ export const firewallIocsTable = pgTable("firewall_iocs", {
   expiresAt:   timestamp("expires_at"),
   createdAt:   timestamp("created_at").defaultNow().notNull(),
   lastSeenAt:  timestamp("last_seen_at"),
-});
+}, (t) => [
+  index("firewall_iocs_value_idx").on(t.value),
+  index("firewall_iocs_ioc_type_idx").on(t.iocType),
+  index("firewall_iocs_created_at_idx").on(t.createdAt),
+  index("firewall_iocs_enabled_idx").on(t.enabled),
+]);
 
 // ── Feed Entries (for cross-feed correlation) ──────────────────────────────
 // Stores a sample of entries from each synced feed so we can detect
@@ -1250,4 +1255,8 @@ export const firewallTrafficDecisionsTable = pgTable("firewall_traffic_decisions
   decidedAt:       timestamp("decided_at"),
   expiresAt:       timestamp("expires_at"),
   createdAt:       timestamp("created_at").defaultNow().notNull(),
-});
+}, (t) => [
+  index("firewall_traffic_decisions_created_at_idx").on(t.createdAt),
+  index("firewall_traffic_decisions_status_idx").on(t.status),
+  index("firewall_traffic_decisions_peer_ip_idx").on(t.peerIp),
+]);

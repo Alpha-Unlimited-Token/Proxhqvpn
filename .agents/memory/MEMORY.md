@@ -19,3 +19,5 @@
 - [Offensive tool audit cleanup](offensive-tool-cleanup.md) — pattern for bulk section removal from large TSX files and what was removed in the June 2026 security audit.
 - [drizzle-kit push interactive prompt](drizzle-push-prompt.md) — push and push-force both stall on interactive prompt when omega_* tables exist; bypass with direct SQL via executeSql instead.
 - [Full audit findings + routing patterns](audit-findings-and-fixes.md) — registerAdminRoute prefix is literal (not /admin/<name>); quantum-audit routes were absent from api-server; standalone/server.ts holds parallel impls of documented routes.
+- [routeCapabilities.ts sync requirement](route-capabilities-sync.md) — every route registered via registerVpnRoute/registerAdminRoute/registerCommandCenterRoute ALSO needs a matching entry in routeCapabilities.ts or dev logs emit [route-capability] warnings; omitting is harmless in prod but indicates drift.
+- [asyncHandler loses Express route-param types](asynchandler-params-cast.md) — inside asyncHandler(async (req, res) => {}), req.params values are inferred as string|string[]; always cast: parseInt(req.params["id"] as string) or String(req.params["id"]).

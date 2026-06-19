@@ -4,6 +4,7 @@ import { db } from "@workspace/db";
 import { dnsShieldRulesTable, dnsShieldConfigTable } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
+import { asyncHandler } from "../middlewares/asyncHandler";
 
 const router = Router();
 
@@ -14,12 +15,12 @@ async function getOrCreateConfig() {
   return created;
 }
 
-router.get("/config", async (_req, res) => {
+router.get("/config", asyncHandler(async (_req, res) => {
   const config = await getOrCreateConfig();
   res.json(config);
-});
+}));
 
-router.put("/config", async (req, res) => {
+router.put("/config", asyncHandler(async (req, res) => {
   const body = z.object({
     enabled: z.boolean().optional(),
     blockAds: z.boolean().optional(),
@@ -39,14 +40,14 @@ router.put("/config", async (req, res) => {
     .returning();
 
   res.json(updated);
-});
+}));
 
-router.get("/rules", async (_req, res) => {
+router.get("/rules", asyncHandler(async (_req, res) => {
   const rules = await db.select().from(dnsShieldRulesTable).orderBy(dnsShieldRulesTable.createdAt);
   res.json(rules);
-});
+}));
 
-router.post("/rules", async (req, res) => {
+router.post("/rules", asyncHandler(async (req, res) => {
   const body = z.object({
     domain: z.string().min(1).max(253),
     ruleType: z.enum(["block","allow"]).default("block"),
@@ -57,10 +58,10 @@ router.post("/rules", async (req, res) => {
 
   const [rule] = await db.insert(dnsShieldRulesTable).values(body.data).returning();
   res.status(201).json(rule);
-});
+}));
 
-router.put("/rules/:id/toggle", async (req, res) => {
-  const id = parseInt(req.params.id);
+router.put("/rules/:id/toggle", asyncHandler(async (req, res) => {
+  const id = parseInt(req.params["id"] as string);
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
 
   const [rule] = await db.select().from(dnsShieldRulesTable).where(eq(dnsShieldRulesTable.id, id));
@@ -72,18 +73,18 @@ router.put("/rules/:id/toggle", async (req, res) => {
     .returning();
 
   res.json(updated);
-});
+}));
 
-router.delete("/rules/:id", async (req, res) => {
-  const id = parseInt(req.params.id);
+router.delete("/rules/:id", asyncHandler(async (req, res) => {
+  const id = parseInt(req.params["id"] as string);
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
 
   const [deleted] = await db.delete(dnsShieldRulesTable).where(eq(dnsShieldRulesTable.id, id)).returning();
   if (!deleted) return res.status(404).json({ error: "Rule not found" });
   res.json({ ok: true });
-});
+}));
 
-router.get("/stats", async (_req, res) => {
+router.get("/stats", asyncHandler(async (_req, res) => {
   const rules = await db.select().from(dnsShieldRulesTable);
   const config = await getOrCreateConfig();
 
@@ -113,7 +114,7 @@ router.get("/stats", async (_req, res) => {
     byCategory,
     dohUrl: dohServers[config.dohProvider] ?? dohServers.cloudflare,
   });
-});
+}));
 
 const BUILT_IN_LISTS: Record<string, string[]> = {
   ads: [
@@ -137,7 +138,7 @@ const BUILT_IN_LISTS: Record<string, string[]> = {
   ],
 };
 
-router.post("/load-defaults/:category", async (req, res) => {
+router.post("/load-defaults/:category", asyncHandler(async (req, res) => {
   const cat = req.params.category as keyof typeof BUILT_IN_LISTS;
   const list = BUILT_IN_LISTS[cat];
   if (!list) return res.status(400).json({ error: "Unknown category" });
@@ -151,6 +152,6 @@ router.post("/load-defaults/:category", async (req, res) => {
 
   await db.insert(dnsShieldRulesTable).values(inserts).onConflictDoNothing();
   res.json({ loaded: inserts.length });
-});
+}));
 
 export default router;

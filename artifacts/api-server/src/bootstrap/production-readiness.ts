@@ -197,6 +197,35 @@ function collectProductionIssues(): ReadinessIssue[] {
     });
   }
 
+  if (!hasValue(process.env.NODE_AGENT_PSK)) {
+    issues.push({
+      code: "NODE_AGENT_PSK_MISSING",
+      severity: "error",
+      message:
+        "NODE_AGENT_PSK is required in production. Without it, all Vultr node check-ins " +
+        "are rejected and the node fleet goes dark.",
+    });
+  }
+
+  if (!hasValue(process.env.HONEYPOT_PSK)) {
+    issues.push({
+      code: "HONEYPOT_PSK_MISSING",
+      severity: "warn",
+      message:
+        "HONEYPOT_PSK is not set. Honeypot sensor callbacks will be rejected.",
+    });
+  }
+
+  if (!hasValue(process.env.STRIPE_WEBHOOK_SECRET)) {
+    issues.push({
+      code: "STRIPE_WEBHOOK_SECRET_MISSING",
+      severity: "error",
+      message:
+        "STRIPE_WEBHOOK_SECRET is required in production. Without it, Stripe webhook " +
+        "signature validation fails and all payment events are rejected.",
+    });
+  }
+
   return issues;
 }
 

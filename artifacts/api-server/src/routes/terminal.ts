@@ -80,7 +80,7 @@ router.post(
     return res.status(403).json({ command: cmd, stderr: blockReason, exitCode: 1, blocked: true });
   }
 
-  if (!body.ghostMode && hasShellChain(cmd)) {
+  if (hasShellChain(cmd)) {
     await auditTerminalEvent({
       actor,
       action: "terminal.job_blocked",

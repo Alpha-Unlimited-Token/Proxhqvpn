@@ -195,6 +195,7 @@ router.post("/apply", async (req, res) => {
       RETURNING id, name, promo_code, status
     `));
     const r = rows[0];
+    if (!r) return res.status(500).json({ error: "Insert failed — no row returned" });
 
     // Fire-and-forget admin notification email
     const admins = adminEmails();
@@ -349,6 +350,7 @@ router.post("/me/videos", async (req, res) => {
       RETURNING id, title, description, video_url, embed_url, sort_order, created_at
     `));
     const v = inserted[0];
+    if (!v) return res.status(500).json({ error: "Video insert failed — no row returned" });
     return res.status(201).json({
       ok: true,
       video: {

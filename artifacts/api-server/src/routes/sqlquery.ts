@@ -193,7 +193,12 @@ router.delete("/connections/:id", async (req, res) => {
   res.json({ disconnected: req.params.id });
 });
 
-// ─── EXTERNAL QUERY (full SQL, all statements allowed) ───────────────────────
+// ─── External query: block server-side OS/filesystem operations ──────────────
+// Users may run DML freely on their own external DB, but we block operations
+// that reach into the DB server's filesystem or execute OS commands.
+const BLOCKED_EXTERNAL = /\b(copy\s+.*\s+from\s+program|pg_read_file|pg_read_binary_file|pg_ls_dir|pg_stat_file|pg_exec|lo_import|lo_export|dblink|dblink_exec|pg_hba_file_rules)\b/i;
+
+// ─── EXTERNAL QUERY ──────────────────────────────────────────────────────────
 router.post("/external-query", async (req, res) => {
   const body = z.object({
     connectionId: z.string(),
@@ -206,6 +211,15 @@ router.post("/external-query", async (req, res) => {
 
   const start = Date.now();
   const rawQuery = body.query.trim();
+
+  if (BLOCKED_EXTERNAL.test(rawQuery)) {
+    return res.json({
+      query: rawQuery, rows: [], columns: [], rowCount: 0,
+      executionTimeMs: 0,
+      error: "Blocked: server-side filesystem/OS operations are not permitted.",
+      connectionId: body.connectionId,
+    });
+  }
 
   // Auto-inject LIMIT for SELECT queries without one
   const autoLimited =

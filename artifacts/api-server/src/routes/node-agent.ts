@@ -216,20 +216,28 @@ router.post("/events", async (req: Request, res: Response) => {
 });
 
 // ── GET /api/node-agent/list — list all registered nodes (admin) ──────────────
-router.get("/list", requireAdmin, async (_req: Request, res: Response) => {
+router.get("/list", requireAdmin, async (req: Request, res: Response) => {
+  const limit  = Math.min(parseInt((req.query.limit  as string) || "200", 10), 200);
+  const offset = Math.max(parseInt((req.query.offset as string) || "0",   10), 0);
   try {
     const rows = await db.select().from(nodeAgentHealthTable)
-      .orderBy(desc(nodeAgentHealthTable.lastSeenAt));
-    res.json(rows);
+      .orderBy(desc(nodeAgentHealthTable.lastSeenAt))
+      .limit(limit)
+      .offset(offset);
+    res.json({ nodes: rows, limit, offset });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
 // ── GET /api/node-agent/health — alias for /list ──────────────────────────────
-router.get("/health", requireAdmin, async (_req: Request, res: Response) => {
+router.get("/health", requireAdmin, async (req: Request, res: Response) => {
+  const limit  = Math.min(parseInt((req.query.limit  as string) || "200", 10), 200);
+  const offset = Math.max(parseInt((req.query.offset as string) || "0",   10), 0);
   try {
     const rows = await db.select().from(nodeAgentHealthTable)
-      .orderBy(desc(nodeAgentHealthTable.lastSeenAt));
-    res.json(rows);
+      .orderBy(desc(nodeAgentHealthTable.lastSeenAt))
+      .limit(limit)
+      .offset(offset);
+    res.json({ nodes: rows, limit, offset });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 

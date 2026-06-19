@@ -61,6 +61,12 @@ app.set("trust proxy", 1);
 app.use(
   pinoHttp({
     logger,
+    redact: [
+      "req.headers['x-daemon-psk']",
+      "req.headers['x-node-agent-psk']",
+      "req.headers['x-honeypot-psk']",
+      "req.headers['authorization']",
+    ],
     serializers: {
       req(req) {
         return { id: req.id, method: req.method, url: req.url?.split("?")[0] };

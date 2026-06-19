@@ -161,11 +161,16 @@ function fetchExternalIp(): Promise<string | null> {
 // ---------------------------------------------------------------------------
 
 router.get("/connections", async (_req, res) => {
-  const connections = await getRealConnections();
-  res.json({ connections, total: connections.length });
+  try {
+    const connections = await getRealConnections();
+    res.json({ connections, total: connections.length });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message ?? "Failed to get connections" });
+  }
 });
 
 router.get("/stats", async (_req, res) => {
+  try {
   const cpus = os.cpus();
   const totalMem = os.totalmem();
   const freeMem = os.freemem();
@@ -208,6 +213,9 @@ router.get("/stats", async (_req, res) => {
     wireguardTunnels: wgTunnels,
     externalIp: externalIp ?? "unavailable",
   });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message ?? "Failed to get stats" });
+  }
 });
 
 export default router;

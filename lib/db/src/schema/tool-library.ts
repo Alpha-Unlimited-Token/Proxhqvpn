@@ -86,7 +86,10 @@ export const nodeAgentHealthTable = pgTable("node_agent_health", {
   status:      text("status").notNull().default("active"),
   lastSeenAt:  timestamp("last_seen_at").notNull().defaultNow(),
   createdAt:   timestamp("created_at").notNull().defaultNow(),
-});
+}, (t) => [
+  index("node_agent_health_last_seen_idx").on(t.lastSeenAt),
+  index("node_agent_health_status_idx").on(t.status),
+]);
 
 // ── tool_schedules — recurring scheduled scan jobs ─────────────────────────
 export const toolSchedulesTable = pgTable("tool_schedules", {
