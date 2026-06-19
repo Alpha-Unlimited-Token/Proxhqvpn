@@ -190,7 +190,7 @@ Description=ProxhqVPN Ghost Trap Daemon
 After=network.target
 [Service]
 Type=simple
-User=nobody
+User=root
 ExecStart=/usr/bin/python3 /opt/proxhq/ghost-trap/ghost-trap.py
 Restart=always
 RestartSec=5
@@ -288,11 +288,11 @@ table inet filter {
     ip6 nexthdr icmpv6 limit rate 10/second accept
     udp dport @ALLOWED_UDP accept
     tcp dport @ALLOWED_TCP accept
-    udp dport @GHOST_NODE_PORTS log prefix "PROXHQ_GHOST_NODE: " level warn drop
-    tcp dport @GHOST_NODE_PORTS log prefix "PROXHQ_GHOST_NODE: " level warn drop
-    tcp dport @GHOST_TRAP_PORTS log prefix "PROXHQ_GHOST_TRAP_TCP: " level warn accept
-    udp dport @GHOST_TRAP_PORTS log prefix "PROXHQ_GHOST_TRAP_UDP: " level warn accept
-    limit rate 200/minute log prefix "PROXHQ_DROP: " level warn
+    udp dport @GHOST_NODE_PORTS log prefix "PROXHQ_GHOST_NODE: " drop
+    tcp dport @GHOST_NODE_PORTS log prefix "PROXHQ_GHOST_NODE: " drop
+    tcp dport @GHOST_TRAP_PORTS log prefix "PROXHQ_GHOST_TRAP_TCP: " accept
+    udp dport @GHOST_TRAP_PORTS log prefix "PROXHQ_GHOST_TRAP_UDP: " accept
+    limit rate 200/minute log prefix "PROXHQ_DROP: "
     drop
   }
   chain forward {
