@@ -292,7 +292,6 @@ table inet filter {
     tcp dport @GHOST_NODE_PORTS log prefix "PROXHQ_GHOST_NODE: " drop
     tcp dport @GHOST_TRAP_PORTS log prefix "PROXHQ_GHOST_TRAP_TCP: " accept
     udp dport @GHOST_TRAP_PORTS log prefix "PROXHQ_GHOST_TRAP_UDP: " accept
-    limit rate 200/minute log prefix "PROXHQ_DROP: "
     drop
   }
   chain forward {
