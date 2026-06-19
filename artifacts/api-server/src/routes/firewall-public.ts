@@ -341,10 +341,15 @@ router.delete("/user-decisions/:id", async (req, res) => {
 });
 
 // ── POST /api/firewall/blocked-ips/:id/unblock ───────────────────────────────
+// Admin-only: unblocking a server-level blocked IP is an infrastructure action.
 
 router.post("/blocked-ips/:id/unblock", async (req, res) => {
   const { userId } = getAuth(req);
   if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const isAdmin = await isOwnerAdmin(userId);
+  if (!isAdmin) { res.status(403).json({ error: "Forbidden: admin only" }); return; }
+
   const [row] = await db.delete(blockedIpsTable)
     .where(eq(blockedIpsTable.id, parseInt(req.params.id)))
     .returning();
