@@ -1,6 +1,7 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 // GhostOS™ Firewall — ProxhqVPN Next-Generation Firewall System
 import React, { useState, useRef, useEffect, useCallback } from "react";
+import { usePersistedState } from "@/hooks/usePersistedState";
 import { AttackerIntelPanel as AttackerIntelPanelFw } from "@/components/AttackerIntelPanel";
 import { useLocation } from "wouter";
 import {
@@ -7163,7 +7164,7 @@ export default function Firewall() {
   const getInitialTab = () => {
     try { return new URLSearchParams(window.location.search).get("tab") ?? "overview"; } catch { return "overview"; }
   };
-  const [tab, setTab] = useState(getInitialTab);
+  const [tab, setTab] = usePersistedState<string>("firewall_tab", getInitialTab());
   const [location] = useLocation();
 
   // Auto-detect which group contains the current tab

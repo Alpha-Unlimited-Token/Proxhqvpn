@@ -165,7 +165,13 @@ export default function FirewallPromptOverlay() {
             <div className="bg-black/40 rounded-lg p-3 mb-3 font-mono text-[11px] space-y-1">
               <div className="flex items-center gap-2">
                 <span className="text-gray-500 w-16 shrink-0">Source IP</span>
-                <span className="text-white font-bold">{current.sourceIp}</span>
+                <a
+                  href={`https://iplocation.io/ip/${current.sourceIp}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-white font-bold hover:text-primary hover:underline transition-colors cursor-pointer"
+                  onClick={e => e.stopPropagation()}
+                >{current.sourceIp}</a>
               </div>
               {current.destPort && (
                 <div className="flex items-center gap-2">

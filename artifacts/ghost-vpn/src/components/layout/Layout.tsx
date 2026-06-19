@@ -1,7 +1,8 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
-import React, { ReactNode, useState, useEffect } from "react";
+import React, { ReactNode, useState, useEffect, useCallback } from "react";
 import { Link, useLocation } from "wouter";
 import { useUser, useClerk } from "@clerk/react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Wifi, CreditCard, Smartphone, BookOpen,
   Power, Search, ShieldPlus, EyeOff,
@@ -425,6 +426,7 @@ export function Layout({ children }: LayoutProps) {
   const [location] = useLocation();
   const { user } = useUser();
   const { signOut } = useClerk();
+  const queryClient = useQueryClient();
   const { isAdmin, isEmployee, hasAccess, hasCommandCenter, tier, devTier } = useAccess();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -434,6 +436,15 @@ export function Layout({ children }: LayoutProps) {
   const [pendingUpdate, setPendingUpdate] = useState<UpdateInfo | null>(null);
   const [updateDismissed, setUpdateDismissed] = useState(false);
   const [restarting, setRestarting] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const refreshAll = useCallback(() => {
+    if (refreshing) return;
+    setRefreshing(true);
+    queryClient.invalidateQueries();
+    window.dispatchEvent(new CustomEvent("proxhq:refresh"));
+    setTimeout(() => setRefreshing(false), 1500);
+  }, [refreshing, queryClient]);
 
   // Standalone mode: show "newer version available" banner when the running
   // server is older than LATEST_STANDALONE_VERSION (port 7474 = standalone).
@@ -666,7 +677,7 @@ export function Layout({ children }: LayoutProps) {
             <User className="w-[14px] h-[14px]" /> Account
           </Link>
           <button
-            onClick={() => signOut()}
+            onClick={() => { sessionStorage.clear(); signOut(); }}
             className="flex items-center gap-2.5 w-full px-3 py-2 rounded-xl text-[12px] text-white/78 hover:text-red-400/80 hover:bg-red-900/[0.12] transition-all"
           >
             <LogOut className="w-[14px] h-[14px]" /> Sign Out
@@ -715,6 +726,16 @@ export function Layout({ children }: LayoutProps) {
               <Menu className="w-4 h-4" />
             </button>
             <span className="text-[13px] font-semibold text-white/88 tracking-tight">{pageName}</span>
+            {/* Global refresh button — survives page navigation, refreshes all live data */}
+            {user && (
+              <button
+                onClick={refreshAll}
+                title="Refresh all data"
+                className={`p-1.5 rounded-lg text-white/40 hover:text-primary hover:bg-primary/[0.08] transition-all ${refreshing ? "text-primary animate-spin" : ""}`}
+              >
+                <RefreshCcw className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
           <div className="flex items-center gap-3">
             <div className="hidden sm:block text-[11px] text-white/70 tabular-nums font-mono">
@@ -845,7 +866,7 @@ export function Layout({ children }: LayoutProps) {
                       </Link>
                       <div className="border-t border-white/[0.06]" />
                       <button
-                        onClick={() => { setUserMenuOpen(false); signOut(); }}
+                        onClick={() => { setUserMenuOpen(false); sessionStorage.clear(); signOut(); }}
                         className="flex items-center gap-2.5 w-full px-3 py-2.5 text-[12px] text-white/78 hover:text-red-400 hover:bg-red-900/[0.12] transition-colors"
                       >
                         <LogOut className="w-3.5 h-3.5 shrink-0" /> Sign Out
