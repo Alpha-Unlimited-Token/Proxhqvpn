@@ -66,7 +66,7 @@ echo "[6/15] Configuring WireGuard (port )..."
 cat > /etc/wireguard/wg0.conf << EOF
 [Interface]
 Address    = 10.8.1.1/24
-ListenPort = 
+ListenPort = 39285
 PrivateKey = $(cat /dev/shm/proxhq/wg0.key)
 PostUp     = sysctl -w net.ipv4.ip_forward=1
 PostDown   = echo "WireGuard wg0 down"
