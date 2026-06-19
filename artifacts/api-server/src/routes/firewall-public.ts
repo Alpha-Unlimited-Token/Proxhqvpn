@@ -14,7 +14,7 @@ import { db } from "@workspace/db";
 import {
   firewallConnectionPromptsTable, firewallUserDecisionsTable,
   blockedIpsTable, beaconAlertsTable, nodeAgentEventsTable,
-  devicesTable,
+  devicesTable, firewallIocsTable,
 } from "@workspace/db";
 import { eq, desc, inArray, or } from "drizzle-orm";
 import { z } from "zod";
@@ -338,6 +338,46 @@ router.delete("/user-decisions/:id", async (req, res) => {
   if (!canDelete) { res.status(403).json({ error: "Forbidden" }); return; }
   await db.delete(firewallUserDecisionsTable).where(eq(firewallUserDecisionsTable.id, id));
   res.json({ ok: true });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ── EDL (External Dynamic List) Export — PUBLIC, no auth required ───────────
+// Compatible with Palo Alto Networks, Fortinet FortiGate, Check Point, Azure FW
+// Hardware firewalls must be able to poll this without a session cookie.
+// ═══════════════════════════════════════════════════════════════════════════
+
+router.get("/edl", async (req, res) => {
+  const format = (req.query.format as string) ?? "txt";
+  const type   = (req.query.type   as string) ?? "ip";
+
+  const [blocked, iocs] = await Promise.all([
+    db.select({ ip: blockedIpsTable.ip }).from(blockedIpsTable),
+    db.select().from(firewallIocsTable).where(eq(firewallIocsTable.enabled, true)),
+  ]);
+
+  const ipEntries     = [...blocked.map(b => b.ip), ...iocs.filter(i => i.iocType === "ip" || i.iocType === "cidr").map(i => i.value)];
+  const domainEntries = iocs.filter(i => i.iocType === "domain").map(i => i.value);
+  const urlEntries    = iocs.filter(i => i.iocType === "url").map(i => i.value);
+
+  let entries: string[] = [];
+  if (type === "ip")          entries = [...new Set(ipEntries)];
+  else if (type === "domain") entries = [...new Set(domainEntries)];
+  else if (type === "url")    entries = [...new Set(urlEntries)];
+  else                        entries = [...new Set([...ipEntries, ...domainEntries, ...urlEntries])];
+
+  const meta = { generatedAt: new Date().toISOString(), total: entries.length, type, source: "ProxhqVPN GhostOS EDL" };
+
+  if (format === "json") return res.json({ ...meta, entries });
+  if (format === "csv") {
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Disposition", `attachment; filename="proxhqvpn-edl-${type}-${Date.now()}.csv"`);
+    return res.send(`value,type,source\n${entries.map(e => `${e},${type},ProxhqVPN`).join("\n")}`);
+  }
+  res.setHeader("Content-Type", "text/plain; charset=utf-8");
+  res.setHeader("Cache-Control", "no-cache, no-store");
+  res.setHeader("X-ProxhqVPN-EDL-Total", String(entries.length));
+  res.setHeader("X-ProxhqVPN-EDL-Generated", meta.generatedAt);
+  return res.send(entries.join("\n"));
 });
 
 // ── POST /api/firewall/blocked-ips/:id/unblock ───────────────────────────────

@@ -348,11 +348,11 @@ const THREAT_FEED_SEEDS = [
 // Additional feeds inserted on every boot if not already present
 const EXTENDED_FEED_SEEDS = [
   { name:"AlienVault OTX Reputation", url:"https://reputation.alienvault.com/reputation.generic", feedType:"ip-list", enabled:true, autoSync:true, status:"pending" },
-  { name:"Cisco Talos IP Blacklist", url:"https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/talos_tier1.netset", feedType:"cidr-list", enabled:true, autoSync:true, status:"pending" },
+  { name:"Cisco Talos IP Blacklist", url:"https://snort.org/downloads/ip-block-list", feedType:"ip-list", enabled:true, autoSync:true, status:"pending" },
   { name:"URLhaus Malicious URLs", url:"https://urlhaus.abuse.ch/downloads/text/", feedType:"url-list", enabled:true, autoSync:true, status:"pending" },
   { name:"Abuse.ch SSLBL C2 IPs", url:"https://sslbl.abuse.ch/blacklist/sslipblacklist.txt", feedType:"ip-list", enabled:true, autoSync:true, status:"pending" },
   { name:"Blocklist.de Attack IPs", url:"https://lists.blocklist.de/lists/all.txt", feedType:"ip-list", enabled:true, autoSync:true, status:"pending" },
-  { name:"DShield Honeypot Blocklist", url:"https://www.dshield.org/block.txt", feedType:"cidr-list", enabled:true, autoSync:true, status:"pending" },
+  { name:"DShield Honeypot Blocklist", url:"https://feeds.dshield.org/block.txt", feedType:"cidr-list", enabled:true, autoSync:true, status:"pending" },
 ];
 
 const ZONE_SEEDS = [
@@ -754,6 +754,49 @@ router.put("/threat-feeds/:id", async (req, res) => {
   res.json(feed);
 });
 
+// ── Multi-format feed text parser ─────────────────────────────────────────
+// Handles: standard IP/CIDR per line, "IP # comment" (AlienVault),
+// DShield tab format (IP\tIP\tCIDR\t...), URLhaus URL-list (extracts IPs from hostnames)
+function parseFeedEntries(text: string, feedType: string): string[] {
+  const ipPat = /^(\d{1,3}\.){3}\d{1,3}(\/\d{1,2})?$/;
+  const entries: string[] = [];
+
+  for (const rawLine of text.split("\n")) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#") || line.startsWith(";")) continue;
+
+    // DShield tab format: "66.132.195.0\t66.132.195.255\t24\t339\t..."
+    if (line.includes("\t")) {
+      const parts = line.split("\t");
+      if (parts.length >= 3) {
+        const ip = parts[0].trim();
+        const bits = parseInt(parts[2].trim(), 10);
+        if (ipPat.test(`${ip}/24`) && !isNaN(bits) && bits >= 0 && bits <= 32) {
+          entries.push(`${ip}/${bits}`);
+          continue;
+        }
+      }
+    }
+
+    // URLhaus / url-list: extract IP from URL hostname
+    if (feedType === "url-list") {
+      try {
+        const u = new URL(line);
+        const host = u.hostname;
+        if (ipPat.test(host)) entries.push(host);
+      } catch { /* not a valid URL, skip */ }
+      continue;
+    }
+
+    // Standard: take first whitespace/semicolon token (handles "IP # comment", "CIDR ; note")
+    const token = line.split(/[\s;]/)[0].trim();
+    if (ipPat.test(token)) entries.push(token);
+  }
+
+  // Deduplicate
+  return [...new Set(entries)];
+}
+
 router.post("/threat-feeds/:id/sync", async (req, res) => {
   const id = parseInt(req.params.id);
   const [feed] = await db.select().from(firewallThreatFeedsTable).where(eq(firewallThreatFeedsTable.id, id));
@@ -767,18 +810,16 @@ router.post("/threat-feeds/:id/sync", async (req, res) => {
 
   try {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 12000);
+    const timer = setTimeout(() => controller.abort(), 15000);
     const resp = await fetch(feed.url, { signal: controller.signal, headers: { "User-Agent": "ProxhqVPN-GhostOS/1.0" } });
     clearTimeout(timer);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status} from ${feed.url}`);
     const text = await resp.text();
-    const lines = text.split("\n").filter(l => !l.startsWith("#") && l.trim());
-    const ipPattern = /^(\d{1,3}\.){3}\d{1,3}(\/\d{1,2})?$/;
-    const entries = lines.filter(l => ipPattern.test(l.trim()));
+    const entries = parseFeedEntries(text, feed.feedType);
     await db.update(firewallThreatFeedsTable).set({ status: "synced", lastSyncedAt: new Date(), entryCount: entries.length, errorMessage: null }).where(eq(firewallThreatFeedsTable.id, id));
-    // Store sample for cross-feed correlation
     if (entries.length > 0) {
       await db.delete(firewallFeedEntriesTable).where(eq(firewallFeedEntriesTable.feedId, id));
-      const sample = entries.slice(0, 500).map(v => ({ feedId: id, feedName: feed.name, value: v.trim(), entryType: feed.feedType === "cidr-list" ? "cidr" : "ip", firstSeen: new Date(), lastSeen: new Date() }));
+      const sample = entries.slice(0, 500).map(v => ({ feedId: id, feedName: feed.name, value: v, entryType: (feed.feedType === "cidr-list" || v.includes("/")) ? "cidr" : "ip", firstSeen: new Date(), lastSeen: new Date() }));
       await db.insert(firewallFeedEntriesTable).values(sample);
     }
     res.json({ synced: true, entryCount: entries.length, sampleIps: entries.slice(0, 5) });
@@ -803,18 +844,16 @@ router.post("/threat-feeds/sync-all", async (_req, res) => {
         continue;
       }
       const ctrl = new AbortController();
-      const t = setTimeout(() => ctrl.abort(), 15000);
+      const t = setTimeout(() => ctrl.abort(), 20000);
       const resp = await fetch(feed.url, { signal: ctrl.signal, headers: { "User-Agent":"ProxhqVPN-GhostOS/1.0" } });
       clearTimeout(t);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const text = await resp.text();
-      const lines = text.split("\n").filter(l => !l.startsWith("#") && l.trim());
-      const ipPat = /^(\d{1,3}\.){3}\d{1,3}(\/\d{1,2})?$/;
-      const entries = lines.filter(l => ipPat.test(l.trim()));
+      const entries = parseFeedEntries(text, feed.feedType);
       await db.update(firewallThreatFeedsTable).set({ status:"synced", lastSyncedAt: new Date(), entryCount: entries.length, errorMessage: null }).where(eq(firewallThreatFeedsTable.id, feed.id));
-      // Store up to 500 sample entries for correlation analysis
       if (entries.length > 0) {
         await db.delete(firewallFeedEntriesTable).where(eq(firewallFeedEntriesTable.feedId, feed.id));
-        const sample = entries.slice(0, 500).map(v => ({ feedId: feed.id, feedName: feed.name, value: v.trim(), entryType: feed.feedType === "cidr-list" ? "cidr" : "ip", firstSeen: new Date(), lastSeen: new Date() }));
+        const sample = entries.slice(0, 500).map(v => ({ feedId: feed.id, feedName: feed.name, value: v, entryType: (feed.feedType === "cidr-list" || v.includes("/")) ? "cidr" : "ip", firstSeen: new Date(), lastSeen: new Date() }));
         await db.insert(firewallFeedEntriesTable).values(sample);
       }
       results.push({ name: feed.name, synced: true, entryCount: entries.length });
@@ -896,48 +935,8 @@ router.delete("/ioc/:id", async (req, res) => {
   res.status(204).send();
 });
 
-// ═══════════════════════════════════════════════════════════════════════════
-// ── EDL (External Dynamic List) Export ─────────────────────────────────────
-// Compatible with Palo Alto Networks, Fortinet FortiGate, Check Point, Azure FW
-// ═══════════════════════════════════════════════════════════════════════════
-
-router.get("/edl", async (req, res) => {
-  const format = (req.query.format as string) ?? "txt";
-  const type   = (req.query.type   as string) ?? "ip";   // ip | domain | url | all
-
-  const blocked = await db.select({ ip: blockedIpsTable.ip }).from(blockedIpsTable);
-  const iocs    = await db.select().from(firewallIocsTable).where(eq(firewallIocsTable.enabled, true));
-
-  const ipEntries = [
-    ...blocked.map(b => b.ip),
-    ...iocs.filter(i => i.iocType === "ip" || i.iocType === "cidr").map(i => i.value),
-  ];
-  const domainEntries = iocs.filter(i => i.iocType === "domain").map(i => i.value);
-  const urlEntries    = iocs.filter(i => i.iocType === "url").map(i => i.value);
-
-  let entries: string[] = [];
-  if (type === "ip")     entries = [...new Set(ipEntries)];
-  else if (type === "domain") entries = [...new Set(domainEntries)];
-  else if (type === "url")    entries = [...new Set(urlEntries)];
-  else entries = [...new Set([...ipEntries, ...domainEntries, ...urlEntries])];
-
-  const meta = { generatedAt: new Date().toISOString(), total: entries.length, type, source: "ProxhqVPN GhostOS EDL" };
-
-  if (format === "json") {
-    return res.json({ ...meta, entries });
-  }
-  if (format === "csv") {
-    res.setHeader("Content-Type", "text/csv");
-    res.setHeader("Content-Disposition", `attachment; filename="proxhqvpn-edl-${type}-${Date.now()}.csv"`);
-    return res.send(`value,type,source\n${entries.map(e => `${e},${type},ProxhqVPN`).join("\n")}`);
-  }
-  // Plaintext — Palo Alto / Fortinet / Check Point EDL format (one entry per line, no header)
-  res.setHeader("Content-Type", "text/plain; charset=utf-8");
-  res.setHeader("Cache-Control", "no-cache, no-store");
-  res.setHeader("X-ProxhqVPN-EDL-Total", String(entries.length));
-  res.setHeader("X-ProxhqVPN-EDL-Generated", meta.generatedAt);
-  return res.send(entries.join("\n"));
-});
+// EDL route moved to firewall-public.ts (before requireAuth) so hardware
+// firewalls can poll it without a Clerk session cookie.
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ── Security Zones ─────────────────────────────────────────────────────────
