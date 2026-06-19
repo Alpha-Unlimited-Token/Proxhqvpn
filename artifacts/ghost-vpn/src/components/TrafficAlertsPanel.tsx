@@ -76,7 +76,7 @@ interface Props {
 }
 
 export default function TrafficAlertsPanel({ open, onClose, onCountChange }: Props) {
-  const { isSignedIn } = useAuth();
+  useAuth(); // ensure Clerk context is consumed (keeps hook order stable)
   const [tab, setTab] = useState<"alerts" | "rules" | "blocked">("alerts");
 
   const [prompts, setPrompts] = useState<Prompt[]>([]);
@@ -93,29 +93,28 @@ export default function TrafficAlertsPanel({ open, onClose, onCountChange }: Pro
   };
 
   const fetchAll = useCallback(async () => {
-    if (!isSignedIn) return;
     try {
       const [pd, dd, bd] = await Promise.all([
         api("/api/firewall/prompts"),
-        api("/api/firewall/user-decisions"),
-        api("/api/firewall/blocked-ips"),
+        api("/api/firewall/user-decisions").catch(() => ({ decisions: [] })),
+        api("/api/firewall/blocked-ips").catch(() => ({ blockedIps: [] })),
       ]);
       const all: Prompt[] = pd.prompts ?? [];
       setPrompts(all);
-      setDecisions(dd.decisions ?? []);
-      setBlockedIps(bd.blockedIps ?? []);
+      setDecisions((dd as { decisions: UserDecision[] }).decisions ?? []);
+      setBlockedIps((bd as { blockedIps: BlockedIp[] }).blockedIps ?? []);
       const pending = all.filter((p: Prompt) => p.decision === "pending").length;
       onCountChange?.(pending);
-    } catch { /* silent */ }
-  }, [isSignedIn, onCountChange]);
+    } catch { /* silent — will retry on next interval */ }
+  }, [onCountChange]);
 
   useEffect(() => {
-    if (!open || !isSignedIn) return;
+    if (!open) return;
     setLoading(true);
     fetchAll().finally(() => setLoading(false));
     timerRef.current = setInterval(fetchAll, 8000);
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [open, isSignedIn, fetchAll]);
+  }, [open, fetchAll]);
 
   const decidePrompt = async (id: number, decision: "allow_once" | "allow_always" | "block_always" | "dismissed") => {
     setActing(id);

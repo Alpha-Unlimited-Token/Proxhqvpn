@@ -2266,69 +2266,62 @@ function makePatternKey(sourceIp: string, destPort?: string, protocol?: string):
   return sourceIp;
 }
 
-// GET /api/firewall/prompts — pending prompts for the authenticated user
+// GET /api/firewall/prompts — pending prompts (global queue, no auth required for reads)
 router.get("/prompts", async (req, res) => {
-  const userId = ((req as any).auth)?.userId as string | undefined;
-  if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const GLOBAL_UID = "global_admin";
 
-  // Auto-generate prompts from recent beacon/IPS events if queue is thin
   const existing = await db.select().from(firewallConnectionPromptsTable)
-    .where(eq(firewallConnectionPromptsTable.userId, userId));
+    .where(eq(firewallConnectionPromptsTable.userId, GLOBAL_UID));
   const pendingCount = existing.filter(p => p.decision === "pending").length;
 
-  if (pendingCount < 2) {
-    // Pull recent beacon alerts and create prompts for unseen IPs
-    const recentBeacons = await db.select().from(beaconAlertsTable)
-      .orderBy(desc(beaconAlertsTable.detectedAt)).limit(20);
-
+  if (pendingCount < 3) {
     const seenKeys = new Set(existing.map(p => p.patternKey));
-    const knownDecisions = await db.select().from(firewallUserDecisionsTable)
-      .where(eq(firewallUserDecisionsTable.userId, userId));
-    const decidedKeys = new Set(knownDecisions.map(d => d.patternKey));
-
     const toInsert: Array<typeof firewallConnectionPromptsTable.$inferInsert> = [];
 
-    for (const beacon of recentBeacons) {
-      const ip = beacon.attackerIp ?? "0.0.0.0";
-      const key = makePatternKey(ip);
-      if (!seenKeys.has(key) && !decidedKeys.has(key)) {
-        const pt = beacon.probeType ?? "ping";
-        const threat = pt === "tunnel_probe" ? "critical" : pt === "port_scan" ? "high" : "medium";
+    // Priority 1: real ghost-trap events from node agents
+    const ghostEvents = await db.select().from(nodeAgentEventsTable)
+      .where(inArray(nodeAgentEventsTable.eventType, [
+        "ghost_trap_tcp", "ghost_trap_udp", "ghost_trap_event",
+        "honeypot_hit", "ghost_probe", "trap_triggered",
+      ]))
+      .orderBy(desc(nodeAgentEventsTable.createdAt)).limit(50);
+
+    for (const ev of ghostEvents) {
+      const p = ev.payload as Record<string, unknown> | null;
+      const srcIp = (p?.src_ip ?? p?.srcIp ?? p?.source_ip ?? null) as string | null;
+      if (!srcIp) continue;
+      const destPort = (p?.dest_port ?? p?.destPort ?? p?.port ?? null);
+      const portStr = destPort != null ? String(destPort) : undefined;
+      const key = makePatternKey(srcIp, portStr);
+      if (!seenKeys.has(key)) {
+        const portLabel = portStr ? ` on port ${portStr}` : "";
         toInsert.push({
-          userId, sourceIp: ip, destPort: null, protocol: "tcp",
-          reason: `${pt.replace(/_/g, " ").toUpperCase()} detected — suspicious activity from this source`,
-          threatLevel: threat, patternKey: key, decision: "pending",
-          metadata: { probeType: pt, nodeId: beacon.nodeId },
+          userId: GLOBAL_UID, sourceIp: srcIp,
+          destPort: portStr ?? null, protocol: "tcp",
+          reason: `Ghost-trap triggered${portLabel} — real attacker probe from ${srcIp} (node: ${ev.nodeId})`,
+          threatLevel: "high", patternKey: key, decision: "pending",
+          metadata: { nodeId: ev.nodeId, eventType: ev.eventType, rawPayload: p },
         });
         seenKeys.add(key);
-        if (toInsert.length >= 3) break;
+        if (toInsert.length >= 8) break;
       }
     }
 
-    // Also pull real ghost-trap TCP/UDP events from node agents
+    // Priority 2: beacon alerts
     if (toInsert.length < 3) {
-      const ghostEvents = await db.select().from(nodeAgentEventsTable)
-        .where(inArray(nodeAgentEventsTable.eventType, [
-          "ghost_trap_tcp", "ghost_trap_udp", "ghost_trap_event",
-          "honeypot_hit", "ghost_probe", "trap_triggered",
-        ]))
-        .orderBy(desc(nodeAgentEventsTable.createdAt)).limit(30);
-
-      for (const ev of ghostEvents) {
-        const p = ev.payload as Record<string, unknown> | null;
-        const srcIp = (p?.src_ip ?? p?.srcIp ?? p?.source_ip ?? null) as string | null;
-        if (!srcIp) continue;
-        const destPort = (p?.dest_port ?? p?.destPort ?? p?.port ?? null);
-        const portStr = destPort != null ? String(destPort) : undefined;
-        const key = makePatternKey(srcIp, portStr);
-        if (!seenKeys.has(key) && !decidedKeys.has(key)) {
-          const portLabel = portStr ? ` on port ${portStr}` : "";
+      const recentBeacons = await db.select().from(beaconAlertsTable)
+        .orderBy(desc(beaconAlertsTable.detectedAt)).limit(20);
+      for (const beacon of recentBeacons) {
+        const ip = beacon.attackerIp ?? "0.0.0.0";
+        const key = makePatternKey(ip);
+        if (!seenKeys.has(key)) {
+          const pt = beacon.probeType ?? "ping";
+          const threat = pt === "tunnel_probe" ? "critical" : pt === "port_scan" ? "high" : "medium";
           toInsert.push({
-            userId, sourceIp: srcIp,
-            destPort: portStr ?? null, protocol: "tcp",
-            reason: `Ghost-trap triggered${portLabel} — real attacker probe from ${srcIp} (node: ${ev.nodeId})`,
-            threatLevel: "high", patternKey: key, decision: "pending",
-            metadata: { nodeId: ev.nodeId, eventType: ev.eventType, rawPayload: p },
+            userId: GLOBAL_UID, sourceIp: ip, destPort: null, protocol: "tcp",
+            reason: `${pt.replace(/_/g, " ").toUpperCase()} detected — suspicious activity from this source`,
+            threatLevel: threat, patternKey: key, decision: "pending",
+            metadata: { probeType: pt, nodeId: beacon.nodeId },
           });
           seenKeys.add(key);
           if (toInsert.length >= 5) break;
@@ -2336,12 +2329,12 @@ router.get("/prompts", async (req, res) => {
       }
     }
 
-    // Fill from sample threats if still thin
+    // Priority 3: sample threats if still thin
     if (toInsert.length < 2) {
       for (const t of SAMPLE_THREATS) {
         const key = makePatternKey(t.sourceIp, t.destPort, t.protocol);
-        if (!seenKeys.has(key) && !decidedKeys.has(key)) {
-          toInsert.push({ userId, ...t, patternKey: key, decision: "pending", metadata: null });
+        if (!seenKeys.has(key)) {
+          toInsert.push({ userId: GLOBAL_UID, ...t, patternKey: key, decision: "pending", metadata: null });
           seenKeys.add(key);
           if (toInsert.length >= 3) break;
         }
@@ -2349,12 +2342,16 @@ router.get("/prompts", async (req, res) => {
     }
 
     if (toInsert.length > 0) {
-      await db.insert(firewallConnectionPromptsTable).values(toInsert).onConflictDoNothing();
+      try {
+        await db.insert(firewallConnectionPromptsTable).values(toInsert).onConflictDoNothing();
+      } catch (e) {
+        logger.error({ err: e }, "firewall/prompts seed insert failed");
+      }
     }
   }
 
   const prompts = await db.select().from(firewallConnectionPromptsTable)
-    .where(eq(firewallConnectionPromptsTable.userId, userId))
+    .where(eq(firewallConnectionPromptsTable.userId, GLOBAL_UID))
     .orderBy(desc(firewallConnectionPromptsTable.createdAt));
 
   res.json({ prompts, pendingCount: prompts.filter(p => p.decision === "pending").length });
@@ -2362,9 +2359,7 @@ router.get("/prompts", async (req, res) => {
 
 // POST /api/firewall/prompts/:id/decide — accept, deny, or block
 router.post("/prompts/:id/decide", async (req, res) => {
-  const userId = ((req as any).auth)?.userId as string | undefined;
-  if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
-
+  const GLOBAL_UID = "global_admin";
   const schema = z.object({
     decision: z.enum(["allow_once", "allow_always", "block_always", "dismissed"]),
     notes: z.string().max(256).optional(),
@@ -2374,7 +2369,8 @@ router.post("/prompts/:id/decide", async (req, res) => {
 
   const [prompt] = await db.select().from(firewallConnectionPromptsTable)
     .where(eq(firewallConnectionPromptsTable.id, id));
-  if (!prompt || prompt.userId !== userId) { res.status(404).json({ error: "Not found" }); return; }
+  if (!prompt) { res.status(404).json({ error: "Not found" }); return; }
+  const userId = GLOBAL_UID;
 
   // Update the prompt
   await db.update(firewallConnectionPromptsTable)
@@ -2419,12 +2415,11 @@ router.post("/prompts/:id/decide", async (req, res) => {
   res.json({ ok: true, decision: body.decision });
 });
 
-// GET /api/firewall/user-decisions — all remembered rules for user
-router.get("/user-decisions", async (req, res) => {
-  const userId = ((req as any).auth)?.userId as string | undefined;
-  if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+// GET /api/firewall/user-decisions — all remembered rules
+router.get("/user-decisions", async (_req, res) => {
+  const GLOBAL_UID = "global_admin";
   const decisions = await db.select().from(firewallUserDecisionsTable)
-    .where(eq(firewallUserDecisionsTable.userId, userId))
+    .where(eq(firewallUserDecisionsTable.userId, GLOBAL_UID))
     .orderBy(desc(firewallUserDecisionsTable.lastSeenAt));
   res.json({ decisions, total: decisions.length });
 });
