@@ -14,7 +14,6 @@ import { CLERK_PROXY_PATH, clerkProxyMiddleware } from "./middlewares/clerkProxy
 import fs from "fs";
 import path from "path";
 import router from "./routes";
-import siemIngestRouter from "./routes/siem-ingest";
 import { blockTemporaryProductionRoutes } from "./lib/route-governance";
 import { productionSecurityProfile } from "./middlewares/productionSecurityProfile";
 import { errorHandler, notFoundHandler } from "./middlewares/errorHandler";
@@ -22,7 +21,8 @@ import { internalSecretBypass } from "./lib/internal-auth";
 import { logger } from "./lib/logger";
 import { WebhookHandlers } from "./webhookHandlers";
 import { tenantContext } from "./middlewares/tenantContext";
-import { db, daemonIpBansTable } from "@workspace/db";
+import { db, daemonIpBansTable, securityEventsTable } from "@workspace/db";
+import { randomUUID } from "crypto";
 
 const app: Express = express();
 
@@ -396,7 +396,39 @@ app.use(productionSecurityProfile);
 app.use(internalSecretBypass);
 
 // SIEM ingest — public webhook for Vultr node hardening scripts (no Clerk auth)
-app.use("/api/siem", siemIngestRouter);
+app.post("/api/siem/ingest", async (req: Request, res: Response) => {
+  const body = req.body as { event?: unknown; host?: unknown; timestamp?: unknown; source?: unknown };
+  const event = typeof body.event === "string" ? body.event : "";
+  const host  = typeof body.host  === "string" ? body.host  : "unknown-node";
+  const src   = typeof body.source === "string" ? body.source : "vultr-node";
+  if (!event) { res.status(400).json({ error: "event field required" }); return; }
+  const lower = event.toLowerCase();
+  let severity: "critical"|"high"|"medium"|"low"|"info" = "info";
+  if (lower.includes("crit")||lower.includes("emerg")||lower.includes("rootkit")) severity = "critical";
+  else if (lower.includes("error")||lower.includes("fail")||lower.includes("denied")||lower.includes("banned")) severity = "high";
+  else if (lower.includes("warn")||lower.includes("refused")||lower.includes("drop")) severity = "medium";
+  else if (lower.includes("notice")||lower.includes("accept")) severity = "low";
+  let eventType = "node.log";
+  if (lower.includes("iptables")||lower.includes("nftables")) eventType = "firewall.drop";
+  else if (lower.includes("sshd")||lower.includes("ssh")) eventType = "ssh.event";
+  else if (lower.includes("fail2ban")) eventType = "fail2ban.action";
+  else if (lower.includes("psad")||lower.includes("portscan")) eventType = "portscan.detection";
+  else if (lower.includes("rkhunter")||lower.includes("rootkit")) eventType = "rootkit.detection";
+  else if (lower.includes("auditd")||lower.includes("audit:")) eventType = "audit.event";
+  else if (lower.includes("unbound")||lower.includes("dns")) eventType = "dns.event";
+  try {
+    await db.insert(securityEventsTable).values({
+      id: randomUUID(), source: src, eventType, severity,
+      actor: host, subject: host,
+      normalized: { eventType, host, severity, source: src },
+      raw: { event, host, timestamp: body.timestamp, source: src },
+    });
+    res.json({ ok: true });
+  } catch (err) {
+    logger.error({ err }, "[siem/ingest] db error");
+    res.status(500).json({ error: "ingest failed" });
+  }
+});
 
 app.use("/api", router);
 
