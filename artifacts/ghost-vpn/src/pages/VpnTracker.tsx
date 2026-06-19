@@ -9,13 +9,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
-const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
-
-async function apiFetch(path: string) {
-  const r = await fetch(`${BASE}/api${path}`, { credentials: "include" });
-  if (!r.ok) throw new Error(`HTTP ${r.status}`);
-  return r.json();
-}
+import { apiFetch } from "@/lib/apiClient";
 
 function timeAgo(ts: string | null | undefined) {
   if (!ts) return "—";

@@ -10,16 +10,7 @@ import {
   MapPin, Building2, Network, Wifi,
 } from "lucide-react";
 
-const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
-
-async function apiFetch(path: string, opts?: RequestInit) {
-  const r = await fetch(`${BASE}/api${path}`, {
-    credentials: "include", ...opts,
-    headers: { "Content-Type": "application/json", ...(opts?.headers || {}) },
-  });
-  if (!r.ok) throw new Error(`HTTP ${r.status}`);
-  return r.json();
-}
+import { apiFetch } from "@/lib/apiClient";
 
 const TOKEN_TYPES = [
   { key: "url",           label: "URL Token",      icon: Globe,     desc: "A unique URL that alerts when visited — embed in documents, emails, or web pages" },

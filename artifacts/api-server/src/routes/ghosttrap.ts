@@ -1785,6 +1785,11 @@ router.post("/block-source", requireRbac("counter_attack"), async (req, res) => 
 
   if (!ip && !cidr) { res.status(400).json({ error: "ip or cidr is required" }); return; }
 
+  // Validate CIDR format if provided
+  if (cidr && !/^(\d{1,3}\.){3}\d{1,3}\/([0-9]|[1-2][0-9]|3[0-2])$/.test(cidr)) {
+    res.status(400).json({ error: "Invalid CIDR format (expected x.x.x.x/0-32)" }); return;
+  }
+
   // Validate: if IP provided, verify it's in the probe log
   if (ip) {
     if (!/^(\d{1,3}\.){3}\d{1,3}$/.test(ip)) { res.status(400).json({ error: "Invalid IP format" }); return; }

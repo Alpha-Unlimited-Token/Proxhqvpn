@@ -21,19 +21,16 @@ import { format } from "date-fns";
 const QA_BASE_BA = import.meta.env.BASE_URL?.replace(/\/ghost-vpn\/?$/, "") ?? "";
 
 function BlockchainKeyAlertsPanel() {
-  const [qa, setQa] = useState<any>(null);
-
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const r = await fetch(`${QA_BASE_BA}/api/quantum-audit/cc-summary`, { credentials: "include" });
-        if (r.ok) setQa(await r.json());
-      } catch { /* best-effort */ }
-    };
-    load();
-    const t = setInterval(load, 60_000);
-    return () => clearInterval(t);
-  }, []);
+  const { data: qa } = useQuery({
+    queryKey: ["qa-cc-summary-beacon"],
+    queryFn: async () => {
+      const r = await fetch(`${QA_BASE_BA}/api/quantum-audit/cc-summary`, { credentials: "include" });
+      if (!r.ok) throw new Error("failed");
+      return r.json();
+    },
+    refetchInterval: 60_000,
+    retry: false,
+  });
 
   if (!qa) return null;
   const keyFindings = (qa.recentFindings ?? []).filter((f: any) => f.hasKey);

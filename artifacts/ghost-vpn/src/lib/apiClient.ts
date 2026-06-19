@@ -31,7 +31,7 @@ function normalizePath(path: string): string {
   return `/api${clean}`;
 }
 
-export async function apiFetch<T>(
+export async function apiFetch<T = any>(
   path: string,
   init: RequestInit = {},
 ): Promise<T> {

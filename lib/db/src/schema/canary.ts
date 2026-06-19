@@ -15,6 +15,7 @@ export const canaryTokensTable = pgTable("canary_tokens", {
   active: boolean("active").notNull().default(true),
   alertEmail: text("alert_email"),
   metadataJson: text("metadata_json"),
+  expiresAt: timestamp("expires_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

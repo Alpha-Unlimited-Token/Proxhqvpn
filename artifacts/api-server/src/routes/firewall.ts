@@ -869,7 +869,10 @@ router.post("/threat-feeds/sync-all", async (_req, res) => {
 
 // ── Feed Correlation (IPs confirmed by multiple feeds) ─────────────────────
 router.get("/threat-feeds/correlation", async (_req, res) => {
-  const entries = await db.select().from(firewallFeedEntriesTable);
+  const entries = await db
+    .select({ value: firewallFeedEntriesTable.value, feedId: firewallFeedEntriesTable.feedId, feedName: firewallFeedEntriesTable.feedName })
+    .from(firewallFeedEntriesTable)
+    .limit(10000);
   const byValue: Record<string, { feeds: string[]; feedIds: number[] }> = {};
   for (const e of entries) {
     if (!byValue[e.value]) byValue[e.value] = { feeds: [], feedIds: [] };

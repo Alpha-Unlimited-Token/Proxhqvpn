@@ -4,6 +4,7 @@ import { db } from "@workspace/db";
 import { dnsSinkholeConfigTable, dnsSinkholeCustomRulesTable } from "@workspace/db";
 import { eq, desc, sql } from "drizzle-orm";
 import dns from "dns/promises";
+import z from "zod";
 
 const router = Router();
 
@@ -38,13 +39,28 @@ router.get("/config", async (req: Request, res: Response) => {
   }
 });
 
+const configPatchSchema = z.object({
+  enabled:          z.boolean().optional(),
+  blockAds:         z.boolean().optional(),
+  blockTrackers:    z.boolean().optional(),
+  blockMalware:     z.boolean().optional(),
+  blockPhishing:    z.boolean().optional(),
+  blockAdult:       z.boolean().optional(),
+  blockCryptomining: z.boolean().optional(),
+  blockBotnet:      z.boolean().optional(),
+});
+
 router.put("/config", async (req: Request, res: Response) => {
   try {
     const config = await getOrCreateConfig();
+    const parseResult = configPatchSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      res.status(400).json({ error: parseResult.error.errors[0]?.message ?? "Invalid request body" }); return;
+    }
     const {
       enabled, blockAds, blockTrackers, blockMalware,
       blockPhishing, blockAdult, blockCryptomining, blockBotnet,
-    } = req.body as Record<string, boolean>;
+    } = parseResult.data;
 
     const [updated] = await db.update(dnsSinkholeConfigTable)
       .set({
@@ -132,9 +148,18 @@ router.get("/rules", async (req: Request, res: Response) => {
   }
 });
 
+const ruleSchema = z.object({
+  domain: z.string().min(1).max(253).transform(v => v.toLowerCase().trim()),
+  action: z.enum(["block", "allow"]).default("block"),
+  reason: z.string().max(200).optional(),
+});
+
 router.post("/rules", async (req: Request, res: Response) => {
-  const { domain, action, reason } = req.body as { domain: string; action: string; reason: string };
-  if (!domain) return res.status(400).json({ error: "domain required" });
+  const parseResult = ruleSchema.safeParse(req.body);
+  if (!parseResult.success) {
+    return res.status(400).json({ error: parseResult.error.errors[0]?.message ?? "Invalid rule" });
+  }
+  const { domain, action, reason } = parseResult.data;
   try {
     const [rule] = await db.insert(dnsSinkholeCustomRulesTable)
       .values({ domain: domain.toLowerCase().trim(), action: action || "block", reason })
@@ -157,8 +182,9 @@ router.delete("/rules/:id", async (req: Request, res: Response) => {
 });
 
 router.post("/lookup", async (req: Request, res: Response) => {
-  const { domain } = req.body as { domain: string };
-  if (!domain) return res.status(400).json({ error: "domain required" });
+  const parseResult = z.object({ domain: z.string().min(1).max(253) }).safeParse(req.body);
+  if (!parseResult.success) return res.status(400).json({ error: "domain required" });
+  const { domain } = parseResult.data;
 
   const lower = domain.toLowerCase().trim();
   const isAd = AD_DOMAINS_SAMPLE.some(d => lower.includes(d));

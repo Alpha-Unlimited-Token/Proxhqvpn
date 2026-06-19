@@ -258,7 +258,7 @@ export async function runNodeRotationEngine(): Promise<void> {
               honeypotPort:  node.listenPort,
               probeType:     "honeypot_connect",
               sqlmapStatus:  "idle",
-            }).catch(() => {});
+            }).onConflictDoNothing().catch(() => {});
 
             stats.honeypotFires++;
             logger.info(

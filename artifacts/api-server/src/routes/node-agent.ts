@@ -220,7 +220,20 @@ router.get("/list", requireAdmin, async (req: Request, res: Response) => {
   const limit  = Math.min(parseInt((req.query.limit  as string) || "200", 10), 200);
   const offset = Math.max(parseInt((req.query.offset as string) || "0",   10), 0);
   try {
-    const rows = await db.select().from(nodeAgentHealthTable)
+    const rows = await db.select({
+      nodeId:     nodeAgentHealthTable.nodeId,
+      nodeName:   nodeAgentHealthTable.nodeName,
+      version:    nodeAgentHealthTable.version,
+      ip:         nodeAgentHealthTable.ip,
+      os:         nodeAgentHealthTable.os,
+      arch:       nodeAgentHealthTable.arch,
+      cpuPct:     nodeAgentHealthTable.cpuPct,
+      memPct:     nodeAgentHealthTable.memPct,
+      diskMb:     nodeAgentHealthTable.diskMb,
+      status:     nodeAgentHealthTable.status,
+      lastSeenAt: nodeAgentHealthTable.lastSeenAt,
+      createdAt:  nodeAgentHealthTable.createdAt,
+    }).from(nodeAgentHealthTable)
       .orderBy(desc(nodeAgentHealthTable.lastSeenAt))
       .limit(limit)
       .offset(offset);
@@ -233,7 +246,20 @@ router.get("/health", requireAdmin, async (req: Request, res: Response) => {
   const limit  = Math.min(parseInt((req.query.limit  as string) || "200", 10), 200);
   const offset = Math.max(parseInt((req.query.offset as string) || "0",   10), 0);
   try {
-    const rows = await db.select().from(nodeAgentHealthTable)
+    const rows = await db.select({
+      nodeId:     nodeAgentHealthTable.nodeId,
+      nodeName:   nodeAgentHealthTable.nodeName,
+      version:    nodeAgentHealthTable.version,
+      ip:         nodeAgentHealthTable.ip,
+      os:         nodeAgentHealthTable.os,
+      arch:       nodeAgentHealthTable.arch,
+      cpuPct:     nodeAgentHealthTable.cpuPct,
+      memPct:     nodeAgentHealthTable.memPct,
+      diskMb:     nodeAgentHealthTable.diskMb,
+      status:     nodeAgentHealthTable.status,
+      lastSeenAt: nodeAgentHealthTable.lastSeenAt,
+      createdAt:  nodeAgentHealthTable.createdAt,
+    }).from(nodeAgentHealthTable)
       .orderBy(desc(nodeAgentHealthTable.lastSeenAt))
       .limit(limit)
       .offset(offset);

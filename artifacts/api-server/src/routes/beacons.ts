@@ -65,18 +65,20 @@ function isWhitelisted(ip: string, probeType: string): boolean {
 
 router.get("/", async (req, res) => {
   const { status } = req.query as { status?: string };
-  let alerts = await db.select().from(beaconAlertsTable).orderBy(sql`detected_at DESC`);
+  let alerts = await db.select().from(beaconAlertsTable).orderBy(sql`detected_at DESC`).limit(500);
   if (status && status !== "all") {
     alerts = alerts.filter((a) => a.status === status);
   }
   // Annotate each alert with classification parsed from fingerprint
+  // rawData is used only for internal parsing and stripped from response
   const annotated = alerts.map(a => {
+    const { rawData, ...alertFields } = a;
     let rawParsed: Record<string, unknown> = {};
-    try { rawParsed = JSON.parse(a.rawData ?? "{}"); } catch {}
-    const isAudit = (a.attackerFingerprint ?? "").startsWith("AUDIT|");
-    const whitelisted = isWhitelisted(a.attackerIp, a.probeType);
+    try { rawParsed = JSON.parse(rawData ?? "{}"); } catch {}
+    const isAudit = (alertFields.attackerFingerprint ?? "").startsWith("AUDIT|");
+    const whitelisted = isWhitelisted(alertFields.attackerIp, alertFields.probeType);
     return {
-      ...a,
+      ...alertFields,
       classification: isAudit ? "audit" : "attack",
       whitelisted,
       rawParsed,

@@ -7,13 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 
-const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
-
-async function apiFetch(path: string, opts?: RequestInit) {
-  const r = await fetch(`${BASE}/api${path}`, { credentials: "include", ...opts });
-  if (!r.ok) throw new Error(await r.text());
-  return r.json();
-}
+import { apiFetch } from "@/lib/apiClient";
 
 interface CategoryStat {
   id: string;

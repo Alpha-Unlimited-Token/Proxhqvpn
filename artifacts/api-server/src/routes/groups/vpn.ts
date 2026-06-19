@@ -46,7 +46,7 @@ import neuralfenceRouter from "../neuralfence";
 
 const router = Router();
 
-router.use("/me", meRouter);
+registerVpnRoute(router, "/me", "vpn.read", meRouter);
 registerVpnRoute(router, "/account-security", "vpn.read", accountSecurityCenterRouter);
 
 registerVpnRoute(router, "/killswitch", "vpn.write", killswitchRouter);

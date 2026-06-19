@@ -11,6 +11,7 @@ export const ztnaDevicesTable = pgTable("ztna_devices", {
   posture:          jsonb("posture").notNull().default({}),
   revoked:          boolean("revoked").notNull().default(false),
   lastSeenAt:       timestamp("last_seen_at"),
+  expiresAt:        timestamp("expires_at"),
   createdAt:        timestamp("created_at").defaultNow().notNull(),
 });
 

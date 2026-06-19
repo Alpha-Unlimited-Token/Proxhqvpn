@@ -6,20 +6,9 @@ import { Download, Shield, CheckCircle, ChevronDown, ChevronUp, RefreshCw, Smart
 import { useListNodes } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 
-const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+import { apiFetch } from "@/lib/apiClient";
 
-async function apiFetch(path: string, opts: RequestInit = {}) {
-  const r = await fetch(`${BASE}${path}`, {
-    ...opts,
-    headers: { "Content-Type": "application/json", ...(opts.headers ?? {}) },
-    credentials: "include",
-  });
-  if (!r.ok) {
-    const body = await r.json().catch(() => ({}));
-    throw new Error(body.error ?? `HTTP ${r.status}`);
-  }
-  return r.json();
-}
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 type WgConfig = {
   id: number;
@@ -103,16 +92,15 @@ export default function Connect() {
 
   useEffect(() => {
     setIpLoading(true);
-    fetch(`${BASE}/api/my-ip`, { credentials: "include" })
-      .then((r) => r.json())
-      .then((d) => { if (d.ip && d.ip !== "unknown") setMyPublicIp(d.ip); })
+    apiFetch('/my-ip')
+      .then((d: any) => { if (d.ip && d.ip !== "unknown") setMyPublicIp(d.ip); })
       .catch(() => {})
       .finally(() => setIpLoading(false));
   }, []);
 
   const { data: myConfigs, isLoading } = useQuery<{ configs: WgConfig[]; hasConfig: boolean }>({
     queryKey: ["my-wg-configs"],
-    queryFn: () => apiFetch("/api/wireguard/my-config"),
+    queryFn: () => apiFetch("/wireguard/my-config"),
     enabled: !!user,
   });
 
@@ -131,7 +119,7 @@ export default function Connect() {
     if (pollRef.current) clearInterval(pollRef.current);
     pollRef.current = setInterval(async () => {
       try {
-        const data = await apiFetch(`/api/wireguard/peer-status/${configId}`);
+        const data = await apiFetch(`/wireguard/peer-status/${configId}`);
         setPeerStatus(data.status);
         if (data.status === "applied" || data.status === "failed") {
           clearInterval(pollRef.current!);
@@ -155,7 +143,7 @@ export default function Connect() {
 
   const generateMutation = useMutation({
     mutationFn: (nodeId: number) =>
-      apiFetch("/api/wireguard/my-config", { method: "POST", body: JSON.stringify({ nodeId }) }),
+      apiFetch("/wireguard/my-config", { method: "POST", body: JSON.stringify({ nodeId }) }),
     onSuccess: (data: WgConfig) => {
       setJustConnected(true);
       setPeerStatus("pending");
@@ -168,7 +156,7 @@ export default function Connect() {
   });
 
   const revokeMutation = useMutation({
-    mutationFn: (id: number) => apiFetch(`/api/wireguard/my-config/${id}`, { method: "DELETE" }),
+    mutationFn: (id: number) => apiFetch(`/wireguard/my-config/${id}`, { method: "DELETE" }),
     onSuccess: () => {
       setPeerStatus("unknown");
       setJustConnected(false);

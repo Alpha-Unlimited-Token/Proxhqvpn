@@ -1,6 +1,7 @@
 // Copyright © 2026 Alpha Unlimited Technologies LLC. All rights reserved.
 import { Router } from "express";
 import { getAuth } from "@clerk/express";
+import z from "zod";
 
 const router = Router();
 
@@ -44,14 +45,21 @@ router.get("/status", (req, res) => {
   res.json({ enabled: profile.enabled, profile });
 });
 
+const gpsSetSchema = z.object({
+  latitude:  z.number().min(-90).max(90),
+  longitude: z.number().min(-180).max(180),
+  accuracy:  z.number().min(1).max(100).optional().default(10),
+  altitude:  z.number().optional().default(0),
+  city:      z.string().max(100).optional().default("Custom"),
+  country:   z.string().length(2).toUpperCase().optional().default("XX"),
+});
+
 router.post("/set", (req, res) => {
-  const { latitude, longitude, accuracy = 10, altitude = 0, city = "Custom", country = "XX" } = req.body;
-  if (typeof latitude !== "number" || typeof longitude !== "number") {
-    return res.status(400).json({ error: "latitude and longitude required" });
+  const parseResult = gpsSetSchema.safeParse(req.body);
+  if (!parseResult.success) {
+    return res.status(400).json({ error: parseResult.error.errors[0]?.message ?? "Invalid coordinates" });
   }
-  if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
-    return res.status(400).json({ error: "coordinates out of range" });
-  }
+  const { latitude, longitude, accuracy, altitude, city, country } = parseResult.data;
   const profile: GpsProfile = {
     enabled: true,
     latitude,

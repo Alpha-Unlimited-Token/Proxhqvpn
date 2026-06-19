@@ -9,16 +9,7 @@ import {
   Search, BarChart2, Globe, Zap, AlertTriangle,
 } from "lucide-react";
 
-const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
-
-async function apiFetch(path: string, opts?: RequestInit) {
-  const r = await fetch(`${BASE}/api${path}`, {
-    credentials: "include", ...opts,
-    headers: { "Content-Type": "application/json", ...(opts?.headers || {}) },
-  });
-  if (!r.ok) throw new Error(`HTTP ${r.status}`);
-  return r.json();
-}
+import { apiFetch } from "@/lib/apiClient";
 
 const CATEGORIES = [
   { key: "blockAds", label: "Advertising", desc: "Google Ads, DoubleClick, AdSense, ad networks", icon: "📢", color: "text-yellow-400" },
