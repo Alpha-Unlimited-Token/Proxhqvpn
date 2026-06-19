@@ -296,8 +296,8 @@ table inet filter {
   }
   chain forward {
     type filter hook forward priority 0 ; policy drop ;
-    iifname "wg0" oifname "$IFACE" accept
-    iifname "$IFACE" oifname "wg0" ct state established,related accept
+    iifname "wg0" accept
+    oifname "wg0" ct state established,related accept
     iifname "wg0" oifname "wg0" accept
   }
   chain output { type filter hook output priority 0 ; policy accept ; }
@@ -305,7 +305,7 @@ table inet filter {
 table inet nat {
   chain postrouting {
     type nat hook postrouting priority 100 ;
-    oifname "$IFACE" masquerade
+    ip saddr 10.8.4.0/24 masquerade
   }
 }
 NFTEOF
