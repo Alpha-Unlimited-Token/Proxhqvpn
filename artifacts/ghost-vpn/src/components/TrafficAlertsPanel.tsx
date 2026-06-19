@@ -242,7 +242,14 @@ export default function TrafficAlertsPanel({ open, onClose, onCountChange }: Pro
                     <div className="p-3.5">
                       <div className="flex items-start justify-between mb-2">
                         <div>
-                          <div className="text-[12px] font-bold text-white font-mono">{p.sourceIp}</div>
+                          <a
+                            href={`https://iplocation.io/ip/${p.sourceIp}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[12px] font-bold text-cyan-400 font-mono hover:text-cyan-300 hover:underline transition-colors cursor-pointer"
+                            onClick={e => e.stopPropagation()}
+                            title={`Look up ${p.sourceIp} on iplocation.io`}
+                          >{p.sourceIp}</a>
                           {p.destPort && (
                             <div className="text-[10px] text-white/50 font-mono">
                               port {p.destPort} · {p.protocol?.toUpperCase()}
@@ -303,7 +310,14 @@ export default function TrafficAlertsPanel({ open, onClose, onCountChange }: Pro
                         ? <X className="h-3.5 w-3.5 text-white/30 shrink-0" />
                         : <ShieldCheck className="h-3.5 w-3.5 text-green-400 shrink-0" />}
                       <div className="flex-1 min-w-0">
-                        <div className="text-[11px] font-mono text-white/70 truncate">{p.sourceIp}</div>
+                        <a
+                          href={`https://iplocation.io/ip/${p.sourceIp}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[11px] font-mono text-cyan-400/80 truncate hover:text-cyan-300 hover:underline transition-colors"
+                          onClick={e => e.stopPropagation()}
+                          title={`Look up ${p.sourceIp} on iplocation.io`}
+                        >{p.sourceIp}</a>
                         <div className="text-[9px] text-white/30 font-mono capitalize">{p.decision.replace(/_/g, " ")}</div>
                       </div>
                       <div className="text-[9px] text-white/25 font-mono shrink-0">
@@ -343,9 +357,18 @@ export default function TrafficAlertsPanel({ open, onClose, onCountChange }: Pro
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-0.5">
-                        <span className="text-[12px] font-mono font-bold text-white/90 truncate">
-                          {d.sourceIp ?? "Any IP"}
-                        </span>
+                        {d.sourceIp ? (
+                          <a
+                            href={`https://iplocation.io/ip/${d.sourceIp}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[12px] font-mono font-bold text-cyan-400 truncate hover:text-cyan-300 hover:underline transition-colors"
+                            onClick={e => e.stopPropagation()}
+                            title={`Look up ${d.sourceIp} on iplocation.io`}
+                          >{d.sourceIp}</a>
+                        ) : (
+                          <span className="text-[12px] font-mono font-bold text-white/90 truncate">Any IP</span>
+                        )}
                         <span className={`text-[9px] font-bold font-mono uppercase px-1.5 py-0.5 rounded ${
                           isAllow ? "bg-green-900/40 text-green-400" : "bg-red-900/40 text-red-400"
                         }`}>
