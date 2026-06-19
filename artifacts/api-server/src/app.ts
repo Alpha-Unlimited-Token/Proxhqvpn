@@ -14,6 +14,7 @@ import { CLERK_PROXY_PATH, clerkProxyMiddleware } from "./middlewares/clerkProxy
 import fs from "fs";
 import path from "path";
 import router from "./routes";
+import siemIngestRouter from "./routes/siem-ingest";
 import { blockTemporaryProductionRoutes } from "./lib/route-governance";
 import { productionSecurityProfile } from "./middlewares/productionSecurityProfile";
 import { errorHandler, notFoundHandler } from "./middlewares/errorHandler";
@@ -365,6 +366,7 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 
 app.use("/api/terminal",        terminalLimiter);
 app.use("/api/daemon-inbound",  daemonLimiter);
+app.use("/api/siem/ingest",     daemonLimiter);
 app.use("/api/sql", sqlLimiter);
 app.use("/api/node-provision",  mutateLimiter);
 app.use("/api/nodes", (req: Request, res: Response, next: NextFunction) => {
@@ -392,6 +394,9 @@ app.use(productionSecurityProfile);
 // Internal service bypass: validates X-Internal-Secret and sets req.internalBypass
 // Loopback-only in production (mTLS-ready); requireAuth in routes checks the flag.
 app.use(internalSecretBypass);
+
+// SIEM ingest — public webhook for Vultr node hardening scripts (no Clerk auth)
+app.use("/api/siem", siemIngestRouter);
 
 app.use("/api", router);
 
