@@ -755,6 +755,7 @@ function DpiTab() {
 const HRC=[{code:"CN",name:"China"},{code:"RU",name:"Russia"},{code:"KP",name:"North Korea"},{code:"IR",name:"Iran"},{code:"SY",name:"Syria"},{code:"BY",name:"Belarus"},{code:"VE",name:"Venezuela"},{code:"CU",name:"Cuba"},{code:"MM",name:"Myanmar"},{code:"SD",name:"Sudan"},{code:"YE",name:"Yemen"},{code:"LY",name:"Libya"}];
 
 function ThreatTab() {
+  // ── Existing hooks ──────────────────────────────────────────────────────
   const { data: geo, refetch: rGeo } = useListGeoBlocks();
   const { data: feeds, refetch: rFeeds } = useListThreatFeeds();
   const { data: profiles } = useListThreatProfiles();
@@ -764,11 +765,126 @@ function ThreatTab() {
   const [applying, setApplying] = useState<string|null>(null);
   const [gi, setGi] = useState({ countryCode:"", countryName:"" });
 
+  // ── IOC Manager state ───────────────────────────────────────────────────
+  const [iocs, setIocs] = useState<Record<string,unknown>[]>([]);
+  const [iocLoading, setIocLoading] = useState(false);
+  const [iocForm, setIocForm] = useState({ iocType:"ip", value:"", severity:"high", action:"block", confidence:100, source:"manual", description:"", tags:"" });
+  const [iocSubmitting, setIocSubmitting] = useState(false);
+
+  // ── Feed correlation state ──────────────────────────────────────────────
+  const [correlation, setCorrelation] = useState<Record<string,unknown>[]>([]);
+  const [corrLoading, setCorrLoading] = useState(false);
+
+  // ── Sync All state ──────────────────────────────────────────────────────
+  const [syncingAll, setSyncingAll] = useState(false);
+  const [syncAllResult, setSyncAllResult] = useState<{synced:number;failed:number}|null>(null);
+
+  // ── EDL copy state ──────────────────────────────────────────────────────
+  const [edlCopied, setEdlCopied] = useState<string|null>(null);
+
+  // ── Fetch helpers ───────────────────────────────────────────────────────
+  const fetchIocs = useCallback(async () => {
+    setIocLoading(true);
+    try { const r = await fetch("/api/firewall/ioc"); const d = await r.json(); setIocs(d.iocs ?? []); } catch {} finally { setIocLoading(false); }
+  }, []);
+
+  const fetchCorrelation = useCallback(async () => {
+    setCorrLoading(true);
+    try { const r = await fetch("/api/firewall/threat-feeds/correlation"); const d = await r.json(); setCorrelation(d.correlated ?? []); } catch {} finally { setCorrLoading(false); }
+  }, []);
+
+  useEffect(() => { fetchIocs(); fetchCorrelation(); }, [fetchIocs, fetchCorrelation]);
+
+  // ── IOC CRUD ────────────────────────────────────────────────────────────
+  const createIoc = async () => {
+    if (!iocForm.value.trim()) return;
+    setIocSubmitting(true);
+    try {
+      await fetch("/api/firewall/ioc", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(iocForm) });
+      setIocForm({ iocType:"ip", value:"", severity:"high", action:"block", confidence:100, source:"manual", description:"", tags:"" });
+      fetchIocs();
+    } catch {} finally { setIocSubmitting(false); }
+  };
+  const toggleIoc = async (id: number, enabled: boolean) => {
+    await fetch(`/api/firewall/ioc/${id}`, { method:"PUT", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ enabled }) });
+    fetchIocs();
+  };
+  const deleteIoc = async (id: number) => {
+    await fetch(`/api/firewall/ioc/${id}`, { method:"DELETE" });
+    fetchIocs();
+  };
+
+  // ── Sync All ────────────────────────────────────────────────────────────
+  const syncAll = async () => {
+    setSyncingAll(true); setSyncAllResult(null);
+    try {
+      const r = await fetch("/api/firewall/threat-feeds/sync-all", { method:"POST" });
+      const d = await r.json();
+      setSyncAllResult(d);
+      rFeeds(); fetchCorrelation();
+    } catch {} finally { setSyncingAll(false); }
+  };
+
+  // ── Copy EDL URL ────────────────────────────────────────────────────────
+  const copyEdl = (format: string, type: string) => {
+    const url = `${window.location.origin}/api/firewall/edl?format=${format}&type=${type}`;
+    navigator.clipboard.writeText(url).catch(() => {});
+    const key = `${format}-${type}`;
+    setEdlCopied(key);
+    setTimeout(() => setEdlCopied(null), 2000);
+  };
+
+  const SEV_COLOR: Record<string,string> = { critical:"#ff2222", high:"#ff6600", medium:"#ffaa00", low:"#44aaff" };
+  const ACT_COLOR: Record<string,string> = { block:"#ff4444", alert:"#ffaa00", allowlist:"#00ff88" };
+  const IOC_LABEL: Record<string,string>  = { ip:"IP", cidr:"CIDR", domain:"Domain", url:"URL", file_hash:"Hash", ja3:"JA3", email:"Email" };
+  const SRC_MAP: Record<string,string> = {
+    "Tor Exit Nodes":"Tor Project", "Emerging Threats Compromised IPs":"Proofpoint ET",
+    "Spamhaus DROP List":"Spamhaus", "Feodo Tracker C2 Blocklist":"Abuse.ch Feodo",
+    "ProxhqVPN Community Feed":"Internal", "AlienVault OTX Reputation":"AlienVault OTX",
+    "Cisco Talos IP Blacklist":"Cisco Talos", "URLhaus Malicious URLs":"Abuse.ch URLhaus",
+    "Abuse.ch SSLBL C2 IPs":"Abuse.ch SSLBL", "Blocklist.de Attack IPs":"Blocklist.de",
+    "DShield Honeypot Blocklist":"SANS DShield",
+  };
+
   return (
-    <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
-      {/* Threat Profiles */}
-      <div style={{ background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:8, padding:16 }}>
-        <div style={{ fontSize:12, color:"#ffaa00", fontWeight:700, marginBottom:14 }}>One-Click Threat Profiles — Palo Alto · Fortinet · Check Point + ProxhqVPN Presets</div>
+    <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+
+      {/* ── Feed Grid + Sync All ── */}
+      <div style={{ background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:8, padding:14 }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12 }}>
+          <div style={{ fontSize:11, color:"#ff9900", fontWeight:700, display:"flex", alignItems:"center", gap:6 }}><Rss size={12}/>Threat Intelligence Feeds — {feeds?.enabledCount ?? 0}/{feeds?.total ?? 0} Active</div>
+          <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+            {syncAllResult && <span style={{ fontSize:9, color: syncAllResult.failed > 0 ? "#ff9900":"#00ff88" }}>{syncAllResult.synced} synced · {syncAllResult.failed} failed</span>}
+            <button onClick={syncAll} disabled={syncingAll} style={{ background:"#ff990022", border:"1px solid #ff990044", color:"#ff9900", borderRadius:6, padding:"5px 10px", cursor:"pointer", fontSize:9, display:"flex", alignItems:"center", gap:4 }}>
+              <RefreshCw size={9} style={{ animation: syncingAll?"spin 1s linear infinite":"none" }}/>{syncingAll?"Syncing All…":"Sync All Feeds"}
+            </button>
+          </div>
+        </div>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8 }}>
+          {(feeds?.feeds ?? []).map(f => (
+            <div key={f.id} style={{ background:"#111", borderRadius:6, padding:10 }}>
+              <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", marginBottom:3, gap:4 }}>
+                <span style={{ fontSize:10, color:"#bbb", fontWeight:600, flex:1, lineHeight:1.3 }}>{f.name}</span>
+                <Bdg label={f.status} color={f.status==="synced"?"#00ff88":f.status==="error"?"#ff4444":"#888"} sm/>
+              </div>
+              <div style={{ fontSize:9, color:"#444", marginBottom:5 }}>{SRC_MAP[f.name] ?? f.name} · {f.feedType}</div>
+              <div style={{ fontSize:9, color:"#555", marginBottom:6 }}>
+                {f.entryCount > 0 ? <span style={{color:"#666"}}>{(f.entryCount as number).toLocaleString()} entries</span> : <span>Not synced</span>}
+                {f.lastSyncedAt && <span style={{color:"#333"}}> · {new Date(f.lastSyncedAt as string).toLocaleDateString()}</span>}
+              </div>
+              {f.errorMessage && <div style={{ fontSize:8, color:"#ff4444", marginBottom:4, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{f.errorMessage as string}</div>}
+              <div style={{ display:"flex", gap:4 }}>
+                <button onClick={()=>updFeed.mutate({id:f.id,data:{enabled:!f.enabled}},{onSuccess:()=>rFeeds()})} style={{ background:f.enabled?"#00ff8811":"#22222222", border:`1px solid ${f.enabled?"#00ff8833":"#333"}`, color:f.enabled?"#00ff88":"#444", borderRadius:3, padding:"2px 6px", cursor:"pointer", fontSize:8 }}>{f.enabled?"ON":"OFF"}</button>
+                <button onClick={()=>sync.mutate({id:f.id},{onSuccess:()=>{rFeeds();fetchCorrelation();}})} style={{ background:"#44aaff11", border:"1px solid #44aaff33", color:"#44aaff", borderRadius:3, padding:"2px 6px", cursor:"pointer", fontSize:8, display:"flex", alignItems:"center", gap:2 }}><RefreshCw size={7}/>Sync</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── One-Click Threat Profiles ── */}
+      <div style={{ background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:8, padding:14 }}>
+        <div style={{ fontSize:11, color:"#ffaa00", fontWeight:700, marginBottom:12 }}>One-Click Threat Profiles — Palo Alto · Fortinet · Check Point + ProxhqVPN Presets</div>
         <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10 }}>
           {(profiles?.profiles??[]).map(p=>(
             <div key={p.id} style={{ background:"#111", border:`1px solid ${p.color}33`, borderRadius:8, padding:12 }}>
@@ -784,40 +900,166 @@ function ThreatTab() {
           ))}
         </div>
       </div>
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
-        {/* Threat Feeds */}
-        <div style={{ background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:8, padding:14 }}>
-          <div style={{ fontSize:11, color:"#ff9900", fontWeight:700, marginBottom:10, display:"flex", alignItems:"center", gap:6 }}><Rss size={12}/>Threat Intelligence Feeds</div>
-          {(feeds?.feeds??[]).map(f=>(
-            <div key={f.id} style={{ background:"#111", borderRadius:6, padding:10, marginBottom:8 }}>
-              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:3 }}>
-                <span style={{ fontSize:12, color:"#bbb" }}>{f.name}</span>
-                <Bdg label={f.status} color={f.status==="synced"?"#00ff88":f.status==="error"?"#ff4444":"#888"} sm/>
-              </div>
-              <div style={{ fontSize:10, color:"#444", marginBottom:6 }}>{f.entryCount} entries · {f.lastSyncedAt?new Date(f.lastSyncedAt).toLocaleString():"Never synced"}</div>
-              <div style={{ display:"flex", gap:6 }}>
-                <button onClick={()=>updFeed.mutate({id:f.id,data:{enabled:!f.enabled}},{onSuccess:()=>rFeeds()})} style={{ background:f.enabled?"#00ff8811":"#22222222", border:`1px solid ${f.enabled?"#00ff8833":"#333"}`, color:f.enabled?"#00ff88":"#444", borderRadius:3, padding:"2px 8px", cursor:"pointer", fontSize:9, fontFamily:"monospace" }}>{f.enabled?"ON":"OFF"}</button>
-                <button onClick={()=>sync.mutate({id:f.id},{onSuccess:()=>rFeeds()})} style={{ background:"#44aaff11", border:"1px solid #44aaff33", color:"#44aaff", borderRadius:3, padding:"2px 8px", cursor:"pointer", fontSize:9 }}><RefreshCw size={9}/></button>
-              </div>
-            </div>
-          ))}
+
+      {/* ── IOC Manager ── */}
+      <div style={{ background:"#0a0a0a", border:"1px solid #cc44ff33", borderRadius:8, padding:14 }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
+          <div style={{ fontSize:11, color:"#cc44ff", fontWeight:700, display:"flex", alignItems:"center", gap:6 }}><AlertTriangle size={12}/>IOC Manager — Indicators of Compromise</div>
+          <div style={{ fontSize:9, color:"#555" }}>{iocs.length} total · {iocs.filter(i=>i["action"]==="block"&&i["enabled"]).length} blocking · {iocs.filter(i=>i["action"]==="alert").length} alerting</div>
         </div>
+        {/* Add form */}
+        <div style={{ background:"#111", borderRadius:6, padding:8, marginBottom:10, display:"grid", gridTemplateColumns:"110px 1fr 95px 95px 64px auto auto", gap:6, alignItems:"center" }}>
+          <select value={iocForm.iocType} onChange={e=>setIocForm(p=>({...p,iocType:e.target.value}))} style={{ background:"#0a0a0a", border:"1px solid #333", color:"#ccc", borderRadius:4, padding:"4px 6px", fontSize:10, cursor:"pointer" }}>
+            {["ip","cidr","domain","url","file_hash","ja3","email"].map(t=><option key={t} value={t}>{IOC_LABEL[t]??t}</option>)}
+          </select>
+          <input value={iocForm.value} onChange={e=>setIocForm(p=>({...p,value:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&createIoc()} placeholder="192.0.2.1  evil.com  sha256:abc…" style={{ background:"#0a0a0a", border:"1px solid #333", color:"#ccc", borderRadius:4, padding:"4px 8px", fontSize:10, outline:"none", fontFamily:"monospace" }}/>
+          <select value={iocForm.severity} onChange={e=>setIocForm(p=>({...p,severity:e.target.value}))} style={{ background:"#0a0a0a", border:`1px solid ${SEV_COLOR[iocForm.severity]??"#333"}44`, color:SEV_COLOR[iocForm.severity]??"#ccc", borderRadius:4, padding:"4px 6px", fontSize:10, cursor:"pointer" }}>
+            {["critical","high","medium","low"].map(s=><option key={s} value={s}>{s}</option>)}
+          </select>
+          <select value={iocForm.action} onChange={e=>setIocForm(p=>({...p,action:e.target.value}))} style={{ background:"#0a0a0a", border:`1px solid ${ACT_COLOR[iocForm.action]??"#333"}44`, color:ACT_COLOR[iocForm.action]??"#ccc", borderRadius:4, padding:"4px 6px", fontSize:10, cursor:"pointer" }}>
+            {["block","alert","allowlist"].map(a=><option key={a} value={a}>{a}</option>)}
+          </select>
+          <input type="number" value={iocForm.confidence} onChange={e=>setIocForm(p=>({...p,confidence:Number(e.target.value)}))} min={0} max={100} title="Confidence %" style={{ background:"#0a0a0a", border:"1px solid #333", color:"#ccc", borderRadius:4, padding:"4px 6px", fontSize:10, outline:"none", textAlign:"center" }}/>
+          <input value={iocForm.description} onChange={e=>setIocForm(p=>({...p,description:e.target.value}))} placeholder="Description…" style={{ background:"#0a0a0a", border:"1px solid #333", color:"#ccc", borderRadius:4, padding:"4px 8px", fontSize:10, outline:"none" }}/>
+          <button onClick={createIoc} disabled={iocSubmitting||!iocForm.value.trim()} style={{ background:"#cc44ff22", border:"1px solid #cc44ff44", color:"#cc44ff", borderRadius:4, padding:"4px 10px", cursor:"pointer", fontSize:10, whiteSpace:"nowrap", display:"flex", alignItems:"center", gap:3 }}>
+            <Plus size={9}/>Add
+          </button>
+        </div>
+        {/* IOC table */}
+        {iocLoading ? (
+          <div style={{color:"#444",fontSize:11,padding:"8px 0"}}>Loading IOCs…</div>
+        ) : iocs.length === 0 ? (
+          <div style={{ color:"#333", fontSize:11, textAlign:"center", padding:16 }}>No IOCs configured. Add indicators above to start blocking or alerting.</div>
+        ) : (
+          <div style={{ maxHeight:260, overflow:"auto" }}>
+            <table style={{ width:"100%", borderCollapse:"collapse", fontSize:10 }}>
+              <thead>
+                <tr style={{ color:"#444", borderBottom:"1px solid #222" }}>
+                  {["Type","Value","Severity","Action","Conf","Source","Hits","",""].map((h,i)=><th key={i} style={{ textAlign:"left", padding:"3px 8px", fontWeight:600 }}>{h}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {iocs.map(ioc=>(
+                  <tr key={ioc["id"] as number} style={{ borderBottom:"1px solid #111", opacity: ioc["enabled"] ? 1 : 0.4 }}>
+                    <td style={{ padding:"4px 8px", color:"#777", fontFamily:"monospace", fontSize:9 }}>{IOC_LABEL[ioc["iocType"] as string]??ioc["iocType"] as string}</td>
+                    <td style={{ padding:"4px 8px", color:"#ccc", fontFamily:"monospace", maxWidth:150, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{ioc["value"] as string}</td>
+                    <td style={{ padding:"4px 8px" }}><Bdg label={ioc["severity"] as string} color={SEV_COLOR[ioc["severity"] as string]??"#888"} sm/></td>
+                    <td style={{ padding:"4px 8px" }}><Bdg label={ioc["action"] as string} color={ACT_COLOR[ioc["action"] as string]??"#888"} sm/></td>
+                    <td style={{ padding:"4px 8px", color: (ioc["confidence"] as number)>=80?"#00ff88":(ioc["confidence"] as number)>=50?"#ffaa00":"#ff4444", fontFamily:"monospace", fontSize:9 }}>{ioc["confidence"] as number}%</td>
+                    <td style={{ padding:"4px 8px", color:"#555", fontSize:9 }}>{ioc["source"] as string}</td>
+                    <td style={{ padding:"4px 8px", color:"#666", fontFamily:"monospace", fontSize:9 }}>{ioc["hitCount"] as number}</td>
+                    <td style={{ padding:"4px 8px" }}>
+                      <button onClick={()=>toggleIoc(ioc["id"] as number, !(ioc["enabled"] as boolean))} style={{ background:ioc["enabled"]?"#00ff8811":"#22222222", border:`1px solid ${ioc["enabled"]?"#00ff8833":"#333"}`, color:ioc["enabled"]?"#00ff88":"#444", borderRadius:3, padding:"1px 5px", cursor:"pointer", fontSize:8 }}>{ioc["enabled"]?"ON":"OFF"}</button>
+                    </td>
+                    <td style={{ padding:"4px 8px" }}>
+                      <button onClick={()=>deleteIoc(ioc["id"] as number)} style={{ background:"none", border:"none", color:"#333", cursor:"pointer", padding:0 }}><Trash2 size={9}/></button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* ── EDL Export ── */}
+      <div style={{ background:"#0a0a0a", border:"1px solid #44aaff33", borderRadius:8, padding:14 }}>
+        <div style={{ fontSize:11, color:"#44aaff", fontWeight:700, marginBottom:3, display:"flex", alignItems:"center", gap:6 }}><Download size={12}/>EDL Export — External Dynamic List</div>
+        <div style={{ fontSize:9, color:"#444", marginBottom:12 }}>Live threat list endpoints compatible with Palo Alto Networks, Fortinet FortiGate, Check Point, Azure Firewall, and any RFC-compliant EDL consumer. No auth required — served directly from GhostOS.</div>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8 }}>
+          {([
+            { label:"IP Blocklist", format:"txt", type:"ip", desc:"Palo Alto · Fortinet · Check Point", icon:"🛡️" },
+            { label:"IP Blocklist (JSON)", format:"json", type:"ip", desc:"Azure Firewall · API automation", icon:"📄" },
+            { label:"Domain Blocklist", format:"txt", type:"domain", desc:"DNS sinkhole · Proxy integration", icon:"🌐" },
+            { label:"URL Blocklist", format:"txt", type:"url", desc:"Web proxy · Next-gen FW URL feed", icon:"🔗" },
+            { label:"All Threats (CSV)", format:"csv", type:"all", desc:"SIEM · SOAR · Splunk ingestion", icon:"📊" },
+            { label:"All Threats (JSON)", format:"json", type:"all", desc:"Full threat feed for automation", icon:"🤖" },
+          ] as {label:string;format:string;type:string;desc:string;icon:string}[]).map(e=>{
+            const key = `${e.format}-${e.type}`;
+            const copied = edlCopied === key;
+            const url = `/api/firewall/edl?format=${e.format}&type=${e.type}`;
+            return (
+              <div key={key} style={{ background:"#111", borderRadius:6, padding:10 }}>
+                <div style={{ fontSize:10, color:"#bbb", marginBottom:2 }}>{e.icon} {e.label}</div>
+                <div style={{ fontSize:9, color:"#444", marginBottom:6 }}>{e.desc}</div>
+                <div style={{ background:"#0a0a0a", borderRadius:3, padding:"3px 7px", fontFamily:"monospace", fontSize:8, color:"#555", marginBottom:7, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{url}</div>
+                <div style={{ display:"flex", gap:4 }}>
+                  <button onClick={()=>copyEdl(e.format, e.type)} style={{ flex:1, background:copied?"#00ff8822":"#44aaff11", border:`1px solid ${copied?"#00ff8844":"#44aaff33"}`, color:copied?"#00ff88":"#44aaff", borderRadius:4, padding:"3px 6px", cursor:"pointer", fontSize:8, display:"flex", alignItems:"center", justifyContent:"center", gap:3 }}>
+                    {copied?<><Check size={7}/>Copied!</>:<><Copy size={7}/>Copy URL</>}
+                  </button>
+                  <a href={url} target="_blank" rel="noreferrer" style={{ background:"#44aaff11", border:"1px solid #44aaff33", color:"#44aaff", borderRadius:4, padding:"3px 6px", cursor:"pointer", fontSize:8, display:"flex", alignItems:"center", gap:2, textDecoration:"none" }}><ExternalLink size={7}/>View</a>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <div style={{ marginTop:10, padding:"7px 12px", background:"#44aaff08", border:"1px solid #44aaff1a", borderRadius:5, fontSize:8, color:"#555", lineHeight:1.7 }}>
+          <span style={{color:"#44aaff",fontWeight:700}}>Palo Alto:</span> Objects → External Dynamic Lists → Type: IP List → Source: copy URL above &nbsp;·&nbsp;
+          <span style={{color:"#44aaff",fontWeight:700}}>Fortinet:</span> Security Fabric → External Connectors → Threat Feeds &nbsp;·&nbsp;
+          <span style={{color:"#44aaff",fontWeight:700}}>Check Point:</span> Objects → Dynamic Objects → Feed URL
+        </div>
+      </div>
+
+      {/* ── Feed Correlation + Geo-IP ── */}
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
+
+        {/* Feed Correlation */}
+        <div style={{ background:"#0a0a0a", border:"1px solid #ff990033", borderRadius:8, padding:14 }}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
+            <div style={{ fontSize:11, color:"#ff9900", fontWeight:700, display:"flex", alignItems:"center", gap:6 }}><Zap size={12}/>Multi-Feed Correlation</div>
+            <button onClick={fetchCorrelation} disabled={corrLoading} style={{ background:"#ff990011", border:"1px solid #ff990033", color:"#ff9900", borderRadius:4, padding:"3px 7px", cursor:"pointer", fontSize:8 }}><RefreshCw size={8}/></button>
+          </div>
+          <div style={{ fontSize:9, color:"#444", marginBottom:8 }}>IPs confirmed by 2+ independent feeds — automatically higher confidence</div>
+          {corrLoading ? <div style={{color:"#444",fontSize:10}}>Analyzing…</div> : correlation.length === 0 ? (
+            <div style={{ color:"#333", fontSize:10, textAlign:"center", padding:12 }}>No correlated threats yet. Sync feeds to begin cross-feed analysis.</div>
+          ) : (
+            <div style={{ maxHeight:240, overflow:"auto" }}>
+              <table style={{ width:"100%", borderCollapse:"collapse", fontSize:9 }}>
+                <thead>
+                  <tr style={{ color:"#444", borderBottom:"1px solid #222" }}>
+                    {["IP/CIDR","Feeds","Confidence","Sources"].map(h=><th key={h} style={{ textAlign:"left", padding:"3px 7px", fontWeight:600 }}>{h}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {(correlation as {ip:string;feedCount:number;confidence:number;feeds:string[]}[]).slice(0,50).map((c,i)=>(
+                    <tr key={i} style={{ borderBottom:"1px solid #111" }}>
+                      <td style={{ padding:"4px 7px", fontFamily:"monospace", color:"#ff6644", fontSize:9 }}>{c.ip}</td>
+                      <td style={{ padding:"4px 7px", textAlign:"center" }}>
+                        <span style={{ background:"#ff990022", color:"#ff9900", borderRadius:10, padding:"1px 5px", fontSize:8 }}>{c.feedCount}</span>
+                      </td>
+                      <td style={{ padding:"4px 7px" }}>
+                        <div style={{ display:"flex", alignItems:"center", gap:4 }}>
+                          <div style={{ flex:1, background:"#1a1a1a", borderRadius:2, height:4 }}>
+                            <div style={{ width:`${c.confidence}%`, height:"100%", background:c.confidence>=80?"#ff4444":c.confidence>=60?"#ff9900":"#ffaa00", borderRadius:2 }}/>
+                          </div>
+                          <span style={{ fontSize:8, color:"#666", fontFamily:"monospace", width:28, textAlign:"right" }}>{c.confidence}%</span>
+                        </div>
+                      </td>
+                      <td style={{ padding:"4px 7px", color:"#444", fontSize:8, maxWidth:120, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{c.feeds.join(", ")}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
         {/* Geo-IP */}
         <div style={{ background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:8, padding:14 }}>
           <div style={{ fontSize:11, color:"#4488ff", fontWeight:700, marginBottom:10, display:"flex", alignItems:"center", gap:6 }}><Globe2 size={12}/>Geo-IP Blocking ({geo?.enabledCount}/{geo?.total})</div>
           <div style={{ display:"flex", gap:6, marginBottom:8 }}>
             <input value={gi.countryCode} onChange={e=>setGi(g=>({...g,countryCode:e.target.value.toUpperCase().slice(0,2)}))} placeholder="XX" style={{ width:44, background:"#111", border:"1px solid #333", borderRadius:6, padding:"6px 6px", color:"#ccc", fontFamily:"monospace", fontSize:11, textAlign:"center", outline:"none" }}/>
             <input value={gi.countryName} onChange={e=>setGi(g=>({...g,countryName:e.target.value}))} placeholder="Country name..." style={{ flex:1, background:"#111", border:"1px solid #333", borderRadius:6, padding:"6px 8px", color:"#ccc", fontSize:11, outline:"none" }}/>
-            <button onClick={()=>addGeo.mutate({data:{countryCode:gi.countryCode,countryName:gi.countryName}},{onSuccess:()=>{rGeo();setGi({countryCode:"",countryName:""}); }})} style={{ background:"#4488ff22", border:"1px solid #4488ff44", color:"#4488ff", borderRadius:6, padding:"6px 8px", cursor:"pointer" }}><Plus size={11}/></button>
+            <button onClick={()=>addGeo.mutate({data:{countryCode:gi.countryCode,countryName:gi.countryName}},{onSuccess:()=>{rGeo();setGi({countryCode:"",countryName:""})}})} style={{ background:"#4488ff22", border:"1px solid #4488ff44", color:"#4488ff", borderRadius:6, padding:"6px 8px", cursor:"pointer" }}><Plus size={11}/></button>
           </div>
           <div style={{ display:"flex", flexWrap:"wrap", gap:4, marginBottom:8 }}>
             {HRC.filter(c=>!(geo?.blocks??[]).find(b=>b.countryCode===c.code)).slice(0,8).map(c=>(
               <button key={c.code} onClick={()=>addGeo.mutate({data:{countryCode:c.code,countryName:c.name}},{onSuccess:()=>rGeo()})} style={{ background:"#ff444411", border:"1px solid #ff444433", color:"#ff4444", borderRadius:3, padding:"2px 7px", cursor:"pointer", fontSize:9, fontFamily:"monospace" }}>+{c.code}</button>
             ))}
           </div>
-          <div style={{ maxHeight:240, overflow:"auto", display:"flex", flexDirection:"column", gap:5 }}>
+          <div style={{ maxHeight:220, overflow:"auto", display:"flex", flexDirection:"column", gap:5 }}>
             {(geo?.blocks??[]).map(b=>(
-              <div key={b.id} style={{ display:"flex", alignItems:"center", gap:8, background:"#111", borderRadius:5, padding:"6px 10px" }}>
+              <div key={b.id} style={{ display:"flex", alignItems:"center", gap:8, background:"#111", borderRadius:5, padding:"5px 10px" }}>
                 <span style={{ fontFamily:"monospace", fontSize:11, color:"#666", width:26 }}>{b.countryCode}</span>
                 <span style={{ flex:1, fontSize:11, color:"#bbb" }}>{b.countryName}</span>
                 <span style={{ fontSize:10, color:"#ff9900", fontFamily:"monospace" }}>{b.hitCount}</span>
@@ -828,6 +1070,51 @@ function ThreatTab() {
           </div>
         </div>
       </div>
+
+      {/* ── Feed Analytics ── */}
+      <div style={{ background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:8, padding:14 }}>
+        <div style={{ fontSize:11, color:"#00ff88", fontWeight:700, marginBottom:10, display:"flex", alignItems:"center", gap:6 }}><BarChart3 size={12}/>Feed Analytics — Entry Distribution</div>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+          <div>
+            {(feeds?.feeds ?? []).filter(f => (f.entryCount as number) > 0).sort((a,b)=>(b.entryCount as number)-(a.entryCount as number)).map(f=>{
+              const maxC = Math.max(...(feeds?.feeds??[]).map(x=>x.entryCount as number), 1);
+              const pct = Math.round(((f.entryCount as number) / maxC) * 100);
+              return (
+                <div key={f.id} style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
+                  <div style={{ fontSize:9, color:"#555", width:150, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{f.name}</div>
+                  <div style={{ flex:1, background:"#111", borderRadius:3, height:8, overflow:"hidden" }}>
+                    <div style={{ width:`${pct}%`, height:"100%", background:f.status==="synced"?"#00ff8855":f.status==="error"?"#ff444455":"#333", borderRadius:3 }}/>
+                  </div>
+                  <div style={{ fontSize:9, color:"#555", fontFamily:"monospace", width:55, textAlign:"right" }}>{(f.entryCount as number).toLocaleString()}</div>
+                </div>
+              );
+            })}
+            {(feeds?.feeds ?? []).filter(f=>(f.entryCount as number)===0).length > 0 && (
+              <div style={{ fontSize:9, color:"#333", marginTop:4 }}>{(feeds?.feeds ?? []).filter(f=>(f.entryCount as number)===0).length} feeds pending sync</div>
+            )}
+          </div>
+          <div style={{ paddingLeft:12, borderLeft:"1px solid #1a1a1a" }}>
+            <div style={{ fontSize:9, color:"#444", marginBottom:8, fontWeight:700, textTransform:"uppercase", letterSpacing:1 }}>IOC Breakdown by Type</div>
+            <div style={{ display:"flex", flexWrap:"wrap", gap:5 }}>
+              {Object.entries(IOC_LABEL).map(([t, label]) => {
+                const count = iocs.filter(i=>i["iocType"]===t).length;
+                if (count === 0) return null;
+                return <Bdg key={t} label={`${label}: ${count}`} color="#cc44ff" sm/>;
+              })}
+              {iocs.length === 0 && <div style={{color:"#333",fontSize:9}}>No custom IOCs yet</div>}
+            </div>
+            <div style={{ marginTop:12, display:"flex", flexDirection:"column", gap:4 }}>
+              {[{l:"Active blocks",v:iocs.filter(i=>i["action"]==="block"&&i["enabled"]).length,c:"#ff4444"},{l:"Alert-only",v:iocs.filter(i=>i["action"]==="alert").length,c:"#ffaa00"},{l:"Allowlisted",v:iocs.filter(i=>i["action"]==="allowlist").length,c:"#00ff88"},{l:"Disabled",v:iocs.filter(i=>!i["enabled"]).length,c:"#444"}].map(row=>(
+                <div key={row.l} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", fontSize:9 }}>
+                  <span style={{color:"#555"}}>{row.l}</span>
+                  <span style={{color:row.c, fontFamily:"monospace"}}>{row.v}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
     </div>
   );
 }

@@ -1192,6 +1192,43 @@ export const firewallUserDecisionsTable = pgTable("firewall_user_decisions", {
   lastSeenAt:  timestamp("last_seen_at").defaultNow().notNull(),
 });
 
+// ── Custom IOC Manager ──────────────────────────────────────────────────────
+// Threat indicators manually added by operators or ingested from external sources.
+export const firewallIocTypeEnum    = pgEnum("firewall_ioc_type",     ["ip","cidr","domain","url","file_hash","ja3","email"]);
+export const firewallIocSeverityEnum= pgEnum("firewall_ioc_severity", ["critical","high","medium","low"]);
+export const firewallIocActionEnum  = pgEnum("firewall_ioc_action",   ["block","alert","allowlist"]);
+
+export const firewallIocsTable = pgTable("firewall_iocs", {
+  id:          serial("id").primaryKey(),
+  iocType:     firewallIocTypeEnum("ioc_type").notNull().default("ip"),
+  value:       text("value").notNull(),
+  severity:    firewallIocSeverityEnum("severity").notNull().default("high"),
+  action:      firewallIocActionEnum("action").notNull().default("block"),
+  confidence:  integer("confidence").notNull().default(100),   // 0-100
+  source:      text("source").notNull().default("manual"),
+  description: text("description"),
+  tags:        text("tags"),                                  // comma-sep
+  feedCount:   integer("feed_count").notNull().default(1),    // # feeds confirming this IOC
+  hitCount:    integer("hit_count").notNull().default(0),
+  enabled:     boolean("enabled").notNull().default(true),
+  expiresAt:   timestamp("expires_at"),
+  createdAt:   timestamp("created_at").defaultNow().notNull(),
+  lastSeenAt:  timestamp("last_seen_at"),
+});
+
+// ── Feed Entries (for cross-feed correlation) ──────────────────────────────
+// Stores a sample of entries from each synced feed so we can detect
+// which IPs appear in multiple feeds (higher confidence = stronger block).
+export const firewallFeedEntriesTable = pgTable("firewall_feed_entries", {
+  id:        serial("id").primaryKey(),
+  feedId:    integer("feed_id").notNull(),
+  feedName:  text("feed_name").notNull(),
+  value:     text("value").notNull(),      // IP, CIDR, domain, URL
+  entryType: text("entry_type").notNull().default("ip"),
+  firstSeen: timestamp("first_seen").defaultNow().notNull(),
+  lastSeen:  timestamp("last_seen").defaultNow().notNull(),
+});
+
 // ── Traffic Bridge — VPN peer traffic flagging & admin approval ─────────────
 export const trafficDecisionStatusEnum = pgEnum("traffic_decision_status", ["pending","approved","denied","expired"]);
 
