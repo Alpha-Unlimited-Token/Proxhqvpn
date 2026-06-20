@@ -44,8 +44,8 @@ function compareSemver(a: string, b: string): number {
 
 const CheckinSchema = z.object({
   nodeId:   z.string().min(1).max(128),
-  nodeName: z.string().min(1).max(256),
-  version:  z.string().min(1).max(64),
+  nodeName: z.string().min(1).max(256).optional(),
+  version:  z.string().min(1).max(64).optional().default("1.2.0"),
   ip:       z.string().min(1).max(64),
   os:       z.string().max(128).optional(),
   arch:     z.string().max(64).optional(),
@@ -92,7 +92,7 @@ router.post("/checkin", async (req: Request, res: Response) => {
       .insert(nodeAgentHealthTable)
       .values({
         nodeId:    body.nodeId,
-        nodeName:  body.nodeName,
+        nodeName:  body.nodeName ?? body.nodeId,
         version:   body.version,
         ip:        body.ip,
         os:        body.os,
@@ -107,7 +107,7 @@ router.post("/checkin", async (req: Request, res: Response) => {
       .onConflictDoUpdate({
         target: nodeAgentHealthTable.nodeId,
         set: {
-          nodeName:  body.nodeName,
+          nodeName:  body.nodeName ?? body.nodeId,
           version:   body.version,
           ip:        body.ip,
           os:        body.os,

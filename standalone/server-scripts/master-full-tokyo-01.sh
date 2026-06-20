@@ -473,7 +473,7 @@ UPTIME=$(awk '{print int($1)}' /proc/uptime)
 EXT_IP=$(curl -sf --max-time 5 https://api.ipify.org || echo "unknown")
 LOAD=$(cat /proc/loadavg | awk '{print $1}')
 PAYLOAD=$(cat << JSON
-{"nodeId":"${NODE_ID}","region":"${NODE_REGION}","ip":"${EXT_IP}","cpuPct":${CPU:-0},"memPct":${MEM_PCT:-0},"diskMb":${DISK:-0},"wgPeers":${WG_PEERS:-0},"uptimeSec":${UPTIME:-0},"loadAvg1":${LOAD:-0},"status":"online"}
+{"nodeId":"${NODE_ID}","nodeName":"${NODE_ID}","version":"1.2.0","region":"${NODE_REGION}","ip":"${EXT_IP}","cpuPct":${CPU:-0},"memPct":${MEM_PCT:-0},"diskMb":${DISK:-0},"wgPeers":${WG_PEERS:-0},"uptimeSec":${UPTIME:-0},"loadAvg1":${LOAD:-0},"status":"online"}
 JSON
 )
 curl -sf -X POST "${API}/api/node-agent/checkin" \
