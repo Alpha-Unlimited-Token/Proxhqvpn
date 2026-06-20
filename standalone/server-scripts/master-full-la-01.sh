@@ -133,6 +133,16 @@ echo "  ✓ Wipe complete."
 # ═══════════════════════════════════════════════════════════════════════════
 echo ""
 echo "▶ PHASE 2: INSTALL — 15-step full stack..."
+
+# ── Kill apt lock holders — unattended-upgrades runs in background on Vultr ─
+export DEBIAN_FRONTEND=noninteractive
+systemctl stop unattended-upgrades apt-daily.service apt-daily-upgrade.service 2>/dev/null || true
+systemctl kill --kill-who=all apt-daily.service apt-daily-upgrade.service 2>/dev/null || true
+killall apt apt-get dpkg 2>/dev/null || true
+rm -f /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock /var/cache/apt/archives/lock /var/lib/apt/lists/lock 2>/dev/null || true
+dpkg --configure -a 2>/dev/null || true
+echo "  Apt lock cleared."
+
 set -e
 
 echo "[1/15] System update..."
