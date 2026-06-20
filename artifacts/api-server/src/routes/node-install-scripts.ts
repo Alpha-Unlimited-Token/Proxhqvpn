@@ -32,6 +32,13 @@ const NODE_SCRIPT_MAP: Record<string, string> = {
   "proxhqvpn-chicago":        "install-chicago.sh",
 };
 
+// Master wipe+reinstall+combat scripts — full clean slate per node
+const MASTER_SCRIPT_MAP: Record<string, string> = {
+  "proxhqvpn-tokyo-01":       "master-full-tokyo-01.sh",
+  "proxhqvpn-los-angeles-01": "master-full-la-01.sh",
+  "proxhqvpn-chicago":        "master-full-chicago.sh",
+};
+
 function validatePsk(req: Request): boolean {
   if (!NODE_AGENT_PSK) return false;
   const header = (req.headers["x-node-agent-psk"] as string | undefined) ?? "";
@@ -49,6 +56,39 @@ router.get("/combat-hardening", (_req: Request, res: Response) => {
     return;
   }
   const script = fs.readFileSync(COMBAT_SCRIPT_PATH, "utf-8");
+  res.status(200).type("text/plain").send(script);
+});
+
+// Master wipe+reinstall+combat — full clean slate (PSK required)
+router.get("/full/:nodeId", (req: Request, res: Response) => {
+  if (!validatePsk(req)) {
+    res.status(401).type("text/plain").send("Unauthorized\n");
+    return;
+  }
+
+  const nodeId = (req.params.nodeId as string).toLowerCase();
+  const filename = MASTER_SCRIPT_MAP[nodeId];
+
+  if (!filename) {
+    const available = Object.keys(MASTER_SCRIPT_MAP).join(", ");
+    res
+      .status(404)
+      .type("text/plain")
+      .send(`No master script for node: ${req.params.nodeId}\nAvailable: ${available}\n`);
+    return;
+  }
+
+  const scriptPath = path.join(SCRIPTS_DIR, filename);
+
+  if (!fs.existsSync(scriptPath)) {
+    res
+      .status(503)
+      .type("text/plain")
+      .send(`Master script not found on server: ${filename}\n`);
+    return;
+  }
+
+  const script = fs.readFileSync(scriptPath, "utf-8");
   res.status(200).type("text/plain").send(script);
 });
 
